@@ -322,13 +322,15 @@ describe("maintainer publication commands", () => {
     expect(finalizer).not.toContain('["pr", "merge"');
   });
 
-  it("moves synchronized package versions with the exact approved note in one manual reopening PR", async () => {
+  it("moves synchronized package versions with the exact approved note in one auto-merging reopening PR", async () => {
     const script = await readFile("scripts/release/prepare-reopening.mjs", "utf8");
     expect(script).toContain('value.lock.packages[""].version = version');
     expect(script).toContain("value.installer.version = version");
     expect(script).toContain('"packages/a1-install/package.json"');
     expect(script).toContain("reopening release note differs from the approved snapshot");
-    expect(script).toContain("autoMergeRequest !== null");
+    expect(script).toContain('!(pull.autoMergeRequest === null || pull.autoMergeRequest?.mergeMethod === "SQUASH")');
+    expect(script).toContain("merges automatically once required CI succeeds");
+    expect(script).not.toContain("must not auto-merge");
     expect(script).toContain("--force-with-lease=refs/heads/${branch}:");
     expect(script).toContain('["pr", "create"');
     expect(script).not.toContain('["pr", "merge"');

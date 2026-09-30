@@ -129,8 +129,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           node scripts/release/prepare-reopening.mjs
-      - name: Report manual reopening requirement
+      - name: Report reopening integration
         shell: bash
         env:
           PR_URL: ${{ steps.reopen.outputs.url }}
-        run: echo "Stable publication is complete. Required CI must pass on $PR_URL, then an authorized human must merge it manually." >> "$GITHUB_STEP_SUMMARY"
+        run: echo "Stable publication is complete. $PR_URL auto-merges once required CI passes on its current head; merge it manually only if documentation auto-merge reports it ineligible." >> "$GITHUB_STEP_SUMMARY"

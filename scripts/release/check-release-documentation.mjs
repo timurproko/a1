@@ -40,6 +40,7 @@ export function releaseDocumentationFindings(readme, runbook) {
   if (!/[Aa] target is required/u.test(runbook)) findings.push("docs/ci-release-runbook.md: missing target-required guidance");
   if (!runbook.includes("0.1.9-dev")) findings.push("docs/ci-release-runbook.md: missing next-development reopening example");
   if (!runbook.includes("release.published") || !runbook.includes("chore/release-0.1.9-dev")) findings.push("docs/ci-release-runbook.md: missing publication-before-reopening guidance");
+  if (!/squash-merges it\s+once required CI passes/u.test(runbook)) findings.push("docs/ci-release-runbook.md: missing reopening auto-merge guidance");
   if (!/merge (?:it )?manually/u.test(runbook)) findings.push("docs/ci-release-runbook.md: missing manual reopening merge guidance");
   if (/self-merging|merge themselves/u.test(runbook)) findings.push("docs/ci-release-runbook.md: version pull requests cannot self-merge");
   if (readme.includes("--approve") || runbook.includes("npm run release -- patch --approve")) findings.push("release documentation: retired local --approve command remains");

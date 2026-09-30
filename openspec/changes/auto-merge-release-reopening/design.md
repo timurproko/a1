@@ -20,9 +20,9 @@ The manager already has the necessary safety machinery: current-head validation 
 
 ### Verify content, not paths
 
-A pure `classifyReleaseReopening({ pull, files, commits, read })` in `scripts/governance/release-reopening-auto-merge.mjs` checks the following. Any failure makes the PR ineligible and reports the failing check.
+A `classifyReleaseReopening({ pull, files, repository, read, release })` in `scripts/governance/release-reopening-auto-merge.mjs` checks the following. Any failure makes the PR ineligible and reports the failing check.
 
-1. Identity: same repository, base `develop`, not a draft. The head ref matches `^chore/release-(\d+\.\d+\.\d+)-dev$`. `pull.user` is `openspec-ci[bot]` / 329165293 / `Bot`, and the PR has exactly one commit, authored by that identity. Branch name alone is never enough.
+1. Identity: same repository, base `develop`, not a draft. The head ref matches `^chore/release-(\d+\.\d+\.\d+)-dev$`. `pull.user` is `openspec-ci[bot]` / 329165293 / `Bot`, and the body carries no implementation or acceptance metadata. Branch name alone is never enough. Commit count and commit authorship are not checked: the reopening commit is authored as `github-actions[bot]` by `finalize-release.yml`, git author identity is forgeable, and updating a `behind` branch adds a merge commit. Content verification at the current head (items 2-4) is what bounds the merged tree.
 2. Paths: the changed files are exactly `package.json`, `package-lock.json`, and `packages/a1-install/package.json` (all `modified`), plus exactly one `docs/releases/<released>.md` with status `added`. There are no renames.
 3. Versions: the three manifests are read at `base.sha` and `head.sha` through the contents API. With `version` (and the lockfile's `packages[""].version`) removed, base and head must be identical JSON. The base must declare `<released>-dev` consistently, and the head must declare `semver.inc(<released>, "patch")-dev`, matching the branch name.
 4. Note: GitHub Release `v<released>` is published, not a draft, and not a prerelease. `parseReleaseNote(head note, <released>).markdown` equals the note derived from that Release's body by the same normalization `prepare-reopening` receives through the approved snapshot. The implementation must reuse that derivation, not reimplement it.
@@ -41,4 +41,7 @@ These checks mirror `assertCommit`, so the manager accepts exactly the PRs the t
 
 ## Evidence
 
-To be recorded during implementation.
+- Replay against #648 through the live GitHub API (base `622e2153`, head `16e697af`, read as open): `{"eligible":true,"reason":"verified release reopening 0.2.2 -> 0.2.3-dev"}`. The same PR with its author replaced by a user returns `{"eligible":false,"reason":"reopening PR was not opened by openspec-ci[bot]"}`.
+- `parseReleaseNote(<v0.2.2 Release body>, "0.2.2").markdown` is byte-identical to the merged `docs/releases/0.2.2.md`, so a reopening PR whose Release was not edited after publication verifies.
+- `release-reopening-auto-merge.test.ts` covers the accepted shape and each rejection in tasks 1.2. `documentation-auto-merge.test.ts` drives the real manager against a fake GitHub: it arms behind pending validation, squash-merges and deletes the branch on current-head success, does not merge on failed or stale validation, disarms a dependency change or foreign author, and keeps a `docs/releases/**` edit on an ordinary branch manual without reading contents.
+- Release policy, release target, runbook, and delivery guidance suites pass (20 files, 348 tests). The full `test/repository-governance` run passed 1450 of 1453: `naming-selection` and `validation-impact` exceeded 5 s under parallel load and pass when rerun alone, and `startup-descriptor` requires a built `dist/` that the unbuilt worktree lacks. `check:code-documentation` is clean.

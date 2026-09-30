@@ -1,6 +1,7 @@
 import { appendFile, readFile } from "node:fs/promises";
 import { classifyDocumentationAutoMerge, planDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
 import { inspectDocumentationLifecycle } from "./documentation-lifecycle.mjs";
+import { classifyReleaseReopening } from "./release-reopening-auto-merge.mjs";
 import { executeMergedBranchCleanup } from "./execute-merged-branch-cleanup.mjs";
 import { readArchiveMarker, archiveAuthorityCurrent } from "./openspec-archive-publication.mjs";
 
@@ -81,7 +82,8 @@ async function processPullRequest(number, run) {
       }
       return await summary(`PR #${number}: closed without merge of the expected head; no branch mutation.`);
     }
-    if (!await isTrustedEligible(pull)) return;
+    const route = await isTrustedEligible(pull);
+    if (!route) return;
     if (!sameHead) return await summary(`PR #${number}: head or identity changed during reconciliation; deferred.`);
 
     const validationMatchesHead = run.validationComplete && run.validatedHeadSha === pull.head?.sha;
@@ -128,7 +130,7 @@ async function processPullRequest(number, run) {
             pullRequest { number }
           }
         }`, { pullRequestId: pull.node_id }, "enablePullRequestAutoMerge", number);
-        await summary(`PR #${number}: exact documentation allowlist; squash auto-merge armed behind required validation.`);
+        await summary(`PR #${number}: exact ${route}; squash auto-merge armed behind required validation.`);
         if (validation === "pending") return;
         // Invariant: token-authored integration still needs synchronous branch cleanup.
       } catch (error) {
@@ -168,6 +170,13 @@ async function isTrustedEligible(pull) {
   const sameRepository = pull.head?.repo?.full_name === repositoryName;
   const trustedEligible = classification.eligible && sameRepository && !pull.draft && pull.base?.ref === "develop";
 
+  if (!classification.eligible && pull.head?.ref?.startsWith("chore/release-")) {
+    const reopening = await classifyReleaseReopening({ pull, files, repository: repositoryName, read: readFileAt, release: readRelease });
+    if (reopening.eligible) return "release reopening";
+    await disableIfArmed(pull, reopening.reason);
+    await summary(`PR #${number}: auto-merge not eligible — ${reopening.reason}.`);
+    return false;
+  }
   if (!trustedEligible) {
     const reason = classification.eligible
       ? !sameRepository
@@ -191,7 +200,17 @@ async function isTrustedEligible(pull) {
     await disableIfArmed(pull, "lifecycle classification unavailable");
     throw error;
   }
-  return true;
+  return "documentation allowlist";
+}
+
+async function readFileAt(path, ref) {
+  const file = await rest(`/repos/${owner}/${repository}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`);
+  if (file?.type !== "file" || file.encoding !== "base64" || typeof file.content !== "string") throw new Error(`${path}@${ref} is not a readable file`);
+  return Buffer.from(file.content, "base64").toString("utf8");
+}
+
+async function readRelease(tag) {
+  return await rest(`/repos/${owner}/${repository}/releases/tags/${encodeURIComponent(tag)}`);
 }
 
 async function mergeValidatedHead(pull, archiveBase) {

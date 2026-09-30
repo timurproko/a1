@@ -82,7 +82,7 @@ effect of stable publication, not a trigger.
 | `npm run develop` | Preview package gates on Windows, Linux, and macOS; an existing numbered preview is an early successful no-op |
 | Nightly at `03:17 UTC` | One full documentation review plus the complete non-physical suite on Windows, Linux, and macOS, every night |
 | `npm run release -- ...` | Creates an editable source-bound draft (or refreshes the existing draft of that version bound to an older `develop`, regenerating its notes and removing duplicate drafts of that version), starts the complete stable suite on that source in `.github/workflows/release-candidate.yml`, prints its run link, waits, and prints the draft edit link only after validation passes |
-| Native **Publish release** on the prepared draft | GitHub creates the source-bound tag; `.github/workflows/finalize-release.yml` requires the successful candidate run, adopts the package pair it validated (replacing only the packaged release-note resource when the note was edited), proves npm trust, publishes both packages to npm `latest`, and proposes one manually merged reopening-and-note PR; a failure before npm returns the Release to draft |
+| Native **Publish release** on the prepared draft | GitHub creates the source-bound tag; `.github/workflows/finalize-release.yml` requires the successful candidate run, adopts the package pair it validated (replacing only the packaged release-note resource when the note was edited), proves npm trust, publishes both packages to npm `latest`, and proposes one reopening-and-note PR that auto-merges after required CI; a failure before npm returns the Release to draft |
 | `.github/workflows/release-tag-cleanup.yml` | When a stable Release is deleted, or on dispatch with a version (`gh workflow run release-tag-cleanup.yml -f version=X.Y.Z`): the release-automation App deletes the leftover `vX.Y.Z` tag only while no Release uses it and npm serves neither package; a published version's tag is permanent |
 | `.github/workflows/full-regression.yml` | Additional on-demand complete regression without publication authority |
 | `.github/workflows/pi-upstream-sync.yml` | Nightly at `03:23 UTC`: when npm publishes a newer Pi than the pin that no closed proposal skipped, proposes the upgrade as a draft pull request with the vendored copies that follow upstream merged, the kept copies reported with their upstream delta, the ledger, headers, inventories, public API and feature baselines, startup graph, and parity evidence regenerated, and every gate verdict (passed, failed, or blocked by conflict markers) and review item in the body; never merges and never replaces a proposal a human has continued |
@@ -166,7 +166,11 @@ succeeds. If validation finishes before auto-merge can be armed and GitHub alrea
 reports the pull request clean, the reconciler squash-merges only the validated head
 SHA. Every current and renamed-from path must be under `openspec/**`, under
 `docs/**` other than `docs/releases/**`, or exactly the root `README.md`. Release
-history always requires manual integration. Eligible pull requests must use a
+history requires manual integration except in the verified release reopening PR:
+a `chore/release-X.Y.Z-dev` PR opened by `openspec-ci[bot]` that modifies only the
+three version declarations (base `<released>-dev`, head its patch successor `-dev`,
+nothing else in the manifests) and adds exactly `docs/releases/<released>.md` equal
+to the published stable Release body. It takes the same validated squash route. Eligible pull requests must use a
 non-draft branch in this repository and target `develop`. Implementation-associated PRs and newly introduced active OpenSpec changes are held for manual integration even when their diff is documentation-only. Body edits trigger reconciliation; removing a marker cannot bypass the base/head tree check. Standalone existing-change revisions and archive moves remain eligible.
 
 The exact allowlist covers maintained OpenSpec, architecture, feature, manual,
@@ -288,8 +292,9 @@ the version. The retired `--approve` form remains a mutation-free usage error.
    uploads the asset, fast-forwards `master`, and creates or exactly reuses
    `chore/release-0.1.9-dev`. That PR's single commit changes only the application
    manifest, root lockfile, installer version, and exact `docs/releases/0.1.8.md`.
-   Let required CI pass and **merge it manually**. Automation never merges or
-   enables auto-merge.
+   Documentation auto-merge re-verifies that exact content and squash-merges it
+   once required CI passes on its current head. If any check fails it disables
+   auto-merge; then let required CI pass and **merge it manually**.
 
 Publishing before validation finishes is safe: publication fails before npm and the
 Release returns to draft. Publish the draft again once validation has succeeded.
@@ -366,7 +371,7 @@ Rules that do not bend:
 - **Draft preparation stops:** inspect the reported draft Release. Preparation may safely reuse an exact source-bound draft without overwriting edits, and reuses a running or successful validation of the same source and version. If `develop` advanced, retire the stale draft explicitly and prepare a new one from synchronized `develop`.
 - **Candidate validation fails:** do not publish the draft. Fix the failure on `develop`, retire the draft, and prepare again; the new draft binds the new source. Publishing anyway fails before npm and returns the Release to draft.
 - **Publication fails before npm:** the rollback job returns the Release to draft and deletes the unconsumed tag, so no manual tag cleanup is needed. Read the failed `Publish stable release` run, fix the cause (for example, wait for validation, undo a body edit made after publishing, rerun candidate validation when its retained package is missing or older than 30 days, or register the trusted publisher the npm preflight names), and choose **Publish release** again. If the rollback job itself failed, rerun it; never delete or move a tag by hand.
-- **Publication fails after npm:** the Release and tag stay. Rerun the failed jobs of that same run: its retained candidate and digests make the final registry check an exact-byte no-op for any package already published. Any recovered reopening PR must contain only both next `-dev` version declarations and the exact approved `docs/releases/<released>.md`; merge it by hand after CI. Never republish immutable bytes. Never repeat stable publication for a published version.
+- **Publication fails after npm:** the Release and tag stay. Rerun the failed jobs of that same run: its retained candidate and digests make the final registry check an exact-byte no-op for any package already published. Any recovered reopening PR must contain only both next `-dev` version declarations and the exact approved `docs/releases/<released>.md`; it auto-merges after CI when it verifies, otherwise merge it by hand. Never republish immutable bytes. Never repeat stable publication for a published version.
 
 ## Safe release-command validation
 
