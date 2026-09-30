@@ -1,7 +1,7 @@
 ## 1. Changelog baseline
 
-- [ ] 1.1 Replace `normalBaseline` with selection of the highest published, non-prerelease Release below the target, whose remote tag commit is in the source's first-parent history; ignore local tags and fail when none exists.
-- [ ] 1.2 Test a stale local target tag, a deleted remote tag, a draft or prerelease Release, a tag off the first-parent history, and the v0.2.1 → v0.2.2 range producing all 30 merges.
+- [x] 1.1 Replace `normalBaseline` with selection of the highest published, non-prerelease Release below the target, whose remote tag commit is in the source's first-parent history; ignore local tags and fail when none exists.
+- [x] 1.2 Test a stale local target tag, a deleted remote tag, a draft or prerelease Release, a tag off the first-parent history, and the v0.2.1 → v0.2.2 range producing all 30 merges.
 
 ## 2. Candidate adoption
 
