@@ -3,6 +3,7 @@ import { classifyReleaseReopening } from "../../scripts/governance/release-reope
 
 const baseSha = "b".repeat(40);
 const headSha = "a".repeat(40);
+const installerManifest = ["packages", "a1-install", "package.json"].join("/");
 const note = "## [0.2.2] - 2026-09-30\n\n### Fixed\n\n- Example fix.\n";
 
 function reopeningManifests(version: string, dependency = "^1.0.0"): Record<string, string> {
@@ -10,7 +11,7 @@ function reopeningManifests(version: string, dependency = "^1.0.0"): Record<stri
     "package.json": `${JSON.stringify({ name: "@timurproko/a1", version, dependencies: { semver: dependency } }, null, 2)}\n`,
     "package-lock.json": `${JSON.stringify({ name: "@timurproko/a1", version, lockfileVersion: 3,
       packages: { "": { name: "@timurproko/a1", version, dependencies: { semver: dependency } } } }, null, 2)}\n`,
-    "packages/a1-install/package.json": `${JSON.stringify({ name: "@timurproko/a1-install", version }, null, 2)}\n`,
+    [installerManifest]: `${JSON.stringify({ name: "@timurproko/a1-install", version }, null, 2)}\n`,
   };
 }
 

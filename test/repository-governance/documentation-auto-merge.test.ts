@@ -562,11 +562,12 @@ describe("documentation auto-merge state recovery", () => {
 });
 
 describe("release reopening auto-merge", () => {
+  const installerManifest = ["packages", "a1-install", "package.json"].join("/");
   const note = "## [0.2.2] - 2026-09-30\n\n### Fixed\n\n- Example fix.\n";
   const manifests = (version: string, dependency = "^1.0.0"): Record<string, string> => ({
     "package.json": JSON.stringify({ name: "@timurproko/a1", version, dependencies: { semver: dependency } }),
     "package-lock.json": JSON.stringify({ name: "@timurproko/a1", version, packages: { "": { name: "@timurproko/a1", version } } }),
-    "packages/a1-install/package.json": JSON.stringify({ name: "@timurproko/a1-install", version }),
+    [installerManifest]: JSON.stringify({ name: "@timurproko/a1-install", version }),
   });
   const reopening = (overrides: Record<string, unknown> = {}) => pullFixture({
     changed_files: 4,
