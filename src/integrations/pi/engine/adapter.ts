@@ -334,6 +334,18 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#disposed;
   }
 
+  /**
+   * Report a newer A1 release found by the startup check. The shell renders the diagnostic as
+   * pinned Pi's `Update Available` notice; it arrives whenever the check resolves, so a late
+   * result is appended to the transcript like Pi's own fire-and-forget version check.
+   */
+  announceReleaseUpdate(release: { readonly version: string; readonly command: string; readonly changelogUrl: string | null }): void {
+    if (this.#disposed) return;
+    const changelog = release.changelogUrl === null ? "" : `\nChangelog: ${release.changelogUrl}`;
+    this.#addDiagnostic("info", "release-update", `New version ${release.version} is available. Run ${release.command}${changelog}`, true);
+    this.#emitView();
+  }
+
   suggestionReasoningPolicy(): OwnedUiPromptSuggestionReasoning {
     return this.#suggestions.reasoningPolicy();
   }

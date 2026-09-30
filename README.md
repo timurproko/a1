@@ -14,7 +14,7 @@ npm x -y -- @timurproko/a1-install --develop 0.1.8-dev.107   # exact preview
 ```sh
 a1                                      # launch A1 (profile: ~/.a1/agent)
 a1 help                                 # show all commands
-a1 version                              # show the version
+a1 version                              # show the current and latest versions
 a1 pi                                   # vanilla Pi oracle: ~/.pi/agent
 ```
 
@@ -27,6 +27,8 @@ a1 update --develop 107                 # install preview 107
 a1 update --develop 0.1.8-dev.107       # install that exact preview
 a1 update --models                      # refresh A1's model catalogs
 ```
+
+On interactive startup A1 checks, at most once a day, whether a newer release exists on its own channel and shows an `Update Available` notice with the command to run. It never installs anything. Turn it off with the `Update check` setting (Generic section), or set `A1_SKIP_VERSION_CHECK=1`; it is also skipped when `PI_OFFLINE` or `CI` is set, or when output is not a terminal. The check reads the public npm registry, or `npm_config_registry` when set.
 
 ## Extensions
 

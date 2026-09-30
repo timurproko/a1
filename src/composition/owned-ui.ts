@@ -6,6 +6,7 @@ import { PromptImageSidecar } from "../features/prompt-history/image-sidecar.js"
 import { resolvePromptHistoryPath } from "../features/prompt-history/paths.js";
 import { resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
 import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
+import type { AvailableRelease, StartupReleaseCheckOptions } from "../foundation/release/latest-release.js";
 import { readSessionRepositoryContext } from "../foundation/lifecycle/session-repository-context.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes } from "../integrations/pi/components/upstream/theme/theme.js";
@@ -49,6 +50,8 @@ export interface OwnedUiCompositionOptions {
   /** Deterministic release-note seams for composition tests. */
   readonly packageVersion?: string;
   readonly releaseNotes?: ReleaseNoteCatalog;
+  /** Startup release-availability seam; defaults to the throttled registry check. */
+  readonly checkForNewerRelease?: (options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>;
 }
 
 export interface OwnedUiComposition {
@@ -208,9 +211,26 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     clipboardDiagnostics?.dispose(); suggestionDiagnostics?.dispose();
     throw error;
   }
+  // Rationale: pinned Pi's version check is unreachable because the owned shell never runs its
+  // InteractiveMode, so A1 checks its own channel. The result is never awaited on the startup path;
+  // settings are read here because the runner resolves them only just before start.
+  const announceNewerRelease = async (): Promise<void> => {
+    const check: (input: StartupReleaseCheckOptions) => Promise<AvailableRelease | null> = options.checkForNewerRelease
+      ?? (await import("../foundation/release/latest-release.js")).checkForNewerRelease;
+    const release = await check({
+      runningVersion: packageVersion ?? await readPackageVersion(),
+      configDir: productPaths.configDir,
+      interactive: process.stdout.isTTY === true,
+      ...(settings === null || !ownedSurfaces ? {} : { settingEnabled: settings.value("updateCheck") }),
+    });
+    if (release !== null) adapter.announceReleaseUpdate(release);
+  };
   const application: OwnedUiApplicationPort = {
     get disposed() { return adapter.disposed; },
-    start: () => shell.start(),
+    start: () => {
+      shell.start();
+      void announceNewerRelease().catch(() => undefined);
+    },
     flush: () => adapter.flushEvents(),
     waitUntilStopped: () => shell.waitUntilStopped(),
     dispose: async () => {

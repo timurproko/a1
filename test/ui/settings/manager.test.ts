@@ -99,7 +99,7 @@ describe("owned settings manager", () => {
       const target = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await target.load();
       expect(readFileSync(seed.file, "utf8")).toBe(before);
-      expect(target.resolution).toMatchObject({ version: 9, migrated: false, notices: [] });
+      expect(target.resolution).toMatchObject({ version: 10, migrated: false, notices: [] });
       const group = target.sections().find(section => section.id === "agent");
       const entry = group?.entries.find(candidate => candidate.id === "promptSuggestions");
       expect(group).toMatchObject({ unavailableReason: null, readOnlyReason: null });
@@ -134,7 +134,7 @@ describe("owned settings manager", () => {
       expect(port.writes).toEqual([]);
       expect(port.flushed()).toBe(0);
       expect(JSON.parse(readFileSync(seed.file, "utf8"))).toEqual({
-        version: 9, values: { promptSuggestions: false, skillsPresentation: "expand", promptImageLimit: 12 },
+        version: 10, values: { promptSuggestions: false, skillsPresentation: "expand", promptImageLimit: 12 },
       });
       const restarted = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await restarted.load();

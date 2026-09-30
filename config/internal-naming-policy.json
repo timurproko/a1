@@ -82,6 +82,14 @@
       "semantics": "Explicit helper executable override; retain pending caller exposure review"
     },
     {
+      "role": "skipVersionCheck",
+      "key": "A1_SKIP_VERSION_CHECK",
+      "exposure": "public",
+      "owner": "src/foundation/release/latest-release.ts",
+      "evidence": "test/foundation/release/latest-release.test.ts",
+      "semantics": "Disables the interactive startup release-availability check"
+    },
+    {
       "role": "prFooterPreview",
       "key": "A1_PR_FOOTER_PREVIEW",
       "exposure": "review",

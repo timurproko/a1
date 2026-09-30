@@ -23,6 +23,7 @@
     "prFooterPreview": "A1_PR_FOOTER_PREVIEW",
     "profileHome": "A1_PROFILE_HOME",
     "runtimeDir": "A1_RUNTIME_DIR",
+    "skipVersionCheck": "A1_SKIP_VERSION_CHECK",
     "startupTrace": "A1_STARTUP_TRACE",
     "suggestionDiagnostics": "A1_SUGGESTION_DIAGNOSTICS",
     "terminalSessionId": "A1_TERMINAL_SESSION_ID"

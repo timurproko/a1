@@ -88,14 +88,17 @@ import {
   createPiShellHotkeys,
   createPiShellSessionInfo,
   renderPiShellCommandMessage,
+  renderPiShellPackageUpdateNotice,
+  renderPiShellReleaseUpdateBanner,
+  renderPiShellReleaseUpdateNotice,
   renderPiShellStatusText,
+  type PiShellReleaseUpdateBanner,
   type PiShellHotkeysPresentation,
 } from "../../integrations/pi/components/shell-presenters-info.js";
 import {
   createPiShellTranscriptComponent,
   isPiPromptStyleCompaction,
   paintPiSubmittedPromptTimestamp,
-  renderPiShellPackageUpdateNotice,
   renderPiShellStartupDiagnostic,
   renderPiShellTranscriptBlock,
   type PiShellSubmittedPromptComposer,
@@ -135,7 +138,7 @@ import type {
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
 import type { PastePreparationClientOptions } from "./paste-preparation-client.js";
 import { EditorHyperlinkBudget } from "./editor-hyperlink-budget.js";
-import { SessionViewportController, type SessionViewportInputResult } from "./session-viewport-controller.js";
+import { SessionViewportController, type SessionViewportInputResult, type TailControlRegion } from "./session-viewport-controller.js";
 import type { ResponseCopyExecutor } from "./response-copy-transport.js";
 import type { ResponseCopyEvent } from "./response-copy-protocol.js";
 import type { PasteEvent, PasteSource } from "./paste-protocol.js";
@@ -323,6 +326,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     readonly message: string;
     readonly errorCode?: ImageAttachmentError["code"];
   } | undefined;
+  // Invariant: bare A1 docks the release notice above the live status; closing it lasts for this session only.
+  #releaseNoticeDismissed = false;
+  #releaseCloseTarget: TailControlRegion | undefined;
   #copyAcknowledgement: string | undefined;
   #copyAcknowledgementTimer: ReturnType<typeof setTimeout> | undefined;
   #inputSurface: PiShellComponentPort;
@@ -769,7 +775,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       : Math.max(1, width - 1);
     const document = this.#renderDocumentLayout(documentWidth);
     const steeringRows = this.#renderQueued(documentWidth);
-    const statusRows = this.#renderStatus(documentWidth);
+    const releaseBanner = this.#renderReleaseBanner(documentWidth);
+    // Rationale: the release notice rides the bottom-aligned tail directly above Working, so it
+    // never displaces transcript content and scrolls away with the live status.
+    // Invariant: when idle the banner's last row sits on the line Working would occupy.
+    const statusRows = [...releaseBanner?.rows ?? [], ...this.#renderStatus(documentWidth)];
     const transientSignature = transientRowsSignature(steeringRows, statusRows);
     const snapshot = this.#visibleViewportSnapshot;
     // Invariant: paint-only feedback may cover either viewport or dock cells, so
@@ -842,6 +852,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       });
       this.#fullViewportCompositions += 1;
     } else this.#dockOnlyViewportCompositions += 1;
+    this.#locateReleaseClose(frame, releaseBanner, document.rows.length + steeringRows.length + statusRows.length, statusRows.length);
     this.#visibleViewportSnapshot = {
       width,
       height,
@@ -1000,6 +1011,37 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     if (requestRender) this.#componentRuntime.requestRender();
   }
 
+  #renderReleaseBanner(width: number): PiShellReleaseUpdateBanner | undefined {
+    if (this.#releaseNoticeDismissed) return undefined;
+    const diagnostic = this.#view.diagnostics.findLast(item => item.code === "release-update");
+    const release = diagnostic === undefined ? null : parseReleaseUpdateDiagnostic(diagnostic.message);
+    if (release === null) return undefined;
+    return renderPiShellReleaseUpdateBanner(release, width, this.#viewportController.tailControlHovered(this.#releaseCloseTarget));
+  }
+
+  #locateReleaseClose(
+    frame: TranscriptViewportFrame,
+    banner: PiShellReleaseUpdateBanner | undefined,
+    tailEnd: number,
+    tailLength: number,
+  ): void {
+    // Invariant: the tail is the document suffix, so the control's document row is fixed relative to its
+    // end; alignment gap rows precede it and the viewport scroll decides whether it is on screen.
+    const bannerStart = tailEnd + frame.descriptor.transientAlignmentGapRows - tailLength - frame.scrollTop + 1;
+    const rowStart = banner === undefined ? 0 : Math.max(1, bannerStart + banner.close.rowStart);
+    const rowEnd = banner === undefined ? 0 : Math.min(frame.hits.viewportHeight, bannerStart + banner.close.rowEnd);
+    this.#releaseCloseTarget = banner !== undefined && rowStart <= rowEnd
+      ? { rowStart, rowEnd, columnStart: banner.close.columnStart, columnEnd: banner.close.columnEnd }
+      : undefined;
+    this.#viewportController.setTailControl(this.#releaseCloseTarget === undefined ? undefined : {
+      ...this.#releaseCloseTarget,
+      activate: () => {
+        this.#releaseNoticeDismissed = true;
+        this.#releaseCloseTarget = undefined;
+      },
+    });
+  }
+
   #renderDockNotice(width: number): readonly string[] {
     const notice = this.#dockNotice;
     if (notice === undefined) return [];
@@ -1134,6 +1176,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         });
       }
     }
+    // Invariant: the A1 release notice precedes the extension-package notice, matching pinned Pi's order.
+    // Bare A1 docks it in the viewport tail instead of the document.
+    rows.push(...diagnostics
+      .filter(diagnostic => !this.#customViewport && diagnostic.code === "release-update")
+      .flatMap(diagnostic => {
+        const release = parseReleaseUpdateDiagnostic(diagnostic.message);
+        return release === null ? [] : renderPiShellReleaseUpdateNotice(release, width);
+      }));
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code === "package-updates")
       .flatMap(diagnostic => renderPiShellPackageUpdateNotice(
@@ -1151,6 +1201,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           : createPiShellChangelog(diagnostic.message).render(width)));
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "project-trust"
+        && diagnostic.code !== "release-update"
         && diagnostic.code !== "package-updates" && diagnostic.code !== "changelog-collapsed"
         && diagnostic.code !== "changelog-expanded")
       .slice(-3)
@@ -1887,6 +1938,15 @@ function transientRowsSignature(
   statusRows: readonly string[],
 ): string {
   return `${steeringRows.length}\u0000${steeringRows.join("\u0000")}\u0001${statusRows.length}\u0000${statusRows.join("\u0000")}`;
+}
+
+/** The release, command, and optional changelog carried by the adapter's `release-update` diagnostic. */
+function parseReleaseUpdateDiagnostic(message: string): { version: string; command: string; changelogUrl: string | null } | null {
+  const [instruction, changelog] = message.split("\n");
+  const match = /^New version (\S+) is available\. Run (.+)$/.exec(instruction ?? "");
+  if (match === null) return null;
+  const url = changelog === undefined ? null : /^Changelog: (\S+)$/.exec(changelog)?.[1] ?? null;
+  return { version: match[1]!, command: match[2]!, changelogUrl: url };
 }
 
 /** "Share URL: <url>" with the URL made clickable; other share wordings pass through unchanged. */
