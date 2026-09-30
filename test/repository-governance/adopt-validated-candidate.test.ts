@@ -91,7 +91,7 @@ function identity(schema: string, name: string, bytes: Buffer) {
 function applicationEntries(note: string | null, older = [olderNote]) {
   const releases = [...(note === null ? [] : [{ version, markdown: note }]), ...older];
   return [
-    entry("package/package.json", JSON.stringify({ name: "@timurproko/a1", version, bin: { a1: "dist/cli.js" } })),
+    entry("package/package.json", JSON.stringify({ name: "@timurproko/a1", version, bin: { fixture: "dist/cli.js" } })),
     entry("package/dist/cli.js", "#!/usr/bin/env node\n", 0o755),
     entry(RELEASE_NOTES_ENTRY, `${JSON.stringify({ schema: "a1-release-notes-v1", releases }, null, 2)}\n`),
     entry("package/dist/native/linux-x64/process-guardian", Buffer.alloc(1300, 7), 0o755),
@@ -100,8 +100,8 @@ function applicationEntries(note: string | null, older = [olderNote]) {
 
 function installerEntries(installerVersion: string, script = "#!/usr/bin/env node\n") {
   return [
-    entry("package/package.json", JSON.stringify({ name: "@timurproko/a1-install", version: installerVersion, bin: { "a1-install": "bin/a1-install.js" } })),
-    entry("package/bin/a1-install.js", script, 0o755),
+    entry("package/package.json", JSON.stringify({ name: "@timurproko/a1-install", version: installerVersion, bin: { install: "bin/install.js" } })),
+    entry("package/bin/install.js", script, 0o755),
   ];
 }
 
