@@ -4,9 +4,15 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- All seven tests of `session-resume.integration.test.ts` passed on windows-2025/Node 22 (package shard); only its `afterAll` hook exceeded its 30 s bound. The Complete regression required failure only reports that missing lane. No commit in the suspect range changed the resume launch chain or its teardown. The only change to the file adds a release-note acknowledgement to `beforeAll` (`0a9efd49`), which also passed the Full regression on `f0a04618`.
+- The runner was slow throughout. Candidate preparation took 20.5 s against about 11 s in the four Windows package-shard runs of 2026-09-29, and the two concurrent resume launches needed 8.3 s and 8.9 s to become ready against about 2.3 s. Their closes took 7.3 s and 4.3 s against about 0.3 s. In those passing runs `afterAll` took about 6.5 s. Here it ran past 30 s, starting at 09:09:31.8 and failing at 09:10:11.8.
+- Teardown is two bounded steps, but together they can exceed 30 s. Releasing the idle owner waits 3 s for an exit the test never requests, then runs `taskkill` twice with 1.5 s grace windows; locally this takes 5.2 to 5.5 s every run. `rm` retries a busy Windows tree up to ten times with linear back-off, which adds up to 11 s of waiting on top of re-walking the extracted and materialized candidate each time. The hook recorded no phases, so the log cannot say which step stalled.
+- `afterAll` now records `after-all-close`, `after-all-stop-supervisor`, and `after-all-remove-candidate` through the existing phase recorder. Its hang bound is 60 s, enough for both steps' worst cases, with the reason in the test's `Performance:` comment. No per-test deadline, readiness ceiling, assertion, or product code changes. If the next overrun's phase records show one step stuck without end, that step is a defect to fix, not a bound to raise again.
 
 ## Evidence
+
+- Phase records of the failed job end with `after-each-close` (id 28) passing at 09:09:31.8Z; the file failed at 09:10:11.8Z with `Hook timed out in 30000ms` at the `afterAll` on line 65.
+- Against the failed run's own `release-package-0.2.2-dev.644` candidate (same head `38530ce`), the instrumented file passes locally on Windows/Node 24 in 47 to 53 s (7 tests): `after-all-stop-supervisor` 5.2 to 5.5 s, `after-all-remove-candidate` 0.8 to 1.3 s. `tsgo -p tsconfig.json --noEmit` and the `documentation-changed` tier pass.
 
 - Run [Full regression #47](https://github.com/timurproko/a1/actions/runs/36693338614) (attempt 1, schedule) on `38530ce` at 2026-09-30T09:00:47Z:
   - `vitest-package-smoke-2` (`package-smoke`) failed on windows-2025-node22 (package shard) with exit 1.

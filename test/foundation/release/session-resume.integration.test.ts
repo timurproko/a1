@@ -62,12 +62,16 @@ afterEach(async () => {
   await phases.cleanup("after-each-close", () => Promise.all([...children].map(closeLaunch)));
 }, 35_000);
 
+// Performance: teardown is two bounded steps whose worst cases sum past 30 s on a slow Windows
+// runner: the idle-owner release (3 s exit wait, then two taskkill grace windows) and rm's ten
+// linear retries (11 s of back-off, each re-walking the extracted and materialized candidate).
+// Each step records its own phase so an overrun names the step that stalled.
 afterAll(async () => {
-  for (const child of children) await closeLaunch(child);
-  if (environment) await stopSupervisor();
+  await phases.cleanup("after-all-close", async () => { for (const child of children) await closeLaunch(child); });
+  if (environment) await phases.cleanup("after-all-stop-supervisor", () => stopSupervisor());
   vi.unstubAllEnvs();
-  if (extracted) await rm(extracted.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-}, 30_000);
+  if (extracted) await phases.cleanup("after-all-remove-candidate", () => rm(extracted.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
+}, 60_000);
 
 describe("same-pin resume through the exact packaged public launch chain", () => {
   it.each([false, true])("creates, exits, and executes the default-store hint (compacted: %s)", async compacted => {
