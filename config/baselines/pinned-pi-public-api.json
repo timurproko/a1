@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "0.99.1",
+      "version": "0.99.2",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -39,7 +39,7 @@
         {
           "name": "AgentSession",
           "kind": "class",
-          "hash": "3faa4d50ee6d6b079c17b0296721b0c060aa21350e9e0a8ecd922cfb0bae80e7",
+          "hash": "f6d9c3a8a610e2a3b02e559db048980698c8beb60db4c82085bd6e08136fc791",
           "consumers": [
             "src/integrations/pi/engine/adapter.ts",
             "src/integrations/pi/engine/compaction-progress.ts",
@@ -59,7 +59,7 @@
         {
           "name": "AgentSessionConfig",
           "kind": "interface",
-          "hash": "dd0e254ca8caf088a1efbfa2ea60e5123d2b57e5ba5e0d5376a4715935f59d70",
+          "hash": "55f5410d251dfbbf750e9ee60617c04f609cf9f98d6f83adaa41bbd1ef334349",
           "consumers": []
         },
         {
@@ -1682,7 +1682,7 @@
         {
           "name": "McpExposure",
           "kind": "type",
-          "hash": "c3237fdb79dad7e9df095fa8cea4c8e59c7e15a413005b8da919259027a402f6",
+          "hash": "8f8d84fe89c018d43e28edbf25a1e3738c58cdb4d057de5ac8b898b17f229c7d",
           "consumers": []
         },
         {
@@ -1802,7 +1802,7 @@
         {
           "name": "ModelRuntime",
           "kind": "class",
-          "hash": "47435fa208bc5fa7fb0f6f5c5024ce324af39058eef925d01f9796a2521370d4",
+          "hash": "1ee488c4a039273e7ae67193a6cbf8a1a8a5173248f398eaf633b72351cf31b7",
           "consumers": [
             "src/integrations/pi/engine/conformance.ts",
             "src/integrations/pi/engine/package-integration.ts",
@@ -2784,7 +2784,7 @@
         {
           "name": "ToolNamespace",
           "kind": "interface",
-          "hash": "7c733971555ff085c8ca41022f5463c87bc50e6e3b634602ee988686bd2143f5",
+          "hash": "e404097b35bdffecd0cd2eebf4b5c88808679fd09cc925e0b3034bd31715a0a1",
           "consumers": []
         },
         {
@@ -2838,7 +2838,7 @@
         {
           "name": "truncateToVisualLines",
           "kind": "function",
-          "hash": "33112872ed1da882d0a7ef7fff4827cf743710a9fe29a316cefd2086dceb4f70",
+          "hash": "2a1f54b00e7b06612c61d66195f83c19f75c74b4aacb2269c8f1e0b04dc6f7dc",
           "consumers": []
         },
         {
@@ -3022,7 +3022,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "0.99.1",
+      "version": "0.99.2",
       "entry": "dist/index.d.ts",
       "exports": [
         {

@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.99.1 (MIT), commit d86654abb8862e201933517d6f1fce9f88dd117f,
+ * Provenance: @earendil-works/pi-coding-agent 0.99.2 (MIT), commit 005af57d88ee23b33778f343a9595b32e67ff788,
  * packages/coding-agent/src/modes/interactive/components/session-selector.ts.
  * Modifications: Source-synchronized session selector port: preserve threaded/current/all scope,
  * search, sort, named/path filters, rename, delete confirmation, active-session protection, loading
