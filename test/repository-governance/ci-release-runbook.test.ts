@@ -57,7 +57,9 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("npm trusted publishing binds authorization to the exact workflow filename of the\n*calling* workflow");
     expect(runbook).toContain("`@timurproko/a1`");
     expect(runbook).toContain("`@timurproko/a1-install`");
-    for (const caller of ["finalize-release.yml", "develop.yml", "publish.yml"]) expect(runbook).toContain(`| \`${caller}\` |`);
+    for (const caller of ["release.yml", "develop.yml", "publish.yml"]) expect(runbook).toContain(`| \`${caller}\` |`);
+    expect(runbook).not.toContain("finalize-release.yml");
+    expect(runbook).toContain("draft's bound source must contain `.github/workflows/release.yml`");
     expect(runbook).toContain("environment `npm-publish`");
     expect(runbook).toContain("requires npm >= 11.5.1");
     expect(runbook).not.toContain("NPM_BOOTSTRAP_TOKEN");

@@ -60,4 +60,10 @@ Rollback requires restoring `finalize-release.yml`, its exact repository referen
 
 ## Evidence
 
-Planning evidence: active references to `finalize-release.yml` are limited to the stable wrapper's trusted caller check, governance inference/inventory, runbook, source provenance comment, and focused tests. Historical `Release`/`release.yml` readers are separate exact-pair compatibility paths and must remain. Implementation and validation evidence await explicit approval.
+- `.github/workflows/finalize-release.yml` is renamed to `.github/workflows/release.yml` with the workflow body unchanged; `publish.yml` now requires that exact path at the source-bound release tag.
+- Repository-governance inference/inventory, reopening provenance documentation, and the CI release runbook identify `release.yml`. The runbook requires both npm package settings and the draft's bound source to contain the new identity before stable publication.
+- Production and active-documentation paths contain no `finalize-release.yml` reference. Its only remaining test references are negative assertions that the obsolete file and runbook name stay absent.
+- Historical `Release`/`release.yml` triage compatibility remains unchanged. A focused assertion confirms the active `Publish stable release` workflow is not reclassified as the historical scheduled publisher.
+- Seven focused release/governance test files pass with 106 tests, including wrapper identity, npm trust diagnostics, governance inference, runbook references, historical provenance, and executable release tag/ID extraction.
+- Every workflow YAML file parses; strict OpenSpec validation, `tsgo -p tsconfig.json --noEmit`, release documentation governance, and `git diff --check` pass.
+- GitHub reports no pending draft Release during implementation. No live Release was published and no npm package setting was mutated; after merge the maintainer must edit both package entries from `finalize-release.yml` to `release.yml` before preparing/publishing a stable draft.

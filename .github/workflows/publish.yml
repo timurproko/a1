@@ -88,7 +88,7 @@ jobs:
                 exit 1
               fi
               expected_ref="refs/tags/v$requested_version"
-              expected_workflow="$GITHUB_REPOSITORY/.github/workflows/finalize-release.yml@$expected_ref"
+              expected_workflow="$GITHUB_REPOSITORY/.github/workflows/release.yml@$expected_ref"
               if [ "$EVENT_NAME" != "release" ] || [ "$GITHUB_REF" != "$expected_ref" ] || [ "$GITHUB_WORKFLOW_REF" != "$expected_workflow" ]; then
                 echo "::error::stable publication must originate from native publication of the prepared draft Release" >&2
                 exit 1

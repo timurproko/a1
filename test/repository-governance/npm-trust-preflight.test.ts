@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { assertTrustedPublishingNpm, callingWorkflow, proveTrustedPublishing } from "../../scripts/release/npm-trust-preflight.mjs";
 
 const env = {
-  GITHUB_WORKFLOW_REF: "timurproko/a1/.github/workflows/finalize-release.yml@refs/tags/v0.2.2",
+  GITHUB_WORKFLOW_REF: "timurproko/a1/.github/workflows/release.yml@refs/tags/v0.2.2",
   ACTIONS_ID_TOKEN_REQUEST_URL: "https://actions.example.test/token?api-version=2.0",
   ACTIONS_ID_TOKEN_REQUEST_TOKEN: "request-token",
 };
@@ -33,14 +33,14 @@ describe("npm trusted-publishing preflight", () => {
   });
 
   it("names the calling workflow, not the reusable publisher", () => {
-    expect(callingWorkflow(env.GITHUB_WORKFLOW_REF)).toEqual({ repository: "timurproko/a1", file: "finalize-release.yml" });
+    expect(callingWorkflow(env.GITHUB_WORKFLOW_REF)).toEqual({ repository: "timurproko/a1", file: "release.yml" });
     expect(callingWorkflow("timurproko/a1/.github/workflows/develop.yml@refs/heads/develop").file).toBe("develop.yml");
     expect(() => callingWorkflow(undefined)).toThrow(/does not name a workflow file/u);
   });
 
   it("exchanges the job identity for both packages before any upload", async () => {
     const { calls, fetch } = registry();
-    await expect(proveTrustedPublishing({ packages, env, fetch })).resolves.toEqual({ workflow: "finalize-release.yml", packages });
+    await expect(proveTrustedPublishing({ packages, env, fetch })).resolves.toEqual({ workflow: "release.yml", packages });
     expect(calls).toEqual([
       "GET https://actions.example.test/token?api-version=2.0&audience=npm%3Aregistry.npmjs.org",
       "POST https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@timurproko%2fa1",
@@ -52,7 +52,7 @@ describe("npm trusted-publishing preflight", () => {
     const { fetch } = registry(["@timurproko/a1-install"]);
     const failure = proveTrustedPublishing({ packages, env, fetch });
     await expect(failure).rejects.toThrow("npm refused trusted publishing for @timurproko/a1-install (HTTP 404); nothing was uploaded");
-    await expect(failure).rejects.toThrow("register finalize-release.yml (repository timurproko/a1, environment npm-publish) as a trusted publisher");
+    await expect(failure).rejects.toThrow("register release.yml (repository timurproko/a1, environment npm-publish) as a trusted publisher");
   });
 
   it("fails before contacting npm when the job has no OIDC identity", async () => {

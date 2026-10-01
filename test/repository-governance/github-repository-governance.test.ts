@@ -105,9 +105,9 @@ describe("declarative GitHub repository governance", () => {
   });
 
   it("recognizes tag rollback only through a contents-scoped App token", async () => {
-    const source = await readFile(".github/workflows/finalize-release.yml", "utf8");
-    expect(inspectWorkflowSource(".github/workflows/finalize-release.yml", source).authority).toContain("unconsumed-release-tag-rollback");
-    const unscoped = inspectWorkflowSource(".github/workflows/finalize-release.yml", source.replace(/^\s+permission-contents: write\n/m, ""));
+    const source = await readFile(".github/workflows/release.yml", "utf8");
+    expect(inspectWorkflowSource(".github/workflows/release.yml", source).authority).toContain("unconsumed-release-tag-rollback");
+    const unscoped = inspectWorkflowSource(".github/workflows/release.yml", source.replace(/^\s+permission-contents: write\n/m, ""));
     expect(unscoped.authority).toContain("unscoped-release-tag-rollback");
     expect(unscoped.authority).not.toContain("unconsumed-release-tag-rollback");
   });
