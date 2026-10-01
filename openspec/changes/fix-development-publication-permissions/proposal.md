@@ -20,4 +20,4 @@ None.
 
 ## Impact
 
-This changes `.github/workflows/develop.yml`, focused release workflow policy tests, and the publication permission contract. It does not change publication source/version selection, validation lanes, npm authority, package bytes, stable release behavior, or the maintainer command interface.
+This changes `.github/workflows/develop.yml`, its declarative repository-governance permission inventory, focused release workflow policy tests, and the publication permission contract. It does not change publication source/version selection, validation lanes, npm authority, package bytes, stable release behavior, or the maintainer command interface.

@@ -13,9 +13,11 @@ on:
         required: true
         type: string
 
+# GitHub validates every nested reusable-workflow job before channel conditions run.
+# Stable-only jobs request contents: write; publish.yml still narrows each executing job.
 permissions:
   actions: read
-  contents: read
+  contents: write
   id-token: write
 
 jobs:

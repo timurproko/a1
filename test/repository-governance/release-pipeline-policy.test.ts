@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 import { publicationValidationMatrix } from "../../scripts/release/publication-validation-matrix.mjs";
 
 async function workflow(): Promise<string> {
@@ -22,6 +23,32 @@ describe("deliberate publication pipeline", () => {
     expect(await readFile(".github/workflows/release-candidate.yml", "utf8")).toContain("workflow_dispatch:");
     await expect(readFile(".github/workflows/approve-release.yml", "utf8")).rejects.toThrow();
     expect(await readFile(".github/workflows/finalize-release.yml", "utf8")).toContain("types: [published]");
+  });
+
+  it("grants every reusable publisher caller its static permission ceiling", async () => {
+    type Permission = "none" | "read" | "write";
+    type Workflow = { permissions?: Record<string, Permission>; jobs?: Record<string, { permissions?: Record<string, Permission> }> };
+    const rank = { none: 0, read: 1, write: 2 } as const;
+    const publisher = parse(await workflow()) as Workflow;
+    const required: Record<string, Permission> = {};
+    for (const permissions of [publisher.permissions, ...Object.values(publisher.jobs ?? {}).map(job => job.permissions)]) {
+      for (const [scope, level] of Object.entries(permissions ?? {})) {
+        if (!required[scope] || rank[level] > rank[required[scope]]) required[scope] = level;
+      }
+    }
+    expect(required).toEqual({ actions: "read", contents: "write", "id-token": "write" });
+
+    const callers: string[] = [];
+    for (const name of await readdir(".github/workflows")) {
+      const source = await readFile(`.github/workflows/${name}`, "utf8");
+      if (!source.includes("uses: timurproko/a1/.github/workflows/publish.yml@develop")) continue;
+      callers.push(name);
+      const wrapper = parse(source) as Workflow;
+      for (const [scope, level] of Object.entries(required)) {
+        expect(rank[wrapper.permissions?.[scope] ?? "none"], `${name}: ${scope}`).toBeGreaterThanOrEqual(rank[level]);
+      }
+    }
+    expect(callers.sort()).toEqual(["develop.yml", "finalize-release.yml", "release-candidate.yml"]);
   });
 
   it("selects current develop once and resolves its merged pull request through GitHub", async () => {

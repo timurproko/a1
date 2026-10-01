@@ -28,7 +28,7 @@ Because validation fails during workflow expansion, the run contains no jobs and
 
 ### Grant the required caller ceiling
 
-Change `develop.yml` from `contents: read` to `contents: write`. This is a permission ceiling for the reusable call, not the effective permission of every called job. The reusable workflow keeps top-level `actions: read` and `contents: read`; only jobs with explicit job-level permission overrides receive more. In development mode the write-scoped `approval` and `complete` jobs are skipped by their existing conditions, while the npm publishing job separately requests only the OIDC and read permissions it needs.
+Change `develop.yml` from `contents: read` to `contents: write` and update the declarative repository-governance inventory to report that caller ceiling. This is a permission ceiling for the reusable call, not the effective permission of every called job. The reusable workflow keeps top-level `actions: read` and `contents: read`; only jobs with explicit job-level permission overrides receive more. In development mode the write-scoped `approval` and `complete` jobs are skipped by their existing conditions, while the npm publishing job separately requests only the OIDC and read permissions it needs.
 
 This matches the pattern already documented in `release-candidate.yml`: a caller must grant permissions required by the reusable workflow's complete static graph even when a selected mode skips write-scoped jobs.
 
@@ -50,4 +50,9 @@ Merge the workflow correction, then rerun `npm run develop`. The command should 
 
 ## Evidence
 
-Planning evidence only: GitHub run 36857604265 has conclusion `startup_failure`, zero jobs, and its run page identifies `develop.yml` line 22 as an invalid reusable-workflow call because nested `approval` and `complete` request `contents: write` above the caller's `contents: read` ceiling. Implementation and focused test evidence remain pending explicit approval.
+- GitHub run 36857604265 has conclusion `startup_failure`, zero jobs, and its run page identifies `develop.yml` line 22 as an invalid reusable-workflow call because nested `approval` and `complete` request `contents: write` above the caller's `contents: read` ceiling.
+- `develop.yml` now grants the same `actions: read`, `contents: write`, and `id-token: write` caller ceiling as the candidate and stable wrappers. `publish.yml` remains unchanged, including its read-only workflow default, explicit job overrides, and channel conditions.
+- The declarative repository-governance inventory now matches the development wrapper's caller ceiling.
+- Focused release-pipeline and repository-governance suites pass: 2 files and 28 tests. The policy discovers all three `publish.yml` callers and requires the complete static ceiling from each.
+- Every workflow YAML file parses, strict OpenSpec validation passes, `tsgo -p tsconfig.json --noEmit` passes, and `git diff --check` passes.
+- A live development dispatch is intentionally deferred until this default-branch workflow correction is merged: dispatching `develop.yml@develop` before integration would rerun the known-broken workflow, not the candidate. The static caller/callee contract and focused regression test cover the corrected bytes; the migration plan retains the first post-merge `npm run develop` as operational confirmation.
