@@ -6,7 +6,7 @@ The Defender-enabled Windows development publication can fail a valid exact-pack
 
 - Bound payload-file creation concurrency in the production-shaped exact-package cleanup fixture so setup cannot flood the Windows filesystem or antivirus scanner.
 - Preserve the 42-release, 128-payload-file workload, JavaScript payload bytes, exact packaged worker, assertions, phase evidence, and existing timeout.
-- Add focused governance coverage for the finite setup bound and retain first-attempt Windows exact-package validation as the integration proof.
+- Add focused governance coverage for the finite setup bound, refresh line-sensitive generated identity inventory and approval coordinates without changing approved occurrence semantics, and retain first-attempt Windows exact-package validation as the integration proof.
 - Do not add retries, increase timeouts, disable Defender, reduce the workload, or change production cleanup behavior.
 
 ## Capabilities
@@ -21,4 +21,4 @@ None.
 
 ## Impact
 
-Implementation is limited to the exact-package cleanup integration fixture and its focused repository-governance coverage under `test/`. There are no public API, dependency, workflow, publication-authority, package-format, or production-runtime changes.
+Implementation is limited to the exact-package cleanup integration fixture, its focused repository-governance coverage under `test/`, and line-sensitive generated product-identity inventory/approval coordinates required by those test-line moves. There are no public API, dependency, workflow, publication-authority, package-format, approved identity-occurrence, or production-runtime changes.

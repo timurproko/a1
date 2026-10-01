@@ -7,6 +7,7 @@
 
 - [x] 2.1 Extend focused package-suite governance coverage to require finite payload-write concurrency and reject restoration of the 128-way write burst while retaining the workload assertion.
 - [x] 2.2 Verify the exact packaged cleanup scenario retains its worker invocation, state, protected-release, file/byte reduction, phase-evidence, and 120-second timeout assertions without retries or sleeps.
+- [x] 2.3 Regenerate the line-sensitive product-identity inventory and exact approvals and verify only moved fixture coordinates/fingerprints change while approved values, contexts, classes, and reasons remain unchanged.
 
 ## 3. Validation and evidence
 

@@ -32,7 +32,7 @@ Alternative: increase the timeout to the invocation's 600-second ceiling or auto
 
 ### 3. Protect the bound structurally and validate behavior on Windows
 
-Focused governance coverage will require the retained workload and explicit finite concurrency policy and will reject restoration of unbounded all-at-once payload creation. The selected current-head package-contract lane remains the behavioral proof: phase evidence must show setup and worker completion on the first execution, and all semantic assertions remain authoritative. No test will assert a narrow elapsed-performance threshold; the existing hang bound remains the only deadline.
+Focused governance coverage will require the retained workload and explicit finite concurrency policy and will reject restoration of unbounded all-at-once payload creation. Because adding the reviewed constant moves legacy package-identity fixture strings, implementation will regenerate the line-sensitive identity inventory and exact approval coordinates and review that only those coordinates and fingerprints changed; approved occurrence values, contexts, classes, and reasons remain unchanged. The selected current-head package-contract lane remains the behavioral proof: phase evidence must show setup and worker completion on the first execution, and all semantic assertions remain authoritative. No test will assert a narrow elapsed-performance threshold; the existing hang bound remains the only deadline.
 
 Alternative: add a timing assertion around setup. Rejected because hosted-runner elapsed time is not deterministic and was never the contract.
 
