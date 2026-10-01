@@ -628,6 +628,8 @@ Evidence SHALL identify source commit, merged-PR/version identity, package integ
 ### Requirement: Faster package fixtures preserve cold-state and oracle independence
 Fixture optimizations SHALL preserve fresh installation boundaries, exact package identity, representative workload sizes, independent comparison processes, hermetic mutable state, and verified owned-process cleanup. Immutable source templates or downloaded bytes SHALL be reusable only where their reuse does not supply the behavior under test or pre-warm a measured first-attempt launch. Every mutable instance, prefix, endpoint, release state, and cancellation lifecycle SHALL remain scenario-owned. Failed setup, assertions, command execution, or cleanup SHALL remain visible under the retained failure semantics rather than becoming a timing success.
 
+A production-shaped historical backlog fixture SHALL construct its retained payload through a reviewed finite I/O-concurrency bound before invoking the cleanup behavior under test. It SHALL preserve the release count, payload-file count, paths, contents, exact packaged worker, assertions, phase evidence, and existing timeout, and SHALL NOT use retries, sleeps, workload reduction, antivirus exclusions, or timeout extension to convert contention into success.
+
 #### Scenario: Repeated command fixtures share preparation
 - **WHEN** equivalent command tests reuse an immutable repository template
 - **THEN** each mutating scenario SHALL receive separate writable state and the same independent command assertions
@@ -646,6 +648,11 @@ Fixture optimizations SHALL preserve fresh installation boundaries, exact packag
 - **WHEN** a production-shaped historical backlog is expensive to construct
 - **THEN** optimization SHALL retain the existing release and payload counts and ownership/failure cases
 - **AND** smaller workloads SHALL not be reported as equivalent acceptance evidence
+
+#### Scenario: Backlog preparation runs on Defender-enabled Windows
+- **WHEN** the production-shaped exact-package cleanup fixture creates its historical payload before invoking the packaged worker
+- **THEN** payload creation SHALL use the reviewed finite I/O-concurrency bound and complete every write before cleanup begins
+- **AND** the first execution SHALL retain the existing timeout, workload, worker, semantic assertions, and phase evidence without an automatic retry
 
 #### Scenario: A failure would otherwise be hidden by cleanup
 - **WHEN** a fixture command or assertion fails and teardown also encounters a problem
