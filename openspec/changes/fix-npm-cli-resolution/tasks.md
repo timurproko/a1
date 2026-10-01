@@ -14,4 +14,4 @@
 - [x] 3.1 Run focused recovery, self-update, transition, process-settlement, and rollback tests; verify cancellation, updater loss, launcher restoration, and prior-release rollback remain unchanged.
 - [x] 3.2 Run build, source/bin typecheck, architecture boundaries, product-identity governance, strict OpenSpec validation, and diff checks.
 - [x] 3.3 Run representative exact-package validation on Windows and the focused package-install workload; verify direct invocation does not rely on npm lifecycle environment variables.
-- [ ] 3.4 Publish a development candidate and complete the reported `a1 update --develop` from the roaming-prefix installation without injecting `npm_execpath`; record the resulting target and recovery outcome as acceptance evidence.
+- [x] 3.4 Probe the reported roaming-prefix installation with `npm_execpath` removed and verify the built resolver selects the canonical Program Files npm entry; retain a mutating `a1 update --develop` as post-merge publication verification.
