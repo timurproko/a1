@@ -22,7 +22,8 @@ describe("deliberate publication pipeline", () => {
     expect(await readFile(".github/workflows/develop.yml", "utf8")).toContain("workflow_dispatch:");
     expect(await readFile(".github/workflows/release-candidate.yml", "utf8")).toContain("workflow_dispatch:");
     await expect(readFile(".github/workflows/approve-release.yml", "utf8")).rejects.toThrow();
-    expect(await readFile(".github/workflows/finalize-release.yml", "utf8")).toContain("types: [published]");
+    await expect(readFile(".github/workflows/finalize-release.yml", "utf8")).rejects.toThrow();
+    expect(await readFile(".github/workflows/release.yml", "utf8")).toContain("types: [published]");
   });
 
   it("grants every reusable publisher caller its static permission ceiling", async () => {
@@ -48,7 +49,7 @@ describe("deliberate publication pipeline", () => {
         expect(rank[wrapper.permissions?.[scope] ?? "none"], `${name}: ${scope}`).toBeGreaterThanOrEqual(rank[level]);
       }
     }
-    expect(callers.sort()).toEqual(["develop.yml", "finalize-release.yml", "release-candidate.yml"]);
+    expect(callers.sort()).toEqual(["develop.yml", "release-candidate.yml", "release.yml"]);
   });
 
   it("selects current develop once and resolves its merged pull request through GitHub", async () => {
@@ -227,7 +228,7 @@ describe("deliberate publication pipeline", () => {
     const [source, candidate, finalizer, client] = await Promise.all([
       workflow(),
       readFile(".github/workflows/release-candidate.yml", "utf8"),
-      readFile(".github/workflows/finalize-release.yml", "utf8"),
+      readFile(".github/workflows/release.yml", "utf8"),
       readFile("scripts/release/publication-client.mjs", "utf8"),
     ]);
     expect(source).toContain("description: Stable version named by the prepared or published Release tag");
@@ -245,7 +246,7 @@ describe("deliberate publication pipeline", () => {
     expect(finalizer).toContain("release_id: ${{ needs.identify.outputs.release_id }}");
     expect(finalizer).not.toMatch(/source_sha:/);
     expect(source).toContain("stable publication must originate from native publication of the prepared draft Release");
-    expect(source).toContain('expected_workflow="$GITHUB_REPOSITORY/.github/workflows/finalize-release.yml@$expected_ref"');
+    expect(source).toContain('expected_workflow="$GITHUB_REPOSITORY/.github/workflows/release.yml@$expected_ref"');
     expect(source).toContain("stable candidate validation must originate from its trusted default-branch wrapper");
     expect(source).toContain("is not part of develop history");
     expect(client).toContain('"workflow", "run", workflow, "--ref", "develop"');
@@ -256,7 +257,7 @@ describe("deliberate publication pipeline", () => {
   it("publishes only a published, validated, source-bound Release and returns failures before npm to draft", async () => {
     const source = await workflow();
     const approval = await readFile("scripts/release/release-approval.mjs", "utf8");
-    const finalizer = await readFile(".github/workflows/finalize-release.yml", "utf8");
+    const finalizer = await readFile(".github/workflows/release.yml", "utf8");
     expect(source).toContain("Snapshot the stable Release note");
     expect(source).toContain("assertAuthorizedApprovalActor(actor, permission, actorName)");
     expect(source).toContain("requireStableValidation(runs.workflow_runs, source, version)");
@@ -304,7 +305,7 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain("git/refs/heads/master");
     expect(source).toContain("-F force=false");
     expect(source).not.toContain('draft: false');
-    const finalizer = await readFile(".github/workflows/finalize-release.yml", "utf8");
+    const finalizer = await readFile(".github/workflows/release.yml", "utf8");
     expect(finalizer).toContain("release:");
     expect(finalizer).toContain("channel: stable");
     expect(finalizer).not.toContain("npm publish");
@@ -343,7 +344,7 @@ describe("maintainer publication commands", () => {
     expect(script).not.toContain("prepareVersion");
     expect(script).not.toMatch(/npm publish|npm pack/);
     expect(publication).not.toContain("node scripts/release/prepare-reopening.mjs");
-    const finalizer = await readFile(".github/workflows/finalize-release.yml", "utf8");
+    const finalizer = await readFile(".github/workflows/release.yml", "utf8");
     expect(finalizer).toContain("node scripts/release/prepare-reopening.mjs");
     expect(finalizer).toContain("actions/create-github-app-token@");
     expect(finalizer).not.toContain('["pr", "merge"');

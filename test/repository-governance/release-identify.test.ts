@@ -9,15 +9,15 @@ type Step = { id?: string; run?: string };
 type Workflow = { jobs: Record<string, { steps: Step[] }> };
 
 async function identifyScript(): Promise<string> {
-  const workflow = parse(await readFile(".github/workflows/finalize-release.yml", "utf8")) as Workflow;
+  const workflow = parse(await readFile(".github/workflows/release.yml", "utf8")) as Workflow;
   const step = workflow.jobs.identify!.steps.find(candidate => candidate.id === "identify");
-  if (!step?.run) throw new Error("finalize-release identify step is missing");
+  if (!step?.run) throw new Error("release identify step is missing");
   return step.run;
 }
 
 // Rationale: the step is executed, not only read, because a regex capture can be clobbered by a later test.
 async function identify(tag: string, releaseId: string) {
-  const directory = await mkdtemp(join(tmpdir(), "a1-finalize-identify-"));
+  const directory = await mkdtemp(join(tmpdir(), "a1-release-identify-"));
   try {
     const output = join(directory, "output").replaceAll("\\", "/");
     await writeFile(output, "");

@@ -74,7 +74,7 @@ export function inspectWorkflowSource(path, source) {
     || (["release-candidate.yml", "develop.yml"].some(name => path.endsWith(name)) && source.includes("uses: timurproko/a1/.github/workflows/publish.yml@develop"))) trustedSource = "default-branch";
   // Rationale: GitHub runs a release event from the tag it created at the published source;
   // that wrapper only selects the default-branch publisher, which re-derives every identity.
-  else if (path.endsWith("finalize-release.yml") && source.includes("uses: timurproko/a1/.github/workflows/publish.yml@develop")
+  else if (path.endsWith("release.yml") && source.includes("uses: timurproko/a1/.github/workflows/publish.yml@develop")
     && source.includes("ref: develop")) trustedSource = "published-release-tag";
   else if (path.endsWith("ci.yml") && source.includes("github.event.pull_request.head.sha") && permissions.every(value => value.endsWith("read"))) trustedSource = "pull-request-head-read-only";
   else if (path.endsWith("full-regression.yml") && source.includes("source: ${{ github.sha }}") && source.includes("uses: ./.github/workflows/full-regression-shared.yml")) trustedSource = "dispatch-commit";
@@ -107,7 +107,7 @@ export function inspectWorkflowSource(path, source) {
   }
   if (source.includes("publish-openspec-finalization.mjs") && source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) authority.push("single-pr-finalization-publication");
   if (path.endsWith("release-candidate.yml") && source.includes("channel: candidate") && line(/^  workflow_dispatch:\s*$/m)) authority.push("stable-release-candidate-validation");
-  if (path.endsWith("finalize-release.yml") && source.includes("channel: stable") && line(/^  release:\s*$/m)) authority.push("stable-release-publication");
+  if (path.endsWith("release.yml") && source.includes("channel: stable") && line(/^  release:\s*$/m)) authority.push("stable-release-publication");
   if (source.includes("rollback-publication.mjs")) {
     // Security: only the release-automation App bypasses tag deletion, through a contents-scoped token.
     const scopedTagToken = source.includes("TAG_TOKEN: ${{ steps.app.outputs.token }}") && /^\s+permission-contents: write\s*$/m.test(source);

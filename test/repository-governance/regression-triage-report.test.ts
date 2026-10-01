@@ -61,6 +61,7 @@ describe("nightly regression triage report", () => {
     expect(triageDecision({ id: 1, workflowName: "Publish", conclusion: "failure", event: "schedule", ...develop })).toMatchObject({ triage: true, workflow: { file: "publish.yml", scheduledOnly: true } });
     expect(triageDecision({ id: 1, workflowName: "Publish", conclusion: "failure", event: "workflow_dispatch", ...develop })).toMatchObject({ triage: false, reason: expect.stringContaining("scheduled runs only") });
     expect(triageDecision({ id: 1, workflowName: "Release", conclusion: "failure", event: "schedule", ...develop })).toMatchObject({ triage: true, workflow: { file: "release.yml", scheduledOnly: true } });
+    expect(triageDecision({ id: 1, workflowName: "Publish stable release", conclusion: "failure", event: "release", ...develop })).toMatchObject({ triage: false, reason: 'workflow "Publish stable release" is not triaged' });
     expect(triageDecision({ id: 1, workflowName: "Full regression", conclusion: "cancelled", event: "schedule", ...develop })).toMatchObject({ triage: false, reason: "run 1 concluded cancelled, not failure or success" });
     expect(triageDecision({ id: 1, workflowName: "Development validation", conclusion: "failure", event: "pull_request", ...develop })).toMatchObject({ triage: false });
     expect(triageDecision({ id: 1, workflowName: "Full regression", conclusion: "failure", event: "workflow_dispatch", headBranch: "fix/nightly-regression-2026-09-19" }))

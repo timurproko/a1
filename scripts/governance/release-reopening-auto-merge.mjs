@@ -1,7 +1,7 @@
 import { nextStablePatchVersion, parseReleaseNote, releaseNotePath } from "../release/release-notes.mjs";
 import { parseImplementation, metadataBlock } from "./openspec-archive-policy.mjs";
 
-// Provenance: the App identity `finalize-release.yml` mints to open the reopening PR.
+// Provenance: the App identity `release.yml` mints to open the reopening PR.
 export const REOPENING_AUTHOR = Object.freeze({ login: "openspec-ci[bot]", id: 329165293, type: "Bot" });
 export const REOPENING_VERSION_FILES = Object.freeze(["package-lock.json", "package.json", "packages/a1-install/package.json"]);
 const BRANCH = /^chore\/release-((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))-dev$/u;

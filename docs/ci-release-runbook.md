@@ -13,7 +13,7 @@ channel. It starts at `03:17 UTC` for nightly development verification or as a
 trusted reusable workflow: `npm run develop` dispatches `develop.yml`, the stable
 release command dispatches `release-candidate.yml` to validate the prepared source
 without publishing, and native **Publish release** on the prepared draft runs
-`finalize-release.yml`, which publishes.
+`release.yml`, which publishes.
 The maintainer never opens Actions or re-enters the version.
 
 npm trusted publishing binds authorization to the exact workflow filename of the
@@ -23,13 +23,16 @@ npmjs.com, with repository `timurproko/a1` and environment `npm-publish`:
 
 | Trusted publisher workflow | Publishes |
 | --- | --- |
-| `finalize-release.yml` | stable `latest` after native **Publish release** |
+| `release.yml` | stable `latest` after native **Publish release** |
 | `develop.yml` | numbered previews from `npm run develop` |
 | `publish.yml` | nightly `next` from its own schedule |
 
-The retired `release.yml` entry grants nothing and should be removed. No npm token is
-used: before either upload, the publish job requires npm >= 11.5.1 and completes the
-trusted-publishing token exchange for both packages. A refusal fails there, before
+Before native stable publication, both package settings must show `release.yml`, and the
+draft's bound source must contain `.github/workflows/release.yml`; reprepare any draft
+bound to an older source rather than publishing it. Both packages should list exactly
+these active caller identities; obsolete trusted-publisher entries should be removed.
+No npm token is used: before either upload, the publish job requires npm >= 11.5.1
+and completes the trusted-publishing token exchange for both packages. A refusal fails there, before
 anything is uploaded, and names the workflow and environment to register. When a
 caller's path changes, update both packages before the next publication through it.
 
@@ -82,7 +85,7 @@ effect of stable publication, not a trigger.
 | `npm run develop` | Preview package gates on Windows, Linux, and macOS; an existing numbered preview is an early successful no-op |
 | Nightly at `03:17 UTC` | One full documentation review plus the complete non-physical suite on Windows, Linux, and macOS, every night |
 | `npm run release -- ...` | Creates an editable source-bound draft (or refreshes the existing draft of that version bound to an older `develop`, regenerating its notes and removing duplicate drafts of that version), starts the complete stable suite on that source in `.github/workflows/release-candidate.yml`, prints its run link, waits, and prints the draft edit link only after validation passes |
-| Native **Publish release** on the prepared draft | GitHub creates the source-bound tag; `.github/workflows/finalize-release.yml` requires the successful candidate run, adopts the package pair it validated (replacing only the packaged release-note resource when the note was edited), proves npm trust, publishes both packages to npm `latest`, and proposes one reopening-and-note PR that auto-merges after required CI; a failure before npm returns the Release to draft |
+| Native **Publish release** on the prepared draft | GitHub creates the source-bound tag; `.github/workflows/release.yml` requires the successful candidate run, adopts the package pair it validated (replacing only the packaged release-note resource when the note was edited), proves npm trust, publishes both packages to npm `latest`, and proposes one reopening-and-note PR that auto-merges after required CI; a failure before npm returns the Release to draft |
 | `.github/workflows/release-tag-cleanup.yml` | When a stable Release is deleted, or on dispatch with a version (`gh workflow run release-tag-cleanup.yml -f version=X.Y.Z`): the release-automation App deletes the leftover `vX.Y.Z` tag only while no Release uses it and npm serves neither package; a published version's tag is permanent |
 | `.github/workflows/full-regression.yml` | Additional on-demand complete regression without publication authority |
 | `.github/workflows/pi-upstream-sync.yml` | Nightly at `03:23 UTC`: when npm publishes a newer Pi than the pin that no closed proposal skipped, proposes the upgrade as a draft pull request with the vendored copies that follow upstream merged, the kept copies reported with their upstream delta, the ledger, headers, inventories, public API and feature baselines, startup graph, and parity evidence regenerated, and every gate verdict (passed, failed, or blocked by conflict markers) and review item in the body; never merges and never replaces a proposal a human has continued |
@@ -277,7 +280,7 @@ the version. The retired `--approve` form remains a mutation-free usage error.
 2. **Edit.** When validation passes, open the printed Releases URL and edit the
    changelog. **Save draft** is optional and starts nothing.
 3. **Publish.** Choose native **Publish release**. GitHub creates the tag at the bound
-   source, and its `release.published` event starts `finalize-release.yml`. Trusted default-branch code requires the
+   source, and its `release.published` event starts `release.yml`. Trusted default-branch code requires the
    publisher to be a GitHub `User` with `write`, `maintain`, or `admin` permission,
    the Release and tag to match the bound source, both npm versions to be absent, and
    the candidate validation of that exact source and version to have succeeded. Apps,
