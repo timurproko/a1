@@ -1,6 +1,6 @@
 ## Why
 
-Pi 0.99.2 is published and A1 pins 0.87.1. The nightly upstream sync proposed this upgrade with every derived artifact refreshed so the reviewer evaluates a diff, not a migration.
+Pi 0.99.2 is published and A1 pins 0.99.1. The nightly upstream sync proposed this patch upgrade with every derived artifact refreshed so the reviewer evaluates the exact upstream delta.
 
 ## What Changes
 
@@ -19,4 +19,4 @@ None.
 
 ## Impact
 
-Recorded in the pull-request body: merge conflicts, kept copies with an upstream delta, orphaned or unmapped inventory entries, public API adoption items, pending feature rows, and failed or blocked gates are the review items; user-visible Pi behavior changes go to the changelog's breaking-changes section when this merges.
+The patch updates package identity, provenance, startup budget, command resources, and parity fixtures. Pi 0.99.2's MCP exposure/authentication, provider availability, default-tool reload, performance, validation, and error-handling corrections flow through A1's existing public SDK and owned shell boundaries.

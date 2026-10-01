@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "0.99.1"
+    "version": "0.99.2"
   },
   "changelogSince": "0.84.2",
   "rows": [

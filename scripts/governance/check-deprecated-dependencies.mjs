@@ -13,7 +13,7 @@ export const DOCUMENTED_DEPRECATED_EXCEPTIONS = Object.freeze([
   {
     name: "node-domexception",
     version: "1.0.0",
-    upstream: "@earendil-works/pi-coding-agent@0.99.1",
+    upstream: "@earendil-works/pi-coding-agent@0.99.2",
     reasonIncludes: "native DOMException",
   },
 ]);
