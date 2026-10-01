@@ -12,4 +12,4 @@
 ## 3. Validation and evidence
 
 - [x] 3.1 Run the focused governance tests, TypeScript typecheck, strict OpenSpec validation, and diff checks; verify all pass without production or workflow changes.
-- [ ] 3.2 Obtain one first-attempt selected Windows exact-package result for the current head and inspect `backlog-setup` and `backlog-worker` phase evidence; retain and diagnose any failure instead of rerunning it into acceptance.
+- [x] 3.2 Obtain one first-attempt selected Windows exact-package result for the current head and inspect `backlog-setup` and `backlog-worker` phase evidence; retain and diagnose any failure instead of rerunning it into acceptance.
