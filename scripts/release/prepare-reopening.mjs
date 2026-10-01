@@ -18,7 +18,7 @@ function run(executable, args, options = {}) {
 function assertPull(pull, branch, head) {
   if (!pull || !Number.isSafeInteger(pull.number) || pull.number < 1 || typeof pull.url !== "string" || !pull.url.startsWith("https://")
     || pull.state !== "OPEN" || pull.baseRefName !== "develop" || pull.headRefName !== branch || pull.isCrossRepository !== false
-    || pull.autoMergeRequest !== null || !SHA.test(pull.headRefOid) || (head && pull.headRefOid !== head)) {
+    || !(pull.autoMergeRequest === null || pull.autoMergeRequest?.mergeMethod === "SQUASH") || !SHA.test(pull.headRefOid) || (head && pull.headRefOid !== head)) {
     throw new Error(`unexpected or changed reopening pull request for ${branch}`);
   }
   return pull;
@@ -116,7 +116,7 @@ export async function prepareReopening(options = {}) {
   assertCommit(git, base, head, expected, releaseVersion, markdown, digest);
   git(["push", "origin", `--force-with-lease=refs/heads/${branch}:`, `HEAD:refs/heads/${branch}`]);
   const url = gh(["pr", "create", "--base", "develop", "--head", branch, "--title", subject, "--body",
-    `Reopens development at ${opening} and records the exact approved ${releaseVersion} release notes after stable publication. Required CI must pass, then merge manually. This PR must not auto-merge.`]);
+    `Reopens development at ${opening} and records the exact approved ${releaseVersion} release notes after stable publication. Documentation auto-merge verifies this exact release reopening and squash-merges it once required CI passes on the current head.`]);
   const number = Number(/\/(\d+)\s*$/u.exec(url)?.[1]);
   if (!Number.isSafeInteger(number) || number < 1) throw new Error(`cannot read reopening pull request number from ${url}`);
   const pull = assertPull(JSON.parse(gh(["pr", "view", String(number), "--json", PR_FIELDS])), branch, head);
@@ -126,7 +126,7 @@ export async function prepareReopening(options = {}) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const result = await prepareReopening();
-    process.stdout.write(`Reopening pull request: ${result.url}\nMerge it manually after required CI succeeds.\n`);
+    process.stdout.write(`Reopening pull request: ${result.url}\nIt merges automatically once required CI succeeds.\n`);
     if (process.env.GITHUB_OUTPUT) {
       await writeFile(process.env.GITHUB_OUTPUT, `url=${result.url}\nnumber=${result.number}\nhead=${result.head}\n`, { flag: "a" });
     }
