@@ -1,4 +1,5 @@
 import type { PresentationComponentPort, PresentationPointerSurface } from "../../../contracts/presentation/index.js";
+import type { WheelScrollLines } from "@earendil-works/pi-tui";
 import type {
   PiTuiInputCoordinationDecision,
   PiTuiInputCoordinationScheduler,
@@ -181,7 +182,7 @@ export interface PiTuiRuntimeAdapterOptions {
   readonly mouse?: boolean;
   /** Consume residual SGR mouse reports after every pre-input listener has run. */
   readonly consumeUnhandledMouse?: boolean;
-  readonly wheelScrollLines?: number;
+  readonly wheelScrollLines?: WheelScrollLines;
   readonly openUrl?: (url: string) => void;
   readonly onRightClickPaste?: () => void;
   readonly logDirectory?: string;

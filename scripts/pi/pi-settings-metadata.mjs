@@ -42,6 +42,7 @@ const ID_TO_KEY = Object.freeze({
   "fullscreen-exit-output": "fullscreenExitOutput",
   "fullscreen-scrollbar": "fullscreenScrollbar",
   "fullscreen-copy-on-select": "fullscreenCopyOnSelect",
+  "fullscreen-wheel-scroll-lines": "fullscreenWheelScrollLines",
   theme: "theme",
 });
 

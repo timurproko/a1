@@ -81,7 +81,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await shell.submit("/settings");
     terminal.input("theme");
     terminal.input("\r");
-    expect(frame()).toContain("Select a theme, or choose Automatic to follow terminal appearance.");
+    expect(frame()).toContain("Select a theme, or choose automatic to follow terminal appearance.");
     terminal.input("\x1b[A");
     terminal.input("\r");
     expect(frame()).toContain("Automatic Theme");

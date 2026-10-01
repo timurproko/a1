@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "0.99.2",
+      "version": "0.99.1",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -39,7 +39,7 @@
         {
           "name": "AgentSession",
           "kind": "class",
-          "hash": "f6d9c3a8a610e2a3b02e559db048980698c8beb60db4c82085bd6e08136fc791",
+          "hash": "3faa4d50ee6d6b079c17b0296721b0c060aa21350e9e0a8ecd922cfb0bae80e7",
           "consumers": [
             "src/integrations/pi/engine/adapter.ts",
             "src/integrations/pi/engine/compaction-progress.ts",
@@ -59,7 +59,7 @@
         {
           "name": "AgentSessionConfig",
           "kind": "interface",
-          "hash": "55f5410d251dfbbf750e9ee60617c04f609cf9f98d6f83adaa41bbd1ef334349",
+          "hash": "dd0e254ca8caf088a1efbfa2ea60e5123d2b57e5ba5e0d5376a4715935f59d70",
           "consumers": []
         },
         {
@@ -1682,7 +1682,7 @@
         {
           "name": "McpExposure",
           "kind": "type",
-          "hash": "8f8d84fe89c018d43e28edbf25a1e3738c58cdb4d057de5ac8b898b17f229c7d",
+          "hash": "c3237fdb79dad7e9df095fa8cea4c8e59c7e15a413005b8da919259027a402f6",
           "consumers": []
         },
         {
@@ -1802,7 +1802,7 @@
         {
           "name": "ModelRuntime",
           "kind": "class",
-          "hash": "1ee488c4a039273e7ae67193a6cbf8a1a8a5173248f398eaf633b72351cf31b7",
+          "hash": "47435fa208bc5fa7fb0f6f5c5024ce324af39058eef925d01f9796a2521370d4",
           "consumers": [
             "src/integrations/pi/engine/conformance.ts",
             "src/integrations/pi/engine/package-integration.ts",
@@ -2643,6 +2643,7 @@
           "kind": "type",
           "hash": "098b4b0aa70b3a90316e3ef0c16a174bc9bd0632ccf6b99a02444ec4720fded3",
           "consumers": [
+            "src/integrations/pi/components/upstream/theme/system-theme.ts",
             "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
         },
@@ -2783,7 +2784,7 @@
         {
           "name": "ToolNamespace",
           "kind": "interface",
-          "hash": "e404097b35bdffecd0cd2eebf4b5c88808679fd09cc925e0b3034bd31715a0a1",
+          "hash": "7c733971555ff085c8ca41022f5463c87bc50e6e3b634602ee988686bd2143f5",
           "consumers": []
         },
         {
@@ -2837,7 +2838,7 @@
         {
           "name": "truncateToVisualLines",
           "kind": "function",
-          "hash": "2a1f54b00e7b06612c61d66195f83c19f75c74b4aacb2269c8f1e0b04dc6f7dc",
+          "hash": "33112872ed1da882d0a7ef7fff4827cf743710a9fe29a316cefd2086dceb4f70",
           "consumers": []
         },
         {
@@ -3021,7 +3022,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "0.99.2",
+      "version": "0.99.1",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -3061,7 +3062,9 @@
           "name": "backgroundAnsi",
           "kind": "function",
           "hash": "5e5978b7f1847127024e789b4fb81223a212b895ef52ecfba2a3716f5ca88c5c",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/components/pi-logo.ts"
+          ]
         },
         {
           "name": "Box",
@@ -3114,13 +3117,17 @@
           "name": "colorToOkhsl",
           "kind": "function",
           "hash": "c91ff69b08837570d236ef1973dce4258b7d4ab5f9b42ac0811d26d5b8f50dfd",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/theme/system-theme.ts"
+          ]
         },
         {
           "name": "colorToOklch",
           "kind": "function",
           "hash": "15d7b08ac4da39fcbdac02a82eb6012631da6f7ebc389f2938edd33bbd3c4861",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/theme/system-theme.ts"
+          ]
         },
         {
           "name": "colorToRgb",
@@ -3296,7 +3303,9 @@
           "name": "foregroundAnsi",
           "kind": "function",
           "hash": "a893102b8e4044cfd16f7254dea8bdbb17be1f563f7b1e688cf7452cb2bff26c",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/components/pi-logo.ts"
+          ]
         },
         {
           "name": "fuzzyFilter",
@@ -3698,19 +3707,25 @@
           "name": "OkhslChannels",
           "kind": "interface",
           "hash": "c36568c079d53d1071e3f76e03ec6e301ace098d244d5b2b6785f701b222e283",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/theme/system-theme.ts"
+          ]
         },
         {
           "name": "okhslColor",
           "kind": "function",
           "hash": "8f48b835e317de4e155421dd0bff642057205f8fe0225a7ac529cc8a7109d82c",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/theme/system-theme.ts"
+          ]
         },
         {
           "name": "oklabToOkhslLightness",
           "kind": "const",
           "hash": "42df0babdaa36d02edad1a071aa3d6d3edb0dca7a898fe2fcad84eaf3c7c6606",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/theme/system-theme.ts"
+          ]
         },
         {
           "name": "OklchChannels",
@@ -3827,13 +3842,17 @@
           "name": "rgbColor",
           "kind": "function",
           "hash": "ffbb22907fb7ad96c1664d731635d11a9910c2d37e06c494b9ec6bcdbe7e6039",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/components/pi-logo.ts",
+            "src/integrations/pi/components/upstream/theme/system-theme.ts"
+          ]
         },
         {
           "name": "RgbColor",
           "kind": "interface",
           "hash": "76806809a1cbd49faabbfa2bcae9d75cca16771b9d7b82297747776cf4086b79",
           "consumers": [
+            "src/integrations/pi/components/upstream/theme/system-theme.ts",
             "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
         },
@@ -4117,6 +4136,7 @@
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
+            "src/integrations/pi/components/upstream/components/themed-text.ts",
             "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
@@ -4318,7 +4338,10 @@
           "name": "WheelScrollLines",
           "kind": "type",
           "hash": "7ad2df3118c95062c50a2af9fadba0dcd141a23d94ff6882e8981c0f2ff001d1",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/tui-runtime/adapter.ts",
+            "src/integrations/pi/tui-runtime/contracts.ts"
+          ]
         },
         {
           "name": "wrapTextWithAnsi",

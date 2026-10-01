@@ -16,7 +16,7 @@ export type PiSettingKey =
   | "collapseChangelog" | "enableInstallTelemetry" | "quietStartup" | "defaultProjectTrust"
   | "doubleEscapeAction" | "treeFilterMode" | "showHardwareCursor" | "editorPaddingX" | "outputPad"
   | "autocompleteMaxVisible" | "clearOnShrink" | "showTerminalProgress" | "tuiMode"
-  | "fullscreenExitOutput" | "fullscreenScrollbar" | "fullscreenCopyOnSelect" | "warnings";
+  | "fullscreenExitOutput" | "fullscreenScrollbar" | "fullscreenCopyOnSelect" | "fullscreenWheelScrollLines" | "warnings";
 
 export type PiSettingVisualClass =
   | "none"
@@ -93,6 +93,7 @@ export const PI_SETTING_EFFECTS: Readonly<Record<PiSettingKey, PiSettingEffectDe
   fullscreenExitOutput: hiddenEffect("current-exit", "shutdown", "pinned styled transcript and compact dim resume hint", "pinned-fullscreen-exit-parity"),
   fullscreenScrollbar: hiddenEffect("live", "shell", "pinned fullscreen scrollbar reservation", "pi-terminal-operation-parity"),
   fullscreenCopyOnSelect: effect("live", "shell", "terminal-status", "pinned fullscreen copy-on-select toggle and copy acknowledgement", "pi-terminal-operation-parity"),
+  fullscreenWheelScrollLines: effect("live", "shell", "terminal-frame", "pinned fullscreen wheel distance and acceleration", "pi-terminal-operation-parity"),
   warnings: effect("live", "agent", "transcript-notice", "pinned warning rows by warning part", "pinned-transcript-lifecycle-parity"),
 });
 
@@ -577,6 +578,7 @@ function operations(settings: SettingsManager, providers: PiSettingsProviders): 
     choice("fullscreenExitOutput", offered("fullscreenExitOutput"), () => settings.getFullscreenExitOutput(), value => settings.setFullscreenExitOutput(value as ReturnType<SettingsManager["getFullscreenExitOutput"]>)),
     choice("fullscreenScrollbar", offered("fullscreenScrollbar"), () => settings.getFullscreenScrollbar(), value => settings.setFullscreenScrollbar(value as ReturnType<SettingsManager["getFullscreenScrollbar"]>)),
     bool("fullscreenCopyOnSelect", () => settings.getFullscreenCopyOnSelect(), value => settings.setFullscreenCopyOnSelect(value)),
+    wheelScrollLinesSetting(settings),
     jsonObject("warnings", () => settings.getWarnings(), value => settings.setWarnings(value as ReturnType<SettingsManager["getWarnings"]>)),
   ];
 }
@@ -622,6 +624,13 @@ function numberSetting(key: PiSettingKey, read: () => number, write: (value: num
   return operation(key, "number", read, value => {
     if (typeof value !== "number" || !Number.isSafeInteger(value) || value < low || (high !== undefined && value > high)) invalid(key);
   }, value => write(value as number));
+}
+
+function wheelScrollLinesSetting(settings: SettingsManager): Operation {
+  const key = "fullscreenWheelScrollLines";
+  return operation(key, "json", () => settings.getFullscreenWheelScrollLines(), value => {
+    if (value !== "auto" && (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > 100)) invalid(key);
+  }, value => settings.setFullscreenWheelScrollLines(value as ReturnType<SettingsManager["getFullscreenWheelScrollLines"]>));
 }
 
 function jsonObject(key: PiSettingKey, read: () => object, write: (value: AgentJsonValue) => void): Operation {

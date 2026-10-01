@@ -250,6 +250,8 @@ export interface OwnedUiSessionViewModel {
   readonly status: OwnedUiStatusView;
   readonly terminal: OwnedUiTerminalSurface;
   readonly activeModel: OwnedUiModelInfo | null;
+  /** Latest physical route selected by an active virtual model. */
+  readonly routedModel?: { readonly model: OwnedUiModelInfo; readonly thinkingLevel?: OwnedUiThinkingLevel } | null;
   readonly thinkingLevel: OwnedUiThinkingLevel;
   readonly activeCommandIds: readonly OwnedUiCorrelationId[];
   readonly dialog: OwnedUiDialog | null;

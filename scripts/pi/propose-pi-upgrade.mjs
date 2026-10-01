@@ -200,7 +200,8 @@ await step("typecheck", async () => { await run(npm, ["run", "typecheck"]); retu
 await step("architecture", async () => { await run(npm, ["run", "check:architecture"]); return "clean"; });
 await step("engine-conformance", async () => { await run(process.execPath, ["scripts/pi/run-pi-engine-conformance.mjs"]); return "passed"; });
 await step("parity-suites", async () => {
-  await run("npx", ["vitest", "run", "test/features/owned-ui", "test/integrations/pi/components", "test/repository-governance"]);
+  // Concurrency: bound workers so repository-governance Git fixtures do not contend for Windows file handles.
+  await run("npx", ["vitest", "run", "test/features/owned-ui", "test/integrations/pi/components", "test/repository-governance", "--maxWorkers=4", "--minWorkers=1"]);
   return "passed";
 });
 report.changelog = await upstreamChangelog(version).catch(() => null);

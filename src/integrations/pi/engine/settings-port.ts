@@ -238,6 +238,7 @@ export class PiEngineSettings {
       fullscreenExitOutput: setting(settings?.getFullscreenExitOutput, "transcript"),
       fullscreenScrollbar: setting(settings?.getFullscreenScrollbar, "auto"),
       fullscreenCopyOnSelect: setting(settings?.getFullscreenCopyOnSelect, true),
+      fullscreenWheelScrollLines: setting(settings?.getFullscreenWheelScrollLines, "auto"),
       warnings: setting(settings?.getWarnings, { anthropicExtraUsage: true }),
     };
   }
@@ -293,6 +294,7 @@ export class PiEngineSettings {
         onTuiModeChange: snapshot.tuiMode,
         onFullscreenExitOutputChange: snapshot.fullscreenExitOutput,
         onFullscreenScrollbarChange: snapshot.fullscreenScrollbar,
+        onFullscreenWheelScrollLinesChange: snapshot.fullscreenWheelScrollLines,
         onWarningsChange: snapshot.warnings,
       };
       selectedValue = currentValues[callback];
@@ -338,7 +340,8 @@ function settingKeyForCallback(callback: PiPinnedSettingsCallback): string | nul
     onTreeFilterModeChange: "treeFilterMode", onShowHardwareCursorChange: "showHardwareCursor",
     onEditorPaddingXChange: "editorPaddingX", onOutputPadChange: "outputPad", onAutocompleteMaxVisibleChange: "autocompleteMaxVisible",
     onClearOnShrinkChange: "clearOnShrink", onShowTerminalProgressChange: "showTerminalProgress", onTuiModeChange: "tuiMode",
-    onFullscreenExitOutputChange: "fullscreenExitOutput", onFullscreenScrollbarChange: "fullscreenScrollbar", onWarningsChange: "warnings",
+    onFullscreenExitOutputChange: "fullscreenExitOutput", onFullscreenScrollbarChange: "fullscreenScrollbar",
+    onFullscreenWheelScrollLinesChange: "fullscreenWheelScrollLines", onWarningsChange: "warnings",
   };
   return keys[callback] ?? null;
 }

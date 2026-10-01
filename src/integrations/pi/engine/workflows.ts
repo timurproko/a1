@@ -96,6 +96,7 @@ export const PINNED_PI_SETTINGS_CALLBACKS = [
   "onFullscreenExitOutputChange",
   "onFullscreenScrollbarChange",
   "onFullscreenCopyOnSelectChange",
+  "onFullscreenWheelScrollLinesChange",
   "onWarningsChange",
   "onCancel",
 ] as const;
@@ -146,6 +147,7 @@ export interface PiPinnedSettingsSnapshot {
   readonly fullscreenExitOutput: "transcript" | "resume-hint";
   readonly fullscreenScrollbar: "hidden" | "auto" | "always";
   readonly fullscreenCopyOnSelect: boolean;
+  readonly fullscreenWheelScrollLines: number | "auto";
   readonly warnings: { readonly anthropicExtraUsage?: boolean };
 }
 

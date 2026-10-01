@@ -124,6 +124,7 @@ export function createPiShellSettingsSelector(options: PiShellSettingsSelectorOp
     onFullscreenExitOutputChange: change("onFullscreenExitOutputChange"),
     onFullscreenScrollbarChange: change("onFullscreenScrollbarChange"),
     onFullscreenCopyOnSelectChange: change("onFullscreenCopyOnSelectChange"),
+    onFullscreenWheelScrollLinesChange: change("onFullscreenWheelScrollLinesChange"),
     onWarningsChange: change("onWarningsChange"),
     onCancel: options.onCancel,
   };

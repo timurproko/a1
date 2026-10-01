@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.99.2 (MIT), commit 005af57d88ee23b33778f343a9595b32e67ff788,
+ * Provenance: @earendil-works/pi-coding-agent 0.99.1 (MIT), commit d86654abb8862e201933517d6f1fce9f88dd117f,
  * packages/coding-agent/src/modes/interactive/components/mermaid.ts.
  * Modifications: Mechanical pinned source port with private imports remapped to public package-root
  * types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.

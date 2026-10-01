@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.99.2 (MIT), commit 005af57d88ee23b33778f343a9595b32e67ff788,
+ * Provenance: @earendil-works/pi-coding-agent 0.99.1 (MIT), commit d86654abb8862e201933517d6f1fce9f88dd117f,
  * packages/coding-agent/src/modes/interactive/components/skill-invocation-message.ts.
  * Modifications: Mechanical port uses A1's public pi-tui instance, owned theme boundary, and
  * root-instance keybinding registry because the public coding-agent component closes over a second

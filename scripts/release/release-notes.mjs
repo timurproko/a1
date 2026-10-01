@@ -1,6 +1,5 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import semver from "semver";
 
 export const RELEASE_NOTES_SCHEMA = "a1-release-notes-v1";
 export const MAX_RELEASE_NOTE_BYTES = 128 * 1024;
@@ -13,6 +12,11 @@ const CHANGELOG_HEADING = /^## \[((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)
 export function releaseNotePath(version) {
   assertStableVersion(version);
   return `docs/releases/${version}.md`;
+}
+
+export function nextStablePatchVersion(version) {
+  const [major, minor, patch] = stableVersionComponents(version);
+  return `${major}.${minor}.${BigInt(patch) + 1n}`;
 }
 
 export function parseReleaseNote(markdown, expectedVersion) {
@@ -87,7 +91,7 @@ export async function buildReleaseNotesResource(directory) {
     assertStableVersion(expected);
     releases.push(parseReleaseNote(await readFile(join(directory, name), "utf8"), expected));
   }
-  releases.sort((left, right) => semver.rcompare(left.version, right.version));
+  releases.sort((left, right) => compareStableVersions(right.version, left.version));
   return Object.freeze({ schema: RELEASE_NOTES_SCHEMA, releases: Object.freeze(releases) });
 }
 
@@ -100,7 +104,7 @@ export function validateReleaseNotesResource(value) {
   const releases = value.releases.map(item => {
     const parsed = parseReleaseNote(item?.markdown, item?.version);
     if (seen.has(parsed.version)) throw new Error(`duplicate release note ${parsed.version}`);
-    if (previous !== null && semver.gte(parsed.version, previous)) throw new Error("release notes are not newest first");
+    if (previous !== null && compareStableVersions(parsed.version, previous) >= 0) throw new Error("release notes are not newest first");
     seen.add(parsed.version); previous = parsed.version;
     return parsed;
   });
@@ -114,7 +118,23 @@ function isCalendarDate(value) {
 }
 
 function assertStableVersion(version) {
-  if (typeof version !== "string" || !STABLE.test(version) || semver.valid(version) !== version) throw new Error(`invalid stable release-note version: ${String(version)}`);
+  stableVersionComponents(version);
+}
+
+function stableVersionComponents(version) {
+  const match = typeof version === "string" ? STABLE.exec(version) : null;
+  const components = match?.slice(1).map(Number);
+  if (!components?.every(Number.isSafeInteger)) throw new Error(`invalid stable release-note version: ${String(version)}`);
+  return components;
+}
+
+function compareStableVersions(left, right) {
+  const leftComponents = stableVersionComponents(left);
+  const rightComponents = stableVersionComponents(right);
+  for (let index = 0; index < leftComponents.length; index += 1) {
+    if (leftComponents[index] !== rightComponents[index]) return leftComponents[index] < rightComponents[index] ? -1 : 1;
+  }
+  return 0;
 }
 
 function isHousekeeping(title) {

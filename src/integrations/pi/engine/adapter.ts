@@ -569,6 +569,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   }
 
   view(): OwnedUiSessionViewModel {
+    const routed = this.#engine.session?.routedModel;
+    const routedModel = routed === undefined ? null : readModel(routed.model);
     return {
       contractVersion: 1,
       sessionId: this.#sessionId,
@@ -592,6 +594,10 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       },
       terminal: { ...this.#terminal },
       activeModel: this.#activeModel === null ? null : { ...this.#activeModel },
+      routedModel: routedModel === null ? null : {
+        model: routedModel,
+        ...(routed?.thinkingLevel === undefined ? {} : { thinkingLevel: readThinkingLevel(routed.thinkingLevel) }),
+      },
       thinkingLevel: this.#thinkingLevel,
       activeCommandIds: [...this.#commands.activeCommandIds],
       dialog: null,

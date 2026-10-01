@@ -304,8 +304,7 @@ export function createTuiFacade(options: Pick<PiShellEditorOptions, "getColumns"
     removeInputListener() {},
     onTerminalColorSchemeChange: () => () => {},
     setTerminalColorSchemeNotifications() {},
-    queryTerminalBackgroundColor: async () => undefined,
-    queryTerminalColorScheme: async () => undefined,
+    queryTerminalColors: async () => ({}),
   };
 }
 
