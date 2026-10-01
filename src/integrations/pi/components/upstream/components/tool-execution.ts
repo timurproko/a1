@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-coding-agent 0.99.2 (MIT), commit 005af57d88ee23b33778f343a9595b32e67ff788,
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
  * Modifications: Retain pinned shell and actual public tool-definition renderers. Replace private
  * index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and
@@ -28,8 +28,20 @@ export function mergeBuiltInRenderers(definition: ToolDefinition<any, any, any> 
 	return merged;
 }
 
+<<<<<<< a1
 const definitions = { read: createReadToolDefinition, bash: createBashToolDefinition, edit: createEditToolDefinition,
   write: createWriteToolDefinition, grep: createGrepToolDefinition, find: createFindToolDefinition, ls: createLsToolDefinition };
+||||||| pi 0.87.1
+import { getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
+import { convertToPng } from "../../../utils/image-convert.ts";
+import { theme } from "../theme/theme.ts";
+import { keyHint } from "./keybinding-hints.ts";
+=======
+import { formatToolCallWithArgs, getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
+import { convertToPng } from "../../../utils/image-convert.ts";
+import { theme } from "../theme/theme.ts";
+import { keyHint } from "./keybinding-hints.ts";
+>>>>>>> pi 0.99.2
 
 const FALLBACK_PREVIEW_LINES = 10;
 
@@ -153,8 +165,14 @@ export class ToolExecutionComponent extends Container {
 	}
 
 	private createCallFallback(): Component {
+<<<<<<< a1
     const theme = piTheme();
 		return new Text(theme.fg("toolTitle", theme.bold(this.toolName)), 0, 0);
+||||||| pi 0.87.1
+		return new Text(theme.fg("toolTitle", theme.bold(this.toolName)), 0, 0);
+=======
+		return new Text(formatToolCallWithArgs(this.toolName, this.args, theme, this.expanded), 0, 0);
+>>>>>>> pi 0.99.2
 	}
 
 	private createResultFallback(): Component | undefined {

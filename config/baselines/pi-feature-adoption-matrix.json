@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "0.87.1"
+    "version": "0.99.2"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -1445,6 +1445,13 @@
       "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
     },
     {
+      "id": "settings-callback:onFullscreenWheelScrollLinesChange",
+      "kind": "settings-callback",
+      "feature": "onFullscreenWheelScrollLinesChange",
+      "since": "0.99.2",
+      "disposition": "pending"
+    },
+    {
       "id": "settings-callback:onHideThinkingBlockChange",
       "kind": "settings-callback",
       "feature": "onHideThinkingBlockChange",
@@ -2349,6 +2356,60 @@
       "since": "0.87.1",
       "disposition": "pinned",
       "note": "Provider models reached through the pinned engine's model registry: Claude Opus 5.5 for Anthropic and GitHub Copilot, and GPT-6 Sol and GPT-6 Luna for OpenAI API keys, OpenAI Codex subscriptions, and GitHub Copilot. A1's model and scoped-model selectors consume that public registry without a separate catalog."
+    },
+    {
+      "id": "changelog:0.99.0:classifier-models",
+      "kind": "changelog",
+      "feature": "Classifier models",
+      "version": "0.99.0",
+      "summary": "Run Jev classifiers from codemode scripts, or use any llama.cpp model as a classifier.",
+      "since": "0.99.2",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:0.99.0:codemode-and-mcp",
+      "kind": "changelog",
+      "feature": "Codemode and MCP",
+      "version": "0.99.0",
+      "summary": "Connect MCP servers and let models run JavaScript that calls tools in parallel.",
+      "since": "0.99.2",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:0.99.0:sign-in-with-chatgpt",
+      "kind": "changelog",
+      "feature": "Sign in with ChatGPT",
+      "version": "0.99.0",
+      "summary": "Use a ChatGPT subscription with the OpenAI provider through `/login openai`.",
+      "since": "0.99.2",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:0.99.0:system-theme",
+      "kind": "changelog",
+      "feature": "System theme",
+      "version": "0.99.0",
+      "summary": "Pi's colors now come from your terminal's own palette by default.",
+      "since": "0.99.2",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:0.99.0:virtual-models",
+      "kind": "changelog",
+      "feature": "Virtual models",
+      "version": "0.99.0",
+      "summary": "Extensions can route each request to a different physical model.",
+      "since": "0.99.2",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:0.99.1:gpt-6-1-sol",
+      "kind": "changelog",
+      "feature": "GPT-6.1 Sol",
+      "version": "0.99.1",
+      "summary": "Available on OpenAI, Azure OpenAI, and OpenAI Codex, and now the default OpenAI Codex model.",
+      "since": "0.99.2",
+      "disposition": "pending"
     }
   ]
 }

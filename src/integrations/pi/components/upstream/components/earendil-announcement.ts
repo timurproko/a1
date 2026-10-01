@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-coding-agent 0.99.2 (MIT), commit 005af57d88ee23b33778f343a9595b32e67ff788,
  * packages/coding-agent/src/modes/interactive/components/earendil-announcement.ts.
  * Modifications: Mechanical pinned source port with private imports remapped to public package-root
  * types/APIs and A1-owned theme boundaries. The unchanged image is loaded lazily from its attributed,

@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-tui 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-tui 0.99.2 (MIT), commit 005af57d88ee23b33778f343a9595b32e67ff788,
  * packages/tui/src/word-navigation.ts.
  * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
  * types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports

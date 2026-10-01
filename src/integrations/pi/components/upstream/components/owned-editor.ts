@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-coding-agent 0.99.2 (MIT), commit 005af57d88ee23b33778f343a9595b32e67ff788,
  * packages/coding-agent/src/modes/interactive/components/custom-editor.ts.
  * Modifications: A1-owned class name and synchronized A1 keybinding contract replace the nominal
  * private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input

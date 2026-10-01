@@ -5,18 +5,18 @@
   "recordedAt": "2026-08-16T18:24:43.909Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
+    "commit": "005af57d88ee23b33778f343a9595b32e67ff788",
     "license": "MIT",
     "packages": [
       {
         "name": "@earendil-works/pi-coding-agent",
-        "version": "0.87.1",
-        "integrity": "sha512-m8ArJUtVcQMSe1lLE/Ei7vX/JV7O39sWmWBsXV2NOU70F0qCp8GubA24pT3LnwTmM6LL2xV80/h6sQg85n69ew=="
+        "version": "0.99.2",
+        "integrity": "sha512-6R1BZ2N77CrVcGf3eC2KovTz1Q4RYiAeydvVWQT546N2fi1nBc81aURlbOZCgruWoW9VY/UrLzDynF4YTolpoA=="
       },
       {
         "name": "@earendil-works/pi-tui",
-        "version": "0.87.1",
-        "integrity": "sha512-YEH2vRyOeiO7hhN6j6AE6YwKSq2Kz2f3XR8bj1TbR+aGE/JsnY1hLPMI2pvaZfRM1n9Y00tejxFQ4zbzvF7nkQ=="
+        "version": "0.99.2",
+        "integrity": "sha512-IOcNnd390NCIwBEKeOiBK/bvaR7Z+vEsvB5TtKsFdsY/vAZE6qRHbQqt6jpTefTiKPfQlwG8eS1BU42DeG2v4w=="
       }
     ]
   },
@@ -26,8 +26,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
       "sourceMap": "modes/interactive/interactive-mode.js.map",
-      "lines": 6852,
-      "sha256": "0af3d03d1af8bbe7672c704aa9414d14bd7f15b511320acc038af7148d214388"
+      "lines": 6905,
+      "sha256": "444b21cb8677d061807d92562b3ac4ef7ea703dba186e08ea6b343d9f99d690f"
     },
     {
       "id": "commands",
@@ -43,7 +43,7 @@
       "path": "packages/coding-agent/src/core/keybindings.ts",
       "sourceMap": "core/keybindings.js.map",
       "lines": 402,
-      "sha256": "38e8b20700e40452acab4c9583d96d9c304bbe15c471e214e50b65ec3b3f1945"
+      "sha256": "e328f1c3b85926efbb42a960ba4b19f9b4a251f77640053659528706a340bd4e"
     },
     {
       "id": "tui-keybindings",
@@ -58,8 +58,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/cli/startup-ui.ts",
       "sourceMap": "cli/startup-ui.js.map",
-      "lines": 247,
-      "sha256": "109f7896fbc8ec8923ae609a803ef3ab5353413e1b036375e8067247106183b2"
+      "lines": 254,
+      "sha256": "65540b4788ab6a905d199abdaf50e8367222d9619205baf3d2055ec100d8a5fb"
     },
     {
       "id": "editor",
@@ -74,8 +74,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/components/footer.ts",
       "sourceMap": "modes/interactive/components/footer.js.map",
-      "lines": 248,
-      "sha256": "9e0f71e0f405a9f0fdae901de2778834649facd0f78a78b53c682179f8faf693"
+      "lines": 303,
+      "sha256": "494c5dca212af8d895e20810269fd9d46b3b4f8e12435c803ae93049d6eb4ad4"
     },
     {
       "id": "status",
@@ -90,8 +90,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/components/settings-selector.ts",
       "sourceMap": "modes/interactive/components/settings-selector.js.map",
-      "lines": 961,
-      "sha256": "8134b93329c9155bd017df5b6278e2d72b403c8ca1f22c26a81234659ab7e6ea"
+      "lines": 993,
+      "sha256": "38ca12e5c1409769751eecbf2129231dc6197efebc3ac40dae54609a16b25300"
     },
     {
       "id": "model-selector",
@@ -122,8 +122,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/utils/clipboard.ts",
       "sourceMap": "utils/clipboard.js.map",
-      "lines": 139,
-      "sha256": "1331d3b9ade0eeb3c71500eabad44f2eab52fa4c1cc5154c66cf9aec9c0c811c"
+      "lines": 145,
+      "sha256": "beaeaee84ce305d2e91c20372a0eb06c9fc8216fe3957426465fdfafb2b2daa9"
     }
   ],
   "requiredCategories": [
@@ -201,8 +201,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          896,
-          1194
+          907,
+          1214
         ],
         "symbol": "init and run",
         "anchors": [
@@ -224,8 +224,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          445,
-          472
+          452,
+          480
         ],
         "symbol": "InteractiveMode state fields",
         "anchors": [
@@ -247,8 +247,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          602,
-          610
+          611,
+          619
         ],
         "symbol": "constructor editor setup",
         "anchors": [
@@ -361,8 +361,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3077,
-          3276
+          3096,
+          3295
         ],
         "symbol": "setupEditorSubmitHandler",
         "anchors": [
@@ -384,8 +384,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3077,
-          3276
+          3096,
+          3295
         ],
         "symbol": "setupEditorSubmitHandler",
         "anchors": [
@@ -407,8 +407,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          6729,
-          6820
+          6782,
+          6873
         ],
         "symbol": "handleBashCommand",
         "anchors": [
@@ -430,8 +430,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4708,
-          4740
+          4742,
+          4774
         ],
         "symbol": "disposeActiveSelector and showSelector",
         "anchors": [
@@ -453,8 +453,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4744,
-          4982
+          4778,
+          5021
         ],
         "symbol": "showSettingsSelector",
         "anchors": [
@@ -476,8 +476,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5549,
-          5627
+          5588,
+          5666
         ],
         "symbol": "showSessionSelector and handleResumeSession",
         "anchors": [
@@ -522,8 +522,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          6265,
-          6433
+          6309,
+          6478
         ],
         "symbol": "session utility command handlers",
         "anchors": [
@@ -546,8 +546,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5062,
-          5268
+          5101,
+          5307
         ],
         "symbol": "model handlers and selectors",
         "anchors": [
@@ -569,8 +569,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4367,
-          4434
+          4396,
+          4463
         ],
         "symbol": "cycleThinkingLevel and toggleThinkingBlockVisibility",
         "anchors": [
@@ -592,8 +592,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3278,
-          3663
+          3297,
+          3685
         ],
         "symbol": "subscribeToAgent and handleEvent",
         "anchors": [
@@ -638,8 +638,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3427,
-          3501
+          3446,
+          3522
         ],
         "symbol": "handleEvent tool and message cases",
         "anchors": [
@@ -661,8 +661,8 @@
       "provenance": {
         "source": "footer",
         "lines": [
-          44,
-          87
+          59,
+          157
         ],
         "symbol": "FooterComponent",
         "anchors": [
@@ -707,8 +707,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3038,
-          3057
+          3040,
+          3068
         ],
         "symbol": "clipboard input handlers",
         "anchors": [
@@ -775,8 +775,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4138,
-          4221
+          4167,
+          4250
         ],
         "symbol": "shutdown, emergencyTerminalExit, uncaughtCrash, signal handlers, suspend",
         "anchors": [
@@ -798,8 +798,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          6832,
-          6850
+          6885,
+          6903
         ],
         "symbol": "stop",
         "anchors": [
@@ -1004,6 +1004,7 @@
       "onFullscreenExitOutputChange",
       "onFullscreenScrollbarChange",
       "onFullscreenCopyOnSelectChange",
+      "onFullscreenWheelScrollLinesChange",
       "onWarningsChange",
       "onCancel"
     ],
