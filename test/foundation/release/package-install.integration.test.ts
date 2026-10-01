@@ -1,5 +1,5 @@
 import crossSpawn from "cross-spawn";
-import { access, copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, readdir, realpath, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -77,6 +77,7 @@ describe("clean installation of the exact candidate", () => {
         await new Promise(resolvePromise => setTimeout(resolvePromise, 10000));
       })();
     `);
+    if (process.platform === "win32") await writeFile(resolve(activePrefix, "npm.cmd"), "@echo off");
     const transaction = {
       schema: "a1-update-journal-v1" as const,
       transactionId: "22222222-2222-4222-8222-222222222222",
@@ -90,6 +91,15 @@ describe("clean installation of the exact candidate", () => {
       startedAt: new Date(0).toISOString(),
       updatedAt: new Date(0).toISOString(),
     };
+    const replacementEnvironment: NodeJS.ProcessEnv = { ...process.env, npm_execpath: npmCli };
+    if (process.platform === "win32") {
+      delete replacementEnvironment.npm_execpath;
+      for (const key of Object.keys(replacementEnvironment)) {
+        if (key.toLowerCase() === "path") delete replacementEnvironment[key];
+      }
+      replacementEnvironment.PATH = `${activePrefix};${process.env.PATH ?? process.env.Path ?? ""}`;
+      replacementEnvironment.PATHEXT = ".CMD";
+    }
     const replacementOptions = {
       dataDir,
       globalRoot,
@@ -98,10 +108,11 @@ describe("clean installation of the exact candidate", () => {
       transaction,
       priorRelease: { releaseId: priorReleaseId, releaseRoot: priorReleaseRoot, contentDigest: "a".repeat(64) },
       output: { stderr: (_message: string) => {} },
-      environment: { ...process.env, npm_execpath: npmCli },
+      environment: replacementEnvironment,
       timeoutMs: 15_000,
     };
     const prepared = await releaseModule.prepareUpdateRecoveryCapsule(replacementOptions);
+    if (process.platform === "win32") expect(prepared.capsule.npmCli).toBe(await realpath(npmCli));
     const capsuleDocument = JSON.parse(await readFile(prepared.manifestPath, "utf8")) as Record<string, unknown>;
     await writeFile(prepared.manifestPath, JSON.stringify({ ...capsuleDocument, resultPath: resolve(root, "outside-result.json") }));
     await expect(releaseModule.readUpdateRecoveryCapsule(prepared.manifestPath)).rejects.toThrow(/sidecar paths/);

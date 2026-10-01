@@ -15,6 +15,7 @@ import {
   updateNpmInstallArguments,
   type UpdateTransaction,
 } from "../../../src/foundation/release/index.js";
+import { resolveNpmCli } from "../../../src/foundation/release/update-recovery.js";
 
 const roots: string[] = [];
 afterEach(async () => await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -101,6 +102,48 @@ describe("cancellation-safe package replacement", () => {
     expect(prepared.capsule.globalRoot).toBe(await realpath(fixture.options.globalRoot));
     expect(prepared.capsule.npmArguments).toContain(npmPrefixForGlobalRoot(prepared.capsule.globalRoot));
     expect(prepared.capsule.npmArguments.map(value => value.toLowerCase())).not.toContain(activePrefix.toLowerCase());
+  });
+
+  it("resolves Node-bundled npm for direct Windows invocation with a separate user global root", async () => {
+    const fixture = await recoveryFixture("success");
+    const activeGlobalRoot = resolve(fixture.root, "roaming", "npm", "node_modules");
+    const nodeRoot = resolve(fixture.root, "Program Files", "nodejs");
+    const npmCommand = resolve(nodeRoot, "npm.cmd");
+    const bundledNpmCli = resolve(nodeRoot, "node_modules", "npm", "bin", "npm-cli.js");
+    await mkdir(activeGlobalRoot, { recursive: true });
+    await mkdir(dirname(bundledNpmCli), { recursive: true });
+    await writeFile(npmCommand, "@echo off");
+    await writeFile(bundledNpmCli, "// Node-bundled npm");
+    const environment: NodeJS.ProcessEnv = { PATH: `\"${nodeRoot}\"`, PATHEXT: ".CMD" };
+
+    const prepared = await prepareUpdateRecoveryCapsule({
+      ...fixture.options,
+      npmCliRoot: activeGlobalRoot,
+      environment,
+      platform: "win32",
+    });
+
+    expect(prepared.capsule.npmCli).toBe(await realpath(bundledNpmCli));
+    expect(prepared.capsule.globalRoot).toBe(await realpath(fixture.options.globalRoot));
+    expect(prepared.capsule.npmArguments).toContain(npmPrefixForGlobalRoot(prepared.capsule.globalRoot, "win32"));
+  });
+
+  it("fails closed when bounded npm entry candidates are absent or non-regular", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-npm-resolution-"));
+    roots.push(root);
+    const activeGlobalRoot = resolve(root, "roaming", "npm", "node_modules");
+    const nodeRoot = resolve(root, "nodejs");
+    const bundledNpmCli = resolve(nodeRoot, "node_modules", "npm", "bin", "npm-cli.js");
+    await mkdir(activeGlobalRoot, { recursive: true });
+    await mkdir(bundledNpmCli, { recursive: true });
+    await writeFile(resolve(nodeRoot, "npm.cmd"), "@echo off");
+
+    await expect(resolveNpmCli(
+      activeGlobalRoot,
+      { Path: nodeRoot, PATHEXT: "not-an-extension" },
+      "win32",
+      resolve(nodeRoot, "node.exe"),
+    )).rejects.toThrow(/could not resolve npm's JavaScript entry/);
   });
 
   it("rejects capsule path and payload tampering", async () => {
