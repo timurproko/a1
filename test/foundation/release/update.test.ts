@@ -158,10 +158,8 @@ describe("update progress presentation", () => {
 });
 
 describe("A1 self-update orchestration", () => {
-  it.each([
-    ["the current version", "1.2.3"],
-    ["a newer running version", "1.2.2"],
-  ])("skips installation for %s", async (_label, latest) => {
+  it("reinstalls the current version when it is not the active release", async () => {
+    const latest = "1.2.3";
     const harness = createHarness({ responses: [success(`${latest}\n`), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
 
     await expect(runSelfUpdate(harness)).resolves.toBe(0);
@@ -172,6 +170,53 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: installArguments(latest), request: { captureStdout: true } },
     ]);
     expect(harness.stdout.join("")).toContain(`a1 updated successfully to ${latest}`);
+  });
+
+  it.each([
+    ["release", "1.2.3", "stable", "latest", "1.2.2"],
+    ["development", "1.3.0-dev.9", "next", "next", "1.3.0-dev.8"],
+  ] as const)("never downgrades to a lower %s channel head", async (_label, current, channel, distTag, head) => {
+    const harness = createHarness({ current, responses: [success(`${head}\n`)] });
+
+    await expect(runSelfUpdate({ ...harness, channel })).resolves.toBe(0);
+
+    expect(harness.invocations).toEqual([
+      { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@${distTag}`, "version"], request: { captureStdout: true } },
+    ]);
+    expect(harness.stdout.join("")).toBe("a1 is up to date — no update needed.\n");
+    expect(harness.lifecycleCalls).toEqual([]);
+  });
+
+  it("still switches from a development build to a lower stable release", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.9" });
+    harness.fileSystem.realpath = async path => path;
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_[0] === "view") return success("1.2.9\n");
+      if (arguments_[0] === "root") return success(`${harness.globalRoot}\n`);
+      return success();
+    };
+
+    await expect(runSelfUpdate(harness)).resolves.toBe(0);
+
+    expect(harness.invocations.at(-1)).toEqual({ command: "npm", arguments: installArguments("1.2.9"), request: { captureStdout: true } });
+    expect(harness.stdout.join("")).toBe("a1 update: 1.3.0-dev.9 → 1.2.9\na1 updated successfully to 1.2.9\n");
+  });
+
+  it("installs an older preview the user names", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.108" });
+    harness.fileSystem.realpath = async path => path;
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_.includes("versions")) return success(JSON.stringify(["1.3.0-dev.107", "1.3.0-dev.108"]));
+      if (arguments_[0] === "root") return success(harness.globalRoot + NEWLINE);
+      return success();
+    };
+
+    await expect(runSelfUpdate({ ...harness, channel: "next", target: "107" })).resolves.toBe(0);
+
+    expect(harness.invocations.at(-1)).toEqual({ command: "npm", arguments: installArguments("1.3.0-dev.107"), request: { captureStdout: true } });
+    expect(harness.stdout.join("")).toContain("1.3.0-dev.108 → 1.3.0-dev.107");
   });
 
   it("installs an exact newer version for a canonical managed global package", async () => {

@@ -62,12 +62,14 @@ describe("explicit prerelease-aware release targets", () => {
       .replaceAll("0.1.9-dev", "next-development")
       .replace("Only after verified publication", "Before verified publication")
       .replace("merge it manually", "merge the reopening pull request")
+      .replace("squash-merges it", "merges it")
       .replace("Never republish immutable bytes", "Do not publish casually"));
     expect(missing).toEqual(expect.arrayContaining([
       "docs/ci-release-runbook.md: missing target-required guidance",
       "docs/ci-release-runbook.md: missing next-development reopening example",
       "docs/ci-release-runbook.md: missing publication-before-reopening guidance",
       "docs/ci-release-runbook.md: missing manual reopening merge guidance",
+      "docs/ci-release-runbook.md: missing reopening auto-merge guidance",
       "docs/ci-release-runbook.md: missing immutable publication recovery guidance",
     ]));
     const unsafe = releaseDocumentationFindings(readme, runbook

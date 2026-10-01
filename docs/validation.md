@@ -81,8 +81,8 @@ The exact-package startup gate always measures both profiles and all three launc
 
 | Value | Where | Effect |
 | --- | --- | --- |
-| `record` | Full regression, nightly and development publication (`publish.yml` with `mode != 'stable'`), and the pull-request `startup` group in `ci.yml` | Keeps the measurement, appends the violation to the evidence, emits a `::warning::` annotation, renders the run-summary table, and lets the run succeed. |
-| `fail` | Stable publication | Throws the same message as before and blocks publication. |
+| `record` | Full regression, nightly and development publication (`publish.yml` on channel `next`), and the pull-request `startup` group in `ci.yml` | Keeps the measurement, appends the violation to the evidence, emits a `::warning::` annotation, renders the run-summary table, and lets the run succeed. |
+| `fail` | Stable candidate validation (`publish.yml` on channel `latest`), whose validated bytes stable publication adopts | Throws the same message as before, so the draft cannot be published from that run. |
 
 Any absent, empty, or unrecognized value means `fail`, so a local run and a misspelled channel both keep enforcing. A launch that records no input-ready frame fails in either mode, because that is a functional failure rather than a timing observation.
 

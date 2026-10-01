@@ -254,7 +254,11 @@ Actions or re-enter the stable version.
 Stable preparation SHALL require an explicit target bump or `x.y.z` not below the
 source's open `x.y.z-dev` core, SHALL refuse an existing target tag or existing
 target package version, and SHALL create or exactly reuse one unpublished draft bound
-to the current authoritative `origin/develop` commit. It SHALL then start, or reuse a
+to the current authoritative `origin/develop` commit. A generated draft body SHALL
+list every pull request merged on the first-parent history after the baseline: the
+highest published, non-prerelease GitHub Release below the target version whose tag,
+as resolved on `origin`, points at a commit in that history. Local tags SHALL NOT
+select the baseline, and preparation SHALL fail when no such Release exists. It SHALL then start, or reuse a
 running or successful, trusted default-branch candidate validation of that exact
 source and stable version, and print the validation run URL. It SHALL then wait for
 that run to complete. Only after the run succeeds SHALL it print the draft editing URL
@@ -271,20 +275,34 @@ observes its caller's event rather than `workflow_call`.
 Candidate validation SHALL stamp the stable version on the bound source, pack both
 packages with the draft's then-current note over committed history, and run the
 complete stable suite on the exact bytes without publishing npm, uploading a Release
-asset, or moving `master`.
+asset, or moving `master`. It SHALL retain that exact validated package pair with its
+source identity as the candidate evidence stable publication adopts.
 
 On `release.published` for a stable, non-prerelease Release, trusted code SHALL
 derive the version from the tag and SHALL require the tag to be a lightweight tag at
 the Release's bound source, that source to be in `develop` history, the publishing
 actor to be a GitHub `User` with `write`, `maintain`, or `admin` permission, both
 target package versions to be absent, and a successful candidate validation of that
-exact source and version. It SHALL snapshot the bounded normalized published body,
-repack both packages with it, rerun the exact-package gates on the final bytes,
-require the Release to remain published with the snapshotted body immediately before
-npm, publish both packages to npm `latest` with provenance, verify and exercise the
+exact source and version. It SHALL snapshot the bounded normalized published body
+and adopt the package pair retained by that candidate validation run only after
+proving it binds the same source commit, tree, version, and recorded integrity. When
+the release-note resource derived from the snapshotted body equals the packaged one,
+it SHALL publish the validated bytes unchanged. Otherwise it SHALL replace only the
+packaged release-note resource with the one derived from the snapshotted body and
+SHALL prove every other entry, entry mode, and the installer package byte-identical
+to the validated pair. Stable publication SHALL NOT rebuild the process guardians or
+application, repack from source, or rerun the validation suite. It SHALL require the
+Release to remain published with the snapshotted body immediately before npm, publish both packages to npm `latest` with provenance, verify and exercise the
 published pair, upload the validated asset, fast-forward `master`, and prepare
 reopening. Apps, bots, pushed tags, and dispatch payloads SHALL grant no npm
 authority. Existing release tags SHALL never be moved or reused.
+
+npm publication SHALL authenticate only through npm trusted publishing with the job's
+GitHub OIDC identity; no long-lived npm token SHALL be used. Before either package
+upload starts, publication SHALL require an npm CLI that supports trusted publishing
+and SHALL complete the trusted-publishing token exchange for both packages. A refused
+exchange SHALL fail before either upload and SHALL name the calling workflow and
+environment that npm must trust.
 
 #### Scenario: Work lands on develop
 - **WHEN** a commit declaring a prerelease version is pushed to `develop`
@@ -309,13 +327,17 @@ authority. Existing release tags SHALL never be moved or reused.
 - **THEN** its body SHALL begin with `## [0.1.8] - YYYY-MM-DD` and group applicable entries under level-three Breaking Changes, New Features, Added, Changed, and Fixed headings
 - **AND** a retained version/date heading SHALL identify the expected version and a valid calendar date while the body remains human-editable
 
+#### Scenario: A stale local tag survives a deleted Release
+- **WHEN** the local clone still holds a `v0.2.2` tag that GitHub deleted with its Release, and v0.2.1 is the latest published stable Release
+- **THEN** the v0.2.2 draft SHALL list every pull request merged after v0.2.1 on the source's first-parent history, not only those after the stale tag
+
 #### Scenario: Preparation repeats while validation runs
 - **WHEN** the command runs again for the same source and version while a candidate validation is running or has succeeded
 - **THEN** it SHALL reuse that validation and the existing draft without overwriting the draft body, and SHALL resume waiting on that run
 
 #### Scenario: A stable version is requested
 - **WHEN** an authorized human chooses **Publish release** on the prepared draft after its candidate validation succeeded
-- **THEN** GitHub SHALL create the tag at the bound source and trusted code SHALL publish both exact packages to npm `latest`, upload the asset, fast-forward `master`, and prepare the reopening pull request without another version entry
+- **THEN** GitHub SHALL create the tag at the bound source and trusted code SHALL publish both candidate-validated packages to npm `latest` without rebuilding or revalidating them, upload the asset, fast-forward `master`, and prepare the reopening pull request without another version entry
 
 #### Scenario: A draft is published through GitHub prematurely
 - **WHEN** the draft is published while its candidate validation is running, failed, or absent
@@ -330,7 +352,7 @@ authority. Existing release tags SHALL never be moved or reused.
 - **THEN** the workflow SHALL fail before package construction
 
 #### Scenario: Approved publication fails before final publication
-- **WHEN** candidate-run gating, packaging, exact-package validation, or cancellation stops publication before either npm upload starts
+- **WHEN** candidate-run gating, candidate package adoption, the trusted-publishing preflight, or cancellation stops publication before either npm upload starts
 - **THEN** the Release SHALL return to draft and its unconsumed tag SHALL be deleted
 - **AND** uncertain npm state SHALL keep the Release and tag and require rerunning the same run rather than creating or moving a tag manually
 
@@ -376,6 +398,23 @@ authority. Existing release tags SHALL never be moved or reused.
 - **WHEN** either target package version already exists
 - **THEN** preparation and a new publication SHALL fail without republishing it
 - **AND** a rerun of the failed jobs of the same publication run MAY verify and skip identical immutable bytes
+
+#### Scenario: The note is unchanged after candidate validation
+- **WHEN** the published body derives the same release-note resource as the validated package
+- **THEN** publication SHALL publish the candidate-validated tarballs with their validated integrity unchanged
+
+#### Scenario: The note is edited after candidate validation
+- **WHEN** the maintainer edits the draft body after candidate validation succeeds and then publishes it
+- **THEN** publication SHALL replace only the packaged release-note resource with the published body, SHALL prove every other entry and the installer unchanged, and SHALL publish the result without rebuilding or rerunning the validation suite
+- **AND** npm, the GitHub Release, and the in-product release note SHALL carry the published body
+
+#### Scenario: The candidate package cannot be adopted
+- **WHEN** the candidate run's package artifact is missing or expired, or binds another source, tree, version, or integrity, or the note swap would change any other entry
+- **THEN** publication SHALL fail before npm, return the Release to draft, and direct the maintainer to rerun candidate validation
+
+#### Scenario: npm does not trust the calling workflow
+- **WHEN** npm refuses the trusted-publishing token exchange for either package
+- **THEN** publication SHALL fail before either upload starts, name the calling workflow and environment to register as trusted publisher, and return the Release to draft
 
 ### Requirement: Preview versions cost no commits
 A preview version SHALL be derived at publish time from the open base version and the
@@ -700,21 +739,24 @@ The release command SHALL continue to require a target. It SHALL reject a missin
 - **THEN** the command SHALL display usage requiring `patch`, `minor`, `major`, or an exact stable version
 - **AND** it SHALL make no release mutations
 
-### Requirement: Release version pull requests require manual integration
+### Requirement: Release reopening pull requests integrate after validation
 The post-publication next-development pull request SHALL remain subject to required
-validation, local maintainer acceptance, and manual merge. The release command SHALL
-NOT create a pre-publication release-note or stable-version pull request, enable
-auto-merge, directly merge the reopening PR, relax branch protection, or treat CI
-success alone as permission to advance. It SHALL display the draft Release and
-reopening PR URLs with phase-specific manual steps and verify the reopening PR's
-actual merge before reporting completion.
+validation and SHALL integrate automatically through the documentation auto-merge
+manager's verified release-reopening route once its exact current head passes required
+validation. The release command SHALL NOT create a pre-publication release-note or
+stable-version pull request, enable auto-merge itself, directly merge the reopening PR,
+relax branch protection, or treat CI success on any head other than the current one as
+permission to advance. It SHALL display the draft Release and reopening PR URLs with
+phase-specific steps and verify the reopening PR's actual merge before reporting
+completion. A reopening PR that fails verification SHALL fall back to manual merge.
 
 Reopening preparation SHALL preserve the caller's checkout, staged/unstaged work,
 and unrelated worktrees. Version edits SHALL affect only this package's manifest and
 root lockfile version fields, not dependency versions, and the only additional file
 SHALL be the exact approved `docs/releases/<released-version>.md`. Pending or failed
 work SHALL remain identifiable without destructive resets or silent replacement of a
-conflicting draft, branch, or PR.
+conflicting draft, branch, or PR. Reusing an existing reopening PR SHALL accept only no
+armed auto-merge or squash auto-merge armed by the trusted manager.
 
 #### Scenario: Prepare the stable version PR
 - **WHEN** the command prepares stable `0.1.8` from `0.1.8-dev`
@@ -722,11 +764,12 @@ conflicting draft, branch, or PR.
 
 #### Scenario: Prepare the reopening PR
 - **WHEN** stable `0.1.8` is published successfully
-- **THEN** the command SHALL present one PR containing `0.1.9-dev` version changes and the exact approved `docs/releases/0.1.8.md` for manual validation and merge
+- **THEN** the command SHALL present one PR containing `0.1.9-dev` version changes and the exact approved `docs/releases/0.1.8.md`
+- **AND** that PR SHALL integrate without maintainer merge action once its current head passes required validation
 
 #### Scenario: A version PR is not merged
 - **WHEN** the reopening PR is closed without merging, cannot be verified, or remains pending beyond the bounded wait
-- **THEN** the command SHALL report its identity and incomplete state without merging automatically or claiming that development reopened
+- **THEN** the command SHALL report its identity and incomplete state without merging it itself or claiming that development reopened
 
 #### Scenario: Local work appears while a release waits
 - **WHEN** the caller's checkout changes while release orchestration is awaiting publication or the reopening PR

@@ -104,9 +104,12 @@ jobs:
           fi
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: pr-full-regression-selection-${{ github.run_id }}-${{ github.run_attempt }}
+          # Rationale: run-scoped so re-running only failed jobs reuses the attempt that selected;
+          # --verify recomputes selection for the current head, so a reused record cannot go stale.
+          name: pr-full-regression-selection-${{ github.run_id }}
           path: .artifacts/validation/full-regression-selection.json
           if-no-files-found: error
+          overwrite: true
 
   full-regression:
     name: PR Full regression
@@ -786,7 +789,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          name: pr-full-regression-selection-${{ github.run_id }}-${{ github.run_attempt }}
+          name: pr-full-regression-selection-${{ github.run_id }}
           path: .artifacts/validation
       - name: Require current PR full-regression selection and result
         if: github.event_name == 'pull_request'

@@ -42,13 +42,13 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain('selected=\'["package-smoke","package-install"]\'');
     expect(source).toContain('selected=\'["full-release"]\'');
     const validate = source.slice(source.indexOf("\n  validate:"), source.indexOf("\n  publish:"));
-    expect(validate).toContain("if: always() && needs.plan.result == 'success' && needs.package.result == 'success'");
+    expect(validate).toContain("if: always() && needs.plan.result == 'success' && needs.plan.outputs.mode != 'stable' && needs.package.result == 'success'");
   });
 
   it("evaluates publication after an allowed prerequisite skip without weakening required outcomes", async () => {
     const source = await workflow();
     const publish = source.slice(source.indexOf("\n  publish:"), source.indexOf("\n  post_publish:"));
-    expect(publish.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && needs.validate.result == 'success'");
+    expect(publish.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && (needs.validate.result == 'success' || (needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped'))");
 
     const postPublish = source.slice(source.indexOf("\n  post_publish:"), source.indexOf("\n  complete:"));
     expect(postPublish.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success'");
@@ -61,6 +61,71 @@ describe("deliberate publication pipeline", () => {
     expect(result).toContain('test "$PUBLISH" = success');
     expect(result).toContain('test "$POST_PUBLISH" = success');
     expect(result).toContain('test "$COMPLETE" = success');
+  });
+
+  it("runs every job below plan after a skipped approval and packs a build only with every guardian", async () => {
+    const source = await workflow();
+    const jobs = [...source.matchAll(/^  ([a-z_]+):\n    name: /gm)].map(match => match[1]!);
+    expect(jobs.slice(0, 3)).toEqual(["source", "approval", "plan"]);
+    // Rationale: approval skips outside stable and candidate modes, and GitHub's implicit success()
+    // then skipped guardians and documentation, so nightly packed only the Windows guardian.
+    for (const [index, name] of jobs.entries()) {
+      if (index < 2) continue;
+      const body = source.slice(source.indexOf(`\n  ${name}:\n`), index + 1 < jobs.length ? source.indexOf(`\n  ${jobs[index + 1]}:\n`) : undefined);
+      expect(body.match(/^    if: (.+)$/m)?.[1], name).toMatch(/^always\(\)/);
+    }
+    const job = (name: string, next: string) => source.slice(source.indexOf(`\n  ${name}:`), source.indexOf(`\n  ${next}:`));
+    expect(job("documentation", "guardians").match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'candidate')");
+    const pkg = job("package", "validate").match(/^    if: (.+)$/m)?.[1];
+    expect(pkg).toContain("(needs.guardians.result == 'success' || (needs.guardians.result == 'skipped' && (needs.plan.outputs.build != 'true' || needs.plan.outputs.mode == 'stable')))");
+    expect(pkg).toContain("(needs.documentation.result == 'success' || (needs.documentation.result == 'skipped' && needs.plan.outputs.mode != 'nightly' && needs.plan.outputs.mode != 'candidate'))");
+  });
+
+  it("publishes stable releases from the candidate-validated package without rebuilding or revalidating", async () => {
+    const source = await workflow();
+    const job = (name: string, next: string) => source.slice(source.indexOf(`\n  ${name}:`), source.indexOf(`\n  ${next}:`));
+    expect(job("approval", "plan")).toContain("validation_run_id: ${{ steps.approval.outputs.validation_run_id }}");
+    expect(job("approval", "plan")).toContain("console.log(`validation_run_id=${validationRunId ?? \"\"}`);");
+    expect(job("plan", "documentation")).toContain("validation_run_id: ${{ needs.approval.outputs.validation_run_id }}");
+    expect(job("guardians", "package").match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'");
+    expect(job("validate", "publish").match(/^    if: (.+)$/m)?.[1]).toContain("needs.plan.outputs.mode != 'stable'");
+    expect(job("validate", "publish")).not.toContain('[ "$MODE" = "stable" ]');
+
+    const pkg = job("package", "validate");
+    const download = pkg.slice(pkg.indexOf("- name: Download the candidate-validated package pair"), pkg.indexOf("- name: Explain an unavailable candidate package"));
+    expect(download).toContain("if: needs.plan.outputs.mode == 'stable'");
+    expect(download).toContain("name: release-package-${{ needs.plan.outputs.version }}");
+    expect(download).toContain("run-id: ${{ needs.plan.outputs.validation_run_id }}");
+    expect(download).toContain("github-token: ${{ github.token }}");
+    expect(pkg).toContain("rerun candidate validation of this source and version");
+    expect(pkg.indexOf("node scripts/release/adopt-validated-candidate.mjs")).toBeLessThan(pkg.indexOf("- name: Bind packed source and identity"));
+    // Invariant: every build and pack step is closed to stable mode, so stable bytes come only from adoption.
+    for (const step of ["Prepare Rust toolchain", "Install dependencies and build source once", "Install package tooling without building the application",
+      "Assemble all platform process guardians", "Stamp the published version on the open development source", "Record verified candidate build",
+      "Pack the candidate exactly once", "Pack the installer candidate exactly once"]) {
+      const body = pkg.slice(pkg.indexOf(`- name: ${step}`));
+      expect(body.match(/^        if: (.+)$/m)?.[1], step).toContain("needs.plan.outputs.mode != 'stable'");
+    }
+
+    const result = source.slice(source.indexOf("\n  result:"));
+    expect(result).toContain('if [ "$MODE" = stable ]; then test "$VALIDATE" = skipped; else test "$VALIDATE" = success; fi');
+    expect(result).toContain("!(needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped')");
+  });
+
+  it("proves npm trusted publishing for both packages before either upload and uses no npm token", async () => {
+    const source = await workflow();
+    const publish = source.slice(source.indexOf("\n  publish:"), source.indexOf("\n  post_publish:"));
+    const preflight = publish.indexOf("- name: Prove npm trusted publishing for both packages");
+    expect(preflight).toBeGreaterThan(publish.indexOf("- name: Serialize the final registry check"));
+    expect(preflight).toBeLessThan(publish.indexOf("- name: Publish the exact validated installer package"));
+    expect(preflight).toBeLessThan(publish.indexOf("- name: Publish the exact validated application package"));
+    expect(publish).toContain("run: node scripts/release/npm-trust-preflight.mjs");
+    expect(publish).toContain("environment: npm-publish");
+    expect(publish).toContain("id-token: write");
+    const workflows = await Promise.all((await readdir(".github/workflows")).map(name => readFile(`.github/workflows/${name}`, "utf8")));
+    expect(workflows.join("\n")).not.toMatch(/NPM_BOOTSTRAP_TOKEN|NODE_AUTH_TOKEN:/u);
+    const rollback = await readFile("scripts/release/rollback-publication.mjs", "utf8");
+    expect(rollback).not.toContain("Prove npm trusted publishing");
   });
 
   it("uses one established immutable checkout pin throughout the publication workflow", async () => {
@@ -257,13 +322,15 @@ describe("maintainer publication commands", () => {
     expect(finalizer).not.toContain('["pr", "merge"');
   });
 
-  it("moves synchronized package versions with the exact approved note in one manual reopening PR", async () => {
+  it("moves synchronized package versions with the exact approved note in one auto-merging reopening PR", async () => {
     const script = await readFile("scripts/release/prepare-reopening.mjs", "utf8");
     expect(script).toContain('value.lock.packages[""].version = version');
     expect(script).toContain("value.installer.version = version");
     expect(script).toContain('"packages/a1-install/package.json"');
     expect(script).toContain("reopening release note differs from the approved snapshot");
-    expect(script).toContain("autoMergeRequest !== null");
+    expect(script).toContain('!(pull.autoMergeRequest === null || pull.autoMergeRequest?.mergeMethod === "SQUASH")');
+    expect(script).toContain("merges automatically once required CI succeeds");
+    expect(script).not.toContain("must not auto-merge");
     expect(script).toContain("--force-with-lease=refs/heads/${branch}:");
     expect(script).toContain('["pr", "create"');
     expect(script).not.toContain('["pr", "merge"');

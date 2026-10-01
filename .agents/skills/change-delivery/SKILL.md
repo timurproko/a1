@@ -19,7 +19,7 @@ Read [project workflow](../../../openspec/config.yaml) and [delivery runbook](..
 8. Never enable auto-merge, merge queue, App/bot merge, or documentation integration; only manual merge of the exact validated head accepts implementation.
 9. Create no acceptance, spec-only, or archive-only follow-up PR. After merge, report `Archived` only after verifying archive, specs, acceptance provenance, and remote cleanup; never edit the accepted body.
 
-Standalone README/docs/OpenSpec updates inside the documentation allowlist may keep CI-gated auto-merge; legacy delivery records keep their documented path.
+Standalone README/docs/OpenSpec updates in the documentation allowlist and the verified release reopening PR may keep CI-gated auto-merge; legacy delivery records keep their documented path.
 
 ## Reject or refine
 

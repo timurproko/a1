@@ -31,6 +31,13 @@ export interface ConsoleProjectTrustPromptOptions {
 const ENTER_ALTERNATE_SCREEN = "\u001b[?1049h";
 const HIDE_CURSOR = "\u001b[?25l";
 const CLEAR_HOME = "\u001b[2J\u001b[H";
+const HOME = "\u001b[H";
+const ERASE_LINE_END = "\u001b[K";
+const ERASE_BELOW = "\u001b[J";
+const BEGIN_SYNC = "\u001b[?2026h";
+const END_SYNC = "\u001b[?2026l";
+const REQUEST_CURSOR_POSITION = "\u001b[6n";
+const CURSOR_POSITION_REPORT = /^\u001b\[(\d+);(\d+)R/u;
 const ACCENT = "\u001b[38;2;138;190;183m";
 const MUTED = "\u001b[38;2;128;128;128m";
 const DIM = "\u001b[38;2;102;102;102m";
@@ -65,11 +72,27 @@ export function createConsoleProjectTrustPrompt(
     const wasRaw = input.isRaw === true;
     let selected = 0;
     let restored = false;
+    // Protocol: the parent screen's cursor, reported before the first frame moves it.
+    let origin: { readonly row: number; readonly column: number } | undefined;
     const restore = (): void => {
       if (restored) return;
       restored = true;
       input.setRawMode?.(wasRaw);
       output.write(`${CLEAR_HOME}${EMERGENCY_TERMINAL_RESET}`);
+    };
+    // Protocol: a resolved bare selection hands the alternate screen to the shell, which
+    // enters it again. Leaving it here would show the parent screen until the shell's first
+    // frame. The shell's own enter saves the cursor, so park it where the parent had it and
+    // its leave restores the parent position. Without a position report, restore instead.
+    const handOff = (): void => {
+      if (renderBareDialog === undefined || origin === undefined) {
+        restore();
+        return;
+      }
+      if (restored) return;
+      restored = true;
+      input.setRawMode?.(wasRaw);
+      output.write(`${BEGIN_SYNC}${CLEAR_HOME}\u001b[${origin.row};${origin.column}H${END_SYNC}`);
     };
     const render = (): void => {
       const width = Math.max(renderBareDialog ? 1 : 20, output.columns ?? 80);
@@ -84,13 +107,17 @@ export function createConsoleProjectTrustPrompt(
         "",
         `${DIM}↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select  ${DIM}Esc${MUTED} to cancel${RESET_FG}`,
       ]).map(line => clipAnsiSafe(line, width));
-      const padding = renderBareDialog === undefined ? "" : "\n".repeat(Math.max(0, rows - lines.length));
-      output.write(`${CLEAR_HOME}${padding}${lines.join("\n")}`);
+      const padded = renderBareDialog === undefined
+        ? lines : [...Array<string>(Math.max(0, rows - lines.length)).fill(""), ...lines];
+      // Rationale: overwrite in place within one synchronized frame; clearing first flickers.
+      output.write(`${BEGIN_SYNC}${HOME}${padded.map(line => `${line}${ERASE_LINE_END}`).join("\n")}${ERASE_BELOW}${END_SYNC}`);
     };
 
     try {
       output.write(`${ENTER_ALTERNATE_SCREEN}${HIDE_CURSOR}`);
       input.setRawMode?.(true);
+      // Invariant: entering the alternate screen keeps the cursor, so this reports the parent's.
+      if (renderBareDialog !== undefined) output.write(REQUEST_CURSOR_POSITION);
       render();
       return await new Promise<OwnedProjectTrustChoiceId | null>((resolve, reject) => {
         let settled = false;
@@ -98,7 +125,7 @@ export function createConsoleProjectTrustPrompt(
           if (settled) return;
           settled = true;
           cleanup();
-          restore();
+          handOff();
           resolve(value);
         };
         const fail = (error: Error): void => {
@@ -112,6 +139,13 @@ export function createConsoleProjectTrustPrompt(
         const onData = (chunk: Buffer | string): void => {
           const data = chunk.toString();
           for (let index = 0; index < data.length;) {
+            const report = origin === undefined && renderBareDialog !== undefined
+              ? CURSOR_POSITION_REPORT.exec(data.slice(index)) : null;
+            if (report !== null) {
+              origin = { row: Number(report[1]), column: Number(report[2]) };
+              index += report[0].length;
+              continue;
+            }
             if (data.startsWith("\u001b[A", index)) {
               selected = (selected - 1 + choices.length) % choices.length;
               index += 3;

@@ -561,6 +561,80 @@ describe("documentation auto-merge state recovery", () => {
   });
 });
 
+describe("release reopening auto-merge", () => {
+  const installerManifest = ["packages", "a1-install", "package.json"].join("/");
+  const note = "## [0.2.2] - 2026-09-30\n\n### Fixed\n\n- Example fix.\n";
+  const manifests = (version: string, dependency = "^1.0.0"): Record<string, string> => ({
+    "package.json": JSON.stringify({ name: "@timurproko/a1", version, dependencies: { semver: dependency } }),
+    "package-lock.json": JSON.stringify({ name: "@timurproko/a1", version, packages: { "": { name: "@timurproko/a1", version } } }),
+    [installerManifest]: JSON.stringify({ name: "@timurproko/a1-install", version }),
+  });
+  const reopening = (overrides: Record<string, unknown> = {}) => pullFixture({
+    changed_files: 4,
+    user: { login: "openspec-ci[bot]", id: 329165293, type: "Bot" },
+    head: { ref: "chore/release-0.2.3-dev", sha: headSha, repo: { full_name: "owner/repository" } },
+    ...overrides,
+  });
+  const github = (options: { head?: Record<string, string>; files?: unknown[] } = {}) => (request: RecordedRequest): FakeResponse | undefined => {
+    if (request.url.includes("/files?")) return { body: options.files ?? [
+      { filename: "docs/releases/0.2.2.md", status: "added" },
+      { filename: "package-lock.json", status: "modified" },
+      { filename: "package.json", status: "modified" },
+      { filename: "packages/a1-install/package.json", status: "modified" },
+    ] };
+    const content = /\/contents\/(.+)\?ref=([a-f0-9]{40})$/u.exec(request.url);
+    if (content) {
+      const tree = content[2] === headSha ? { ...(options.head ?? manifests("0.2.3-dev")), "docs/releases/0.2.2.md": note } : manifests("0.2.2-dev");
+      const text = tree[decodeURIComponent(content[1]!)];
+      return text === undefined ? { status: 404, body: { message: "Not Found" } }
+        : { body: { type: "file", encoding: "base64", content: Buffer.from(text).toString("base64") } };
+    }
+    if (request.url === "/repos/owner/repository/releases/tags/v0.2.2") {
+      return { body: { tag_name: "v0.2.2", draft: false, prerelease: false, body: note } };
+    }
+    return undefined;
+  };
+
+  it("arms a verified reopening PR behind pending validation", async () => {
+    const result = await runManager({ pull_request: { number: 42 } }, reopening(), { respond: github() });
+    expect(result.requests.some(request => request.body.includes("enablePullRequestAutoMerge"))).toBe(true);
+    expect(result.requests.some(request => request.method === "PUT")).toBe(false);
+    expect(result.stdout).toContain("exact release reopening; squash auto-merge armed");
+  });
+
+  it("squash-merges and cleans the validated current head", async () => {
+    const result = await runManager(validationEvent(), reopening({ mergeable_state: "clean" }), { respond: github() });
+    expectMerge(result.requests);
+    expect(result.requests.some(request => request.url.includes("/git/refs/heads/") && request.method === "DELETE")).toBe(true);
+  });
+
+  it.each([
+    ["failed validation", validationEvent({ conclusion: "failure" })],
+    ["stale validation", validationEvent({ head_sha: "c".repeat(40) })],
+  ])("does not merge after %s", async (_label, event) => {
+    const result = await runManager(event, reopening({ mergeable_state: "clean" }), { respond: github() });
+    expect(result.requests.some(request => request.method === "PUT")).toBe(false);
+  });
+
+  it.each([
+    ["a dependency change", reopening({ auto_merge: { merge_method: "squash" } }), { head: manifests("0.2.3-dev", "^2.0.0") }],
+    ["another author", reopening({ auto_merge: { merge_method: "squash" }, user: { login: "someone", id: 7, type: "User" } }), {}],
+  ])("disarms and holds %s", async (_label, pull, options) => {
+    const result = await runManager(validationEvent(), pull, { respond: github(options) });
+    expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+    expect(result.requests.some(request => request.body.includes("enablePullRequestAutoMerge") || request.method === "PUT")).toBe(false);
+    expect(result.stdout).toContain("auto-merge not eligible");
+  });
+
+  it("keeps a release-note edit outside the reopening branch manual", async () => {
+    const result = await runManager(validationEvent(), pullFixture({ mergeable_state: "clean", auto_merge: { merge_method: "squash" } }), {
+      respond: github({ files: [{ filename: "docs/releases/0.2.2.md", status: "modified" }] }),
+    });
+    expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+    expect(result.requests.some(request => request.url.includes("/contents/") || request.method === "PUT")).toBe(false);
+  });
+});
+
 const pullUrl = "/repos/owner/repository/pulls/42";
 
 function validationEvent(overrides: Record<string, unknown> = {}): Record<string, unknown> {

@@ -1,5 +1,6 @@
 import { DynamicBorder, getMarkdownTheme } from "../startup-public.js";
-import { Container, Markdown, Spacer, Text, type KeybindingsConfig } from "@earendil-works/pi-tui";
+import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleWidth, type KeybindingsConfig } from "@earendil-works/pi-tui";
+import { PRODUCT_TEXT } from "../../../product-identity.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { PINNED_PI_LAYOUT, piTheme } from "./theme.js";
 import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";
@@ -233,4 +234,102 @@ export function hotkeysMarkdown(
     markdown += shortcuts.map(shortcut => `| \`${shortcutDisplay(shortcut.key)}\` | ${shortcut.description} |`).join("\n");
   }
   return markdown;
+}
+
+/**
+ * Pinned Pi's `showPackageUpdateNotification` banner: warning-coloured dynamic
+ * borders around a bold warning title, the muted update instruction with the
+ * accent command, and the package list.
+ */
+export function renderPiShellPackageUpdateNotice(packages: readonly string[], width: number): readonly string[] {
+  ensureTheme();
+  const theme = piTheme();
+  const container = new Container();
+  container.addChild(new Spacer(1));
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  container.addChild(new Text(
+    `${theme.bold(theme.fg("warning", "Package Updates Available"))}\n`
+    + `${theme.fg("muted", "Package updates are available. Run ")}${theme.fg("accent", `${PRODUCT_TEXT.commandName} pi update --extensions`)}\n`
+    + `${theme.fg("muted", "Packages:")}\n`
+    + packages.map(name => `- ${name}`).join("\n"),
+    1, 0,
+  ));
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  return container.render(width);
+}
+
+/**
+ * Pinned Pi's `showNewVersionNotification` banner, naming A1's update command: warning-coloured
+ * dynamic borders around a bold warning title, the muted instruction with the accent command, and
+ * for stable releases the muted changelog label with an accent hyperlink.
+ */
+export function renderPiShellReleaseUpdateNotice(
+  release: { readonly version: string; readonly command: string; readonly changelogUrl: string | null },
+  width: number,
+): readonly string[] {
+  ensureTheme();
+  const theme = piTheme();
+  const container = new Container();
+  container.addChild(new Spacer(1));
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  container.addChild(new Text(
+    `${theme.bold(theme.fg("warning", "Update Available"))}\n`
+    + `${theme.fg("muted", `New version ${release.version} is available. Run `)}${theme.fg("accent", release.command)}`,
+    1, 0,
+  ));
+  if (release.changelogUrl !== null) {
+    const link = getCapabilities().hyperlinks
+      ? hyperlink(theme.fg("accent", release.changelogUrl), release.changelogUrl)
+      : theme.fg("accent", release.changelogUrl);
+    container.addChild(new Text(`${theme.fg("muted", "Changelog: ")}${link}`, 1, 0));
+  }
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  return container.render(width);
+}
+
+export interface PiShellReleaseUpdateBanner {
+  readonly rows: readonly string[];
+  /** Clickable close area: zero-based rows within `rows`, one-based inclusive columns. */
+  readonly close: { readonly rowStart: number; readonly rowEnd: number; readonly columnStart: number; readonly columnEnd: number };
+}
+
+const BANNER_PADDING_X = 2;
+
+/**
+ * Bare A1's docked variant of the release notice: Pi's notice wording and colours on the prompt
+ * band's background instead of borders, so it spans the same width as the editor rules, with a
+ * minimal close glyph at the right end of the title row, matching the settings screen's controls.
+ */
+export function renderPiShellReleaseUpdateBanner(
+  release: { readonly version: string; readonly command: string; readonly changelogUrl: string | null },
+  width: number,
+  closeHovered: boolean,
+): PiShellReleaseUpdateBanner {
+  ensureTheme();
+  const theme = piTheme();
+  const bandBg = (text: string) => theme.bg("userMessageBg", text);
+  const title = theme.bold(theme.fg("warning", "Update Available"));
+  // Compatibility: paints like the settings stepper controls: dim at rest, plain text under the pointer.
+  const close = closeHovered ? "✕" : theme.fg("dim", "✕");
+  // Rationale: a glyph looks inset by its own side bearing, so one trailing cell after it reads the same
+  // as the text's two leading cells.
+  const gap = Math.max(1, width - BANNER_PADDING_X - visibleWidth(title) - 2);
+  const closeColumn = BANNER_PADDING_X + visibleWidth(title) + gap + 1;
+  const titleRow = bandBg(`${" ".repeat(BANNER_PADDING_X)}${title}${" ".repeat(gap)}${close} `);
+  const body = [
+    `${theme.fg("muted", `New version ${release.version} is available. Run `)}${theme.fg("accent", release.command)}`,
+  ];
+  if (release.changelogUrl !== null) {
+    const link = getCapabilities().hyperlinks
+      ? hyperlink(theme.fg("accent", release.changelogUrl), release.changelogUrl)
+      : theme.fg("accent", release.changelogUrl);
+    body.push(`${theme.fg("muted", "Changelog: ")}${link}`);
+  }
+  const padding = bandBg(" ".repeat(width));
+  // Invariant: rows are a leading spacer, the band's top padding, then the title row. Hover and click
+  // share one area, the glyph and one cell either side, so what lights up is exactly what closes.
+  return {
+    rows: ["", padding, titleRow, ...new Text(body.join("\n"), BANNER_PADDING_X, 0, bandBg).render(width), padding],
+    close: { rowStart: 2, rowEnd: 2, columnStart: closeColumn - 1, columnEnd: Math.min(width, closeColumn + 1) },
+  };
 }
