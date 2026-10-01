@@ -1,10 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 import { classifyReleaseReopening } from "../../scripts/governance/release-reopening-auto-merge.mjs";
 
 const baseSha = "b".repeat(40);
 const headSha = "a".repeat(40);
 const installerManifest = ["packages", "a1-install", "package.json"].join("/");
 const note = "## [0.2.2] - 2026-09-30\n\n### Fixed\n\n- Example fix.\n";
+const temporary: string[] = [];
+
+afterEach(async () => Promise.all(temporary.splice(0).map(path => rm(path, { recursive: true, force: true }))));
 
 function reopeningManifests(version: string, dependency = "^1.0.0"): Record<string, string> {
   return {
@@ -58,6 +65,21 @@ function classify(options: {
 }
 
 describe("release reopening auto-merge classification", () => {
+  it("loads the trusted documentation manager without node_modules", async () => {
+    const root = await mkdtemp(join(tmpdir(), "a1-documentation-manager-"));
+    temporary.push(root);
+    await cp(resolve("scripts"), join(root, "scripts"), { recursive: true });
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !["GITHUB_TOKEN", "GITHUB_EVENT_PATH", "GITHUB_REPOSITORY"].includes(key)));
+    const result = spawnSync(process.execPath, [join(root, "scripts", "governance", "manage-documentation-auto-merge.mjs")], {
+      cwd: root,
+      encoding: "utf8",
+      env,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("GitHub event, repository, and token are required");
+    expect(result.stderr).not.toContain("ERR_MODULE_NOT_FOUND");
+  });
+
   it("accepts the exact post-publication reopening shape", async () => {
     await expect(classify()).resolves.toMatchObject({ eligible: true, released: "0.2.2", opening: "0.2.3" });
   });
