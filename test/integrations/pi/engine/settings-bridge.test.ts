@@ -74,6 +74,27 @@ describe("Pi settings integration", () => {
     expect(settings.getFullscreenCopyOnSelect()).toBe(false);
   });
 
+  it("applies Pi's fullscreen wheel-scroll distance through the live shell owner", async () => {
+    const settings = SettingsManager.inMemory({ fullscreenWheelScrollLines: "auto" });
+    const port = new PiSettingsBridge(settings);
+    let effective: number | "auto" = "auto";
+    port.bindOwner("shell", { fullscreenWheelScrollLines: { apply: value => {
+      if (value !== "auto" && (typeof value !== "number" || !Number.isSafeInteger(value))) {
+        throw new TypeError("invalid wheel-scroll distance");
+      }
+      effective = value;
+    } } });
+
+    expect((await port.listSettings()).find(value => value.key === "fullscreenWheelScrollLines")).toMatchObject({
+      label: "Fullscreen wheel scrolling", storedValue: "auto", effectiveValue: "auto",
+    });
+    await expect(port.writeSetting("fullscreenWheelScrollLines", 4)).resolves.toMatchObject({
+      status: "applied", storedValue: 4, effectiveValue: 4,
+    });
+    expect(effective).toBe(4);
+    expect(settings.getFullscreenWheelScrollLines()).toBe(4);
+  });
+
   it("omits every unavailable bare-A1 option while retaining supported fallbacks", async () => {
     const port = new PiSettingsBridge(SettingsManager.inMemory({ compaction: { enabled: true } }));
     bindEffects(port, (key, owner) => owner !== "installation" && PI_SETTING_EFFECTS[key].hiddenInBare !== true);

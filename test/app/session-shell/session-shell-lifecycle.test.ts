@@ -355,7 +355,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
 
     const pinned = await fixture();
     const pinnedFrame = stripTerminalSequences(pinned.shell.root.render(80).join("\n"));
-    expect(pinnedFrame).toMatch(/pi v\d/i);
+    expect(pinnedFrame).toMatch(/v\d/i);
     expect(pinnedFrame).toContain("escape interrupt");
     await pinned.shell.dispose();
   });

@@ -11,6 +11,7 @@ import {
   type OverlayOptions,
   type TUI,
   type TuiAltScreenOptions,
+  type WheelScrollLines,
   visibleWidth,
 } from "@earendil-works/pi-tui";
 import { MouseReportInput, stripSgrMouseReports } from "./mouse-report-input.js";
@@ -443,6 +444,11 @@ export class PiTuiRuntimeAdapter {
 
   setClearOnShrink(enabled: boolean): void {
     this.#tui.setClearOnShrink(enabled);
+  }
+
+  setWheelScrollLines(lines: WheelScrollLines): void {
+    this.#tuiOptions.wheelScrollLines = lines;
+    if (this.#tui instanceof TuiAltScreen) this.#tui.setWheelScrollLines(lines);
   }
 
   getClearOnShrink(): boolean {

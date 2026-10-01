@@ -1,4 +1,4 @@
-import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type { AgentSessionEvent, PromptOptions } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import {
   PiSessionCommandIntegration,
@@ -6,7 +6,7 @@ import {
   type PiDocumentedSessionCommands,
 } from "../../../../src/integrations/pi/engine/index.js";
 
-type PromptCall = { text: string; options?: { streamingBehavior?: "steer" | "followUp"; images?: readonly unknown[]; preflightResult?: (success: boolean) => void } };
+type PromptCall = { text: string; options?: PromptOptions };
 
 class Commands implements PiDocumentedSessionCommands {
   isStreaming = false;
@@ -22,10 +22,10 @@ class Commands implements PiDocumentedSessionCommands {
     this.calls.push(`prompt:${text}${options?.streamingBehavior ? `:${options.streamingBehavior}` : ""}`);
     this.prompts.push({ text, ...(options === undefined ? {} : { options }) });
     if (this.promptFailure !== undefined) {
-      options?.preflightResult?.(this.promptFailure.accepted);
+      if (this.promptFailure.accepted) options?.preflightResult?.("started");
       throw this.promptFailure.error;
     }
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
   }
   async steer(text: string, images?: readonly unknown[]): Promise<void> {
     this.calls.push(`steer:${text}`);

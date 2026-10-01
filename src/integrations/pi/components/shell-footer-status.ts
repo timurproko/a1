@@ -10,6 +10,8 @@ import type {
   PromptChipWrapProtection,
 } from "../../../contracts/owned-ui/index.js";
 import { SessionFooter } from "./upstream/components/session-footer.js";
+import { piLogoLines } from "./upstream/components/pi-logo.js";
+import { ThemedText } from "./upstream/components/themed-text.js";
 import { KeybindingsManager, type KeybindingsConfig } from "./upstream/adjacent/core/keybindings.js";
 import { StatusIndicator, WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
 import { protectPiPromptChipPresentation } from "./prompt-chip-presentation.js";
@@ -38,15 +40,15 @@ import {
 export function createPiShellHeader(options: PiShellHeaderOptions = {}): PiShellHeaderPort {
   ensureTheme();
   let expanded = options.expanded ?? false;
-  const compact = new Text(compactHeaderText(), 1, 0);
-  const full = new Text(expandedHeaderText(), 1, 0);
-  const notices = (options.notices ?? []).map(notice => new Text(noticeText(notice), 1, 0));
+  const compact = new ThemedText(compactHeaderText, 1, 0);
+  const full = new ThemedText(() => expandedHeaderText(options.getKeybindings?.()), 1, 0);
+  const notices = (options.notices ?? []).map(notice => new ThemedText(() => noticeText(notice), 1, 0));
   return {
     get expanded() { return expanded; },
     setExpanded(value) { expanded = value; },
     render(width) {
       if (options.quiet) return [];
-      if (expanded && options.getKeybindings !== undefined) full.setText(expandedHeaderText(options.getKeybindings()));
+      if (expanded && options.getKeybindings !== undefined) full.invalidate();
       return [
         ...new Spacer(1).render(width),
         ...(expanded ? full : compact).render(width),
@@ -342,10 +344,9 @@ function compactHeaderText(): string {
     rawKeyHint("!", "bash"),
     rawKeyHint("ctrl+o", "more"),
   ].join(theme.fg("muted", " · "));
-  const logo = theme.bold(theme.fg("accent", "pi")) + theme.fg("dim", ` v${VERSION}`);
   const compactOnboarding = theme.fg("dim", "Press ctrl+o to show full startup help and loaded resources.");
   const onboarding = theme.fg("dim", "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.");
-  return `${logo}\n${instructions}\n${compactOnboarding}\n\n${onboarding}`;
+  return `${headerWithLogo(instructions)}\n${compactOnboarding}\n\n${onboarding}`;
 }
 
 function expandedHeaderText(bindings?: KeybindingsConfig): string {
@@ -373,9 +374,13 @@ function expandedHeaderText(bindings?: KeybindingsConfig): string {
     rawKeyHint("drop files", "to attach"),
   ].join("\n");
   const theme = piTheme();
-  const logo = theme.bold(theme.fg("accent", "pi")) + theme.fg("dim", ` v${VERSION}`);
   const onboarding = theme.fg("dim", "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.");
-  return `${logo}\n${instructions}\n\n${onboarding}`;
+  return `${headerWithLogo(instructions)}\n\n${onboarding}`;
+}
+
+function headerWithLogo(hints: string): string {
+  const [top, bottom] = piLogoLines();
+  return `${top} ${piTheme().fg("dim", `v${VERSION}`)}\n${bottom} ${hints}`;
 }
 
 function noticeText(notice: PiShellStartupNotice): string {

@@ -32,7 +32,8 @@ registerHooks({
     if (url.endsWith("/utils/clipboard.js") && url.includes("/pi-coding-agent/")) return {
       format: "module", shortCircuit: true,
       source: `export async function copyToClipboard(text) { return globalThis[Symbol.for("a1-command-outcome-state")]().host.copyText(text); }
-        export async function readClipboardText() { throw new Error("Clipboard read forbidden in outcome fixture"); }`,
+        export async function readClipboardText() { throw new Error("Clipboard read forbidden in outcome fixture"); }
+        export async function readClipboardFilePaths() { return null; }`,
     };
     if (url.endsWith("/utils/changelog.js") && url.includes("/pi-coding-agent/")) return {
       format: "module", shortCircuit: true,

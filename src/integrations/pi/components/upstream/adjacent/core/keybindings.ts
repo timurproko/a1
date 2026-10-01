@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-coding-agent 0.99.1 (MIT), commit d86654abb8862e201933517d6f1fce9f88dd117f,
  * packages/coding-agent/src/core/keybindings.ts.
  * Modifications: Mechanical source port with Node import prefixes, public package-root agent-directory
  * resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model
@@ -155,7 +155,7 @@ export const KEYBINDINGS = {
 	},
 	"app.clipboard.pasteImage": {
 		defaultKeys: windowsKeybindings ? "alt+v" : "ctrl+v",
-		description: "Paste image from clipboard (text fallback)",
+		description: "Paste files on macOS, images, or text from clipboard",
 	},
 	"app.session.new": { defaultKeys: [], description: "Start a new session" },
 	"app.session.tree": { defaultKeys: [], description: "Open session tree" },

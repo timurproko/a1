@@ -113,6 +113,9 @@ function createUpstreamFooter(state: StartupCaptureState): FooterComponent {
   const session = {
     state: { model, thinkingLevel: state.thinkingLevel },
     sessionManager: {
+      getEntryCount: () => state.usage === undefined ? 0 : 1,
+      getSessionId: () => "upstream-startup-fixture",
+      getLeafId: () => state.usage === undefined ? null : "assistant-1",
       getEntries: () => state.usage === undefined ? [] : [{
         type: "message",
         message: {
@@ -160,20 +163,19 @@ function createTui(width: number): TUI {
     setClearOnShrink() {}, setFocus() {}, showOverlay: () => ({ hide() {}, setHidden() {}, isHidden: () => false, focus() {}, unfocus() {}, isFocused: () => false, getBounds: () => undefined }),
     hideOverlay() {}, hasOverlay: () => false, start() {}, stop() {}, renderNow() {}, requestRender() {},
     addInputListener: () => () => {}, removeInputListener() {}, onTerminalColorSchemeChange: () => () => {},
-    setTerminalColorSchemeNotifications() {}, queryTerminalBackgroundColor: async () => undefined,
-    queryTerminalColorScheme: async () => undefined,
+    setTerminalColorSchemeNotifications() {}, queryTerminalColors: async () => ({}),
   };
 }
 
 function compactHeaderText(): string {
-  return `pi v${VERSION}\n${[
+  return `${headerWithLogo([
     rawKeyHint("escape", "interrupt"), rawKeyHint("ctrl+c/ctrl+d", "clear/exit"),
     rawKeyHint("/", "commands"), rawKeyHint("!", "bash"), rawKeyHint("ctrl+o", "more"),
-  ].join(" · ")}\nPress ctrl+o to show full startup help and loaded resources.\n\nPi can explain its own features and look up its docs. Ask it how to use or extend Pi.`;
+  ].join(" · "))}\nPress ctrl+o to show full startup help and loaded resources.\n\nPi can explain its own features and look up its docs. Ask it how to use or extend Pi.`;
 }
 
 function expandedHeaderText(): string {
-  return `pi v${VERSION}\n${[
+  return `${headerWithLogo([
     rawKeyHint("escape", "to interrupt"), rawKeyHint("ctrl+c", "to clear"), rawKeyHint("ctrl+c twice", "to exit"),
     rawKeyHint("ctrl+d", "to exit (empty)"), rawKeyHint(process.platform === "win32" ? "" : "ctrl+z", "to suspend"),
     rawKeyHint("ctrl+k", "to delete to end"), rawKeyHint("shift+tab", "to cycle thinking level"),
@@ -184,7 +186,11 @@ function expandedHeaderText(): string {
     rawKeyHint("alt+up", "to edit all queued messages"),
     rawKeyHint(process.platform === "win32" ? "alt+v" : "ctrl+v", "to paste image (with text fallback)"),
     rawKeyHint("drop files", "to attach"),
-  ].join("\n")}\n\nPi can explain its own features and look up its docs. Ask it how to use or extend Pi.`;
+  ].join("\n"))}\n\nPi can explain its own features and look up its docs. Ask it how to use or extend Pi.`;
+}
+
+function headerWithLogo(hints: string): string {
+  return `▀▀█  v${VERSION}\n█▀ █ ${hints}`;
 }
 
 function noticeText(notice: StartupCaptureState["notices"][number]): string {

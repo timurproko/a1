@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {
-    "version": "0.87.1",
-    "commit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe"
+    "version": "0.99.1",
+    "commit": "d86654abb8862e201933517d6f1fce9f88dd117f"
   },
   "policy": {
     "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",
@@ -90,6 +90,7 @@
     "fullscreen-exit-output",
     "fullscreen-scrollbar",
     "fullscreen-copy-on-select",
+    "fullscreen-wheel-scroll-lines",
     "theme",
     "show-images",
     "image-width-cells",
@@ -294,11 +295,12 @@
       "source": "settings",
       "sourceAnchors": [
         "showSingleMenu()",
-        "Select a theme, or choose Automatic"
+        "Select a theme, or choose automatic"
       ],
       "heading": "Theme",
-      "body": "Select a theme, or choose Automatic to follow terminal appearance.",
+      "body": "Select a theme, or choose automatic to follow terminal appearance.",
       "options": [
+        "System",
         "Automatic",
         "all available theme names"
       ],
@@ -309,7 +311,6 @@
       "viewport": "maximum ten themes",
       "scrolling": "SelectList scrolling",
       "destination": "src/integrations/pi/components/shell-components.ts",
-      "status": "implemented-pending-exhaustive-parity",
       "controller": "ThemeSubmenu + SelectSubmenu",
       "acceptance": "modal-node:settings.theme.single",
       "parents": [
@@ -3959,6 +3960,7 @@
     "mermaid.js",
     "model-selector.js",
     "oauth-selector.js",
+    "pi-logo.js",
     "scoped-models-selector.js",
     "session-selector-search.js",
     "session-selector.js",
@@ -3968,6 +3970,7 @@
     "skill-invocation-message.js",
     "status-indicator.js",
     "theme-selector.js",
+    "themed-text.js",
     "thinking-selector.js",
     "tool-execution.js",
     "tree-selector.js",

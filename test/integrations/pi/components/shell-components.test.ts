@@ -806,7 +806,7 @@ describe("Pi shell public component adapters", () => {
         enableInstallTelemetry: true, doubleEscapeAction: "tree", treeFilterMode: "default",
         showHardwareCursor: true, editorPaddingX: 0, outputPad: 1, autocompleteMaxVisible: 5,
         quietStartup: false, defaultProjectTrust: "ask", clearOnShrink: false, showTerminalProgress: false,
-        tuiMode: "fullscreen", fullscreenExitOutput: "transcript", fullscreenScrollbar: "auto", warnings: { anthropicExtraUsage: true },
+        tuiMode: "fullscreen", fullscreenExitOutput: "transcript", fullscreenScrollbar: "auto", fullscreenWheelScrollLines: "auto", warnings: { anthropicExtraUsage: true },
       },
       onChange: changed,
       onCancel: cancelled,
@@ -815,7 +815,7 @@ describe("Pi shell public component adapters", () => {
     expect(rows).toMatch(/Auto-compact\s+true/);
     expect(rows).toMatch(/Auto-resize images\s+true/);
     settings.handleInput?.("\x1b[B");
-    expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/31)");
+    expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/32)");
     settings.handleInput?.("\x1b");
     expect(cancelled).toHaveBeenCalledOnce();
 
@@ -1052,6 +1052,11 @@ describe("Pi shell public component adapters", () => {
     expect(createPiShellDialog(dialog).render(50).join("\n")).toContain("Choose");
     expect(createPiShellStatus(view(), canonicalProgressStatus).render(80)).toEqual([]);
     expect(createPiShellFooter(view(), "D:/work").render(80).join("\n")).toContain("gpt-5 • medium");
+    const routed = { ...view(), routedModel: {
+      model: { providerId: "anthropic", modelId: "claude-sonnet", displayName: "Claude Sonnet" },
+      thinkingLevel: "high" as const,
+    } };
+    expect(createPiShellFooter(routed, "D:/work").render(80).join("\n")).toContain("gpt-5 • medium → claude-sonnet • high");
     expect(createPiShellHeader().render(80).join("\n")).toContain(`v${VERSION}`);
   });
 });
