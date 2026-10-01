@@ -18,7 +18,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-01-pi-upgrade-0-99-1/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-01-pi-upgrade-0-99-1/acceptance.md",
   "finalizedDate": "2026-10-01",
-  "specBaseSha": "96c6c4b8d1947d2ed1eb3a8546b663f2b9cc9296",
+  "specBaseSha": "94ae1979adc16c14f6eb3a124a43ec6d87963f1f",
   "acceptanceScenarios": [
     "Pinned both Pi packages at 0.99.1 and refreshed the source ledger, inventories, public API baseline, feature matrix, startup graph, changelog, and parity evidence.",
     "Resolved both vendored conflicts and all orphaned or unmapped inventory findings; the final refresh reports none remaining.",
