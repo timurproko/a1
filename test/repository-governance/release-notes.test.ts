@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   buildReleaseNotesResource,
   MAX_RELEASE_NOTE_BYTES,
+  nextStablePatchVersion,
   parseReleaseNote,
   releaseNotePath,
   renderReleaseNoteDraft,
@@ -47,9 +48,15 @@ describe("reviewed release-note documents", () => {
 
   it("rejects an oversized note and invalid path versions", () => {
     expect(() => parseReleaseNote(`${"x".repeat(MAX_RELEASE_NOTE_BYTES + 1)}`, "1.2.3")).toThrow(/bounded|size/i);
-    for (const version of ["1.2.3-dev", "01.2.3", "../1.2.3", "v1.2.3"]) {
+    for (const version of ["1.2.3-dev", "01.2.3", "../1.2.3", "v1.2.3", "9007199254740992.0.0"]) {
       expect(() => releaseNotePath(version)).toThrow(/stable release-note version/i);
     }
+  });
+
+  it("derives exact patch successors without an installed semver runtime", () => {
+    expect(nextStablePatchVersion("1.2.3")).toBe("1.2.4");
+    expect(nextStablePatchVersion("0.0.9007199254740991")).toBe("0.0.9007199254740992");
+    expect(() => nextStablePatchVersion("1.2.3-dev")).toThrow(/stable release-note version/i);
   });
 
   it("generates deterministic grouped, escaped, linked draft text", () => {

@@ -1,5 +1,4 @@
-import semver from "semver";
-import { parseReleaseNote, releaseNotePath } from "../release/release-notes.mjs";
+import { nextStablePatchVersion, parseReleaseNote, releaseNotePath } from "../release/release-notes.mjs";
 import { parseImplementation, metadataBlock } from "./openspec-archive-policy.mjs";
 
 // Provenance: the App identity `finalize-release.yml` mints to open the reopening PR.
@@ -39,7 +38,7 @@ export async function classifyReleaseReopening({ pull, files, repository, read, 
     return refuse("reopening PR must modify only the three version files and add one release note");
   }
   const released = NOTE.exec(notes[0].filename)[1];
-  if (notes[0].filename !== releaseNotePath(released) || semver.inc(released, "patch") !== opening) {
+  if (notes[0].filename !== releaseNotePath(released) || nextStablePatchVersion(released) !== opening) {
     return refuse(`release note ${released} does not precede ${opening}-dev`);
   }
 
