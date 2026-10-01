@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-30T07:53:32.882Z",
+  "recordedAt": "2026-10-01T08:36:54.145Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "d86654abb8862e201933517d6f1fce9f88dd117f",
@@ -890,7 +890,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Unchanged image bytes are losslessly encoded in an attributed owned JSON resource by scripts/pi/update-command-resources.mjs. Source bytes and digest are verified against this pinned asset authority; runtime reads only the owned resource, never the dependency directory.",
       "upgradeStrategy": "three-way",
-      "localSha256": "da18bbe17b6c290737c92555c87ce20e654b0566b454db8755f3294cee7e7811",
+      "localSha256": "51120dc0ddaf0fcd6c9966a157c686fc4fae783f01d78d53dffcf7d8ae3595df",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -1761,9 +1761,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and reserves its linked pull-request badge before path truncation while preserving the remaining footer layout and formatting; replacement surfaces may suppress a thinking level they already present.",
+      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; preserves the latest physical route for virtual models; an explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and reserves its linked pull-request badge before path truncation while preserving the remaining footer layout and formatting; replacement surfaces may suppress a thinking level they already present.",
       "upgradeStrategy": "three-way",
-      "localSha256": "501666014c4686022c08102591358dad6f0882f881d90c94b4be425967f129e6",
+      "localSha256": "650d47a30c9ad437afb2864ebea2e33c489884e17672cb83fae1349f9d15bf3f",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -2060,10 +2060,11 @@
       "sha256": "120664ae4e5982b4b1325da5cfffd35ea8ffd201cde6ce566d9383b9a6813c4e",
       "classification": "owned-presentation",
       "localDestination": "src/integrations/pi/components/upstream/components/pi-logo.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Remapped the private theme import to A1's public-backed adapter and composed the fixed-color logo into the owned startup header.",
       "upgradeStrategy": "three-way",
+      "localSha256": "1dbe80161d13fe76b0f48b5f218c2999aa7b4e529929ec6cd3b51a293835c5db",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -2075,8 +2076,8 @@
         "7.5"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts"
       ]
     },
     {
@@ -2454,10 +2455,11 @@
       "sha256": "7003c90ab15dc37c1a10e744bbf24c597e91fe7415d59b75c085b2e5c1749817",
       "classification": "owned-presentation",
       "localDestination": "src/integrations/pi/components/upstream/components/themed-text.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Integrated invalidation-aware text into A1's owned startup header and notices; repository formatting only.",
       "upgradeStrategy": "three-way",
+      "localSha256": "705c3cbabe1d7076d52e1d4c1dbb4fa7d935bdcb29f9d39af9642b66fed4791b",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -2477,10 +2479,8 @@
         "7.21"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/components/pinned-theme-composition-parity.test.ts",
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts",
-        "test/integrations/pi/tui-runtime/pinned-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts"
       ]
     },
     {
@@ -2564,7 +2564,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain pinned shell and actual public tool-definition renderers. Replace private index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and generic text helpers to public or locally attributed equivalents. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "37ce1455a5bc943f467f3f3aeea14feb74c5616b314e36429ffe490d05b7c686",
+      "localSha256": "9986fdb4d61b2d066e7241c33b5a4203385c32d623becd5d961b3fcdaaa2df32",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -3127,10 +3127,11 @@
       "sha256": "7234770316787805fa49595537c5f9e60bf9d5fe006a0fa2a8e596baff7c6adb",
       "classification": "owned-presentation",
       "localDestination": "src/integrations/pi/components/upstream/theme/system-theme.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Copied the system palette generator with ESM import remapping and strict indexed-access assertions; A1 retains explicit owned theme selection.",
       "upgradeStrategy": "three-way",
+      "localSha256": "ed9519929c734149467c254893187b0fe6d2f77639303a4eabf53e709c48fd01",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -3151,10 +3152,7 @@
         "7.21"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-theme-parity.test.ts",
-        "test/integrations/pi/components/pinned-theme-composition-parity.test.ts",
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts",
-        "test/integrations/pi/tui-runtime/pinned-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/pinned-theme-parity.test.ts"
       ]
     },
     {
@@ -3304,7 +3302,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "edf5096d4c33b5642f2558770b2af504741c69406b547f9391050cb3d9a0e798",
+      "localSha256": "f25804681657d5c93a4f7c461e629dec392285817409e69a056fba529c3bae2b",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",
@@ -3514,8 +3512,7 @@
         "7.21"
       ],
       "tests": [
-        "test/features/owned-ui/pinned-input-parity.test.ts",
-        "test/integrations/pi/tui-runtime/pinned-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/pinned-theme-parity.test.ts"
       ]
     },
     {
@@ -4684,8 +4681,7 @@
         "7.21"
       ],
       "tests": [
-        "test/features/owned-ui/pinned-input-parity.test.ts",
-        "test/integrations/pi/tui-runtime/pinned-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/pinned-theme-parity.test.ts"
       ]
     },
     {
@@ -5067,8 +5063,7 @@
         "7.21"
       ],
       "tests": [
-        "test/features/owned-ui/pinned-input-parity.test.ts",
-        "test/integrations/pi/tui-runtime/pinned-lifecycle-parity.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {

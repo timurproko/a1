@@ -835,8 +835,7 @@ describe("Pi engine adapter", () => {
     await adapter.flushEvents();
     await adapter.execute({ type: "steer", correlationId: "s1", sessionId: adapter.sessionId, text: "first" });
     session.isCompacting = false;
-    session.prompt = async (_text, options) => {
-      (options as { preflightResult?: (success: boolean) => void } | undefined)?.preflightResult?.(false);
+    session.prompt = async () => {
       throw new Error("No model selected");
     };
     session.emit({ type: "compaction_end", reason: "manual", aborted: true, willRetry: false });

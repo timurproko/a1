@@ -130,7 +130,7 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
         const cells = await replayTerminalBackgroundCells(writes, { columns: 60, rows: 16 });
         // Provenance: the oracle is the pinned dark truecolor palette, not the production hover predicate.
         expect(cells.find(cell => cell.row === row && cell.column === 30)).toMatchObject({
-          mode: "rgb", color: hovered ? 0x3a3a4a : 0x282832,
+          mode: "rgb", color: hovered ? 0x213b49 : 0x34383a,
         });
         const [painted] = await replayTerminalCheckpoints(writes, [{ columns: 60, rows: 16, writeEnd: writes.length }]);
         expect(painted!.rows.slice(row).some(line => line.includes("x"))).toBe(true);
@@ -145,7 +145,7 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
         expect(dockPaint.fullScreenClears).toBe(0);
         expect(dockPaint.addressedRowWrites.every(paintedRow => paintedRow > row)).toBe(true);
         const nextCells = await replayTerminalBackgroundCells(terminal.writes.map((data, atMs) => ({ data, atMs })), { columns: 60, rows: 16 });
-        expect(nextCells.find(cell => cell.row === row && cell.column === 30)?.color).toBe(hovered ? 0x3a3a4a : 0x282832);
+        expect(nextCells.find(cell => cell.row === row && cell.column === 30)?.color).toBe(hovered ? 0x213b49 : 0x34383a);
       } finally { await shell.dispose(); }
     }, { hyperlinks: false });
   });
@@ -255,8 +255,8 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
         const cells = await replayTerminalBackgroundCells(prefix, { columns, rows });
         const target = cells.find(cell => cell.row === point.state.bottom?.row && cell.column === Math.floor(columns / 2));
         if (point.expected === null) expect(point.state.bottom, point.name).toBeNull();
-        else expect(target, point.name).toMatchObject({ mode: "rgb", color: point.expected ? 0x3a3a4a : 0x282832 });
-        trace.paint(point.state, point.expected === null ? null : target?.color === 0x3a3a4a);
+        else expect(target, point.name).toMatchObject({ mode: "rgb", color: point.expected ? 0x213b49 : 0x34383a });
+        trace.paint(point.state, point.expected === null ? null : target?.color === 0x213b49);
         const damage = classifyTerminalPaint(writes.slice(point.start, point.end));
         if (point.name.startsWith("hover-")) {
           expect(damage.fullScreenClears, point.name).toBe(0);

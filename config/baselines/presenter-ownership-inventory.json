@@ -130,10 +130,10 @@
       "plane": "persistent-document",
       "owner": "InteractiveMode.showStatus",
       "container": "chatContainer",
-      "insertion": "Spacer(1) then dim Text with padding 1",
+      "insertion": "Spacer(1) then invalidation-aware ThemedText with padding 1",
       "siblingOrder": "exact call order among transcript and command presenters",
       "spacing": "one leading blank row; no generic checkmark",
-      "style": "theme.fg(dim, message)",
+      "style": "theme.fg(dim, latest message), rebuilt after theme invalidation",
       "chronology": "latest append is latest chat child and therefore closest persistent row to dock",
       "coalescing": "replace text only when the prior two children are the tracked status spacer/text",
       "scrollFollow": "primary transcript follows chronological insertion",
@@ -141,12 +141,11 @@
       "sourceAnchors": [
         "showStatus(message)",
         "const spacer = new Spacer(1)",
-        "const text = new Text(theme.fg(\"dim\", message), 1, 0)",
-        "this.lastStatusText.setText"
+        "const text = new ThemedText(() => theme.fg(\"dim\", this.lastStatusMessage), 1, 0)",
+        "this.lastStatusText.invalidate()"
       ],
       "destination": "src/app/session-shell/session-shell.ts",
-      "implementationStatus": "known-divergence",
-      "status": "orphaned"
+      "implementationStatus": "known-divergence"
     },
     {
       "id": "document.error-warning",

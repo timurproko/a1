@@ -14,6 +14,7 @@ import {
   Theme,
   type ThemeColor,
 } from "@earendil-works/pi-coding-agent";
+export type { ThemeColor } from "@earendil-works/pi-coding-agent";
 import { getCapabilities, type RgbColor } from "@earendil-works/pi-tui";
 import { BUILTIN_THEME_RESOURCES, isBuiltinThemeName } from "../../resources/builtin-themes.js";
 
@@ -28,18 +29,23 @@ export const PINNED_PI_LAYOUT = Object.freeze({
 } as const);
 
 export type PiTerminalTheme = "dark" | "light";
+export type ThemeAppearance = PiTerminalTheme;
 export type PiThemeBackground =
   | "selectedBg"
+  | "searchMatchBg"
   | "userMessageBg"
   | "customMessageBg"
   | "toolPendingBg"
   | "toolSuccessBg"
   | "toolErrorBg";
+export type ThemeBg = PiThemeBackground;
+export type ThemeToken = ThemeColor | ThemeBg;
 export type PiColorMode = "truecolor" | "256color";
 type ColorValue = string | number;
 
 interface PiThemeJson {
   readonly name: string;
+  readonly appearance?: PiTerminalTheme;
   readonly vars?: Readonly<Record<string, ColorValue>>;
   readonly colors: Readonly<Record<string, ColorValue>>;
 }
@@ -63,7 +69,7 @@ export interface PiTerminalThemeDetector {
 }
 
 const FOREGROUND_COLORS: readonly ThemeColor[] = [
-  "accent", "border", "borderAccent", "borderMuted", "success", "error", "warning", "muted", "dim", "text", "scrollbarTrack", "scrollbarThumb",
+  "accent", "border", "borderAccent", "borderMuted", "success", "error", "warning", "muted", "dim", "text", "scrollbarTrack", "scrollbarThumb", "searchMatchText",
   "thinkingText", "userMessageText", "customMessageText", "customMessageLabel", "toolTitle", "toolOutput",
   "mdHeading", "mdLink", "mdLinkUrl", "mdCode", "mdCodeBlock", "mdCodeBlockBorder", "mdQuote", "mdQuoteBorder",
   "mdHr", "mdListBullet", "toolDiffAdded", "toolDiffRemoved", "toolDiffContext", "syntaxComment", "syntaxKeyword",
@@ -71,7 +77,7 @@ const FOREGROUND_COLORS: readonly ThemeColor[] = [
   "thinkingOff", "thinkingMinimal", "thinkingLow", "thinkingMedium", "thinkingHigh", "thinkingXhigh", "thinkingMax", "bashMode",
 ];
 const BACKGROUND_COLORS: readonly PiThemeBackground[] = [
-  "selectedBg", "userMessageBg", "customMessageBg", "toolPendingBg", "toolSuccessBg", "toolErrorBg",
+  "selectedBg", "searchMatchBg", "userMessageBg", "customMessageBg", "toolPendingBg", "toolSuccessBg", "toolErrorBg",
 ];
 let activeTheme: Theme | undefined;
 let activeThemeName: string | undefined;
@@ -158,15 +164,20 @@ export function loadPiTheme(name: string, mode?: PiColorMode): Theme {
   const thinkingMax = colors.thinkingMax ?? colors.thinkingXhigh;
   const scrollbarThumb = colors.scrollbarThumb ?? colors.text;
   const scrollbarTrack = colors.scrollbarTrack ?? colors.muted;
+  const searchMatchBg = colors.searchMatchBg ?? colors.selectedBg;
+  const searchMatchText = colors.searchMatchText ?? colors.text;
   if (thinkingMax !== undefined) colors.thinkingMax = thinkingMax;
   if (scrollbarThumb !== undefined) colors.scrollbarThumb = scrollbarThumb;
   if (scrollbarTrack !== undefined) colors.scrollbarTrack = scrollbarTrack;
+  if (searchMatchBg !== undefined) colors.searchMatchBg = searchMatchBg;
+  if (searchMatchText !== undefined) colors.searchMatchText = searchMatchText;
   const resolved = Object.fromEntries(Object.entries(colors).map(([key, value]) => [key, resolveVariable(value, vars)]));
   const foreground = Object.fromEntries(FOREGROUND_COLORS.map(key => [key, requiredColor(resolved, key, path)])) as Record<ThemeColor, ColorValue>;
   const backgrounds = Object.fromEntries(BACKGROUND_COLORS.map(key => [key, requiredColor(resolved, key, path)])) as Record<PiThemeBackground, ColorValue>;
   return new Theme(foreground, backgrounds, mode ?? (getCapabilities().trueColor ? "truecolor" : "256color"), {
     name: themeJson.name,
     sourcePath: path,
+    ...(themeJson.appearance === undefined ? {} : { appearance: themeJson.appearance }),
   });
 }
 
@@ -288,11 +299,14 @@ function validateThemeJson(label: string, value: unknown): PiThemeJson {
     throw new Error(`Invalid theme "${label}": expected name, colors, and optional vars objects`);
   }
   if (value.name.includes("/")) throw new Error(`Invalid theme name "${value.name}"`);
+  if (value.appearance !== undefined && value.appearance !== "dark" && value.appearance !== "light") {
+    throw new Error(`Invalid theme "${label}": appearance must be dark or light`);
+  }
   for (const key of FOREGROUND_COLORS) {
-    if (key !== "thinkingMax" && key !== "scrollbarThumb" && key !== "scrollbarTrack" && value.colors[key] === undefined) throw new Error(`Invalid theme "${label}": missing required color ${key}`);
+    if (key !== "thinkingMax" && key !== "scrollbarThumb" && key !== "scrollbarTrack" && key !== "searchMatchText" && value.colors[key] === undefined) throw new Error(`Invalid theme "${label}": missing required color ${key}`);
   }
   for (const key of BACKGROUND_COLORS) {
-    if (value.colors[key] === undefined) throw new Error(`Invalid theme "${label}": missing required color ${key}`);
+    if (key !== "searchMatchBg" && value.colors[key] === undefined) throw new Error(`Invalid theme "${label}": missing required color ${key}`);
   }
   const colors: Record<string, ColorValue> = {};
   for (const [key, color] of Object.entries(value.colors)) {
@@ -304,7 +318,12 @@ function validateThemeJson(label: string, value: unknown): PiThemeJson {
     validateColor(color, `${label}.vars.${key}`);
     vars[key] = color;
   }
-  return { name: value.name, colors, ...(Object.keys(vars).length === 0 ? {} : { vars }) };
+  return {
+    name: value.name,
+    colors,
+    ...(value.appearance === undefined ? {} : { appearance: value.appearance }),
+    ...(Object.keys(vars).length === 0 ? {} : { vars }),
+  };
 }
 
 function validateColor(value: unknown, label: string): asserts value is ColorValue {
@@ -314,7 +333,7 @@ function validateColor(value: unknown, label: string): asserts value is ColorVal
 }
 
 function resolveVariable(value: ColorValue, vars: Readonly<Record<string, ColorValue>>, visited = new Set<string>()): ColorValue {
-  if (typeof value === "number" || value === "" || value.startsWith("#")) return value;
+  if (typeof value === "number" || value === "" || value.startsWith("#") || /^ok(lch|hsl)\(/i.test(value)) return value;
   if (visited.has(value)) throw new Error(`Circular variable reference detected: ${value}`);
   if (!(value in vars)) throw new Error(`Variable reference not found: ${value}`);
   visited.add(value);

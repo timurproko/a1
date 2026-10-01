@@ -28,22 +28,32 @@ export function mergeBuiltInRenderers(definition: ToolDefinition<any, any, any> 
 	return merged;
 }
 
-<<<<<<< a1
 const definitions = { read: createReadToolDefinition, bash: createBashToolDefinition, edit: createEditToolDefinition,
   write: createWriteToolDefinition, grep: createGrepToolDefinition, find: createFindToolDefinition, ls: createLsToolDefinition };
-||||||| pi 0.87.1
-import { getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
-import { convertToPng } from "../../../utils/image-convert.ts";
-import { theme } from "../theme/theme.ts";
-import { keyHint } from "./keybinding-hints.ts";
-=======
-import { formatToolCallWithArgs, getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
-import { convertToPng } from "../../../utils/image-convert.ts";
-import { theme } from "../theme/theme.ts";
-import { keyHint } from "./keybinding-hints.ts";
->>>>>>> pi 0.99.1
 
 const FALLBACK_PREVIEW_LINES = 10;
+const COLLAPSED_ARGS_CHARS = 100;
+
+/** Locally attributed equivalent of pinned Pi's private generic tool-call formatter. */
+function formatToolCallWithArgs(title: string, args: unknown, expanded: boolean): string {
+  const theme = piTheme();
+  const header = theme.fg("toolTitle", theme.bold(title));
+  if (args === null || args === undefined) return header;
+  const entries = typeof args === "object" && !Array.isArray(args)
+    ? Object.entries(args)
+    : [["args", args] as const];
+  if (entries.length === 0) return header;
+  if (expanded) {
+    const lines = entries.map(([key, value]) => {
+      const text = typeof value === "string" ? value : JSON.stringify(value, null, 2) ?? String(value);
+      return `  ${key}: ${text.replace(/\t/g, "   ").replace(/\r/g, "").split("\n").join("\n    ")}`;
+    });
+    return `${header}\n${theme.fg("muted", lines.join("\n"))}`;
+  }
+  const pairs = entries.map(([key, value]) => `${key}=${JSON.stringify(value) ?? String(value)}`).join(" ");
+  const preview = pairs.length > COLLAPSED_ARGS_CHARS ? `${pairs.slice(0, COLLAPSED_ARGS_CHARS - 3)}...` : pairs;
+  return `${header} ${theme.fg("muted", preview)}`;
+}
 
 export interface ToolExecutionOptions {
 	showImages?: boolean;
@@ -165,14 +175,7 @@ export class ToolExecutionComponent extends Container {
 	}
 
 	private createCallFallback(): Component {
-<<<<<<< a1
-    const theme = piTheme();
-		return new Text(theme.fg("toolTitle", theme.bold(this.toolName)), 0, 0);
-||||||| pi 0.87.1
-		return new Text(theme.fg("toolTitle", theme.bold(this.toolName)), 0, 0);
-=======
-		return new Text(formatToolCallWithArgs(this.toolName, this.args, theme, this.expanded), 0, 0);
->>>>>>> pi 0.99.1
+		return new Text(formatToolCallWithArgs(this.toolName, this.args, this.expanded), 0, 0);
 	}
 
 	private createResultFallback(): Component | undefined {

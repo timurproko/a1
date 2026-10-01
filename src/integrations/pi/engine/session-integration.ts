@@ -13,8 +13,8 @@ export interface PiDocumentedSessionCommands {
   readonly isRetrying: AgentSession["isRetrying"];
   readonly isCompacting: AgentSession["isCompacting"];
   prompt(text: string, options?: Parameters<AgentSession["prompt"]>[1]): Promise<void>;
-  steer(text: string, images?: PiPromptImages): Promise<void>;
-  followUp(text: string, images?: PiPromptImages): Promise<void>;
+  steer(text: string, images?: PiPromptImages): Promise<unknown>;
+  followUp(text: string, images?: PiPromptImages): Promise<unknown>;
   abort(): Promise<void>;
   abortRetry(): void;
   abortCompaction(): void;
@@ -123,7 +123,7 @@ export class PiSessionCommandIntegration {
     let accepted = false;
     const started = this.session.prompt(first.text, {
       streamingBehavior: first.mode,
-      preflightResult: success => { accepted = success; },
+      preflightResult: () => { accepted = true; },
       ...(first.images === undefined ? {} : { images: [...first.images] }),
     });
     for (const item of rest) await this.#queue(item.mode, item.text, item.images);

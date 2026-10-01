@@ -1449,7 +1449,9 @@
       "kind": "settings-callback",
       "feature": "onFullscreenWheelScrollLinesChange",
       "since": "0.99.1",
-      "disposition": "pending"
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/integrations/pi/engine/settings-bridge.test.ts"
     },
     {
       "id": "settings-callback:onHideThinkingBlockChange",
@@ -1765,6 +1767,15 @@
       "disposition": "owned",
       "behavior": "settings.complete-surface",
       "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:fullscreenWheelScrollLines",
+      "kind": "setting",
+      "feature": "fullscreenWheelScrollLines",
+      "since": "0.99.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/integrations/pi/engine/settings-bridge.test.ts"
     },
     {
       "id": "setting:hideThinkingBlock",
@@ -2364,7 +2375,8 @@
       "version": "0.99.0",
       "summary": "Run Jev classifiers from codemode scripts, or use any llama.cpp model as a classifier.",
       "since": "0.99.1",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Classifier catalogs and execution are provided by the pinned model runtime and built-in codemode and llama.cpp extensions loaded through createAgentSessionServices."
     },
     {
       "id": "changelog:0.99.0:codemode-and-mcp",
@@ -2373,7 +2385,8 @@
       "version": "0.99.0",
       "summary": "Connect MCP servers and let models run JavaScript that calls tools in parallel.",
       "since": "0.99.1",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "The pinned service factory loads Pi's built-in codemode, tool-search, and MCP extensions; A1 exposes their tools and tunnels their extension commands through the hosted session."
     },
     {
       "id": "changelog:0.99.0:sign-in-with-chatgpt",
@@ -2382,7 +2395,8 @@
       "version": "0.99.0",
       "summary": "Use a ChatGPT subscription with the OpenAI provider through `/login openai`.",
       "since": "0.99.1",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "A1's owned login workflow reads the pinned provider registry and delegates OAuth to the pinned model runtime, so OpenAI presents the Sign in with ChatGPT method without a provider-specific fork."
     },
     {
       "id": "changelog:0.99.0:system-theme",
@@ -2391,7 +2405,9 @@
       "version": "0.99.0",
       "summary": "Pi's colors now come from your terminal's own palette by default.",
       "since": "0.99.1",
-      "disposition": "pending"
+      "disposition": "diverged",
+      "deviation": "theme-public-api-boundary",
+      "test": "test/integrations/pi/components/pinned-theme-parity.test.ts"
     },
     {
       "id": "changelog:0.99.0:virtual-models",
@@ -2400,7 +2416,9 @@
       "version": "0.99.0",
       "summary": "Extensions can route each request to a different physical model.",
       "since": "0.99.1",
-      "disposition": "pending"
+      "disposition": "owned",
+      "behavior": "footer.complete-state",
+      "test": "test/integrations/pi/components/shell-components.test.ts"
     },
     {
       "id": "changelog:0.99.1:gpt-6-1-sol",
@@ -2409,7 +2427,8 @@
       "version": "0.99.1",
       "summary": "Available on OpenAI, Azure OpenAI, and OpenAI Codex, and now the default OpenAI Codex model.",
       "since": "0.99.1",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Provider catalog and default-model behavior are supplied by the pinned model runtime; A1's model selectors consume that public registry without a separate catalog."
     }
   ]
 }
