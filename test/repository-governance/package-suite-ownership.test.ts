@@ -75,6 +75,12 @@ describe("exact-package startup and non-timing ownership", () => {
     expect(startup).toContain("enforcement,");
     expect(startup).toContain("budgetViolations,");
     expect(contracts).toContain("createPackagedCleanupBacklog(dataDir, 42, 128)");
+    expect(contracts).toContain("const PACKAGE_BACKLOG_WRITE_CONCURRENCY = 8;");
+    expect(contracts).toContain("Math.min(PACKAGE_BACKLOG_WRITE_CONCURRENCY, payloadFilesPerRelease)");
+    expect(contracts).toContain("await writePayloadFiles(releaseRoot, payloadFilesPerRelease)");
+    expect(contracts).toContain("`export default ${file};`");
+    expect(contracts).not.toContain("Promise.all(Array.from({ length: payloadFilesPerRelease }");
+    expect(contracts).toContain("}, 120_000);");
   });
 
   it("keeps atomic plans separate and the public package composition complete", async () => {

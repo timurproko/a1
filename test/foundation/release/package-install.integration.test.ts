@@ -8,6 +8,7 @@ import { cleanupExactCandidate, installExactCandidate } from "./package-install-
 import { createValidationPhaseRecorder } from "../../../scripts/release/validation-phase.mjs";
 
 const phases = createValidationPhaseRecorder("package-install");
+const PACKAGE_BACKLOG_WRITE_CONCURRENCY = 8;
 let root = "";
 let prefix = "";
 let candidate: Awaited<ReturnType<typeof loadValidationCandidate>>;
@@ -344,9 +345,7 @@ async function createPackagedCleanupBacklog(dataDir: string, count: number, payl
     const releaseId = `${packageVersion}-${identity}`;
     const releaseRoot = resolve(releasesRoot, releaseId);
     await mkdir(resolve(releaseRoot, "node_modules", "fixture"), { recursive: true });
-    await Promise.all(Array.from({ length: payloadFilesPerRelease }, async (_, file) => {
-      await writeFile(resolve(releaseRoot, "node_modules", "fixture", `${file}.js`), `export default ${file};`);
-    }));
+    await writePayloadFiles(releaseRoot, payloadFilesPerRelease);
     await writeFile(resolve(releaseRoot, ".a1-release.json"), JSON.stringify({ releaseId, packageVersion, contentDigest }));
     const diagnosticsPath = resolve(dataDir, `certification-${releaseId}.json`);
     await writeFile(diagnosticsPath, JSON.stringify({ releaseId }));
@@ -378,6 +377,25 @@ async function createPackagedCleanupBacklog(dataDir: string, count: number, payl
     activation: { state: "idle", reason: null, blockerGenerationIds: [], updatedAt: new Date(0).toISOString() },
   }, null, 2));
   return releases;
+}
+
+async function writePayloadFiles(releaseRoot: string, payloadFilesPerRelease: number): Promise<void> {
+  let nextFile = 0;
+  let firstFailure: unknown;
+  const workers = Array.from({ length: Math.min(PACKAGE_BACKLOG_WRITE_CONCURRENCY, payloadFilesPerRelease) }, async () => {
+    while (firstFailure === undefined) {
+      const file = nextFile;
+      nextFile += 1;
+      if (file >= payloadFilesPerRelease) return;
+      try {
+        await writeFile(resolve(releaseRoot, "node_modules", "fixture", `${file}.js`), `export default ${file};`);
+      } catch (error) {
+        firstFailure = error;
+      }
+    }
+  });
+  await Promise.all(workers);
+  if (firstFailure !== undefined) throw firstFailure;
 }
 
 async function treeUsage(root: string): Promise<{ files: number; bytes: number }> {
