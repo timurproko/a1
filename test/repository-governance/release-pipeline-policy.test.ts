@@ -176,13 +176,21 @@ describe("deliberate publication pipeline", () => {
     expect(source).not.toMatch(/\["--(?:version|latest|next)"(?:,\s*version)?\]/u);
   });
 
-  it("serializes registry publication without cancellation", async () => {
-    const source = await workflow();
+  it("serializes publication and verifies identity-specific registry resources without cancellation", async () => {
+    const [source, verifier] = await Promise.all([
+      workflow(),
+      readFile("scripts/release/npm-registry-verification.mjs", "utf8"),
+    ]);
     expect(source).toContain("group: a1-registry-publication");
     expect(source).toContain("cancel-in-progress: false");
     expect(source).toContain("Serialize the final registry check");
-    expect(source).toContain("registry bytes differ from the validated candidate");
-    expect(source).toContain("installer registry bytes differ from the validated package");
+    expect(source).toContain("run: node scripts/release/npm-registry-verification.mjs");
+    expect(verifier).toContain("REGISTRY_VERIFICATION_ATTEMPTS = 60");
+    expect(verifier).toContain("REGISTRY_VERIFICATION_INTERVAL_MS = 10_000");
+    expect(verifier).toContain("/${encodedName}/${encodedVersion}?verify=${nonce}");
+    expect(verifier).toContain("/-/package/${encodedName}/dist-tags?verify=${nonce}");
+    expect(verifier).toContain("registry bytes differ from the validated package");
+    expect(verifier).not.toContain("metadata.versions");
   });
 
   it("binds source, pull request, final version, and tarball digests", async () => {
