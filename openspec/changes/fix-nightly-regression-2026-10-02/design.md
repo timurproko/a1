@@ -4,7 +4,8 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- The assertion implicitly required dark and light `dim` tokens to produce distinct ANSI bytes. Headless Linux and macOS correctly select 256-color mode, where both built-in tokens quantize to ANSI index 102; truecolor retains distinct RGB values.
+- Exercise both explicit Pi color modes in the focused test. Preserve the border, label, width, theme, thinking-level, and background-paint assertions while requiring two encodings in truecolor and the one valid quantized encoding in 256-color mode.
 
 ## Evidence
 
@@ -56,3 +57,8 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
     - `d546ab7` chore(pi): upgrade pinned Pi to 0.99.2 (#652)
     - `e42eb4d` chore(pi): upgrade pinned Pi to 0.99.1 (#642)
     - `94ae197` fix(ci): restore documentation auto-merge (#653)
+
+- Focused reproduction on `bf95b96`: `PI_TRUE_COLOR=0 npx vitest run test/integrations/pi/components/editor-autocomplete-placement.test.ts -t "matches the live prompt border color and width without copying border labels" --reporter=verbose` failed both history variants because the observed color set had one member. The same file passed under the local truecolor-capable terminal, identifying terminal capability selection rather than a suspect product commit as the trigger.
+- Focused implementation evidence: after making color mode explicit in the test, `PI_TRUE_COLOR=0 npx vitest run test/integrations/pi/components/editor-autocomplete-placement.test.ts --reporter=verbose` passed all 18 tests, including both truecolor and 256-color expectations; `npm run typecheck` also passed after the required build.
+- Pre-finalization observation: the generated draft correctly deferred Development validation and PR Full regression. The exact finalized head must retain the failed owners and complete all selected lanes before handoff.
+- Known gaps: none.
