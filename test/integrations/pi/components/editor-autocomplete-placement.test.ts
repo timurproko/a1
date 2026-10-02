@@ -92,23 +92,26 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
       editor.addAutocompleteProvider(() => provider);
       editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 40).menu.length).toBeGreaterThan(0);
-      const colors = new Set<string>();
-      for (const theme of ["dark", "light"]) {
-        expect(applyPiTheme(theme).success).toBe(true);
-        for (const level of ["low", "high"] as const) {
-          editor.setThinkingLevel(level);
-          for (const width of [12, 40, 80]) {
-            const frame = parts(editor, width);
-            const border = frame.body[0]!;
-            expect(border).toContain(piTheme().fg("dim", "1/12 "));
-            colors.add(border.replace(/─/gu, ""));
-            expect(await replayTerminalBackgroundCells([
-              { data: frame.rows.join("\r\n"), atMs: 0 },
-            ], { columns: width, rows: frame.rows.length })).toEqual([]);
+      for (const mode of ["truecolor", "256color"] as const) {
+        const colors = new Set<string>();
+        for (const theme of ["dark", "light"]) {
+          expect(applyPiTheme(theme, false, mode).success).toBe(true);
+          for (const level of ["low", "high"] as const) {
+            editor.setThinkingLevel(level);
+            for (const width of [12, 40, 80]) {
+              const frame = parts(editor, width);
+              const border = frame.body[0]!;
+              expect(border).toContain(piTheme().fg("dim", "1/12 "));
+              colors.add(border.replace(/─/gu, ""));
+              expect(await replayTerminalBackgroundCells([
+                { data: frame.rows.join("\r\n"), atMs: 0 },
+              ], { columns: width, rows: frame.rows.length })).toEqual([]);
+            }
           }
         }
+        // Rationale: the built-in dim colors remain distinct in RGB but both quantize to ANSI index 102.
+        expect(colors.size).toBe(mode === "truecolor" ? 2 : 1);
       }
-      expect(colors.size).toBeGreaterThan(1);
       editor.handleInput?.("\u001b"); editor.setText("! "); editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 40).menu.length).toBeGreaterThan(0);
       const bash = parts(editor, 40);

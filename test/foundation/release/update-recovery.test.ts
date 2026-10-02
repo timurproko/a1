@@ -114,7 +114,7 @@ describe("cancellation-safe package replacement", () => {
     await mkdir(dirname(bundledNpmCli), { recursive: true });
     await writeFile(npmCommand, "@echo off");
     await writeFile(bundledNpmCli, "// Node-bundled npm");
-    const environment: NodeJS.ProcessEnv = { PATH: `\"${nodeRoot}\"`, PATHEXT: ".CMD" };
+    const environment: NodeJS.ProcessEnv = { PATH: `\"${nodeRoot}\"`, PATHEXT: ".cmd" };
 
     const prepared = await prepareUpdateRecoveryCapsule({
       ...fixture.options,
