@@ -109,7 +109,7 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
             }
           }
         }
-        // The built-in dim colors remain distinct in RGB but both quantize to ANSI index 102.
+        // Rationale: the built-in dim colors remain distinct in RGB but both quantize to ANSI index 102.
         expect(colors.size).toBe(mode === "truecolor" ? 2 : 1);
       }
       editor.handleInput?.("\u001b"); editor.setText("! "); editor.handleInput?.("@");
