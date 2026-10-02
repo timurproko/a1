@@ -80,7 +80,7 @@ async function fixture() {
   const reconcile = (overrides: Record<string, unknown> = {}) => reconcileFinalization({ reader, publisher, number: 7, toolRoot, remoteUrl: remote, date: "2026-09-16", ...overrides });
   return { root, remote, seed, state, mutations, reader, publisher, remoteHead, remoteFile, reconcile };
 }
-afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
+afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))); });
 
 describe("trusted finalization publication", () => {
   it("finalizes an active ready head, updates the body afterwards, and is a no-op on its own output", async () => {
