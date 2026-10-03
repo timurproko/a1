@@ -78,6 +78,18 @@ The existing materialization/warmup assertions remain because they cover activat
 - **[A hermetic fake npm diverges from npm behavior]** -> Limit it to filesystem mutations and exit outcomes already owned by package-install fixtures, and retain exact published-package smoke evidence on Windows.
 - **[Exhaustive predecessor validation grows]** -> Reuse one exact candidate preparation and bound the destructive scenario to the immediate supported predecessor plus explicitly declared bridge releases; keep broad materialization/warmup history at its existing exhaustive cadence.
 
+## Implementation Evidence
+
+- Protected update preflight now resolves npm authority before the first progress frame or transaction/lifecycle mutation, passes the canonical entry into capsule preparation, and revalidates it before durable recovery authority is committed. A deterministic failure case proves no transaction begin/finish, lifecycle call, replacement callback, carriage-return frame, rollback claim, or diagnostics path occurs and names the official installer bridge.
+- The dependency-free installer canonicalizes its npm entry, normalizes only a fixed `npx-cli.js` sibling, and supplies that value only to verified existing-install delegation. Focused cases prove malformed authority is rejected and a delegated failure performs no direct install fallback.
+- Focused update, recovery, and installer validation passed 97 tests with three platform-gated skips; transaction, transition, process-settlement, and update-launch validation added 27 passing tests. Six exact-package installation/recovery tests passed, including cancellation and updater-loss launcher recovery. The exact dependency-free installer package also passed payload, install, executable, and help validation. Build, source/bin typechecking, architecture, product identity, changed-documentation governance, and strict OpenSpec validation passed.
+- A locally packed exact `0.2.4-dev` candidate passed the Windows published-predecessor owner with `UPDATE_PREDECESSOR_COUNT=1`: published `0.2.4-dev.663` completed direct split-root protected replacement without `npm_execpath`, and published `0.2.2` completed the canonical-context bridge. Both established target launchers, materialized and warmed the candidate, and executed its packaged command entry successfully. The retained materialization/warmup predecessor case also passed.
+- A non-mutating probe removed every case-equivalent `npm_execpath`, used the reported roaming global root, and resolved `C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js` through the current preflight resolver.
+
+## Known Gaps
+
+None. A public-registry update of the reporter's real user-prefix installation requires published candidate bytes and remains post-publication verification, not an unperformed implementation behavior or permission to mutate user state during development.
+
 ## Migration Plan
 
 1. Refactor npm-entry resolution into a preflight result accepted and revalidated by recovery-capsule preparation; retain legacy capsule reads unchanged.

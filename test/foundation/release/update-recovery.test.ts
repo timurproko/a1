@@ -90,7 +90,7 @@ describe("cancellation-safe package replacement", () => {
     await mkdir(dirname(activeNpmCli), { recursive: true });
     await writeFile(activeNpmCli, "// active npm");
     const environment: NodeJS.ProcessEnv = { ...fixture.options.environment };
-    delete environment.npm_execpath;
+    for (const key of Object.keys(environment)) if (key.toLowerCase() === "npm_execpath") delete environment[key];
 
     const prepared = await prepareUpdateRecoveryCapsule({
       ...fixture.options,
@@ -126,6 +126,22 @@ describe("cancellation-safe package replacement", () => {
     expect(prepared.capsule.npmCli).toBe(await realpath(bundledNpmCli));
     expect(prepared.capsule.globalRoot).toBe(await realpath(fixture.options.globalRoot));
     expect(prepared.capsule.npmArguments).toContain(npmPrefixForGlobalRoot(prepared.capsule.globalRoot, "win32"));
+  });
+
+  it("revalidates a preflight npm entry while committing recovery authority", async () => {
+    const fixture = await recoveryFixture("success");
+    const preflightNpmCli = resolve(fixture.root, "preflight-node", "node_modules", "npm", "bin", "npm-cli.js");
+    await mkdir(dirname(preflightNpmCli), { recursive: true });
+    await writeFile(preflightNpmCli, "// preflight npm");
+
+    const prepared = await prepareUpdateRecoveryCapsule({ ...fixture.options, npmCli: preflightNpmCli });
+    expect(prepared.capsule.npmCli).toBe(await realpath(preflightNpmCli));
+
+    await rm(resolve(fixture.options.dataDir, "update-recovery"), { recursive: true, force: true });
+    await rm(preflightNpmCli);
+    await mkdir(preflightNpmCli);
+    await expect(prepareUpdateRecoveryCapsule({ ...fixture.options, npmCli: preflightNpmCli }))
+      .rejects.toThrow(/preflight npm JavaScript entry is no longer a regular file/u);
   });
 
   it("fails closed when bounded npm entry candidates are absent or non-regular", async () => {
