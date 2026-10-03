@@ -2437,7 +2437,9 @@
       "version": "1.0.0",
       "summary": "Sign in when the browser runs on another machine.",
       "since": "1.0.0",
-      "disposition": "pending"
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
     },
     {
       "id": "changelog:1.0.0:fullscreen-by-default",
@@ -2446,7 +2448,8 @@
       "version": "1.0.0",
       "summary": "The TUI now runs fullscreen. Set `tuiMode` to `\"regular\"` to keep the terminal's normal scrollback.",
       "since": "1.0.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "A1 reads Pi's tuiMode through the pinned SettingsManager, so new profiles inherit fullscreen while an explicit regular setting remains available."
     },
     {
       "id": "changelog:1.0.0:header-only-quiet-startup",
@@ -2455,7 +2458,9 @@
       "version": "1.0.0",
       "summary": "`quietStartup: \"header\"` keeps the version and key hints and hides the rest.",
       "since": "1.0.0",
-      "disposition": "pending"
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/integrations/pi/engine/settings-bridge.test.ts"
     },
     {
       "id": "changelog:1.0.0:image-generation-in-codemode",
@@ -2464,7 +2469,8 @@
       "version": "1.0.0",
       "summary": "Scripts call `models.generateImages()` with the session's credentials.",
       "since": "1.0.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "The pinned service factory loads Pi's codemode extension and model registry, so generateImages uses the hosted session credentials without an A1-private API."
     },
     {
       "id": "changelog:1.0.0:leaner-codemode",
@@ -2473,7 +2479,8 @@
       "version": "1.0.0",
       "summary": "About 40% fewer prompt tokens, and errors that tell the model how to recover.",
       "since": "1.0.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Codemode prompt construction and recovery diagnostics stay inside the pinned built-in extension loaded by A1's public session factory."
     },
     {
       "id": "changelog:1.0.0:mcp-oauth-hardening",
@@ -2482,7 +2489,8 @@
       "version": "1.0.0",
       "summary": "`oauth.authServerMetadataUrl`, RFC 9207 `iss` checks, credentials per server, and step-up sign-in that keeps granted scopes.",
       "since": "1.0.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "MCP configuration, OAuth discovery, credential partitioning, issuer validation, and scope retention remain package-owned behind Pi's public service factory."
     },
     {
       "id": "changelog:1.0.0:radius-in-login",
@@ -2491,7 +2499,8 @@
       "version": "1.0.0",
       "summary": "Sign in with Radius and set up its MCP server in one step.",
       "since": "1.0.0",
-      "disposition": "pending"
+      "disposition": "declined",
+      "reason": "A1 retains its provider-neutral owned authentication controller and does not couple login success to a Radius-specific animated selector or mutation of the user's MCP configuration; Radius remains available through the pinned model runtime's ordinary OAuth provider flow."
     }
   ]
 }

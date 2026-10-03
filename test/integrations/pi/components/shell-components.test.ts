@@ -850,7 +850,7 @@ describe("Pi shell public component adapters", () => {
       label: "Anthropic",
       authType: "api_key",
     }], selected, cancelled);
-    expect(stripTerminalSequences(unconfigured.render(44).join("\n"))).toContain("Anthropic • unconfigured");
+    expect(stripTerminalSequences(unconfigured.render(44).join("\n"))).toContain("Anthropic • not configured");
 
     const environment = createPiShellAuthProviderSelector("login", [{
       id: "api_key:anthropic",

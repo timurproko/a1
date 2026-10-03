@@ -90,6 +90,7 @@ class WorkflowRuntime {
   newCancelled = false;
   loginPrompt = false;
   loginSelect = false;
+  loginManualCode = false;
   loginError: unknown;
   logoutError: unknown;
   modelRefreshError: unknown;
@@ -149,6 +150,8 @@ class WorkflowRuntime {
           message: "Select OpenAI Codex login method:",
           options: [{ id: "browser", label: "Browser login" }, { id: "device", label: "Device code login" }],
         });
+      } else if (this.loginManualCode) {
+        await interaction.prompt({ type: "manual_code", message: "Paste the Anthropic authorization code" });
       } else if (this.loginPrompt) {
         await interaction.prompt({ type: "input", message: "API key", placeholder: "secret" });
       }
@@ -731,6 +734,21 @@ describe("pinned Pi command and input workflows", () => {
     runtime.loginSelect = false;
     runtime.loginPrompt = true;
     await expect(adapter.executeWorkflow({ command: "login", argument: "api_key:openai" })).resolves.toMatchObject({ outcome: "cancelled", messageKind: "silent" });
+  });
+
+  it("maps Anthropic copy-code login into the owned manual-code prompt", async () => {
+    const { adapter, runtime } = await fixture();
+    runtime.loginManualCode = true;
+    adapter.setWorkflowInteractionHost({
+      prompt: async request => {
+        expect(request).toMatchObject({ type: "manual-code", message: "Paste the Anthropic authorization code" });
+        return "copied-code";
+      },
+      notify() {},
+    });
+
+    await expect(adapter.executeWorkflow({ command: "login", argument: "oauth:openai" })).resolves.toMatchObject({ outcome: "completed" });
+    await adapter.dispose();
   });
 
   it("reports authentication labels, model selection, partial failures, and delayed catalog warnings", async () => {

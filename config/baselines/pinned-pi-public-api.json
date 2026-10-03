@@ -3139,7 +3139,9 @@
           "name": "colorToRgb",
           "kind": "function",
           "hash": "c5788525c1929171e37195a9abe1d140fec3fde8905380cccf1d391fe9cf6f65",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/theme/system-theme.ts"
+          ]
         },
         {
           "name": "CombinedAutocompleteProvider",
@@ -3516,7 +3518,9 @@
           "name": "isAppleTerminalSession",
           "kind": "function",
           "hash": "6998ae3b5b3fd438cdbae177718e1d32d8bcbb122df292456163ad12dd765a0c",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/components/pi-logo.ts"
+          ]
         },
         {
           "name": "isFocusable",
@@ -3749,7 +3753,9 @@
           "name": "oklchColor",
           "kind": "function",
           "hash": "66becc386a5d51d5689ad6970c692426acac02f5802055e1caf7e43bf3bbb404",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/theme/system-theme.ts"
+          ]
         },
         {
           "name": "OklchColorValue",

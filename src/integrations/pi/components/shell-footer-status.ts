@@ -10,7 +10,11 @@ import type {
   PromptChipWrapProtection,
 } from "../../../contracts/owned-ui/index.js";
 import { SessionFooter } from "./upstream/components/session-footer.js";
-import { piLogoLines } from "./upstream/components/pi-logo.js";
+import {
+  piLogoLines,
+  piWordmark,
+  supportsPiLogo,
+} from "./upstream/components/pi-logo.js";
 import { ThemedText } from "./upstream/components/themed-text.js";
 import { KeybindingsManager, type KeybindingsConfig } from "./upstream/adjacent/core/keybindings.js";
 import { StatusIndicator, WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
@@ -379,8 +383,10 @@ function expandedHeaderText(bindings?: KeybindingsConfig): string {
 }
 
 function headerWithLogo(hints: string): string {
+  const version = piTheme().fg("dim", `v${VERSION}`);
+  if (!supportsPiLogo()) return `${piWordmark()} ${version}\n${hints}`;
   const [top, bottom] = piLogoLines();
-  return `${top} ${piTheme().fg("dim", `v${VERSION}`)}\n${bottom} ${hints}`;
+  return `${top} ${version}\n${bottom} ${hints}`;
 }
 
 function noticeText(notice: PiShellStartupNotice): string {

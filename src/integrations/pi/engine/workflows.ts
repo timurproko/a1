@@ -139,7 +139,7 @@ export interface PiPinnedSettingsSnapshot {
   readonly editorPaddingX: number;
   readonly outputPad: 0 | 1;
   readonly autocompleteMaxVisible: number;
-  readonly quietStartup: boolean;
+  readonly quietStartup: boolean | "header";
   readonly defaultProjectTrust: "ask" | "always" | "never";
   readonly clearOnShrink: boolean;
   readonly showTerminalProgress: boolean;

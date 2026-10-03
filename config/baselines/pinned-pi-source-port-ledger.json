@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-03T06:38:55.165Z",
+  "recordedAt": "2026-10-03T13:20:58.017Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "a13d35a742c6ef8462812a28fbe1d8c8b7431c32",
@@ -39,8 +39,8 @@
     "assets": 4,
     "classifications": {
       "public-api-reuse": 63,
-      "owned-presentation": 36,
-      "host-adaptation": 28
+      "owned-presentation": 33,
+      "host-adaptation": 31
     },
     "requiredBehaviorIds": 29,
     "coveredBehaviorIds": 29,
@@ -890,7 +890,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Unchanged image bytes are losslessly encoded in an attributed owned JSON resource by scripts/pi/update-command-resources.mjs. Source bytes and digest are verified against this pinned asset authority; runtime reads only the owned resource, never the dependency directory.",
       "upgradeStrategy": "three-way",
-      "localSha256": "97a4019b1b058bb3f7e29b1df33a5eca359d7dd7423bcd54d41313daf56547c3",
+      "localSha256": "ac4946e6f568d0fe8716a06defe4b4cb8d3d0e3789f4f6c7e2336311bb9ac1a0",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -1420,7 +1420,7 @@
       "sha256": "5567f1ca8217b3d536d304fa365a627ee4f8096aa435fd1088eb55e743275bfc",
       "classification": "owned-presentation",
       "localDestination": "src/integrations/pi/components/upstream/components/daxnuts.ts",
-      "implementationStatus": "source-synchronized-port",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
       "upgradeStrategy": "three-way",
@@ -1441,15 +1441,11 @@
       "acceptanceTasks": [
         "7.7",
         "7.9",
-        "7.11",
-        "7.29"
+        "7.11"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/integrations/pi/engine/workflows.test.ts",
-        "test/app/session-shell/session-shell.test.ts",
-        "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
+        "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     },
     {
@@ -2058,12 +2054,11 @@
       "sourceMap": "modes/interactive/components/pi-logo-animation.lazy.js.map",
       "lines": 15,
       "sha256": "e235d5b226b70566ee20174245c41631cc9f48a2f6f91dbfc95c8431a9d87934",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/components/pi-logo-animation.lazy.ts",
-      "implementationStatus": "not-ported",
+      "classification": "host-adaptation",
+      "localDestination": "src/integrations/pi/components/upstream/components/pi-logo.ts",
+      "implementationStatus": "declined-not-adopted",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
-      "upgradeStrategy": "three-way",
+      "modifications": "Declined the package-private lazy loader for the fullscreen logo animation; A1 retains its owned startup composition.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -2075,8 +2070,8 @@
         "7.5"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts"
       ]
     },
     {
@@ -2088,12 +2083,11 @@
       "sourceMap": "modes/interactive/components/pi-logo-animation.js.map",
       "lines": 1210,
       "sha256": "2b347c8cabba04978d8367175ef455dcb115bf177d6fd46247be09857d7296f7",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/components/pi-logo-animation.ts",
-      "implementationStatus": "not-ported",
+      "classification": "host-adaptation",
+      "localDestination": "src/integrations/pi/components/upstream/components/pi-logo.ts",
+      "implementationStatus": "declined-not-adopted",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
-      "upgradeStrategy": "three-way",
+      "modifications": "Declined the package-private fullscreen logo animation; A1 retains its owned startup composition.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -2105,8 +2099,8 @@
         "7.5"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts"
       ]
     },
     {
@@ -2124,7 +2118,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Remapped the private theme import to A1's public-backed adapter and composed the fixed-color logo into the owned startup header.",
       "upgradeStrategy": "three-way",
-      "localSha256": "7a967cd8fbc70d5953fb34f19afe62e22abad42dd02b29bc6f83a4e86b18c9e2",
+      "localSha256": "cb2570c8b5d69d89b6a3cbb2c2e27bb7a32ccff37eef53387e92f76f8a053ffc",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -2149,12 +2143,11 @@
       "sourceMap": "modes/interactive/components/radius-login-selector.js.map",
       "lines": 115,
       "sha256": "7653dad2a6703685252e55eea093b1523e92283b9cf543e5a3b733d48e89bee4",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/components/radius-login-selector.ts",
-      "implementationStatus": "not-ported",
+      "classification": "host-adaptation",
+      "localDestination": "src/integrations/pi/engine/provider-authentication.ts",
+      "implementationStatus": "declined-not-adopted",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
-      "upgradeStrategy": "three-way",
+      "modifications": "Declined the package-private Radius-only animated selector and post-login MCP mutation; A1 keeps provider-neutral owned authentication while Radius OAuth remains available through the pinned model runtime.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2176,8 +2169,8 @@
         "7.8"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/features/owned-ui/pinned-selector-parity.test.ts"
+        "test/integrations/pi/engine/workflows.test.ts",
+        "test/integrations/pi/components/provider-auth-parity.test.ts"
       ]
     },
     {
@@ -3231,7 +3224,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Copied the system palette generator with ESM import remapping and strict indexed-access assertions; A1 retains explicit owned theme selection.",
       "upgradeStrategy": "three-way",
-      "localSha256": "7ddb028fb2a313b8fbf5bf804df6fd2986630d7f2ec742e53c2b06eb48803373",
+      "localSha256": "376dfd02f7270572ec24a7e55af6585a65efa5b714ac9c0fc17032e076880069",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",

@@ -93,6 +93,6 @@ describe("provider authentication selector presentation", () => {
       authType: configured.option.authType,
     }], () => {}, () => {});
     expect(plainRows(mutated, 80)).not.toEqual(plainRows(upstream, 80));
-    expect(plainRows(mutated, 80).join("\n")).toContain("unconfigured");
+    expect(plainRows(mutated, 80).join("\n")).toContain("not configured");
   });
 });

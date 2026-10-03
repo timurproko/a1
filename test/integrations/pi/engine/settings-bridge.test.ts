@@ -55,6 +55,20 @@ describe("Pi settings integration", () => {
     expect(await port.readSetting("outputPad")).toBe(1);
   });
 
+  it("exposes Pi 1.0's header-only quiet-startup mode", async () => {
+    const settings = SettingsManager.inMemory({ quietStartup: "header" });
+    const port = new PiSettingsBridge(settings, { productMode: "comparison" });
+    port.bindOwner("startup", { quietStartup: { apply() {} } });
+
+    expect((await port.listSettings()).find(value => value.key === "quietStartup")).toMatchObject({
+      valueType: "enum", choices: [true, "header", false], storedValue: "header", effectiveValue: "header",
+    });
+    await expect(port.writeSetting("quietStartup", true)).resolves.toMatchObject({
+      status: "deferred", storedValue: true, effectiveValue: "header",
+    });
+    expect(settings.getQuietStartup()).toBe(true);
+  });
+
   it("applies Pi's fullscreen copy preference through the live bare shell owner", async () => {
     const settings = SettingsManager.inMemory({ fullscreenCopyOnSelect: true });
     const port = new PiSettingsBridge(settings);
