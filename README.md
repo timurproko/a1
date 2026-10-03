@@ -38,7 +38,7 @@ Exact preview:
 npm x -y -- @timurproko/a1-install --develop 0.1.8-dev.107
 ```
 
-<p align="center"><picture><img src="docs/assets/readme/terminal.svg" alt="" width="240"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/terminal-dark.svg"><img src="docs/assets/readme/terminal.svg" alt="" width="240"></picture></p>
 
 ## Use
 
@@ -106,7 +106,7 @@ npm x -y -- @timurproko/a1-install
 
 A1 shows an `Update Available` notice at most once a day and never installs anything by itself. Turn it off in Settings (`Update check`) or with `A1_SKIP_VERSION_CHECK=1`.
 
-<p align="center"><picture><img src="docs/assets/readme/plugins.svg" alt="" width="240"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/plugins-dark.svg"><img src="docs/assets/readme/plugins.svg" alt="" width="240"></picture></p>
 
 ## Extensions
 
@@ -140,7 +140,7 @@ Update one:
 a1 update npm:pi-mcp-adapter
 ```
 
-<p align="center"><picture><img src="docs/assets/readme/gears.svg" alt="" width="240"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/gears-dark.svg"><img src="docs/assets/readme/gears.svg" alt="" width="240"></picture></p>
 
 ## Develop
 
@@ -192,7 +192,7 @@ Preview the README as GitHub renders it, in your browser (needs `gh`):
 npm run preview:readme
 ```
 
-<p align="center"><picture><img src="docs/assets/readme/rocket.svg" alt="" width="240"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/rocket-dark.svg"><img src="docs/assets/readme/rocket.svg" alt="" width="240"></picture></p>
 
 ## Publish
 
@@ -227,5 +227,5 @@ Once validation passes, open the printed draft link, edit the `## [version] - YY
 <br>
 
 <p align="center">
-  <picture><img src="docs/assets/readme/waves.svg" alt="" width="100%"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/waves-dark.svg"><img src="docs/assets/readme/waves.svg" alt="" width="100%"></picture>
 </p>
