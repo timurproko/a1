@@ -17,6 +17,9 @@ use windows_sys::Win32::System::Threading::{
     PROCESS_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, STARTUPINFOW,
 };
 
+use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
+
+use crate::exit_notice::ExitNotice;
 use crate::{Invocation, write_ready_status};
 
 const SYNCHRONIZE_ACCESS: u32 = 0x0010_0000;
@@ -140,6 +143,9 @@ pub(super) fn run(invocation: Invocation) -> Result<u8, String> {
     let wait = unsafe { WaitForMultipleObjects(handles.len() as u32, handles.as_ptr(), 0, INFINITE) };
     if wait == WAIT_OBJECT_0 + 1 {
         unsafe { TerminateJobObject(job.raw(), 143) };
+        // Rationale: job termination is asynchronous; waiting keeps the runtime's last frame
+        // from landing after the exit notice the caller prints next.
+        unsafe { WaitForSingleObject(child_process.raw(), 2_000) };
         return Ok(143);
     }
     if wait != WAIT_OBJECT_0 {
@@ -157,6 +163,42 @@ pub(super) fn run(invocation: Invocation) -> Result<u8, String> {
     // every descendant that remained after the root's own graceful shutdown.
     unsafe { TerminateJobObject(job.raw(), exit_code) };
     Ok(exit_code.min(255) as u8)
+}
+
+/// Starts the process that delivers the exit notice if this guardian is killed with its owner.
+pub(super) fn spawn_notice_watcher(notice: &str, status_file: &str, modes: &str) {
+    let Ok(executable) = std::env::current_exe() else { return };
+    // Platform: libuv's kill-on-close job allows silent breakaway, so a process this guardian creates
+    // is outside the Node owner's job and outlives the owner's death.
+    let _ = std::process::Command::new(executable)
+        .args(["--watch-exit-notice", &std::process::id().to_string(), notice, status_file, modes])
+        .stdin(std::process::Stdio::null())
+        .spawn();
+}
+
+pub(super) fn watch_exit_notice(guardian_pid: u32, notice: String, status_file: &str, modes: &str) -> Result<u8, String> {
+    // Rationale: the watcher shares the console; Ctrl+C there belongs to the runtime, not to it.
+    unsafe { SetConsoleCtrlHandler(None, 1) };
+    let guardian = OwnedHandle::new(unsafe { OpenProcess(SYNCHRONIZE_ACCESS, 0, guardian_pid) })
+        .map_err(|error| format!("cannot observe guardian: {error}"))?;
+    let armed = ExitNotice::for_watcher(notice.clone(), modes);
+    unsafe { WaitForSingleObject(guardian.raw(), INFINITE) };
+    if std::path::Path::new(&notice).exists() {
+        // Rationale: the guardian's job closes asynchronously; waiting for the runtime keeps its
+        // last frame from landing after the notice.
+        if let Some(runtime) = std::fs::read_to_string(status_file).ok().and_then(|status| status_pid(&status)) {
+            if let Ok(process) = OwnedHandle::new(unsafe { OpenProcess(SYNCHRONIZE_ACCESS, 0, runtime) }) {
+                unsafe { WaitForSingleObject(process.raw(), 2_000) };
+            }
+        }
+    }
+    armed.deliver();
+    Ok(0)
+}
+
+fn status_pid(status: &str) -> Option<u32> {
+    let digits = status.split("\"pid\":").nth(1)?;
+    digits.chars().take_while(char::is_ascii_digit).collect::<String>().parse().ok()
 }
 
 fn configure_job(job: HANDLE) -> Result<(), String> {
@@ -251,12 +293,18 @@ impl Drop for OwnedHandle {
 mod tests {
     use super::{
         build_command_line, inspect_process_handle, inspect_process_start,
-        process_creation_ticks, quote_windows_argument,
+        process_creation_ticks, quote_windows_argument, status_pid,
     };
     use std::os::windows::io::AsRawHandle;
     use std::process::Command;
     use windows_sys::Win32::Foundation::{HANDLE, WAIT_OBJECT_0};
     use windows_sys::Win32::System::Threading::WaitForSingleObject;
+
+    #[test]
+    fn reads_the_runtime_pid_from_ready_status() {
+        assert_eq!(status_pid("{\"pid\":4242,\"startIdentity\":\"x\"}"), Some(4242));
+        assert_eq!(status_pid("{}"), None);
+    }
 
     #[test]
     fn quotes_windows_arguments_without_shell_interpretation() {

@@ -20,14 +20,17 @@ export class NativeGuardianContainment implements ProcessContainment {
   readonly instanceId: string;
   readonly helperPath: string;
   readonly statusPath: string;
+  readonly exitNoticePath: string | null;
   constructor(
     instanceId: string,
     helperPath: string,
     statusPath: string,
+    exitNoticePath: string | null = null,
   ) {
     this.instanceId = instanceId;
     this.helperPath = helperPath;
     this.statusPath = statusPath;
+    this.exitNoticePath = exitNoticePath;
     this.#identity = { provider: "native-guardian-pending", token: instanceId };
   }
 
@@ -39,14 +42,21 @@ export class NativeGuardianContainment implements ProcessContainment {
     if (this.#helper) throw new Error("process containment already has a root runtime");
     await mkdir(dirname(this.statusPath), { recursive: true, mode: 0o700 });
     await rm(this.statusPath, { force: true });
+    if (this.exitNoticePath) await rm(this.exitNoticePath, { force: true });
     const helper = spawn(this.helperPath, [
       "--parent-pid", String(process.pid),
       "--instance", this.instanceId,
       "--status-file", this.statusPath,
+      ...(this.exitNoticePath ? ["--exit-notice", this.exitNoticePath] : []),
       "--", executable, ...arguments_,
     ], {
       cwd: options.cwd,
-      env: { ...options.environment, ...(options.terminalType ? { TERM: options.terminalType } : {}) },
+      env: {
+        ...options.environment,
+        ...(options.terminalType ? { TERM: options.terminalType } : {}),
+        // Protocol: the runtime arms this notice and the guardian prints it if the runtime dies unclean.
+        ...(this.exitNoticePath ? { [PRODUCT_IDENTITY.environment.exitNoticePath]: this.exitNoticePath } : {}),
+      },
       shell: false,
       stdio: "inherit",
       windowsHide: false,
@@ -91,6 +101,7 @@ export class NativeGuardianContainment implements ProcessContainment {
     if (helper && helper.exitCode === null && helper.signalCode === null) helper.kill("SIGKILL");
     await this.waitForEmpty(1_500);
     await rm(this.statusPath, { force: true });
+    if (this.exitNoticePath) await rm(this.exitNoticePath, { force: true });
   }
 }
 

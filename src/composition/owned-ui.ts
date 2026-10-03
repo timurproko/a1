@@ -225,9 +225,16 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     });
     if (release !== null) adapter.announceReleaseUpdate(release);
   };
+  const exitNoticePath = process.env[PRODUCT_IDENTITY.environment.exitNoticePath];
+  // Security: tools the agent runs must never see, or rewrite, this instance's notice.
+  delete process.env[PRODUCT_IDENTITY.environment.exitNoticePath];
+  let exitNotice: Promise<{ clear(): void } | null> = Promise.resolve(null);
   const application: OwnedUiApplicationPort = {
     get disposed() { return adapter.disposed; },
     start: () => {
+      // Performance: the guardian notice loads beside first paint, never on the startup path.
+      if (exitNoticePath) exitNotice = import("../app/session-shell/exit-notice.js")
+        .then(module => module.armExitNotice(adapter, exitNoticePath), () => null);
       shell.start();
       void announceNewerRelease().catch(() => undefined);
     },
@@ -236,6 +243,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     dispose: async () => {
       try {
         await shell.dispose();
+        // Invariant: cleared only once the terminal is restored; a failed dispose leaves it armed.
+        (await exitNotice)?.clear();
         await releaseNoteAcknowledgement?.catch(() => undefined);
       } finally {
         await releaseNoteClaim?.release();
