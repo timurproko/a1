@@ -1,46 +1,34 @@
+> **ON HOLD — USER-CONTROLLED RESUME ONLY.**
+>
+> This historical change ID now retains only future split-layout and multiplexer presentation work. The user must explicitly approve a new refinement and implementation request after persistent resident tabs and any required generic CLI-tab capability are accepted.
+>
+> **Historical source.** The removed structured workspace/runtime source remains recoverable from repository commit `243eb7a7d9031c185c0db13fab880b7f82f75735`, whose tree matches the previously documented snapshot `0a70298fe41e8c74f195131dc77d4ccb9b51088c`. The temporary `archive/multi-agent-workspace` remote branch was deleted at the user's request on 2026-09-25. Historical source is evidence only and SHALL NOT be restored wholesale.
+>
+> **Superseded scope.** `add-persistent-multi-agent-tabs` replaces this change's semantic structured-agent workspace, structured runtime, single-pane terminal-host, reconnection, ordinary tab UX, and single-pane certification plans. Arbitrary CLI tabs require their own follow-up. Only split trees, pane focus, multiplexer presentation, and split-specific certification remain here.
+
 ## Why
 
-> **Status: ON HOLD by user direction — scheduled after the A1 custom-experience milestones.** Do not implement, continue, publish, or resume any remaining multi-agent or composed-terminal scope until the user explicitly authorizes this change to resume. Its unchecked scope is intentionally deferred future work, not stale or blocked work. Completion of parity or customization work does not lift this hold.
->
-> **Source archived 2026-09-18.** The workspace feature, workspace contracts, structured-agent runtime, native-host protocol modules, their tests, and the control-store tables they owned were removed from `develop` by the `archive-workspace-subsystem` change; their last state is the `archive/multi-agent-workspace` branch (commit `0a70298f`). When this plan resumes, analyze the then-current codebase and implement afresh rather than restoring that copy.
-
-Bare `a1` is reserved as the A1 agent product surface, but the current baseline exposes only one A1-owned Pi experience. A1 ultimately needs a deliberate multi-agent workspace that can manage structured agents safely while treating arbitrary interactive CLI tabs as a separate composed-terminal capability with explicit ownership and certification.
-
-The reopened vanilla-parity prerequisite is closed: `repair-owned-pi-parity` was accepted and archived, and its provider-authentication requirement now lives in the `owned-pi-ui-foundation` spec. The first A1-specific Pi experience is delivered next by a sequence of custom-experience milestones — the settings screen, then the agent viewport, the input prompt, paste, and history — which together replace the previously planned single `customize-owned-pi-experience` change. This plan resumes only once that bare-minimum experience is complete, not when any one milestone lands. Bare `a1` runs that custom experience; `a1 pi` remain untouched vanilla Pi, altered only by Pi extensions. No milestone completion automatically resumes this held multi-agent plan.
+Persistent terminal-session tabs provide the multi-agent product and native extension path without the archived structured-worker architecture. A later product may still need several independently retained terminal sessions visible inside one tab, but that split-layout surface should extend the accepted resident host instead of reviving the deleted workspace or the disposable fixed 2×2 proof.
 
 ## What Changes
 
-- Replace bare `a1`'s initial single-agent presentation with an A1-owned workspace for creating, naming, observing, switching, stopping, and reconnecting managed agents.
-- Introduce a structured/RPC agent adapter contract for lifecycle, events, snapshots, commands, backpressure, failure isolation, and reconnection without screen scraping.
-- Introduce a composed-terminal contract in which each workspace tab owns a split layout and each terminal pane owns one PTY-backed terminal session.
-- Build composed terminals through an A1-owned terminal-hosted runtime that runs inside the user's existing terminal. It owns PTYs, retained terminal models, input arbitration, and fullscreen/side-by-side rendering; no separate native desktop application is required for the initial product.
-- Reuse only the terminal-core portions of the Ghostty ecosystem that fit a CLI host, such as `libghostty-vt`, plus a mature PTY layer. Ghostty's GUI application, Winghostty's Win32/OpenGL runtime, Metal, GTK, and other desktop application stacks are postponed and are not part of the proof.
-- Keep terminal bytes, native input, and rendering inside the terminal host while A1's control plane exchanges only typed identity, topology, lifecycle, and recovery messages.
-- Require capability negotiation so structured agents do not become terminal panes accidentally and terminal-backed CLIs do not claim structured semantics.
-- Require a successful in-terminal 2×2 proof, measured and manually or isolated-worker accepted, before composed-terminal production integration into `develop`. The fixed 2×2 layout and dashed pane chrome are disposable proof scaffolding, not product UI. A failed proof stops composed-terminal work without blocking later structured-agent work; it does not trigger custom rendering/input remediation or a desktop-app fallback.
-- After native hot-path isolation is established, preserve the terminal-host proof and postpone its remaining automated stress and physical gates until the single-agent owned Pi experience has renewed parity acceptance, its first A1 customization is accepted, and structured multi-agent tabs are implemented. This postponement does not permit composed-terminal integration or support claims.
-- Reopen the A1-owned Pi UI prerequisite through `repair-owned-pi-parity`. It uses Pi's documented public SDK as the agent engine behind an A1-owned interface; it does not patch, inspect, or deep-import Pi interactive-TUI internals. It SHALL match vanilla authentication, provider, model-catalog, selection, workflow, and presentation behavior for equivalent profile state while exact upstream Pi remains available through `a1 pi`.
-- After renewed 1:1 acceptance, complete the separate A1 custom-experience milestones for the first A1-specific single-agent Pi experience through owned slots. Do not use multi-agent tabs as the first customization vehicle.
-- Only after the parity change and every custom-experience milestone are accepted, add A1-owned tabs for multiple structured SDK-backed agents. These tabs switch semantic agent views and SHALL NOT initialize the terminal host, create PTYs, or imply arbitrary terminal-pane support.
-- Permit the subsequently accepted custom single-agent UI and structured-tab slice to integrate through `develop` and publish as uncertified `-dev.N` previews under npm `next` while composed multipane behavior remains disabled and no composed-terminal support is claimed.
-- Then resume the exact terminal-host spike on an isolated Windows worker. After the proof verdict, remove the fixed multipane presentation and restore the single fullscreen terminal path before production multiplexer work begins.
-- Gate arbitrary CLI panes, split layouts, and production multiplexer work on the accepted isolated-worker composed-terminal proof. Structured agent tabs do not satisfy or bypass that gate.
-- Require hermetic automated gates plus isolated disposable-worker certification before composed-terminal support claims; no desktop automation may run on an active workstation.
-- Keep transparent direct attachment as the fallback and comparison baseline rather than silently routing it through the terminal host.
+- Add revisioned split-tree topology inside an accepted resident tab, with one holder-owned terminal session per leaf pane.
+- Keep terminal bytes, retained models, input encoding, selection, clipboard, query responses, and final composition in the native terminal host.
+- Add pane focus, resize, create, close, and layout mutations with expected revisions and exact per-pane ownership.
+- Generalize the accepted tab strip into multiplexer presentation without changing the tab bridge or inventing structured semantics from terminal output.
+- Require split-specific resource bounds, failure isolation, rendering/input evidence, and exact-package platform certification before any enablement.
+- Preserve a single-pane resident tab as the fallback and rollback path.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `multi-agent-workspace`: Bare-`a1` workspace behavior, agent identity/lifecycle, switching, failure isolation, persistence, and stable explicit-mode compatibility.
-- `structured-agent-runtime`: Structured/RPC adapter semantics, event/state ownership, command routing, flow control, recovery, and capability negotiation.
-- `composed-terminal-runtime`: Arbitrary interactive CLI tab semantics, PTY/render/input authority, inactive-surface lifecycle, reconnection, isolation, and certification.
-
-### Modified Capabilities
-
-- `a1-shell`: Bare `a1` changes from one directly attached foreground agent to the A1 multi-agent workspace while explicit `pi` modes remain stable.
-- `terminal-agent-runtime`: Transparent direct attachment remains the single-foreground baseline and becomes an explicit fallback/comparison capability alongside, not inside, composed terminal tabs.
+- `resident-tab-splits`: held future requirements for revisioned split trees, pane/session ownership, native composition and input focus, isolation, bounds, rollback, and certification on top of the accepted resident terminal host.
 
 ## Impact
 
-The change affects CLI launch routing, workspace/application state, supervision and storage, structured-agent adapters, a versioned local terminal-host protocol, pinned terminal-core/PTY source integration, terminal process ownership, in-terminal rendering/input, test infrastructure, platform-specific console executable packaging, documentation, and cross-platform release policy. All future work uses detached task worktrees under the repository's `.worktrees/` directory and integrates only validated commits into `develop`; no local milestone or topic branch is required. The previous owned-UI acceptance and preview remain historical evidence but do not override the new contradictory user finding. Further structured-tab implementation and publication are blocked until the archived `repair-owned-pi-parity` and every A1 custom-experience milestone are accepted **and** the user explicitly lifts this hold. Arbitrary CLI panes, splits, multiplexer integration, and composed support claims additionally remain blocked until the isolated proof passes and the fixed proof presentation is removed. The accepted meaning and shared owned rendering path of prerelease `a1 pi` must not change.
+- **Prerequisites:** accepted persistent resident tabs; an accepted generic CLI-tab change if non-A1 commands are in scope; fresh review against the then-current terminal-host protocol and packaging.
+- **Native:** future topology and composition changes only. The old structured runtime, control-store tables, Node workspace, and fixed proof presentation are not dependencies.
+- **Node:** semantic control messages may request layout mutations, but Node never receives terminal bytes, per-key pane input, or rendered cells.
+- **Release:** no code, preview, default change, or support claim is authorized by this held plan.
+- **Rollback:** disable split layouts and present each resident session as an ordinary single-pane tab without deleting its session record.
