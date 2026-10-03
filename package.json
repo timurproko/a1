@@ -40,6 +40,7 @@
     "check": "npm run test:fast",
     "develop": "node scripts/development/develop.mjs",
     "doctor": "node scripts/development/check-environment.mjs --report",
+    "preview:readme": "node scripts/development/preview-readme.mjs",
     "release": "node scripts/release/release.mjs",
     "test": "npm run test:fast",
     "test:pr-core": "node scripts/release/run-validation-tier.mjs pr-core",
