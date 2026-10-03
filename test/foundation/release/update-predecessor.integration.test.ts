@@ -1,5 +1,8 @@
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PredecessorFixture } from "../../support/predecessor-fixture.js";
@@ -65,6 +68,157 @@ describe("update from every recent published release", () => {
       await fixture.discard(priorRoot);
     }
     expect(exercised, "no published release carried a usable release store to update from").toBeGreaterThan(0);
-    await fixture.discard(candidateRoot);
+  }, signal), 1_800_000);
+
+  it.runIf(process.platform === "win32")("replaces and activates the candidate through direct and bridged published updaters", async ({ signal }) => fixture.phase(1_800_000, async phaseSignal => {
+    const directVersion = predecessors[0]!;
+    const directRoot = await fixture.install(`@timurproko/a1@${directVersion}`, directVersion);
+    await exerciseProtectedReplacement(directRoot, directVersion, candidateRoot, "direct");
+    phaseSignal.throwIfAborted();
+    await fixture.discard(directRoot);
+
+    const bridgeVersion = "0.2.2";
+    const bridgeRoot = await fixture.install(`@timurproko/a1@${bridgeVersion}`, bridgeVersion);
+    await exerciseProtectedReplacement(bridgeRoot, bridgeVersion, candidateRoot, "installer-bridge");
+    phaseSignal.throwIfAborted();
+    await fixture.discard(bridgeRoot);
   }, signal), 1_800_000);
 });
+
+async function exerciseProtectedReplacement(
+  predecessorRoot: string,
+  predecessorVersion: string,
+  exactCandidateRoot: string,
+  mode: "direct" | "installer-bridge",
+): Promise<void> {
+  const entry = resolve(predecessorRoot, "dist", "foundation", "release", "index.js");
+  expect(existsSync(entry), `published ${predecessorVersion} has no protected update boundary`).toBe(true);
+  const release = await import(pathToFileURL(entry).href) as {
+    updateLauncherPaths(globalRoot: string, platform?: NodeJS.Platform): readonly string[];
+    runProtectedPackageReplacement(options: Record<string, unknown>): Promise<{
+      outcome: string; npmExitCode: number | null; launcherDisposition: string;
+    }>;
+    materializeRelease(packageRoot: string, dataDir: string): Promise<{ releaseId: string }>;
+    warmMaterializedRelease(materialized: unknown, environment: NodeJS.ProcessEnv, timeoutMs?: number): Promise<void>;
+  };
+  const root = await fixture.temporaryRoot(`a1-predecessor-${mode}-`);
+  const prefix = resolve(root, "a1-prefix");
+  const globalRoot = resolve(prefix, "node_modules");
+  const packageRoot = resolve(globalRoot, "@timurproko", "a1");
+  const activePrefix = resolve(root, "node-prefix");
+  const activeGlobalRoot = resolve(activePrefix, "node_modules");
+  const npmCli = resolve(activeGlobalRoot, "npm", "bin", "npm-cli.js");
+  const dataDir = resolve(root, "data");
+  const priorReleaseId = `${predecessorVersion}-${randomUUID().replaceAll("-", "").slice(0, 20)}`;
+  const priorReleaseRoot = resolve(dataDir, "releases", priorReleaseId);
+  const priorContentDigest = "a".repeat(64);
+  const launchers = release.updateLauncherPaths(globalRoot, "win32");
+  const candidateManifest = JSON.parse(await readFile(resolve(exactCandidateRoot, "package.json"), "utf8")) as { version: string };
+
+  await mkdir(resolve(packageRoot, "bin"), { recursive: true });
+  await mkdir(resolve(priorReleaseRoot, "bin"), { recursive: true });
+  await mkdir(dirname(npmCli), { recursive: true });
+  await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: predecessorVersion }));
+  await writeFile(resolve(packageRoot, "bin", "cli.js"), "// predecessor package\n");
+  await writeFile(resolve(priorReleaseRoot, "bin", "cli.js"), "// retained predecessor\n");
+  await writeFile(resolve(priorReleaseRoot, ".a1-release.json"), JSON.stringify({
+    launchContract: "neutral-launch-v1",
+    releaseId: priorReleaseId,
+    contentDigest: priorContentDigest,
+  }));
+  for (const launcher of launchers) {
+    await mkdir(dirname(launcher), { recursive: true });
+    await writeFile(launcher, "node_modules/@timurproko/a1/bin/cli.js");
+  }
+  await writeFile(resolve(activePrefix, "npm.cmd"), "@echo off\r\n");
+  await writeFile(npmCli, `
+    const { chmod, cp, mkdir, rm, writeFile } = require("node:fs/promises");
+    const { dirname } = require("node:path");
+    const candidateRoot = ${JSON.stringify(exactCandidateRoot)};
+    const packageRoot = ${JSON.stringify(packageRoot)};
+    const launchers = ${JSON.stringify(launchers)};
+    (async () => {
+      await rm(packageRoot, { recursive: true, force: true });
+      await cp(candidateRoot, packageRoot, { recursive: true });
+      for (const launcher of launchers) {
+        await mkdir(dirname(launcher), { recursive: true });
+        await writeFile(launcher, "node_modules/@timurproko/a1/bin/cli.js");
+        await chmod(launcher, 0o755);
+      }
+    })().catch(error => { console.error(error); process.exitCode = 1; });
+  `);
+
+  const environment: NodeJS.ProcessEnv = { ...process.env, PATH: activePrefix, PATHEXT: ".CMD" };
+  for (const key of Object.keys(environment)) {
+    if (key.toLowerCase() === "npm_execpath") delete environment[key];
+    if (key.toLowerCase() === "path" && key !== "PATH") delete environment[key];
+  }
+  if (mode === "installer-bridge") environment.npm_execpath = npmCli;
+  const transactionId = randomUUID();
+  const result = await release.runProtectedPackageReplacement({
+    dataDir,
+    globalRoot,
+    npmCliRoot: activeGlobalRoot,
+    packageRoot,
+    transaction: {
+      schema: "a1-update-journal-v1",
+      transactionId,
+      channel: "stable",
+      targetVersion: candidateManifest.version,
+      packageRoot,
+      priorActiveReleaseId: priorReleaseId,
+      phase: "ownership-released",
+      status: "active",
+      error: null,
+      startedAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+    },
+    priorRelease: { releaseId: priorReleaseId, releaseRoot: priorReleaseRoot, contentDigest: priorContentDigest },
+    output: { stderr() {} },
+    environment,
+    platform: "win32",
+    timeoutMs: 120_000,
+  });
+
+  expect(result, `${mode} replacement through ${predecessorVersion}`).toMatchObject({
+    outcome: "installed",
+    npmExitCode: 0,
+    launcherDisposition: "target",
+  });
+  await expect(readFile(resolve(packageRoot, "package.json"), "utf8").then(JSON.parse)).resolves.toMatchObject({
+    name: "@timurproko/a1",
+    version: candidateManifest.version,
+  });
+  for (const launcher of launchers) await expect(readFile(launcher, "utf8")).resolves.toContain("node_modules/@timurproko/a1/bin/cli.js");
+
+  const activationEnvironment = {
+    ...process.env,
+    A1_DATA_DIR: dataDir,
+    A1_RUNTIME_DIR: resolve(root, "runtime"),
+    A1_CONFIG_DIR: resolve(root, "config"),
+    A1_DATABASE_PATH: resolve(root, "control.sqlite3"),
+  };
+  const materialized = await release.materializeRelease(packageRoot, dataDir);
+  await release.warmMaterializedRelease(materialized, activationEnvironment, 120_000);
+  const command = await runCandidateCommand(resolve(packageRoot, "bin", "cli.js"), activationEnvironment);
+  expect(command.code, command.stderr).toBe(0);
+  expect(command.stdout).toContain("a1 update");
+  await fixture.discard(root);
+}
+
+async function runCandidateCommand(entry: string, environment: NodeJS.ProcessEnv): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  const child = spawn(process.execPath, [entry, "help"], {
+    env: environment,
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  const stdout: Buffer[] = [];
+  const stderr: Buffer[] = [];
+  child.stdout.on("data", chunk => stdout.push(Buffer.from(chunk)));
+  child.stderr.on("data", chunk => stderr.push(Buffer.from(chunk)));
+  const code = await new Promise<number | null>((resolvePromise, rejectPromise) => {
+    child.once("error", rejectPromise);
+    child.once("close", resolvePromise);
+  });
+  return { code, stdout: Buffer.concat(stdout).toString("utf8"), stderr: Buffer.concat(stderr).toString("utf8") };
+}

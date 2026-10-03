@@ -54,6 +54,8 @@ export interface ProtectedPackageReplacementOptions {
   readonly globalRoot: string;
   /** Root used only to locate the active npm implementation; installation remains pinned to globalRoot. */
   readonly npmCliRoot?: string;
+  /** Canonical entry established before update lifecycle mutation and revalidated when the capsule is committed. */
+  readonly npmCli?: string;
   readonly packageRoot: string;
   readonly transaction: UpdateTransaction;
   readonly priorRelease: { readonly releaseId: string; readonly releaseRoot: string; readonly contentDigest: string };
@@ -171,7 +173,9 @@ export async function prepareUpdateRecoveryCapsule(options: ProtectedPackageRepl
     const prefix = npmPrefixForGlobalRoot(canonicalGlobal, platform);
     const launcherRoot = platform === "win32" ? prefix : resolve(prefix, "bin");
     const npmCliRoot = await realpath(options.npmCliRoot ?? canonicalGlobal);
-    const npmCli = await resolveNpmCli(npmCliRoot, options.environment ?? process.env, platform);
+    const npmCli = options.npmCli === undefined
+      ? await resolveNpmCli(npmCliRoot, options.environment ?? process.env, platform)
+      : await requireCanonicalNpmCli(options.npmCli);
     const capsule: UpdateRecoveryCapsule = {
       schema: UPDATE_RECOVERY_SCHEMA,
       launchContract: PRIVATE_LAUNCH_CONTRACT,
@@ -348,7 +352,10 @@ export async function resolveNpmCli(
   platform: NodeJS.Platform = process.platform,
   nodeExecutable: string = process.execPath,
 ): Promise<string> {
-  const candidates = [environment.npm_execpath, resolve(globalRoot, "npm", "bin", "npm-cli.js")]
+  const declaredNpmEntry = platform === "win32"
+    ? windowsEnvironmentValue(environment, "npm_execpath")
+    : environment.npm_execpath;
+  const candidates = [declaredNpmEntry, resolve(globalRoot, "npm", "bin", "npm-cli.js")]
     .filter((value): value is string => typeof value === "string" && value.length > 0);
   for (const candidate of candidates) {
     const canonical = await canonicalRegularFile(candidate);
@@ -386,12 +393,19 @@ async function windowsNpmCliFromPath(environment: NodeJS.ProcessEnv): Promise<st
 }
 
 function windowsEnvironmentValue(environment: NodeJS.ProcessEnv, name: string): string | undefined {
+  if (Object.hasOwn(environment, name)) return environment[name];
   const key = Object.keys(environment).find(candidate => candidate.toLowerCase() === name.toLowerCase());
   return key ? environment[key] : undefined;
 }
 
 function unquoteWindowsPathEntry(value: string): string {
   return value.length >= 2 && value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
+}
+
+async function requireCanonicalNpmCli(path: string): Promise<string> {
+  const canonical = await canonicalRegularFile(path);
+  if (!canonical) throw new Error("preflight npm JavaScript entry is no longer a regular file");
+  return canonical;
 }
 
 async function canonicalRegularFile(path: string): Promise<string | null> {

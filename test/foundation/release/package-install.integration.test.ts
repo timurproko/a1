@@ -93,9 +93,8 @@ describe("clean installation of the exact candidate", () => {
     };
     const replacementEnvironment: NodeJS.ProcessEnv = { ...process.env, npm_execpath: npmCli };
     if (process.platform === "win32") {
-      delete replacementEnvironment.npm_execpath;
       for (const key of Object.keys(replacementEnvironment)) {
-        if (key.toLowerCase() === "path") delete replacementEnvironment[key];
+        if (key.toLowerCase() === "npm_execpath" || key.toLowerCase() === "path") delete replacementEnvironment[key];
       }
       replacementEnvironment.PATH = `${activePrefix};${process.env.PATH ?? process.env.Path ?? ""}`;
       replacementEnvironment.PATHEXT = ".CMD";

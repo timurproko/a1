@@ -25,6 +25,13 @@ describe("Pi upstream sync workflow", () => {
     expect(source).not.toContain("--body-file .artifacts/pi-upgrade/body.md\n          fi");
   });
 
+  it("presents Pi proposals as upgrades without renaming their automation branch", async () => {
+    const source = await workflow();
+    expect(source).toContain('title="upgrade(pi): upgrade pinned Pi to $VERSION"');
+    expect(source).toContain('git commit -m "chore(pi): propose the upgrade to Pi $VERSION"');
+    expect(source).toContain('git checkout -B "chore/pi-$REQUESTED_VERSION" "origin/chore/pi-$REQUESTED_VERSION"');
+  });
+
   it("skips the versions of closed proposals carrying the skip label unless a version is dispatched by name", async () => {
     const source = await workflow();
     const governance = JSON.parse(await readFile("config/github-repository-governance.json", "utf8")) as { labels: { name: string }[] };

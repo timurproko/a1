@@ -28,6 +28,14 @@ a1 update --develop 0.1.8-dev.107       # install that exact preview
 a1 update --models                      # refresh A1's model catalogs
 ```
 
+If `a1 update` from `0.2.2` reports that it could not resolve npm's JavaScript entry, use the official installer once:
+
+```sh
+npm x -y -- @timurproko/a1-install
+```
+
+It verifies the existing installation and delegates replacement to A1's cancellation-safe updater with npm's canonical execution context. Do not delete A1 data or overwrite the package with a raw global install. After the bridge, use ordinary `a1 update` commands again.
+
 On interactive startup A1 checks, at most once a day, whether a newer release exists on its own channel and shows an `Update Available` notice with the command to run. It never installs anything. Turn it off with the `Update check` setting (Generic section), or set `A1_SKIP_VERSION_CHECK=1`; it is also skipped when `PI_OFFLINE` or `CI` is set, or when output is not a terminal. The check reads the public npm registry, or `npm_config_registry` when set.
 
 ## Extensions

@@ -132,6 +132,8 @@ describe("visible acceptance publication and authority", () => {
     const record = { sourcePr: 468, change: "fallback-change" } as AcceptanceRecord;
     expect(acceptancePullTitle(record, "feature(governance): make acceptance a visible review PR"))
       .toBe("#468(accept): make acceptance a visible review PR");
+    expect(acceptancePullTitle(record, "upgrade(pi): upgrade pinned Pi to 0.99.3"))
+      .toBe("#468(accept): upgrade pinned Pi to 0.99.3");
     expect(acceptancePullTitle(record, "Keep the complete original title"))
       .toBe("#468(accept): Keep the complete original title");
     expect(acceptancePullTitle(record)).toBe("#468(accept): fallback-change");

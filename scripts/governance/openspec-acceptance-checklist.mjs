@@ -133,7 +133,7 @@ export function acceptanceChecklistDigest(checks) {
 }
 
 const display = value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll("`", "\\`");
-const conventionalTitle = /^(?:feature|fix|refactor|docs|test|chore|style)(?:\([^\r\n)]*\))?!?:\s*/i;
+const conventionalTitle = /^(?:feature|fix|refactor|docs|test|chore|style|upgrade)(?:\([^\r\n)]*\))?!?:\s*/i;
 function sourceSubject(sourceTitle, fallback) {
   const title = typeof sourceTitle === "string" ? sourceTitle.trim() : "";
   return (title.replace(conventionalTitle, "").trim() || fallback).replaceAll(/\s+/g, " ");

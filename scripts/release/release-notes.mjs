@@ -59,12 +59,13 @@ export function renderReleaseNoteDraft(version, changes, date = new Date().toISO
     }
     if (seen.has(change.number)) throw new Error(`duplicate release pull request #${change.number}`);
     seen.add(change.number);
-    if (isHousekeeping(change.title)) continue;
+    const breaking = isBreaking(change.title);
+    if (!breaking && isHousekeeping(change.title)) continue;
     const title = cleanTitle(change.title);
     if (!title) continue;
     if (title.length > MAX_TITLE_LENGTH) throw new Error(`release pull request #${change.number} title is too long`);
     validateLink(change.url);
-    const group = /BREAKING CHANGE|^[a-z]+(?:\([^)]*\))?!:/iu.test(change.title) ? "Breaking Changes"
+    const group = breaking ? "Breaking Changes"
       : /^feat(?:\([^)]*\))?:/iu.test(change.title) ? "New Features"
       : /^add(?:\([^)]*\))?:/iu.test(change.title) ? "Added"
       : /^fix(?:\([^)]*\))?:/iu.test(change.title) ? "Fixed"
@@ -73,7 +74,7 @@ export function renderReleaseNoteDraft(version, changes, date = new Date().toISO
   }
   const sections = [];
   for (const [heading, entries] of groups) if (entries.length > 0) sections.push(`### ${heading}\n\n${entries.join("\n")}`);
-  if (sections.length === 0) sections.push("### Changed\n\n- Maintenance and release readiness updates.");
+  if (sections.length === 0) sections.push("### Changed\n\n- No user-facing changes.");
   return `## [${version}] - ${date}\n\n${sections.join("\n\n")}\n`;
 }
 
@@ -137,8 +138,15 @@ function compareStableVersions(left, right) {
   return 0;
 }
 
+function isBreaking(title) {
+  return /BREAKING CHANGE|^[a-z]+(?:\([^)]*\))?!:/iu.test(title);
+}
+
 function isHousekeeping(title) {
-  return /^chore\(release\):/iu.test(title) || /^docs\(openspec\):/iu.test(title);
+  if (/^chore\(pi\):\s*upgrade pinned Pi to\s+/iu.test(title)) return false;
+  return /^chore(?:\([^)]*\))?:/iu.test(title)
+    || /^docs\(openspec\):/iu.test(title)
+    || /^fix\(regression\):\s*repair the \d{4}-\d{2}-\d{2}(?:-\d+)* (?:full regression|publish|release) failure\s*$/iu.test(title);
 }
 
 function cleanTitle(title) {

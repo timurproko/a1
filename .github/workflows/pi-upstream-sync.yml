@@ -181,7 +181,7 @@ jobs:
           REPLACED: ${{ steps.ownership.outputs.replace }}
         run: |
           set -euo pipefail
-          title="chore(pi): upgrade pinned Pi to $VERSION"
+          title="upgrade(pi): upgrade pinned Pi to $VERSION"
           existing=$(gh pr list --head "$BRANCH" --base develop --state open --json number --jq '.[0].number // empty')
           if [ -z "$existing" ]; then
             if [ "$REPLACED" != "true" ]; then echo "No open proposal for $BRANCH and the branch was not replaced; nothing to open." >&2; exit 1; fi
