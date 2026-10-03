@@ -2,7 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { access, lstat, readFile, realpath } from "node:fs/promises";
-import { existsSync, realpathSync } from "node:fs";
+import { lstatSync, realpathSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -197,29 +197,37 @@ class ProgressDisplay {
   }
 }
 
-function createDefaultProcessRunner(environment, platform) {
-  const npmCli = resolveNpmCli(environment);
+function createDefaultProcessRunner(environment) {
+  const npmCli = resolveInstallerNpmCli(environment);
   return {
+    npmCli,
     npm: async (args, callbacks = {}) => await runChild(process.execPath, [npmCli, ...args], { environment, ...callbacks }),
     node: async (entry, args, callbacks = {}) => await runChild(process.execPath, [entry, ...args], { environment, ...callbacks }),
   };
+}
 
-  function resolveNpmCli(env) {
-    const declared = env.npm_execpath;
-    if (declared) {
-      const candidate = /npx-cli\.js$/iu.test(declared) ? resolve(dirname(declared), "npm-cli.js") : declared;
-      if (existsSync(candidate)) return candidate;
-    }
-    for (const directory of String(env.PATH ?? "").split(delimiter)) {
-      if (!directory) continue;
-      const candidates = [
-        resolve(directory, "node_modules", "npm", "bin", "npm-cli.js"),
-        resolve(directory, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
-      ];
-      for (const candidate of candidates) if (existsSync(candidate)) return candidate;
-    }
-    throw new InstallationFailure("npm is unavailable");
+/** Resolve one immutable npm JavaScript entry for installer work and delegated A1 recovery. */
+export function resolveInstallerNpmCli(environment) {
+  const candidates = [];
+  const npmExecPathKey = Object.hasOwn(environment, "npm_execpath")
+    ? "npm_execpath"
+    : Object.keys(environment).find(key => key.toLowerCase() === "npm_execpath");
+  const declared = npmExecPathKey === undefined ? undefined : environment[npmExecPathKey];
+  if (declared) candidates.push(/npx-cli\.js$/iu.test(declared) ? resolve(dirname(declared), "npm-cli.js") : declared);
+  for (const directory of String(environment.PATH ?? "").split(delimiter)) {
+    if (!directory) continue;
+    candidates.push(
+      resolve(directory, "node_modules", "npm", "bin", "npm-cli.js"),
+      resolve(directory, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
+    );
   }
+  for (const candidate of candidates) {
+    try {
+      const canonical = realpathSync(candidate);
+      if (lstatSync(canonical).isFile()) return canonical;
+    } catch { /* Rationale: bounded candidates continue; no searched or shell fallback is accepted. */ }
+  }
+  throw new InstallationFailure("npm is unavailable");
 }
 
 export function consumeProcessLines(pending, chunk, callback) {
@@ -491,7 +499,7 @@ export async function runInstaller(argv, options = {}) {
   }
 
   const progress = options.progress ?? new ProgressDisplay(stdout, options.tty ?? stdout.isTTY === true, options.progressOptions);
-  const runner = options.runner ?? createDefaultProcessRunner(environment, platform);
+  const runner = options.runner ?? createDefaultProcessRunner(environment);
   let activeChild = null;
   let killTimer = null;
   let cancelled = options.signal?.aborted === true;
@@ -558,7 +566,15 @@ export async function runInstaller(argv, options = {}) {
         throw new InstallationFailure("existing installation ownership could not be verified", error instanceof Error ? error.message : String(error));
       }
       progress.set(24, "Installing", 90);
-      const updateResult = await runner.node(cli, updateArguments(parsed.target, targetVersion), { onChild: setActiveChild });
+      const npmCli = typeof runner.npmCli === "string" ? runner.npmCli : null;
+      const delegatedEnvironment = npmCli === null ? environment : {
+        ...Object.fromEntries(Object.entries(environment).filter(([key]) => key.toLowerCase() !== "npm_execpath")),
+        npm_execpath: npmCli,
+      };
+      const updateResult = await runner.node(cli, updateArguments(parsed.target, targetVersion), {
+        onChild: setActiveChild,
+        environment: delegatedEnvironment,
+      });
       setActiveChild(null);
       if (cancelled) throw new InstallationCancelled();
       if (updateResult.code !== 0) {

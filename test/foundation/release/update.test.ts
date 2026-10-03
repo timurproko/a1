@@ -342,6 +342,63 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stderr).toEqual([]);
   });
 
+  it("fails npm-authority preflight before progress or update lifecycle mutation", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
+    const begin = vi.spyOn(harness.transactionStore, "begin");
+    const finish = vi.spyOn(harness.transactionStore, "finish");
+    const packageReplacement = vi.fn();
+
+    await expect(runSelfUpdate({
+      ...harness,
+      progress: true,
+      npmCliResolver: async () => { throw new Error("could not resolve npm's JavaScript entry for protected package replacement"); },
+      packageReplacement,
+    })).resolves.toBe(1);
+
+    expect(begin).not.toHaveBeenCalled();
+    expect(finish).not.toHaveBeenCalled();
+    expect(packageReplacement).not.toHaveBeenCalled();
+    expect(harness.lifecycleCalls).toEqual([]);
+    expect(harness.stdout.join("")).toBe("a1 update: 1.2.3 → 1.3.0\n");
+    expect(harness.stdout.join("")).not.toContain(RETURN);
+    expect(harness.stderr.join("")).toContain("Nothing was changed");
+    expect(harness.stderr.join("")).toContain("npm x -y -- @timurproko/a1-install");
+    expect(harness.stderr.join("")).not.toContain("rolled back");
+    expect(harness.stderr.join("")).not.toContain("Diagnostics:");
+  });
+
+  it("passes preflight npm authority into protected replacement", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
+    const npmCli = resolve("fixtures", "active-node", "node_modules", "npm", "bin", "npm-cli.js");
+    const packageReplacement = vi.fn(async () => ({
+      schema: "a1-update-recovery-v1" as const,
+      transactionId: "test-update",
+      outcome: "installed" as const,
+      npmExitCode: 0,
+      cancelled: false,
+      launcherDisposition: "target" as const,
+      stdout: "",
+      stderr: "",
+      completedAt: new Date(0).toISOString(),
+      recovery: {
+        capsulePath: resolve("fixtures", "data", "update-recovery", "test", "capsule.json"),
+        status: "package-installed" as const,
+        guardianPid: 42,
+        guardianStartIdentity: "42:start",
+        cancellationRequested: false,
+        launcherDisposition: "target" as const,
+      },
+    }));
+
+    await expect(runSelfUpdate({
+      ...harness,
+      npmCliResolver: async () => npmCli,
+      packageReplacement,
+    })).resolves.toBe(0);
+
+    expect(packageReplacement).toHaveBeenCalledWith(expect.objectContaining({ npmCli }));
+  });
+
   it("commits cleanup maintenance before reporting update success", async () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
     const observations: string[] = [];
