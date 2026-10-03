@@ -118,7 +118,7 @@ export async function proposeRegressionFix({ runId, repository, output, gh, git,
   await git(["add", "-A"]);
   await git(["commit", "-m", `chore(regression): propose the fix for the ${stamp} ${workflow.name} failure`, "-m", `Opened by the nightly regression triage from run ${run.url}; the evidence is in the pull request and the change's design.`]);
   await git(["push", "--force-with-lease", "origin", branch]);
-  const created = (await gh(["pr", "create", "--draft", "--base", "develop", "--head", branch, "--title", `fix(regression): repair the ${stamp} ${workflow.name.toLowerCase()} failure`, "--body-file", join(output, "body.md")])).stdout.trim();
+  const created = (await gh(["pr", "create", "--draft", "--base", "develop", "--head", branch, "--title", `chore(regression): repair the ${stamp} ${workflow.name.toLowerCase()} failure`, "--body-file", join(output, "body.md")])).stdout.trim();
   const number = Number(/\/pull\/(\d+)\s*$/.exec(created)?.[1] ?? 0) || null;
   return finish({ ...report, changed: true, mode: "new", branch, pr: number, change: changeId(stamp), message: `opened ${branch}${number ? ` as #${number}` : ""}` }, output, files);
 }

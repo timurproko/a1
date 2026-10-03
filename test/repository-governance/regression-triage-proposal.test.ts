@@ -123,7 +123,7 @@ describe("nightly regression fix proposal", () => {
     expect(gh.calls.filter(call => call[1] === "download").map(call => call[2])).toEqual(["9001", "8995", "8990"]);
     expect(result.startup).toMatchObject({ window: 3, summary: "startup: no measurements", persistent: [] });
     expect(git.calls.find(call => call[0] === "checkout")).toEqual(["checkout", "-B", "fix/nightly-regression-2026-09-19", head]);
-    expect(gh.calls.find(call => call[1] === "create")).toEqual(["pr", "create", "--draft", "--base", "develop", "--head", "fix/nightly-regression-2026-09-19", "--title", "fix(regression): repair the 2026-09-19 full regression failure", "--body-file", `${output}/body.md`.replaceAll("/", process.platform === "win32" ? "\\" : "/")]);
+    expect(gh.calls.find(call => call[1] === "create")).toEqual(["pr", "create", "--draft", "--base", "develop", "--head", "fix/nightly-regression-2026-09-19", "--title", "chore(regression): repair the 2026-09-19 full regression failure", "--body-file", `${output}/body.md`.replaceAll("/", process.platform === "win32" ? "\\" : "/")]);
     expect([...files.files.keys()].filter(path => path.includes("openspec/changes/"))).toEqual([
       "D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/.openspec.yaml",
       "D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/regression-provenance.json",
