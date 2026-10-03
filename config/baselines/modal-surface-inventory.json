@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {
-    "version": "0.99.2",
-    "commit": "005af57d88ee23b33778f343a9595b32e67ff788"
+    "version": "1.0.0",
+    "commit": "a13d35a742c6ef8462812a28fbe1d8c8b7431c32"
   },
   "policy": {
     "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",
@@ -988,7 +988,7 @@
       "id": "auth.dialog.api-key",
       "source": "interactive",
       "sourceAnchors": [
-        "showApiKeyLoginDialog(providerId, providerName)",
+        "showApiKeyLoginDialog(providerId, providerName, onBack)",
         "this.loginProvider(dialog, providerId, \"api_key\")"
       ],
       "heading": "Login to provider name",
@@ -1023,7 +1023,7 @@
       "id": "auth.dialog.ambient",
       "source": "interactive",
       "sourceAnchors": [
-        "showAmbientAuthDialog(providerOption)",
+        "showAmbientAuthDialog(providerOption, onBack)",
         "is configured outside"
       ],
       "heading": "provider setup",
@@ -1151,7 +1151,7 @@
       "id": "auth.dialog.select-prompt",
       "source": "interactive",
       "sourceAnchors": [
-        "showAuthSelect(dialog, prompt)",
+        "showAuthSelect(dialog, prompt, providerId)",
         "prompt.options.map"
       ],
       "heading": "provider prompt.message",
@@ -2522,7 +2522,7 @@
       "to": "auth.dialog.oauth",
       "source": "interactive",
       "sourceAnchors": [
-        "await this.startProviderLogin(providerOption)"
+        "await this.startProviderLogin(providerOption, () =>"
       ],
       "trigger": "select OAuth provider",
       "stateMutation": "capture prior model and start login",
@@ -2542,7 +2542,7 @@
       "to": "auth.dialog.api-key",
       "source": "interactive",
       "sourceAnchors": [
-        "showApiKeyLoginDialog(providerId, providerName)"
+        "await this.showApiKeyLoginDialog(providerOption.id, providerOption.name, onBack);"
       ],
       "trigger": "select API-key provider",
       "stateMutation": "capture prior model and start provider login",
@@ -2562,7 +2562,7 @@
       "to": "auth.dialog.ambient",
       "source": "interactive",
       "sourceAnchors": [
-        "showAmbientAuthDialog(providerOption)"
+        "this.showAmbientAuthDialog(providerOption, onBack);"
       ],
       "trigger": "select externally configured provider",
       "stateMutation": "none",
@@ -3483,7 +3483,7 @@
       "to": "auth.dialog.ambient",
       "source": "interactive",
       "sourceAnchors": [
-        "this.showAmbientAuthDialog(providerOption)"
+        "this.showAmbientAuthDialog(providerOption, onBack);"
       ],
       "trigger": "select ambient method",
       "stateMutation": "capture provider",
@@ -3523,7 +3523,7 @@
       "to": "auth.dialog.select-prompt",
       "source": "interactive",
       "sourceAnchors": [
-        "this.showAuthSelect(dialog, prompt)"
+        "response = this.showAuthSelect(dialog, prompt, providerId);"
       ],
       "trigger": "provider select prompt",
       "stateMutation": "retain API-key dialog",
@@ -3960,7 +3960,10 @@
     "mermaid.js",
     "model-selector.js",
     "oauth-selector.js",
+    "pi-logo-animation.js",
+    "pi-logo-animation.lazy.js",
     "pi-logo.js",
+    "radius-login-selector.js",
     "scoped-models-selector.js",
     "session-selector-search.js",
     "session-selector.js",

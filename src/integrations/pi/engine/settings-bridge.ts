@@ -564,7 +564,7 @@ function operations(settings: SettingsManager, providers: PiSettingsProviders): 
     bool("showCacheMissNotices", () => settings.getShowCacheMissNotices(), value => settings.setShowCacheMissNotices(value)),
     bool("collapseChangelog", () => settings.getCollapseChangelog(), value => settings.setCollapseChangelog(value)),
     bool("enableInstallTelemetry", () => settings.getEnableInstallTelemetry(), value => settings.setEnableInstallTelemetry(value)),
-    bool("quietStartup", () => settings.getQuietStartup(), value => settings.setQuietStartup(value)),
+    quietStartupSetting(settings),
     choice("defaultProjectTrust", offered("defaultProjectTrust"), () => settings.getDefaultProjectTrust(), value => settings.setDefaultProjectTrust(value as ReturnType<SettingsManager["getDefaultProjectTrust"]>)),
     choice("doubleEscapeAction", offered("doubleEscapeAction"), () => settings.getDoubleEscapeAction(), value => settings.setDoubleEscapeAction(value as ReturnType<SettingsManager["getDoubleEscapeAction"]>)),
     choice("treeFilterMode", offered("treeFilterMode"), () => settings.getTreeFilterMode(), value => settings.setTreeFilterMode(value as ReturnType<SettingsManager["getTreeFilterMode"]>)),
@@ -615,6 +615,17 @@ export function splitModelKey(key: string): [provider: string, modelId: string] 
 
 function bool(key: PiSettingKey, read: () => boolean, write: (value: boolean) => void): Operation {
   return operation(key, "boolean", read, value => { if (typeof value !== "boolean") invalid(key); }, value => write(value as boolean));
+}
+
+function quietStartupSetting(settings: SettingsManager): Operation {
+  const key = "quietStartup";
+  const choices = [true, "header", false] as const;
+  return choice(
+    key,
+    choices,
+    () => settings.getQuietStartup(),
+    value => settings.setQuietStartup(value as ReturnType<SettingsManager["getQuietStartup"]>),
+  );
 }
 
 function numberSetting(key: PiSettingKey, read: () => number, write: (value: number) => void, minimum: number): Operation {

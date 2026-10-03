@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.99.2 (MIT), commit 005af57d88ee23b33778f343a9595b32e67ff788,
+ * Provenance: @earendil-works/pi-coding-agent 1.0.0 (MIT), commit a13d35a742c6ef8462812a28fbe1d8c8b7431c32,
  * packages/coding-agent/src/modes/interactive/theme/system-theme.ts.
  * Modifications: Copied the system palette generator with ESM import remapping and strict
  * indexed-access assertions; A1 retains explicit owned theme selection.
@@ -12,7 +12,8 @@
  * on the background and on the panels it is drawn on. Hue and saturation come from the terminal's palette
  * color for the family's ANSI slot, or from the family's own hue when the terminal reports no palette.
  * Lightness comes from the rules alone. Colors are built in OKHSL, whose saturation is relative to the
- * sRGB gamut, and fade toward gray near black and white.
+ * sRGB gamut, and fade toward gray near black and white. A palette color never gains OKLCH chroma when it
+ * moves to another lightness, so pastel palettes stay pastel.
  *
  * A contrast level is a target-lightness curve: the OKLab lightness a token needs, given the lightness of
  * the surface below it. The curves were fitted to the reference theme design from the "Pi themes: system
@@ -28,9 +29,11 @@
 import {
   colorToOkhsl,
   colorToOklch,
+  colorToRgb,
   type OkhslChannels,
   okhslColor,
   oklabToOkhslLightness,
+  oklchColor,
   type RgbColor,
   rgbColor,
 } from "@earendil-works/pi-tui";
@@ -647,7 +650,7 @@ export function generateSystemThemeColors(
   const { background, foreground } = input;
   if (!background) return indexedColors(saturation, input.appearanceHint);
   const palette =
-    input.palette?.length === 16 ? input.palette.map(okhslOf) : undefined;
+    input.palette?.length === 16 ? input.palette.map(sourceOf) : undefined;
 
   const appearance = terminalAppearance(background, foreground);
   const lighter = appearance === "dark";
@@ -800,7 +803,7 @@ export function generateSystemThemeColors(
           continue;
         }
         text = anchored(
-          okhslOf(foreground),
+          sourceOf(foreground),
           FAMILIES.neutral,
           oklabToOkhslLightness(needed),
           saturation,
@@ -817,12 +820,28 @@ function okhslOf({ r, g, b }: RgbColor): OkhslChannels {
   return colorToOkhsl(rgbColor(r, g, b));
 }
 
+/** A terminal color's OKHSL channels and its OKLCH chroma. */
+interface SourceColor extends OkhslChannels {
+  chroma: number;
+}
+
+function sourceOf(color: RgbColor): SourceColor {
+  return {
+    ...okhslOf(color),
+    chroma: colorToOklch(rgbColor(color.r, color.g, color.b)).c,
+  };
+}
+
 /**
  * A source color's hue at another OKHSL lightness. Its saturation applies at its own lightness and falls off
  * toward black and white along the family's saturation curve, never rising above it.
+ *
+ * OKHSL saturation is relative to the most chroma sRGB allows at a lightness, so the same saturation can mean
+ * more chroma elsewhere: Catppuccin Frappe's pink #f4b8e4 (chroma 0.089) would become #eb76d1 (0.180) at the
+ * lightness the accent needs. Chroma is therefore also capped at the source's, with the same falloff.
  */
 function anchored(
-  source: OkhslChannels,
+  source: SourceColor,
   family: Family,
   lightness: number,
   saturation: number,
@@ -830,7 +849,14 @@ function anchored(
   const anchor = saturationCurve(family, source.l);
   const falloff =
     anchor > 0 ? Math.min(1, saturationCurve(family, lightness) / anchor) : 1;
-  return okhslColor(source.h, source.s * falloff * saturation, lightness);
+  const color = okhslColor(
+    source.h,
+    source.s * falloff * saturation,
+    lightness,
+  );
+  const cap = source.chroma * falloff * saturation;
+  const { l, c } = colorToOklch(color);
+  return c <= cap ? color : colorToRgb(oklchColor(l, cap, source.h));
 }
 
 /** Move a text color toward white or black until it reaches the WCAG minimum on every surface. */

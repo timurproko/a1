@@ -112,6 +112,15 @@ export async function discoverRepository(primaryPath, git = gitRunner()) {
 }
 
 /** Capture exact identity without granting cleanup authority or refreshing a released head. */
+async function requiredGitValue(git, cwd, args) {
+  for (let attempt = 1; ; attempt++) {
+    const value = (await git(cwd, args)).trim();
+    if (value !== "") return value;
+    if (process.platform !== "win32" || attempt >= 3) fail("git-operation-failed");
+    await new Promise(resolve => setTimeout(resolve, 25 * attempt));
+  }
+}
+
 export async function captureWorktree(identity, path, git = gitRunner()) {
   const absolute = resolve(path).replaceAll("\\", "/");
   if (!inside(identity.root, absolute) || absolute === identity.primary || await canonical(absolute) !== absolute) fail("worktree-path");
@@ -123,9 +132,9 @@ export async function captureWorktree(identity, path, git = gitRunner()) {
   }
   const pointer = join(absolute, ".git"), pointerStat = await lstat(pointer);
   if (!pointerStat.isFile() || pointerStat.isSymbolicLink()) fail("worktree-git-pointer");
-  const common = await canonical((await git(absolute, ["rev-parse", "--path-format=absolute", "--git-common-dir"])).trim());
+  const common = await canonical(await requiredGitValue(git, absolute, ["rev-parse", "--path-format=absolute", "--git-common-dir"]));
   if (common !== identity.common) fail("worktree-repository");
-  const gitDirectory = await canonical((await git(absolute, ["rev-parse", "--path-format=absolute", "--git-dir"])).trim());
+  const gitDirectory = await canonical(await requiredGitValue(git, absolute, ["rev-parse", "--path-format=absolute", "--git-dir"]));
   if (!inside(join(identity.common, "worktrees"), gitDirectory)
     || await canonical((await readFile(join(gitDirectory, "gitdir"), "utf8")).trim()) !== await canonical(pointer)) fail("worktree-backlink");
   const rows = parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"]));
@@ -134,8 +143,8 @@ export async function captureWorktree(identity, path, git = gitRunner()) {
   if (rows.some(row => inside(absolute, resolve(row.worktree)))) fail("nested-worktree");
   const row = matches[0], ref = row.branch ?? null;
   if (ref !== null && !safeRef(ref) || ref === null && !row.detached) fail("reserved-or-unknown-ref");
-  if ((await git(absolute, ["rev-parse", "HEAD"])).trim() !== row.HEAD
-    || (await git(absolute, ["rev-parse", "--symbolic-full-name", "HEAD"])).trim() !== (ref ?? "HEAD")) fail("worktree-head-mismatch");
+  if (await requiredGitValue(git, absolute, ["rev-parse", "HEAD"]) !== row.HEAD
+    || await requiredGitValue(git, absolute, ["rev-parse", "--symbolic-full-name", "HEAD"]) !== (ref ?? "HEAD")) fail("worktree-head-mismatch");
   return { path: absolute, filesystem: fingerprint(await lstat(absolute)), head: row.HEAD, ref };
 }
 
