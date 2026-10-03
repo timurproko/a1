@@ -270,8 +270,14 @@ the version. The retired `--approve` form remains a mutation-free usage error.
    stops preparation), and maps every later first-parent commit through one merged
    GitHub pull request. It generates Pi-style Markdown beginning
    `## [version] - YYYY-MM-DD`, followed by applicable `### Breaking Changes`,
-   `### New Features`, `### Added`, `### Changed`, and `### Fixed` sections, and
-   creates one source-bound **draft GitHub Release**. It then dispatches
+   `### New Features`, `### Added`, `### Changed`, and `### Fixed` sections. Explicit
+   breaking changes always remain visible. Ordinary non-breaking `chore` pull requests
+   and generated regression-triage repairs are omitted; a regression repair that proves
+   a user-facing defect must use its actual `fix(scope)` title before merge. Pi proposals
+   use `upgrade(pi)` and appear under Changed, while historical `chore(pi): upgrade`
+   titles remain compatible. A range containing only filtered maintenance says that it
+   has no user-facing changes. Preparation then creates one source-bound **draft GitHub
+   Release**. It dispatches
    `release-candidate.yml`, which stamps the stable version, packs both packages with
    the generated note, and runs the complete stable suite on Windows, Linux, and macOS
    without publishing. A running or successful validation of the same source and

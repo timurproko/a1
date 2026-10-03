@@ -96,6 +96,47 @@ describe("reviewed release-note documents", () => {
     ])).toThrow(/duplicate/i);
   });
 
+  it("omits maintenance while retaining breaking changes and Pi upgrades", () => {
+    const markdown = renderReleaseNoteDraft("2.0.0", [
+      { number: 1, title: "chore(ci): tune validation", url: "https://github.com/acme/a1/pull/1" },
+      { number: 2, title: "chore: refresh metadata", url: "https://github.com/acme/a1/pull/2" },
+      { number: 3, title: "fix(regression): repair the 2026-10-02 full regression failure", url: "https://github.com/acme/a1/pull/3" },
+      { number: 4, title: "chore(pi): upgrade pinned Pi to 0.99.2", url: "https://github.com/acme/a1/pull/4" },
+      { number: 5, title: "upgrade(pi): upgrade pinned Pi to 0.99.3", url: "https://github.com/acme/a1/pull/5" },
+      { number: 6, title: "chore(runtime)!: remove legacy startup support", url: "https://github.com/acme/a1/pull/6" },
+      { number: 7, title: "fix(update): resolve bundled npm entry", url: "https://github.com/acme/a1/pull/7" },
+      { number: 8, title: "docs(openspec): finalize release policy", url: "https://github.com/acme/a1/pull/8" },
+    ], "2026-10-03");
+    expect(markdown).toBe(`## [2.0.0] - 2026-10-03
+
+### Breaking Changes
+
+- remove legacy startup support ([#6](https://github.com/acme/a1/pull/6))
+
+### Changed
+
+- upgrade pinned Pi to 0.99.2 ([#4](https://github.com/acme/a1/pull/4))
+- upgrade pinned Pi to 0.99.3 ([#5](https://github.com/acme/a1/pull/5))
+
+### Fixed
+
+- resolve bundled npm entry ([#7](https://github.com/acme/a1/pull/7))
+`);
+  });
+
+  it("reports no user-facing changes when every merged pull request is filtered", () => {
+    expect(renderReleaseNoteDraft("2.0.0", [
+      { number: 1, title: "chore(ci): tune validation", url: "https://github.com/acme/a1/pull/1" },
+      { number: 2, title: "fix(regression): repair the 2026-10-02 publish failure", url: "https://github.com/acme/a1/pull/2" },
+      { number: 3, title: "docs(openspec): finalize it", url: "https://github.com/acme/a1/pull/3" },
+    ], "2026-10-03")).toBe(`## [2.0.0] - 2026-10-03
+
+### Changed
+
+- No user-facing changes.
+`);
+  });
+
   it("requires an exact stable package to contain its reviewed note", async () => {
     const directory = await notesDirectory();
     await mkdir(join(directory, "dist", "features", "owned-ui", "resources"), { recursive: true });
