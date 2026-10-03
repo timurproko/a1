@@ -1,89 +1,231 @@
-# A1
+<p align="center">
+  <a href="https://agentnumberone.dev"><img src="docs/assets/readme/mark.svg" alt="a1" width="112"></a>
+</p>
+
+<p align="center">
+  An open-source AI coding agent for the terminal, built on the pi engine.
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/@timurproko/a1"><img alt="npm" src="https://img.shields.io/npm/v/@timurproko/a1?style=flat-square&color=2638d2"></a>
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2638d2?style=flat-square"></a>
+  <a href="https://agentnumberone.dev"><img alt="Website" src="https://img.shields.io/badge/web-agentnumberone.dev-2638d2?style=flat-square"></a>
+</p>
 
 ## Install
 
-```sh
-npm x -y -- @timurproko/a1-install                           # release
-npm x -y -- @timurproko/a1-install --develop                 # develop
-npm x -y -- @timurproko/a1-install --develop 107             # preview number
-npm x -y -- @timurproko/a1-install --develop 0.1.8-dev.107   # exact preview
-```
-
-## Use
-
-```sh
-a1                                      # launch A1 (profile: ~/.a1/agent)
-a1 help                                 # show all commands
-a1 version                              # show the current and latest versions
-a1 pi                                   # vanilla Pi oracle: ~/.pi/agent
-```
-
-Update:
-
-```sh
-a1 update                               # install the release
-a1 update --develop                     # install develop
-a1 update --develop 107                 # install preview 107
-a1 update --develop 0.1.8-dev.107       # install that exact preview
-a1 update --models                      # refresh A1's model catalogs
-```
-
-If `a1 update` from `0.2.2` reports that it could not resolve npm's JavaScript entry, use the official installer once:
+Release:
 
 ```sh
 npm x -y -- @timurproko/a1-install
 ```
 
-It verifies the existing installation and delegates replacement to A1's cancellation-safe updater with npm's canonical execution context. Do not delete A1 data or overwrite the package with a raw global install. After the bridge, use ordinary `a1 update` commands again.
+Develop:
 
-On interactive startup A1 checks, at most once a day, whether a newer release exists on its own channel and shows an `Update Available` notice with the command to run. It never installs anything. Turn it off with the `Update check` setting (Generic section), or set `A1_SKIP_VERSION_CHECK=1`; it is also skipped when `PI_OFFLINE` or `CI` is set, or when output is not a terminal. The check reads the public npm registry, or `npm_config_registry` when set.
+```sh
+npm x -y -- @timurproko/a1-install --develop
+```
+
+Preview number:
+
+```sh
+npm x -y -- @timurproko/a1-install --develop 107
+```
+
+Exact preview:
+
+```sh
+npm x -y -- @timurproko/a1-install --develop 0.1.8-dev.107
+```
+
+<p align="center"><img src="docs/assets/readme/terminal.svg" alt="" width="240"></p>
+
+## Use
+
+Launch A1 (profile: `~/.a1/agent`):
+
+```sh
+a1
+```
+
+Show all commands:
+
+```sh
+a1 help
+```
+
+Show the current and latest versions:
+
+```sh
+a1 version
+```
+
+Vanilla Pi oracle (`~/.pi/agent`):
+
+```sh
+a1 pi
+```
+
+### Update
+
+Install the release:
+
+```sh
+a1 update
+```
+
+Install develop:
+
+```sh
+a1 update --develop
+```
+
+Install preview 107:
+
+```sh
+a1 update --develop 107
+```
+
+Install that exact preview:
+
+```sh
+a1 update --develop 0.1.8-dev.107
+```
+
+Refresh A1's model catalogs:
+
+```sh
+a1 update --models
+```
+
+Stuck on `0.2.2` and `a1 update` fails? Run the installer once, then use `a1 update` as usual:
+
+```sh
+npm x -y -- @timurproko/a1-install
+```
+
+A1 shows an `Update Available` notice at most once a day and never installs anything by itself. Turn it off in Settings (`Update check`) or with `A1_SKIP_VERSION_CHECK=1`.
+
+<p align="center"><img src="docs/assets/readme/plugins.svg" alt="" width="240"></p>
 
 ## Extensions
 
-```sh
-a1 install npm:pi-mcp-adapter          # install a package
-a1 remove npm:pi-mcp-adapter           # remove it (alias: a1 uninstall)
-a1 list                                # list installed packages
-```
-
-Update:
+Install a package:
 
 ```sh
-a1 update --extensions                 # update every installed package
-a1 update npm:pi-mcp-adapter           # update one
+a1 install npm:pi-mcp-adapter
 ```
+
+Remove it (alias: `a1 uninstall`):
+
+```sh
+a1 remove npm:pi-mcp-adapter
+```
+
+List installed packages:
+
+```sh
+a1 list
+```
+
+Update every installed package:
+
+```sh
+a1 update --extensions
+```
+
+Update one:
+
+```sh
+a1 update npm:pi-mcp-adapter
+```
+
+<p align="center"><img src="docs/assets/readme/gears.svg" alt="" width="240"></p>
 
 ## Develop
 
+Install exact locked dependencies:
+
 ```sh
-npm ci                                  # install exact locked dependencies
-npm run build                           # compile TypeScript and the process guardian into dist
-npm start                               # build and launch a source `a1`
-npm run start:pi                        # build and launch a source `a1 pi`
-npm run test:fast                       # typecheck + fast suite (alias: npm test)
-npm run test:full                       # complete non-physical suite
-npm run doctor                          # report Node, npm, git, Rust, and dependency readiness
+npm ci
 ```
+
+Compile TypeScript and the process guardian into `dist`:
+
+```sh
+npm run build
+```
+
+Build and launch a source `a1`:
+
+```sh
+npm start
+```
+
+Build and launch a source `a1 pi`:
+
+```sh
+npm run start:pi
+```
+
+Typecheck + fast suite (alias: `npm test`):
+
+```sh
+npm run test:fast
+```
+
+Complete non-physical suite:
+
+```sh
+npm run test:full
+```
+
+Report Node, npm, git, Rust, and dependency readiness:
+
+```sh
+npm run doctor
+```
+
+Preview the README as GitHub renders it, in your browser (needs `gh`):
+
+```sh
+npm run preview:readme
+```
+
+<p align="center"><img src="docs/assets/readme/rocket.svg" alt="" width="240"></p>
 
 ## Publish
 
 ### Develop
 
+Request the preview publish:
+
 ```sh
-npm run develop                         # request the preview publish
+npm run develop
 ```
 
 ### Release
 
 ```sh
 npm run release -- patch               # 0.1.8-dev -> 0.1.8
+```
+
+```sh
 npm run release -- minor               # 0.1.8-dev -> 0.2.0
+```
+
+```sh
 npm run release -- major               # 0.1.8-dev -> 1.0.0
+```
+
+```sh
 npm run release -- 0.4.0               # prepare an exact stable version
 ```
 
-The command creates the draft, starts validation of its source, prints the progress
-link, and waits. When validation passes it prints the draft link: edit the Pi-style
-`## [version] - YYYY-MM-DD` changelog, then choose
-GitHub's native **Publish release** button: that publishes both packages to npm. If
-publication fails before npm, the Release returns to draft so you can publish it again.
+Once validation passes, open the printed draft link, edit the `## [version] - YYYY-MM-DD` changelog, and press **Publish release** to publish to npm. Details: [release runbook](docs/ci-release-runbook.md).
+
+<br>
+
+<p align="center">
+  <a href="https://agentnumberone.dev"><img src="docs/assets/readme/waves.svg" alt="" width="100%"></a>
+</p>
