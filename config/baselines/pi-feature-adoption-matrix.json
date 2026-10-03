@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "0.99.2"
+    "version": "1.0.0"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -2429,6 +2429,69 @@
       "since": "0.99.1",
       "disposition": "pinned",
       "note": "Provider catalog and default-model behavior are supplied by the pinned model runtime; A1's model selectors consume that public registry without a separate catalog."
+    },
+    {
+      "id": "changelog:1.0.0:anthropic-copy-code-login",
+      "kind": "changelog",
+      "feature": "Anthropic copy code login",
+      "version": "1.0.0",
+      "summary": "Sign in when the browser runs on another machine.",
+      "since": "1.0.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.0:fullscreen-by-default",
+      "kind": "changelog",
+      "feature": "Fullscreen by default",
+      "version": "1.0.0",
+      "summary": "The TUI now runs fullscreen. Set `tuiMode` to `\"regular\"` to keep the terminal's normal scrollback.",
+      "since": "1.0.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.0:header-only-quiet-startup",
+      "kind": "changelog",
+      "feature": "Header-only quiet startup",
+      "version": "1.0.0",
+      "summary": "`quietStartup: \"header\"` keeps the version and key hints and hides the rest.",
+      "since": "1.0.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.0:image-generation-in-codemode",
+      "kind": "changelog",
+      "feature": "Image generation in codemode",
+      "version": "1.0.0",
+      "summary": "Scripts call `models.generateImages()` with the session's credentials.",
+      "since": "1.0.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.0:leaner-codemode",
+      "kind": "changelog",
+      "feature": "Leaner codemode",
+      "version": "1.0.0",
+      "summary": "About 40% fewer prompt tokens, and errors that tell the model how to recover.",
+      "since": "1.0.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.0:mcp-oauth-hardening",
+      "kind": "changelog",
+      "feature": "MCP OAuth hardening",
+      "version": "1.0.0",
+      "summary": "`oauth.authServerMetadataUrl`, RFC 9207 `iss` checks, credentials per server, and step-up sign-in that keeps granted scopes.",
+      "since": "1.0.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.0:radius-in-login",
+      "kind": "changelog",
+      "feature": "Radius in `/login`",
+      "version": "1.0.0",
+      "summary": "Sign in with Radius and set up its MCP server in one step.",
+      "since": "1.0.0",
+      "disposition": "pending"
     }
   ]
 }

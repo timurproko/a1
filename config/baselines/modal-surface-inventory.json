@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {
-    "version": "0.99.2",
-    "commit": "005af57d88ee23b33778f343a9595b32e67ff788"
+    "version": "1.0.0",
+    "commit": "a13d35a742c6ef8462812a28fbe1d8c8b7431c32"
   },
   "policy": {
     "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",
@@ -1005,7 +1005,7 @@
       "viewport": "dynamic editor replacement",
       "scrolling": "component content",
       "destination": "src/integrations/pi/components/shell-components.ts",
-      "status": "corrected-pending-exhaustive-parity",
+      "status": "orphaned",
       "controller": "LoginDialogComponent API-key controller",
       "acceptance": "modal-node:auth.dialog.api-key",
       "parents": [
@@ -1038,7 +1038,7 @@
       "viewport": "dynamic editor replacement",
       "scrolling": "component content",
       "destination": "src/integrations/pi/components/shell-components.ts",
-      "status": "corrected-pending-exhaustive-parity",
+      "status": "orphaned",
       "controller": "LoginDialogComponent ambient controller",
       "acceptance": "modal-node:auth.dialog.ambient",
       "parents": [
@@ -1166,7 +1166,7 @@
       "viewport": "provider option count",
       "scrolling": "selector scrolling",
       "destination": "src/app/session-shell/session-shell.ts",
-      "status": "corrected-pending-exhaustive-parity",
+      "status": "orphaned",
       "controller": "ExtensionSelectorComponent provider-prompt controller",
       "acceptance": "modal-node:auth.dialog.select-prompt",
       "parents": [
@@ -2534,7 +2534,8 @@
         "terminal:login-provider-method-cancel-restored",
         "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
         "authority:pinned-controller-transition"
-      ]
+      ],
+      "status": "orphaned"
     },
     {
       "id": "login.provider.api-key",
@@ -2554,7 +2555,8 @@
         "terminal:login-provider-method-cancel-restored",
         "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
         "authority:pinned-controller-transition"
-      ]
+      ],
+      "status": "orphaned"
     },
     {
       "id": "login.provider.ambient",
@@ -2574,7 +2576,8 @@
         "terminal:login-provider-method-cancel-restored",
         "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
         "authority:pinned-controller-transition"
-      ]
+      ],
+      "status": "orphaned"
     },
     {
       "id": "login.provider.back",
@@ -3495,7 +3498,8 @@
         "terminal:login-provider-method-cancel-restored",
         "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
         "authority:pinned-controller-transition"
-      ]
+      ],
+      "status": "orphaned"
     },
     {
       "id": "login.api.details",
@@ -3535,7 +3539,8 @@
         "terminal:login-provider-method-cancel-restored",
         "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
         "authority:pinned-controller-transition"
-      ]
+      ],
+      "status": "orphaned"
     },
     {
       "id": "login.api.select-return",

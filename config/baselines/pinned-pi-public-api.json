@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "0.99.2",
+      "version": "1.0.0",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -39,7 +39,7 @@
         {
           "name": "AgentSession",
           "kind": "class",
-          "hash": "f6d9c3a8a610e2a3b02e559db048980698c8beb60db4c82085bd6e08136fc791",
+          "hash": "0d23f09019a1acbbacbbfdfc24fb8ba3c7673e4d2aed0ae1dd4f20570b38525f",
           "consumers": [
             "src/integrations/pi/engine/adapter.ts",
             "src/integrations/pi/engine/compaction-progress.ts",
@@ -1467,7 +1467,7 @@
         {
           "name": "InteractiveMode",
           "kind": "class",
-          "hash": "6674d4469365d15cc82d334cdf4a6179ea261499ffe465168e7815d132cd4519",
+          "hash": "c11831ba445aad7cb7ed449495f70f1dcc6fab9243180d966de8495ce753f9e4",
           "consumers": []
         },
         {
@@ -1778,7 +1778,7 @@
         {
           "name": "ModelRegistry",
           "kind": "class",
-          "hash": "00a35042b0f3fcec65be1dd727b9063649aa97c8040fb868ee5b831c1431aade",
+          "hash": "55e150aa8396392c2e29f326d99d10d9282c874aef4c0b9ccfd145865b96fd3a",
           "consumers": []
         },
         {
@@ -1858,7 +1858,7 @@
         {
           "name": "OAuthSelectorComponent",
           "kind": "class",
-          "hash": "7db2ae1d77eb7b5b4f85061454e3f34f22ff4c7e8c9dbd4bcd473d000d3541b6",
+          "hash": "7db7ed36afb423857d1bff0839a7f06edabc5b1050e5dfcbf3d9b0e383be0cd8",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/startup-public.ts"
@@ -2075,6 +2075,12 @@
           "name": "ProviderStreamEvent",
           "kind": "interface",
           "hash": "3cd8e51b9a0dbf7622aaa0c74866da808187b61b28f14d16daf13f18d75bd08b",
+          "consumers": []
+        },
+        {
+          "name": "QuietStartup",
+          "kind": "type",
+          "hash": "701ed7c2984ab8e64ed1430a3462f8f143a9872ff19e9d7b09c36291accc5219",
           "consumers": []
         },
         {
@@ -2511,7 +2517,7 @@
         {
           "name": "SettingsCallbacks",
           "kind": "interface",
-          "hash": "eadbf6976693e2c9b5a623e6f3aa65dd1c7ddaaf6ae0043684cdcc30296d015f",
+          "hash": "fadc657070cc68c5e811619effe43e3eb7229f986d901ce9a8d3dee12dc57d2f",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts"
           ]
@@ -2519,7 +2525,7 @@
         {
           "name": "SettingsConfig",
           "kind": "interface",
-          "hash": "4c7bbefeb5fbdc5cfc4b4828a496f4fac62866df0eb5feb600134f203028bd65",
+          "hash": "c2fe2c4c29ff60d8f4f0ab28251df03384d845bfbe05579f8356483892137da3",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts"
           ]
@@ -2527,7 +2533,7 @@
         {
           "name": "SettingsManager",
           "kind": "class",
-          "hash": "664d0a1afb1f74e0d969f410822fe9794d48707156bf76afaa9089c4e62a0b28",
+          "hash": "1f803efde767896d621e8d67264d190217af3902c206957a4f19811240006fa5",
           "consumers": [
             "src/integrations/pi/engine/package-integration.ts",
             "src/integrations/pi/engine/project-trust-preflight.ts",
@@ -3022,7 +3028,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "0.99.2",
+      "version": "1.0.0",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -3505,6 +3511,12 @@
             "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts"
           ]
+        },
+        {
+          "name": "isAppleTerminalSession",
+          "kind": "function",
+          "hash": "6998ae3b5b3fd438cdbae177718e1d32d8bcbb122df292456163ad12dd765a0c",
+          "consumers": []
         },
         {
           "name": "isFocusable",
@@ -4221,7 +4233,7 @@
         {
           "name": "TuiAltScreen",
           "kind": "class",
-          "hash": "8380ece56c49d2da3410d33d38e6279d7d284528f89b2760c56ef8a269015a5c",
+          "hash": "dbb6cdf68ff4e7eff5f02682a8bd6d5526665af970cedb47d827c423bef0704c",
           "consumers": [
             "src/integrations/pi/tui-runtime/adapter.ts",
             "src/integrations/pi/tui-runtime/overlay-geometry.ts"
