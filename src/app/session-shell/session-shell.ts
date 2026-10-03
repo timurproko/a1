@@ -1216,7 +1216,7 @@ export class OwnedUiSessionShell {
   showLoginProviderSelector(authType?: "oauth" | "api_key", initialSearchInput?: string): void {
     const options = this.backend.pinnedLoginOptions(authType);
     if (options.length === 0) {
-      this.root.appendWorkflowStatus(authType === "oauth" ? "No subscription providers available." : authType === "api_key" ? "No API key providers available." : "No login providers available.");
+      this.root.appendWorkflowStatus(authType === "oauth" ? "No account providers available." : authType === "api_key" ? "No API key providers available." : "No login providers available.");
       this.runtime.requestRender();
       return;
     }

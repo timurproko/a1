@@ -292,7 +292,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     let frame = stripTerminalSequences(shell.root.render(100).join("\n"));
     expect(frame).toContain("OpenAI Codex");
     expect(frame).toContain("✓ stored");
-    expect(frame).not.toContain("OpenAI Codex • unconfigured");
+    expect(frame).not.toContain("OpenAI Codex • not configured");
 
     terminal.input("\x1b");
     terminal.input("\x1b");
@@ -304,7 +304,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await shell.submit("/login");
     terminal.input("\r");
     frame = stripTerminalSequences(shell.root.render(100).join("\n"));
-    expect(frame).toContain("OpenAI Codex • unconfigured");
+    expect(frame).toContain("OpenAI Codex • not configured");
     await shell.dispose();
   });
 
