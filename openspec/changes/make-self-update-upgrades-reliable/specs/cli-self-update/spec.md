@@ -40,6 +40,8 @@ When preflight cannot establish replacement authority, A1 SHALL leave ownership,
 - **WHEN** the package transaction and launcher postcondition are durably complete
 - **THEN** A1 SHALL retire the recovery worker and make its transaction-scoped capsule eligible for bounded cleanup
 
+## ADDED Requirements
+
 ### Requirement: Published releases are reachable through predecessor-owned update behavior
 A release SHALL NOT be considered self-update compatible solely because updater code inside that target works after installation. Exact-package release evidence SHALL drive the supported published predecessor's own protected replacement behavior through package and launcher mutation, recovery postconditions, and target activation. The ordinary immediate predecessor SHALL complete direct update without npm lifecycle-only environment variables in every supported installation layout. If an already-published predecessor is known to lack required acquisition context, the preferred official installer MAY provide a bounded bridge only by supplying canonical npm execution context to that predecessor's existing protected updater; this exception SHALL be explicit and SHALL NOT be described as retroactive direct-update success.
 
