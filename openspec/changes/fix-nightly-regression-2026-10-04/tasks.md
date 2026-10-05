@@ -5,12 +5,12 @@
 
 ## 2. Fix
 
-- [ ] 2.1 Add the multi-process prompt-history concurrency suite to the authoritative resource-sensitive membership without changing its test body, timeout, workload, assertions, retries, or platform coverage.
-- [ ] 2.2 Update governance coverage to pin the membership and prove the full plan excludes the suite from the parallel core and executes it once in the serial resource shard.
+- [x] 2.1 Add the multi-process prompt-history concurrency suite to the authoritative resource-sensitive membership without changing its test body, timeout, workload, assertions, retries, or platform coverage.
+- [x] 2.2 Update governance coverage to pin the membership and prove the full plan excludes the suite from the parallel core and executes it once in the serial resource shard.
 
 ## 3. Prove
 
-- [ ] 3.1 Run the focused prompt-history and validation-plan policy suites and inspect the generated full-release partition for exact single ownership.
-- [ ] 3.2 Record focused implementation evidence and pre-finalization PR Full regression observations under Evidence in design.md; preserve the failed owners and lanes and disposition known gaps before finalization.
+- [x] 3.1 Run the focused prompt-history and validation-plan policy suites and inspect the generated full-release partition for exact single ownership.
+- [x] 3.2 Record focused implementation evidence and pre-finalization PR Full regression observations under Evidence in design.md; preserve the failed owners and lanes and disposition known gaps before finalization.
 
 After finalization, the exact-head PR Full regression lanes and Development validation required must pass before manual handoff. Report final run/head/selection in Actions and handoff, not another committed design edit. Standalone dispatch is diagnostic, not a replacement for selected PR checks. Numbered-package nightly recovery remains independent.
