@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.0.0 (MIT), commit a13d35a742c6ef8462812a28fbe1d8c8b7431c32,
+ * Provenance: @earendil-works/pi-coding-agent 1.0.2 (MIT), commit cd32f7725fdbddbaecdff5b1e68491563394e0ca,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
  * Modifications: Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession;
  * preserves the latest physical route for virtual models; an explicit bare-A1 profile colors the

@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "1.0.0"
+    "version": "1.0.2"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -2501,6 +2501,60 @@
       "since": "1.0.0",
       "disposition": "declined",
       "reason": "A1 retains its provider-neutral owned authentication controller and does not couple login success to a Radius-specific animated selector or mutation of the user's MCP configuration; Radius remains available through the pinned model runtime's ordinary OAuth provider flow."
+    },
+    {
+      "id": "changelog:1.0.1:cloudflare-clef-classifiers",
+      "kind": "changelog",
+      "feature": "Cloudflare Clef classifiers",
+      "version": "1.0.1",
+      "summary": "`@cf/cloudflare/clef` and `@cf/cloudflare/clef-flash` are usable from codemode scripts and extensions.",
+      "since": "1.0.2",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.1:mcp-client-id-metadata-documents",
+      "kind": "changelog",
+      "feature": "MCP Client ID Metadata Documents",
+      "version": "1.0.1",
+      "summary": "`oauth.clientRegistration: \"cimd\"` lets authorization servers allow pi by its document URL instead of dynamic registration.",
+      "since": "1.0.2",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.1:nix-flake",
+      "kind": "changelog",
+      "feature": "Nix flake",
+      "version": "1.0.1",
+      "summary": "`nix run github:earendil-works/pi/stable` runs the latest release, and `nix profile add github:earendil-works/pi/stable` installs it.",
+      "since": "1.0.2",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.1:project-overrides-for-mcp-servers",
+      "kind": "changelog",
+      "feature": "Project overrides for MCP servers",
+      "version": "1.0.1",
+      "summary": "`.pi/mcp.json` and `/mcp` can enable, disable, or change the exposure of a user-level server for one project.",
+      "since": "1.0.2",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.1:tool-renderers-for-any-tool",
+      "kind": "changelog",
+      "feature": "Tool renderers for any tool",
+      "version": "1.0.1",
+      "summary": "`pi.registerToolRenderer()` draws calls to tools that are not registered yet, such as MCP tools in resumed sessions.",
+      "since": "1.0.2",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.2:sampling-by-thinking-level",
+      "kind": "changelog",
+      "feature": "Sampling by thinking level",
+      "version": "1.0.2",
+      "summary": "`samplingParamsByThinkingLevel` in `models.json` sets sampling parameters such as `temperature` and `top_p` for each thinking level on OpenAI-compatible APIs.",
+      "since": "1.0.2",
+      "disposition": "pending"
     }
   ]
 }

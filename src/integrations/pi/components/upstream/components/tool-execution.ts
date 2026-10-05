@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.0.0 (MIT), commit a13d35a742c6ef8462812a28fbe1d8c8b7431c32,
+ * Provenance: @earendil-works/pi-coding-agent 1.0.2 (MIT), commit cd32f7725fdbddbaecdff5b1e68491563394e0ca,
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
  * Modifications: Retain pinned shell and actual public tool-definition renderers. Replace private
  * index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and
@@ -8,6 +8,7 @@
  * docs/architecture/tool-image-presentation.md.
  * Deviations: current-tool-image-conversion-ownership.
  */
+<<<<<<< a1
 import { stripVTControlCharacters } from "node:util";
 import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { createReadToolDefinition, createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition,
@@ -27,9 +28,73 @@ export function mergeBuiltInRenderers(definition: ToolDefinition<any, any, any> 
 	if (definition.renderResult === undefined && builtIn.renderResult !== undefined) merged.renderResult = builtIn.renderResult;
 	return merged;
 }
+||||||| pi 1.0.0
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import {
+	Box,
+	type Component,
+	Container,
+	getCapabilities,
+	Image,
+	MouseRegion,
+	Spacer,
+	Text,
+	type TUI,
+	type TuiMouseEvent,
+} from "@earendil-works/pi-tui";
+import type { ToolDefinition, ToolRenderContext, ToolRenderResultOptions } from "../../../core/extensions/types.ts";
+import type { Theme } from "../theme/theme.ts";
 
+/**
+ * What this component needs from a tool: how to draw it. It neither executes tools nor reads their
+ * parameter schemas, so a definition and a bare renderer pair are equally acceptable.
+ *
+ * The renderer parameters are `any` on purpose: a `ToolDefinition` types them from its schema, and
+ * narrowing them here would make those definitions unassignable.
+ */
+export interface ToolRenderers {
+	renderShell?: "default" | "self";
+	renderCall?: (args: any, theme: Theme, context: ToolRenderContext<any, any>) => Component;
+	renderResult?: (
+		result: AgentToolResult<any>,
+		options: ToolRenderResultOptions,
+		theme: Theme,
+		context: ToolRenderContext<any, any>,
+	) => Component;
+}
+=======
+import {
+	Box,
+	type Component,
+	Container,
+	getCapabilities,
+	Image,
+	MouseRegion,
+	Spacer,
+	Text,
+	type TUI,
+	type TuiMouseEvent,
+} from "@earendil-works/pi-tui";
+import type { ToolDefinition, ToolRenderContext, ToolRenderers } from "../../../core/extensions/types.ts";
+
+/** What this component needs from a tool: how to draw it, without executing it. */
+export type { ToolRenderers };
+>>>>>>> pi 1.0.2
+
+<<<<<<< a1
 const definitions = { read: createReadToolDefinition, bash: createBashToolDefinition, edit: createEditToolDefinition,
   write: createWriteToolDefinition, grep: createGrepToolDefinition, find: createFindToolDefinition, ls: createLsToolDefinition };
+||||||| pi 1.0.0
+import { formatToolCallWithArgs, getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
+import { convertToPng } from "../../../utils/image-convert.ts";
+import { theme } from "../theme/theme.ts";
+import { keyHint } from "./keybinding-hints.ts";
+=======
+import { formatToolCallWithArgs, getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
+import { ensurePngTranscoder } from "../../../utils/image-convert.ts";
+import { theme } from "../theme/theme.ts";
+import { keyHint } from "./keybinding-hints.ts";
+>>>>>>> pi 1.0.2
 
 const FALLBACK_PREVIEW_LINES = 10;
 const COLLAPSED_ARGS_CHARS = 100;
@@ -69,10 +134,18 @@ export class ToolExecutionComponent extends Container {
 	private callRendererComponent: Component | undefined;
 	private resultRendererComponent: Component | undefined;
 	private rendererState: any = {};
+<<<<<<< a1
 	private imageComponents: Component[] = [];
 	private readonly images: ToolImagePresentation;
 	private disposed = false;
 	private updatingDisplay = false;
+||||||| pi 1.0.0
+	private imageComponents: Image[] = [];
+=======
+	private imageComponents: Image[] = [];
+	/** Inputs of imageComponents, so updateDisplay can reuse images and keep their converted PNG data. */
+	private imageSources: Array<{ data: string; mimeType: string; widthCells: number }> = [];
+>>>>>>> pi 1.0.2
 	private imageSpacers: Spacer[] = [];
 	private toolName: string;
 	private toolCallId: string;
@@ -87,7 +160,25 @@ export class ToolExecutionComponent extends Container {
 	private cwd: string;
 	private executionStarted = false;
 	private argsComplete = false;
+<<<<<<< a1
 	private result: ToolPresentationResult | undefined;
+||||||| pi 1.0.0
+	private result?: {
+		content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+		isError: boolean;
+		details?: any;
+	};
+	private convertedImages: Map<
+		number,
+		{ sourceData: string; sourceMimeType: string; data: string; mimeType: string }
+	> = new Map();
+=======
+	private result?: {
+		content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+		isError: boolean;
+		details?: any;
+	};
+>>>>>>> pi 1.0.2
 	private hideComponent = false;
 
 	constructor(
@@ -227,6 +318,7 @@ export class ToolExecutionComponent extends Container {
 		this.result = result;
 		this.isPartial = isPartial;
 		this.updateDisplay();
+<<<<<<< a1
 	}
 
   /** End mount ownership without letting an obsolete conversion or extension callback repaint. */
@@ -241,6 +333,42 @@ export class ToolExecutionComponent extends Container {
     this.imageSpacers = [];
     this.clear();
   }
+||||||| pi 1.0.0
+		this.maybeConvertImagesForKitty();
+	}
+
+	private maybeConvertImagesForKitty(): void {
+		const caps = getCapabilities();
+		if (caps.images !== "kitty") return;
+		if (!this.result) return;
+
+		const imageBlocks = this.result.content.filter((c) => c.type === "image");
+		for (let i = 0; i < imageBlocks.length; i++) {
+			const img = imageBlocks[i];
+			if (!img.data || !img.mimeType) continue;
+			const sourceData = img.data;
+			const sourceMimeType = img.mimeType;
+			if (sourceMimeType === "image/png") continue;
+			const cached = this.convertedImages.get(i);
+			if (cached?.sourceData === sourceData && cached.sourceMimeType === sourceMimeType) continue;
+
+			const index = i;
+			convertToPng(sourceData, sourceMimeType).then((converted) => {
+				const currentImage = this.result?.content.filter((content) => content.type === "image")[index];
+				if (!converted || currentImage?.data !== sourceData || currentImage.mimeType !== sourceMimeType) return;
+				this.convertedImages.set(index, {
+					sourceData,
+					sourceMimeType,
+					...converted,
+				});
+				this.updateDisplay();
+				this.ui.requestRender();
+			});
+		}
+	}
+=======
+	}
+>>>>>>> pi 1.0.2
 
 	setExpanded(expanded: boolean): void {
 		this.expanded = expanded;
@@ -380,15 +508,19 @@ export class ToolExecutionComponent extends Container {
 			hasContent = true;
 		}
 
+		const previousImages = this.imageComponents;
+		const previousSources = this.imageSources;
 		for (const img of this.imageComponents) {
 			this.removeChild(img);
 		}
 		this.imageComponents = [];
+		this.imageSources = [];
 		for (const spacer of this.imageSpacers) {
 			this.removeChild(spacer);
 		}
 		this.imageSpacers = [];
 
+<<<<<<< a1
     this.images.update(this.result?.content ?? [], this.showImages);
     for (const imageComponent of this.images.components(this.imageWidthCells)) {
       const spacer = new Spacer(1);
@@ -397,6 +529,70 @@ export class ToolExecutionComponent extends Container {
       this.imageComponents.push(imageComponent);
       this.addChild(imageComponent);
     }
+||||||| pi 1.0.0
+		if (this.result) {
+			const imageBlocks = this.result.content.filter((c) => c.type === "image");
+			const caps = getCapabilities();
+			for (let i = 0; i < imageBlocks.length; i++) {
+				const img = imageBlocks[i];
+				if (caps.images && this.showImages && img.data && img.mimeType) {
+					const cached = this.convertedImages.get(i);
+					const converted =
+						cached?.sourceData === img.data && cached.sourceMimeType === img.mimeType ? cached : undefined;
+					const imageData = converted?.data ?? img.data;
+					const imageMimeType = converted?.mimeType ?? img.mimeType;
+					if (caps.images === "kitty" && imageMimeType !== "image/png") continue;
+
+					const spacer = new Spacer(1);
+					this.addChild(spacer);
+					this.imageSpacers.push(spacer);
+					const imageComponent = new Image(
+						imageData,
+						imageMimeType,
+						{ fallbackColor: (s: string) => theme.fg("toolOutput", s) },
+						{ maxWidthCells: this.imageWidthCells },
+					);
+					this.imageComponents.push(imageComponent);
+					this.addChild(imageComponent);
+				}
+			}
+		}
+=======
+		if (this.result) {
+			const imageBlocks = this.result.content.filter((c) => c.type === "image");
+			const caps = getCapabilities();
+			for (const img of imageBlocks) {
+				if (caps.images && this.showImages && img.data && img.mimeType) {
+					const spacer = new Spacer(1);
+					this.addChild(spacer);
+					this.imageSpacers.push(spacer);
+					const source = { data: img.data, mimeType: img.mimeType, widthCells: this.imageWidthCells };
+					const index = this.imageComponents.length;
+					const previous = previousSources[index];
+					const imageComponent =
+						previous?.data === source.data &&
+						previous.mimeType === source.mimeType &&
+						previous.widthCells === source.widthCells
+							? previousImages[index]
+							: new Image(
+									source.data,
+									source.mimeType,
+									{ fallbackColor: (s: string) => theme.fg("toolOutput", s) },
+									{ maxWidthCells: source.widthCells },
+								);
+					if (source.mimeType !== "image/png") {
+						ensurePngTranscoder(() => {
+							this.invalidate();
+							this.ui.requestRender();
+						});
+					}
+					this.imageComponents.push(imageComponent);
+					this.imageSources.push(source);
+					this.addChild(imageComponent);
+				}
+			}
+		}
+>>>>>>> pi 1.0.2
 
 		if (this.hasRendererDefinition() && !hasContent && this.imageComponents.length === 0) {
 			this.hideComponent = true;

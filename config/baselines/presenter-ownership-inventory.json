@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.23",
   "pinned": {
-    "version": "1.0.0",
-    "commit": "a13d35a742c6ef8462812a28fbe1d8c8b7431c32",
+    "version": "1.0.2",
+    "commit": "cd32f7725fdbddbaecdff5b1e68491563394e0ca",
     "source": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
     "packageArtifact": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/interactive-mode.js"
   },
@@ -304,7 +304,8 @@
         "handleDaxnuts()"
       ],
       "destination": "src/app/session-shell/session-shell.ts",
-      "implementationStatus": "requires-revalidation"
+      "implementationStatus": "requires-revalidation",
+      "status": "orphaned"
     },
     {
       "id": "dock.pending-messages",

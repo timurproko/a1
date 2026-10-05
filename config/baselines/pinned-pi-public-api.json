@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -1017,7 +1017,7 @@
         {
           "name": "Extension",
           "kind": "interface",
-          "hash": "caec0934f5c3e890f58027b127581b5d23ac35f9b02c3b6cf7a883e3e63e9c36",
+          "hash": "3af7f0020bc8e25731aea96beb45df1f1aa5126713028047b362063b65ad5a90",
           "consumers": []
         },
         {
@@ -1029,7 +1029,7 @@
         {
           "name": "ExtensionAPI",
           "kind": "interface",
-          "hash": "5346688cd5ce9ab8be0ebd56fea8576440a20b7c7f7d531649e2a35a4bfa04f6",
+          "hash": "c5d70f18b2dd12fba4a8ada21a2c51330c1deab279a8212d93986baef693efd6",
           "consumers": [
             "src/integrations/pi/engine/windows-filesystem-hygiene.ts"
           ]
@@ -1105,7 +1105,7 @@
         {
           "name": "ExtensionRunner",
           "kind": "class",
-          "hash": "0118ea96ee6bd8e2b4d9d0834ff1f68a75c46457ee621821c04c4351ca4638d9",
+          "hash": "679aa4ec0fd61e93a02df32dba6f962a2758ccfa7668d08afdb85df2ee351589",
           "consumers": []
         },
         {
@@ -1467,7 +1467,7 @@
         {
           "name": "InteractiveMode",
           "kind": "class",
-          "hash": "c11831ba445aad7cb7ed449495f70f1dcc6fab9243180d966de8495ce753f9e4",
+          "hash": "de1d1e818bd06bf59559de9b58f8acb842d98163b19e2b011ff01c3b3359f27c",
           "consumers": []
         },
         {
@@ -1572,7 +1572,7 @@
         {
           "name": "LoadedMcpConfig",
           "kind": "interface",
-          "hash": "bd55daa8fca14c98ae0de54dd2b2f5f62e6d3541e638a271374439025de25c33",
+          "hash": "83a5de2a7029879f36de08512f3889720bf40c1304934621003d20dc34e7e71a",
           "consumers": []
         },
         {
@@ -1614,7 +1614,7 @@
         {
           "name": "LoginDialogComponent",
           "kind": "class",
-          "hash": "4cf53ebd35ae3348adb33a086ebf2d824f70eb59de78dc31484f356f0a7ba1f3",
+          "hash": "7d0ab8d59515e1eb02ff9446ce7644df54577999df426df0526ec5604bf41c9a",
           "consumers": [
             "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
@@ -1700,7 +1700,7 @@
         {
           "name": "McpServerEntry",
           "kind": "interface",
-          "hash": "abbb027955005af3d29c1aaddf139f6199aa51ebf0dfdcb387e796148a010844",
+          "hash": "31dc86e41eb5a5554659141156e4db7a6ab4e6385c38ac6bc06f1aba7324f861",
           "consumers": []
         },
         {
@@ -2726,7 +2726,7 @@
         {
           "name": "ToolExecutionComponent",
           "kind": "class",
-          "hash": "3506a7791e4944734b9ed710ce5983105614909626201d4f787ad69e79a4a867",
+          "hash": "1d399e9709b0de827a6c4645facac90b2adee202d884277af1abc9b82dd51854",
           "consumers": [
             "src/integrations/pi/components/components.ts",
             "src/integrations/pi/components/conformance.ts",
@@ -2791,6 +2791,18 @@
           "name": "ToolNamespace",
           "kind": "interface",
           "hash": "e404097b35bdffecd0cd2eebf4b5c88808679fd09cc925e0b3034bd31715a0a1",
+          "consumers": []
+        },
+        {
+          "name": "ToolRendererResolver",
+          "kind": "type",
+          "hash": "2e98ed0dc3360a3152e1176a91443648da98529f10b4ea35f6a5838ab03593fe",
+          "consumers": []
+        },
+        {
+          "name": "ToolRenderers",
+          "kind": "type",
+          "hash": "6f9b937331c8730844c9328b3a786a6bbe4942fe764ed85d83be90e7e94f4be1",
           "consumers": []
         },
         {
@@ -3028,7 +3040,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -3443,7 +3455,7 @@
         {
           "name": "Image",
           "kind": "class",
-          "hash": "d8ec214775b24ac2b388c60d417ec8df0929a7a2888e8e04a69d6189430021ed",
+          "hash": "568667c98d03ddb68788131e753978fb1c1f4aac5acaee3c98796270e72fe58c",
           "consumers": [
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/tool-image-presentation.ts",
@@ -3486,6 +3498,12 @@
           "name": "ImageTheme",
           "kind": "interface",
           "hash": "b0efe2fb1b83e940a85fdadfa6e32afa3dd99186a29eb6279caab06f7adedf21",
+          "consumers": []
+        },
+        {
+          "name": "ImageTranscoder",
+          "kind": "type",
+          "hash": "83e00970a1319dbbf12a52f5a49fe3f88c7d9acb3a24cd7bfc2b6a80f972bfe9",
           "consumers": []
         },
         {
@@ -3596,7 +3614,7 @@
         {
           "name": "Keybindings",
           "kind": "interface",
-          "hash": "d0386fd9c7e030bbc5d9dccd588c0f2678d37e54702d0e6482c25c5d4a21f777",
+          "hash": "940c101dd778908594bc610767d537d094c8cf52c2a39e309745bdf4d172dae3",
           "consumers": []
         },
         {
@@ -3964,6 +3982,12 @@
           "name": "setCellDimensions",
           "kind": "function",
           "hash": "43159eba39ce068c6dff7fa6ea9fd8b7e8990cd6edbc706d7d6ed1c4d7b37f03",
+          "consumers": []
+        },
+        {
+          "name": "setImageTranscoder",
+          "kind": "function",
+          "hash": "9662624165a69ef51d67b7e7e28e6fa42ed575f41e6a98d37c21a429eddf5add",
           "consumers": []
         },
         {
