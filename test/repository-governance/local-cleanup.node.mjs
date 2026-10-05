@@ -20,7 +20,7 @@ import { retireRedundantWorktree, verifyRedundantWorktree } from "../../scripts/
 const owner = "fixture-owner-token-at-least-32-characters";
 const execFileAsync = promisify(execFile);
 async function git(cwd, ...args) { return (await execFileAsync("git", ["-C", cwd, ...args], { encoding: "utf8", windowsHide: true })).stdout.trim(); }
-async function fixture(t, branch = false, registered = true) {
+async function fixture(t, branch = false, registered = true, beforeDiscovery = async () => {}) {
   const temporary = await canonical(await mkdtemp(join(tmpdir(), "local-cleanup-")));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const primary = join(temporary, "primary"); await mkdir(primary);
@@ -30,6 +30,7 @@ async function fixture(t, branch = false, registered = true) {
   await mkdir(join(primary, "node_modules-cache")); await writeFile(join(primary, "node_modules-cache", "tracked.txt"), "ordinary content\n");
   await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n/.artifacts/\n/.artifacts-user/\n/artifacts/\n.builds/\ndist/\n/native/process-guardian/target/\n/native/terminal-host/target/\n/src/integrations/pi/engine/pi-settings-metadata.json\n/src/integrations/pi/engine/pi-settings-metadata-user.json\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
   await git(primary, "add", "."); await git(primary, "commit", "-m", "fixture"); await git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
+  await beforeDiscovery(primary);
   const path = join(primary, ".worktrees", "example");
   await git(primary, "worktree", "add", ...(branch ? ["-b", "feature/example"] : ["--detach"]), path);
   const identity = await discoverRepository(primary), store = createStateStore(identity), snapshot = await captureWorktree(identity, path);
@@ -50,6 +51,22 @@ async function fixture(t, branch = false, registered = true) {
 // Performance: every case owns a private temporary repository, so cases run concurrently instead of
 // serially; a bounded width keeps Git and child-process load predictable on shared runners.
 describe("local cleanup", { concurrency: 4 }, () => {
+
+test("repository identity ignores transport-only URL rewrites and rejects ambiguous configured origins", async t => {
+  const f = await fixture(t, false, false, async primary => {
+    await git(primary, "config", "--local", "url.git@github-account:owner/.insteadOf", "https://github.com/owner/");
+  });
+  assert.equal(await git(f.primary, "remote", "get-url", "origin"), "git@github-account:owner/repo.git");
+  assert.equal(f.identity.repository, "owner/repo");
+
+  const realGit = gitRunner();
+  const discoverWith = value => discoverRepository(f.primary, async (cwd, args, options) =>
+    args.join(" ") === "config --local --get-all remote.origin.url" ? value : realGit(cwd, args, options));
+  await assert.rejects(discoverWith("git@github-account:owner/repo.git\n"), /unsupported-origin/);
+  await assert.rejects(discoverWith("https://example.com/owner/repo.git\n"), /unsupported-origin/);
+  await assert.rejects(discoverWith("\n"), /unsupported-origin/);
+  await assert.rejects(discoverWith("https://github.com/owner/repo.git\nhttps://github.com/other/repo.git\n"), /unsupported-origin/);
+});
 
 test("registration rejects duplicate paths, malformed state and cross-repository identity", async t => {
   const f = await fixture(t); const state = await f.store.read();

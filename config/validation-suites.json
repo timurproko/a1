@@ -123,6 +123,7 @@
         "test/foundation/release/cohort-state.test.ts",
         "test/foundation/release/release-gc.test.ts",
         "test/foundation/release/update-live-cohort.test.ts",
+        "test/features/prompt-history/concurrency.integration.test.ts",
         "test/features/prompt-history/store.test.ts",
         "test/app/session-shell/command-message-parity.test.ts",
         "test/app/session-shell/command-outcome-parity.test.ts",
