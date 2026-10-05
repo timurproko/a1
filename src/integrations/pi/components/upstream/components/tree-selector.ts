@@ -2,9 +2,9 @@
  * Provenance: @earendil-works/pi-coding-agent 1.0.2 (MIT), commit cd32f7725fdbddbaecdff5b1e68491563394e0ca,
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
- * preserving tree behavior; bare A1 uses compact modal chrome and label editing, standard search
- * input, menu-style selection without path bullets, semantic role colors, and semantic shortcut
- * footers.
+ * preserving tree behavior; bare A1 uses compact modal chrome and label editing, Models-style filter
+ * status with Tab cycling and all-first presentation, standard search input, menu-style selection
+ * without path bullets, semantic role colors, and semantic shortcut footers.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -33,7 +33,7 @@ const theme = new Proxy({} as ReturnType<typeof piTheme>, {
 	},
 });
 
-const treeKeybindings = KeybindingsManager.create();
+const treeKeybindings = KeybindingsManager.createForOwnedInput();
 
 function formatKeyText(key: string): string {
 	return key
@@ -123,6 +123,15 @@ function renderHorizontalViewport(rows: HorizontalViewportRow[], width: number):
 /** Filter mode for tree display */
 export type FilterMode = "default" | "no-tools" | "user-only" | "labeled-only" | "all";
 
+const FILTER_MODES: readonly FilterMode[] = ["all", "default", "no-tools", "user-only", "labeled-only"];
+const FILTER_LABELS: Readonly<Record<FilterMode, string>> = {
+	all: "all",
+	default: "standard",
+	"no-tools": "no tools",
+	"user-only": "user",
+	"labeled-only": "labeled",
+};
+
 /**
  * Tree list component with selection and ASCII art visualization
  */
@@ -138,7 +147,7 @@ class TreeList implements Component {
 	private selectedIndex = 0;
 	private currentLeafId: string | null;
 	private maxVisibleLines: number;
-	private filterMode: FilterMode = "default";
+	private filterMode: FilterMode = "all";
 	private searchQuery = "";
 	private toolCallMap: Map<string, ToolCallInfo> = new Map();
 	private multipleRoots = false;
@@ -162,7 +171,7 @@ class TreeList implements Component {
 	) {
 		this.currentLeafId = currentLeafId;
 		this.maxVisibleLines = maxVisibleLines;
-		this.filterMode = initialFilterMode ?? "default";
+		this.filterMode = initialFilterMode && initialFilterMode !== "default" ? initialFilterMode : "all";
 		this.multipleRoots = tree.length > 1;
 		this.flatNodes = this.flattenTree(tree);
 		this.applyFilter();
@@ -631,6 +640,10 @@ class TreeList implements Component {
 		return this.searchQuery;
 	}
 
+	getFilterMode(): FilterMode {
+		return this.filterMode;
+	}
+
 	getSelectedNode(): SessionTreeNode | undefined {
 		return this.filteredNodes[this.selectedIndex]?.node;
 	}
@@ -656,25 +669,7 @@ class TreeList implements Component {
 	}
 
 	private getStatusLabels(): string {
-		let labels = "";
-		switch (this.filterMode) {
-			case "no-tools":
-				labels += " [no-tools]";
-				break;
-			case "user-only":
-				labels += " [user]";
-				break;
-			case "labeled-only":
-				labels += " [labeled]";
-				break;
-			case "all":
-				labels += " [all]";
-				break;
-		}
-		if (this.showLabelTimestamps) {
-			labels += " [+label time]";
-		}
-		return labels;
+		return this.showLabelTimestamps ? " [+label time]" : "";
 	}
 
 	render(width: number): string[] {
@@ -1050,37 +1045,32 @@ class TreeList implements Component {
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "app.tree.filter.noTools")) {
-			// Toggle filter: no-tools ↔ default
-			this.filterMode = this.filterMode === "no-tools" ? "default" : "no-tools";
+			// Toggle filter: no-tools ↔ all
+			this.filterMode = this.filterMode === "no-tools" ? "all" : "no-tools";
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "app.tree.filter.userOnly")) {
-			// Toggle filter: user-only ↔ default
-			this.filterMode = this.filterMode === "user-only" ? "default" : "user-only";
+			// Toggle filter: user-only ↔ all
+			this.filterMode = this.filterMode === "user-only" ? "all" : "user-only";
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "app.tree.filter.labeledOnly")) {
-			// Toggle filter: labeled-only ↔ default
-			this.filterMode = this.filterMode === "labeled-only" ? "default" : "labeled-only";
+			// Toggle filter: labeled-only ↔ all
+			this.filterMode = this.filterMode === "labeled-only" ? "all" : "labeled-only";
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "app.tree.filter.all")) {
-			// Toggle filter: all ↔ default
-			this.filterMode = this.filterMode === "all" ? "default" : "all";
+			this.filterMode = "all";
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "app.tree.filter.cycleBackward")) {
-			// Cycle filter backwards
-			const modes: FilterMode[] = ["default", "no-tools", "user-only", "labeled-only", "all"];
-			const currentIndex = modes.indexOf(this.filterMode);
-			this.filterMode = modes[(currentIndex - 1 + modes.length) % modes.length]!;
+			const currentIndex = FILTER_MODES.indexOf(this.filterMode);
+			this.filterMode = FILTER_MODES[(currentIndex - 1 + FILTER_MODES.length) % FILTER_MODES.length]!;
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "app.tree.filter.cycleForward")) {
-			// Cycle filter forwards: default → no-tools → user-only → labeled-only → all → default
-			const modes: FilterMode[] = ["default", "no-tools", "user-only", "labeled-only", "all"];
-			const currentIndex = modes.indexOf(this.filterMode);
-			this.filterMode = modes[(currentIndex + 1) % modes.length]!;
+			const currentIndex = FILTER_MODES.indexOf(this.filterMode);
+			this.filterMode = FILTER_MODES[(currentIndex + 1) % FILTER_MODES.length]!;
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "tui.editor.deleteCharBackward")) {
@@ -1193,6 +1183,20 @@ class TreeSearchInput implements Component, Focusable {
 	}
 }
 
+/** Models-style summary of the active tree filter. */
+class TreeFilter implements Component {
+	private readonly treeList: TreeList;
+	constructor(treeList: TreeList) {
+		this.treeList = treeList;
+	}
+	invalidate(): void {}
+	render(width: number): string[] {
+		const active = this.treeList.getFilterMode();
+		const choices = FILTER_MODES.map((mode) => theme.fg(mode === active ? "accent" : "muted", FILTER_LABELS[mode]));
+		return [truncateToWidth(theme.fg("muted", "Filter: ") + choices.join(theme.fg("muted", " | ")), width)];
+	}
+}
+
 /** Component that renders tree help as semantic rows with chunk-aware wrapping */
 class TreeHelp implements Component {
 	invalidate(): void {}
@@ -1240,18 +1244,7 @@ const TREE_HELP_ITEMS: Array<{ keys: Keybinding[]; label: string; labelFirst?: b
 	{ keys: ["app.message.copy"], label: "copy" },
 	{ keys: ["app.tree.editLabel"], label: "label" },
 	{ keys: ["app.tree.toggleLabelTimestamp"], label: "label time" },
-	{
-		keys: [
-			"app.tree.filter.default",
-			"app.tree.filter.noTools",
-			"app.tree.filter.userOnly",
-			"app.tree.filter.labeledOnly",
-			"app.tree.filter.all",
-		],
-		label: "filters",
-		labelFirst: true,
-	},
-	{ keys: ["app.tree.filter.cycleForward", "app.tree.filter.cycleBackward"], label: "cycle", labelFirst: true },
+	{ keys: ["app.tree.filter.cycleForward"], label: "filter" },
 ];
 
 function formatHelpKeys(keybindings: Keybinding[]): string {
@@ -1263,6 +1256,7 @@ function formatHelpKeys(keybindings: Keybinding[]): string {
 	if (keys.length === 0) return "";
 
 	return formatKeyText(compactRawKeys(keys))
+		.replace(/\btab\b/gi, "Tab")
 		.replace(/\bpageUp\b/g, "pgup")
 		.replace(/\bpageDown\b/g, "pgdn")
 		.replace(/\bup\b/g, "↑")
@@ -1345,6 +1339,7 @@ class LabelInput implements Component, Focusable {
 export class TreeSelectorComponent extends Container implements Focusable {
 	private treeList: TreeList;
 	private readonly searchInput: TreeSearchInput;
+	private readonly treeFilter: TreeFilter;
 	private readonly titleText: Text;
 	private readonly searchInputContainer = new Container();
 	private readonly treeContainer = new Container();
@@ -1387,6 +1382,7 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		this.treeList.onCopy = (text) => this.onCopy?.(text);
 		this.treeList.onLabelEdit = (entryId, currentLabel) => this.showLabelInput(entryId, currentLabel);
 		this.searchInput = new TreeSearchInput(this.treeList);
+		this.treeFilter = new TreeFilter(this.treeList);
 		this.titleText = new Text(theme.fg("accent", theme.bold("Session Tree")), 0, 0);
 		this.restoreTreeContent();
 
@@ -1410,6 +1406,7 @@ export class TreeSelectorComponent extends Container implements Focusable {
 	private restoreTreeContent(): void {
 		this.titleText.setText(theme.fg("accent", theme.bold("Session Tree")));
 		this.searchInputContainer.clear();
+		this.searchInputContainer.addChild(this.treeFilter);
 		this.searchInputContainer.addChild(new Spacer(1));
 		this.searchInputContainer.addChild(this.searchInput);
 		this.searchInputContainer.addChild(new Spacer(1));

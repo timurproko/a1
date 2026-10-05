@@ -389,6 +389,7 @@ describe("owned level and model keybindings", () => {
     expect(custom.select).toHaveBeenCalledOnce();
     const ownedKeys = KeybindingsManager.fromOwnedBindings();
     expect(ownedKeys.getKeys("app.tree.filter.labeledOnly")).toEqual(["ctrl+l"]);
+    expect(ownedKeys.getKeys("app.tree.filter.cycleForward")).toEqual(["tab"]);
     expect(ownedKeys.getConflicts().some(conflict => conflict.keybindings.includes("app.model.select"))).toBe(false);
     expect(ownedKeys.getConflicts().some(conflict => conflict.keybindings.includes("app.message.dequeue"))).toBe(false);
     const pinned = await editor("pi");

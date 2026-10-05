@@ -4,7 +4,9 @@
 
 The bare-A1 Session Tree SHALL use the same compact framed hierarchy as the Models dialog. Exactly one empty visual row SHALL separate preceding transcript or status content from the tree's top rule. The top rule SHALL be followed immediately by an accent-bold `Session Tree` title, and the frame SHALL contain no separator rule between search and results.
 
-The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, filter modes, folding, navigation, copy, label, label-time, horizontal clipping, and keybindings SHALL remain available.
+The title SHALL be followed immediately by a Models-style `Filter: all | standard | no tools | user | labeled` row using accent for the active mode and muted styling for inactive modes. An unset or `default` initial setting SHALL open with `all` active, while an explicitly configured non-default mode SHALL remain active. `Tab` SHALL cycle filters forward and replace `Ctrl+O` as the displayed/default cycle shortcut; the footer SHALL show `Tab filter` instead of the individual filter bindings.
+
+The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, the semantics of each filter mode, folding, navigation, copy, label, label-time, horizontal clipping, and non-cycle keybindings SHALL remain available.
 
 The selected tree entry SHALL use the ordinary menu arrow `→` without a whole-row background or whole-row bold treatment. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted. Tree entries SHALL NOT render active-path bullets. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `system` without square brackets. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
 
@@ -17,6 +19,13 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 - **THEN** exactly one empty visual row SHALL separate that content from the tree's top rule
 - **AND** the accent-bold title SHALL immediately follow the top rule
 - **AND** no internal rule SHALL separate the search control from the tree results
+
+#### Scenario: Open and cycle the tree filter
+- **WHEN** the Session Tree opens without an explicitly configured non-default filter
+- **THEN** the Models-style filter row SHALL show `all` as active
+- **AND WHEN** the user presses `Tab`
+- **THEN** the next filter SHALL become active
+- **AND** the shortcut footer SHALL show `Tab filter` without `Ctrl+O` filter-cycle guidance
 
 #### Scenario: Search the tree
 - **WHEN** the Session Tree is open and the user types a search query

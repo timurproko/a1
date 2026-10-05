@@ -54,8 +54,11 @@ describe("bare-A1 session tree presentation", () => {
 
     expect(plain[0]).toMatch(/^─+$/u);
     expect(plain[1]).toBe(" Session Tree");
-    expect(plain[2]).toBe("");
-    expect(plain[3]).toBe(" >");
+    expect(plain[2]).toBe(" Filter: all | standard | no tools | user | labeled");
+    expect(plain[3]).toBe("");
+    expect(plain[4]).toBe(" >");
+    expect(cellStyle(rows[2]!, "a")).toEqual(cellStyle(piTheme().fg("accent", "a"), "a"));
+    expect(cellStyle(rows[2]!, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
     expect(plain.some(row => row.includes("Type to search:"))).toBe(false);
     expect(plain.filter(row => /^─+$/u.test(row))).toHaveLength(2);
 
@@ -88,7 +91,14 @@ describe("bare-A1 session tree presentation", () => {
     expect(plain.at(-1)).toMatch(/^─+$/u);
     expect(cellStyle(rows[hintIndex]!, "↑")).toEqual(cellStyle(piTheme().fg("dim", "↑"), "↑"));
     expect(cellStyle(rows[hintIndex]!, "m")).toEqual(cellStyle(piTheme().fg("muted", "m"), "m"));
+    expect(plain.some(row => row.includes("Tab filter"))).toBe(true);
+    expect(plain.join("\n")).not.toContain("Ctrl+O");
     expect(rows.every(row => visibleWidth(row) <= 80)).toBe(true);
+
+    component.handleInput?.("\t");
+    const cycledFilter = component.render(80).find(row => stripTerminalSequences(row).includes("Filter:"))!;
+    expect(cellStyle(cycledFilter, "s")).toEqual(cellStyle(piTheme().fg("accent", "s"), "s"));
+    expect(cellStyle(cycledFilter, "a")).toEqual(cellStyle(piTheme().fg("muted", "a"), "a"));
 
     component.handleInput?.("L");
     const labelRows = component.render(80);
@@ -103,7 +113,7 @@ describe("bare-A1 session tree presentation", () => {
     expect(plainLabelRows[labelTitleIndex + 2]).toBe("");
     expect(plainLabelRows.filter(row => row.trimStart().startsWith(">")).length).toBe(1);
     expect(plainLabelRows.join("\n")).not.toContain("Session Tree");
-    expect(plainLabelRows.join("\n")).not.toContain("filters");
+    expect(plainLabelRows.join("\n")).not.toContain("Filter:");
     expect(plainLabelRows.join("\n")).not.toMatch(/\bmove\b/u);
     const labelHintIndex = plainLabelRows.findIndex(row => row.includes("save") && row.includes("cancel"));
     expect(plainLabelRows[labelHintIndex]).toContain("Enter save  Escape/Ctrl+C cancel");

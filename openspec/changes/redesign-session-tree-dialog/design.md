@@ -8,14 +8,14 @@ The explicit `a1 pi` comparison route must retain pinned presentation. The affec
 
 **Goals:**
 
-- Make tree chrome, search, selection, empty state, and footer composition visually consistent with the Models/Skills dialog family.
+- Make tree chrome, filter status, search, selection, empty state, and footer composition visually consistent with the Models/Skills dialog family.
 - Preserve every existing tree operation and keep the search input's hardware cursor/IME position coherent.
 - Replace the tree with the summary choice atomically from the shell's perspective.
 - Pin geometry and ANSI role boundaries with focused tests rather than screenshots alone.
 
 **Non-Goals:**
 
-- Changing tree filtering semantics, entry ordering, branch folding, navigation results, labels, copying, summarization options, or workflow outcomes.
+- Changing what each tree filter mode includes, entry ordering, branch folding, navigation results, labels, copying, summarization options, or workflow outcomes.
 - Replacing the tree list with a generic select list; its hierarchy and horizontal viewport remain specialized.
 - Changing Models, Skills, the ordinary editor, or the explicit comparison profile.
 - Supporting multiline custom-summary instructions or external-editor launch; the compact workflow intentionally uses one standard input row.
@@ -30,9 +30,11 @@ Moving all input dispatch into `Input` was rejected because it would require dup
 
 ### 2. Recompose the tree frame in standard dialog order
 
-The selector will remove its producer-owned leading spacer and internal separator and arrange semantic children as title, body separation, search input, list separation, tree results, footer separation, shortcut hints, and bottom rule. The shared frame remains responsible for the global one-cell content inset and full-width outer rules. The tree shortcut items and effective key lookup stay intact; only their placement moves from above search to the footer.
+The selector will remove its producer-owned leading spacer and internal separator and arrange semantic children as title, Models-style filter status, body separation, search input, list separation, tree results, footer separation, shortcut hints, and bottom rule. The filter row will expose all five existing modes as `all | standard | no tools | user | labeled`, treating an unset or upstream `default` initial setting as `all` while preserving explicit non-default choices. The shared frame remains responsible for the global one-cell content inset and full-width outer rules.
 
-Keeping the internal separator as full-width frame content was rejected because Models and Skills do not split search from results. Solving the outer gap in the shell layout was rejected because the extra row originates in this selector and changing shell spacing would affect every input surface.
+The owned keybinding profile will move forward filter cycling from `Ctrl+O` to `Tab`, matching Models, while retaining individual direct filter actions and reverse cycling. The footer will collapse the verbose direct-filter/cycle hints into `Tab filter`.
+
+Keeping the internal separator as full-width frame content was rejected because Models and Skills do not split search from results. Keeping `Ctrl+O` was rejected because it conflicts with the shell's established more/expand affordance and differs from Models. Solving the outer gap in the shell layout was rejected because the extra row originates in this selector and changing shell spacing would affect every input surface.
 
 ### 3. Treat message text as description rather than selected-row chrome
 
