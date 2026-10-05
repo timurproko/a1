@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -105,6 +105,7 @@ async function exerciseProtectedReplacement(
   const prefix = resolve(root, "a1-prefix");
   const globalRoot = resolve(prefix, "node_modules");
   const packageRoot = resolve(globalRoot, "@timurproko", "a1");
+  const stagedPackageRoot = resolve(root, "candidate-package");
   const activePrefix = resolve(root, "node-prefix");
   const activeGlobalRoot = resolve(activePrefix, "node_modules");
   const npmCli = resolve(activeGlobalRoot, "npm", "bin", "npm-cli.js");
@@ -115,6 +116,10 @@ async function exerciseProtectedReplacement(
   const launchers = release.updateLauncherPaths(globalRoot, "win32");
   const candidateManifest = JSON.parse(await readFile(resolve(exactCandidateRoot, "package.json"), "utf8")) as { version: string };
 
+  // npm acquires and extracts a payload before replacing the global package. Keep that
+  // filesystem-heavy preparation outside the immutable predecessor's recovery deadline;
+  // the fake npm process still owns the destructive package and launcher mutations.
+  await cp(exactCandidateRoot, stagedPackageRoot, { recursive: true });
   await mkdir(resolve(packageRoot, "bin"), { recursive: true });
   await mkdir(resolve(priorReleaseRoot, "bin"), { recursive: true });
   await mkdir(dirname(npmCli), { recursive: true });
@@ -132,14 +137,14 @@ async function exerciseProtectedReplacement(
   }
   await writeFile(resolve(activePrefix, "npm.cmd"), "@echo off\r\n");
   await writeFile(npmCli, `
-    const { chmod, cp, mkdir, rm, writeFile } = require("node:fs/promises");
+    const { chmod, mkdir, rename, rm, writeFile } = require("node:fs/promises");
     const { dirname } = require("node:path");
-    const candidateRoot = ${JSON.stringify(exactCandidateRoot)};
+    const stagedPackageRoot = ${JSON.stringify(stagedPackageRoot)};
     const packageRoot = ${JSON.stringify(packageRoot)};
     const launchers = ${JSON.stringify(launchers)};
     (async () => {
       await rm(packageRoot, { recursive: true, force: true });
-      await cp(candidateRoot, packageRoot, { recursive: true });
+      await rename(stagedPackageRoot, packageRoot);
       for (const launcher of launchers) {
         await mkdir(dirname(launcher), { recursive: true });
         await writeFile(launcher, "node_modules/@timurproko/a1/bin/cli.js");
@@ -185,6 +190,7 @@ async function exerciseProtectedReplacement(
     npmExitCode: 0,
     launcherDisposition: "target",
   });
+  expect(existsSync(stagedPackageRoot), "fake npm must consume the staged exact candidate").toBe(false);
   await expect(readFile(resolve(packageRoot, "package.json"), "utf8").then(JSON.parse)).resolves.toMatchObject({
     name: "@timurproko/a1",
     version: candidateManifest.version,

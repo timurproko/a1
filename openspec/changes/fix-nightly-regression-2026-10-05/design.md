@@ -13,9 +13,10 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 ## Evidence
 
 - Failed run inspection identified one owner: `replaces and activates the candidate through direct and bridged published updaters` reached `A1 update recovery guardian timed out before establishing a callable launcher` in the `0.2.2` bridge on Windows Node 24. The preceding materialization case and every other package-shard invocation passed.
-- The exact-package receipt records 654 files and 23,403,583 installed bytes. The fake npm currently performs a recursive `cp` of that payload only after the immutable predecessor starts its detached guardian and its 120-second deadline.
+- The exact-package receipt records 654 files and 23,403,583 installed bytes. At the failed head, fake npm performed a recursive `cp` of that payload only after the immutable predecessor started its detached guardian and its 120-second deadline.
 - The same head's Windows Node 22 package shard passed both predecessor cases. The previous Full regression's Windows Node 24 bridge also passed, completing replacement, activation, command execution, and fixture discard roughly 35 seconds after installing `0.2.2`; the failed run instead consumed the full guardian deadline before cleanup.
-- Pre-implementation known gap: focused fixture evidence and selected exact-head PR Full regression remain pending until the plan is approved and implemented.
+- Focused implementation evidence on Windows Node 24: build and typecheck passed; the exact-candidate predecessor integration passed both tests in 167.57 seconds with the immediate published predecessor plus the official `0.2.2` direct/installer-bridge path (`UPDATE_PREDECESSOR_COUNT=1`, no retries, unchanged test bounds). The replacement case completed in 131.61 seconds and verified that fake npm consumed each staged exact candidate.
+- Remaining known gap before finalization: selected exact-head PR Full regression has not yet run on the implementation head.
 
 - Run [Full regression #53](https://github.com/timurproko/a1/actions/runs/37291195028) (attempt 1, schedule) on `34b97d2` at 2026-10-05T09:36:47Z:
   - `vitest-update-predecessor` (`update-predecessor`) failed on windows-2025-node24 (package shard) with exit 1.
