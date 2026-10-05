@@ -19,6 +19,7 @@ import {
   createPiShellLoginDialog,
   createPiQueuedInputStatus,
   createPiShellSettingsSelector,
+  createPiShellSessionInfo,
   createPiShellSelector,
   createPiShellUserMessageSelector,
   createPiShellStatus,
@@ -30,6 +31,7 @@ import {
   renderPiShellTranscriptBlock,
   WorkingStatusIndicator,
 } from "../../../../src/integrations/pi/components/index.js";
+import { renderPiShellSessionInfoReferenceDocument } from "../../../../src/integrations/pi/components/shell-session-info-reference.js";
 import { PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../../../src/integrations/pi/engine/index.js";
 import { composeSubmittedPromptRows, progressStatusFrame, progressStatusText, submittedPromptLayout } from "../../../../src/ui/components/index.js";
 
@@ -708,6 +710,59 @@ describe("Pi shell public component adapters", () => {
       getMessageRenderer: () => (() => { throw new Error("renderer failed"); }),
     });
     expect(stripTerminalSequences(broken.render(80).join("\n"))).toContain("fallback survives");
+  });
+
+  it("derives session reference preamble and sections from the pinned report values", () => {
+    const presentation = {
+      sessionName: "Parity fixture",
+      stats: {
+        sessionFile: "D:/sessions/parity.jsonl", sessionId: "session-1", userMessages: 2,
+        assistantMessages: 2, toolCalls: 1, toolResults: 1, totalMessages: 6,
+        tokens: { input: 100, output: 20, cacheRead: 300, cacheWrite: 50, total: 470 }, cost: 0.125,
+      },
+      cacheWaste: { missedTokens: 2048, missedCost: 0.002, missCount: 1 },
+      usageBreakdown: [
+        { key: "openai/gpt-5", cost: 0.1, tokens: 400 },
+        { key: "Tools/summaries", cost: 0.025, tokens: 70 },
+      ],
+      cacheWarming: {
+        mode: "streaming",
+        status: {
+          state: "scheduled" as const,
+          decision: {
+            phase: "idle" as const, action: "warm", warmCost: 0.01, missCost: 0.2,
+            continuationProbability: 0.5, expectedSavings: 0.1, economicsAvailable: true,
+          },
+        },
+      },
+    };
+    const reference = renderPiShellSessionInfoReferenceDocument(presentation, 100);
+    expect(reference.sections.map(section => section.title)).toEqual(["Messages", "Tokens", "Cache Warming", "Cost"]);
+    expect(reference.sections.every(section => !section.title.includes("\u001b"))).toBe(true);
+    const preamble = stripTerminalSequences(reference.preamble.join("\n"));
+    expect(preamble).toMatch(/Name: Parity fixture\s*\n\s*File: D:\/sessions\/parity\.jsonl\s*\n\s*ID: session-1/);
+    const grouped = stripTerminalSequences(reference.sections.flatMap(section => section.rows).join("\n"));
+    expect(grouped).toMatch(/Total: 6\s*\n\s*User: 2\s*\n\s*Assistant: 2\s*\n\s*Tools: 1 calls, 1 results/);
+    expect(grouped).toMatch(/Input: 450\s*\n\s*Cached: 300 \(66\.7%\)\s*\n\s*Uncached: 150 \(50 written to cache\)/);
+    expect(grouped).toContain("Status: Decision now (50% continuation probability, expected savings 0.100 >= 0.050 -> warm)");
+    expect(grouped).toContain("Cache miss penalty: $0.200");
+    expect(grouped).toContain("Refresh cost: $0.010");
+    expect(grouped).toContain("Cache Re-billed: $0.002 (2,048 tokens, 1 miss)");
+
+    const pinned = stripTerminalSequences(createPiShellSessionInfo(presentation).render(100).join("\n"));
+    expect(pinned).toMatch(/Session Info\s*\n\s*\n\s*Name: Parity fixture/);
+    expect(pinned).toMatch(/Cache Warming\s*\n\s*Mode: streaming/);
+    expect(pinned).toContain("Status: Decision now (50% continuation probability, expected savings 0.100 >= 0.050 -> warm)");
+
+    const { sessionName: _sessionName, ...unnamedPresentation } = presentation;
+    const minimal = renderPiShellSessionInfoReferenceDocument({
+      ...unnamedPresentation,
+      stats: { ...presentation.stats, cost: 0 },
+      cacheWaste: { missedTokens: 0, missedCost: 0, missCount: 0 },
+      usageBreakdown: [],
+    }, 100);
+    expect(stripTerminalSequences(minimal.preamble.join("\n"))).not.toContain("Name:");
+    expect(minimal.sections.map(section => section.title)).toEqual(["Messages", "Tokens", "Cache Warming"]);
   });
 
   it("renders the complete keybinding-derived pinned hotkey tables", () => {

@@ -645,7 +645,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   reconcilePromptImageLimitNotice(text: string = this.editor.getText()): boolean {
     if (this.#dockNotice?.errorCode !== "image-count" || !this.#promptChips.imageLimitState(text).corrected) return false;
-    this.#dismissDockNotice();
+    this.dismissNotice();
     return true;
   }
 
@@ -739,7 +739,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #mountTranscript(block: OwnedUiSessionViewModel["transcript"][number]): PiShellTranscriptComponentPort {
     // Invariant: the notice answers the reader's last command, so only their next prompt or
     // shell command retires it; assistant, tool, and compaction blocks streaming in keep it.
-    if (block.kind === "user" || block.kind === "bash") this.#dismissDockNotice();
+    if (block.kind === "user" || block.kind === "bash") this.dismissNotice();
     const created = createPiShellTranscriptComponent(
       block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
       this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
@@ -1051,7 +1051,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return renderPiShellCommandMessage({ kind: notice.kind, message: notice.message }, width, this.#outputPad);
   }
 
-  #dismissDockNotice(): void {
+  dismissNotice(): void {
     if (this.#dockNotice === undefined) return;
     this.#dockNotice = undefined;
     this.#invalidateChrome();
@@ -1646,7 +1646,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   #appendAnchoredWorkflowComponent(render: (width: number) => readonly string[], dispose?: () => void): string {
     // Invariant: transcript-bound workflow output supersedes a pending acknowledgement.
-    this.#dismissDockNotice();
+    this.dismissNotice();
     this.#workflowTranscriptSequence += 1;
     const id = `workflow-status-${this.#workflowTranscriptSequence}`;
     const component: PiShellTranscriptComponentPort = {

@@ -109,6 +109,11 @@ async function manager(): Promise<OwnedSettingsManager> {
   return session;
 }
 
+const sessionReference = async () => ({
+  preamble: () => [" Name: fixture"],
+  sections: () => [{ title: "Messages", rows: [" Total: 1"] }],
+});
+
 describe("owned reference routes", () => {
   it("claims the reference routes only when their documents are supplied", async () => {
     const session = await manager();
@@ -116,15 +121,18 @@ describe("owned reference routes", () => {
     expect(withoutReferences.claims("settings")).toBe(true);
     expect(withoutReferences.claims("changelog")).toBe(false);
     expect(withoutReferences.claims("hotkeys")).toBe(false);
+    expect(withoutReferences.claims("session")).toBe(false);
     expect(withoutReferences.open("changelog")).toBeNull();
 
     const host = createOwnedRouteHost(session, {
       changelog: async () => ({ rows: () => ["log"] }),
       hotkeys: async () => ({ sections: () => [{ title: "Keys", rows: ["keys"] }] }),
+      session: sessionReference,
     });
     expect(host.claims("settings")).toBe(true);
     expect(host.claims("changelog")).toBe(true);
     expect(host.claims("hotkeys")).toBe(true);
+    expect(host.claims("session")).toBe(true);
     expect(host.claims("unknown")).toBe(false);
     expect(host.open("unknown")).toBeNull();
   });
@@ -138,7 +146,15 @@ describe("owned reference routes", () => {
       const captured = shortcut;
       return { sections: (width: number) => [{ title: `hotkeys ${captured}`, rows: [`table at ${width}`] }] };
     });
-    const host = createOwnedRouteHost(session, { changelog, hotkeys });
+    let total = 0;
+    const sessionInfo = vi.fn(async () => {
+      total += 1;
+      return {
+        preamble: () => [" Name: route fixture", " File: session.jsonl", " ID: route-session"],
+        sections: () => [{ title: "Messages", rows: [` Total: ${total}`] }],
+      };
+    });
+    const host = createOwnedRouteHost(session, { changelog, hotkeys, session: sessionInfo });
 
     const complete = host.open("changelog")!;
     expect(complete.id).toBe("changelog");
@@ -177,6 +193,19 @@ describe("owned reference routes", () => {
     expect(lines[3]?.trimEnd()).toBe(" hotkeys second");
     expect(lines[4]?.startsWith("table at 58")).toBe(true);
     reopened.close();
+
+    const info = host.open("session")!;
+    expect(info.id).toBe("session");
+    lines = await settled(info, current => current.some(line => line.trimEnd() === " Messages"), 60, 12);
+    expect(lines[1]?.startsWith(" Session Info")).toBe(true);
+    expect(lines.some(line => line.trimEnd() === " Name: route fixture")).toBe(true);
+    expect(lines.some(line => line.trimEnd() === " Messages")).toBe(true);
+    expect(lines.some(line => line.trimEnd() === " Total: 1")).toBe(true);
+    info.close();
+    const refreshed = host.open("session")!;
+    lines = await settled(refreshed, current => current.some(line => line.trimEnd() === " Total: 2"), 60, 12);
+    expect(sessionInfo).toHaveBeenCalledTimes(2);
+    refreshed.close();
   });
 
   it("forwards keys and pointer reports to the screen and propagates close and exit", async () => {
@@ -185,6 +214,7 @@ describe("owned reference routes", () => {
     const host = createOwnedRouteHost(session, {
       changelog: async () => ({ rows: () => rows }),
       hotkeys: async () => ({ sections: () => [{ title: "Keys", rows }] }),
+      session: sessionReference,
     });
     const surface = host.open("changelog")!;
     let renders = 0;
@@ -223,6 +253,7 @@ describe("owned reference routes", () => {
     const host = createOwnedRouteHost(session, {
       changelog: async () => { throw new Error("changelog unreadable"); },
       hotkeys: async () => ({ sections: () => [] }),
+      session: sessionReference,
     });
     const surface = host.open("changelog")!;
     const lines = await settled(surface, current => current[0]?.startsWith("Could not") === true);

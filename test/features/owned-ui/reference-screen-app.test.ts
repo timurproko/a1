@@ -118,6 +118,29 @@ describe("ReferenceScreenApp frame", () => {
     expect(railCells(target).every(cell => cell === " ")).toBe(true);
   });
 
+  it("places preamble rows between the title and shared section headers", () => {
+    const target = new ReferenceScreenApp({
+      id: "reference",
+      title: "Session Info",
+      document: {
+        preamble: () => [" Name: Example", " File: session.jsonl", " ID: session-1"],
+        sections: () => [
+          { title: "Messages", rows: [" Total: 3"] },
+          { title: "Tokens", rows: [" Input: 10"] },
+        ],
+      },
+      scrollSettings: settings(),
+    });
+    const lines = screen(target, { ...HOST, theme: NAMING_THEME });
+    expect(lines[1]?.startsWith(" <b><accent>Session Info</accent></b>")).toBe(true);
+    expect(lines[2]?.trim()).toBe("");
+    expect(lines[3]?.trimEnd()).toBe(" Name: Example");
+    expect(lines[4]?.trimEnd()).toBe(" File: session.jsonl");
+    expect(lines[5]?.trimEnd()).toBe(" ID: session-1");
+    expect(lines[6]?.trim()).toBe("");
+    expect(lines[7]?.startsWith(renderGroupHeader("Messages", RECT.width - RAIL_COLUMNS, NAMING_THEME))).toBe(true);
+  });
+
   it("uses shared accent headers directly above section rows and pins the active section", () => {
     const target = sectioned([
       { title: "Navigation", rows: numbered(8) },

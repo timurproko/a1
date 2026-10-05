@@ -1329,7 +1329,7 @@ Bare A1 SHALL move the transcript only for vertical wheel input and in the direc
 ### Requirement: Command failures and warnings are a transient dock notice
 Bare A1 SHALL present simple workflow failures and warnings, including built-in command failures, explicit `error`- or `warning`-kind workflow messages, and extension error/warning notifications, through the same single transient dock-notice region used by informational messages rather than as transcript content. The notice SHALL preserve the existing contextual wording, `Error:` or `Warning:` prefix, severity theme role, output-padding rule, leading blank row, and width-aware wrapping supplied by the command-message presenter. It SHALL sit directly above the editor group, or directly below live working status when that status is visible, and SHALL NOT scroll with transcript content.
 
-The latest simple workflow notice SHALL replace any earlier informational, warning, or error notice in place. A submitted prompt or shell command, a structured transcript-bound workflow presentation, or workflow/session reset SHALL dismiss it under the common notice lifecycle. Structured command output SHALL remain transcript content. The pinned `a1 pi` route SHALL retain its chronological transcript placement of command failures and warnings.
+The latest simple workflow notice SHALL replace any earlier informational, warning, or error notice in place. A submitted prompt or shell command, a structured transcript-bound workflow presentation, an owned full-screen reference route, or workflow/session reset SHALL dismiss it under the common notice lifecycle. Structured command output SHALL remain transcript content unless its command is declared as an owned full-screen replacement; such a route SHALL append no transcript content. The pinned `a1 pi` route SHALL retain its chronological transcript placement of command failures, warnings, and structured session information.
 
 #### Scenario: Fail to export an empty session
 - **WHEN** `/export` fails in a fresh bare-A1 session because there is nothing to export
@@ -1353,9 +1353,13 @@ The latest simple workflow notice SHALL replace any earlier informational, warni
 - **AND** no extension-specific duplicate SHALL be appended to the transcript
 
 #### Scenario: Keep structured output in the transcript
-- **WHEN** a route presents session information, hotkeys, changelog, new/name/debug output, or another structured component
+- **WHEN** a route presents new/name/debug output or another structured component that is not declared as an owned full-screen replacement
 - **THEN** that component SHALL retain its existing transcript placement
 - **AND** it SHALL dismiss any stale simple dock notice
+
+#### Scenario: Keep owned reference output out of the transcript
+- **WHEN** bare A1 opens session information, hotkeys, or changelog through its declared owned full-screen route
+- **THEN** the screen SHALL dismiss any stale simple dock notice and append no structured component, status, or placeholder to the transcript
 
 #### Scenario: Keep pinned command-message placement
 - **WHEN** the same command failure or warning is produced through `a1 pi`
