@@ -1,3 +1,8 @@
+## RENAMED Requirements
+
+- FROM: `### Requirement: Update progress uses the scrollbar-aligned accent`
+- TO: `### Requirement: Update progress uses the shared semantic accent`
+
 ## MODIFIED Requirements
 
 ### Requirement: Update progress uses the shared semantic accent
