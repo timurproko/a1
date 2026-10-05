@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, unlink, lstat, utimes } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 /** Local-only ownership authority. Absence of a process never transfers ownership. */
 export const digest = value => createHash("sha256").update(value).digest("hex");
@@ -67,6 +67,39 @@ export function validateState(state, identity) {
   return state;
 }
 
+const normalizedPath = path => resolve(path).replaceAll("\\", "/");
+const pathKey = path => process.platform === "win32" ? path.toLowerCase() : path;
+/**
+ * Rebind only completed history after the whole repository moved. A live or partial registration still carries
+ * deletion authority, so it must never inherit a new absolute path without separate reconciliation.
+ */
+export function relocateTerminalState(input, identity) {
+  validateIdentity(identity);
+  const state = structuredClone(input);
+  validateIdentity(state?.identity);
+  validateState(state, state.identity);
+  const old = state.identity;
+  if (old.repository !== identity.repository || old.remote !== identity.remote) fail("state-relocation-identity");
+  if (state.entries.some(entry => entry.state !== "done" || entry.step !== "complete")) fail("state-relocation-active");
+  const oldRootSuffix = relative(old.primary, old.root), rootSuffix = relative(identity.primary, identity.root);
+  const oldCommonSuffix = relative(old.primary, old.common), commonSuffix = relative(identity.primary, identity.common);
+  if ([old.primary, old.root, old.common, identity.primary, identity.root, identity.common].some(path => normalizedPath(path) !== path)
+    || oldRootSuffix !== rootSuffix || oldCommonSuffix !== commonSuffix
+    || oldRootSuffix === "" || oldRootSuffix.startsWith("..") || isAbsolute(oldRootSuffix)) fail("state-relocation-topology");
+  const paths = new Set();
+  for (const entry of state.entries) {
+    const suffix = relative(old.root, entry.path);
+    if (suffix === "" || suffix.startsWith("..") || isAbsolute(suffix)) fail("state-relocation-path");
+    const rebased = normalizedPath(resolve(identity.root, suffix));
+    if (relative(identity.root, rebased).startsWith("..") || isAbsolute(relative(identity.root, rebased))) fail("state-relocation-path");
+    const key = pathKey(rebased);
+    if (paths.has(key)) fail("state-relocation-duplicate");
+    paths.add(key); entry.path = rebased;
+  }
+  state.identity = identity;
+  return validateState(state, identity);
+}
+
 /** Atomic replacements keep the prior complete journal on failed writes. */
 export async function atomicJson(path, value, replace = rename) {
   const temporary = `${path}.${randomUUID()}.tmp`;
@@ -80,7 +113,7 @@ async function regular(path, missing = false) {
   try { const stat = await lstat(path); if (!stat.isFile() || stat.isSymbolicLink()) fail("state-path"); }
   catch (error) { if (!(missing && error.code === "ENOENT")) throw error; }
 }
-export function createStateStore(identity) {
+export function createStateStore(identity, { replace = rename } = {}) {
   validateIdentity(identity);
   const directory = join(identity.common, "local-worktree-cleanup");
   const path = join(directory, "state.json"), lock = join(directory, "mutation.lock"), stop = join(directory, "disabled");
@@ -90,14 +123,22 @@ export function createStateStore(identity) {
     try { const stat = await lstat(directory); if (!stat.isDirectory() || stat.isSymbolicLink()) fail("state-directory"); }
     catch (error) { if (error.code !== "ENOENT" || create) throw error; }
   }
-  async function read() {
+  async function read({ migrateTerminal = false } = {}) {
     await checkDirectory(); await regular(path, true);
     try {
       const text = await readFile(path, "utf8"); if (Buffer.byteLength(text) > 16 * 1024 * 1024) fail("state-size");
-      return validateState(JSON.parse(text), identity);
+      const state = JSON.parse(text);
+      try { return validateState(state, identity); }
+      catch (error) {
+        if (error.cleanupCode !== "state-schema" || JSON.stringify(state?.identity) === JSON.stringify(identity)) throw error;
+        const migrated = relocateTerminalState(state, identity);
+        if (!migrateTerminal) fail("state-relocation-required");
+        await atomicJson(path, migrated, replace);
+        return migrated;
+      }
     } catch (error) { if (error.code === "ENOENT") return initial(); throw error; }
   }
-  async function save(state) { validateState(state, identity); await regular(path, true); await atomicJson(path, state); }
+  async function save(state) { validateState(state, identity); await regular(path, true); await atomicJson(path, state, replace); }
   async function readLock() {
     try { return JSON.parse(await readFile(lock, "utf8")); } catch { return null; }
   }
@@ -133,7 +174,7 @@ export function createStateStore(identity) {
     timer.unref();
     try {
       await write();
-      return await action(await read(), save);
+      return await action(await read({ migrateTerminal: true }), save);
     } finally { clearInterval(timer); await handle.close(); await unlink(lock).catch(error => { if (error.code !== "ENOENT") throw error; }); }
   }
   /** With `since`, only a sentinel written at or after that time counts, so an old stop does not veto an explicit sweep. */
