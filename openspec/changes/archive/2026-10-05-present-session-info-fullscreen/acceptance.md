@@ -24,7 +24,7 @@ The manual merge accepts these scenarios:
     "Reopening captures current statistics, while scrolling, dismissal, stale-notice cleanup, and viewport restoration retain reference-screen behavior.",
     "The `a1 pi` comparison profile keeps the complete pinned session report in its chronological feed position."
   ],
-  "archiveDigest": "8cdc1ee1ab8ba3e644371b2e6a5e90caf7886cf958b689136a3a573e4da172ea",
+  "archiveDigest": "2e8ca7c7a0ff120b41a14206c89fd5bc448f4708effdf400e9df84b48b28433c",
   "specDigest": "e5f4bf46bd0cb5638da2824b46029ed097e6f7da304ee596006cf9045e3953f1",
   "tasksDigest": "61e2685f44f598de84349ed46f28858ce90df39d7e9be69ae1041f684040dc52",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
