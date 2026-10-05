@@ -1,8 +1,6 @@
 import {
-  CHANGELOG_APP_ID,
   CHANGELOG_ROUTE,
   CHANGELOG_TITLE,
-  HOTKEYS_APP_ID,
   HOTKEYS_ROUTE,
   HOTKEYS_TITLE,
 } from "../features/owned-ui/reference-routes.js";
@@ -21,15 +19,12 @@ export type OwnedReferenceRows = NonNullable<ReferenceDocumentProvider["rows"]>;
 export interface OwnedReferenceProviders {
   changelog(input?: UiRouteInput): Promise<ReferenceDocumentProvider>;
   hotkeys(): Promise<ReferenceDocumentProvider>;
+  session(): Promise<ReferenceDocumentProvider>;
 }
 
-/**
- * Declares the A1-owned settings route, and the changelog and hotkeys reference
- * routes when their documents are supplied, without evaluating their presentation
- * graphs during startup. Opening a route retains input while the optional module loads.
- */
+/** Declares settings and lazy document routes. */
 export function createOwnedRouteHost(settings: OwnedSettingsManager, references?: OwnedReferenceProviders): UiRouteHost {
-  const routes = new Set([SETTINGS_ROUTE, ...(references === undefined ? [] : [CHANGELOG_ROUTE, HOTKEYS_ROUTE])]);
+  const routes = new Set([SETTINGS_ROUTE, ...(references === undefined ? [] : [CHANGELOG_ROUTE, HOTKEYS_ROUTE, "session"])]);
   return {
     claims: route => routes.has(route),
     open: (route, input) => {
@@ -38,10 +33,10 @@ export function createOwnedRouteHost(settings: OwnedSettingsManager, references?
         return deferredSurface(SETTINGS_APP_ID, "settings", () => loadSettingsSurface(settings));
       }
       const changelog = route === CHANGELOG_ROUTE;
-      const id = changelog ? CHANGELOG_APP_ID : HOTKEYS_APP_ID;
-      const title = changelog ? CHANGELOG_TITLE : HOTKEYS_TITLE;
-      const document = changelog ? references!.changelog(input) : references!.hotkeys();
-      return deferredSurface(id, title, () => loadReferenceSurface(settings, id, route, title, document));
+      const session = route === "session";
+      const title = session ? "Session Info" : changelog ? CHANGELOG_TITLE : HOTKEYS_TITLE;
+      const document = session ? references!.session() : changelog ? references!.changelog(input) : references!.hotkeys();
+      return deferredSurface(route, title, () => loadReferenceSurface(settings, route, route, title, document));
     },
   };
 }

@@ -126,6 +126,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       const { renderPiShellHotkeySections } = await import("../integrations/pi/components/shell-hotkey-sections.js");
       return { sections: width => renderPiShellHotkeySections(presentation, width) };
     },
+    session: () => import("./session-info-reference.js").then(m => m.loadSessionInfoReference(adapter)),
   };
   const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(settings, references);
   const viewportSettings: OwnedUiViewportSettingsPort | null = settings === null || !ownedSurfaces ? null : {

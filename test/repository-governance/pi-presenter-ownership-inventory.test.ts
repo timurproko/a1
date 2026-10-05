@@ -131,6 +131,10 @@ describe("pinned Pi presenter ownership inventory", () => {
     expect(byId.get("document.error-warning")).toMatchObject({ plane: "persistent-document", container: "chatContainer" });
     expect(byId.get("dock.status-indicators")).toMatchObject({ plane: "prompt-dock", container: "statusContainer" });
     expect(byId.get("replacement.selector-dialog-editor")).toMatchObject({ plane: "active-replacement" });
+    expect(byId.get("document.session-info")).toMatchObject({
+      destination: "src/features/owned-ui/reference-screen-app.ts",
+      implementationStatus: "known-divergence",
+    });
     expect(inventory.commands.find(command => command.name === "session")?.success).toEqual(["document.session-info"]);
   });
 

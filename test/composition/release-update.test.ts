@@ -5,8 +5,14 @@ import type { AvailableRelease, StartupReleaseCheckOptions } from "../../src/fou
 const observed = vi.hoisted(() => ({
   updateCheck: true as unknown,
   started: 0,
+  sessionCalls: 0,
+  sessionResult: null as null | Record<string, unknown>,
   references: null as null | {
     changelog(input?: { document?: string }): Promise<{ rows?: (width: number) => readonly string[] | null }>;
+    session(): Promise<{
+      preamble?: (width: number) => readonly string[] | null;
+      sections?: (width: number) => readonly { readonly title: string; readonly rows: readonly string[] }[] | null;
+    }>;
   },
 }));
 // Rationale: exercise the startup release-check wiring without a real engine, terminal, or registry.
@@ -39,6 +45,8 @@ vi.mock("../../src/app/session-shell/session-shell.js", () => ({
 afterEach(() => {
   observed.updateCheck = true;
   observed.started = 0;
+  observed.sessionCalls = 0;
+  observed.sessionResult = null;
   observed.references = null;
 });
 
@@ -61,6 +69,25 @@ async function compose(options: {
     createPiAdapter: async () => ({
       cwd: process.cwd(), agentDir: "synthetic-agent", configuredTheme: () => "dark", disposed: false,
       announceReleaseUpdate: (release: unknown) => { announced.push(release); },
+      executeWorkflow: async (request: { command: string }) => {
+        if (request.command !== "session") throw new Error(`unexpected workflow: ${request.command}`);
+        observed.sessionCalls += 1;
+        if (observed.sessionResult !== null) return observed.sessionResult;
+        const total = observed.sessionCalls;
+        return {
+          command: "session", outcome: "completed", message: "Session Info",
+          presentation: {
+            kind: "session-info", sessionName: "Composition fixture",
+            stats: {
+              sessionFile: "D:/sessions/composition.jsonl", sessionId: "composition-session",
+              userMessages: total, assistantMessages: 1, toolCalls: 0, toolResults: 0, totalMessages: total + 1,
+              tokens: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, total: 15 }, cost: 0,
+            },
+            cacheWaste: { missedTokens: 0, missedCost: 0, missCount: 0 },
+            usageBreakdown: [], cacheWarming: { mode: "streaming" },
+          },
+        };
+      },
     }) as never,
   });
   return { composed, announced, checks };
@@ -85,6 +112,35 @@ describe("owned changelog composition", () => {
       expect(output).toContain(`\u001b]8;;${target}\u001b\\`);
       expect(output).not.toContain("\u001b[4m");
     }
+  });
+});
+
+describe("owned session reference composition", () => {
+  it("runs the structured session workflow for every opening and returns grouped screen rows", async () => {
+    await compose({ profileId: "a1", release: null });
+    const references = observed.references;
+    expect(references).not.toBeNull();
+
+    const first = await references!.session();
+    const firstPreamble = first.preamble?.(100) ?? [];
+    const firstSections = first.sections?.(100) ?? [];
+    expect(firstPreamble.join("\n")).toContain("Composition fixture");
+    expect(firstSections.map(section => section.title)).toEqual(["Messages", "Tokens", "Cache Warming"]);
+    expect(firstSections[0]?.rows.join("\n")).toContain("Total:");
+
+    const second = await references!.session();
+    const secondSections = second.sections?.(100) ?? [];
+    expect(observed.sessionCalls).toBe(2);
+    expect(secondSections[0]?.rows.join("\n")).toContain("3");
+  });
+
+  it("rejects failed and malformed session workflow snapshots", async () => {
+    await compose({ profileId: "a1", release: null });
+    const references = observed.references!;
+    observed.sessionResult = { command: "session", outcome: "failed", message: "statistics unavailable" };
+    await expect(references.session()).rejects.toThrow("statistics unavailable");
+    observed.sessionResult = { command: "session", outcome: "completed", message: "Session Info" };
+    await expect(references.session()).rejects.toThrow("no structured information");
   });
 });
 

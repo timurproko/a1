@@ -171,9 +171,9 @@
       "kind": "command",
       "feature": "/session",
       "since": "0.85.1",
-      "disposition": "owned",
-      "behavior": "commands.complete-manifest",
-      "test": "test/integrations/pi/engine/workflows.test.ts"
+      "disposition": "diverged",
+      "deviation": "bare-a1-session-reference-screen",
+      "test": "test/app/session-shell/session-shell-reference-screens.test.ts"
     },
     {
       "id": "command:settings",

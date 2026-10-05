@@ -100,7 +100,7 @@ function formatWarmingDecisionTime(nextWarmAt: number | undefined, now: number):
 }
 
 /** The one-line warming status the pinned session report shows; a decision is attached once warming acted. */
-function formatCacheWarmingStatus(status: NonNullable<PiShellCacheWarmingPresentation["status"]>, now = Date.now()): string {
+export function formatCacheWarmingStatus(status: NonNullable<PiShellCacheWarmingPresentation["status"]>, now = Date.now()): string {
   const decision = status.decision;
   if (!decision || (status.state === "inactive" && !decision.economicsAvailable && !status.extensionOverride)) {
     return `Inactive (${status.reason ?? "unknown reason"})`;

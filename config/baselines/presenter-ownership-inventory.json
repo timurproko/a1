@@ -232,7 +232,10 @@
         "theme.bold(\"Tokens\")",
         "theme.bold(\"Cost\")"
       ],
-      "destination": "src/integrations/pi/components/shell-components.ts",
+      "destination": "src/features/owned-ui/reference-screen-app.ts",
+      "comparisonDestination": "src/app/session-shell/session-shell-root.ts",
+      "bareA1Presentation": "on-demand full-screen Session Info reference screen opened through the owned route host with shared grouped headings; no session report is appended to the feed; the pinned in-feed document is retained for the a1 pi comparison profile",
+      "deviation": "bare-a1-session-reference-screen",
       "implementationStatus": "known-divergence"
     },
     {

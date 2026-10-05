@@ -74,6 +74,8 @@ export interface ReferenceDocumentSection {
 export interface ReferenceDocumentProvider {
   /** Flat rows for this width, or null while the document is not available yet. */
   readonly rows?: (width: number) => readonly string[] | null;
+  /** Rows between the screen title and structured groups, absent for group-only documents. */
+  readonly preamble?: (width: number) => readonly string[] | null;
   /** Structured groups opt into shared Settings-style headers and pinning. */
   readonly sections?: (width: number) => readonly ReferenceDocumentSection[] | null;
   /** Settles once the selected content provider answers; absent when available at once. */
@@ -279,9 +281,14 @@ export class ReferenceScreenApp implements UiApp {
     const cached = this.#cached;
     if (cached !== null && cached.width === width) return this.#withTitle(cached.content, title);
     const sections = this.#document.sections?.(width);
-    if (sections === null) return { kind: "flat", rows: [title, "", LOADING_NOTICE] };
+    const preamble = sections === undefined ? undefined : this.#document.preamble?.(width);
+    if (sections === null || preamble === null) return { kind: "flat", rows: [title, "", LOADING_NOTICE] };
     if (sections !== undefined) {
       const rows: ListRow<string>[] = [];
+      if (preamble !== undefined && preamble.length > 0) {
+        for (const row of preamble) rows.push({ kind: "note", group: "", text: row });
+        rows.push({ kind: "spacer" });
+      }
       sections.forEach((section, sectionIndex) => {
         if (sectionIndex > 0) rows.push({ kind: "spacer" });
         const group = `section-${sectionIndex}`;

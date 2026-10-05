@@ -2947,6 +2947,12 @@
           "reason": "Accepted present-changelog-and-hotkeys-fullscreen shows /changelog and /hotkeys as full-screen A1-owned reference screens; accepted transient-changelog-notice shows startup release notes as a one-line transient dock notice instead of persistent in-feed content or an automatic screen.",
           "upstreamBehavior": "The comparison profile keeps the pinned workflows and in-feed documents; the changelog source, version filtering, collapse decision, link rewriting, keybinding-derived tables, and acknowledged-version bookkeeping are unchanged.",
           "acceptanceTest": "test/app/session-shell/session-shell-reference-screens.test.ts"
+        },
+        {
+          "id": "bare-a1-session-reference-screen",
+          "reason": "Approved present-session-info-fullscreen shows /session as a full-screen A1-owned reference screen with shared grouped headings instead of adding a persistent report to the transcript.",
+          "upstreamBehavior": "The comparison profile keeps the pinned /session workflow and complete in-feed session-information component; statistics and conditional report content are unchanged.",
+          "acceptanceTest": "test/app/session-shell/session-shell-reference-screens.test.ts"
         }
       ],
       "behaviorCategories": [

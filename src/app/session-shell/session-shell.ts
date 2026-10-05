@@ -1878,6 +1878,7 @@ export class OwnedUiSessionShell {
     if (surface === null) return { outcome: "failed", diagnostic: `route is unavailable: ${route}` };
     if (!this.runtime.active) return { outcome: "failed", diagnostic: "runtime is not active" };
 
+    this.root.dismissNotice();
     this.#dialogHandle?.hide();
     this.#dialogSource = "route";
     // Protocol: any-event reporting: hover and drag are what the screen is driven by, and

@@ -11,7 +11,7 @@ const ESC = "\u001b";
 const NEW_ENTRIES = "## 0.85.1\n\n- **Reference screens** for the release notes";
 
 /** A route host that records every open and hands back a surface the test can close. */
-function routeHost(routes: readonly string[] = ["settings", "changelog", "hotkeys"]) {
+function routeHost(routes: readonly string[] = ["settings", "session", "changelog", "hotkeys"]) {
   const opens: { route: string; input: UiRouteInput | undefined }[] = [];
   const surfaces: FakeSurface[] = [];
   const host: UiRouteHost = {
@@ -98,12 +98,13 @@ function feed(shell: OwnedUiSessionShell, width = 100): string {
 }
 
 describe("bare A1 reference command screens", () => {
-  it.each(["changelog", "hotkeys"])("opens /%s as an owned screen without a feed document and restores the viewport on Esc", async route => {
+  it.each(["session", "changelog", "hotkeys"])("opens /%s as an owned screen without a feed document and restores the viewport on Esc", async route => {
     const { shell, terminal, routes, adapter, engine } = await shellFixture({ customViewport: true });
     const workflow = vi.spyOn(adapter, "executeWorkflow");
     shell.start();
     shell.runtime.renderNow();
     const before = feed(shell);
+    expect(before).not.toContain("Session Info");
     expect(before).not.toContain("What's New");
     expect(before).not.toContain("Keyboard Shortcuts");
 
@@ -132,15 +133,46 @@ describe("bare A1 reference command screens", () => {
     await shell.dispose();
   });
 
+  it("dismisses a stale dock notice when the session reference screen opens", async () => {
+    const { shell, terminal, routes } = await shellFixture({ customViewport: true });
+    shell.start();
+    shell.root.appendWorkflowMessage({ kind: "warning", message: "stale route notice" });
+    expect(feed(shell)).toContain("stale route notice");
+
+    shell.root.editor.setText("/session");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(routes!.opens).toEqual([{ route: "session", input: undefined }]);
+    expect(feed(shell)).not.toContain("stale route notice");
+    expect(feed(shell)).not.toContain("Session Info");
+    terminal.input(ESC);
+    await shell.dispose();
+  });
+
   it("keeps the in-feed documents in the pinned layout without a route host", async () => {
     const { shell, adapter } = await shellFixture({ customViewport: false, routes: null });
-    vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => request.command === "changelog"
-      ? { command: request.command, outcome: "completed", message: "What's New", detail: "## 0.85.1\n\n- pinned entry" }
-      : { command: request.command, outcome: "completed", message: "Keyboard Shortcuts" });
+    vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => request.command === "session"
+      ? {
+          command: request.command, outcome: "completed", message: "Session Info",
+          presentation: {
+            kind: "session-info",
+            stats: {
+              sessionId: "pinned-session", userMessages: 1, assistantMessages: 1, toolCalls: 0, toolResults: 0, totalMessages: 2,
+              tokens: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, total: 15 }, cost: 0,
+            },
+            cacheWaste: { missedTokens: 0, missedCost: 0, missCount: 0 }, usageBreakdown: [], cacheWarming: { mode: "streaming" },
+          },
+        }
+      : request.command === "changelog"
+        ? { command: request.command, outcome: "completed", message: "What's New", detail: "## 0.85.1\n\n- pinned entry" }
+        : { command: request.command, outcome: "completed", message: "Keyboard Shortcuts" });
     shell.start();
+    await shell.submit("/session");
     await shell.submit("/changelog");
     await shell.submit("/hotkeys");
     const plain = feed(shell);
+    expect(plain).toContain("Session Info");
+    expect(plain).toContain("Messages");
     expect(plain).toContain("What's New");
     expect(plain).toContain("pinned entry");
     expect(plain).toContain("Keyboard Shortcuts");
