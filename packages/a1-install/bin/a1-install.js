@@ -5,6 +5,9 @@ import { access, lstat, readFile, realpath } from "node:fs/promises";
 import { lstatSync, realpathSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { SHARED_PROGRESS_ACCENT_ANSI } from "./progress-palette.js";
+
+export { SHARED_PROGRESS_ACCENT_ANSI };
 
 const APPLICATION_PACKAGE = "@timurproko/a1";
 const COMMAND = "a1";
@@ -93,10 +96,9 @@ export function installerHelp() {
 export function renderProgressBar(percent) {
   const bounded = Math.min(100, Math.max(0, Math.round(percent)));
   const filled = Math.round((bounded / 100) * PROGRESS_WIDTH);
-  const completed = "\u001b[38;2;138;190;183m";
   const gray = "\u001b[38;2;128;128;128m";
   const track = "\u001b[38;2;102;102;102m";
-  return `${completed}${"━".repeat(filled)}${track}${"─".repeat(PROGRESS_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
+  return `${SHARED_PROGRESS_ACCENT_ANSI}${"━".repeat(filled)}${track}${"─".repeat(PROGRESS_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
 }
 
 export function classifyProgressLine(line, fallback = "Installing") {

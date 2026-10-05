@@ -20,7 +20,7 @@ The self-updater and dependency-free installer each embed the same truecolor ope
 
 ### Ship one release-synchronized progress palette
 
-Add a small dependency-free palette module under the installer package tree and include that same file in both the main A1 package and the installer tarball. The self-update renderer and installer renderer will import its completed-segment styling rather than embedding separate RGB escapes. Both published artifacts therefore execute the same bytes for this color role.
+Add one deterministic palette generator that emits the typed main-package resource and the dependency-free installer resource from the same resolved accent. The self-update renderer and installer renderer will import those generated resources rather than embedding separate RGB escapes. The generated forms differ only where TypeScript and the standalone installer package require different module surfaces; conformance binds their exported ANSI value byte-for-byte.
 
 The palette represents the pinned release's default semantic `accent` role, not the obsolete scrollbar-specific teal and not an independently selected product color. Track and percentage styles remain owned by the existing renderers.
 
@@ -28,11 +28,11 @@ The palette represents the pinned release's default semantic `accent` role, not 
 
 Extend the Pi synchronization path to resolve the pinned theme's accent through the supported theme implementation and write the minimal palette module deterministically. The normal Pi-upgrade proposal flow will run this step after changing the pin. A focused drift check will compare the committed palette against the current pinned theme, so a changed pin cannot silently retain an old progress accent.
 
-The generated module will carry provenance identifying the pinned Pi package version/source used to derive it. It will contain only static ANSI styling data and no dependency import, filesystem lookup, or terminal query, keeping fresh installation available before A1 and Pi are present.
+The generated modules will carry provenance identifying the pinned Pi package version/source used to derive them. They will contain only static ANSI styling data and no dependency import, filesystem lookup, or terminal query, keeping fresh installation available before A1 and Pi are present.
 
 ### Keep package boundaries explicit
 
-The root package's file allowlist and the installer package's file allowlist will both declare the palette asset. Installer package validation will continue requiring a minimal, dependency-free surface and will verify that the packed executable can resolve the asset. Main-package smoke coverage will verify self-update can resolve the identical asset from the installed layout.
+The main package receives its generated palette through the compiled `dist` tree, while the installer package's file allowlist declares its generated palette asset. Installer package validation will continue requiring a minimal, dependency-free surface and will verify that the packed executable can resolve the asset. Focused coverage will verify that both installed layouts export the identical accent value.
 
 ### Validate semantics rather than another literal
 
