@@ -17,7 +17,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-05-support-cleanup-repository-relocation/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-05-support-cleanup-repository-relocation/acceptance.md",
   "finalizedDate": "2026-10-05",
-  "specBaseSha": "54e3ba25014c8ab8848fdeb85fd956ffc14f6f48",
+  "specBaseSha": "b0fbd191ec482bbdf8670ea7b6d5cc47ce75fdba",
   "acceptanceScenarios": [
     "A terminal journal moved from `D:/Git/a1` to `E:/Git/a1` is atomically rebound during a mutation-locked operation while read-only access remains non-mutating.",
     "The migrated history grants no deletion authority; the current worktree is captured and registered afresh before normal cleanup evaluation.",
