@@ -103,8 +103,13 @@ export async function discoverRepository(primaryPath, git = gitRunner()) {
   const common = await canonical((await git(primary, ["rev-parse", "--path-format=absolute", "--git-common-dir"])).trim());
   const rows = parseWorktrees(await git(primary, ["worktree", "list", "--porcelain", "-z"]));
   if (await canonical(rows[0].worktree) !== primary) fail("primary-required");
-  const url = (await git(primary, ["remote", "get-url", "origin"])).trim();
-  const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?$/.exec(url);
+  // Security: repository identity comes from this repository's literal configuration, not
+  // `remote get-url`, because Git applies user-controlled `url.*.insteadOf` transport rewrites
+  // to the latter. Network operations still use the named remote and retain those rewrites.
+  const configured = (await git(primary, ["config", "--local", "--get-all", "remote.origin.url"]))
+    .replace(/\r\n/gu, "\n").replace(/\n$/u, "").split("\n");
+  if (configured.length !== 1 || configured[0] === undefined || configured[0] !== configured[0].trim() || configured[0] === "") fail("unsupported-origin");
+  const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?$/.exec(configured[0]);
   if (!match) fail("unsupported-origin");
   const root = resolve(primary, ".worktrees").replaceAll("\\", "/");
   if (await exists(root) && await canonical(root) !== root) fail("worktree-root-alias");
