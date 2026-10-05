@@ -36,15 +36,15 @@ Keeping the internal separator as full-width frame content was rejected because 
 
 ### 3. Treat message text as description rather than selected-row chrome
 
-Tree rows will retain hierarchy prefixes, labels, active-path markers, and role semantics. Selection will switch from `›` plus whole-row background/bold to the menu arrow `→`, selected emphasis on the primary entry label, and muted descriptive message text. Horizontal viewport measurement will continue to operate on the assembled ANSI row, but no background fill will be added.
+Tree rows will retain hierarchy prefixes, labels, and role semantics but remove active-path bullets that compete with the menu selection arrow. Selection will switch from `›` plus whole-row background/bold to the menu arrow `→`, selected emphasis on the primary entry label, and muted descriptive message text. Unselected user and assistant role labels will use green and yellow respectively, while system entries will use the muted unbracketed label `system`. Horizontal viewport measurement will continue to operate on the assembled ANSI row, but no background fill will be added.
 
-Using the generic SelectList was rejected because it cannot represent tree connectors, folding, active paths, and horizontal anchor clipping. Painting only part of the row with `selectedBg` was rejected because the requested reference is the foreground-only command-menu selection.
+Using the generic SelectList was rejected because it cannot represent tree connectors, folding, and horizontal anchor clipping. Painting only part of the row with `selectedBg` was rejected because the requested reference is the foreground-only command-menu selection.
 
 ### 4. Make tree-to-summary replacement direct
 
-For a non-current entry with summary prompting enabled, the tree callback will not first clear the input surface. Calling the existing async summary flow mounts its selector synchronously before the first awaited result, so the root replaces the tree directly. The tree will still close before direct navigation when the summary prompt is skipped, and current-entry selection will still close and report `Already at this point`.
+For a non-current entry with summary prompting enabled, the tree callback will not first clear the input surface. The shell will mount its owned summary selector synchronously so the root replaces the tree directly. On summary cancellation, that selector remains mounted until the asynchronously created tree is ready to replace it, preventing the ordinary prompt from appearing between the two surfaces. The tree will still close before direct navigation when the summary prompt is skipped, and current-entry selection will still close and report `Already at this point`.
 
-Adding a loading surface or delaying rendering was rejected because no asynchronous preparation is needed. Changing the extension bridge's global close/mount behavior was rejected because the flash is caused by this workflow's explicit pre-clear and a global change would risk unrelated extension interactions.
+Adding a loading surface or delaying rendering was rejected because the existing summary surface can safely remain visible during restoration. Changing the extension bridge's global close/mount behavior was rejected because a global change would risk unrelated extension interactions.
 
 ### 5. Remove the extension selector's trailing footer spacer at its owned component boundary
 
@@ -54,10 +54,10 @@ A tree-specific summary selector fork was rejected because it would duplicate a 
 
 ## Risks / Trade-offs
 
-- **[Mirroring query state into an Input can desynchronize cursor state]** → Keep the tree query authoritative, update the visual input only when the value differs, keep its cursor at the query end, and test typing, deletion, clearing, focus, and narrow rendering.
+- **[Mirroring query state into an Input can desynchronize cursor state]** → Keep the tree query authoritative, reconstruct the visual input from the complete query when it differs so its cursor lands at the query end, and test typing, deletion, clearing, focus, and narrow rendering.
 - **[Foreground-only selection may reduce distinction in low-color themes]** → Use the established semantic accent and muted roles already used by menu selection and preserve the explicit arrow.
 - **[Removing the shared extension-selector footer spacer affects more than the summary choice]** → Limit the change to the structural trailing row, retain all semantic children, and run focused modal-inventory and session-shell dialog coverage.
-- **[Direct replacement could leave the tree visible when prompting is skipped]** → Branch explicitly on summary-prompt policy and test prompted, cancelled, current-entry, and skipped-prompt paths.
+- **[Direct replacement could leave a stale surface visible]** → Branch explicitly on summary-prompt policy and test prompted, cancelled, current-entry, and skipped-prompt paths, including every input-surface assignment during cancellation.
 
 ## Migration Plan
 

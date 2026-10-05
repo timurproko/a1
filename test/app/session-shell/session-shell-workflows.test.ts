@@ -275,10 +275,13 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(surfaceChanges.mock.calls.every(([surface]) => surface !== null)).toBe(true);
     const summaryHintIndex = plainSummaryRows.findIndex(row => row.includes("navigate") && row.includes("select"));
     expect(plainSummaryRows[summaryHintIndex + 1]).toBe("─".repeat(100));
-    surfaceChanges.mockRestore();
+    surfaceChanges.mockClear();
     terminal.input("\x1b");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session Tree");
+    expect(surfaceChanges).toHaveBeenCalled();
+    expect(surfaceChanges.mock.calls.every(([surface]) => surface !== null)).toBe(true);
+    surfaceChanges.mockRestore();
 
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));

@@ -4,9 +4,9 @@
 
 The bare-A1 Session Tree SHALL use the same compact framed hierarchy as the Models dialog. Exactly one empty visual row SHALL separate preceding transcript or status content from the tree's top rule. The top rule SHALL be followed immediately by an accent-bold `Session Tree` title, and the frame SHALL contain no separator rule between search and results.
 
-The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Existing tree search matching, filter modes, folding, navigation, copy, label, label-time, current-path indication, horizontal clipping, and keybindings SHALL remain available.
+The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, filter modes, folding, navigation, copy, label, label-time, horizontal clipping, and keybindings SHALL remain available.
 
-The selected tree entry SHALL use the ordinary menu arrow `→` without a whole-row background or whole-row bold treatment. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
+The selected tree entry SHALL use the ordinary menu arrow `→` without a whole-row background or whole-row bold treatment. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted. Tree entries SHALL NOT render active-path bullets. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `system` without square brackets. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
 
 The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule.
 
@@ -19,13 +19,19 @@ The tree's semantic shortcut hints SHALL appear after the result area at the bot
 #### Scenario: Search the tree
 - **WHEN** the Session Tree is open and the user types a search query
 - **THEN** the search row SHALL show the ordinary input prompt icon and text-colored query without `Type to search:`
+- **AND** the cursor SHALL appear after the final typed character unless the user moved it
 - **AND** the tree SHALL retain its existing search and filter behavior
 
 #### Scenario: Highlight an entry
 - **WHEN** a tree entry is selected
 - **THEN** the row SHALL begin with the ordinary menu arrow `→`
 - **AND** only its primary label SHALL receive selected emphasis while descriptive message text remains muted
-- **AND** no selected background or whole-row bold treatment SHALL be applied
+- **AND** no active-path bullet, selected background, or whole-row bold treatment SHALL be applied
+
+#### Scenario: Distinguish message roles
+- **WHEN** unselected user, assistant, and system entries are visible
+- **THEN** `user:` SHALL be green and `assistant:` SHALL be yellow
+- **AND** the system entry SHALL read `system` without square brackets
 
 #### Scenario: Search with no matches
 - **WHEN** the current query matches no tree entries
@@ -51,6 +57,7 @@ The branch-summary choice SHALL retain its title, options, navigation, selection
 #### Scenario: Cancel the branch-summary choice
 - **WHEN** the user cancels the branch-summary choice
 - **THEN** the Session Tree SHALL be restored with the chosen entry selected
+- **AND** no intermediate frame SHALL expose or flash the ordinary prompt
 
 #### Scenario: Render branch-summary shortcuts
 - **WHEN** the branch-summary choice is visible

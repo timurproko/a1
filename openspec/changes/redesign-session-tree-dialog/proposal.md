@@ -6,8 +6,8 @@ The session-tree workflow uses denser, older presentation than bare A1's Models 
 
 - Recompose the Session Tree surface with the shared compact dialog frame, accent title, standard search input, menu-style selected row, and bottom shortcut footer.
 - Remove the internal separator, redundant outer spacer, empty-result counter, and search-label text while retaining tree navigation, filters, folding, labels, copying, and horizontal clipping.
-- Present message content as muted descriptive text beside the selected entry label and use the same selected arrow as ordinary menus.
-- Transition directly from a selected tree entry to the branch-summary choice, and align that choice's footer with standard dialogs without a trailing blank row.
+- Present message content as muted descriptive text, remove active-path bullets, distinguish user and assistant labels with green and yellow, render system without brackets, and use the same selected arrow as ordinary menus.
+- Keep the search cursor after typed text and transition directly in both directions between the Session Tree and branch-summary choice without flashing the prompt; align the choice's footer without a trailing blank row.
 - Add focused rendering and workflow regressions for spacing, styling, empty search, typing, selection, footer placement, and transition continuity.
 
 ## Capabilities

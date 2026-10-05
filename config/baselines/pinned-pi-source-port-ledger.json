@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-05T17:42:28.363Z",
+  "recordedAt": "2026-10-05T17:59:10.006Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "cd32f7725fdbddbaecdff5b1e68491563394e0ca",
@@ -2695,9 +2695,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tree-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome, standard search input, menu-style selection, and a semantic shortcut footer.",
+      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome, standard search input, menu-style selection without path bullets, semantic role colors, and a semantic shortcut footer.",
       "upgradeStrategy": "three-way",
-      "localSha256": "399aef0b7034d37bcd6d062771308e442b6e969a894a24cb2c9d2b53a7212823",
+      "localSha256": "adf9bbdcf6974da3156c93a34acb2c3bb28e41efd2c4df621d796f78d79b4ec1",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2707,7 +2707,7 @@
         },
         {
           "id": "owned-session-tree-dialog",
-          "reason": "Bare A1 aligns tree search, selection, spacing, and footer placement with its standard dialog presentation.",
+          "reason": "Bare A1 aligns tree search, role labels, bullet-free selection, spacing, and footer placement with its standard dialog presentation.",
           "upstreamBehavior": "The comparison profile retains the pinned tree selector presentation and geometry.",
           "acceptanceTest": "test/integrations/pi/components/tree-selector.test.ts"
         }

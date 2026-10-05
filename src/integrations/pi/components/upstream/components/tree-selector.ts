@@ -3,7 +3,7 @@
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
  * preserving tree behavior; bare A1 uses compact modal chrome, standard search input, menu-style
- * selection, and a semantic shortcut footer.
+ * selection without path bullets, semantic role colors, and a semantic shortcut footer.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -142,7 +142,6 @@ class TreeList implements Component {
 	private toolCallMap: Map<string, ToolCallInfo> = new Map();
 	private multipleRoots = false;
 	private showLabelTimestamps = false;
-	private activePathIds: Set<string> = new Set();
 	private visibleParentMap: Map<string, string | null> = new Map();
 	private visibleChildrenMap: Map<string | null, string[]> = new Map();
 	private lastSelectedId: string | null = null;
@@ -165,7 +164,6 @@ class TreeList implements Component {
 		this.filterMode = initialFilterMode ?? "default";
 		this.multipleRoots = tree.length > 1;
 		this.flatNodes = this.flattenTree(tree);
-		this.buildActivePath();
 		this.applyFilter();
 
 		// Start with initialSelectedId if provided, otherwise current leaf
@@ -202,27 +200,6 @@ class TreeList implements Component {
 
 		// Fallback: last visible entry
 		return this.filteredNodes.length - 1;
-	}
-
-	/** Build the set of entry IDs on the path from root to current leaf */
-	private buildActivePath(): void {
-		this.activePathIds.clear();
-		if (!this.currentLeafId) return;
-
-		// Build a map of id -> entry for parent lookup
-		const entryMap = new Map<string, FlatNode>();
-		for (const flatNode of this.flatNodes) {
-			entryMap.set(flatNode.node.entry.id, flatNode);
-		}
-
-		// Walk from leaf to root
-		let currentId: string | null = this.currentLeafId;
-		while (currentId) {
-			this.activePathIds.add(currentId);
-			const node = entryMap.get(currentId);
-			if (!node) break;
-			currentId = node.node.entry.parentId ?? null;
-		}
 	}
 
 	private flattenTree(roots: SessionTreeNode[]): FlatNode[] {
@@ -772,17 +749,13 @@ class TreeList implements Component {
 			const showsFoldInConnector = flatNode.showConnector && !flatNode.isVirtualRootChild;
 			const foldMarker = isFolded && !showsFoldInConnector ? theme.fg("accent", "⊞ ") : "";
 
-			// Active path marker - shown right before the entry text
-			const isOnActivePath = this.activePathIds.has(entry.id);
-			const pathMarker = isOnActivePath ? theme.fg("accent", "• ") : "";
-
 			const label = flatNode.node.label ? theme.fg("warning", `[${flatNode.node.label}] `) : "";
 			const labelTimestamp =
 				this.showLabelTimestamps && flatNode.node.label && flatNode.node.labelTimestamp
 					? theme.fg("muted", `${this.formatLabelTimestamp(flatNode.node.labelTimestamp)} `)
 					: "";
 			const content = this.getEntryDisplayText(flatNode.node, isSelected);
-			const prefixPart = theme.fg("dim", prefix) + foldMarker + pathMarker;
+			const prefixPart = theme.fg("dim", prefix) + foldMarker;
 			const anchorCol = visibleWidth(prefixPart);
 			const gutter = cursor;
 			const body = prefixPart + label + labelTimestamp + content;
@@ -815,11 +788,11 @@ class TreeList implements Component {
 				const role = msg.role;
 				if (role === "user") {
 					const content = normalize(this.extractContent((msg as { content?: unknown }).content));
-					result = primary("accent", "user: ") + description(content);
+					result = primary("success", "user: ") + description(content);
 				} else if (role === "assistant") {
 					const assistant = msg as { content?: unknown; stopReason?: string; errorMessage?: string };
 					const textContent = normalize(this.extractContent(assistant.content));
-					const label = primary("success", "assistant: ");
+					const label = primary("warning", "assistant: ");
 					if (textContent) result = label + description(textContent);
 					else if (assistant.stopReason === "aborted") result = label + description("(aborted)", "muted");
 					else if (assistant.errorMessage) result = label + description(normalize(assistant.errorMessage).slice(0, 80), "error");
@@ -834,7 +807,7 @@ class TreeList implements Component {
 					const command = normalize((msg as { command?: string }).command ?? "");
 					result = primary("dim", "[bash]: ") + description(command, "dim");
 				} else {
-					result = primary("dim", `[${role}]`);
+					result = primary("dim", role === "system" ? role : `[${role}]`);
 				}
 				break;
 			}
@@ -1189,7 +1162,7 @@ class TreeList implements Component {
 
 class TreeSearchInput implements Component, Focusable {
 	private readonly treeList: TreeList;
-	private readonly input = new Input();
+	private input = new Input();
 	private renderedQuery = "";
 
 	constructor(treeList: TreeList) {
@@ -1211,8 +1184,9 @@ class TreeSearchInput implements Component, Focusable {
 	render(width: number): string[] {
 		const query = this.treeList.getSearchQuery();
 		if (query !== this.renderedQuery) {
+			this.input = Object.assign(new Input(), { focused: this.input.focused });
+			this.input.handleInput(query);
 			this.renderedQuery = query;
-			this.input.setValue(query);
 		}
 		return this.input.render(width);
 	}

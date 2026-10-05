@@ -1,4 +1,4 @@
-import { Input, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, Input, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import { createPiShellTreeSelector, piTheme } from "../../../../src/integrations/pi/components/index.js";
 import { cellStyle } from "../../../support/ansi-cell-style.js";
@@ -7,20 +7,29 @@ function tree() {
   return [{
     entry: {
       type: "message",
-      id: "user-1",
+      id: "system-1",
       parentId: null,
       timestamp: new Date(0).toISOString(),
-      message: { role: "user", content: [{ type: "text", text: "QuestionABC" }], timestamp: 0 },
+      message: { role: "system", content: "System prompt", timestamp: 0 },
     },
     children: [{
       entry: {
         type: "message",
-        id: "assistant-1",
-        parentId: "user-1",
+        id: "user-1",
+        parentId: "system-1",
         timestamp: new Date(1).toISOString(),
-        message: { role: "assistant", content: [{ type: "text", text: "ResponseXYZ" }], timestamp: 1 },
+        message: { role: "user", content: [{ type: "text", text: "QuestionABC" }], timestamp: 1 },
       },
-      children: [],
+      children: [{
+        entry: {
+          type: "message",
+          id: "assistant-1",
+          parentId: "user-1",
+          timestamp: new Date(2).toISOString(),
+          message: { role: "assistant", content: [{ type: "text", text: "ResponseXYZ" }], timestamp: 2 },
+        },
+        children: [],
+      }],
     }],
   }];
 }
@@ -54,15 +63,25 @@ describe("bare-A1 session tree presentation", () => {
     expect(cellStyle(title, "S")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("S")), "S"));
 
     const selected = rows.find(row => stripTerminalSequences(row).includes("assistant: ResponseXYZ"))!;
-    expect(stripTerminalSequences(selected)).toContain("→ • assistant: ResponseXYZ");
+    expect(stripTerminalSequences(selected)).toContain("→ assistant: ResponseXYZ");
+    expect(stripTerminalSequences(selected)).not.toContain("•");
     expect(selected).not.toContain("\u001b[48;");
     expect(selected).not.toContain("\u001b[1m");
     expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
     expect(cellStyle(selected, "a")).toEqual(cellStyle(piTheme().fg("accent", "a"), "a"));
     expect(cellStyle(selected, "X")).toEqual(cellStyle(piTheme().fg("muted", "X"), "X"));
     const unselected = rows.find(row => stripTerminalSequences(row).includes("user: QuestionABC"))!;
+    expect(cellStyle(unselected, "u")).toEqual(cellStyle(piTheme().fg("success", "u"), "u"));
     expect(cellStyle(unselected, "Q")).toEqual(cellStyle(piTheme().fg("muted", "Q"), "Q"));
-    expect(plain.some(row => row.includes("(2/2)"))).toBe(true);
+    const system = rows.find(row => stripTerminalSequences(row).trim() === "system")!;
+    expect(system).toBeDefined();
+    expect(plain.join("\n")).not.toContain("[system]");
+    expect(plain.some(row => row.includes("(3/3)"))).toBe(true);
+
+    component.handleInput?.("\x1b[A");
+    const movedRows = component.render(80);
+    const unselectedAssistant = movedRows.find(row => stripTerminalSequences(row).includes("assistant: ResponseXYZ"))!;
+    expect(cellStyle(unselectedAssistant, "a")).toEqual(cellStyle(piTheme().fg("warning", "a"), "a"));
 
     const hintIndex = plain.findIndex(row => row.includes("move"));
     expect(plain.slice(hintIndex, -1).every(row => row.length > 0)).toBe(true);
@@ -81,6 +100,7 @@ describe("bare-A1 session tree presentation", () => {
     let rows = component.render(24);
     let plain = rows.map(row => stripTerminalSequences(row).trimEnd());
     const query = rows.find(row => stripTerminalSequences(row).includes("missing"))!;
+    expect(query.indexOf(CURSOR_MARKER)).toBeGreaterThan(query.indexOf("missing"));
     const standard = new Input();
     standard.focused = true;
     standard.setValue("missing");

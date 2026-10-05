@@ -2071,7 +2071,7 @@ export class OwnedUiSessionShell {
     return this.#submitSkillPrompt(skillPrompt(skill.name, separator < 0 ? "" : trimmed.slice(separator + 1)), text);
   }
 
-  // Rationale: the engine expands "/skill:<name> args" itself; history keeps the form the user typed so recall restores the invocation.
+  // Rationale: engine expands skill arguments; history retains typed input for recall.
   #submitSkillPrompt(prompt: string, typed: string): Promise<AdapterCommandResult> {
     this.#rememberInput(typed, "slash");
     this.root.resumeViewportFollowing();
@@ -2083,16 +2083,24 @@ export class OwnedUiSessionShell {
     });
   }
 
+  #treeSummary(): Promise<string | undefined> {
+    return new Promise(resolve => {
+      this.root.setInputSurface(createPiShellExtensionSelector(
+        "Summarize branch?",
+        ["No summary", "Summarize", "Summarize with custom prompt"],
+        resolve,
+        () => resolve(undefined),
+      ), true, "opaque");
+      this.runtime.requestRender();
+    });
+  }
+
   async #completeTreeSelection(entryId: string, skipSummaryPrompt: boolean): Promise<void> {
     let summarize = false;
     let customInstructions: string | undefined;
     if (!skipSummaryPrompt) {
       while (true) {
-        const choice = await this.#extensionBridge.context.select("Summarize branch?", [
-          "No summary",
-          "Summarize",
-          "Summarize with custom prompt",
-        ]);
+        const choice = await this.#treeSummary();
         if (choice === undefined) {
           await this.showTreeSelector(entryId);
           return;
@@ -2105,6 +2113,8 @@ export class OwnedUiSessionShell {
         break;
       }
     }
+    this.root.setInputSurface(null);
+    this.runtime.requestRender();
     const result = await this.runWorkflow({
       command: "tree",
       argument: "",
