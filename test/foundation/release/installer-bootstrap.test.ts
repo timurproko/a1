@@ -16,7 +16,10 @@ import {
   resolvePublishedPreview,
   runInstaller,
   sanitizeDiagnostic,
+  SHARED_PROGRESS_ACCENT_ANSI as INSTALLER_PROGRESS_ACCENT_ANSI,
 } from "../../../packages/a1-install/bin/a1-install.js";
+import { SHARED_PROGRESS_ACCENT_ANSI as UPDATE_PROGRESS_ACCENT_ANSI } from "../../../src/foundation/release/progress-palette.generated.js";
+import { loadPiTheme } from "../../../src/integrations/pi/components/upstream/theme/theme.js";
 
 const roots: string[] = [];
 const exactTarget = ["--develop", "0.2.1-dev.591"];
@@ -108,7 +111,10 @@ describe("installer command contract", () => {
     const launcher = resolve(root, "bin", "a1-install");
     await mkdir(resolve(executable, ".."), { recursive: true });
     await mkdir(resolve(launcher, ".."), { recursive: true });
-    await writeFile(executable, await readFile(resolve("packages/a1-install/bin/a1-install.js")));
+    await Promise.all([
+      writeFile(executable, await readFile(resolve("packages/a1-install/bin/a1-install.js"))),
+      writeFile(resolve(executable, "..", "progress-palette.js"), await readFile(resolve("packages/a1-install/bin/progress-palette.js"))),
+    ]);
     await chmod(executable, 0o755);
     await symlink(executable, launcher, "file");
 
@@ -119,13 +125,22 @@ describe("installer command contract", () => {
     expect(invoked.stderr).toBe("");
   });
 
-  it("renders the update palette while classifying phases internally", () => {
+  it("renders the pinned Pi accent while classifying phases internally", () => {
     const rendered = renderProgressBar(31);
-    expect(rendered).toContain("\u001b[38;2;138;190;183m");
+    expect(INSTALLER_PROGRESS_ACCENT_ANSI).toBe(UPDATE_PROGRESS_ACCENT_ANSI);
+    expect(INSTALLER_PROGRESS_ACCENT_ANSI).toBe(loadPiTheme("dark", "truecolor").getFgAnsi("accent"));
+    expect(rendered).toContain(`${INSTALLER_PROGRESS_ACCENT_ANSI}${"━".repeat(12)}`);
     expect(rendered).toContain("\u001b[38;2;128;128;128m 31%");
     expect(rendered).not.toMatch(/Preparing|Resolving|Downloading|Installing|Activating|Verifying/u);
     expect(classifyProgressLine("npm http fetch GET 200 package.tgz")).toBe("Downloading packages");
     expect(classifyProgressLine("arbitrary package output", "Resolving packages")).toBe("Resolving packages");
+  });
+
+  it("keeps generated palette provenance synchronized with the pinned Pi release", () => {
+    const checked = spawnSync(process.execPath, ["--import", "tsx", "scripts/pi/sync-progress-palette.ts", "--check"], { encoding: "utf8" });
+    expect(checked.error).toBeUndefined();
+    expect(checked.status, checked.stderr).toBe(0);
+    expect(checked.stdout).toContain("Progress palette matches the pinned Pi accent.");
   });
 
   it("maps diagnostics without replaying them", () => {
@@ -454,7 +469,7 @@ describe("installer orchestration", () => {
     });
     expect(code).toBe(130);
     expect(stderr.read()).toBe("installation cancelled\n");
-    expect(stdout.read()).toContain("\u001b[38;2;138;190;183m");
+    expect(stdout.read()).toContain(INSTALLER_PROGRESS_ACCENT_ANSI);
     expect(stdout.read()).toContain("\u001b[K");
     expect(stdout.read()).toContain("\u001b[?25h");
     expect(stdout.read()).not.toMatch(/Preparing|Resolving|Downloading|Installing|Activating|Verifying/u);
@@ -557,6 +572,7 @@ describe("installer package manifest", () => {
     ]);
     expect(manifest.name).toBe("@timurproko/a1-install");
     expect(Object.entries(manifest.bin)).toEqual([["a1-install", "bin/a1-install.js"]]);
+    expect(manifest.files).toContain("bin/progress-palette.js");
     expect(manifest.dependencies).toBeUndefined();
     expect(manifest.optionalDependencies).toBeUndefined();
     expect(manifest.peerDependencies).toBeUndefined();

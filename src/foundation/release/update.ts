@@ -6,6 +6,7 @@ import crossSpawn from "cross-spawn";
 import { valid as validSemver } from "semver";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import type { UpdateChannel } from "./types.js";
+import { SHARED_PROGRESS_ACCENT_ANSI } from "./progress-palette.generated.js";
 import { isNewerRelease, releaseChannelOf } from "./latest-release.js";
 import {
   certifyMaterializedRelease,
@@ -378,13 +379,11 @@ interface UpdateProgress { set(percent: number, creepTo?: number): void; finish(
 export function renderUpdateProgressBar(percent: number): string {
   const bounded = Math.min(100, Math.max(0, Math.round(percent)));
   const filled = Math.round((bounded / 100) * PROGRESS_BAR_WIDTH);
-  // Rationale: the completed run uses A1's scrollbar-aligned teal, followed by a
-  // darker gray track and one gray space before the percentage. Explicit RGB
-  // keeps each color stable even when the terminal remaps its ANSI palette.
-  const completed = "\u001b[38;2;138;190;183m";
+  // Rationale: the completed run follows the pinned Pi controls' semantic accent,
+  // while the track and percentage retain the update meter's neutral treatment.
   const gray = "\u001b[38;2;128;128;128m";
   const track = "\u001b[38;2;102;102;102m";
-  return `${completed}${"━".repeat(filled)}${track}${"─".repeat(PROGRESS_BAR_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
+  return `${SHARED_PROGRESS_ACCENT_ANSI}${"━".repeat(filled)}${track}${"─".repeat(PROGRESS_BAR_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
 }
 
 function createUpdateProgress(output: UpdateOutput, enabled: boolean): UpdateProgress {
