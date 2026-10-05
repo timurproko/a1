@@ -2,8 +2,9 @@
  * Provenance: @earendil-works/pi-coding-agent 1.0.2 (MIT), commit cd32f7725fdbddbaecdff5b1e68491563394e0ca,
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
- * preserving tree behavior; bare A1 uses compact modal chrome, standard search input, menu-style
- * selection without path bullets, semantic role colors, and a semantic shortcut footer.
+ * preserving tree behavior; bare A1 uses compact modal chrome and label editing, standard search
+ * input, menu-style selection without path bullets, semantic role colors, and semantic shortcut
+ * footers.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -1305,29 +1306,24 @@ class LabelInput implements Component, Focusable {
 	constructor(entryId: string, currentLabel: string | undefined) {
 		this.entryId = entryId;
 		this.input = new Input();
-		if (currentLabel) {
-			this.input.setValue(currentLabel);
-		}
+		if (currentLabel) this.input.handleInput(currentLabel);
 	}
 
-	invalidate(): void {}
+	invalidate(): void {
+		this.input.invalidate();
+	}
 
 	render(width: number): string[] {
-		const lines: string[] = [];
-		const indent = "  ";
-		const availableWidth = width - indent.length;
-		lines.push(truncateToWidth(`${indent}${theme.fg("muted", "Label (empty to remove):")}`, width));
-		lines.push(...this.input.render(availableWidth).map((line) => truncateToWidth(`${indent}${line}`, width)));
-		lines.push(
-			truncateToWidth(
-				renderPiModalShortcutHints([
-					shortcutHint("tui.select.confirm", "save"),
-					shortcutHint("tui.select.cancel", "cancel"),
-				], indent.length),
-				width,
-			),
-		);
-		return lines;
+		return [
+			truncateToWidth(theme.fg("muted", "Empty to remove"), width),
+			"",
+			...this.input.render(width),
+			"",
+			truncateToWidth(renderPiModalShortcutHints([
+				shortcutHint("tui.select.confirm", "save"),
+				shortcutHint("tui.select.cancel", "cancel"),
+			]), width),
+		];
 	}
 
 	handleInput(keyData: string): void {
@@ -1349,9 +1345,13 @@ class LabelInput implements Component, Focusable {
 export class TreeSelectorComponent extends Container implements Focusable {
 	private treeList: TreeList;
 	private readonly searchInput: TreeSearchInput;
+	private readonly titleText: Text;
+	private readonly searchInputContainer = new Container();
+	private readonly treeContainer = new Container();
+	private readonly labelInputContainer = new Container();
+	private readonly footerContainer = new Container();
+	private readonly treeHelp = new TreeHelp();
 	private labelInput: LabelInput | null = null;
-	private labelInputContainer: Container;
-	private treeContainer: Container;
 	private onLabelChangeCallback: ((entryId: string, label: string | undefined) => void) | undefined;
 	public onCopy?: (text: string | undefined) => void;
 
@@ -1387,24 +1387,14 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		this.treeList.onCopy = (text) => this.onCopy?.(text);
 		this.treeList.onLabelEdit = (entryId, currentLabel) => this.showLabelInput(entryId, currentLabel);
 		this.searchInput = new TreeSearchInput(this.treeList);
+		this.titleText = new Text(theme.fg("accent", theme.bold("Session Tree")), 0, 0);
+		this.restoreTreeContent();
 
-		this.treeContainer = new Container();
-		this.treeContainer.addChild(this.treeList);
-
-		this.labelInputContainer = new Container();
-
-		const header = addPiModalHeader(
-			this,
-			new DynamicBorder(),
-			new Text(theme.fg("accent", theme.bold("Session Tree")), 0, 0),
-		);
-		this.addChild(new Spacer(1));
-		this.addChild(this.searchInput);
-		this.addChild(new Spacer(1));
+		const header = addPiModalHeader(this, new DynamicBorder(), this.titleText);
+		this.addChild(this.searchInputContainer);
 		this.addChild(this.treeContainer);
 		this.addChild(this.labelInputContainer);
-		this.addChild(new Spacer(1));
-		this.addChild(new TreeHelp());
+		this.addChild(this.footerContainer);
 		this.addChild(new DynamicBorder());
 		adoptPiModalFrame(this, {
 			topIndex: 0,
@@ -1415,6 +1405,19 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		if (tree.length === 0) {
 			setTimeout(() => onCancel(), 100);
 		}
+	}
+
+	private restoreTreeContent(): void {
+		this.titleText.setText(theme.fg("accent", theme.bold("Session Tree")));
+		this.searchInputContainer.clear();
+		this.searchInputContainer.addChild(new Spacer(1));
+		this.searchInputContainer.addChild(this.searchInput);
+		this.searchInputContainer.addChild(new Spacer(1));
+		this.treeContainer.clear();
+		this.treeContainer.addChild(this.treeList);
+		this.footerContainer.clear();
+		this.footerContainer.addChild(new Spacer(1));
+		this.footerContainer.addChild(this.treeHelp);
 	}
 
 	private showLabelInput(entryId: string, currentLabel: string | undefined): void {
@@ -1430,17 +1433,19 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		this.searchInput.focused = false;
 		this.labelInput.focused = this._focused;
 
+		this.titleText.setText(theme.fg("accent", theme.bold("Label")));
+		this.searchInputContainer.clear();
 		this.treeContainer.clear();
 		this.labelInputContainer.clear();
 		this.labelInputContainer.addChild(this.labelInput);
+		this.footerContainer.clear();
 	}
 
 	private hideLabelInput(): void {
 		this.labelInput = null;
 		this.searchInput.focused = this._focused;
 		this.labelInputContainer.clear();
-		this.treeContainer.clear();
-		this.treeContainer.addChild(this.treeList);
+		this.restoreTreeContent();
 	}
 
 	handleInput(keyData: string): void {

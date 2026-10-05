@@ -89,6 +89,30 @@ describe("bare-A1 session tree presentation", () => {
     expect(cellStyle(rows[hintIndex]!, "↑")).toEqual(cellStyle(piTheme().fg("dim", "↑"), "↑"));
     expect(cellStyle(rows[hintIndex]!, "m")).toEqual(cellStyle(piTheme().fg("muted", "m"), "m"));
     expect(rows.every(row => visibleWidth(row) <= 80)).toBe(true);
+
+    component.handleInput?.("L");
+    const labelRows = component.render(80);
+    const plainLabelRows = labelRows.map(row => stripTerminalSequences(row).trimEnd());
+    const labelTitleIndex = plainLabelRows.findIndex(row => row.trim() === "Label");
+    expect(labelTitleIndex).toBe(1);
+    expect(cellStyle(labelRows[labelTitleIndex]!, "L")).toEqual(
+      cellStyle(piTheme().fg("accent", piTheme().bold("L")), "L"),
+    );
+    expect(plainLabelRows[labelTitleIndex + 1]?.trim()).toBe("Empty to remove");
+    expect(cellStyle(labelRows[labelTitleIndex + 1]!, "E")).toEqual(cellStyle(piTheme().fg("muted", "E"), "E"));
+    expect(plainLabelRows[labelTitleIndex + 2]).toBe("");
+    expect(plainLabelRows.filter(row => row.trimStart().startsWith(">")).length).toBe(1);
+    expect(plainLabelRows.join("\n")).not.toContain("Session Tree");
+    expect(plainLabelRows.join("\n")).not.toContain("filters");
+    expect(plainLabelRows.join("\n")).not.toMatch(/\bmove\b/u);
+    const labelHintIndex = plainLabelRows.findIndex(row => row.includes("save") && row.includes("cancel"));
+    expect(plainLabelRows[labelHintIndex]).toContain("Enter save  Escape/Ctrl+C cancel");
+    expect(plainLabelRows[labelHintIndex + 1]).toBe("─".repeat(80));
+
+    component.handleInput?.("\x1b");
+    const restored = component.render(80).map(stripTerminalSequences).join("\n");
+    expect(restored).toContain("Session Tree");
+    expect(restored).toContain("move");
   });
 
   it("mirrors action-aware typing through the standard input and omits the empty counter", async () => {

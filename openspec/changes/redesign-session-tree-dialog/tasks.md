@@ -4,6 +4,7 @@
 - [x] 1.2 Render the tree query through a focused standard input while preserving the tree list's action-first key dispatch and authoritative query state; keep the cursor after typed text and verify typing, deletion, clearing, text color, prompt icon, cursor/focus propagation, filtering, and narrow-width clipping.
 - [x] 1.3 Replace whole-row tree selection with the menu arrow, highlighted primary label, muted message description, green user label, yellow assistant label, and unbracketed system label; remove active-path bullets while retaining hierarchy, labels, filters, and horizontal-viewport semantics, and verify raw ANSI roles and selected/unselected geometry.
 - [x] 1.4 Remove the empty-result `(0/0)` counter while preserving `No entries found` and filter-status behavior; verify empty query results and non-empty overflow/status counters independently.
+- [x] 1.5 Recompose label editing with an accent-bold `Label` title, muted `Empty to remove` subheader, standard input, and save/cancel-only footer; hide tree search, results, and tree shortcuts until editing closes, then restore them intact.
 
 ## 2. Make Nested Tree Transitions Compact
 

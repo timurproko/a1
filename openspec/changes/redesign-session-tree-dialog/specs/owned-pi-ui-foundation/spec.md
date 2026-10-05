@@ -10,6 +10,8 @@ The selected tree entry SHALL use the ordinary menu arrow `→` without a whole-
 
 The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule.
 
+While editing an entry label, the frame title SHALL become accent-bold `Label`, followed immediately by a muted `Empty to remove` subheader. The standard single-line input SHALL follow after one blank row. The tree search control, results, filter/navigation shortcuts, and `Session Tree` title SHALL be hidden. Only the shared save/cancel shortcut footer SHALL remain, immediately followed by the bottom rule.
+
 #### Scenario: Open the Session Tree below existing content
 - **WHEN** the user opens `/tree` after transcript or status content is visible
 - **THEN** exactly one empty visual row SHALL separate that content from the tree's top rule
@@ -32,6 +34,12 @@ The tree's semantic shortcut hints SHALL appear after the result area at the bot
 - **WHEN** unselected user, assistant, and system entries are visible
 - **THEN** `user:` SHALL be green and `assistant:` SHALL be yellow
 - **AND** the system entry SHALL read `system` without square brackets
+
+#### Scenario: Edit an entry label
+- **WHEN** the user opens label editing for a tree entry
+- **THEN** the frame SHALL show the accent-bold title `Label` and muted subheader `Empty to remove`
+- **AND** one standard single-line input SHALL be visible without the tree search or results
+- **AND** only save and cancel shortcut hints SHALL be visible immediately above the bottom rule
 
 #### Scenario: Search with no matches
 - **WHEN** the current query matches no tree entries

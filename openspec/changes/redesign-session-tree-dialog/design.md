@@ -40,19 +40,25 @@ Tree rows will retain hierarchy prefixes, labels, and role semantics but remove 
 
 Using the generic SelectList was rejected because it cannot represent tree connectors, folding, and horizontal anchor clipping. Painting only part of the row with `selectedBg` was rejected because the requested reference is the foreground-only command-menu selection.
 
-### 4. Make tree-to-summary replacement direct
+### 4. Treat label editing as its own compact tree state
+
+Opening label editing will replace the Session Tree title with accent-bold `Label`, place the muted `Empty to remove` subheader directly beneath it, and show one standard input plus save/cancel hints. The search, result tree, and tree-level shortcut footer will be hidden until label editing closes, preventing unrelated filter and navigation controls from competing with the active editor.
+
+Keeping label editing embedded below the search field was rejected because it exposes two input prompts and two unrelated shortcut sets at once. A separate shell modal was rejected because label editing belongs to the tree controller and must restore its exact selection and query state.
+
+### 5. Make tree-to-summary replacement direct
 
 For a non-current entry with summary prompting enabled, the tree callback will not first clear the input surface. The shell will mount its owned summary selector synchronously so the root replaces the tree directly. On summary cancellation, that selector remains mounted until the asynchronously created tree is ready to replace it, preventing the ordinary prompt from appearing between the two surfaces. The tree will still close before direct navigation when the summary prompt is skipped, and current-entry selection will still close and report `Already at this point`.
 
 Adding a loading surface or delaying rendering was rejected because the existing summary surface can safely remain visible during restoration. Changing the extension bridge's global close/mount behavior was rejected because a global change would risk unrelated extension interactions.
 
-### 5. Remove trailing footer spacers at owned extension-component boundaries
+### 6. Remove trailing footer spacers at owned extension-component boundaries
 
 The branch-summary choice uses the shared extension selector, and custom instructions use the shared extension input. Their trailing spacers after semantic hints create visible gaps before the bottom rule; removing those structural spacers aligns both with the shared compact-dialog footer contract without changing input or option behavior. Coverage will verify affected inventoried surfaces continue to use the shared frame and hint helper.
 
 Tree-specific selector or input forks were rejected because they would duplicate standard modals solely to work around shared component geometry.
 
-### 6. Use a single-line standard input for custom summary instructions
+### 7. Use a single-line standard input for custom summary instructions
 
 Custom summary instructions are concise workflow metadata, so the shell will request them through the standard extension input rather than the multiline editor. This provides the same prompt/cursor pattern as tree filtering, an accent-bold dialog title, and only submit/cancel shortcuts; multiline and external-editor hints no longer apply to this step.
 
