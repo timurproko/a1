@@ -57,7 +57,6 @@ import {
 import {
   createPiShellArmin,
   createPiShellAuthProviderSelector,
-  createPiShellDaxnuts,
   createPiShellDialog,
   createPiShellEarendilAnnouncement,
   createPiShellExtensionSelector,
@@ -346,7 +345,7 @@ export class OwnedUiSessionShell {
       resources: startup?.resources ?? shellResourceEntries(this.backend),
     }, this.backend.agentDir, {
       getMessageRenderer: customType => this.backend.pinnedMessageRenderer(customType),
-      getToolDefinition: toolName => this.backend.pinnedToolDefinition(toolName),
+      getToolRenderers: toolName => this.backend.pinnedToolRenderers(toolName),
       getShortcuts: bindings => this.backend.pinnedShortcutDescriptions(bindings),
     }, sessionLayout, {
       resolve: assetId => this.backend.resolveTranscriptImage(assetId),
@@ -923,7 +922,6 @@ export class OwnedUiSessionShell {
   async cycleModel(direction: "forward" | "backward"): Promise<AdapterCommandResult> {
     const result = await this.backend.cycleModelWorkflow(direction);
     this.root.appendWorkflowResult(result);
-    if (result.outcome === "completed") this.#showDaxnutsForActiveModel();
     this.runtime.requestRender();
     return workflowAdapterResult(result);
   }
@@ -1460,7 +1458,6 @@ export class OwnedUiSessionShell {
       this.#installAutocompleteCommands();
     }
     this.root.appendWorkflowResult(result);
-    if ((request.command === "model" || request.command === "models") && result.outcome === "completed") this.#showDaxnutsForActiveModel();
     this.runtime.requestRender();
     return workflowAdapterResult(result);
   }
@@ -1657,13 +1654,6 @@ export class OwnedUiSessionShell {
       );
       this.runtime.requestRender();
     }).finally(() => clearTimeout(timeout));
-  }
-
-  #showDaxnutsForActiveModel(): void {
-    const model = this.view().activeModel;
-    if (model?.providerId === "opencode" && model.modelId.toLowerCase().includes("kimi-k2.5")) {
-      this.root.appendDaxnuts();
-    }
   }
 
   // Invariant: pointer reporting is disabled on every path that ends the owning screen.

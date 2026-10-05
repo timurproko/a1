@@ -691,12 +691,7 @@ describe("Pi shell public component adapters", () => {
       getMessageRenderer: (customType: string) => customType === "extension-message"
         ? (() => new Text("extension message renderer", 0, 0))
         : undefined,
-      getToolDefinition: (toolName: string) => toolName === "extension-tool" ? {
-        name: toolName,
-        label: toolName,
-        description: "fixture",
-        parameters: {},
-        execute: async () => ({ content: [] }),
+      getToolRenderers: (toolName: string) => toolName === "extension-tool" ? {
         renderCall: () => new Text("extension tool call", 0, 0),
         renderResult: () => new Text("extension tool result", 0, 0),
       } : undefined,

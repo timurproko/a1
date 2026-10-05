@@ -13,7 +13,6 @@ export {
   createPiShellAuthProviderSelector,
   createPiShellChangelog,
   createPiShellCollapsedChangelog,
-  createPiShellDaxnuts,
   createPiShellDialog,
   createPiShellEarendilAnnouncement,
   createPiShellEditor,

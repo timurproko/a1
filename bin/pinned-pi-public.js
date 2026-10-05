@@ -49,9 +49,9 @@ export function resolvePinnedPiImport(specifier) {
   if (match === null) throw new Error(`pinned Pi import is invalid: ${specifier}`);
   const packageName = match[1] ?? "";
   const subpath = match[2]?.slice(1) ?? "";
-  const packageRoot = resolve(root, "node_modules", ...packageName.split("/"));
+  const packageRoot = findDependencyRoot(root, packageName);
+  if (packageRoot === undefined) throw new Error(`pinned Pi dependency is unavailable: ${packageName}`);
   const manifestPath = resolve(packageRoot, "package.json");
-  if (!existsSync(manifestPath)) throw new Error(`pinned Pi dependency is unavailable: ${packageName}`);
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const declaredTarget = exportedTarget(manifest.exports, subpath) ?? (subpath.length === 0 ? manifest.module ?? manifest.main : undefined);
   const target = typeof declaredTarget === "string" && !declaredTarget.startsWith(".") ? `./${declaredTarget}` : declaredTarget;
@@ -59,6 +59,24 @@ export function resolvePinnedPiImport(specifier) {
   const path = resolve(packageRoot, target);
   if (!path.startsWith(`${packageRoot}${sep}`) || !existsSync(path)) throw new Error(`pinned Pi dependency export is missing: ${specifier}`);
   return pathToFileURL(path).href;
+}
+
+/**
+ * Follow Node's package lookup shape so npm may either nest a Pi dependency or
+ * deduplicate it into an ancestor node_modules directory.
+ * @param {string} root
+ * @param {string} packageName
+ * @returns {string | undefined}
+ */
+function findDependencyRoot(root, packageName) {
+  let current = root;
+  while (true) {
+    const candidate = resolve(current, "node_modules", ...packageName.split("/"));
+    if (existsSync(resolve(candidate, "package.json"))) return candidate;
+    const parent = dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
 }
 
 function pinnedRoot() {

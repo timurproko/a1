@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.0.0 (MIT), commit a13d35a742c6ef8462812a28fbe1d8c8b7431c32,
+ * Provenance: @earendil-works/pi-coding-agent 1.0.2 (MIT), commit cd32f7725fdbddbaecdff5b1e68491563394e0ca,
  * packages/coding-agent/src/modes/interactive/components/scoped-models-selector.ts.
  * Modifications: Source-synchronized scoped-model selector port: preserve session-only toggles,
  * search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status,

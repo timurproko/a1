@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.23",
   "pinned": {
-    "version": "1.0.0",
-    "commit": "a13d35a742c6ef8462812a28fbe1d8c8b7431c32",
+    "version": "1.0.2",
+    "commit": "cd32f7725fdbddbaecdff5b1e68491563394e0ca",
     "source": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
     "packageArtifact": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/interactive-mode.js"
   },
@@ -289,7 +289,7 @@
       "plane": "persistent-document",
       "owner": "InteractiveMode hidden/easter-egg handlers",
       "container": "chatContainer",
-      "insertion": "Spacer then specialized debug, Armin, Earendil, or Daxnuts presenter",
+      "insertion": "Spacer then specialized debug, Armin fallback, or Earendil presenter; fullscreen Pi may replace Armin with its package-private 3D overlay",
       "siblingOrder": "invocation/event order",
       "spacing": "one source spacer plus component-owned rows",
       "style": "accent/muted debug output or specialized component styling",
@@ -300,8 +300,7 @@
       "sourceAnchors": [
         "handleDebugCommand()",
         "handleArminSaysHi()",
-        "handleDementedDelves()",
-        "handleDaxnuts()"
+        "handleDementedDelves()"
       ],
       "destination": "src/app/session-shell/session-shell.ts",
       "implementationStatus": "requires-revalidation"

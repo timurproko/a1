@@ -21,8 +21,10 @@ export class TranscriptFixtureSession {
   readonly isRetrying = false;
   readonly isCompacting = false;
   readonly definitions = new Map<string, unknown>();
+  readonly renderers = new Map<string, unknown>();
   readonly extensionRunner = {
     getToolDefinition: (name: string) => this.definitions.get(name),
+    resolveToolRenderers: (name: string, base: () => unknown) => this.renderers.get(name) ?? base(),
     getRegisteredCommands: () => [],
   };
   readonly listeners = new Set<(event: Record<string, unknown>) => void>();
@@ -43,11 +45,13 @@ export class TranscriptFixtureSession {
 export async function transcriptLifecycleFixture(options: {
   messages?: unknown[];
   definitions?: ReadonlyMap<string, unknown>;
+  renderers?: ReadonlyMap<string, unknown>;
   width?: number;
   height?: number;
 } = {}) {
   const session = new TranscriptFixtureSession(options.messages ?? []);
   for (const [name, definition] of options.definitions ?? []) session.definitions.set(name, definition);
+  for (const [name, renderers] of options.renderers ?? []) session.renderers.set(name, renderers);
   let rebind: ((next: TranscriptFixtureSession) => void) | undefined;
   const runtime = {
     session,

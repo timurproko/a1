@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {
-    "version": "1.0.0",
-    "commit": "a13d35a742c6ef8462812a28fbe1d8c8b7431c32"
+    "version": "1.0.2",
+    "commit": "cd32f7725fdbddbaecdff5b1e68491563394e0ca"
   },
   "policy": {
     "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",
@@ -3935,6 +3935,7 @@
   "components": [
     "armin.js",
     "assistant-message.js",
+    "auth-url.js",
     "bash-execution.js",
     "bordered-loader.js",
     "branch-summary-message.js",
@@ -3944,10 +3945,11 @@
     "custom-editor.js",
     "custom-entry.js",
     "custom-message.js",
-    "daxnuts.js",
     "diff.js",
     "dynamic-border.js",
     "earendil-announcement.js",
+    "easter-egg-3d.js",
+    "easter-egg-3d.lazy.js",
     "extension-editor.js",
     "extension-input.js",
     "extension-selector.js",
@@ -3960,8 +3962,6 @@
     "mermaid.js",
     "model-selector.js",
     "oauth-selector.js",
-    "pi-logo-animation.js",
-    "pi-logo-animation.lazy.js",
     "pi-logo.js",
     "radius-login-selector.js",
     "scoped-models-selector.js",

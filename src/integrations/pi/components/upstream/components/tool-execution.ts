@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.0.0 (MIT), commit a13d35a742c6ef8462812a28fbe1d8c8b7431c32,
+ * Provenance: @earendil-works/pi-coding-agent 1.0.2 (MIT), commit cd32f7725fdbddbaecdff5b1e68491563394e0ca,
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
  * Modifications: Retain pinned shell and actual public tool-definition renderers. Replace private
  * index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and
@@ -12,6 +12,7 @@ import { stripVTControlCharacters } from "node:util";
 import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { createReadToolDefinition, createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition,
   createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, keyHint, type ToolDefinition,
+  type ToolRenderers,
 } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";
 import { ToolImagePresentation } from "../../tool-image-presentation.js";
@@ -19,12 +20,16 @@ import { ToolImagePresentation } from "../../tool-image-presentation.js";
 type ToolRenderContext = Parameters<NonNullable<ToolDefinition["renderCall"]>>[2];
 type ToolPresentationResult = Parameters<NonNullable<ToolDefinition["renderResult"]>>[0] & { isError: boolean };
 /** The caller-side merge 0.85.1 performs before handing a definition to the component: built-in renderers fill the gaps. */
-export function mergeBuiltInRenderers(definition: ToolDefinition<any, any, any> | undefined, builtIn: ToolDefinition<any, any, any> | undefined): ToolDefinition<any, any, any> | undefined {
+type ToolRendererInput = ToolRenderers | ToolDefinition<any, any, any>;
+
+export function mergeBuiltInRenderers(definition: ToolRendererInput | undefined, builtIn: ToolRendererInput | undefined): ToolRenderers | undefined {
 	if (definition === undefined) return builtIn;
 	if (builtIn === undefined) return definition;
-	const merged: ToolDefinition<any, any, any> = { ...definition };
-	if (definition.renderCall === undefined && builtIn.renderCall !== undefined) merged.renderCall = builtIn.renderCall;
-	if (definition.renderResult === undefined && builtIn.renderResult !== undefined) merged.renderResult = builtIn.renderResult;
+	const selected: ToolRenderers = definition;
+	const fallback: ToolRenderers = builtIn;
+	const merged: ToolRenderers = { ...selected };
+	if (selected.renderCall === undefined && fallback.renderCall !== undefined) merged.renderCall = fallback.renderCall;
+	if (selected.renderResult === undefined && fallback.renderResult !== undefined) merged.renderResult = fallback.renderResult;
 	return merged;
 }
 
@@ -81,7 +86,7 @@ export class ToolExecutionComponent extends Container {
 	private showImages: boolean;
 	private imageWidthCells: number;
 	private isPartial = true;
-	private toolDefinition: ToolDefinition<any, any> | undefined;
+	private toolDefinition: ToolRenderers | undefined;
 	private builtInToolDefinition: ToolDefinition<any, any> | undefined;
 	private ui: TUI;
 	private cwd: string;
@@ -95,7 +100,7 @@ export class ToolExecutionComponent extends Container {
 		toolCallId: string,
 		args: any,
 		options: ToolExecutionOptions = {},
-		toolDefinition: ToolDefinition<any, any, any> | undefined,
+		toolDefinition: ToolRenderers | ToolDefinition<any, any, any> | undefined,
 		ui: TUI,
 		cwd: string,
 	) {
