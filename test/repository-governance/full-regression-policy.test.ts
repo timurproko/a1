@@ -187,8 +187,12 @@ describe("complete regression automation", () => {
     expect(invocations.findIndex(invocation => invocation.id === "vitest-package-startup"))
       .toBeLessThan(invocations.findIndex(invocation => invocation.id === "vitest-package-contracts"));
     expect(plan.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["package-startup", "package-contracts"] });
-    expect(invocations.filter(invocation => invocation.evidence?.executionClass === "resource-sensitive")
-      .flatMap(invocation => invocation.arguments)).toContain("test/features/prompt-history/store.test.ts");
+    const resourceArguments = invocations.filter(invocation => invocation.evidence?.executionClass === "resource-sensitive")
+      .flatMap(invocation => invocation.arguments);
+    expect(resourceArguments).toContain("test/features/prompt-history/store.test.ts");
+    const promptConcurrency = "test/features/prompt-history/concurrency.integration.test.ts";
+    expect(exclusions).toContain(promptConcurrency);
+    expect(resourceArguments.filter(argument => argument === promptConcurrency)).toHaveLength(1);
   });
 
   it("retains the unchanged three-release predecessor oracle in complete validation", async () => {
