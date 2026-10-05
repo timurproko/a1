@@ -8,6 +8,7 @@
   },
   "files": [
     "bin/a1-install.js",
+    "bin/progress-palette.js",
     "README.md",
     "LICENSE"
   ],

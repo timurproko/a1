@@ -27,6 +27,7 @@ await mkdir(resolve(stageDirectory, "bin"), { recursive: true });
 await mkdir(outputDirectory, { recursive: true });
 await Promise.all([
   cp(resolve(sourceDirectory, "bin", "a1-install.js"), resolve(stageDirectory, "bin", "a1-install.js"), { recursive: true }),
+  cp(resolve(sourceDirectory, "bin", "progress-palette.js"), resolve(stageDirectory, "bin", "progress-palette.js")),
   cp(resolve(sourceDirectory, "README.md"), resolve(stageDirectory, "README.md")),
   cp(resolve(sourceDirectory, "LICENSE"), resolve(stageDirectory, "LICENSE")),
 ]);
