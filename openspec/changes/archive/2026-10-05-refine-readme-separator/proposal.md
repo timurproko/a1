@@ -4,8 +4,8 @@ The README section separator currently draws three independently positioned bold
 
 ## What Changes
 
-- Render the separator as one centered, evenly spaced `* * *` text run in both light and dark SVG assets while keeping each asterisk independently animated.
-- Reduce the asterisk font weight to match the waves footer's lighter monospace treatment.
+- Render the separator as one horizontally and visually vertically centered, evenly spaced `* * *` text run in both light and dark SVG assets while keeping each asterisk independently animated.
+- Reduce the asterisk font weight to a regular monospace treatment that is even lighter than the waves footer.
 - Preserve the existing light/dark colors, smooth twinkle cadence, reduced-motion fallback, SVG dimensions, and README placement.
 
 ## Capabilities
@@ -16,7 +16,7 @@ None.
 
 ### Modified Capabilities
 
-- `readme-section-navigation`: Refine the shared section separator's centering, spacing, and typography without changing its motion or placement contract.
+- `readme-section-navigation`: Refine the shared section separator's horizontal and visual vertical centering, spacing, and typography without changing its motion or placement contract.
 
 ## Impact
 
