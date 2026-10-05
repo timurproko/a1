@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-05-fix-nightly-regression-2026-10-04/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-05-fix-nightly-regression-2026-10-04/acceptance.md",
   "finalizedDate": "2026-10-05",
-  "specBaseSha": "7dafde8c3b4a68fbeb99c24e38eea2d35ab20dab",
+  "specBaseSha": "34b97d22e10f4f733190c5b6c00cd41ab5057c84",
   "acceptanceScenarios": [
     "The multi-process prompt-history concurrency suite executes exactly once in the serial resource-sensitive partition.",
     "The parallel full-validation remainder excludes the suite while its workload, assertions, 15-second timeout, no-retry behavior, and platform coverage remain unchanged.",
