@@ -1,36 +1,36 @@
 ## Purpose
 
-Defines branded navigation among the root README's primary task sections and correct fragment behavior in the local GitHub-rendered preview.
+Defines clear navigation among the root README's primary task sections, lightweight section separation, and correct fragment behavior in the local GitHub-rendered preview.
 
 ## ADDED Requirements
 
-### Requirement: The README exposes direct navigation to every primary task section
+### Requirement: The README exposes direct navigation to every stable task area
 
-The root README SHALL present a centered navigator below its badges with destinations for Install, Use, Update, Extensions, Develop, and Publish in document order. Each destination SHALL target the matching top-level heading. Update SHALL be a top-level section rather than a subsection of Use. The terminal illustration SHALL appear after the navigator and before Install, exactly once.
+The root README SHALL present a centered text navigator below its badges with destinations for Install, Launch, Update, Extensions, Develop, and Publish in document order. Each destination SHALL target a matching top-level heading.
 
 #### Scenario: Reader selects a primary task
 
 - **WHEN** a reader selects any navigator label
 - **THEN** the document SHALL navigate to the matching top-level section without requiring the reader to scroll through intervening content
 
-#### Scenario: Reader navigates to Update
+#### Scenario: Reader scans the task hierarchy
 
-- **WHEN** a reader selects Update
-- **THEN** the document SHALL navigate to a top-level Update section between Use and Extensions
+- **WHEN** a reader scans the README's primary tasks
+- **THEN** Install, Launch, Update, Extensions, Develop, and Publish SHALL appear as top-level sections in navigator order
 
-### Requirement: Navigation icons use the owned A1 visual language
+### Requirement: Section separators and commands match their intended presentation
 
-Each navigator destination SHALL use a distinct owned SVG icon that communicates its section and uses compact square, terminal-inspired geometry consistent with the existing README illustrations. Icons SHALL use the established A1 light and dark artwork colors without depending on emoji rendering or a third-party icon package. Each icon and label SHALL share one clickable destination, while link underlining SHALL be visually limited to label text rather than the icon.
+The README SHALL place the same compact ASCII `* * *` separator between each adjacent pair of primary task sections instead of section-specific illustrations. The separator SHALL use light and dark artwork colors consistent with the retained animated waves footer, SHALL animate the three stars in sequence when motion is allowed, and SHALL show a static ornament when reduced motion is requested. Command examples SHALL use plain-text rendering so syntax highlighting does not assign semantic colors to ordinary command words. Changing presentation SHALL NOT change copyable command bytes.
 
-#### Scenario: Navigator renders in light or dark mode
+#### Scenario: Separator renders under user preferences
 
-- **WHEN** GitHub renders the README under either supported color preference
-- **THEN** all six icons SHALL remain legible, visually consistent with the large A1 illustrations, and paired with readable section labels
+- **WHEN** the README is viewed in light mode, dark mode, or with reduced motion enabled
+- **THEN** every primary section boundary SHALL show the corresponding animated or static three-star separator while the animated waves footer remains present
 
-#### Scenario: Reader hovers a navigation item
+#### Scenario: Reader copies a command
 
-- **WHEN** a pointer hovers a navigator destination
-- **THEN** the text label SHALL receive normal link decoration while the icon remains undecorated and the icon-plus-label target remains clickable
+- **WHEN** GitHub renders and the reader copies any command example
+- **THEN** its command text SHALL remain unchanged and SHALL not use shell-keyword syntax coloring
 
 ### Requirement: Local preview fragments remain within the rendered document
 
