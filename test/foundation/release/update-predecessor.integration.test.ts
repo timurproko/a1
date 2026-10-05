@@ -116,9 +116,9 @@ async function exerciseProtectedReplacement(
   const launchers = release.updateLauncherPaths(globalRoot, "win32");
   const candidateManifest = JSON.parse(await readFile(resolve(exactCandidateRoot, "package.json"), "utf8")) as { version: string };
 
-  // npm acquires and extracts a payload before replacing the global package. Keep that
-  // filesystem-heavy preparation outside the immutable predecessor's recovery deadline;
-  // the fake npm process still owns the destructive package and launcher mutations.
+  // Performance: npm acquires and extracts a payload before replacing the global package.
+  // Keep that filesystem-heavy preparation outside the immutable predecessor's recovery
+  // deadline; the fake npm process still owns the destructive package and launcher mutations.
   await cp(exactCandidateRoot, stagedPackageRoot, { recursive: true });
   await mkdir(resolve(packageRoot, "bin"), { recursive: true });
   await mkdir(resolve(priorReleaseRoot, "bin"), { recursive: true });
