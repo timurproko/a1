@@ -77,6 +77,14 @@ Do not add a quoted phase line or a routine `Validation` section listing command
 
 Keep acceptance absent during proposal review so unfinished intent is not mistaken for final acceptance criteria. The finalization workflow rewrites only the implementation fence; keep the rest of the phase-free body unchanged through exact-head validation, maintainer review, and authorized manual merge. The same workflow run validates its finalized delivery record and applicable product/governance scopes before the stable protected aggregate succeeds. Do not add a lifecycle body edit or start a second validation run. After manual merge, trusted verification derives `Archived`; do not rewrite the accepted body.
 
+## Agent scratch files
+
+When an agent chooses a path for a transient repository-delivery file—such as a PR/comment body, command payload, captured output, temporary patch/diff, or ad hoc log—it must use a purpose-specific descendant of the exact `.artifacts/` root in the worktree that owns the operation. A linked delivery uses its linked task worktree, not the primary checkout, another worktree, the operating-system temporary directory, home/desktop, or a sibling path. Address the worktree path explicitly because session linking does not change tool cwd.
+
+Keep these files ignored, unstaged, uncommitted, disposable, non-authoritative, and free of credentials or other prohibited sensitive data. Required durable evidence belongs in its declared tracked OpenSpec location. This rule governs paths selected by the agent; it does not relocate temporary storage internally selected by Git, GitHub CLI, OpenSpec, language/package tooling, product runtime code, test frameworks, or hermetic fixtures.
+
+For example, create `.artifacts/agent/pr-body.md` in the linked worktree before passing it to `gh pr create --body-file` or `gh pr edit --body-file`. The exact `.artifacts/` root remains subject to the existing guarded generated-content cleanup policy; this guidance does not authorize deletion outside that root or through unsafe filesystem boundaries.
+
 ## Version-3 implementation metadata
 
 The initial draft uses the existing metadata fence:
@@ -154,19 +162,20 @@ If an unassociated implementation has already integrated, do not edit its merged
 
 ## Finalization command
 
-The local command remains available for inspection or when a developer prefers to finalize before marking the PR ready; the workflow then verifies the head and pushes nothing. It has inspection mode by default and an explicit `--write` mode. It never commits, pushes, edits GitHub, marks a PR ready, or merges. Use a temporary body file so the operation can update exact version-3 paths without mutating remote PR state:
+The local command remains available for inspection or when a developer prefers to finalize before marking the PR ready; the workflow then verifies the head and pushes nothing. It has inspection mode by default and an explicit `--write` mode. It never commits, pushes, edits GitHub, marks a PR ready, or merges. Run from the linked worktree and use an ignored artifact body file so the operation can update exact version-3 paths without mutating remote PR state:
 
 ```bash
 git fetch origin develop
 git rebase origin/develop
-gh pr view <pr> --json body --jq .body > "$TMPDIR/openspec-pr-body.md"
+mkdir -p .artifacts/agent
+gh pr view <pr> --json body --jq .body > .artifacts/agent/openspec-pr-body.md
 node scripts/governance/finalize-openspec-delivery.mjs \
   --change example-change \
   --repository owner/repo \
   --pr <pr> \
   --date YYYY-MM-DD \
   --target "$(git rev-parse origin/develop)" \
-  --body-file "$TMPDIR/openspec-pr-body.md"
+  --body-file .artifacts/agent/openspec-pr-body.md
 ```
 
 Inspect the reported paths. Then rerun with `--write` and update the existing PR body from the emitted file:
@@ -178,9 +187,9 @@ node scripts/governance/finalize-openspec-delivery.mjs \
   --pr <pr> \
   --date YYYY-MM-DD \
   --target "$(git rev-parse origin/develop)" \
-  --body-file "$TMPDIR/openspec-pr-body.md" \
+  --body-file .artifacts/agent/openspec-pr-body.md \
   --write
-gh pr edit <pr> --body-file "$TMPDIR/openspec-pr-body.md"
+gh pr edit <pr> --body-file .artifacts/agent/openspec-pr-body.md
 ```
 
 Use repeated `--known-gap "exact disposition"` only for an actually reviewed explicit gap. Gaps remain visible in the committed manifest and do not become test results. Missing or ambiguous disposition blocks finalization.

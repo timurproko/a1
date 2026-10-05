@@ -86,7 +86,7 @@ Prefer the smallest independent boundary that proves the observable result. Do n
 
 The repository has one root `package.json`, `package-lock.json`, TypeScript configuration, Vitest configuration, and dependency installation. Nested manifests, lockfiles, `node_modules`, vendored package caches, logs, sessions, browser profiles, generated output, and runtime state are forbidden under production and feature trees.
 
-Build output mirrors the production namespaces directly under ignored `dist/`, without an intermediate `src/` directory; release and test evidence belongs in ignored `.artifacts/`; temporary agent work belongs in ignored `.worktrees/` and `.builds/`. Repository tooling is grouped under `scripts/governance`, `scripts/release`, `scripts/pi`, and `scripts/development`; the few root scripts are standalone maintenance or build commands. Package contents are selected by the root manifest. The Rust process guardian and console terminal-host proof live under `native/`; Cargo output is ignored. Third-party terminal parser sources are isolated under `native/terminal-host/vendor/` and are not owned application modules.
+Build output mirrors the production namespaces directly under ignored `dist/`, without an intermediate `src/` directory; generated release/test evidence and agent-selected scratch files belong in ignored `.artifacts/`; task worktrees and local package outputs belong in ignored `.worktrees/` and `.builds/`. Repository tooling is grouped under `scripts/governance`, `scripts/release`, `scripts/pi`, and `scripts/development`; the few root scripts are standalone maintenance or build commands. Package contents are selected by the root manifest. The Rust process guardian and console terminal-host proof live under `native/`; Cargo output is ignored. Third-party terminal parser sources are isolated under `native/terminal-host/vendor/` and are not owned application modules.
 
 ## Development worktrees
 
@@ -104,6 +104,8 @@ git -C .worktrees/<task-id> status
 A successful link response confirming the exact canonical worktree is required before planning, implementation, test, or delivery-documentation edits. If linking fails or confirms another path, stop task edits and report the blocker instead of continuing with primary-checkout footer metadata. A session resuming an existing delivery or switching streams links the exact owned worktree before editing it.
 
 The association switches bare A1's footer repository context and pull-request discovery; it does not change process or tool cwd and does not register, claim, release, or authorize cleanup of the worktree. Repository commands therefore keep an explicit worktree path. The primary worktree stays on `develop` for integration and must not be used for task edits. Do not edit, adopt, move, or remove another session's worktree.
+
+An agent that directly chooses a transient file path for a PR/comment body, command payload, captured output, temporary patch/diff, or ad hoc log must place it beneath the linked worktree's exact `.artifacts/` root, never the primary checkout, another worktree, OS temp, home/desktop, or a sibling path. Such scratch remains ignored, unstaged, uncommitted, disposable, non-authoritative, and secret-free. This repository path rule does not relocate storage internally selected by tools, product runtime code, or hermetic tests.
 
 ## Documentation and comments
 

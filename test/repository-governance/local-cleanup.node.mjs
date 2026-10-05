@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
 import { promisify } from "node:util";
-import { atomicJson, createStateStore, registerEntry, transitionEntry, validateState, digest } from "../../scripts/governance/local-cleanup-state.mjs";
+import { atomicJson, createStateStore, registerEntry, relocateTerminalState, transitionEntry, validateState, digest } from "../../scripts/governance/local-cleanup-state.mjs";
 import { canonical, captureWorktree, discoverRepository, inspectWorktree, exists, gitRunner, purgeDisposable, removeLocalRef, removeRemoteRef, removeWorktree } from "../../scripts/governance/local-cleanup-git.mjs";
 import { reconcileLocalCleanup } from "../../scripts/governance/local-cleanup-reconcile.mjs";
 import { completeLocalCleanup, handoffLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "../../scripts/governance/local-cleanup-complete.mjs";
@@ -66,6 +66,62 @@ test("repository identity ignores transport-only URL rewrites and rejects ambigu
   await assert.rejects(discoverWith("https://example.com/owner/repo.git\n"), /unsupported-origin/);
   await assert.rejects(discoverWith("\n"), /unsupported-origin/);
   await assert.rejects(discoverWith("https://github.com/owner/repo.git\nhttps://github.com/other/repo.git\n"), /unsupported-origin/);
+});
+
+test("terminal cleanup state follows a repository relocation without carrying live authority", async t => {
+  const f = await fixture(t, false, false);
+  const normalized = path => path.replaceAll("\\", "/");
+  const oldPrimary = normalized(join(f.temporary, "old-primary"));
+  const oldIdentity = { ...f.identity, primary: oldPrimary, common: `${oldPrimary}/.git`, root: `${oldPrimary}/.worktrees` };
+  const snapshot = await captureWorktree(f.identity, f.path);
+  const stale = { version: 1, identity: oldIdentity, enabled: true, cursor: 7, entries: [] };
+  const completed = registerEntry(stale, { ...snapshot, path: `${oldIdentity.root}/completed`, change: "completed-history",
+    sourcePr: 19, candidatePr: 19, role: "implementation", disposable: [] }, owner);
+  transitionEntry(completed, "release", owner, completed.generation);
+  Object.assign(completed, { state: "done", step: "complete" });
+  await mkdir(f.store.directory, { recursive: true });
+  const statePath = join(f.store.directory, "state.json");
+  await writeFile(statePath, JSON.stringify(stale, null, 2) + "\n");
+
+  await assert.rejects(f.store.read(), /state-relocation-required/);
+  await f.store.locked(async state => {
+    assert.deepEqual(state.identity, f.identity); assert.equal(state.enabled, true); assert.equal(state.cursor, 7);
+    assert.equal(state.entries[0].path, `${f.identity.root}/completed`); assert.equal(state.entries[0].id, completed.id);
+    assert.equal(state.entries[0].state, "done");
+  });
+  const migrated = JSON.parse(await readFile(statePath, "utf8"));
+  assert.equal(migrated.entries[0].ownerHash, completed.ownerHash);
+
+  let selected;
+  await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path, change: "example", sourcePr: 20,
+    cwd: f.primary, reconcile: async options => { selected = options.entryIds[0]; return { results: [] }; } });
+  const rebound = await f.store.read(), fresh = rebound.entries.find(entry => entry.id === selected);
+  assert.equal(fresh.path, normalized(f.path)); assert.equal(fresh.state, "released"); assert.notEqual(fresh.id, completed.id);
+
+  const active = structuredClone(stale); Object.assign(active.entries[0], { state: "released", step: "none" });
+  assert.throws(() => relocateTerminalState(active, f.identity), /state-relocation-active/);
+  const partial = structuredClone(stale); Object.assign(partial.entries[0], { state: "deleting", step: "remove-intent" });
+  assert.throws(() => relocateTerminalState(partial, f.identity), /state-relocation-active/);
+  assert.throws(() => relocateTerminalState({ ...stale, identity: { ...oldIdentity, repository: "other/repo" } }, f.identity), /state-relocation-identity/);
+  assert.throws(() => relocateTerminalState({ ...stale, identity: { ...oldIdentity, remote: "upstream" } }, f.identity), /repository-identity/);
+  assert.throws(() => relocateTerminalState({ ...stale, identity: { ...oldIdentity, root: `${oldPrimary}/other` } }, f.identity), /state-relocation-topology/);
+  const escaped = structuredClone(stale); escaped.entries[0].path = `${oldIdentity.root}/../escape`;
+  assert.throws(() => relocateTerminalState(escaped, f.identity), /state-relocation-path/);
+  const duplicated = structuredClone(stale); duplicated.entries.push({ ...duplicated.entries[0], id: randomUUID(), path: `${oldIdentity.root}/nested/../completed` });
+  assert.throws(() => relocateTerminalState(duplicated, f.identity), /state-relocation-duplicate/);
+});
+
+test("failed relocation replacement retains the prior drive-bound journal", async t => {
+  const f = await fixture(t, false, false), normalized = path => path.replaceAll("\\", "/");
+  const oldPrimary = normalized(join(f.temporary, "old-primary"));
+  const oldIdentity = { ...f.identity, primary: oldPrimary, common: `${oldPrimary}/.git`, root: `${oldPrimary}/.worktrees` };
+  const stale = { version: 1, identity: oldIdentity, enabled: false, cursor: 0, entries: [] };
+  await mkdir(f.store.directory, { recursive: true });
+  const statePath = join(f.store.directory, "state.json"), before = JSON.stringify(stale, null, 2) + "\n";
+  await writeFile(statePath, before);
+  const failing = createStateStore(f.identity, { replace: async () => { throw Error("replacement-failed"); } });
+  await assert.rejects(failing.locked(async () => {}), /replacement-failed/);
+  assert.equal(await readFile(statePath, "utf8"), before);
 });
 
 test("registration rejects duplicate paths, malformed state and cross-repository identity", async t => {

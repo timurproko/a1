@@ -57,6 +57,37 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(structure).toContain("Repository commands therefore keep an explicit worktree path");
   });
 
+  it("keeps agent-selected delivery scratch in the owning worktree artifacts", async () => {
+    const config = await readFile("openspec/config.yaml", "utf8");
+    const skill = await readFile(".agents/skills/change-delivery/SKILL.md", "utf8");
+    const runbook = await readFile("docs/openspec-archive-automation.md", "utf8");
+    const structure = await readFile("docs/architecture/project-structure.md", "utf8");
+    const canonicalSpec = await readFile("openspec/specs/change-delivery-workflow/spec.md", "utf8");
+    const activeDelta = await readFile("openspec/changes/route-agent-scratch-to-artifacts/specs/change-delivery-workflow/spec.md", "utf8")
+      .catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return "";
+        throw error;
+      });
+    const deliveryPolicy = `${canonicalSpec}\n${activeDelta}`;
+    for (const guidance of [config, skill, runbook, structure]) {
+      expect(guidance).toContain("`.artifacts/`");
+      expect(guidance).toMatch(/(?:owning|linked)(?: task)? worktree|worktree that owns/i);
+      expect(guidance).toMatch(/(?:ignored|unstaged)/i);
+      expect(guidance).toMatch(/(?:non-authoritative|authoritative)/i);
+    }
+    expect(config).toContain("operating-system temporary directory");
+    expect(config).toContain("does not relocate temporary storage internally selected by tools");
+    expect(skill).toContain("never OS temp, home/desktop, primary, or another worktree");
+    expect(skill).toContain("tool/runtime/test-internal temp is out of scope");
+    expect(runbook).toContain("mkdir -p .artifacts/agent");
+    expect(runbook).toContain("--body-file .artifacts/agent/openspec-pr-body.md");
+    expect(runbook).not.toContain("$TMPDIR/openspec-pr-body.md");
+    expect(structure).toContain("must place it beneath the linked worktree's exact `.artifacts/` root");
+    expect(deliveryPolicy).toContain("Agents keep repository-delivery scratch files inside the owning worktree");
+    expect(deliveryPolicy).toContain("SHALL place that file beneath the exact `.artifacts/` root");
+    expect(deliveryPolicy).toContain("SHALL remain ignored, unstaged, uncommitted, disposable, and non-authoritative");
+  });
+
   it("ships a concise first-party skill with resolvable local guidance links", async () => {
     const path = resolve(".agents/skills/change-delivery/SKILL.md");
     const skill = await readFile(path, "utf8");
