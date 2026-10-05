@@ -289,7 +289,20 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     terminal.input("\x1b[B");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Custom summarization instructions");
+    const customRows = shell.root.render(100);
+    const plainCustomRows = customRows.map(stripTerminalSequences);
+    const customTitleIndex = plainCustomRows.findIndex(row => row.includes("Custom summarization instructions"));
+    expect(cellStyle(customRows[customTitleIndex]!, "C")).toEqual(
+      cellStyle(piTheme().fg("accent", piTheme().bold("C")), "C"),
+    );
+    expect(plainCustomRows[customTitleIndex + 2]?.trimStart()).toMatch(/^>/);
+    const customHintIndex = plainCustomRows.findIndex(row => row.includes("submit") && row.includes("cancel"));
+    expect(plainCustomRows[customHintIndex]).toContain("Enter submit  Escape/Ctrl+C cancel");
+    expect(cellStyle(customRows[customHintIndex]!, "E")).toEqual(cellStyle(piTheme().fg("dim", "E"), "E"));
+    expect(cellStyle(customRows[customHintIndex]!, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
+    expect(plainCustomRows[customHintIndex]).not.toContain("newline");
+    expect(plainCustomRows[customHintIndex]).not.toContain("external editor");
+    expect(plainCustomRows[customHintIndex + 1]).toBe("─".repeat(100));
     terminal.input("Preserve decisions");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));

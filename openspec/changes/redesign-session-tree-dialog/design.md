@@ -18,7 +18,7 @@ The explicit `a1 pi` comparison route must retain pinned presentation. The affec
 - Changing tree filtering semantics, entry ordering, branch folding, navigation results, labels, copying, summarization options, or workflow outcomes.
 - Replacing the tree list with a generic select list; its hierarchy and horizontal viewport remain specialized.
 - Changing Models, Skills, the ordinary editor, or the explicit comparison profile.
-- Redesigning the multiline custom-summary editor beyond preserving its existing shared frame and footer behavior.
+- Supporting multiline custom-summary instructions or external-editor launch; the compact workflow intentionally uses one standard input row.
 
 ## Decisions
 
@@ -46,17 +46,23 @@ For a non-current entry with summary prompting enabled, the tree callback will n
 
 Adding a loading surface or delaying rendering was rejected because the existing summary surface can safely remain visible during restoration. Changing the extension bridge's global close/mount behavior was rejected because a global change would risk unrelated extension interactions.
 
-### 5. Remove the extension selector's trailing footer spacer at its owned component boundary
+### 5. Remove trailing footer spacers at owned extension-component boundaries
 
-The branch-summary choice uses the shared extension selector. Its existing trailing spacer after semantic hints creates the visible gap before the bottom rule; removing that structural spacer aligns this and other instances of the same standard selector with the shared compact-dialog footer contract without changing input or option behavior. Coverage will verify affected inventoried surfaces continue to use the shared frame and hint helper.
+The branch-summary choice uses the shared extension selector, and custom instructions use the shared extension input. Their trailing spacers after semantic hints create visible gaps before the bottom rule; removing those structural spacers aligns both with the shared compact-dialog footer contract without changing input or option behavior. Coverage will verify affected inventoried surfaces continue to use the shared frame and hint helper.
 
-A tree-specific summary selector fork was rejected because it would duplicate a standard modal solely to work around shared component geometry.
+Tree-specific selector or input forks were rejected because they would duplicate standard modals solely to work around shared component geometry.
+
+### 6. Use a single-line standard input for custom summary instructions
+
+Custom summary instructions are concise workflow metadata, so the shell will request them through the standard extension input rather than the multiline editor. This provides the same prompt/cursor pattern as tree filtering, an accent-bold dialog title, and only submit/cancel shortcuts; multiline and external-editor hints no longer apply to this step.
+
+Restyling the multiline editor was rejected because it would retain unnecessary newline and external-editor behavior and broaden the change to unrelated editor consumers.
 
 ## Risks / Trade-offs
 
 - **[Mirroring query state into an Input can desynchronize cursor state]** → Keep the tree query authoritative, reconstruct the visual input from the complete query when it differs so its cursor lands at the query end, and test typing, deletion, clearing, focus, and narrow rendering.
 - **[Foreground-only selection may reduce distinction in low-color themes]** → Use the established semantic accent and muted roles already used by menu selection and preserve the explicit arrow.
-- **[Removing the shared extension-selector footer spacer affects more than the summary choice]** → Limit the change to the structural trailing row, retain all semantic children, and run focused modal-inventory and session-shell dialog coverage.
+- **[Removing shared extension-component footer spacers affects more than the tree workflow]** → Limit changes to structural trailing rows, retain all semantic children, and run focused extension-UI, modal-inventory, and session-shell dialog coverage.
 - **[Direct replacement could leave a stale surface visible]** → Branch explicitly on summary-prompt policy and test prompted, cancelled, current-entry, and skipped-prompt paths, including every input-surface assignment during cancellation.
 
 ## Migration Plan

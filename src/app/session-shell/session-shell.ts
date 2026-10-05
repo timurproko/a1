@@ -2107,7 +2107,7 @@ export class OwnedUiSessionShell {
         }
         summarize = choice !== "No summary";
         if (choice === "Summarize with custom prompt") {
-          customInstructions = await this.#extensionBridge.context.editor("Custom summarization instructions", "");
+          customInstructions = await this.#extensionBridge.context.input("Custom summarization instructions", "");
           if (customInstructions === undefined) continue;
         }
         break;

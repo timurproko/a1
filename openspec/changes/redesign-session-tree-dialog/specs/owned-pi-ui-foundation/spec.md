@@ -49,6 +49,8 @@ When a non-current tree entry requires a branch-summary choice, bare A1 SHALL re
 
 The branch-summary choice SHALL retain its title, options, navigation, selection, and cancellation behavior. Its semantic shortcut footer SHALL use the shared dialog style at the bottom of the frame, and the frame's bottom rule SHALL immediately follow that footer without an empty row.
 
+Custom summarization instructions SHALL use the ordinary single-line dialog input pattern instead of the multiline editor. The prompt SHALL have an accent-bold title, the standard input prompt and cursor behavior, and only the shared submit/cancel shortcut hints. The bottom rule SHALL immediately follow those hints without an empty row.
+
 #### Scenario: Open the branch-summary choice
 - **WHEN** the user selects a non-current tree entry and summary prompting is enabled
 - **THEN** the branch-summary choice SHALL replace the tree directly
@@ -63,3 +65,9 @@ The branch-summary choice SHALL retain its title, options, navigation, selection
 - **WHEN** the branch-summary choice is visible
 - **THEN** its shortcut hints SHALL use the shared dialog key/action styling at the bottom of the frame
 - **AND** its bottom rule SHALL immediately follow the hint row
+
+#### Scenario: Enter custom summarization instructions
+- **WHEN** the user selects `Summarize with custom prompt`
+- **THEN** an accent-bold `Custom summarization instructions` title SHALL appear above a standard single-line input
+- **AND** the shortcut footer SHALL contain submit and cancel actions without newline or external-editor actions
+- **AND** the frame's bottom rule SHALL immediately follow the shortcut footer

@@ -9,6 +9,7 @@
 
 - [x] 2.1 Replace the tree directly with the branch-summary choice when prompting is required, keep the summary mounted until the tree is ready on cancellation, and close before skipped-prompt navigation; verify neither transition exposes the ordinary prompt and cancellation restores the selected tree entry.
 - [x] 2.2 Remove the shared extension selector's trailing blank footer row so the summary-choice hint is immediately followed by its bottom rule; verify summary options, navigation, selection, cancellation, shared hint styling, and inventoried modal-frame coverage remain intact.
+- [x] 2.3 Replace the multiline custom-summary editor with the standard single-line extension input, accent-bold title, submit/cancel hints, and no trailing footer gap; verify custom-summary submission and compact frame geometry.
 
 ## 3. Validate the Delivered Experience
 

@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-05T17:59:10.006Z",
+  "recordedAt": "2026-10-05T18:05:58.168Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "cd32f7725fdbddbaecdff5b1e68491563394e0ca",
@@ -1667,7 +1667,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving input, timeout, focus, submission, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "71c7f00866982e7efe503e6742bcde2e7cace43688c548add0a868658b5c64be",
+      "localSha256": "957ac5a4f22651d73af92df17d6b928994146f444c5122a9248a355732a50f55",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
