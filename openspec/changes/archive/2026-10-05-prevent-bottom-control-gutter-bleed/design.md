@@ -51,6 +51,7 @@ Focused tests will decode the control row and assert that cells inside the label
 - The decoded terminal matrix passes for normal/pointed-at controls, idle/visible rails, boundary-reaching selection, and repeated cache reuse. Existing content, gutter, wide-grapheme, link, and rail-transition coverage remains green.
 - Focused viewport and session-shell validation passes 209 tests across six suites, including selection, bottom hover, links, compaction, and decoded terminal paint.
 - Build, source/bin typechecking, changed-file code-documentation governance, strict OpenSpec validation, and `git diff --check` pass against current `origin/develop` at `90863d18`.
+- Exact-head CI run `37313086604` exposed only the expected startup source-byte baseline drift from the viewport implementation. The baseline is re-pinned from 1,544,809 to the measured 1,545,111 bytes with unchanged file reachability, and the complete architecture gate passes.
 - No implementation gaps are known. Physical Windows Terminal review of the exact candidate remains the maintainer-controlled acceptance activity.
 
 ## Migration Plan
