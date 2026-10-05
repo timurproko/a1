@@ -252,15 +252,30 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       message: "Navigated to selected point",
     }));
 
+    shell.root.appendWorkflowStatus("Tree dialog spacing");
     await shell.submit("/tree");
     const treeRows = shell.root.render(100);
-    expect(stripTerminalSequences(treeRows.join("\n"))).toContain("Session Tree");
-    const treeHeading = treeRows.find(row => stripTerminalSequences(row).includes("Session Tree"))!;
+    const plainTreeRows = treeRows.map(stripTerminalSequences);
+    expect(plainTreeRows.join("\n")).toContain("Session Tree");
+    const treeHeadingIndex = plainTreeRows.findIndex(row => row.includes("Session Tree"));
+    const treeStatusIndex = plainTreeRows.findIndex(row => row.includes("Tree dialog spacing"));
+    expect(plainTreeRows.slice(treeStatusIndex + 1, treeHeadingIndex)).toEqual(["", "─".repeat(100)]);
+    const treeHeading = treeRows[treeHeadingIndex]!;
     const treeHint = treeRows.find(row => stripTerminalSequences(row).includes("move"))!;
     expect(firstVisibleTextColumn(treeHint)).toBe(firstVisibleTextColumn(treeHeading));
+    expect(cellStyle(treeHeading, "S")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("S")), "S"));
+
+    const surfaceChanges = vi.spyOn(shell.root, "setInputSurface");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Summarize branch?");
+    const summaryRows = shell.root.render(100);
+    const plainSummaryRows = summaryRows.map(stripTerminalSequences);
+    expect(plainSummaryRows.join("\n")).toContain("Summarize branch?");
+    expect(surfaceChanges).toHaveBeenCalled();
+    expect(surfaceChanges.mock.calls.every(([surface]) => surface !== null)).toBe(true);
+    const summaryHintIndex = plainSummaryRows.findIndex(row => row.includes("navigate") && row.includes("select"));
+    expect(plainSummaryRows[summaryHintIndex + 1]).toBe("─".repeat(100));
+    surfaceChanges.mockRestore();
     terminal.input("\x1b");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session Tree");
@@ -282,6 +297,45 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       treeSummary: { summarize: true, customInstructions: "Preserve decisions" },
     });
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Navigated to selected point");
+    await shell.dispose();
+  });
+
+  it("closes the tree before direct navigation when summary prompting is skipped", async () => {
+    const { adapter, terminal, shell } = await fixture();
+    const tree = [{
+      entry: {
+        type: "message",
+        id: "entry-1",
+        parentId: null,
+        timestamp: new Date(0).toISOString(),
+        message: { role: "user", content: [{ type: "text", text: "First prompt" }], timestamp: 0 },
+      },
+      children: [],
+    }];
+    vi.spyOn(adapter, "pinnedTreeSelectorContext").mockReturnValue({
+      tree,
+      currentLeafId: null,
+      filterMode: "default",
+      skipSummaryPrompt: true,
+      appendLabelChange() {},
+    });
+    const execute = vi.spyOn(adapter, "executeWorkflow").mockResolvedValue({
+      command: "tree",
+      outcome: "completed",
+      message: "Navigated to selected point",
+    });
+
+    await shell.submit("/tree");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(execute).toHaveBeenCalledWith({
+      command: "tree",
+      argument: "",
+      selection: "entry-1",
+      treeSummary: { summarize: false },
+    });
+    expect(shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Summarize branch?");
     await shell.dispose();
   });
 

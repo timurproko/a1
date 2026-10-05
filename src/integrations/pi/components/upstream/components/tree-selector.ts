@@ -1,11 +1,10 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.0.2 (MIT), commit cd32f7725fdbddbaecdff5b1e68491563394e0ca,
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
- * Modifications: Source-synchronized tree selector port: preserve filtering, folding, labels, copying,
- * tree navigation, key hints, focus, and viewport behavior while remapping public types/components
- * plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton;
- * bare A1 uses the shared semantic modal shortcut row and compact padded modal frame.
- * Deviations: owned-modal-shortcut-hints.
+ * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
+ * preserving tree behavior; bare A1 uses compact modal chrome, standard search input, menu-style
+ * selection, and a semantic shortcut footer.
+ * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
 	type Component,
@@ -705,7 +704,8 @@ class TreeList implements Component {
 
 		if (this.filteredNodes.length === 0) {
 			lines.push(truncateToWidth(theme.fg("muted", "  No entries found"), width));
-			lines.push(truncateToWidth(theme.fg("muted", `  (0/0)${this.getStatusLabels()}`), width));
+			const status = this.getStatusLabels().trim();
+			if (status) lines.push(truncateToWidth(theme.fg("muted", `  ${status}`), width));
 			return lines;
 		}
 
@@ -724,8 +724,8 @@ class TreeList implements Component {
 			const entry = flatNode.node.entry;
 			const isSelected = i === this.selectedIndex;
 
-			// Build line: cursor + prefix + path marker + label + content
-			const cursor = isSelected ? theme.fg("accent", "› ") : "  ";
+			// Build line: menu arrow + tree prefix + path marker + label + content
+			const cursor = isSelected ? theme.fg("accent", "→ ") : "  ";
 
 			// If multiple roots, shift display (roots at 0, not 1)
 			const displayIndent = this.multipleRoots ? Math.max(0, flatNode.indent - 1) : flatNode.indent;
@@ -784,12 +784,8 @@ class TreeList implements Component {
 			const content = this.getEntryDisplayText(flatNode.node, isSelected);
 			const prefixPart = theme.fg("dim", prefix) + foldMarker + pathMarker;
 			const anchorCol = visibleWidth(prefixPart);
-			let gutter = cursor;
-			let body = prefixPart + label + labelTimestamp + content;
-			if (isSelected) {
-				gutter = theme.bg("selectedBg", gutter);
-				body = theme.bg("selectedBg", body);
-			}
+			const gutter = cursor;
+			const body = prefixPart + label + labelTimestamp + content;
 			renderedRows.push({ gutter, body, anchorCol, bodyWidth: visibleWidth(body), isSelected });
 		}
 
@@ -809,88 +805,84 @@ class TreeList implements Component {
 		let result: string;
 
 		const normalize = (s: string) => s.replace(/[\n\t]/g, " ").trim();
+		const primary = (color: Parameters<typeof theme.fg>[0], text: string) => theme.fg(isSelected ? "accent" : color, text);
+		const description = (text: string, color: Parameters<typeof theme.fg>[0] = "muted") =>
+			theme.fg(isSelected ? "muted" : color, text);
 
 		switch (entry.type) {
 			case "message": {
 				const msg = entry.message;
 				const role = msg.role;
 				if (role === "user") {
-					const msgWithContent = msg as { content?: unknown };
-					const content = normalize(this.extractContent(msgWithContent.content));
-					result = theme.fg("accent", "user: ") + content;
+					const content = normalize(this.extractContent((msg as { content?: unknown }).content));
+					result = primary("accent", "user: ") + description(content);
 				} else if (role === "assistant") {
-					const msgWithContent = msg as { content?: unknown; stopReason?: string; errorMessage?: string };
-					const textContent = normalize(this.extractContent(msgWithContent.content));
-					if (textContent) {
-						result = theme.fg("success", "assistant: ") + textContent;
-					} else if (msgWithContent.stopReason === "aborted") {
-						result = theme.fg("success", "assistant: ") + theme.fg("muted", "(aborted)");
-					} else if (msgWithContent.errorMessage) {
-						const errMsg = normalize(msgWithContent.errorMessage).slice(0, 80);
-						result = theme.fg("success", "assistant: ") + theme.fg("error", errMsg);
-					} else {
-						result = theme.fg("success", "assistant: ") + theme.fg("muted", "(no content)");
-					}
+					const assistant = msg as { content?: unknown; stopReason?: string; errorMessage?: string };
+					const textContent = normalize(this.extractContent(assistant.content));
+					const label = primary("success", "assistant: ");
+					if (textContent) result = label + description(textContent);
+					else if (assistant.stopReason === "aborted") result = label + description("(aborted)", "muted");
+					else if (assistant.errorMessage) result = label + description(normalize(assistant.errorMessage).slice(0, 80), "error");
+					else result = label + description("(no content)", "muted");
 				} else if (role === "toolResult") {
 					const toolMsg = msg as { toolCallId?: string; toolName?: string };
 					const toolCall = toolMsg.toolCallId ? this.toolCallMap.get(toolMsg.toolCallId) : undefined;
-					if (toolCall) {
-						result = theme.fg("muted", this.formatToolCall(toolCall.name, toolCall.arguments));
-					} else {
-						result = theme.fg("muted", `[${toolMsg.toolName ?? "tool"}]`);
-					}
+					result = primary("muted", toolCall
+						? this.formatToolCall(toolCall.name, toolCall.arguments)
+						: `[${toolMsg.toolName ?? "tool"}]`);
 				} else if (role === "bashExecution") {
-					const bashMsg = msg as { command?: string };
-					result = theme.fg("dim", `[bash]: ${normalize(bashMsg.command ?? "")}`);
+					const command = normalize((msg as { command?: string }).command ?? "");
+					result = primary("dim", "[bash]: ") + description(command, "dim");
 				} else {
-					result = theme.fg("dim", `[${role}]`);
+					result = primary("dim", `[${role}]`);
 				}
 				break;
 			}
 			case "custom_message": {
-				const content =
-					typeof entry.content === "string"
-						? entry.content
-						: entry.content
-								.filter((c): c is { type: "text"; text: string } => c.type === "text")
-								.map((c) => c.text)
-								.join("");
-				result = theme.fg("customMessageLabel", `[${entry.customType}]: `) + normalize(content);
+				const content = typeof entry.content === "string"
+					? entry.content
+					: entry.content
+							.filter((c): c is { type: "text"; text: string } => c.type === "text")
+							.map((c) => c.text)
+							.join("");
+				result = primary("customMessageLabel", `[${entry.customType}]: `) + description(normalize(content));
 				break;
 			}
 			case "compaction": {
 				const tokens = Math.round(entry.tokensBefore / 1000);
-				result = theme.fg("borderAccent", `[compaction: ${tokens}k tokens]`);
+				result = primary("borderAccent", `[compaction: ${tokens}k tokens]`);
 				break;
 			}
 			case "branch_summary":
-				result = theme.fg("warning", `[branch summary]: `) + normalize(entry.summary);
+				result = primary("warning", "[branch summary]: ") + description(normalize(entry.summary));
 				break;
 			case "model_change":
-				result = theme.fg("dim", `[model: ${entry.modelId}]`);
+				result = primary("dim", `[model: ${entry.modelId}]`);
 				break;
 			case "thinking_level_change":
-				result = theme.fg("dim", `[thinking: ${entry.thinkingLevel}]`);
+				result = primary("dim", `[thinking: ${entry.thinkingLevel}]`);
 				break;
 			case "custom":
-				result = theme.fg("dim", `[custom: ${entry.customType}]`);
+				result = primary("dim", `[custom: ${entry.customType}]`);
 				break;
 			case "context_edit":
-				result = theme.fg("dim", `[context ${entry.replacement === null ? "omit" : "replace"}: ${entry.targetId}]`);
+				result = primary("dim", `[context ${entry.replacement === null ? "omit" : "replace"}: ${entry.targetId}]`);
 				break;
 			case "label":
-				result = theme.fg("dim", `[label: ${entry.label ?? "(cleared)"}]`);
+				result = primary("dim", `[label: ${entry.label ?? "(cleared)"}]`);
 				break;
 			case "session_info":
 				result = entry.name
-					? [theme.fg("dim", "[title: "), theme.fg("dim", entry.name), theme.fg("dim", "]")].join("")
-					: [theme.fg("dim", "[title: "), theme.italic(theme.fg("dim", "empty")), theme.fg("dim", "]")].join("");
+					? primary("dim", `[title: ${entry.name}]`)
+					: isSelected
+						? primary("dim", "[title: empty]")
+						: [theme.fg("dim", "[title: "), theme.italic(theme.fg("dim", "empty")), theme.fg("dim", "]")].join("");
 				break;
 			default:
 				result = "";
 		}
 
-		return isSelected ? theme.bold(result) : result;
+		return result;
 	}
 
 	private formatLabelTimestamp(timestamp: string): string {
@@ -1195,25 +1187,35 @@ class TreeList implements Component {
 	}
 }
 
-/** Component that displays the current search query */
-class SearchLine implements Component {
-	private treeList: TreeList;
+class TreeSearchInput implements Component, Focusable {
+	private readonly treeList: TreeList;
+	private readonly input = new Input();
+	private renderedQuery = "";
 
 	constructor(treeList: TreeList) {
 		this.treeList = treeList;
 	}
 
-	invalidate(): void {}
+	get focused(): boolean {
+		return this.input.focused;
+	}
+
+	set focused(value: boolean) {
+		this.input.focused = value;
+	}
+
+	invalidate(): void {
+		this.input.invalidate();
+	}
 
 	render(width: number): string[] {
 		const query = this.treeList.getSearchQuery();
-		if (query) {
-			return [truncateToWidth(`  ${theme.fg("muted", "Type to search:")} ${theme.fg("accent", query)}`, width)];
+		if (query !== this.renderedQuery) {
+			this.renderedQuery = query;
+			this.input.setValue(query);
 		}
-		return [truncateToWidth(`  ${theme.fg("muted", "Type to search:")}`, width)];
+		return this.input.render(width);
 	}
-
-	handleInput(_keyData: string): void {}
 }
 
 /** Component that renders tree help as semantic rows with chunk-aware wrapping */
@@ -1372,6 +1374,7 @@ class LabelInput implements Component, Focusable {
  */
 export class TreeSelectorComponent extends Container implements Focusable {
 	private treeList: TreeList;
+	private readonly searchInput: TreeSearchInput;
 	private labelInput: LabelInput | null = null;
 	private labelInputContainer: Container;
 	private treeContainer: Container;
@@ -1385,10 +1388,8 @@ export class TreeSelectorComponent extends Container implements Focusable {
 	}
 	set focused(value: boolean) {
 		this._focused = value;
-		// Propagate to labelInput when it's active
-		if (this.labelInput) {
-			this.labelInput.focused = value;
-		}
+		this.searchInput.focused = value && this.labelInput === null;
+		if (this.labelInput) this.labelInput.focused = value;
 	}
 
 	constructor(
@@ -1411,28 +1412,30 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		this.treeList.onCancel = onCancel;
 		this.treeList.onCopy = (text) => this.onCopy?.(text);
 		this.treeList.onLabelEdit = (entryId, currentLabel) => this.showLabelInput(entryId, currentLabel);
+		this.searchInput = new TreeSearchInput(this.treeList);
 
 		this.treeContainer = new Container();
 		this.treeContainer.addChild(this.treeList);
 
 		this.labelInputContainer = new Container();
 
+		const header = addPiModalHeader(
+			this,
+			new DynamicBorder(),
+			new Text(theme.fg("accent", theme.bold("Session Tree")), 0, 0),
+		);
 		this.addChild(new Spacer(1));
-		const header = addPiModalHeader(this, new DynamicBorder(), new Text(theme.bold("Session Tree"), 0, 0));
-		this.addChild(new TreeHelp());
-		this.addChild(new SearchLine(this.treeList));
-		const separator = new DynamicBorder();
-		this.addChild(separator);
+		this.addChild(this.searchInput);
 		this.addChild(new Spacer(1));
 		this.addChild(this.treeContainer);
 		this.addChild(this.labelInputContainer);
 		this.addChild(new Spacer(1));
+		this.addChild(new TreeHelp());
 		this.addChild(new DynamicBorder());
 		adoptPiModalFrame(this, {
-			topIndex: 1,
+			topIndex: 0,
 			bottomIndex: this.children.length - 1,
 			header,
-			fullWidthContent: [separator],
 		});
 
 		if (tree.length === 0) {
@@ -1449,7 +1452,8 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		};
 		this.labelInput.onCancel = () => this.hideLabelInput();
 
-		// Propagate current focused state to the new labelInput
+		// Focus only the active editor.
+		this.searchInput.focused = false;
 		this.labelInput.focused = this._focused;
 
 		this.treeContainer.clear();
@@ -1459,6 +1463,7 @@ export class TreeSelectorComponent extends Container implements Focusable {
 
 	private hideLabelInput(): void {
 		this.labelInput = null;
+		this.searchInput.focused = this._focused;
 		this.labelInputContainer.clear();
 		this.treeContainer.clear();
 		this.treeContainer.addChild(this.treeList);

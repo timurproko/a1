@@ -22,4 +22,4 @@ None.
 
 ## Impact
 
-Expected implementation is limited to the bare-A1 tree selector, the shared extension-selector composition used by the summary choice, the session-shell tree transition, and focused component/session-shell tests. Tree semantics, keybindings, workflow outcomes, persisted filter mode, dependencies, public APIs, and the explicit `a1 pi` comparison profile remain unchanged.
+Expected implementation is limited to the bare-A1 tree selector, the shared extension-selector composition used by the summary choice, the session-shell tree transition, focused component/session-shell tests, and the copied-source provenance ledger. Tree semantics, keybindings, workflow outcomes, persisted filter mode, dependencies, public APIs, and the explicit `a1 pi` comparison profile remain unchanged.

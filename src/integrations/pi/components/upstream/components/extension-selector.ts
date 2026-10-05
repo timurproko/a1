@@ -61,7 +61,6 @@ export class ExtensionSelectorComponent extends Container {
       { key: keys.getKeys("tui.select.confirm").join("/"), action: "select" },
       { key: keys.getKeys("tui.select.cancel").join("/"), action: "cancel" },
     ]), 0, 0));
-    this.addChild(new Spacer(1));
     this.addChild(new DynamicBorder());
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
     this.#updateList();

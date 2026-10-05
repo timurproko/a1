@@ -1179,12 +1179,13 @@ export class OwnedUiSessionShell {
       },
       onCancel: close,
       onSelect: entryId => {
-        close();
         if (entryId === context.currentLeafId) {
+          close();
           this.root.appendWorkflowStatus("Already at this point");
           this.runtime.requestRender();
           return;
         }
+        if (context.skipSummaryPrompt) close();
         void this.#completeTreeSelection(entryId, context.skipSummaryPrompt);
       },
     });

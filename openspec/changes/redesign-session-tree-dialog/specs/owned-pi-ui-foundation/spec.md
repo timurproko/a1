@@ -51,7 +51,6 @@ The branch-summary choice SHALL retain its title, options, navigation, selection
 #### Scenario: Cancel the branch-summary choice
 - **WHEN** the user cancels the branch-summary choice
 - **THEN** the Session Tree SHALL be restored with the chosen entry selected
-- **AND** the ordinary prompt SHALL remain hidden during the transition
 
 #### Scenario: Render branch-summary shortcuts
 - **WHEN** the branch-summary choice is visible
