@@ -1,6 +1,6 @@
 {
   "name": "@timurproko/a1-install",
-  "version": "0.2.4-dev",
+  "version": "0.2.5-dev",
   "description": "Dependency-free installer for a1",
   "type": "module",
   "bin": {
