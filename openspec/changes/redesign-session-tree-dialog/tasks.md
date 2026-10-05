@@ -6,6 +6,7 @@
 - [x] 1.4 Remove the empty-result `(0/0)` counter while preserving `No entries found` and filter-status behavior; verify empty query results and non-empty overflow/status counters independently.
 - [x] 1.5 Recompose label editing with an accent-bold `Label` title, muted `Empty to remove` subheader, standard input, and save/cancel-only footer; hide tree search, results, and tree shortcuts until editing closes, then restore them intact.
 - [x] 1.6 Add the Models-style tree filter row with `all` active by default, move forward cycling from `Ctrl+O` to `Tab`, and reduce footer guidance to `Tab filter`; verify active/inactive ANSI roles, cycling, label-mode hiding, and owned keybinding resolution.
+- [x] 1.7 Exclude model-change and thinking-level-change metadata from every tree filter and visible counter; verify `all` mode omits both entry types.
 
 ## 2. Make Nested Tree Transitions Compact
 

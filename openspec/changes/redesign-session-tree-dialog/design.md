@@ -15,7 +15,7 @@ The explicit `a1 pi` comparison route must retain pinned presentation. The affec
 
 **Non-Goals:**
 
-- Changing what each tree filter mode includes, entry ordering, branch folding, navigation results, labels, copying, summarization options, or workflow outcomes.
+- Changing filter-mode membership beyond excluding model/thinking metadata, entry ordering, branch folding, navigation results, labels, copying, summarization options, or workflow outcomes.
 - Replacing the tree list with a generic select list; its hierarchy and horizontal viewport remain specialized.
 - Changing Models, Skills, the ordinary editor, or the explicit comparison profile.
 - Supporting multiline custom-summary instructions or external-editor launch; the compact workflow intentionally uses one standard input row.
@@ -30,7 +30,7 @@ Moving all input dispatch into `Input` was rejected because it would require dup
 
 ### 2. Recompose the tree frame in standard dialog order
 
-The selector will remove its producer-owned leading spacer and internal separator and arrange semantic children as title, Models-style filter status, body separation, search input, list separation, tree results, footer separation, shortcut hints, and bottom rule. The filter row will expose all five existing modes as `all | standard | no tools | user | labeled`, treating an unset or upstream `default` initial setting as `all` while preserving explicit non-default choices. The shared frame remains responsible for the global one-cell content inset and full-width outer rules.
+The selector will remove its producer-owned leading spacer and internal separator and arrange semantic children as title, Models-style filter status, body separation, search input, list separation, tree results, footer separation, shortcut hints, and bottom rule. The filter row will expose all five existing modes as `all | standard | no tools | user | labeled`, treating an unset or upstream `default` initial setting as `all` while preserving explicit non-default choices. Model-change and thinking-level-change bookkeeping will be excluded before mode filtering so it never renders or inflates visible counters, including under `all`. The shared frame remains responsible for the global one-cell content inset and full-width outer rules.
 
 The owned keybinding profile will move forward filter cycling from `Ctrl+O` to `Tab`, matching Models, while retaining individual direct filter actions and reverse cycling. The footer will collapse the verbose direct-filter/cycle hints into `Tab filter`.
 

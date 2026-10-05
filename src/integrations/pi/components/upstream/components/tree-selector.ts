@@ -3,8 +3,9 @@
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
  * preserving tree behavior; bare A1 uses compact modal chrome and label editing, Models-style filter
- * status with Tab cycling and all-first presentation, standard search input, menu-style selection
- * without path bullets, semantic role colors, and semantic shortcut footers.
+ * status with Tab cycling and all-first presentation excluding model/thinking metadata, standard
+ * search input, menu-style selection without path bullets, semantic role colors, and semantic shortcut
+ * footers.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -353,7 +354,7 @@ class TreeList implements Component {
 
 		this.filteredNodes = this.flatNodes.filter((flatNode) => {
 			const entry = flatNode.node.entry;
-			if (entry.type === "usage") return false;
+			if (entry.type === "usage" || entry.type === "model_change" || entry.type === "thinking_level_change") return false;
 			const isCurrentLeaf = entry.id === this.currentLeafId;
 
 			// Skip assistant messages with only tool calls (no text) unless error/aborted
@@ -375,8 +376,6 @@ class TreeList implements Component {
 				entry.type === "label" ||
 				entry.type === "context_edit" ||
 				entry.type === "custom" ||
-				entry.type === "model_change" ||
-				entry.type === "thinking_level_change" ||
 				entry.type === "session_info";
 
 			switch (this.filterMode) {

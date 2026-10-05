@@ -14,19 +14,38 @@ function tree() {
     },
     children: [{
       entry: {
+        type: "model_change",
+        id: "model-1",
+        parentId: "system-1",
+        timestamp: new Date(1).toISOString(),
+        provider: "openai-codex",
+        modelId: "gpt-5.6-sol",
+      },
+      children: [],
+    }, {
+      entry: {
+        type: "thinking_level_change",
+        id: "thinking-1",
+        parentId: "system-1",
+        timestamp: new Date(2).toISOString(),
+        thinkingLevel: "high",
+      },
+      children: [],
+    }, {
+      entry: {
         type: "message",
         id: "user-1",
         parentId: "system-1",
-        timestamp: new Date(1).toISOString(),
-        message: { role: "user", content: [{ type: "text", text: "QuestionABC" }], timestamp: 1 },
+        timestamp: new Date(3).toISOString(),
+        message: { role: "user", content: [{ type: "text", text: "QuestionABC" }], timestamp: 3 },
       },
       children: [{
         entry: {
           type: "message",
           id: "assistant-1",
           parentId: "user-1",
-          timestamp: new Date(2).toISOString(),
-          message: { role: "assistant", content: [{ type: "text", text: "ResponseXYZ" }], timestamp: 2 },
+          timestamp: new Date(4).toISOString(),
+          message: { role: "assistant", content: [{ type: "text", text: "ResponseXYZ" }], timestamp: 4 },
         },
         children: [],
       }],
@@ -79,6 +98,8 @@ describe("bare-A1 session tree presentation", () => {
     const system = rows.find(row => stripTerminalSequences(row).trim() === "system")!;
     expect(system).toBeDefined();
     expect(plain.join("\n")).not.toContain("[system]");
+    expect(plain.join("\n")).not.toContain("[model:");
+    expect(plain.join("\n")).not.toContain("[thinking:");
     expect(plain.some(row => row.includes("(3/3)"))).toBe(true);
 
     component.handleInput?.("\x1b[A");
