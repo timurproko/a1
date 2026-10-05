@@ -58,6 +58,7 @@ No stored data changes. Shipping the change redirects bare-A1 `/session` to the 
 
 - Eight focused reference-app, composition, shell, presenter, workflow, and ownership suites passed 126 tests; modal-inventory and startup-graph suites passed another 8 tests.
 - The production build and both source and bin typechecks passed. Full code-documentation governance, owned-UI customization prerequisites, strict OpenSpec validation, and architecture/provenance checks passed.
+- The pinned Pi public-API consumer baseline records the lazy session formatter's `Text` use, and its five exact-surface checks pass after regeneration.
 - The session screen captures a new workflow snapshot on every open, keeps successful and failed route output outside the feed, dismisses stale dock notices, and leaves the comparison profile on the unchanged pinned presenter.
 - Startup reachability remains within the exact protected boundary at 159 files and 1,545,092 source bytes, 19 bytes below the maximum, because the screen formatter and workflow adapter load only when `/session` opens.
 - No known implementation or environment gaps remain. The final handoff includes the built `./scripts/dev` color-preserving interactive check.

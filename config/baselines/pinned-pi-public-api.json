@@ -4169,6 +4169,7 @@
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
+            "src/integrations/pi/components/shell-session-info-reference.ts",
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/submitted-prompt-adapter.ts",
             "src/integrations/pi/components/tool-image-presentation.ts",
