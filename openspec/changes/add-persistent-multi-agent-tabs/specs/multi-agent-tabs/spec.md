@@ -104,18 +104,26 @@ A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A`, the `+` ch
 - **THEN** its transcript SHALL open in a tab with no lost committed entries
 
 ### Requirement: Concurrent clients use one attributable input controller
-Each tab SHALL have at most one input-controller client and a monotonic controller revision. Before terminal input from a new controller is accepted, the holder SHALL deliver an owner marker containing that client and revision to the A1 child through the semantic bridge and receive acknowledgement. Input and PTY resize messages SHALL carry the current controller revision; stale or read-only clients SHALL be rejected without delivering bytes. A client-scoped bridge request SHALL carry the child-acknowledged controller identity and SHALL apply only while that revision remains current. Terminal bytes and prompt content SHALL NOT enter the bridge.
+Each tab SHALL have at most one input-controller client and a monotonic controller revision. Transfer SHALL freeze old-controller admission, account for accepted input in native, PTY and child buffers, and establish a child-observed causal boundary before acknowledging the new owner and admitting its input. A sideband acknowledgement alone SHALL NOT establish that boundary. Input and PTY resize messages SHALL carry the current controller revision; stale or read-only clients SHALL be rejected without delivering bytes. Client-scoped child requests SHALL capture an immutable origin controller identity/revision at command admission, SHALL NOT be rebound at execution, and SHALL apply only while that origin remains current. Ambiguous attribution SHALL reject the request without affecting either client; attach-local actions SHALL remain available. Terminal bytes and prompt content SHALL NOT enter the bridge.
 
 #### Scenario: A second terminal takes control
 - **WHEN** a second client atomically claims a tab currently controlled by another client
-- **THEN** its owner marker SHALL be acknowledged before its first terminal input is delivered, the prior client SHALL become read-only, and input from the two clients SHALL NOT interleave
+- **THEN** the causal boundary and new owner SHALL be acknowledged before its first terminal input is delivered, the prior client SHALL become read-only, and previously buffered commands SHALL NOT be attributed to the new controller
 
 #### Scenario: Stale detach request arrives
 - **WHEN** a bridge detach request names a controller revision that has been superseded
 - **THEN** the server SHALL reject it and SHALL NOT detach either client
 
+#### Scenario: Delayed quit from a previous controller
+- **WHEN** client A submits `/quit`, the input is delayed in a PTY or child queue, and client B claims control before it executes
+- **THEN** the request SHALL retain A's old generation or be rejected as ambiguous, SHALL NOT detach B, and SHALL NOT stop the tab
+
+#### Scenario: Controller boundary cannot be proven
+- **WHEN** transport loss or incomplete input-boundary evidence prevents reliable command attribution
+- **THEN** client-scoped child commands SHALL remain disabled with a concise notice, terminal input SHALL remain usable, and local double-`Ctrl+C` SHALL still detach only its attach client
+
 ### Requirement: Quitting bare A1 detaches from resident tabs
-Pressing `Ctrl+C` twice within the existing clear/exit interval SHALL detach the local attach client from any tab. The attach client SHALL forward the first `Ctrl+C` to the viewed tab unchanged and SHALL consume a second `Ctrl+C` inside the interval as the detach request without forwarding it, so a single `Ctrl+C` keeps its ordinary meaning in the tab and a double press never ends the tab's process. Inside an A1 tab, `/quit` and `Ctrl+D` on an empty editor SHALL detach only the client identified by the current child-acknowledged controller revision. When the bridge or attribution is unavailable, the child SHALL remain running and SHALL direct the user to `Ctrl+C` twice. Detaching SHALL restore the outer terminal's screen and input modes and leave every tab running. When tabs remain running, the parent terminal SHALL show a dim `N tabs still running · run a1 to return`, singular for one. `/quit-all` SHALL stop every tab after confirmation when any is busy, then detach with the ordinary resume hint.
+Pressing `Ctrl+C` twice within the existing clear/exit interval SHALL detach the local attach client from any tab. The attach client SHALL forward the first `Ctrl+C` to the viewed tab unchanged and SHALL consume a second `Ctrl+C` inside the interval as the detach request without forwarding it, so a single `Ctrl+C` keeps its ordinary meaning in the tab and a double press never ends the tab's process. Inside an A1 tab, `/quit` and `Ctrl+D` on an empty editor SHALL detach only the client identified by their immutable command-origin controller revision, and only while it is still current. When the bridge or attribution is unavailable, the child SHALL remain running and SHALL direct the user to `Ctrl+C` twice. Detaching SHALL restore the outer terminal's screen and input modes and leave every tab running. When tabs remain running, the parent terminal SHALL show a dim `N tabs still running · run a1 to return`, singular for one. `/quit-all` SHALL stop every tab after confirmation when any is busy, then detach with the ordinary resume hint.
 
 #### Scenario: Leave with Ctrl+C twice
 - **WHEN** the user presses `Ctrl+C` twice within the clear/exit interval in any tab

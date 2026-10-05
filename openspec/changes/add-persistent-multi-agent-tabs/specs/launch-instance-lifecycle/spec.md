@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: A launch instance owns its complete runtime process tree
-A launch instance SHALL own its selected root runtime and every agent, extension, tool, daemon, helper, and descendant process created within its declared containment boundary. Default interactive instances SHALL be non-detachable; a process that must survive instance closure requires a separately specified explicit resident capability. The resident terminal host is that explicit capability: its server and session holders SHALL be started only through the native terminal-host binary's explicit resident breakaway, SHALL be owned and cleaned up by the resident capability rather than by any launch instance, and SHALL NOT be used by other components to escape instance ownership.
+A launch instance SHALL own its selected root runtime and every agent, extension, tool, daemon, helper, and descendant process created within its declared containment boundary. Default interactive instances SHALL be non-detachable; a process that must survive instance closure requires a separately specified explicit resident capability. The resident terminal host is that explicit capability: its server and session holders SHALL be started only through the authenticated fixed-role native resident-launch path, SHALL be owned and cleaned up by the resident capability rather than by any launch instance, and SHALL NOT expose a generic escape service to other components. Ordinary launch-instance and tab-child jobs SHALL NOT enable job-wide or silent breakaway; native admission SHALL verify artifact, role, profile and request authority before resident creation. This lifecycle boundary SHALL NOT claim to sandbox malicious same-user code.
 
 #### Scenario: Runtime starts descendants
 - **WHEN** an owned UI or Pi runtime starts extension daemons, agent workers, tools, or further descendants
@@ -18,6 +18,14 @@ A launch instance SHALL own its selected root runtime and every agent, extension
 #### Scenario: Processes started inside a tab
 - **WHEN** A1 running in a resident tab starts tools or extension subprocesses
 - **THEN** those processes SHALL belong to that tab's holder-owned process tree and SHALL be terminated when the tab is stopped
+
+#### Scenario: Ordinary descendant requests job breakaway
+- **WHEN** a tool or helper requests `CREATE_BREAKAWAY_FROM_JOB` inside an ordinary A1-owned job
+- **THEN** A1 SHALL NOT have enabled a job-wide escape permission for it, and an ordinary contained spawn SHALL remain terminate-on-close
+
+#### Scenario: Forced attach termination
+- **WHEN** an attach client is killed without running its own cleanup hooks
+- **THEN** the surviving terminal-restoration owner SHALL restore the invoking terminal, while guardians remain lifecycle-only and resident tabs continue
 
 ### Requirement: Explicit session selection belongs to the originating launch instance
 A supported session launch SHALL carry its validated target and effective session-directory selection intact through release selection, bootstrap, containment, and owned runtime startup. A supported retry or handoff SHALL preserve that same selection. Launch metadata SHALL remain per invocation, SHALL NOT become a supervisor-wide default or leak through inherited stale session metadata, and SHALL NOT require terminal parsing or shell command evaluation. Session launch failures SHALL retain the existing instance cleanup guarantees. When resident tabs are enabled, a bare-A1 session launch SHALL deliver its selection to the resident server, which SHALL open it as a tab or focus the tab already holding it.
@@ -44,5 +52,5 @@ A supported session launch SHALL carry its validated target and effective sessio
 - **THEN** the failure SHALL propagate to the invoking command and the instance's processes SHALL be cleaned up without affecting other instances
 
 #### Scenario: Select a session held by a resident tab
-- **WHEN** `a1 --session <id>` names a session already owned by a live resident tab
+- **WHEN** resident tabs are enabled and `a1 --session <id>` names a session already owned by a live resident tab
 - **THEN** A1 SHALL focus that tab and SHALL NOT open the session in a second tab

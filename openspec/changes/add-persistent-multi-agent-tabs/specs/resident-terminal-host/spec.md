@@ -39,7 +39,7 @@ Each tab SHALL be owned by exactly one native session holder process that create
 - **THEN** A1 SHALL focus that tab and SHALL NOT start a second tab on the file
 
 ### Requirement: Windows resident processes start outside terminal containment
-The server and every holder SHALL be started by the native terminal-host binary's Windows detach routine outside the launching terminal's console, session, and launch-instance containment. The routine SHALL start detached with no console window, SHALL use explicit verified job breakaway where the job allows it, SHALL launch outside a foreign kill-on-close job that denies breakaway, and SHALL record the mode used. The launch-instance containment SHALL permit only this explicit terminal-host breakaway. When survival cannot be established, A1 SHALL report degraded mode or use the direct fallback rather than claim persistence. macOS and Linux SHALL remain on the direct path in this change.
+The server and every holder SHALL be started through an authenticated fixed-role native resident-launch path outside the launching terminal's console and launch-instance containment. The path SHALL verify the immutable terminal-host artifact, requested role, canonical profile and request authority, SHALL NOT accept arbitrary executable/argv escape requests, and SHALL NOT enable job-wide or silent breakaway on ordinary launch-instance or tab-child jobs. It SHALL support bounded native creation outside foreign kill-on-close jobs, including WMI where necessary, and SHALL verify resulting process identity and containment before announcing resident readiness. It SHALL record the observed mode and failures. When survival cannot be established, A1 SHALL use direct fallback with one notice and preserve existing records rather than claim persistence. This lifecycle boundary SHALL NOT claim to sandbox malicious same-user code. macOS and Linux SHALL remain on the direct path in this change.
 
 #### Scenario: Close Windows Terminal
 - **WHEN** the Windows Terminal window running bare `a1` is closed
@@ -47,11 +47,19 @@ The server and every holder SHALL be started by the native terminal-host binary'
 
 #### Scenario: Launch inside a kill-on-close job
 - **WHEN** bare `a1` starts inside a job that kills its processes on close, such as a Windows OpenSSH session
-- **THEN** the server SHALL start outside that job and survive the session's end, or A1 SHALL report the degraded mode
+- **THEN** the server SHALL start outside that job and survive the session's end, or A1 SHALL refuse resident readiness and use the direct fallback with a notice
 
 #### Scenario: Ordinary descendants stay contained
-- **WHEN** a process in the bare-A1 launch instance starts a child without the explicit resident breakaway
-- **THEN** that child SHALL remain in the instance containment and SHALL be terminated with it
+- **WHEN** an ordinary process in the bare-A1 launch instance or a tab-child tree requests `CREATE_BREAKAWAY_FROM_JOB`
+- **THEN** A1's job configuration SHALL NOT grant escape, and a normal contained child SHALL still terminate with its owning tree
+
+#### Scenario: Resident launch request names an arbitrary executable
+- **WHEN** a request supplies an unapproved executable, role, profile or request identity to the resident-launch path
+- **THEN** native admission SHALL reject it without spawning a process
+
+#### Scenario: Contained client requests server recovery
+- **WHEN** the server dies while a verified attach client remains in its ordinary kill-on-close job
+- **THEN** the authorized native recovery path SHALL start a verified replacement outside that job without broadening the client's job permissions
 
 ### Requirement: The native binary owns the complete terminal data path
 Pseudoterminal output, child input, retained terminal state, input encoding, composition, and outer-terminal writes SHALL remain inside the native terminal-host binary's attach, server, and holder roles. Node SHALL NOT read, relay, parse, or render tab terminal bytes. The attach client SHALL answer no terminal queries on a child's behalf; the holder's model SHALL answer them. The attach client SHALL compose the strip row and the viewed tab's surface, SHALL offset mouse coordinates by the strip, SHALL forward clipboard writes, hyperlinks, and cursor shape from the child, SHALL NOT forward bells, and SHALL restore every outer terminal mode it enabled when it detaches or fails.
@@ -62,7 +70,7 @@ Pseudoterminal output, child input, retained terminal state, input encoding, com
 
 #### Scenario: Attach client crashes
 - **WHEN** the attach client exits abnormally
-- **THEN** the outer terminal SHALL be restored by the fatal path and every tab SHALL continue
+- **THEN** the outer terminal SHALL be restored by the surviving-owner path even when forced termination prevents in-process fatal hooks, and every tab SHALL continue
 
 ### Requirement: Host exchanges use a generation-stable bounded protocol
 Every connection SHALL begin with a handshake carrying role, protocol generation, build, features, and credentials. Within a generation, messages SHALL change only additively with defaulted optional fields and unknown-value fallbacks, guarded by frozen shape fixtures; a missing optional method SHALL disable only that operation; a generation mismatch SHALL produce a typed incompatibility outcome. Frames, input messages, and handshakes SHALL be bounded. Topology mutations SHALL carry expected revisions and SHALL apply atomically or be rejected.
@@ -90,7 +98,7 @@ Each client connection SHALL have a bounded reliable control lane and a single-s
 - **THEN** tabs and other clients SHALL continue normally and the stalled client SHALL show the current surface when it resumes
 
 ### Requirement: The tab bridge reports structured A1 state and controller identity
-Each A1 tab process SHALL receive a derived per-tab/per-incarnation credential and SHALL connect an authenticated bridge to the server that reports sequenced status from engine events, the Pi session file and name, whether its last prompt was interrupted, and semantic requests. Before terminal input from a new controller is accepted, the holder SHALL deliver an input-owner marker containing client identity and controller revision through the bridge and receive acknowledgement. Client-scoped requests SHALL include that acknowledged identity and revision and SHALL be rejected when stale. The server SHALL send visibility and rename notifications through the bridge, and A1 SHALL reduce animation work while hidden. Bridge messages SHALL NOT carry prompt, transcript, or terminal input content. Bridge credentials SHALL NOT be passed to descendants. A missing bridge SHALL degrade status and disable client-scoped child requests without breaking terminal input or attach-local detach.
+Each A1 tab process SHALL receive a derived per-tab/per-incarnation credential and SHALL connect an authenticated bridge to the server that reports sequenced status from engine events, the Pi session file and name, whether its last prompt was interrupted, and semantic requests. Before terminal input from a new controller is accepted, the holder and child SHALL establish a causal input-admission boundary covering previously accepted input in native, PTY, and child buffers and acknowledge the new owner. A sideband marker acknowledgement alone SHALL NOT be treated as proof of ordering across channels. Client-scoped requests SHALL retain immutable controller identity/revision captured at command admission and SHALL be rejected when stale or ambiguous, never rebound to the controller current at execution. The server SHALL send visibility and rename notifications through the bridge, and A1 SHALL reduce animation work while hidden. Bridge messages SHALL NOT carry prompt, transcript, or terminal input content. The child SHALL consume bridge credentials into private memory and remove them from inherited environments before extension loading or descendant spawn; reconnect SHALL NOT restore them to the environment. A missing bridge SHALL degrade status and disable client-scoped child requests without breaking terminal input or attach-local detach.
 
 #### Scenario: Pending extension request
 - **WHEN** an extension in a tab opens a confirmation
@@ -98,10 +106,14 @@ Each A1 tab process SHALL receive a derived per-tab/per-incarnation credential a
 
 #### Scenario: Bridge unavailable
 - **WHEN** a tab's bridge cannot connect
-- **THEN** the tab SHALL keep running with process-level status and SHALL remain fully usable
+- **THEN** the tab SHALL keep running with process-level status, terminal input and attach-local actions, while client-scoped child requests remain disabled
+
+#### Scenario: Buffered command crosses controller transfer
+- **WHEN** an old controller's command remains buffered while a new controller is acknowledged
+- **THEN** its request SHALL retain the old generation or be rejected as ambiguous, SHALL NOT acquire the new identity, and SHALL affect neither client after the old generation is superseded
 
 ### Requirement: The tab registry is durable and lease-protected
-The server SHALL write the per-profile registry only while holding the owner-only OS-exclusive writer lease and current durable epoch. Every mutation SHALL recheck that authority and commit through a temporary file, write-capable file sync, atomic rename, and directory sync before acknowledgement. The registry SHALL record each tab's identity, kind, display name and name source, order, cwd, session location, desired state, lifecycle, attention and seen positions, verified holder identity/incarnation/release, controller revision, credential-derivation inputs, restart budget, last exit, registry revision, epoch, and boot identity, and SHALL retain bounded history generations. It SHALL NOT store derived credentials, environment values, prompt text, or terminal content. An unreadable registry SHALL be quarantined, the last good generation loaded, and a notice shown; persistent write failure SHALL leave newer memory authoritative and report degraded health.
+The server SHALL write the per-profile registry only while holding the owner-only OS-exclusive writer lease and current durable epoch. Every mutation SHALL recheck that authority and commit through a temporary file, write-capable file sync, atomic rename, and directory sync before acknowledgement. The registry SHALL record each tab's identity, kind, display name and name source, order, cwd, session location, desired state, lifecycle, attention and seen positions, verified holder identity/incarnation/release, controller revision, credential-derivation inputs, restart budget, last exit, registry revision, epoch, and boot identity, and SHALL retain bounded history generations. It SHALL NOT store derived credentials, environment values, prompt text, or terminal content. An unreadable registry SHALL be quarantined, the last good generation loaded, and a notice shown; if existing state has no valid recoverable generation, recovery SHALL fail closed with preserved files rather than initialize an empty registry; persistent write failure SHALL preserve live observed state in memory, reject new durable mutations without acknowledging success, and report degraded health. A failed mutation SHALL NOT become a committed revision merely because it exists in memory.
 
 #### Scenario: Server killed right after a rename
 - **WHEN** a rename is acknowledged and the server is then killed
@@ -110,6 +122,10 @@ The server SHALL write the per-profile registry only while holding the owner-onl
 #### Scenario: Corrupt registry
 - **WHEN** the registry cannot be parsed
 - **THEN** the server SHALL quarantine it, load the last good generation, and name both in a notice
+
+#### Scenario: No valid registry history remains
+- **WHEN** an existing registry and all retained generations fail validation
+- **THEN** startup SHALL report blocked recovery, preserve the evidence, and SHALL NOT overwrite it with an empty tab set
 
 ### Requirement: Credentials survive server replacement without entering the registry
 Clients SHALL authenticate with a random owner-only client token. One random owner-only profile secret stored outside the registry SHALL derive holder and bridge credentials from tab identity and process incarnation. A replacement server SHALL reproduce the expected credential from the secret and recorded non-secret inputs, then also verify pid and native start identity before admission. Endpoint, token, secret, lease, registry, journal, and recovery-file access SHALL be restricted to the owning user. The server SHALL adopt, signal, or terminate a process only after verifying credential, recorded native identity, incarnation, and current epoch, and SHALL leave unverifiable processes untouched and reported.
@@ -123,7 +139,7 @@ Clients SHALL authenticate with a random owner-only client token. One random own
 - **THEN** endpoint access control SHALL refuse it
 
 ### Requirement: Crashed and hung tabs restart within a bounded budget
-Holders SHALL detect child exit immediately and the server SHALL detect holder exit and heartbeat hangs within a bounded timeout, terminating verified hung trees gracefully then forcibly. An unrequested exit SHALL restart the tab by resuming its Pi session with increasing backoff; after three restarts within ten minutes the tab SHALL become failed and require retry, fresh start, or close. Restarts SHALL NOT resend an interrupted prompt. Child standard error SHALL be captured to a rotated per-tab log.
+Holders SHALL detect child exit immediately and the server SHALL detect holder exit and heartbeat hangs within a bounded timeout, terminating verified hung trees gracefully then forcibly. An unrequested exit SHALL restart the tab by resuming its Pi session with increasing backoff; after three restarts within ten minutes the tab SHALL become failed and require retry, fresh start, or close. Restarts SHALL NOT resend an interrupted prompt. If child standard error is separately available, it SHALL be captured only as private bounded recovery data, not as a sanitized diagnostic log, and SHALL be excluded from the doctor bundle.
 
 #### Scenario: Tab process killed
 - **WHEN** a tab's A1 process is killed externally
@@ -141,11 +157,15 @@ When the server exits unexpectedly, attach clients SHALL show a non-blocking rec
 - **THEN** a holder SHALL start the replacement, and the next `a1` SHALL reattach every tab with its current screen
 
 ### Requirement: Tabs are restored after reboot or logout
-When the server starts in a new boot, or finds desired-running tabs without live verified holders, it SHALL restore them under a single restore gate that prevents duplicate starts, with bounded start concurrency, resuming each from its Pi session without resuming interrupted turns. A tab whose cwd or session is unavailable SHALL remain as failed with the reason and path and SHALL NOT be relocated or overwritten. Restored tabs SHALL use the environment of the client that triggered restoration and SHALL note that once.
+When the server starts in a new boot, or finds desired-running tabs without live verified holders, it SHALL restore them under a single restore gate that prevents duplicate starts, with bounded start concurrency, resuming each from its Pi session without resuming interrupted turns. A tab whose cwd or previously existing session is unavailable SHALL remain as failed with the reason and path and SHALL NOT be relocated or overwritten. A reserved new-session identity whose first-turn journal proves the session file was never created SHALL instead recover that identity and offer its journaled prompt without replay. Restored tabs SHALL use the environment of the client that triggered restoration and SHALL note that once.
 
 #### Scenario: Reboot with three tabs
 - **WHEN** the machine reboots with three running tabs and the user runs `a1`
 - **THEN** exactly three tabs SHALL be restored with every committed transcript entry
+
+#### Scenario: First-turn session file does not yet exist
+- **WHEN** a crash leaves a durable reserved session identity and pending journal but Pi had not created the first session file
+- **THEN** recovery SHALL retain that identity and offer the prompt idle rather than treat it as a missing existing transcript or automatically resend it
 
 #### Scenario: Missing cwd
 - **WHEN** a restored tab's cwd no longer exists
@@ -177,4 +197,4 @@ The terminal-host binary SHALL ship for win32-x64 with artifact hashes, pinned s
 
 #### Scenario: Server cannot start
 - **WHEN** the terminal-host binary is missing, unverified, or fails its start budget
-- **THEN** bare `a1` SHALL start the direct single-agent experience with one notice instead of failing
+- **THEN** bare `a1` SHALL use the direct single-agent path with one notice, preserving records and applying the shared writer-lease check to any selected session rather than bypassing a live writer
