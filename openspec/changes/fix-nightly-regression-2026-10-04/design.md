@@ -4,9 +4,17 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- Treat the failure as runner-contention exposure rather than a product regression or a suspect-range code change. The failing test's bytes have been unchanged since `060d2dd0`, none of the six commits after the last successful Publish run touched it, and the same Windows Node 22 test moved from 1,125 ms in successful Publish run `37112403859` to the exact 15,008 ms timeout in failed run `37193608959`.
+- Move `test/features/prompt-history/concurrency.integration.test.ts` into the existing `fast-resource-sensitive` membership. It starts three concurrent `tsx` child processes against shared temporary SQLite storage, matching the canonical resource-sensitive contract, while its sibling `store.test.ts` is already assigned there.
+- Keep the test body, 15-second test timeout, three-writer workload, assertions, no-retry behavior, and history-compatibility platform ownership unchanged. The authoritative plan will exclude the file from `vitest-full-without-isolated` and execute it once in the non-file-parallel resource invocation under the existing 30-second partition hang bound.
+- Add governance expectations for authoritative membership and full-plan placement. No specification delta is needed because the canonical continuous-integration and isolated-regression-testing requirements already prescribe this classification for subprocess and temporary-storage workloads.
 
 ## Evidence
+
+- Failure log inspection identified one assertion owner: `multi-process prompt history > serializes simultaneous first-open, writes and pruning` timed out at 15,008 ms; the other 4,269 tests passed on the failed Windows Node 22 lane. The aggregate `Publication result` failure was downstream orchestration, not a second defect.
+- The preceding successful Publish run executed the same test in 1,125 ms on Windows Node 22. The unchanged source blob is `f072e390bf18d18b763ab451558016e711597c3c` both at its last edit and at the failed head.
+- Generated-plan inspection shows the failed file is currently absent from `fast-resource-sensitive`, so the complete plan leaves it in the two-worker parallel core invocation while separately serializing `test/features/prompt-history/store.test.ts` and other shared-resource suites.
+- Pre-implementation known gap: focused plan-policy evidence and exact-head PR Full regression remain pending until the plan is approved and implemented.
 
 - Run [Publish #6](https://github.com/timurproko/a1/actions/runs/37193608959) (attempt 1, schedule) on `7dafde8` at 2026-10-04T09:53:46Z:
   - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-containment`, `update-performance`, `update-predecessor`) failed on win32-node22 with exit 1.

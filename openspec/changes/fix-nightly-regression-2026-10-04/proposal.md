@@ -1,11 +1,12 @@
 ## Why
 
-The Publish run of 2026-10-04 failed on `develop` at `7dafde8` (https://github.com/timurproko/a1/actions/runs/37193608959). Failed: `vitest-full-without-isolated` (architecture, dependency-policy, dist-integration, documentation-full, fast-remainder, fast-resource-sensitive, history-compatibility, image-compatibility, launch-integration, naming-full, package-contracts, package-smoke, package-startup, pi-engine-conformance, release-update, rendering-stability, typecheck, unix-containment, update-performance, update-predecessor) on win32-node22. Orchestration failures: lane Publication result in job `Publication result`. The nightly triage opened this change so the fix starts from the recorded evidence instead of the failure email.
+The 2026-10-04 Publish run failed on Windows Node 22 when the multi-process prompt-history concurrency test exhausted its unchanged 15-second timeout inside the parallel full-validation remainder. The test launches concurrent TypeScript child processes and mutates shared SQLite storage, but unlike the prompt-history store suite it is missing from the existing resource-sensitive partition that protects those workloads from runner contention.
 
 ## What Changes
 
-- Reproduce the failure on the failed lane from the listed tests or commands and identify the introducing change among the suspect commits.
-- Fix the cause without weakening assertions, budgets, timeouts, or coverage, and add regression evidence where the failure exposed a gap.
+- Classify `test/features/prompt-history/concurrency.integration.test.ts` in the authoritative resource-sensitive suite so complete and pull-request validation run it exactly once without file parallelism.
+- Strengthen validation-plan coverage to require the test's exclusion from the parallel remainder and ownership by the serial resource shard.
+- Preserve the test's assertions, workload, timeout, retry behavior, and supported platform/runtime coverage.
 
 ## Capabilities
 
@@ -15,8 +16,8 @@ None.
 
 ### Modified Capabilities
 
-None identified yet. When the cause is known and the fix changes a requirement, add the delta under `specs/<capability>/spec.md` and remove `skip_specs: true` from `.openspec.yaml`; when the fix changes no requirement, leave both as scaffolded.
+None. The existing continuous-integration and isolated-regression-testing specifications already require subprocess and temporary-storage workloads to use the declared resource-sensitive execution class; this change corrects the suite membership.
 
 ## Impact
 
-Recorded in the pull-request body: failed commands per lane, their test files, a bounded log excerpt, and the `develop` commits since the last successful run (6 since `3b3d2a4`).
+The implementation is limited to validation suite configuration and its governance tests. Product prompt-history behavior and the concurrency test itself remain unchanged.
