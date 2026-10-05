@@ -5,8 +5,8 @@
   "recordedAt": "2026-08-16T18:28:52.905Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "a13d35a742c6ef8462812a28fbe1d8c8b7431c32",
-    "package": "@earendil-works/pi-coding-agent@1.0.0",
+    "commit": "cd32f7725fdbddbaecdff5b1e68491563394e0ca",
+    "package": "@earendil-works/pi-coding-agent@1.0.2",
     "sources": [
       {
         "path": "packages/coding-agent/src/core/slash-commands.ts",
@@ -262,7 +262,7 @@
   "commandMessageParity": {
     "change": "align-pi-command-messages",
     "recordedAt": "2026-09-12",
-    "pinnedVersion": "1.0.0",
+    "pinnedVersion": "1.0.2",
     "source": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
     "sourceMap": "modes/interactive/interactive-mode.js.map",
     "caseSource": "test/app/session-shell/command-outcome-cases.ts",

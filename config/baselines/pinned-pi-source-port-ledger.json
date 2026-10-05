@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-05T07:13:12.663Z",
+  "recordedAt": "2026-10-05T10:59:27.763Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "cd32f7725fdbddbaecdff5b1e68491563394e0ca",
@@ -38,9 +38,9 @@
     "sourceModules": 123,
     "assets": 4,
     "classifications": {
-      "public-api-reuse": 63,
-      "owned-presentation": 35,
-      "host-adaptation": 29
+      "public-api-reuse": 64,
+      "owned-presentation": 32,
+      "host-adaptation": 31
     },
     "requiredBehaviorIds": 29,
     "coveredBehaviorIds": 29,
@@ -890,7 +890,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Unchanged image bytes are losslessly encoded in an attributed owned JSON resource by scripts/pi/update-command-resources.mjs. Source bytes and digest are verified against this pinned asset authority; runtime reads only the owned resource, never the dependency directory.",
       "upgradeStrategy": "three-way",
-      "localSha256": "ac4946e6f568d0fe8716a06defe4b4cb8d3d0e3789f4f6c7e2336311bb9ac1a0",
+      "localSha256": "d296bc2c6ca6bbf1f68e9f186165f976c5b88b39e5bad4a1f9313ba6e04afd9b",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -1047,12 +1047,11 @@
       "sourceMap": "modes/interactive/components/auth-url.js.map",
       "lines": 40,
       "sha256": "a4b3531e947746ca1bc2319b717ff79b37898366d282d02f9fc0b955481fc913",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/components/auth-url.ts",
-      "implementationStatus": "not-ported",
+      "classification": "public-api-reuse",
+      "localDestination": "src/integrations/pi/components/shell-selectors-dialogs.ts",
+      "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
-      "upgradeStrategy": "three-way",
+      "modifications": "Reached transitively through the public LoginDialogComponent; A1 passes its TUI facade to that component, which owns the sign-in URL, click hint, copy action, and feedback.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -1064,8 +1063,8 @@
         "7.5"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/provider-auth-parity.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     },
     {
@@ -1557,12 +1556,11 @@
       "sourceMap": "modes/interactive/components/easter-egg-3d.lazy.js.map",
       "lines": 28,
       "sha256": "7836ce86e45ea369c0d8d65b29d2201f2b1ee367bdbf0a1ee0307c0848e07df8",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/components/easter-egg-3d.lazy.ts",
-      "implementationStatus": "not-ported",
+      "classification": "host-adaptation",
+      "localDestination": "src/integrations/pi/components/upstream/components/pi-logo.ts",
+      "implementationStatus": "declined-not-adopted",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
-      "upgradeStrategy": "three-way",
+      "modifications": "Declined the package-private lazy loader for fullscreen 3D easter eggs; A1 retains its owned startup composition and the public Armin fallback.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -1574,8 +1572,8 @@
         "7.5"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts"
       ]
     },
     {
@@ -1587,12 +1585,11 @@
       "sourceMap": "modes/interactive/components/easter-egg-3d.js.map",
       "lines": 1293,
       "sha256": "90c1f86db5281da25bb683da28a055035ffa092c3de59dfa3faadb027bbfb429",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/components/easter-egg-3d.ts",
-      "implementationStatus": "not-ported",
+      "classification": "host-adaptation",
+      "localDestination": "src/integrations/pi/components/upstream/components/pi-logo.ts",
+      "implementationStatus": "declined-not-adopted",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
-      "upgradeStrategy": "three-way",
+      "modifications": "Declined the package-private fullscreen 3D logo and Armin animation; A1 retains its owned startup composition and the public Armin fallback.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -1604,8 +1601,8 @@
         "7.5"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts"
       ]
     },
     {
@@ -2650,7 +2647,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain pinned shell and actual public tool-definition renderers. Replace private index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and generic text helpers to public or locally attributed equivalents. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "cd255f253b295dcf4e0e5b413065cd9b905f799886199a7b2182aeabdc5693f7",
+      "localSha256": "853d9e8daa29810f0dc2f2d2b4b97d7155029608752316bcfb62bb8abafead9d",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",

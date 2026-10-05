@@ -64,7 +64,6 @@ import {
 import {
   createPiShellArmin,
   createPiShellAuthProviderSelector,
-  createPiShellDaxnuts,
   createPiShellDialog,
   createPiShellEarendilAnnouncement,
   createPiShellExtensionSelector,
@@ -399,7 +398,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     agentDir?: string,
     extensionRenderers: PiShellExtensionRendererResolver = {
       getMessageRenderer: () => undefined,
-      getToolDefinition: () => undefined,
+      getToolRenderers: () => undefined,
     },
     sessionLayout: "pinned" | "custom-viewport" = "pinned",
     imageAssets?: PiShellImageAssetResolver,
@@ -1373,12 +1372,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ? `${linkShareUrl(result.message)}\nGist: ${piShellHyperlink(result.detail)}`
       : result.message;
     this.appendWorkflowStatus(message);
-  }
-
-  appendDaxnuts(): void {
-    this.#lastWorkflowStatusId = undefined;
-    const daxnuts = createPiShellDaxnuts(this.#componentRuntime);
-    this.#appendAnchoredWorkflowComponent(width => ["", ...daxnuts.render(width)], () => daxnuts.dispose?.());
   }
 
   toggleThinkingVisibility(): void {

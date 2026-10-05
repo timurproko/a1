@@ -157,7 +157,7 @@ export interface PiShellImageAssetResolver {
 
 export interface PiShellExtensionRendererResolver {
   getMessageRenderer(customType: string): unknown;
-  getToolDefinition(toolName: string): unknown;
+  getToolRenderers(toolName: string): unknown;
   getShortcuts?(bindings: KeybindingsConfig): readonly { readonly key: string; readonly description: string }[];
 }
 

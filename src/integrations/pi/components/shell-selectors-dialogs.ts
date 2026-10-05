@@ -17,9 +17,6 @@ import {
   UserMessageSelectorComponent,
 } from "../startup-public.js";
 import {
-  DaxnutsComponent,
-} from "./upstream/components/daxnuts.js";
-import {
   EarendilAnnouncementComponent,
 } from "./upstream/components/earendil-announcement.js";
 import {
@@ -371,13 +368,6 @@ export function createPiShellArmin(
 ): PiShellComponentPort {
   ensureTheme();
   return componentPort(new ArminComponent(createTuiFacade(runtime)));
-}
-
-export function createPiShellDaxnuts(
-  runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
-): PiShellComponentPort {
-  ensureTheme();
-  return componentPort(new DaxnutsComponent(createTuiFacade(runtime)));
 }
 
 export function createPiShellEarendilAnnouncement(): PiShellComponentPort {

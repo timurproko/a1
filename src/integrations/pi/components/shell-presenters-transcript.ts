@@ -376,17 +376,20 @@ function assistantPayloadContent(value: unknown): readonly Record<string, unknow
   return content.length === 0 && value.length > 0 ? undefined : content;
 }
 
-type PiToolDefinition = ConstructorParameters<typeof ToolExecutionComponent>[4];
+type PiToolRenderers = ConstructorParameters<typeof ToolExecutionComponent>[4];
 type PiMessageRenderer = ConstructorParameters<typeof CustomMessageComponent>[1];
 
-function validatedToolDefinition(value: unknown): PiToolDefinition {
+function validatedToolRenderers(value: unknown): PiToolRenderers {
   if (value === undefined) return undefined;
-  if (!isPiToolDefinition(value)) throw new TypeError("Pi tool-definition façade rejected malformed metadata");
+  if (!isPiToolRenderers(value)) throw new TypeError("Pi tool-renderer façade rejected malformed metadata");
   return value;
 }
 
-function isPiToolDefinition(value: unknown): value is NonNullable<PiToolDefinition> {
-  return isRecord(value) && typeof value.name === "string";
+function isPiToolRenderers(value: unknown): value is NonNullable<PiToolRenderers> {
+  if (!isRecord(value)) return false;
+  return (value.renderShell === undefined || value.renderShell === "default" || value.renderShell === "self")
+    && (value.renderCall === undefined || typeof value.renderCall === "function")
+    && (value.renderResult === undefined || typeof value.renderResult === "function");
 }
 
 function validatedMessageRenderer(value: unknown): PiMessageRenderer {
@@ -417,7 +420,7 @@ function toolComponent(
     toolCallId,
     argumentsPayload,
     { showImages, imageWidthCells },
-    validatedToolDefinition(extensions?.getToolDefinition(toolName)),
+    validatedToolRenderers(extensions?.getToolRenderers(toolName)),
     tui ?? createTuiFacade({ getColumns: () => 80, getRows: () => 24, requestRender() {} }),
     cwd,
   );

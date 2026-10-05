@@ -2803,7 +2803,9 @@
           "name": "ToolRenderers",
           "kind": "type",
           "hash": "6f9b937331c8730844c9328b3a786a6bbe4942fe764ed85d83be90e7e94f4be1",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/components/tool-execution.ts"
+          ]
         },
         {
           "name": "ToolRenderResultOptions",
@@ -3176,7 +3178,6 @@
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/submitted-prompt-adapter.ts",
             "src/integrations/pi/components/tool-image-presentation.ts",
-            "src/integrations/pi/components/upstream/components/daxnuts.ts",
             "src/integrations/pi/components/upstream/components/session-footer.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/status-indicator.ts",
@@ -4241,7 +4242,6 @@
             "src/integrations/pi/components/shell-footer-status.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/components/countdown-timer.ts",
-            "src/integrations/pi/components/upstream/components/daxnuts.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/extension-input.ts",
             "src/integrations/pi/components/upstream/components/extension-selector.ts",

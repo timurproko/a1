@@ -289,7 +289,7 @@
       "plane": "persistent-document",
       "owner": "InteractiveMode hidden/easter-egg handlers",
       "container": "chatContainer",
-      "insertion": "Spacer then specialized debug, Armin, Earendil, or Daxnuts presenter",
+      "insertion": "Spacer then specialized debug, Armin fallback, or Earendil presenter; fullscreen Pi may replace Armin with its package-private 3D overlay",
       "siblingOrder": "invocation/event order",
       "spacing": "one source spacer plus component-owned rows",
       "style": "accent/muted debug output or specialized component styling",
@@ -300,12 +300,10 @@
       "sourceAnchors": [
         "handleDebugCommand()",
         "handleArminSaysHi()",
-        "handleDementedDelves()",
-        "handleDaxnuts()"
+        "handleDementedDelves()"
       ],
       "destination": "src/app/session-shell/session-shell.ts",
-      "implementationStatus": "requires-revalidation",
-      "status": "orphaned"
+      "implementationStatus": "requires-revalidation"
     },
     {
       "id": "dock.pending-messages",

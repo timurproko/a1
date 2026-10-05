@@ -1,11 +1,15 @@
 import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { readPinnedPiIdentity } from "../../scripts/governance/pinned-pi-identity.mjs";
 import { PINNED_PI_TUI_DAMAGE_GRAMMAR } from "../../src/integrations/pi/tui-runtime/index.js";
 
+const require = createRequire(import.meta.url);
+
 describe("damage-aware terminal public boundary", () => {
   it("pins conformance to the installed public Pi package identity", async () => {
-    const packagePath = new URL("../../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/package.json", import.meta.url);
+    const packagePath = join(dirname(require.resolve("@earendil-works/pi-tui")), "..", "package.json");
     const packageJson = JSON.parse(await readFile(packagePath, "utf8")) as { readonly name: string; readonly version: string };
     expect(`${packageJson.name}@${packageJson.version}`).toBe(`@earendil-works/pi-tui@${(await readPinnedPiIdentity(".")).version}`);
     expect(PINNED_PI_TUI_DAMAGE_GRAMMAR).toContain(`${packageJson.name}@${packageJson.version}`);

@@ -1,8 +1,8 @@
 {
   "sourcePackage": "@earendil-works/pi-coding-agent",
-  "sourceVersion": "1.0.0",
+  "sourceVersion": "1.0.2",
   "upstreamRepository": "https://github.com/earendil-works/pi.git",
-  "upstreamCommit": "a13d35a742c6ef8462812a28fbe1d8c8b7431c32",
+  "upstreamCommit": "cd32f7725fdbddbaecdff5b1e68491563394e0ca",
   "sourcePath": "dist/modes/interactive/assets/clankolas.png",
   "sourceSha256": "169acd0dfe6fbb8d8742ed24a3fc654fd0b2e2d4223c733249c5493723f1b72d",
   "license": "MIT",

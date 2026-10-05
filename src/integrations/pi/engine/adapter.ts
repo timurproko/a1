@@ -556,8 +556,13 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return shortcuts === undefined ? [] : [...shortcuts].map(([key, shortcut]) => ({ key, description: shortcut.description ?? shortcut.extensionPath }));
   }
 
-  pinnedToolDefinition(toolName: string): unknown {
-    return this.#requireWorkflowSession().extensionRunner?.getToolDefinition?.(toolName);
+  pinnedToolRenderers(toolName: string): unknown {
+    const runner = this.#requireWorkflowSession().extensionRunner;
+    if (runner === undefined) return undefined;
+    if (typeof runner.resolveToolRenderers === "function") {
+      return runner.resolveToolRenderers(toolName, () => runner.getToolDefinition?.(toolName));
+    }
+    return runner.getToolDefinition?.(toolName);
   }
 
   clearQueuedWorkflows(): readonly string[] {
