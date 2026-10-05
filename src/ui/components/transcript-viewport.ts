@@ -604,7 +604,6 @@ export class TranscriptViewport {
         const bottomHovered = pointer !== undefined && pointer.row === bottomHit.row
           && pointer.column >= bottomHit.columnStart && pointer.column <= bottomHit.columnEnd;
         control = { row, left, text: `${CONTROL_STYLE_RESET}${theme.bottomControl(label, bottomHovered)}` };
-        frameRows[row] = overlaySpan(padRowPreservingBackground(frameRows[row] ?? "", width), left, left + labelWidth, control.text);
         // Invariant: the control floats above selection; its cells are never selected or copied.
         selectionRows[row] = overlaySpan(
           padRowPreservingBackground(selectionRows[row] ?? "", width),
@@ -674,9 +673,12 @@ export class TranscriptViewport {
         ? truncateToWidth(input.frameOverlay.text, overlayLimit)
         : "";
       const overlayWidth = displayWidth(overlayText);
+      const rowControl = control?.row === row && bottomHit !== null
+        ? { left: control.left, right: bottomHit.columnEnd, text: control.text }
+        : null;
       const final = cachedString(
         this.#finalRowCache,
-        `${width}\u0000${railCell}\u0000${overlayText}\u0000${selected.value}`,
+        `${width}\u0000${railCell}\u0000${overlayText}\u0000${rowControl?.text ?? ""}\u0000${selected.value}`,
         cacheLimit,
         () => {
           const withRail = railCell.length === 0 ? selected.value : overlaySpan(
@@ -686,8 +688,16 @@ export class TranscriptViewport {
             `${GUTTER_DECORATION_RESET}${railCell}`,
             { inheritStartStyle: true },
           );
-          return overlayWidth === 0 ? withRail : overlaySpan(
-            padRowPreservingBackground(withRail, width),
+          // Invariant: floating control styling is applied only after the row and
+          // gutter surfaces are resolved, so its inline background cannot leak.
+          const withControl = rowControl === null ? withRail : overlaySpan(
+            withRail,
+            rowControl.left,
+            rowControl.right,
+            rowControl.text,
+          );
+          return overlayWidth === 0 ? withControl : overlaySpan(
+            padRowPreservingBackground(withControl, width),
             overlayLimit - overlayWidth,
             overlayLimit,
             `${CONTROL_STYLE_RESET}${overlayText}`,
@@ -695,12 +705,10 @@ export class TranscriptViewport {
         },
       );
       rowRecomputed ||= !final.reused;
-      frameRows[row] = control?.row === row && paintRange !== null && bottomHit !== null
-        ? overlaySpan(final.value, control.left, bottomHit.columnEnd, control.text)
-        : final.value;
+      frameRows[row] = final.value;
       (rowRecomputed ? recomputedRows : reusedRows).push(row + 1);
 
-      const state = `${width}\u0000${row}\u0000${painted}\u0000${rangeKey}\u0000${range === null ? "" : selectionPainterId}\u0000${railCell}\u0000${overlayText}`;
+      const state = `${width}\u0000${row}\u0000${painted}\u0000${rangeKey}\u0000${range === null ? "" : selectionPainterId}\u0000${railCell}\u0000${overlayText}\u0000${rowControl?.text ?? ""}`;
       visibleStates.push(state);
       if (this.#previousVisibleStates[row] !== state) selectionDamagedRows.push(row + 1);
     }

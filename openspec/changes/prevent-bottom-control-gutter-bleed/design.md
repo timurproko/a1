@@ -44,6 +44,15 @@ Focused tests will decode the control row and assert that cells inside the label
 - [Cached rows could preserve the leaked cell after hover or rail transitions] → Exercise normal, hovered, rail-visible, rail-idle, and repeated unchanged frames.
 - [A fix could alter semantic selection or copy output] → Retain focused selection masking and copied-text assertions for a control-bearing row.
 
+## Implementation Evidence
+
+- A decoded-cell regression reproduced the original defect before the implementation: both idle `auto` and visible `always` gutter cells incorrectly retained the control background.
+- Bottom-control paint now occurs only after ordinary and selected row surfaces plus scrollbar gutter chrome are resolved; its normal and pointed-at backgrounds remain confined to the label.
+- The decoded terminal matrix passes for normal/pointed-at controls, idle/visible rails, boundary-reaching selection, and repeated cache reuse. Existing content, gutter, wide-grapheme, link, and rail-transition coverage remains green.
+- Focused viewport and session-shell validation passes 209 tests across six suites, including selection, bottom hover, links, compaction, and decoded terminal paint.
+- Build, source/bin typechecking, changed-file code-documentation governance, strict OpenSpec validation, and `git diff --check` pass against current `origin/develop` at `90863d18`.
+- No implementation gaps are known. Physical Windows Terminal review of the exact candidate remains the maintainer-controlled acceptance activity.
+
 ## Migration Plan
 
 No data or settings migration is required. The implementation changes only paint composition order. Rollback restores the previous ordering without affecting persisted state.
