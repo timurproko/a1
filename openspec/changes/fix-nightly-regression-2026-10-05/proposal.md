@@ -1,11 +1,12 @@
 ## Why
 
-The Full regression run of 2026-10-05 failed on `develop` at `34b97d2` (https://github.com/timurproko/a1/actions/runs/37291195028). Failed: `vitest-update-predecessor` (update-predecessor) on windows-2025-node24 (package shard). Orchestration failures: lane Full regression / Complete regression required in job `Full regression / Complete regression required`. The nightly triage opened this change so the fix starts from the recorded evidence instead of the failure email.
+The 2026-10-05 Full regression failed on Windows Node 24 when the published-`0.2.2` bridge fixture spent its recovery guardian's entire unchanged 120-second deadline recursively copying the exact 654-file, 23-MiB candidate after launcher protection had begun. The same candidate passed on Windows Node 22, the preceding Node 24 run passed, and the only suspect commit changed progress colors rather than predecessor recovery, identifying hosted-runner filesystem contention in the fixture's simulated npm work rather than a product regression.
 
 ## What Changes
 
-- Reproduce the failure on the failed lane from the listed tests or commands and identify the introducing change among the suspect commits.
-- Fix the cause without weakening assertions, budgets, timeouts, or coverage, and add regression evidence where the failure exposed a gap.
+- Stage an exact candidate copy before entering each published predecessor's protected replacement interval.
+- Make the fixture's fake npm perform only the final same-volume package swap and launcher writes while the immutable predecessor guardian owns recovery.
+- Preserve the real published predecessor code, exact candidate bytes, activation and command assertions, supported runtimes, deadlines, and no-retry behavior.
 
 ## Capabilities
 
@@ -15,8 +16,8 @@ None.
 
 ### Modified Capabilities
 
-None identified yet. When the cause is known and the fix changes a requirement, add the delta under `specs/<capability>/spec.md` and remove `skip_specs: true` from `.openspec.yaml`; when the fix changes no requirement, leave both as scaffolded.
+None. Existing self-update and isolated-regression requirements already require exact published-predecessor replacement evidence under bounded deadlines; this change removes unrelated payload-copy contention from that protected interval.
 
 ## Impact
 
-Recorded in the pull-request body: failed commands per lane, their test files, a bounded log excerpt, and the `develop` commits since the last successful run (1 since `7dafde8`).
+The implementation is limited to the Windows published-predecessor integration fixture. Product update and recovery code, package contents, validation selection, and timeout policy remain unchanged.

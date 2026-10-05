@@ -4,9 +4,18 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- Treat the failure as fixture filesystem contention, not a product regression or a defect introduced by the sole suspect commit. `34b97d2` changes update progress presentation but does not touch the predecessor fixture, recovery guardian, or package replacement protocol; the failing test source is unchanged from `16b4758e`.
+- Preserve the published predecessor's real protected-replacement code. Before calling it, recursively stage the exact candidate beneath the same fixture-owned root as the simulated global package, then have the fake npm process remove the predecessor package and rename the staged candidate into place before restoring launchers.
+- Use a same-volume rename for the protected mutation. Real npm performs acquisition and extraction before its final global-package replacement; keeping the fixture's 654-file, 23-MiB recursive copy outside the guardian interval more accurately isolates the recovery protocol while retaining byte-exact candidate activation.
+- Keep the 120-second guardian deadline, 30-minute test and phase bounds, both Windows Node runtimes, immediate-predecessor and `0.2.2` bridge cases, activation/warmup/command assertions, and zero retries unchanged. Add no product fallback for an environmental fixture delay.
+- No specification delta is needed because the canonical requirements already demand bounded exact-package predecessor evidence; this is an implementation correction to that evidence.
 
 ## Evidence
+
+- Failed run inspection identified one owner: `replaces and activates the candidate through direct and bridged published updaters` reached `A1 update recovery guardian timed out before establishing a callable launcher` in the `0.2.2` bridge on Windows Node 24. The preceding materialization case and every other package-shard invocation passed.
+- The exact-package receipt records 654 files and 23,403,583 installed bytes. The fake npm currently performs a recursive `cp` of that payload only after the immutable predecessor starts its detached guardian and its 120-second deadline.
+- The same head's Windows Node 22 package shard passed both predecessor cases. The previous Full regression's Windows Node 24 bridge also passed, completing replacement, activation, command execution, and fixture discard roughly 35 seconds after installing `0.2.2`; the failed run instead consumed the full guardian deadline before cleanup.
+- Pre-implementation known gap: focused fixture evidence and selected exact-head PR Full regression remain pending until the plan is approved and implemented.
 
 - Run [Full regression #53](https://github.com/timurproko/a1/actions/runs/37291195028) (attempt 1, schedule) on `34b97d2` at 2026-10-05T09:36:47Z:
   - `vitest-update-predecessor` (`update-predecessor`) failed on windows-2025-node24 (package shard) with exit 1.
