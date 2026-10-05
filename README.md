@@ -12,187 +12,198 @@
   <a href="https://agentnumberone.dev"><img alt="Website" src="https://img.shields.io/badge/web-agentnumberone.dev-2638d2?style=flat-square"></a>
 </p>
 
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#launch">Launch</a> ·
+  <a href="#update">Update</a> ·
+  <a href="#extensions">Extensions</a> ·
+  <a href="#develop">Develop</a> ·
+  <a href="#publish">Publish</a>
+</p>
+
 ## Install
 
 Release:
 
-```sh
+```text
 npm x -y -- @timurproko/a1-install
 ```
 
 Develop:
 
-```sh
+```text
 npm x -y -- @timurproko/a1-install --develop
 ```
 
 Preview number:
 
-```sh
+```text
 npm x -y -- @timurproko/a1-install --develop 107
 ```
 
 Exact preview:
 
-```sh
+```text
 npm x -y -- @timurproko/a1-install --develop 0.1.8-dev.107
 ```
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/terminal-dark.svg"><img src="docs/assets/readme/terminal.svg" alt="" width="240"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
 
-## Use
+## Launch
 
 Launch A1 (profile: `~/.a1/agent`):
 
-```sh
+```text
 a1
 ```
 
 Show all commands:
 
-```sh
+```text
 a1 help
 ```
 
 Show the current and latest versions:
 
-```sh
+```text
 a1 version
 ```
 
 Vanilla Pi oracle (`~/.pi/agent`):
 
-```sh
+```text
 a1 pi
 ```
 
-### Update
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
+
+## Update
 
 Install the release:
 
-```sh
+```text
 a1 update
 ```
 
 Install develop:
 
-```sh
+```text
 a1 update --develop
 ```
 
 Install preview 107:
 
-```sh
+```text
 a1 update --develop 107
 ```
 
 Install that exact preview:
 
-```sh
+```text
 a1 update --develop 0.1.8-dev.107
 ```
 
 Refresh A1's model catalogs:
 
-```sh
+```text
 a1 update --models
 ```
 
 Stuck on `0.2.2` and `a1 update` fails? Run the installer once, then use `a1 update` as usual:
 
-```sh
+```text
 npm x -y -- @timurproko/a1-install
 ```
 
 A1 shows an `Update Available` notice at most once a day and never installs anything by itself. Turn it off in Settings (`Update check`) or with `A1_SKIP_VERSION_CHECK=1`.
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/plugins-dark.svg"><img src="docs/assets/readme/plugins.svg" alt="" width="240"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
 
 ## Extensions
 
 Install a package:
 
-```sh
+```text
 a1 install npm:pi-mcp-adapter
 ```
 
 Remove it (alias: `a1 uninstall`):
 
-```sh
+```text
 a1 remove npm:pi-mcp-adapter
 ```
 
 List installed packages:
 
-```sh
+```text
 a1 list
 ```
 
 Update every installed package:
 
-```sh
+```text
 a1 update --extensions
 ```
 
 Update one:
 
-```sh
+```text
 a1 update npm:pi-mcp-adapter
 ```
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/gears-dark.svg"><img src="docs/assets/readme/gears.svg" alt="" width="240"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
 
 ## Develop
 
 Install exact locked dependencies:
 
-```sh
+```text
 npm ci
 ```
 
 Compile TypeScript and the process guardian into `dist`:
 
-```sh
+```text
 npm run build
 ```
 
 Build and launch a source `a1`:
 
-```sh
+```text
 npm start
 ```
 
 Build and launch a source `a1 pi`:
 
-```sh
+```text
 npm run start:pi
 ```
 
 Typecheck + fast suite (alias: `npm test`):
 
-```sh
+```text
 npm run test:fast
 ```
 
 Complete non-physical suite:
 
-```sh
+```text
 npm run test:full
 ```
 
 Report Node, npm, git, Rust, and dependency readiness:
 
-```sh
+```text
 npm run doctor
 ```
 
 Preview the README as GitHub renders it, in your browser (needs `gh`):
 
-```sh
+```text
 npm run preview:readme
 ```
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/rocket-dark.svg"><img src="docs/assets/readme/rocket.svg" alt="" width="240"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
 
 ## Publish
 
@@ -200,25 +211,25 @@ npm run preview:readme
 
 Request the preview publish:
 
-```sh
+```text
 npm run develop
 ```
 
 ### Release
 
-```sh
+```text
 npm run release -- patch               # 0.1.8-dev -> 0.1.8
 ```
 
-```sh
+```text
 npm run release -- minor               # 0.1.8-dev -> 0.2.0
 ```
 
-```sh
+```text
 npm run release -- major               # 0.1.8-dev -> 1.0.0
 ```
 
-```sh
+```text
 npm run release -- 0.4.0               # prepare an exact stable version
 ```
 

@@ -10,6 +10,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { rebasePreviewFragmentLinks } from "./readme-preview-links.mjs";
 
 const root = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const source = resolve(root, process.argv[2] ?? "README.md");
@@ -20,6 +21,9 @@ const body = execFileSync("gh", ["api", "-X", "POST", "markdown", "--input", "-"
   encoding: "utf8",
   input: JSON.stringify({ text: readFileSync(source, "utf8"), mode: "gfm", ...(context ? { context } : {}) }),
 });
+const directory = join(tmpdir(), "readme-preview");
+const output = join(directory, "index.html");
+const renderedBody = rebasePreviewFragmentLinks(body, pathToFileURL(output).href);
 
 const COPY = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/></svg>';
 const DONE = '<svg width="16" height="16" viewBox="0 0 16 16" fill="#3fb950"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg>';
@@ -37,7 +41,7 @@ body{margin:0;background:#fff}@media(prefers-color-scheme:dark){body{background:
 @media(prefers-color-scheme:dark){.markdown-body{border-color:#3d444d}.cp{border-color:#3d444d;background:#212830;color:#9198a1}}
 </style></head>
 <body><article class="markdown-body">
-${body}
+${renderedBody}
 </article>
 <script>
 document.querySelectorAll("pre").forEach(pre => {
@@ -49,9 +53,7 @@ document.querySelectorAll("pre").forEach(pre => {
 </script></body></html>
 `;
 
-const directory = join(tmpdir(), "readme-preview");
 mkdirSync(directory, { recursive: true });
-const output = join(directory, "index.html");
 writeFileSync(output, page);
 process.stdout.write(`${output}\n`);
 
