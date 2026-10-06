@@ -28,10 +28,10 @@ The manual merge accepts these scenarios:
     "Ordinary dock notices and pre-work prompt failures retain their existing truthful presentation.",
     "The `a1 pi` route retains its chronological transcript-bound new-session confirmation."
   ],
-  "archiveDigest": "e2e133816e105bc54a41e383e6438d9db6710f19ed6ea68b142d67b56d601c9e",
+  "archiveDigest": "1941922c25e39deee74588731bf458e45e332c76a29d09b96b8dcea615de19f9",
   "specDigest": "ca11df2a0eaabac411e5095dcc7b1b1b4f460eac32f4c9e3e54dcf97681c118a",
   "tasksDigest": "bd189ab075b31f86817949455fb633003261ed9347c43f6388aaf25b6cdb932f",
-  "evidenceDigest": "df0d147891427eac4283554ca54908131fbd68277fa5c6abcf6899a391e6720f",
+  "evidenceDigest": "c495a6be68ec72b3c63072ae6c6339a3b25a7cf1a907b75f470f76ea81f90147",
   "knownGaps": []
 }
 ```
