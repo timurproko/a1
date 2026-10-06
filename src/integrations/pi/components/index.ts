@@ -3,6 +3,11 @@ export { loadHistoryEditor, type HistoryEditorConstructor } from "./history-edit
 export { PiComponentConformanceError, runPiComponentConformance } from "./conformance.js";
 export type { PiComponentConformanceReport, PiComponentConformanceResult } from "./conformance.js";
 export {
+  createPiShellOperationLoader,
+  createPiShellShareOperationDialog,
+  type PiShellOperationLoaderPort,
+} from "./share-operation-dialog.js";
+export {
   OWNED_BUILTIN_SLASH_COMMANDS,
   PINNED_PI_BUILTIN_SLASH_COMMANDS,
   componentFromPort,
@@ -24,14 +29,12 @@ export {
   createPiShellLoginDialog,
   createPiShellModelSelector,
   createPiShellModelsDialog,
-  createPiShellOperationLoader,
   createPiShellReloadBox,
   createPiShellScopedModelsSelector,
   createPiShellSelector,
   createPiShellSessionInfo,
   createPiShellSessionSelector,
   createPiShellSettingsSelector,
-  createPiShellShareOperationDialog,
   createPiShellShowImagesSelector,
   createPiShellSkillsSelector,
   createPiShellStatus,
@@ -86,7 +89,6 @@ export type {
   PiShellModelSelectorOptions,
   PiShellModelsDialogOptions,
   PiShellModelsDialogPort,
-  PiShellOperationLoaderPort,
   PiShellPasteReservation,
   PiShellQueuedInputPort,
   PiShellResourceEntry,

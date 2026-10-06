@@ -1,6 +1,5 @@
 import {
   ArminComponent,
-  BorderedLoader,
   DynamicBorder,
   getSelectListTheme,
   LoginDialogComponent,
@@ -21,13 +20,10 @@ import {
 import { ExtensionSelectorComponent } from "./upstream/components/extension-selector.js";
 import {
   Box,
-  CancellableLoader,
   Container,
-  getKeybindings,
   SelectList,
   Spacer,
   Text,
-  type Component,
   type SelectItem,
 } from "@earendil-works/pi-tui";
 import type {
@@ -36,7 +32,7 @@ import type {
 import {
   ScopedModelsSelectorComponent,
 } from "./upstream/components/scoped-models-selector.js";
-import { adoptPiModalFrame, adoptPiModalHeader, PiModalFrame } from "./modal-frame.js";
+import { adoptPiModalFrame, adoptPiModalHeader } from "./modal-frame.js";
 import {
   ModelsDialogComponent,
   type ModelsDialogCallbacks,
@@ -51,7 +47,6 @@ import {
 import {
   PINNED_PI_LAYOUT,
   piTheme,
-  renderPiModalShortcutHints,
 } from "./theme.js";
 import {
   componentFromPort,
@@ -377,69 +372,6 @@ export function createPiShellArmin(
 export function createPiShellEarendilAnnouncement(): PiShellComponentPort {
   ensureTheme();
   return componentPort(new EarendilAnnouncementComponent());
-}
-
-export interface PiShellOperationLoaderPort extends PiShellComponentPort {
-  readonly signal: AbortSignal;
-}
-
-/** Bare A1's titled share progress surface; the pinned comparison keeps `BorderedLoader`. */
-class ShareOperationDialog implements Component {
-  readonly #loader: CancellableLoader;
-  readonly #frame: PiModalFrame;
-
-  constructor(
-    runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
-    message: string,
-  ) {
-    const theme = piTheme();
-    this.#loader = new CancellableLoader(
-      createTuiFacade(runtime),
-      text => theme.fg("accent", text),
-      text => theme.fg("muted", text),
-      message,
-    );
-    const cancelKeys = getKeybindings().getKeys("tui.select.cancel").join("/");
-    this.#frame = new PiModalFrame(
-      new DynamicBorder(text => theme.fg("border", text)),
-      [
-        new Text(theme.fg("accent", theme.bold("Share")), 0, 0),
-        this.#loader,
-        new Spacer(1),
-        new Text(renderPiModalShortcutHints([{ key: cancelKeys, action: "cancel" }]), 0, 0),
-      ],
-      new DynamicBorder(text => theme.fg("border", text)),
-    );
-  }
-
-  get signal(): AbortSignal { return this.#loader.signal; }
-  invalidate(): void { this.#frame.invalidate(); }
-  render(width: number): string[] { return this.#frame.render(width); }
-  handleInput(data: string): void { this.#loader.handleInput(data); }
-  dispose(): void { this.#loader.dispose(); }
-}
-
-export function createPiShellShareOperationDialog(
-  runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
-  message: string,
-): PiShellOperationLoaderPort {
-  ensureTheme();
-  const dialog = new ShareOperationDialog(runtime, message);
-  return { ...componentPort(dialog), signal: dialog.signal };
-}
-
-export function createPiShellOperationLoader(
-  runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
-  message: string,
-): PiShellOperationLoaderPort {
-  ensureTheme();
-  const loader = new BorderedLoader(createTuiFacade(runtime), piTheme(), message, { cancellable: true });
-  adoptPiModalFrame(loader, {
-    topIndex: 0,
-    bottomIndex: loader.children.length - 1,
-    preInsetContent: loader.children[3] === undefined ? [] : [loader.children[3]],
-  });
-  return { ...componentPort(loader), signal: loader.signal };
 }
 
 export function createPiShellReloadBox(): PiShellComponentPort {

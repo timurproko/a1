@@ -63,9 +63,7 @@ import {
   createPiShellLoginDialog,
   createPiShellModelSelector,
   createPiShellModelsDialog,
-  createPiShellOperationLoader,
   createPiShellReloadBox,
-  createPiShellShareOperationDialog,
   createPiShellScopedModelsSelector,
   createPiShellSelector,
   createPiShellSessionSelector,
@@ -1413,13 +1411,15 @@ export class OwnedUiSessionShell {
       }
       this.root.resetExtensionUi();
     }
-    const shareSurface = request.command === "share"
-      ? (this.#customViewport ? createPiShellShareOperationDialog : createPiShellOperationLoader)({
-          getColumns: () => this.runtime.viewport().columns,
-          getRows: () => this.runtime.viewport().rows,
-          requestRender: () => this.runtime.requestRender(),
-        }, "Creating gist...")
+    const shareDialog = request.command === "share"
+      ? await import("./share-operation.js")
       : undefined;
+    const shareSurface = shareDialog === undefined ? undefined
+      : (this.#customViewport ? shareDialog.createPiShellShareOperationDialog : shareDialog.createPiShellOperationLoader)({
+        getColumns: () => this.runtime.viewport().columns,
+        getRows: () => this.runtime.viewport().rows,
+        requestRender: () => this.runtime.requestRender(),
+      }, "Creating gist...");
     const operationSurface = shareSurface ?? (request.command === "reload" ? createPiShellReloadBox() : undefined);
     const now = this.#reloadPresentation?.now ?? Date.now;
     const shownAt = now();
@@ -1476,7 +1476,11 @@ export class OwnedUiSessionShell {
       if (result.detail && !this.root.editor.getText().trim()) this.root.editor.setText(result.detail);
       this.root.resumeViewportFollowing();
     }
-    this.root.appendWorkflowResult(result);
+    if (shareDialog !== undefined && this.#customViewport && result.outcome === "completed" && result.detail !== undefined) {
+      this.root.appendWorkflowStatus(shareDialog.renderPiShellShareResult(result.message, result.detail));
+    } else {
+      this.root.appendWorkflowResult(result);
+    }
     this.runtime.requestRender();
     return workflowAdapterResult(result);
   }

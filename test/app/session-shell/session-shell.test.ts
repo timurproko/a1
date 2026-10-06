@@ -207,7 +207,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     });
 
     const share = shell.runWorkflow({ command: "share", argument: "" });
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Creating gist...");
+    await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Creating gist..."));
     terminal.input("\x1b");
     await share;
     const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
@@ -225,9 +225,11 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       : Promise.resolve({ command: request.command, outcome: "completed", message: "Reloaded keybindings, extensions, skills, prompts, themes, and context files" }));
 
     const share = shell.runWorkflow({ command: "share", argument: "" });
-    const pinnedLoading = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
-    expect(pinnedLoading.some(row => row.includes("Creating gist..."))).toBe(true);
-    expect(pinnedLoading).not.toContain(" Share");
+    await vi.waitFor(() => {
+      const pinnedLoading = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+      expect(pinnedLoading.some(row => row.includes("Creating gist..."))).toBe(true);
+      expect(pinnedLoading).not.toContain(" Share");
+    });
     resolveShare?.({ command: "share", outcome: "completed", message: "Share URL: https://example.test", detail: "https://gist.test/id" });
     await share;
     const shareRows = shell.root.render(100);
@@ -255,9 +257,11 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       }));
 
       const share = shell.runWorkflow({ command: "share", argument: "" });
-      const loading = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
-      expect(loading).toContain(" Share");
-      expect(loading).toContain(" Escape/Ctrl+C cancel");
+      await vi.waitFor(() => {
+        const loading = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+        expect(loading).toContain(" Share");
+        expect(loading).toContain(" Escape/Ctrl+C cancel");
+      });
       resolveShare?.({
         command: "share",
         outcome: "completed",

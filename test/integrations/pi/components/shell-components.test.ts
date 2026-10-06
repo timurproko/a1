@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { OwnedUiDialog, OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
+import { createPiShellShareOperationDialog } from "../../../../src/integrations/pi/components/share-operation-dialog.js";
 import { piTheme } from "../../../../src/integrations/pi/components/theme.js";
 import {
   createPiShellDialog,
@@ -19,7 +20,6 @@ import {
   createPiShellLoginDialog,
   createPiQueuedInputStatus,
   createPiShellSettingsSelector,
-  createPiShellShareOperationDialog,
   createPiShellSessionInfo,
   createPiShellSelector,
   createPiShellUserMessageSelector,
