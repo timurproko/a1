@@ -80,8 +80,8 @@ class WorkflowSession {
   getUserMessagesForForking(): readonly unknown[] { return [{ entryId: "entry-1", text: "First prompt" }]; }
   async navigateTree(id: string, options?: { summarize?: boolean; customInstructions?: string }): Promise<unknown> {
     this.calls.push(`tree:${id}:${options?.summarize === true ? "summary" : "plain"}:${options?.customInstructions ?? ""}`);
-    this.messages = [{ role: "user", content: [{ type: "text", text: "Selected branch prompt" }], timestamp: 1 }];
-    return { cancelled: false };
+    this.messages = [{ role: "user", content: [{ type: "text", text: "Selected branch context" }], timestamp: 1 }];
+    return { cancelled: false, editorText: "Selected branch prompt" };
   }
   async reload(): Promise<void> { if (this.reloadFails) throw new Error("reload exploded"); this.calls.push("reload"); }
 }
@@ -407,10 +407,15 @@ describe("pinned Pi command and input workflows", () => {
       argument: "",
       selection: "entry-1",
       treeSummary: { summarize: true, customInstructions: "Preserve decisions" },
-    })).resolves.toMatchObject({ outcome: "completed", message: "Navigated to selected point" });
+    })).resolves.toMatchObject({ outcome: "completed", message: "Navigated to selected point", detail: "Selected branch prompt" });
     expect(runtime.session.calls).toContain("tree:entry-1:summary:Preserve decisions");
-    expect(JSON.stringify(adapter.view().transcript)).toContain("Selected branch prompt");
-    expect(adapter.view().editor).toEqual(editorBeforeTreeNavigation);
+    expect(JSON.stringify(adapter.view().transcript)).toContain("Selected branch context");
+    expect(adapter.view().editor).toEqual({
+      ...editorBeforeTreeNavigation,
+      text: "Selected branch prompt",
+      selection: null,
+      cursorOffset: "Selected branch prompt".length,
+    });
   });
 
   it("applies active agent and dynamic command settings through production owners", async () => {

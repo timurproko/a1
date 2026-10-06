@@ -250,6 +250,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       command: request.command,
       outcome: "completed",
       message: "Navigated to selected point",
+      detail: "Selected branch prompt",
     }));
 
     shell.root.appendWorkflowStatus("Tree dialog spacing");
@@ -313,6 +314,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       treeSummary: { summarize: true, customInstructions: "Preserve decisions" },
     });
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Navigated to selected point");
+    expect(shell.root.editor.getText()).toBe("Selected branch prompt");
     await shell.dispose();
   });
 
@@ -342,6 +344,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     });
 
     await shell.submit("/tree");
+    shell.root.editor.setText("Keep existing draft");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(execute).toHaveBeenCalledWith({
@@ -351,6 +354,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       treeSummary: { summarize: false },
     });
     expect(shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(shell.root.editor.getText()).toBe("Keep existing draft");
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Summarize branch?");
     await shell.dispose();
   });

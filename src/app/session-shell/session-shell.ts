@@ -1458,6 +1458,10 @@ export class OwnedUiSessionShell {
       this.root.editor.reloadKeybindings();
       this.#installAutocompleteCommands();
     }
+    if (request.command === "tree" && result.outcome === "completed") {
+      if (result.detail !== undefined) this.root.editor.setText(result.detail);
+      this.root.resumeViewportFollowing();
+    }
     this.root.appendWorkflowResult(result);
     this.runtime.requestRender();
     return workflowAdapterResult(result);

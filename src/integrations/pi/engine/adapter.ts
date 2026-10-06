@@ -511,7 +511,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   async executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
     const result = await this.#workflows.executeWorkflow(request);
     if (request.command === "tree" && result.outcome === "completed" && request.selection !== undefined) {
-      this.#refreshNavigatedSession();
+      this.#refreshNavigatedSession(result.detail);
     }
     return result;
   }
@@ -718,9 +718,12 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   }
 
   // Invariant: in-place tree navigation rebuilds derived content without clearing the editor draft.
-  #refreshNavigatedSession(): void {
+  #refreshNavigatedSession(editorText?: string): void {
     const session = this.#engine.session;
     if (!session) return;
+    if (editorText !== undefined) {
+      this.#editor = { ...this.#editor, text: editorText, selection: null, cursorOffset: editorText.length };
+    }
     this.#activeModel = readModel(session.model);
     this.#reconcileActiveModelAvailability();
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
