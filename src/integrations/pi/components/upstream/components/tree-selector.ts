@@ -7,8 +7,9 @@
  * bookkeeping, standard search input, purple accent-backed menu-arrow selection without path bullets,
  * accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with
  * session naming for the system root, standard paging/first-last/containing-branch folding keys,
- * single-character ellipses on both clipped edges with selected-fragment highlighting, and
- * Models-ordered semantic shortcut footers without a redundant select hint.
+ * single-character ellipses on both clipped edges with bracket-delimiter preservation and
+ * selected-fragment highlighting, and Models-ordered semantic shortcut footers without a redundant
+ * select hint.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -76,6 +77,7 @@ interface HorizontalViewportRow {
 	body: string;
 	anchorCol: number;
 	bodyWidth: number;
+	rightClipSuffix: string;
 	isSelected: boolean;
 }
 
@@ -120,12 +122,14 @@ function renderHorizontalViewport(rows: HorizontalViewportRow[], width: number):
 		const leftClipped = horizontalScroll > 0;
 		const widthAfterLeftMarker = Math.max(0, viewportWidth - (leftClipped ? 1 : 0));
 		const rightClipped = row.bodyWidth - horizontalScroll > widthAfterLeftMarker;
-		const bodyWidth = Math.max(0, widthAfterLeftMarker - (rightClipped ? 1 : 0));
-		const marker = row.isSelected
-			? theme.bg("customMessageBg", theme.fg("muted", "…"))
-			: theme.fg("muted", "…");
+		const rightMarkerText = `…${row.rightClipSuffix}`;
+		const rightMarkerWidth = rightClipped ? visibleWidth(rightMarkerText) : 0;
+		const bodyWidth = Math.max(0, widthAfterLeftMarker - rightMarkerWidth);
+		const marker = (text: string) => row.isSelected
+			? theme.bg("customMessageBg", theme.fg("muted", text))
+			: theme.fg("muted", text);
 		const body = sliceByColumn(row.body, horizontalScroll, bodyWidth, true);
-		const line = `${row.gutter}${leftClipped ? marker : ""}${body}${rightClipped ? marker : ""}\x1b[0m`;
+		const line = `${row.gutter}${leftClipped ? marker("…") : ""}${body}${rightClipped ? marker(rightMarkerText) : ""}\x1b[0m`;
 		return truncateToWidth(line, width, "");
 	});
 }
@@ -764,7 +768,8 @@ class TreeList implements Component {
 				gutter = theme.bg("customMessageBg", gutter);
 				body = theme.bg("customMessageBg", body);
 			}
-			renderedRows.push({ gutter, body, anchorCol, bodyWidth: visibleWidth(body), isSelected });
+			const rightClipSuffix = entry.type === "message" && entry.message.role === "toolResult" ? "]" : "";
+			renderedRows.push({ gutter, body, anchorCol, bodyWidth: visibleWidth(body), rightClipSuffix, isSelected });
 		}
 
 		lines.push(...renderHorizontalViewport(renderedRows, width));

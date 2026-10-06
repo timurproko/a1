@@ -244,6 +244,54 @@ describe("bare-A1 session tree presentation", () => {
     expect(stripTerminalSequences(component.render(80).join("\n"))).toMatch(/→ .*user: Question0/u);
   });
 
+  it("preserves a bracketed tool row's closing delimiter after truncation", async () => {
+    const component = await createPiShellTreeSelector({
+      tree: [{
+        entry: {
+          type: "message",
+          id: "tool-system",
+          parentId: null,
+          timestamp: new Date(0).toISOString(),
+          message: { role: "system", content: "System prompt", timestamp: 0 },
+        },
+        children: [{
+          entry: {
+            type: "message",
+            id: "tool-assistant",
+            parentId: "tool-system",
+            timestamp: new Date(1).toISOString(),
+            message: {
+              role: "assistant",
+              content: [{ type: "toolCall", id: "call-1", name: "read", arguments: { path: "E:/a/very/long/path/to/a/file.ts" } }],
+              stopReason: "toolUse",
+              timestamp: 1,
+            },
+          },
+          children: [{
+            entry: {
+              type: "message",
+              id: "tool-result",
+              parentId: "tool-assistant",
+              timestamp: new Date(2).toISOString(),
+              message: { role: "toolResult", toolCallId: "call-1", toolName: "read", content: [{ type: "text", text: "contents" }], timestamp: 2 },
+            },
+            children: [],
+          }],
+        }],
+      }],
+      currentLeafId: "tool-result",
+      terminalHeight: 10,
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+      onLabelChange: vi.fn(),
+    });
+
+    const selected = component.render(24).find(row => stripTerminalSequences(row).includes("→"))!;
+    expect(stripTerminalSequences(selected)).toMatch(/…\]$/u);
+    expect(stripTerminalSequences(selected)).not.toContain("...");
+    expect(selected).toContain("\u001b[48;");
+  });
+
   it("mirrors action-aware typing through the standard input and omits the empty counter", async () => {
     const cancel = vi.fn();
     const component = await selector(cancel);

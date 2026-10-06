@@ -12,7 +12,7 @@ The session-tree workflow uses denser, older presentation than bare A1's Models 
 - Keep the search cursor after typed text and transition directly between the Session Tree, `Summarize Branch?`, and `Custom Summarization Instructions` in both directions without flashing the prompt; use title case and align nested-dialog footers without trailing blank rows.
 - After navigation, rebuild the content area from the selected branch and restore the ordinary editor; populate it from Pi's returned user-message prompt when present, otherwise preserve its draft.
 - Replace the multiline custom-summary editor with the standard single-line input pattern, accent-bold title, and submit/cancel shortcut footer.
-- Add focused rendering and workflow regressions for spacing, styling, empty search, typing, page navigation, single-character ellipses on both clipped edges with complete selected-fragment highlighting, selection, footer placement, and transition continuity.
+- Add focused rendering and workflow regressions for spacing, styling, empty search, typing, page navigation, single-character ellipses on both clipped edges, preserved `…]` endings for bracketed tool rows, and complete selected-fragment highlighting, selection, footer placement, and transition continuity.
 
 ## Capabilities
 
