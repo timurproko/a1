@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-06-fix-value-menu-initial-highlight/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-06-fix-value-menu-initial-highlight/acceptance.md",
   "finalizedDate": "2026-10-06",
-  "specBaseSha": "457def6c1fbb7d1f045c715fc7c6d5adf8313f64",
+  "specBaseSha": "cf775a8ca99953436c90e4a0e21044c4d890cf5e",
   "acceptanceScenarios": [
     "Pointer-opened Settings value menus show the effective-value checkmark without initially highlighting an option.",
     "Moving the pointer onto an option highlights that option, and moving outside the menu clears the highlight.",
