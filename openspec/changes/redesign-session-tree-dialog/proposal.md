@@ -9,10 +9,10 @@ The session-tree workflow uses denser, older presentation than bare A1's Models 
 - Present message content as muted descriptive text, remove active-path bullets, render entry labels and bracketed label timestamps in accent, distinguish user and assistant labels with green and yellow, render the system root as muted `session`, and combine the ordinary menu arrow with the subtle purple active background.
 - Reduce filters to `all | no tools | user | labeled`: make `all` the concise former-standard view, remove the raw-bookkeeping all/standard distinction, move forward cycling from `Ctrl+O` to `Tab`, and omit internal bookkeeping entries from rows and counters while keeping resolved labels on their targets.
 - Present label editing as a focused compact state with a `Label` title, `Empty to remove` subheader, one input, and only save/cancel hints; hide tree search, results, and filter/navigation shortcuts while editing.
-- Keep the search cursor after typed text and transition directly in both directions between the Session Tree and branch-summary choice without flashing the prompt; align nested-dialog footers without trailing blank rows.
+- Keep the search cursor after typed text and transition directly between the Session Tree, `Summarize Branch?`, and `Custom Summarization Instructions` in both directions without flashing the prompt; use title case and align nested-dialog footers without trailing blank rows.
 - After navigation, rebuild the content area from the selected branch and restore the ordinary editor; populate it from Pi's returned user-message prompt when present, otherwise preserve its draft.
 - Replace the multiline custom-summary editor with the standard single-line input pattern, accent-bold title, and submit/cancel shortcut footer.
-- Add focused rendering and workflow regressions for spacing, styling, empty search, typing, selection, footer placement, and transition continuity.
+- Add focused rendering and workflow regressions for spacing, styling, empty search, typing, page navigation, right-edge ellipsis, selection, footer placement, and transition continuity.
 
 ## Capabilities
 

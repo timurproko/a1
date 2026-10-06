@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-06T13:51:35.661Z",
+  "recordedAt": "2026-10-06T13:59:03.176Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "cd32f7725fdbddbaecdff5b1e68491563394e0ca",
@@ -2701,9 +2701,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tree-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab cycling and concise all-first presentation excluding internal bookkeeping, standard search input, purple accent-backed menu-arrow selection without path bullets, accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with session naming for the system root, standard paging/first-last/containing-branch folding keys, and Models-ordered semantic shortcut footers without a redundant select hint.",
+      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab cycling and concise all-first presentation excluding internal bookkeeping, standard search input, purple accent-backed menu-arrow selection without path bullets, accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with session naming for the system root, standard paging/first-last/containing-branch folding keys, right-edge ellipsis, and Models-ordered semantic shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "a7ee590177f1b9c892678330fb82c87e3884bbe64b6651e0c7008f447e6743b6",
+      "localSha256": "f4f2a57970cc5fde00bea48058e6025162bd76a9f0f1d7c3e4b2959fce24c319",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2713,7 +2713,7 @@
         },
         {
           "id": "owned-session-tree-dialog",
-          "reason": "Bare A1 reduces tree filters to concise all/no-tools/user/labeled modes, excludes raw label/context/custom/session/usage/model/thinking bookkeeping while retaining resolved labels, and aligns search, focused label editing, accent labels, bracketed timestamps, plain label-time status, session naming for the system root, standard paging/first-last/containing-branch folding keys, purple accent-backed bullet-free selection, spacing, and Models-ordered footer placement without a redundant select hint.",
+          "reason": "Bare A1 reduces tree filters to concise all/no-tools/user/labeled modes, excludes raw label/context/custom/session/usage/model/thinking bookkeeping while retaining resolved labels, and aligns search, focused label editing, accent labels, bracketed timestamps, plain label-time status, session naming for the system root, standard paging/first-last/containing-branch folding keys, right-edge ellipsis, purple accent-backed bullet-free selection, spacing, and Models-ordered footer placement without a redundant select hint.",
           "upstreamBehavior": "The comparison profile retains the pinned tree selector presentation and geometry.",
           "acceptanceTest": "test/integrations/pi/components/tree-selector.test.ts"
         }

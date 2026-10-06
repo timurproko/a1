@@ -2090,7 +2090,7 @@ export class OwnedUiSessionShell {
   #treeSummary(): Promise<string | undefined> {
     return new Promise(resolve => {
       this.root.setInputSurface(createPiShellExtensionSelector(
-        "Summarize branch?",
+        "Summarize Branch?",
         ["No summary", "Summarize", "Summarize with custom prompt"],
         resolve,
         () => resolve(undefined),
@@ -2111,7 +2111,7 @@ export class OwnedUiSessionShell {
         }
         summarize = choice !== "No summary";
         if (choice === "Summarize with custom prompt") {
-          customInstructions = await this.#extensionBridge.context.input("Custom summarization instructions", "");
+          customInstructions = await this.#extensionBridge.input("Custom Summarization Instructions", "", { retainSurfaceOnSettle: true });
           if (customInstructions === undefined) continue;
         }
         break;

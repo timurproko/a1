@@ -271,7 +271,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     const summaryRows = shell.root.render(100);
     const plainSummaryRows = summaryRows.map(stripTerminalSequences);
-    expect(plainSummaryRows.join("\n")).toContain("Summarize branch?");
+    expect(plainSummaryRows.join("\n")).toContain("Summarize Branch?");
     expect(surfaceChanges).toHaveBeenCalled();
     expect(surfaceChanges.mock.calls.every(([surface]) => surface !== null)).toBe(true);
     const summaryHintIndex = plainSummaryRows.findIndex(row => row.includes("navigate") && row.includes("select"));
@@ -292,7 +292,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     const customRows = shell.root.render(100);
     const plainCustomRows = customRows.map(stripTerminalSequences);
-    const customTitleIndex = plainCustomRows.findIndex(row => row.includes("Custom summarization instructions"));
+    const customTitleIndex = plainCustomRows.findIndex(row => row.includes("Custom Summarization Instructions"));
     expect(cellStyle(customRows[customTitleIndex]!, "C")).toEqual(
       cellStyle(piTheme().fg("accent", piTheme().bold("C")), "C"),
     );
@@ -304,6 +304,20 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(plainCustomRows[customHintIndex]).not.toContain("newline");
     expect(plainCustomRows[customHintIndex]).not.toContain("external editor");
     expect(plainCustomRows[customHintIndex + 1]).toBe("─".repeat(100));
+
+    const customSurfaceChanges = vi.spyOn(shell.root, "setInputSurface");
+    terminal.input("\x1b");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Summarize Branch?");
+    expect(customSurfaceChanges).toHaveBeenCalled();
+    expect(customSurfaceChanges.mock.calls.every(([surface]) => surface !== null)).toBe(true);
+    customSurfaceChanges.mockRestore();
+
+    terminal.input("\x1b[B");
+    terminal.input("\x1b[B");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Custom Summarization Instructions");
     terminal.input("Preserve decisions");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -356,7 +370,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     });
     expect(shell.root.usesDefaultInputSurface()).toBe(true);
     expect(shell.root.editor.getText()).toBe("Keep existing draft");
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Summarize branch?");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Summarize Branch?");
     await shell.dispose();
   });
 

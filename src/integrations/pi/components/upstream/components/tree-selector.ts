@@ -6,8 +6,8 @@
  * Models-style filter status with Tab cycling and concise all-first presentation excluding internal
  * bookkeeping, standard search input, purple accent-backed menu-arrow selection without path bullets,
  * accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with
- * session naming for the system root, standard paging/first-last/containing-branch folding keys, and
- * Models-ordered semantic shortcut footers without a redundant select hint.
+ * session naming for the system root, standard paging/first-last/containing-branch folding keys,
+ * right-edge ellipsis, and Models-ordered semantic shortcut footers without a redundant select hint.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -119,7 +119,7 @@ function renderHorizontalViewport(rows: HorizontalViewportRow[], width: number):
 			horizontalScroll > 0
 				? `${row.gutter}${sliceByColumn(row.body, horizontalScroll, viewportWidth, true)}\x1b[0m`
 				: row.gutter + row.body;
-		return truncateToWidth(line, width, "");
+		return truncateToWidth(line, width, "...");
 	});
 }
 

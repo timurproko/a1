@@ -140,6 +140,8 @@ describe("bare-A1 session tree presentation", () => {
     expect(plain.join("\n")).toContain("←/→ branch");
     expect(plain.join("\n")).not.toContain("Ctrl+O");
     expect(rows.every(row => visibleWidth(row) <= 80)).toBe(true);
+    const narrowUser = component.render(24).find(row => stripTerminalSequences(row).includes("user:"))!;
+    expect(stripTerminalSequences(narrowUser)).toMatch(/\.\.\.$/u);
 
     component.handleInput?.("\t");
     const cycledFilter = component.render(80).find(row => stripTerminalSequences(row).includes("Filter:"))!;
@@ -196,6 +198,44 @@ describe("bare-A1 session tree presentation", () => {
     expect(restored).toContain("navigate");
   });
 
+  it("pages the visible result window with PageUp and PageDown", async () => {
+    const children = Array.from({ length: 12 }, (_, index) => ({
+      entry: {
+        type: "message" as const,
+        id: `user-${index}`,
+        parentId: "system-page",
+        timestamp: new Date(index + 1).toISOString(),
+        message: { role: "user" as const, content: [{ type: "text" as const, text: `Question${index}` }], timestamp: index + 1 },
+      },
+      children: [],
+    }));
+    const component = await createPiShellTreeSelector({
+      tree: [{
+        entry: {
+          type: "message",
+          id: "system-page",
+          parentId: null,
+          timestamp: new Date(0).toISOString(),
+          message: { role: "system", content: "System prompt", timestamp: 0 },
+        },
+        children,
+      }],
+      currentLeafId: "user-0",
+      terminalHeight: 10,
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+      onLabelChange: vi.fn(),
+    });
+
+    expect(stripTerminalSequences(component.render(80).join("\n"))).not.toContain("Question5");
+    component.handleInput?.("\x1b[6~");
+    const nextPage = stripTerminalSequences(component.render(80).join("\n"));
+    expect(nextPage).toMatch(/→ .*user: Question5/u);
+    expect(nextPage).not.toContain("Question0");
+    component.handleInput?.("\x1b[5~");
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toMatch(/→ .*user: Question0/u);
+  });
+
   it("mirrors action-aware typing through the standard input and omits the empty counter", async () => {
     const cancel = vi.fn();
     const component = await selector(cancel);
@@ -221,7 +261,7 @@ describe("bare-A1 session tree presentation", () => {
     component.handleInput?.("\x1b");
     plain = component.render(24).map(row => stripTerminalSequences(row).trimEnd());
     expect(plain.join("\n")).not.toContain("missin");
-    expect(plain.join("\n")).toContain("assistant: Response");
+    expect(plain.join("\n")).toContain("assistant: Respons...");
     expect(cancel).not.toHaveBeenCalled();
   });
 });

@@ -6,7 +6,7 @@ The bare-A1 Session Tree SHALL use the same compact framed hierarchy as the Mode
 
 The title SHALL be followed immediately by a Models-style `Filter: all | no tools | user | labeled` row using accent for the active mode and muted styling for inactive modes. The product `all` mode SHALL use the concise former-standard view: it SHALL show resolved entry labels while hiding raw label-change, context-edit, custom bookkeeping, session-info, usage, model-change, and thinking-level-change entries. An unset, upstream `default`, or upstream `all` initial setting SHALL open with product `all` active, while an explicitly configured `no tools`, `user`, or `labeled` mode SHALL remain active. `Tab` SHALL cycle the four product filters forward and replace `Ctrl+O` as the displayed/default cycle shortcut; the footer SHALL show `Tab filter` instead of the individual filter bindings. Hidden bookkeeping entries SHALL NOT contribute to the visible result counter.
 
-The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, the semantics of each filter mode, folding, navigation, copy, label, label-time, and horizontal clipping SHALL remain available. `PageUp` and `PageDown` SHALL move by one visible page, `Home` and `End` SHALL select the first and last visible entries, and unmodified `Left` SHALL collapse the nearest expanded branch containing the cursor, even when a descendant is selected, and `Right` SHALL expand that branch after the collapsed view selects its branch root.
+The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, the semantics of each filter mode, folding, navigation, copy, label, label-time, and horizontal clipping SHALL remain available. A row clipped at the right edge SHALL end with `...`. `PageUp` and `PageDown` SHALL move by one visible page, `Home` and `End` SHALL select the first and last visible entries, and unmodified `Left` SHALL collapse the nearest expanded branch containing the cursor, even when a descendant is selected, and `Right` SHALL expand that branch after the collapsed view selects its branch root.
 
 The selected tree entry SHALL use the ordinary menu arrow `→` with the subtle purple accent-tinted selection background. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted, without whole-row bold treatment. Tree entries SHALL NOT render active-path bullets. Entry labels SHALL use the theme accent color. When label-time display is enabled, its timestamp SHALL be enclosed in square brackets and use the same accent color as the label. The result counter SHALL append plain `label time` status text without brackets or a leading plus sign. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `session`. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
 
@@ -36,11 +36,15 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 
 #### Scenario: Navigate and fold the tree with standard keys
 - **WHEN** the user presses `PageUp`, `PageDown`, `Home`, or `End`
-- **THEN** selection SHALL move by one visible page, one visible page, to the first visible entry, or to the last visible entry respectively
+- **THEN** `PageUp` and `PageDown` SHALL move selection and the visible result window by one page, while `Home` and `End` SHALL select the first or last visible entry respectively
 - **AND WHEN** any entry within an expanded branch is selected and the user presses `Left`
 - **THEN** the nearest containing branch SHALL collapse and selection SHALL resolve to its visible branch root
 - **AND WHEN** the user then presses `Right`
 - **THEN** that branch SHALL expand without moving selection to another branch
+
+#### Scenario: Clip a long tree row
+- **WHEN** a tree item extends beyond the right edge
+- **THEN** the visible row SHALL end with `...`
 
 #### Scenario: Search the tree
 - **WHEN** the Session Tree is open and the user types a search query
@@ -91,13 +95,18 @@ When a non-current tree entry requires a branch-summary choice, bare A1 SHALL re
 
 The branch-summary choice SHALL retain its title, options, navigation, selection, and cancellation behavior. Its semantic shortcut footer SHALL use the shared dialog style at the bottom of the frame, and the frame's bottom rule SHALL immediately follow that footer without an empty row.
 
-Custom summarization instructions SHALL use the ordinary single-line dialog input pattern instead of the multiline editor. The prompt SHALL have an accent-bold title, the standard input prompt and cursor behavior, and only the shared submit/cancel shortcut hints. The bottom rule SHALL immediately follow those hints without an empty row.
+Custom summarization instructions SHALL use the ordinary single-line dialog input pattern instead of the multiline editor. Nested dialog titles SHALL use title case: `Summarize Branch?` and `Custom Summarization Instructions`. The prompt SHALL have an accent-bold title, the standard input prompt and cursor behavior, and only the shared submit/cancel shortcut hints. The bottom rule SHALL immediately follow those hints without an empty row.
 
 After successful tree navigation, bare A1 SHALL rebuild the visible transcript from the newly selected branch and restore the ordinary input surface for that point. When Pi returns editor text for a selected user-message point and the input has no non-whitespace draft, the input SHALL be populated with that text and its cursor SHALL be placed at the end; otherwise the existing editor draft SHALL remain intact. Model and thinking state SHALL reconcile to the selected branch.
 
 #### Scenario: Open the branch-summary choice
 - **WHEN** the user selects a non-current tree entry and summary prompting is enabled
 - **THEN** the branch-summary choice SHALL replace the tree directly
+- **AND** no intermediate frame SHALL expose or flash the ordinary prompt
+
+#### Scenario: Cancel custom summarization instructions
+- **WHEN** the user cancels `Custom Summarization Instructions`
+- **THEN** `Summarize Branch?` SHALL replace it directly
 - **AND** no intermediate frame SHALL expose or flash the ordinary prompt
 
 #### Scenario: Cancel the branch-summary choice
@@ -119,6 +128,6 @@ After successful tree navigation, bare A1 SHALL rebuild the visible transcript f
 
 #### Scenario: Enter custom summarization instructions
 - **WHEN** the user selects `Summarize with custom prompt`
-- **THEN** an accent-bold `Custom summarization instructions` title SHALL appear above a standard single-line input
+- **THEN** an accent-bold `Custom Summarization Instructions` title SHALL appear above a standard single-line input
 - **AND** the shortcut footer SHALL contain submit and cancel actions without newline or external-editor actions
 - **AND** the frame's bottom rule SHALL immediately follow the shortcut footer
