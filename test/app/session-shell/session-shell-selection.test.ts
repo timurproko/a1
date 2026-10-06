@@ -790,12 +790,12 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     } finally { await shell.dispose(); }
   });
 
-  it("keeps comparison Ctrl+Home/End editor bindings unchanged", async () => {
+  it("uses Pi 1.0.4 Home/End editor bindings in the comparison profile", async () => {
     const { terminal, shell } = await fixture();
     try {
       shell.root.editor.setText("draft");
-      terminal.input("\u001b[1;5H"); terminal.input("start ");
-      terminal.input("\u001b[1;5F"); terminal.input(" end");
+      terminal.input("\u001b[H"); terminal.input("start ");
+      terminal.input("\u001b[F"); terminal.input(" end");
       expect(shell.root.editor.getText()).toBe("start draft end");
     } finally { await shell.dispose(); }
   });
@@ -809,7 +809,8 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const text = stripTerminalSequences(shell.root.render(160).join("\n"));
       expect(text.includes("Start of content")).toBe(custom);
       expect(text.includes("Start of prompt line")).toBe(custom);
-      expect(text).toContain("Ctrl+Home");
+      expect(text.includes("Ctrl+Home")).toBe(custom);
+      if (!custom) expect(text).toContain("Home");
     } finally { await shell.dispose(); }
   });
 
