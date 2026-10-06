@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
-import { applyPiTheme, createPiShellSessionSelector } from "../../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, createPiShellSessionSelector, piTheme } from "../../../../src/integrations/pi/components/index.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
+import { cellStyle } from "../../../support/ansi-cell-style.js";
 
 function stripPortableTerminalSequences(value: string): string {
   return value
@@ -68,6 +69,9 @@ describe("owned pinned session selector", () => {
     const initialRows = component.render(100);
     const hintRows = initialRows.filter(row => stripPortableTerminalSequences(row).includes("scope"));
     const heading = initialRows.find(row => stripPortableTerminalSequences(row).includes("Resume Session"))!;
+    const selectedSession = initialRows.find(row => stripPortableTerminalSequences(row).includes("Current session"))!;
+    expect(selectedSession).not.toContain("\u001b[1m");
+    expect(cellStyle(selectedSession, "C")).toEqual(cellStyle(piTheme().fg("accent", "C"), "C"));
     expect(firstVisibleTextColumn(hintRows[0]!)).toBe(firstVisibleTextColumn(heading));
     expect(hintRows.map(stripPortableTerminalSequences).join("\n")).toContain('Tab scope  re:<pattern> regex  "phrase" exact');
     expect(hintRows.join("\n")).not.toMatch(/[·•]/u);

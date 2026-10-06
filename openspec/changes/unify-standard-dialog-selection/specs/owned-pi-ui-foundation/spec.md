@@ -8,7 +8,7 @@ The title SHALL be followed immediately by a Models-style `Filter: all | no tool
 
 The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, the semantics of each filter mode, folding, navigation, copy, label, label-time, and horizontal clipping SHALL remain available. A row clipped at either horizontal edge SHALL show the single-character ellipsis `…` at that edge. On a selected row, every visible clipped fragment and ellipsis SHALL remain inside the selection highlight. A right-clipped bracketed tool row SHALL end with `…]` so its closing delimiter remains visible. `PageUp` and `PageDown` SHALL move by one visible page, `Home` and `End` SHALL select the first and last visible entries, and unmodified `Left` SHALL collapse the nearest expanded branch containing the cursor, even when a descendant is selected, and `Right` SHALL expand that branch after the collapsed view selects its branch root.
 
-The selected tree entry SHALL use the ordinary menu arrow `→` in accent foreground, a normal-`text` primary entry label, muted descriptive message text, and the blue `selectedBg` selection background, without whole-row bold treatment. Tree entries SHALL NOT render active-path bullets. Entry labels SHALL use the theme accent color. When label-time display is enabled, its timestamp SHALL be enclosed in square brackets and use the same accent color as the label. The result counter SHALL append plain `label time` status text without brackets or a leading plus sign. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `session`. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
+The selected tree entry SHALL use the ordinary menu arrow `→` in accent foreground and the blue `selectedBg` selection background, without whole-row bold treatment. Selection SHALL preserve the same semantic foreground and text-style roles rendered for that entry while unselected: entry labels and timestamps SHALL remain accent, `user:` SHALL remain green, `assistant:` SHALL remain yellow, system entries SHALL remain muted `session`, and tool, bash, error, description, dim, and italic content SHALL retain their existing roles. Tree entries SHALL NOT render active-path bullets. When label-time display is enabled, its timestamp SHALL be enclosed in square brackets. The result counter SHALL append plain `label time` status text without brackets or a leading plus sign. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
 
 The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule. Their order SHALL follow the Models dialog: `type to search`, vertical navigation, `Tab filter`, extended page/first-last/branch navigation, then copy and label actions. The footer SHALL omit an `Enter select` hint.
 
@@ -57,12 +57,12 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 #### Scenario: Highlight an entry
 - **WHEN** a tree entry is selected
 - **THEN** the row SHALL begin with the ordinary menu arrow `→` in accent foreground
-- **AND** its primary entry label SHALL use normal `text` while descriptive message text remains muted
+- **AND** every primary and descriptive fragment SHALL retain that entry's existing semantic foreground and text-style role
 - **AND** the selected span SHALL use the blue `selectedBg` background
 - **AND** no active-path bullet or whole-row bold treatment SHALL be applied
 
 #### Scenario: Distinguish message roles and entry labels
-- **WHEN** labeled, unselected user, assistant, and system entries are visible
+- **WHEN** labeled user, assistant, and system entries are visible in selected or unselected state
 - **THEN** the entry label SHALL use the theme accent color
 - **AND** any enabled label timestamp SHALL use the same accent color and square-bracket form
 - **AND** the result counter SHALL show plain `label time` rather than `[+label time]`
@@ -127,7 +127,7 @@ For the same terminal dimensions, theme, capabilities, semantic content, setting
 
 ### Requirement: Standard bare-A1 lists share one selection palette
 
-The bare-A1 Models, Skills, Thinking Level, Session Tree, Settings, and editor autocomplete menus SHALL present their selected item with their existing ordinary menu arrow `→` in accent foreground, the primary label in normal `text`, muted descriptive text, and the blue `selectedBg` selection background. The selected background SHALL cover only the rendered item span from its arrow through its final visible content cell, SHALL NOT fill otherwise unused cells after the item, and SHALL remain clipped within the available width without causing wrapping. Selection SHALL NOT bold the whole row.
+The bare-A1 Models, Skills, Thinking Level, Resume Session, Session Tree, Settings, and editor autocomplete menus SHALL present their selected item with the blue `selectedBg` selection background while preserving their existing cursor and meaningful semantic foreground roles. Models, Skills, Thinking Level, Settings, and autocomplete SHALL retain their ordinary menu arrow `→` in accent foreground, a primary label in normal `text`, and muted descriptive text. Resume Session and Session Tree SHALL retain each entry's item-specific foreground and text-style roles. Selection SHALL NOT introduce bold styling. On item-bounded surfaces, the selected background SHALL cover only the rendered item span from its arrow through its final visible content cell, SHALL NOT fill otherwise unused cells after the item, and SHALL remain clipped within the available width without causing wrapping. Resume Session SHALL retain its established full-row selection geometry.
 
 The selected-item treatment SHALL preserve domain-specific semantic markers and content. Models SHALL retain its scoped/unscoped marker, provider badge, and active-model checkmark. Skills SHALL retain its `skill:<name>` label and separately presented selected description. Thinking Level SHALL retain aligned level, current, default, and reasoning-description columns. Settings SHALL retain aligned labels and values, steppers, structured-value rows, floating choices, scrolling, search, and pointer affordances. Autocomplete SHALL retain aligned command descriptions and completion behavior. Session Tree SHALL retain its hierarchy, semantic entry roles, horizontal viewport, and clipped-edge markers. Resume Session SHALL retain its specialized arrow, metadata, and full-row geometry.
 
@@ -154,10 +154,17 @@ Unselected rows, search and filter behavior, list ordering, counters, descriptio
 - **AND** its reasoning description SHALL remain muted while current and default markers retain their semantic roles
 - **AND** the aligned columns, selected value, and Enter and Space actions SHALL remain unchanged
 
+#### Scenario: Highlight a Resume Session entry
+
+- **WHEN** a Resume Session entry is selected
+- **THEN** its existing cursor, blue full-row background, semantic title foreground, and muted metadata SHALL remain unchanged
+- **AND** selection SHALL NOT make its title bold or otherwise change its text weight
+- **AND** search, scope, sort, rename, delete, navigation, and selection behavior SHALL remain unchanged
+
 #### Scenario: Highlight a Session Tree entry
 
 - **WHEN** a Session Tree entry is selected
-- **THEN** its existing `→` SHALL remain accent-colored, its primary entry label SHALL use normal `text`, and descriptive message text SHALL remain muted on `selectedBg`
+- **THEN** its existing `→` SHALL remain accent-colored and every entry fragment SHALL keep the same semantic foreground and text-style role it has while unselected on `selectedBg`
 - **AND** the background SHALL cover every visible selected fragment and clipped-edge ellipsis without changing tree hierarchy or viewport behavior
 
 #### Scenario: Highlight a setting
@@ -176,7 +183,7 @@ Unselected rows, search and filter behavior, list ordering, counters, descriptio
 
 #### Scenario: Render a selected row at narrow width
 
-- **WHEN** any covered list renders its selected row with less width than the complete content requires
+- **WHEN** any covered item-bounded list renders its selected row with less width than the complete content requires
 - **THEN** the row SHALL remain single-line and ANSI-aware clipped within the available content width
 - **AND** every visible item cell SHALL retain the selection background
 - **AND** cells after the visible item SHALL remain outside the selection background

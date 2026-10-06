@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-06T17:28:14.443Z",
+  "recordedAt": "2026-10-06T17:56:23.862Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -2270,14 +2270,20 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, and the shared bare-A1 modal shortcut row and compact padded modal frame.",
+      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, and the shared bare-A1 modal shortcut row and compact padded modal frame. Selected session rows retain their ordinary text weight and semantic foreground roles on the existing selection background.",
       "upgradeStrategy": "three-way",
-      "localSha256": "5c214c18f6e84bef7219e6438f8d7151fa8ea0b0e3a1ce4a93ad084c6040b465",
+      "localSha256": "c9b79f3042c7bc8d35dec518be5defee9f4053edeea4204b035277ed800ec630",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
           "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
           "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/session-selector.test.ts"
+        },
+        {
+          "id": "owned-standard-dialog-selection",
+          "reason": "Bare A1 keeps selected Resume Session entries at their ordinary text weight while preserving semantic foreground colors on the existing blue selection surface.",
+          "upstreamBehavior": "The comparison profile retains the pinned session selector presentation.",
           "acceptanceTest": "test/integrations/pi/components/session-selector.test.ts"
         }
       ],
@@ -2707,9 +2713,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tree-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab cycling and concise all-first presentation excluding internal bookkeeping, standard search input, blue item-bounded menu-arrow selection with a normal-text primary label and no path bullets, accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with session naming for the system root, standard paging/first-last/containing-branch folding keys, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic shortcut footers without a redundant select hint.",
+      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab cycling and concise all-first presentation excluding internal bookkeeping, standard search input, blue item-bounded menu-arrow selection that preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with session naming for the system root, standard paging/first-last/containing-branch folding keys, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "21a26ff82e7fcd14179850ac1a401baf65fde2ca3f315faeacd64ec3f6c172e6",
+      "localSha256": "00f5cbdde99becc1c776eb097d5a3202c11f996541a09669bd8583382fc129bb",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2719,7 +2725,7 @@
         },
         {
           "id": "owned-session-tree-dialog",
-          "reason": "Bare A1 reduces tree filters to concise all/no-tools/user/labeled modes, excludes raw label/context/custom/session/usage/model/thinking bookkeeping while retaining resolved labels, and aligns search, focused label editing, accent labels, bracketed timestamps, plain label-time status, session naming for the system root, standard paging/first-last/containing-branch folding keys, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, blue item-bounded bullet-free selection with an accent arrow and normal-text primary label, spacing, and Models-ordered footer placement without a redundant select hint.",
+          "reason": "Bare A1 reduces tree filters to concise all/no-tools/user/labeled modes, excludes raw label/context/custom/session/usage/model/thinking bookkeeping while retaining resolved labels, and aligns search, focused label editing, accent labels, bracketed timestamps, plain label-time status, session naming for the system root, standard paging/first-last/containing-branch folding keys, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, blue item-bounded bullet-free selection with an accent arrow and preserved per-entry semantic foregrounds, spacing, and Models-ordered footer placement without a redundant select hint.",
           "upstreamBehavior": "The comparison profile retains the pinned tree selector presentation and geometry.",
           "acceptanceTest": "test/integrations/pi/components/tree-selector.test.ts"
         }

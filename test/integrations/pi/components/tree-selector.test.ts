@@ -110,7 +110,7 @@ describe("bare-A1 session tree presentation", () => {
     expect(cellBackgroundAt(selected, selectedText.indexOf("→"))).toBe(selectionBackground);
     expect(cellBackgroundAt(selected, selectedText.indexOf("X"))).toBe(selectionBackground);
     expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
-    expect(cellStyle(selected, "a")).toEqual(cellStyle(piTheme().fg("text", "a"), "a"));
+    expect(cellStyle(selected, "a")).toEqual(cellStyle(piTheme().fg("warning", "a"), "a"));
     expect(cellStyle(selected, "X")).toEqual(cellStyle(piTheme().fg("muted", "X"), "X"));
     const unselected = rows.find(row => stripTerminalSequences(row).includes("user: QuestionABC"))!;
     expect(cellStyle(unselected, "h")).toEqual(cellStyle(piTheme().fg("accent", "h"), "h"));
@@ -127,7 +127,15 @@ describe("bare-A1 session tree presentation", () => {
     component.handleInput?.("\x1b[A");
     const movedRows = component.render(80);
     const unselectedAssistant = movedRows.find(row => stripTerminalSequences(row).includes("assistant: ResponseXYZ"))!;
+    const selectedUser = movedRows.find(row => stripTerminalSequences(row).includes("user: QuestionABC"))!;
+    expect(stripTerminalSequences(selectedUser)).toContain("→");
     expect(cellStyle(unselectedAssistant, "a")).toEqual(cellStyle(piTheme().fg("warning", "a"), "a"));
+    expect(cellStyle(selectedUser, "u")).toEqual(cellStyle(piTheme().fg("success", "u"), "u"));
+
+    component.handleInput?.("\x1b[H");
+    const selectedSession = component.render(80).find(row => stripTerminalSequences(row).includes("→ session"))!;
+    expect(cellStyle(selectedSession, "s")).toEqual(cellStyle(piTheme().fg("dim", "s"), "s"));
+    expect(cellBackgroundAt(selectedSession, stripTerminalSequences(selectedSession).indexOf("s"))).toBe(selectionBackground);
 
     const hintIndex = plain.findIndex(row => row.includes("type to search"));
     expect(plain.slice(hintIndex, -1).every(row => row.length > 0)).toBe(true);

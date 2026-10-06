@@ -5,7 +5,9 @@
  * search, sort, named/path filters, rename, delete confirmation, active-session protection, loading
  * progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme,
  * canonical path handling, and the shared bare-A1 modal shortcut row and compact padded modal frame.
- * Deviations: owned-modal-shortcut-hints.
+ * Selected session rows retain their ordinary text weight and semantic foreground roles on the
+ * existing selection background.
+ * Deviations: owned-modal-shortcut-hints, owned-standard-dialog-selection.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
@@ -548,10 +550,7 @@ class SessionList implements Component, Focusable {
 			} else if (hasName) {
 				messageColor = "warning";
 			}
-			let styledMsg = messageColor ? theme.fg(messageColor, truncatedMsg) : truncatedMsg;
-			if (isSelected) {
-				styledMsg = theme.bold(styledMsg);
-			}
+			const styledMsg = messageColor ? theme.fg(messageColor, truncatedMsg) : truncatedMsg;
 
 			// Build line
 			const leftPart = cursor + theme.fg("dim", prefix) + styledMsg;

@@ -1,6 +1,6 @@
 ## Context
 
-The supplied captures show inconsistent selection colors across three bare-A1 standard selectors, Session Tree, the Settings screen, and the slash-command menu. Models and Skills assemble rows directly, while Thinking Level and autocomplete delegate row layout to Pi TUI's `SelectList`. The new Resume Session reference establishes the desired palette: blue `selectedBg`, normal text for the selected label, muted metadata, and an accent cursor. Models, Skills, Thinking Level, Session Tree, Settings, and the command menu must retain their existing `→` rather than adopt Resume Session's `›`.
+The supplied captures show inconsistent selection treatment across three bare-A1 standard selectors, Resume Session, Session Tree, the Settings screen, and the slash-command menu. Models and Skills assemble rows directly, while Thinking Level and autocomplete delegate row layout to Pi TUI's `SelectList`. Resume Session establishes the desired blue `selectedBg` palette, but its selected title becomes bold; Session Tree's first blue-palette refinement also forced selected entry labels to white and erased role colors. Every surface must keep its existing arrow, ordinary text weight, and meaningful foreground roles.
 
 The surfaces have different row content. Models combines scope and active-state markers with an identifier and provider badge. Skills has a command label and a separate selected description below the list. Thinking Level aligns a level, current marker, default marker, and description in one row. Session Tree combines hierarchy, entry labels, role labels, descriptions, and clipped-edge markers. Settings aligns labels, values, optional steppers, and structured sub-dialog rows. The command menu aligns command names and descriptions. Selection styling must not flatten those semantic roles or alter interaction state.
 
@@ -8,7 +8,7 @@ The surfaces have different row content. Models combines scope and active-state 
 
 **Goals:**
 
-- Give Models, Skills, Thinking Level, Session Tree, Settings, and the slash-command menu the Resume Session selection palette while preserving their existing arrow.
+- Give Models, Skills, Thinking Level, Resume Session, Session Tree, Settings, and the slash-command menu one blue selection treatment while preserving existing arrows, text weight, and semantic foregrounds.
 - Limit the highlight to the rendered item span without wrapping or exceeding narrow terminals.
 - Keep text, descriptive, success, dim, and muted roles legible on the blue background.
 - Establish a reusable owned rendering boundary and focused style tests for future maintenance.
@@ -16,14 +16,14 @@ The surfaces have different row content. Models combines scope and active-state 
 **Non-Goals:**
 
 - Changing options, ordering, search, filters, keybindings, selection/default/scope persistence, counters, descriptions, or dialog lifecycle.
-- Restyling generic extension prompts, session/resume, trust, startup trust, or the explicit `a1 pi` comparison profile.
+- Restyling generic extension prompts, trust, startup trust, other session workflows, or the explicit `a1 pi` comparison profile.
 - Changing theme color definitions or replacing the Session Tree's specialized hierarchy and horizontal viewport.
 
 ## Decisions
 
 ### 1. Treat Resume Session as the palette contract
 
-A selected owned row will preserve its accent `→`, render its primary selectable label in normal `text`, retain muted supporting text and existing semantic state colors, and apply `selectedBg` only around the rendered item span. It will not fill unused content width or bold the complete row. Unselected rows keep their current appearance.
+A selected owned row will preserve its existing cursor, ordinary text weight, supporting text, and semantic state colors while applying `selectedBg`. Models, Skills, Thinking Level, Settings, and command autocomplete use an accent `→` with a normal-`text` primary label. Resume Session and Session Tree retain their item-specific foreground roles. Selection will not introduce bold styling. Item-bounded surfaces will not fill unused content width; Resume Session retains its established full-row geometry. Unselected rows keep their current appearance.
 
 Adopting Resume Session's `›` icon or full-width geometry was rejected because the request is for its color scheme, while each covered surface's established arrow and the prior item-bounded decision remain authoritative. The lower-intensity purple `customMessageBg` was rejected after visual review in favor of the supplied blue selection reference.
 
@@ -47,17 +47,23 @@ The bare-A1 editor theme will style selected slash-command rows with an accent `
 
 ### 5. Change only Session Tree's selected palette
 
-Session Tree will replace its purple `customMessageBg` selection with blue `selectedBg`, retain the accent `→`, and render the selected primary entry label as normal `text`. Muted message descriptions, accent entry labels and timestamps, role colors on unselected rows, hierarchy, horizontal clipping, and selected ellipsis coverage remain unchanged.
+Session Tree will replace its purple `customMessageBg` selection with blue `selectedBg`, retain the accent `→`, and preserve each entry's existing foreground roles when selected. User, assistant, system, tool, bash, error, entry-label, timestamp, and description colors therefore remain identical as selection moves. Hierarchy, horizontal clipping, and selected ellipsis coverage remain unchanged.
 
 Adopting Resume Session's full-width geometry was rejected: the tree keeps its established visible-fragment highlight and specialized horizontal viewport.
 
-### 6. Reuse the owned Settings highlight boundary
+### 6. Remove selection-only bold from Resume Session
+
+Resume Session keeps its existing blue full-row background, `›` cursor, semantic title colors, muted metadata, and geometry. Selection will stop wrapping the title in bold, so moving the cursor changes only the cursor/background state rather than the title's text weight.
+
+Changing Resume Session search, scope, sort, rename/delete, navigation, or row geometry was rejected.
+
+### 7. Reuse the owned Settings highlight boundary
 
 The shared Settings list row and structured-value panel will keep their existing `→`, render selected labels as normal `text`, retain muted values and pointer affordances, and pass only the rendered item through the theme's `highlight` role. The Pi-backed Settings route maps that role to `selectedBg`, so list rows, structured rows, and existing floating choices share the blue surface without padding it across unused screen width.
 
 Changing Settings navigation, values, scrolling, filtering, pointer regions, or persistence was rejected because this refinement is presentation-only.
 
-### 7. Pin semantic roles and geometry, not RGB snapshots
+### 8. Pin semantic roles and geometry, not RGB snapshots
 
 Focused tests will assert the `selectedBg` role, accent arrow, normal-text primary label, muted descriptions, retained success/dim markers, absence of bold selection, absence of trailing selected cells, and bounded narrow rendering. Existing behavioral tests remain authoritative for actions and state changes; shell-level coverage will verify that dialogs, Settings, Session Tree, and the command menu still open and transition normally.
 
@@ -72,4 +78,4 @@ Literal RGB snapshots were rejected because themes and terminal color modes legi
 
 ## Migration Plan
 
-No persisted data or configuration migration is required. The selection-palette adaptations can be rolled back together without changing sessions, settings values, model scope, thinking defaults, skills, or keybindings.
+No persisted data or configuration migration is required. The selection-treatment adaptations can be rolled back together without changing sessions, settings values, model scope, thinking defaults, skills, or keybindings.
