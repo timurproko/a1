@@ -119,7 +119,11 @@ import type {
 } from "../../integrations/pi/tui-runtime/contracts.js";
 
 
-import { runImageWorker } from "./image-preparation-client.js";
+import {
+  runImageWorker,
+  startImageCellPreview,
+  usesWindowsTerminalSubmittedImagePreview,
+} from "./image-preparation-client.js";
 import type { ClipboardImageData } from "./clipboard-image.js";
 import {
   STREAM_PRESENTATION_INTERVAL_MS,
@@ -349,6 +353,9 @@ export class OwnedUiSessionShell {
       getShortcuts: bindings => this.backend.pinnedShortcutDescriptions(bindings),
     }, sessionLayout, {
       resolve: assetId => this.backend.resolveTranscriptImage(assetId),
+      ...(this.#customViewport && usesWindowsTerminalSubmittedImagePreview() ? {
+        preview: (_assetId, source, columns, cell) => startImageCellPreview(source, columns, cell),
+      } : {}),
     });
     const initialPiSettings = this.backend.pinnedSettingsSnapshot();
     // Invariant: bare A1 owns a bounded viewport and therefore always runs on the alternate

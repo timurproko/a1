@@ -653,6 +653,29 @@ describe("Pi shell public component adapters", () => {
     expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("Image unavailable: image/png");
   });
 
+  it("uses an optional submitted-image preview without changing retained attachment data", async () => {
+    const imageBlock = {
+      ...block("user", "image prompt"),
+      imageReferences: [{ assetId: "image-1", mimeType: "image/png", byteLength: 3, source: "user" as const }],
+    };
+    const source = { type: "image" as const, mimeType: "image/png", data: "AQID" };
+    const preview = vi.fn(() => ({
+      result: Promise.resolve({ rows: ["\u001b[38;2;255;0;0;48;2;0;0;0m▀\u001b[0m"] }),
+      cancel: vi.fn(),
+    }));
+    const changed = vi.fn();
+    const component = createPiShellTranscriptComponent(
+      imageBlock, process.cwd(), undefined, undefined, 1, false, "off", true, 40,
+      { resolve: () => source, preview }, { getColumns: () => 80, getRows: () => 24, changed },
+    );
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("preparing preview");
+    await vi.waitFor(() => expect(changed).toHaveBeenCalledOnce());
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("▀");
+    expect(preview).toHaveBeenCalledWith("image-1", source, 40, expect.objectContaining({ widthPx: expect.any(Number) }));
+    expect(source.data).toBe("AQID");
+    component.dispose?.();
+  });
+
   it("rebuilds finalized and streaming assistant presentation for thinking and Mermaid modes", () => {
     const mixed = createPiShellTranscriptComponent(block("assistant", "fallback", {
       content: [{ type: "thinking", thinking: "private chain" }, { type: "text", text: "public answer" }],

@@ -80,6 +80,7 @@ export type {
   PiShellHeaderPort,
   PiShellHotkeysPresentation,
   PiShellImageAssetResolver,
+  PiShellImagePreviewJob,
   PiShellLoadedResourcesPort,
   PiShellLoginDialogPort,
   PiShellModelSelectorOptions,

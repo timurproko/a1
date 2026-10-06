@@ -151,8 +151,20 @@ export interface PiShellLoadedResourcesPort extends PiShellComponentPort {
   setExpanded(expanded: boolean): void;
 }
 
+export interface PiShellImagePreviewJob {
+  readonly result: Promise<{ readonly rows: readonly string[] }>;
+  cancel(): void;
+}
+
 export interface PiShellImageAssetResolver {
   resolve(assetId: string): OwnedUiImageAttachment | null;
+  /** Present only for bare A1's Windows Terminal submitted-image fallback. */
+  preview?(
+    assetId: string,
+    source: OwnedUiImageAttachment,
+    columns: number,
+    cell: { readonly widthPx: number; readonly heightPx: number },
+  ): PiShellImagePreviewJob;
 }
 
 export interface PiShellExtensionRendererResolver {

@@ -1,6 +1,7 @@
 import { Worker } from "node:worker_threads";
-import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
-import type { PiShellClipboardContent } from "../../integrations/pi/components/index.js";
+import { ImageAttachmentError, type OwnedUiImageAttachment } from "../../contracts/owned-ui/index.js";
+import type { PiShellClipboardContent, PiShellImagePreviewJob } from "../../integrations/pi/components/index.js";
+import type { ImageCellPreview } from "./image-cell-preview.js";
 import type { ImagePreparationLimits, PreparedImage } from "./image-preparation.js";
 import type { ImageWorkerRequest } from "./image-worker.js";
 import { IMAGE_PREPARATION_MS, MAX_SOURCE_IMAGE_BYTES } from "./image-source.js";
@@ -13,6 +14,32 @@ export interface ImagePasteJob {
   readonly result: Promise<PreparedClipboardContent>;
   cancel(): void;
 }
+const IMAGE_CELL_PREVIEW_MS = 5_000;
+
+export function usesWindowsTerminalSubmittedImagePreview(
+  platform: NodeJS.Platform = process.platform,
+  environment: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (platform !== "win32" || environment.WT_SESSION === undefined) return false;
+  return environment.WEZTERM_PANE === undefined && environment.TERM_PROGRAM?.toLowerCase() !== "wezterm";
+}
+
+export function startImageCellPreview(
+  source: OwnedUiImageAttachment,
+  columns: number,
+  cell: { readonly widthPx: number; readonly heightPx: number },
+): PiShellImagePreviewJob {
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(new ImageAttachmentError("image-timeout")), IMAGE_CELL_PREVIEW_MS);
+  const result = runImageWorker<ImageCellPreview>({
+    kind: "preview",
+    source,
+    options: { columns, cellWidthPx: cell.widthPx, cellHeightPx: cell.heightPx, background: [0, 0, 0] },
+  }, controller.signal).then(value => ({ rows: value.rows })).finally(() => clearTimeout(deadline));
+  void result.catch(() => {});
+  return { result, cancel: () => controller.abort(new ImageAttachmentError("image-canceled")) };
+}
+
 interface WaitingConversion {
   readonly run: () => Promise<void>;
   readonly signal: AbortSignal;

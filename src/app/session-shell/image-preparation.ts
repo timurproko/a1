@@ -43,7 +43,7 @@ export async function prepareImage(
     if (image.get_width() !== metadata.width || image.get_height() !== metadata.height) throw new ImageAttachmentError("image-data");
     if (metadata.orientation !== 1) {
       const raw = image.get_raw_pixels();
-      const oriented = orientPixels(raw, metadata.width, metadata.height, metadata.orientation);
+      const oriented = orientImagePixels(raw, metadata.width, metadata.height, metadata.orientation);
       image.free(); image = undefined;
       image = new photon.PhotonImage(oriented.pixels, oriented.width, oriented.height);
     }
@@ -88,7 +88,7 @@ function result(bytes: Uint8Array, mimeType: string, width: number, height: numb
   return { data: Buffer.from(bytes).toString("base64"), mimeType, width, height, transformed: true };
 }
 
-function orientPixels(pixels: Uint8Array, width: number, height: number, orientation: number): { pixels: Uint8Array; width: number; height: number } {
+export function orientImagePixels(pixels: Uint8Array, width: number, height: number, orientation: number): { pixels: Uint8Array; width: number; height: number } {
   const swapped = orientation >= 5;
   const outputWidth = swapped ? height : width, outputHeight = swapped ? width : height;
   const output = new Uint8Array(pixels.length);
