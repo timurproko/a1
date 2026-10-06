@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-06-accent-model-scope-markers/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-06-accent-model-scope-markers/acceptance.md",
   "finalizedDate": "2026-10-06",
-  "specBaseSha": "cf775a8ca99953436c90e4a0e21044c4d890cf5e",
+  "specBaseSha": "f3d4a7f61da672b3996d3deea3f341b40ed305ff",
   "acceptanceScenarios": [
     "Filled Models scope markers use the same accent color as Thinking Level's filled default marker on selected and unselected rows.",
     "Empty scope markers remain dim while active-model checkmarks remain success-colored.",
