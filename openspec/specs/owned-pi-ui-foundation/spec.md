@@ -2987,6 +2987,35 @@ These presentation requirements SHALL NOT change trust outcomes, persistence, po
 - **THEN** its existing choices, responsive priority, key behavior, trust effects, and restoration lifecycle SHALL remain unchanged
 - **AND** the `a1 pi` comparison presentation SHALL remain unchanged
 
+### Requirement: Tab-filtered dialogs cycle backward with reverse Tab
+
+Every bare-A1 dialog in which `Tab` changes a filter or result scope SHALL treat `Shift+Tab` as the reverse transition through that same ordered state set. This SHALL cover the Models dialog's `all | scoped` filter, Resume Session's current-folder/all scope, and Session Tree's `all | no tools | user | labeled` filter. Reverse cycling SHALL wrap at the first state and SHALL preserve the same query, selection-restoration, loading, folding-reset, and other state-transition semantics applicable to forward cycling.
+
+Reverse Tab SHALL be handled only while one of these dialogs owns input. It SHALL NOT assign Shift+Tab to the ordinary bare-A1 agent input, autocomplete, suggestion acceptance, comparison profile, or dialogs where Tab does not change a filter. Existing visible shortcut hints SHALL remain forward-only and SHALL NOT add Shift+Tab; Models and Session Tree SHALL continue to show `Tab filter`, and Resume Session SHALL continue to show `Tab scope`.
+
+#### Scenario: Cycle the Session Tree filter backward
+- **WHEN** Session Tree has `all` active and the user presses `Shift+Tab`
+- **THEN** `labeled` SHALL become active through the existing reverse-cycle path
+- **AND** the current query and nearest applicable selection SHALL be preserved
+- **AND** the footer SHALL continue to show `Tab filter` without a Shift+Tab hint
+
+#### Scenario: Reverse the Models filter
+- **WHEN** the Models dialog has `all` active with a query and selected model and the user presses `Shift+Tab`
+- **THEN** `scoped` SHALL become active through the existing filter transition
+- **AND** the query SHALL remain and the selected model SHALL be restored when it exists in the destination rows
+- **AND** the footer SHALL continue to show only `Tab filter`
+
+#### Scenario: Reverse the Resume Session scope
+- **WHEN** Resume Session is showing the current-folder scope and the user presses `Shift+Tab`
+- **THEN** it SHALL switch through the existing scope transition to all sessions
+- **AND** existing search, loading, and selection behavior SHALL be retained
+- **AND** the header hint SHALL continue to show only `Tab scope`
+
+#### Scenario: Keep reverse Tab modal-local
+- **WHEN** no Tab-filtered dialog owns input and the ordinary bare-A1 agent input receives `Shift+Tab`
+- **THEN** it SHALL retain its established unassigned and inert behavior
+- **AND** no new Shift+Tab action SHALL appear in startup help, Keyboard Shortcuts, or modal shortcut hints
+
 ### Requirement: Bare-A1 Resume Session follows the standard dialog hierarchy
 
 The bare-A1 Resume Session selector SHALL use the shared compact modal hierarchy of top rule, title, filter/status row, search and results, bottom shortcut footer, and bottom rule. Its full-width top and bottom rules SHALL use the same standard dialog border role as Session Tree and Models rather than the title accent role, including while rename mode is active. Its title SHALL be the standalone accent-bold text `Resume Session` and SHALL NOT repeat the active scope as `(Current Folder)` or `(All)`.
@@ -3060,32 +3089,3 @@ The selector's search-syntax and action shortcut hints SHALL appear below the se
 #### Scenario: Use existing session operations
 - **WHEN** the user searches, changes scope, sorts, filters by name, toggles paths, renames, deletes, selects, or cancels
 - **THEN** the operation SHALL retain its existing behavior while the standard modal hierarchy remains in place
-
-### Requirement: Tab-filtered dialogs cycle backward with reverse Tab
-
-Every bare-A1 dialog in which `Tab` changes a filter or result scope SHALL treat `Shift+Tab` as the reverse transition through that same ordered state set. This SHALL cover the Models dialog's `all | scoped` filter, Resume Session's current-folder/all scope, and Session Tree's `all | no tools | user | labeled` filter. Reverse cycling SHALL wrap at the first state and SHALL preserve the same query, selection-restoration, loading, folding-reset, and other state-transition semantics applicable to forward cycling.
-
-Reverse Tab SHALL be handled only while one of these dialogs owns input. It SHALL NOT assign Shift+Tab to the ordinary bare-A1 agent input, autocomplete, suggestion acceptance, comparison profile, or dialogs where Tab does not change a filter. Existing visible shortcut hints SHALL remain forward-only and SHALL NOT add Shift+Tab; Models and Session Tree SHALL continue to show `Tab filter`, and Resume Session SHALL continue to show `Tab scope`.
-
-#### Scenario: Cycle the Session Tree filter backward
-- **WHEN** Session Tree has `all` active and the user presses `Shift+Tab`
-- **THEN** `labeled` SHALL become active through the existing reverse-cycle path
-- **AND** the current query and nearest applicable selection SHALL be preserved
-- **AND** the footer SHALL continue to show `Tab filter` without a Shift+Tab hint
-
-#### Scenario: Reverse the Models filter
-- **WHEN** the Models dialog has `all` active with a query and selected model and the user presses `Shift+Tab`
-- **THEN** `scoped` SHALL become active through the existing filter transition
-- **AND** the query SHALL remain and the selected model SHALL be restored when it exists in the destination rows
-- **AND** the footer SHALL continue to show only `Tab filter`
-
-#### Scenario: Reverse the Resume Session scope
-- **WHEN** Resume Session is showing the current-folder scope and the user presses `Shift+Tab`
-- **THEN** it SHALL switch through the existing scope transition to all sessions
-- **AND** existing search, loading, and selection behavior SHALL be retained
-- **AND** the header hint SHALL continue to show only `Tab scope`
-
-#### Scenario: Keep reverse Tab modal-local
-- **WHEN** no Tab-filtered dialog owns input and the ordinary bare-A1 agent input receives `Shift+Tab`
-- **THEN** it SHALL retain its established unassigned and inert behavior
-- **AND** no new Shift+Tab action SHALL appear in startup help, Keyboard Shortcuts, or modal shortcut hints
