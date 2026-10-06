@@ -1,7 +1,7 @@
-const ACCENT = "\u001b[38;2;138;190;183m";
-const BORDER = "\u001b[38;2;95;135;255m";
-const MUTED = "\u001b[38;2;128;128;128m";
-const DIM = "\u001b[38;2;102;102;102m";
+const ACCENT = "\u001b[38;2;167;152;215m";
+const BORDER = "\u001b[38;2;97;133;204m";
+const MUTED = "\u001b[38;2;157;165;169m";
+const DIM = "\u001b[38;2;126;136;142m";
 const RESET_FG = "\u001b[39m";
 const BOLD = "\u001b[1m";
 const RESET_BOLD = "\u001b[22m";
@@ -20,7 +20,7 @@ export function renderProjectTrustDialog(
   const title = ` ${BOLD}${ACCENT}Trust project folder?${RESET_FG}${RESET_BOLD}`;
   const path = ` ${MUTED}${sanitize(cwd)}${RESET_FG}`;
   const choices = options.map((label, index) => choice(label, selected === index));
-  const hint = ` ${DIM}↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select  ${DIM}Esc${MUTED} to exit${RESET_FG}`;
+  const hint = ` ${DIM}↑↓${MUTED} navigate  ${DIM}Enter${MUTED} select  ${DIM}Esc${MUTED} exit${RESET_FG}`;
   const explanation = wrap(EXPLANATION, Math.max(1, width - 2)).map(line => ` ${line}`);
   const preferred = [rule, title, path, "", ...explanation, "", ...choices, "", hint, rule];
   if (preferred.length <= terminalRows) return preferred;
