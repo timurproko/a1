@@ -174,8 +174,9 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     const persist = vi.spyOn(adapter, "persistProjectTrust").mockImplementation(() => {});
 
     await shell.submit("/trust");
-    expect(shell.root.render(100).join("\n")).toContain("Project trust");
-    expect(shell.root.render(100).join("\n")).toContain("Current session: untrusted");
+    const trustFrame = shell.root.render(100).map(stripTerminalSequences).join("\n");
+    expect(trustFrame).toContain("Project trust");
+    expect(trustFrame).toContain("Current session: untrusted");
     terminal.input("\x1b");
     expect(persist).not.toHaveBeenCalled();
     expect(shell.root.render(100).join("\n")).not.toContain("Project trust");
