@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { SessionInfo } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import { applyPiTheme, createPiShellSessionSelector, piTheme } from "../../../../src/integrations/pi/components/index.js";
 import { cellStyle } from "../../../support/ansi-cell-style.js";
@@ -127,6 +127,10 @@ describe("owned pinned session selector", () => {
     const finalHintIndex = plainInitialRows.findIndex(row => row.includes("Ctrl+S sort"));
     const heading = initialRows[headingIndex]!;
     const filterRow = initialRows[filterIndex]!;
+    const standardRule = new DynamicBorder().render(100)[0]!;
+    const ruleRows = initialRows.filter(row => /^─+$/u.test(stripPortableTerminalSequences(row)));
+    expect(ruleRows).toEqual([standardRule, standardRule]);
+    expect(cellStyle(ruleRows[0]!, "─")).not.toEqual(cellStyle(heading, "R"));
     expect(headingIndex).toBeLessThan(filterIndex);
     expect(filterIndex).toBeLessThan(resultIndex);
     expect(resultIndex).toBeLessThan(firstHintIndex);
@@ -164,6 +168,8 @@ describe("owned pinned session selector", () => {
     const renameRows = component.render(100);
     const renameHeading = renameRows.find(row => stripPortableTerminalSequences(row).includes("Rename Session"))!;
     const renameHint = renameRows.find(row => stripPortableTerminalSequences(row).includes("to save"))!;
+    const renameRules = renameRows.filter(row => /^─+$/u.test(stripPortableTerminalSequences(row)));
+    expect(renameRules).toEqual([standardRule, standardRule]);
     expect(firstVisibleTextColumn(renameHint)).toBe(firstVisibleTextColumn(renameHeading));
     input("Renamed session");
     input("\r");

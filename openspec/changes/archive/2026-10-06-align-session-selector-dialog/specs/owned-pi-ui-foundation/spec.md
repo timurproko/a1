@@ -2,7 +2,7 @@
 
 ### Requirement: Bare-A1 Resume Session follows the standard dialog hierarchy
 
-The bare-A1 Resume Session selector SHALL use the shared compact modal hierarchy of title, filter/status row, search and results, bottom shortcut footer, and bottom rule. Its title SHALL be the standalone accent-bold text `Resume Session` and SHALL NOT repeat the active scope as `(Current Folder)` or `(All)`.
+The bare-A1 Resume Session selector SHALL use the shared compact modal hierarchy of top rule, title, filter/status row, search and results, bottom shortcut footer, and bottom rule. Its full-width top and bottom rules SHALL use the same standard dialog border role as Session Tree and Models rather than the title accent role, including while rename mode is active. Its title SHALL be the standalone accent-bold text `Resume Session` and SHALL NOT repeat the active scope as `(Current Folder)` or `(All)`.
 
 The row immediately below the title SHALL begin with `Filter: current | all`, followed by `Name: all` or `Name: named` and `Sort: threaded`, `Sort: recent`, or `Sort: fuzzy`. Labels, separators, and inactive scope values SHALL use the established inactive status styling; the active scope and current name and sort values SHALL use the accent role. Values SHALL use the specified lower-case display text. The row SHALL remain stable during asynchronous scope loading and SHALL NOT append `loading` or loader work-unit counts to either scope value.
 
@@ -17,6 +17,11 @@ The selector's search-syntax and action shortcut hints SHALL appear below the se
 - **THEN** the accent-bold title SHALL read `Resume Session` without a scope suffix
 - **AND** the next row SHALL show `Filter: current | all`, the current lower-case `Name:` value, and the current lower-case `Sort:` value
 - **AND** the active scope and current name and sort values SHALL use the accent role
+
+#### Scenario: Render standard dialog rules
+- **WHEN** Resume Session or its rename mode is visible
+- **THEN** the full-width top and bottom rules SHALL use the standard dialog border role used by Session Tree and Models
+- **AND** the rules SHALL remain visually distinct from the accent title
 
 #### Scenario: Switch the session scope
 - **WHEN** the user switches between current-folder and all-session scope

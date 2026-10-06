@@ -5,8 +5,8 @@
  * search, sort, named/path filters, rename, delete confirmation, active-session protection,
  * progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned
  * keybindings/theme, canonical path handling, and the shared bare-A1 modal frame with standalone
- * title, stable filter/status row, progressive result paging, aligned result columns, Session Tree
- * selection roles, and bottom dynamic feedback and shortcut footer.
+ * title, standard outer rules, stable filter/status row, progressive result paging, aligned result
+ * columns, Session Tree selection roles, and bottom dynamic feedback and shortcut footer.
  * Deviations: owned-modal-shortcut-hints, owned-resume-session-dialog.
  */
 import { spawnSync } from "node:child_process";
@@ -816,14 +816,14 @@ export class SessionSelectorComponent extends Container implements Focusable {
 		this.addChild(new Spacer(1));
 		const showHeader = options?.showHeader ?? true;
 		const modalHeader = showHeader
-			? addPiModalHeader(this, new DynamicBorder((s) => theme.fg("accent", s)), this.header)
+			? addPiModalHeader(this, new DynamicBorder(), this.header)
 			: undefined;
-		if (!showHeader) this.addChild(new DynamicBorder((s) => theme.fg("accent", s)));
+		if (!showHeader) this.addChild(new DynamicBorder());
 		this.addChild(new Spacer(1));
 		this.addChild(content);
 		this.addChild(new Spacer(1));
 		if (showHeader) this.addChild(this.footer);
-		this.addChild(new DynamicBorder((s) => theme.fg("accent", s)));
+		this.addChild(new DynamicBorder());
 		const frame = { topIndex: 1, bottomIndex: this.children.length - 1 } as const;
 		if (modalHeader === undefined) adoptPiModalFrame(this, frame);
 		else adoptPiModalFrame(this, { ...frame, header: modalHeader });

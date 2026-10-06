@@ -2,7 +2,7 @@
 
 See `proposal.md` for motivation and `specs/owned-pi-ui-foundation/spec.md` for the observable contract. The bare-A1 Resume Session selector is a source-attributed Pi component adapted into the shared padded modal frame. One stateful header component currently renders three rows: a title containing the current scope, a right-aligned scope/name/sort summary, and two shortcut rows. The session list renders below that header, so shortcut guidance appears above search and results rather than at the modal footer.
 
-The same selector state also owns asynchronous scope loading and partial-result delivery, delete confirmation, transient status messages, path visibility, and whether rename is available. Progressive discovery must remain visible through the result list and its paging count after the chrome is recomposed. The explicit `a1 pi` comparison profile must retain pinned presentation.
+The same selector state also owns asynchronous scope loading and partial-result delivery, delete confirmation, transient status messages, path visibility, and whether rename is available. Progressive discovery must remain visible through the result list and its paging count after the chrome is recomposed. Unlike Session Tree and Models, Resume Session currently supplies the title accent painter explicitly to both outer rules instead of using the standard dialog border role. The explicit `a1 pi` comparison profile must retain pinned presentation.
 
 ## Goals / Non-Goals
 
@@ -40,7 +40,13 @@ Ordinary shortcut guidance will remain two semantic rows but move below the resu
 
 Moving only ordinary hints while leaving confirmation and status in the header was rejected because the modal would jump between two feedback locations for the same actions.
 
-### 4. Compose stable result columns before applying selection
+### 4. Use the shared standard border role for both outer rules
+
+Resume Session will construct its top and bottom `DynamicBorder` components without an accent override, exactly as Session Tree and Models do. The title remains accent-bold independently of the rules, and rename mode uses the same standard outer-rule role.
+
+Retaining the explicit accent painter was rejected because it couples rule color to title emphasis and makes this dialog visibly diverge from the standard dialog family. Adding a new border token or helper was rejected because the existing default border component already expresses the required role.
+
+### 5. Compose stable result columns before applying selection
 
 Each result row will reserve trailing columns for path metadata, message count, and age. The path column will start at one shared position for the rendered result set, truncate within a bounded width when necessary, and leave explicit spacing on both sides; the title/tree-prefix region will truncate before that boundary instead of consuming path space. Count and age will retain their own aligned columns.
 
@@ -48,9 +54,9 @@ The renderer will fit and pad the complete row to the available width before app
 
 Keeping one free-form right-hand metadata string was rejected because variable path lengths move the column boundary. Retaining the Resume Session selector's `›`, blue `selectedBg`, named/current foreground distinction, or selected-title bolding was rejected because those roles diverge from the Session Tree selection language. Applying selection before final truncation was rejected because truncation can terminate the outer background at different visible positions.
 
-### 5. Verify semantics and ANSI roles rather than snapshotting a terminal image
+### 6. Verify semantics and ANSI roles rather than snapshotting a terminal image
 
-Focused selector tests will assert exact plain-text row order, shared left inset, title styling, active/inactive status roles, stable loading-time filter text, progressively growing paging totals, Session Tree arrow/foreground/background selection roles with full-width coverage, aligned path/count/age columns, title and path truncation, footer placement, and dynamic confirmation/status behavior. Shell workflow coverage will assert the integrated Resume Session surface no longer includes scoped title suffixes while scope switching and closure still work.
+Focused selector tests will assert exact plain-text row order, shared left inset, standard top/bottom border roles distinct from the accent title, active/inactive status roles, stable loading-time filter text, progressively growing paging totals, Session Tree arrow/foreground/background selection roles with full-width coverage, aligned path/count/age columns, title and path truncation, footer placement, and dynamic confirmation/status behavior. Shell workflow coverage will assert the integrated Resume Session surface no longer includes scoped title suffixes while scope switching and closure still work.
 
 A screenshot-only assertion was rejected because it cannot reliably distinguish semantic ANSI roles or prevent header/footer and row-layout regressions.
 
