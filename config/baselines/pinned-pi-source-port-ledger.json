@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-06T08:13:13.127Z",
+  "recordedAt": "2026-10-06T15:17:50.710Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -446,9 +446,9 @@
       "localDestination": "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model selection, and cross-platform Alt+Up queued-message restoration.",
+      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model selection, Tab tree-filter cycling, tree-local navigation aliases, and cross-platform Alt+Up queued-message restoration.",
       "upgradeStrategy": "three-way",
-      "localSha256": "85d012cf1b926dfef7158dcdaeb96f15181c3e3a0f9052e62d383323faf46567",
+      "localSha256": "d067f4580f454c539b0f887585da49d73dbb0b1cb1c75612c2f8a7d08a89a446",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
@@ -467,6 +467,12 @@
           "reason": "Bare A1 opts into ergonomic vanilla editing aliases, declarative prompt-selection actions, and cross-platform Alt+Up queued-message restoration while the comparison profile retains pinned defaults.",
           "upstreamBehavior": "The pinned comparison profile continues to use the exact upstream keybinding definitions and effective configuration.",
           "acceptanceTest": "test/app/session-shell/session-shell.test.ts"
+        },
+        {
+          "id": "owned-session-tree-dialog",
+          "reason": "Bare A1 uses Tab for Models-style Session Tree filter cycling instead of the pinned Ctrl+O binding and adds tree-local unmodified-arrow plus Home/End navigation actions.",
+          "upstreamBehavior": "The comparison profile retains the pinned Ctrl+O tree-filter cycle shortcut.",
+          "acceptanceTest": "test/integrations/pi/components/tree-selector.test.ts"
         }
       ],
       "behaviorCategories": [
@@ -1667,7 +1673,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving input, timeout, focus, submission, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "2d12581f83ee5f3d7a12dc961fd395a46aac0ef01e6a36fb9255f10e87099451",
+      "localSha256": "a947f22a26836565fc120224439be97db3aa54a53a32370a3656c0c5c122cf60",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1717,7 +1723,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving options, timeout, navigation, selection, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "7aa589d92c00903ce968997803decae23329a6bef5d589a60f7dc0bf158e25ea",
+      "localSha256": "ebcc1df32a9c6a83d43d6d377f409605a2110fc8758bc50ea4bb69663bcd021e",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2695,15 +2701,21 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tree-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized tree selector port: preserve filtering, folding, labels, copying, tree navigation, key hints, focus, and viewport behavior while remapping public types/components plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton; bare A1 uses the shared semantic modal shortcut row and compact padded modal frame.",
+      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab cycling and concise all-first presentation excluding internal bookkeeping, standard search input, purple accent-backed menu-arrow selection without path bullets, accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with session naming for the system root, standard paging/first-last/containing-branch folding keys, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "605b93dd464c6e53d385e7785c9f839490ba74e76dd3ddc6fe770a450b1edfb8",
+      "localSha256": "b9d928309e17ee9bcb148fc293ae6097d611b31e3b0670f9990a8d4a2dc8b27c",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
           "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
           "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
           "acceptanceTest": "test/repository-governance/pi-modal-surface-inventory.test.ts"
+        },
+        {
+          "id": "owned-session-tree-dialog",
+          "reason": "Bare A1 reduces tree filters to concise all/no-tools/user/labeled modes, excludes raw label/context/custom/session/usage/model/thinking bookkeeping while retaining resolved labels, and aligns search, focused label editing, accent labels, bracketed timestamps, plain label-time status, session naming for the system root, standard paging/first-last/containing-branch folding keys, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, purple accent-backed bullet-free selection, spacing, and Models-ordered footer placement without a redundant select hint.",
+          "upstreamBehavior": "The comparison profile retains the pinned tree selector presentation and geometry.",
+          "acceptanceTest": "test/integrations/pi/components/tree-selector.test.ts"
         }
       ],
       "behaviorCategories": [

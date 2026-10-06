@@ -1120,7 +1120,6 @@
           "hash": "b4a845b4055a50486312a5b2e4b073b9c494d00d77921ed5e46163c1baba2361",
           "consumers": [
             "src/integrations/pi/components/conformance.ts",
-            "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -4042,6 +4041,7 @@
           "kind": "function",
           "hash": "f81e15732dc355a21592f6377fa88189b46003b8837fd275705671c0ea9484e2",
           "consumers": [
+            "src/integrations/pi/components/shell-session-info-reference.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
@@ -4360,6 +4360,7 @@
             "src/integrations/pi/components/prompt-chip-presentation.ts",
             "src/integrations/pi/components/shell-editor-autocomplete.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
+            "src/integrations/pi/components/shell-session-info-reference.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/components/owned-editor.ts",
             "src/integrations/pi/components/upstream/components/session-footer.ts",

@@ -19,6 +19,7 @@
 - `npx openspec validate place-new-session-notice-above-prompt --strict` and `git diff --check` — passed.
 - Exact-head CI run `37489089609` exposed two deterministic governance omissions: the new implementation comment lacked an approved semantic prefix, and the reviewed eager shell growth exceeded the exact source-byte baseline by 666 bytes. The comment now uses `Rationale:` and `config/startup-graph-baseline.json` is re-pinned from 1,545,092 to the measured 1,545,769 bytes (the additional 11 bytes are the required prefix); file count and Pi artifact totals are unchanged.
 - `npm run check:code-documentation`, `npm run check:architecture`, and `node scripts/pi/update-startup-graph-baseline.mjs --check` — passed after the CI repair.
+- After `origin/develop` integrated the session-tree redesign, its independently raised startup baseline conflicted with this repair. The merge was resolved by rebuilding and measuring the combined graph at 1,548,485 bytes rather than choosing either branch's stale total; `npm run build`, `npm run typecheck`, `npm run check:architecture`, and the 60 focused shell/viewport tests passed on the merged tree.
 
 ## Known gaps
 
