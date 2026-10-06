@@ -321,7 +321,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #lastWorkflowStatusId: string | undefined;
   // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.
   #dockNotice: {
-    readonly kind: "status" | "warning" | "error";
+    readonly kind: "status" | "warning" | "error" | "new-session";
     readonly message: string;
     readonly errorCode?: ImageAttachmentError["code"];
   } | undefined;
@@ -698,6 +698,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     }
     const promptAccepted = this.#view.lifecycle !== "busy" && view.lifecycle === "busy";
     this.#view = view;
+    // Invariant: the idle new-session confirmation yields to the first truthful live status;
+    // ordinary dock notices deliberately remain visible below Working during a run.
+    if (promptAccepted && this.#dockNotice?.kind === "new-session") this.#dockNotice = undefined;
     if (promptAccepted && this.#imageSubmissionsSending > 0) {
       this.#imageSubmissionsSending = 0;
       this.#syncWorkingOverride();
@@ -1048,7 +1051,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       // Compatibility: Pi pads its status text by one cell regardless of the output pad setting.
       return ["", ...renderPiShellStatusText(notice.message, width, PINNED_PI_LAYOUT.outputPad)];
     }
-    return renderPiShellCommandMessage({ kind: notice.kind, message: notice.message }, width, this.#outputPad);
+    return renderPiShellCommandMessage({
+      kind: notice.kind === "new-session" ? "accent" : notice.kind,
+      message: notice.message,
+    }, width, this.#outputPad);
   }
 
   dismissNotice(): void {
@@ -1349,6 +1355,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       return;
     }
     if (result.outcome === "completed" && (result.command === "quit" || result.command === "compact")) return;
+    if (result.outcome === "completed" && result.command === "new" && this.#customViewport) {
+      // Rationale: bare A1 keeps the replacement session visually empty while preserving Pi's accent notice shape.
+      this.#dockNotice = { kind: "new-session", message: result.message };
+      this.#invalidateChrome();
+      return;
+    }
     if (result.outcome === "completed" && (result.command === "new" || result.command === "name" || result.command === "debug")) {
       this.#lastWorkflowStatusId = undefined;
       const presentation = { kind: result.command, message: result.message, ...(result.detail === undefined ? {} : { detail: result.detail }) };

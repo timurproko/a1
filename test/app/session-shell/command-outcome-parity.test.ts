@@ -78,8 +78,18 @@ function verify(actual: Capture, expected: Capture): void {
       }
       return text.replace(/\s+/gu, "");
     };
-    expect(plainSurfaceText(actual.surfaceRows), `${actual.id} selector messages`)
-      .toBe(plainSurfaceText(expected.surfaceRows, expected.id.includes("/tree/")));
+    const actualText = plainSurfaceText(actual.surfaceRows);
+    const expectedText = plainSurfaceText(expected.surfaceRows, expected.id.includes("/tree/"));
+    if (expected.id.includes("/tree/")) {
+      // Compatibility: bare A1 intentionally replaces Pi's tree filter, search, selection, and footer presentation.
+      // Keep this cross-runtime gate on the shared entry content and selection counter instead of divergent chrome.
+      expect(actualText.match(/user:synthetic(?:first|second)prompt/gu), `${actual.id} tree entries`)
+        .toEqual(expectedText.match(/user:synthetic(?:first|second)prompt/gu));
+      expect(actualText.match(/\(\d+\/\d+\)/gu), `${actual.id} tree selection counter`)
+        .toEqual(expectedText.match(/\(\d+\/\d+\)/gu));
+    } else {
+      expect(actualText, `${actual.id} selector messages`).toBe(expectedText);
+    }
   } else {
     expect(actual.surfaceRows, `${actual.id} selector messages`).toEqual(expected.surfaceRows);
   }

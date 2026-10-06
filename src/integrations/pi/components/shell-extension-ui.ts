@@ -62,6 +62,7 @@ export interface PiExtensionUiBridgeHost {
 
 export interface PiExtensionUiBridge {
   readonly context: ExtensionUIContext;
+  input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean }): Promise<string | undefined>;
   reset(): void;
   dispose(): void;
 }
@@ -102,7 +103,11 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
       disposers.delete(dispose);
     };
   };
-  const showInput = <T>(create: (resolve: (value: T) => void, cancel: () => void) => PiShellComponentPort, options?: { signal?: AbortSignal }) =>
+  const showInput = <T>(
+    create: (resolve: (value: T) => void, cancel: () => void) => PiShellComponentPort,
+    options?: { signal?: AbortSignal },
+    retainSurfaceOnSettle = false,
+  ) =>
     new Promise<T>(resolve => {
       let settled = false;
       let surface: PiShellComponentPort;
@@ -112,7 +117,8 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
         settled = true;
         if (activeCancel === cancel) activeCancel = undefined;
         untrack();
-        closeSurface(surface);
+        if (retainSurfaceOnSettle && activeSurface === surface) activeSurface = undefined;
+        else closeSurface(surface);
         resolve(value);
       };
       const cancel = () => finish(undefined as T);
@@ -283,6 +289,9 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
   };
   return {
     context,
+    input: (title, placeholder, options) => showInput<string | undefined>((resolve, cancel) => componentPort(
+      new ExtensionInputComponent(title, placeholder, resolve, cancel, { tui }),
+    ), undefined, options?.retainSurfaceOnSettle === true),
     reset,
     dispose() {
       reset();

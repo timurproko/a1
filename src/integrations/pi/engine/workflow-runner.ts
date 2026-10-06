@@ -490,7 +490,8 @@ export class PiWorkflowRunner {
             });
         if (isRecord(result) && result.aborted === true) return workflowResult(request.command, "cancelled", "Branch summarization cancelled", undefined, "status");
         if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Navigation cancelled", undefined, "status");
-        return workflowResult(request.command, "completed", "Navigated to selected point");
+        const editorText = isRecord(result) && typeof result.editorText === "string" ? result.editorText : undefined;
+        return workflowResult(request.command, "completed", "Navigated to selected point", editorText);
       }
       case "trust": {
         if (!selection) return workflowResult(request.command, "failed", "Trust requires the owned trust controller");
