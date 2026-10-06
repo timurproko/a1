@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-06T13:32:42.342Z",
+  "recordedAt": "2026-10-06T13:40:42.956Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "cd32f7725fdbddbaecdff5b1e68491563394e0ca",
@@ -2701,9 +2701,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tree-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, Models-style filter status with Tab cycling and all-first presentation excluding model/thinking metadata, standard search input, purple accent-backed menu-arrow selection without path bullets, accent entry labels and bracketed timestamps, semantic role colors, standard paging/first-last/containing-branch folding keys, and Models-ordered semantic shortcut footers.",
+      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab cycling and concise all-first presentation excluding internal bookkeeping, standard search input, purple accent-backed menu-arrow selection without path bullets, accent entry labels and bracketed timestamps, semantic role colors, standard paging/first-last/containing-branch folding keys, and Models-ordered semantic shortcut footers.",
       "upgradeStrategy": "three-way",
-      "localSha256": "d1430a993f442ce531e4191fba5a9ca756a37d31e45aa1e999f6ab279e89028a",
+      "localSha256": "186251c037de6642afbf3b23f4bb1d218f94cbb9236cb9da69629f3968a71617",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2713,7 +2713,7 @@
         },
         {
           "id": "owned-session-tree-dialog",
-          "reason": "Bare A1 aligns tree filter status and cycling, excludes model/thinking bookkeeping, and aligns search, focused label editing, accent labels and bracketed timestamps, standard paging/first-last/containing-branch folding keys, purple accent-backed bullet-free selection, spacing, and Models-ordered footer placement with its standard dialog presentation.",
+          "reason": "Bare A1 reduces tree filters to concise all/no-tools/user/labeled modes, excludes raw label/context/custom/session/usage/model/thinking bookkeeping while retaining resolved labels, and aligns search, focused label editing, accent labels and bracketed timestamps, standard paging/first-last/containing-branch folding keys, purple accent-backed bullet-free selection, spacing, and Models-ordered footer placement with its standard dialog presentation.",
           "upstreamBehavior": "The comparison profile retains the pinned tree selector presentation and geometry.",
           "acceptanceTest": "test/integrations/pi/components/tree-selector.test.ts"
         }

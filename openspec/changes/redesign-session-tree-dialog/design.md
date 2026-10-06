@@ -15,7 +15,7 @@ The explicit `a1 pi` comparison route must retain pinned presentation. The affec
 
 **Non-Goals:**
 
-- Changing filter-mode membership beyond excluding model/thinking metadata, entry ordering, branch folding, navigation results, labels, copying, summarization options, or workflow outcomes.
+- Changing entry ordering, navigation results, label persistence, copying, summarization options, or workflow outcomes.
 - Replacing the tree list with a generic select list; its hierarchy and horizontal viewport remain specialized.
 - Changing Models, Skills, the ordinary editor, or the explicit comparison profile.
 - Supporting multiline custom-summary instructions or external-editor launch; the compact workflow intentionally uses one standard input row.
@@ -30,11 +30,11 @@ Moving all input dispatch into `Input` was rejected because it would require dup
 
 ### 2. Recompose the tree frame in standard dialog order
 
-The selector will remove its producer-owned leading spacer and internal separator and arrange semantic children as title, Models-style filter status, body separation, search input, list separation, tree results, footer separation, shortcut hints, and bottom rule. The filter row will expose all five existing modes as `all | standard | no tools | user | labeled`, treating an unset or upstream `default` initial setting as `all` while preserving explicit non-default choices. Model-change and thinking-level-change bookkeeping will be excluded before mode filtering so it never renders or inflates visible counters, including under `all`. The shared frame remains responsible for the global one-cell content inset and full-width outer rules.
+The selector will remove its producer-owned leading spacer and internal separator and arrange semantic children as title, Models-style filter status, body separation, search input, list separation, tree results, footer separation, shortcut hints, and bottom rule. The filter row will expose four product modes as `all | no tools | user | labeled`. Product `all` adopts the concise former-standard membership and maps both upstream `default` and upstream `all` settings to that view, preserving explicit `no tools`, `user`, and `labeled` choices. Resolved labels remain attached to their target rows, while raw label-change, context-edit, custom bookkeeping, session-info, usage, model-change, and thinking-level-change entries are excluded so internal history does not render or inflate counters. The shared frame remains responsible for the global one-cell content inset and full-width outer rules.
 
 The owned keybinding profile will move forward filter cycling from `Ctrl+O` to `Tab`, matching Models, while retaining individual direct filter actions and reverse cycling. The footer will collapse the verbose direct-filter/cycle hints into `Tab filter`.
 
-Keeping the internal separator as full-width frame content was rejected because Models and Skills do not split search from results. Keeping `Ctrl+O` was rejected because it conflicts with the shell's established more/expand affordance and differs from Models. Solving the outer gap in the shell layout was rejected because the extra row originates in this selector and changing shell spacing would affect every input surface.
+Keeping the internal separator as full-width frame content was rejected because Models and Skills do not split search from results. Exposing both `standard` and a raw-bookkeeping `all` was rejected because the latter duplicates resolved labels with their append-only label-change events and exposes rare internal metadata without a clear user task. Keeping `Ctrl+O` was rejected because it conflicts with the shell's established more/expand affordance and differs from Models. Solving the outer gap in the shell layout was rejected because the extra row originates in this selector and changing shell spacing would affect every input surface.
 
 ### 3. Treat message text as description rather than selected-row chrome
 

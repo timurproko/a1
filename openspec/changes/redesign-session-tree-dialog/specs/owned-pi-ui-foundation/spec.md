@@ -4,7 +4,7 @@
 
 The bare-A1 Session Tree SHALL use the same compact framed hierarchy as the Models dialog. Exactly one empty visual row SHALL separate preceding transcript or status content from the tree's top rule. The top rule SHALL be followed immediately by an accent-bold `Session Tree` title, and the frame SHALL contain no separator rule between search and results.
 
-The title SHALL be followed immediately by a Models-style `Filter: all | standard | no tools | user | labeled` row using accent for the active mode and muted styling for inactive modes. An unset or `default` initial setting SHALL open with `all` active, while an explicitly configured non-default mode SHALL remain active. `Tab` SHALL cycle filters forward and replace `Ctrl+O` as the displayed/default cycle shortcut; the footer SHALL show `Tab filter` instead of the individual filter bindings. Model-change and thinking-level-change metadata entries SHALL remain hidden in every filter mode, including `all`, and SHALL NOT contribute to the visible result counter.
+The title SHALL be followed immediately by a Models-style `Filter: all | no tools | user | labeled` row using accent for the active mode and muted styling for inactive modes. The product `all` mode SHALL use the concise former-standard view: it SHALL show resolved entry labels while hiding raw label-change, context-edit, custom bookkeeping, session-info, usage, model-change, and thinking-level-change entries. An unset, upstream `default`, or upstream `all` initial setting SHALL open with product `all` active, while an explicitly configured `no tools`, `user`, or `labeled` mode SHALL remain active. `Tab` SHALL cycle the four product filters forward and replace `Ctrl+O` as the displayed/default cycle shortcut; the footer SHALL show `Tab filter` instead of the individual filter bindings. Hidden bookkeeping entries SHALL NOT contribute to the visible result counter.
 
 The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, the semantics of each filter mode, folding, navigation, copy, label, label-time, and horizontal clipping SHALL remain available. `PageUp` and `PageDown` SHALL move by one visible page, `Home` and `End` SHALL select the first and last visible entries, and unmodified `Left` SHALL collapse the nearest expanded branch containing the cursor, even when a descendant is selected, and `Right` SHALL expand that branch after the collapsed view selects its branch root.
 
@@ -27,10 +27,12 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 - **THEN** the next filter SHALL become active
 - **AND** the shortcut footer SHALL show `Tab filter` without `Ctrl+O` filter-cycle guidance
 
-#### Scenario: Exclude model and thinking metadata
-- **WHEN** the Session Tree contains model-change or thinking-level-change entries
-- **THEN** those entries SHALL NOT render in any filter mode, including `all`
-- **AND** the visible result counter SHALL exclude them
+#### Scenario: Keep product all concise
+- **WHEN** the Session Tree contains resolved entry labels and raw bookkeeping entries
+- **THEN** product `all` SHALL show each resolved label on its target entry
+- **AND** raw label-change, context-edit, custom bookkeeping, session-info, usage, model-change, and thinking-level-change entries SHALL NOT render
+- **AND** the filter row SHALL NOT offer a separate `standard` mode or raw-bookkeeping `all` mode
+- **AND** the visible result counter SHALL exclude hidden bookkeeping entries
 
 #### Scenario: Navigate and fold the tree with standard keys
 - **WHEN** the user presses `PageUp`, `PageDown`, `Home`, or `End`

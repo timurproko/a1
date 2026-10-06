@@ -53,7 +53,17 @@ function tree() {
           timestamp: new Date(4).toISOString(),
           message: { role: "assistant", content: [{ type: "text", text: "ResponseXYZ" }], timestamp: 4 },
         },
-        children: [],
+        children: [{
+          entry: {
+            type: "label",
+            id: "label-1",
+            parentId: "assistant-1",
+            timestamp: new Date(5).toISOString(),
+            targetId: "user-1",
+            label: "hello",
+          },
+          children: [],
+        }],
       }],
     }],
   }];
@@ -79,7 +89,7 @@ describe("bare-A1 session tree presentation", () => {
 
     expect(plain[0]).toMatch(/^─+$/u);
     expect(plain[1]).toBe(" Session Tree");
-    expect(plain[2]).toBe(" Filter: all | standard | no tools | user | labeled");
+    expect(plain[2]).toBe(" Filter: all | no tools | user | labeled");
     expect(plain[3]).toBe("");
     expect(plain[4]).toBe(" >");
     expect(cellStyle(rows[2]!, "a")).toEqual(cellStyle(piTheme().fg("accent", "a"), "a"));
@@ -107,6 +117,7 @@ describe("bare-A1 session tree presentation", () => {
     expect(plain.join("\n")).not.toContain("[system]");
     expect(plain.join("\n")).not.toContain("[model:");
     expect(plain.join("\n")).not.toContain("[thinking:");
+    expect(plain.join("\n")).not.toContain("[label:");
     expect(plain.some(row => row.includes("(3/3)"))).toBe(true);
 
     component.handleInput?.("\x1b[A");
@@ -132,7 +143,7 @@ describe("bare-A1 session tree presentation", () => {
 
     component.handleInput?.("\t");
     const cycledFilter = component.render(80).find(row => stripTerminalSequences(row).includes("Filter:"))!;
-    expect(cellStyle(cycledFilter, "s")).toEqual(cellStyle(piTheme().fg("accent", "s"), "s"));
+    expect(cellStyle(cycledFilter, "n")).toEqual(cellStyle(piTheme().fg("accent", "n"), "n"));
     expect(cellStyle(cycledFilter, "a")).toEqual(cellStyle(piTheme().fg("muted", "a"), "a"));
 
     component.handleInput?.("\x1b[F");

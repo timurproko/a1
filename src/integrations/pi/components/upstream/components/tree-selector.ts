@@ -2,11 +2,11 @@
  * Provenance: @earendil-works/pi-coding-agent 1.0.2 (MIT), commit cd32f7725fdbddbaecdff5b1e68491563394e0ca,
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
- * preserving tree behavior; bare A1 uses compact modal chrome and label editing, Models-style filter
- * status with Tab cycling and all-first presentation excluding model/thinking metadata, standard
- * search input, purple accent-backed menu-arrow selection without path bullets, accent entry labels
- * and bracketed timestamps, semantic role colors, standard paging/first-last/containing-branch folding
- * keys, and Models-ordered semantic shortcut footers.
+ * preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode
+ * Models-style filter status with Tab cycling and concise all-first presentation excluding internal
+ * bookkeeping, standard search input, purple accent-backed menu-arrow selection without path bullets,
+ * accent entry labels and bracketed timestamps, semantic role colors, standard
+ * paging/first-last/containing-branch folding keys, and Models-ordered semantic shortcut footers.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -125,10 +125,10 @@ function renderHorizontalViewport(rows: HorizontalViewportRow[], width: number):
 /** Filter mode for tree display */
 export type FilterMode = "default" | "no-tools" | "user-only" | "labeled-only" | "all";
 
-const FILTER_MODES: readonly FilterMode[] = ["all", "default", "no-tools", "user-only", "labeled-only"];
+const FILTER_MODES: readonly FilterMode[] = ["all", "no-tools", "user-only", "labeled-only"];
 const FILTER_LABELS: Readonly<Record<FilterMode, string>> = {
 	all: "all",
-	default: "standard",
+	default: "all",
 	"no-tools": "no tools",
 	"user-only": "user",
 	"labeled-only": "labeled",
@@ -393,11 +393,8 @@ class TreeList implements Component {
 					passesFilter = flatNode.node.label !== undefined;
 					break;
 				case "all":
-					// Show everything
-					passesFilter = true;
-					break;
 				default:
-					// Default mode: hide settings/bookkeeping entries
+					// Product "all" omits internal settings/bookkeeping entries.
 					passesFilter = !isSettingsEntry;
 					break;
 			}
@@ -1059,8 +1056,7 @@ class TreeList implements Component {
 				this.onCancel?.();
 			}
 		} else if (kb.matches(keyData, "app.tree.filter.default")) {
-			// Direct filter: default
-			this.filterMode = "default";
+			this.filterMode = "all";
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "app.tree.filter.noTools")) {
