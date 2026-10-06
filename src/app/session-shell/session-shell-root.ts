@@ -1356,7 +1356,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     }
     if (result.outcome === "completed" && (result.command === "quit" || result.command === "compact")) return;
     if (result.outcome === "completed" && result.command === "new" && this.#customViewport) {
-      // Bare A1 keeps the replacement session visually empty while preserving Pi's accent notice shape.
+      // Rationale: bare A1 keeps the replacement session visually empty while preserving Pi's accent notice shape.
       this.#dockNotice = { kind: "new-session", message: result.message };
       this.#invalidateChrome();
       return;

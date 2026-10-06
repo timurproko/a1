@@ -17,6 +17,8 @@
 - `npm run typecheck` — passed for source and bin projects after the build supplied the expected `dist` declarations. An earlier pre-build invocation passed the source project and then failed only because those generated declarations were absent.
 - `npx vitest run test/app/session-shell/session-shell.test.ts test/app/session-shell/session-shell-viewport.test.ts --maxWorkers=1` — 2 files and 60 tests passed, including integrated `/new` routing, bottom placement, accent styling, empty selectable document, first-prompt busy replacement, pinned-route preservation, and viewport lifecycle coverage.
 - `npx openspec validate place-new-session-notice-above-prompt --strict` and `git diff --check` — passed.
+- Exact-head CI run `37489089609` exposed two deterministic governance omissions: the new implementation comment lacked an approved semantic prefix, and the reviewed eager shell growth exceeded the exact source-byte baseline by 666 bytes. The comment now uses `Rationale:` and `config/startup-graph-baseline.json` is re-pinned from 1,545,092 to the measured 1,545,769 bytes (the additional 11 bytes are the required prefix); file count and Pi artifact totals are unchanged.
+- `npm run check:code-documentation`, `npm run check:architecture`, and `node scripts/pi/update-startup-graph-baseline.mjs --check` — passed after the CI repair.
 
 ## Known gaps
 
