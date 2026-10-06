@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-06T08:13:13.127Z",
+  "recordedAt": "2026-10-06T15:31:56.331Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -2579,9 +2579,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/thinking-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after fixed active and bracketed default columns. Bare A1 persists defaults immediately on Space, closes only on Escape, and uses the shared compact semantic shortcut row. All list and border colors use the owned theme and its explicit color mode. The comparison profile retains the public pinned component.",
+      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering aligned muted descriptions after fixed active and bracketed default columns. Bare A1 persists defaults immediately on Space, closes only on Escape, and uses the shared compact semantic shortcut row. All list and border colors use the owned theme and its explicit color mode. Selected rows use the shared bare-A1 purple selection surface across the available list width while preserving level, current/default marker, and description roles. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "40a9f779a71cdeeaa8da363e7d8112b6cb0849d4b75d16b7dc1885318ab80f3f",
+      "localSha256": "2e065489a96ad447cea33c8f79ca0ec6580403d3819e9e01d7548757b440672b",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2606,6 +2606,12 @@
           "reason": "Bare A1 persists the highlighted global default immediately on Space without changing the active session, closes only on Escape, and presents compact semantic hints without redundant save state.",
           "upstreamBehavior": "The pinned comparison selector keeps immediate Ctrl+S default selection and its shared Escape/Ctrl+C cancellation behavior.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-standard-dialog-selection",
+          "reason": "Bare A1 uses the Session Tree's subtle purple full-width selection treatment across its standard Models, Skills, and Thinking Level dialogs.",
+          "upstreamBehavior": "The comparison profile retains the pinned selector presentation while the bare-A1 Thinking selector preserves all existing actions and semantic row roles.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],
       "behaviorCategories": [
@@ -2629,6 +2635,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/prompt-input-ux.test.ts",
         "test/integrations/pi/components/shell-components.test.ts"
       ]
     },

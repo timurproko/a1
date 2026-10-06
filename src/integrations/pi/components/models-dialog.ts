@@ -9,7 +9,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "../startup-public.js";
 import { PiModalFrame } from "./modal-frame.js";
-import { piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "./theme.js";
+import { piTheme, renderPiModalListRow, renderPiModalShortcutHints, type PiModalShortcutHint } from "./theme.js";
 
 export type ModelsDialogFilter = "all" | "scoped";
 
@@ -364,7 +364,7 @@ export class ModelsDialogComponent implements Component, Focusable {
         const label = selected ? theme.fg("accent", row.model.id) : row.model.id;
         const provider = theme.fg("muted", `[${row.model.provider}]`);
         const active = row.fullId === this.#activeModelId ? ` ${theme.fg("success", "✓")}` : "";
-        push(`${prefix}${marker} ${label} ${provider}${active}`);
+        push(renderPiModalListRow(`${prefix}${marker} ${label} ${provider}${active}`, width, selected));
       }
       if (startIndex > 0 || endIndex < rows.length) push(theme.fg("muted", `  (${this.#selectedIndex + 1}/${rows.length})`));
       const selectedRow = rows[this.#selectedIndex];

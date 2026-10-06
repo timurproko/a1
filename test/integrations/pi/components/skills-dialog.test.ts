@@ -5,6 +5,7 @@ import { createPiShellSkillsSelector } from "../../../../src/integrations/pi/com
 import { ensureTheme } from "../../../../src/integrations/pi/components/shell-shared-facade.js";
 import { piTheme } from "../../../../src/integrations/pi/components/theme.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
+import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
 
 const ESC = "\u001b";
 const ENTER = "\r";
@@ -86,9 +87,16 @@ describe("the Skills dialog", () => {
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
     // Platform: chalk decides whether bold is emitted for this terminal; the accent role is what the theme guarantees.
     expect(rows[1]).toMatch(/^ <accent>(?:<b>)?Skills(?:<\/b>)?<\/>$/u);
-    expect(rows[5]).toBe(" <accent>→ </><accent>skill:framer</>");
+    expect(rows[5]).toContain("<accent>→ </><accent>skill:framer</>");
     expect(rows[6]).toBe("   skill:code-review");
     expect(rows[9]).toBe(" <muted>  Design, edit, and publish Framer sites</>");
+    const selected = rendered[5]!;
+    expect(stripTerminalSequences(selected)).toHaveLength(80);
+    const selectionBackground = cellBackgroundAt(piTheme().bg("customMessageBg", "x"), 0);
+    expect(cellBackgroundAt(selected, 1)).toBe(selectionBackground);
+    expect(cellBackgroundAt(selected, 79)).toBe(selectionBackground);
+    expect(cellStyle(selected, "s")).toEqual(cellStyle(piTheme().fg("accent", "s"), "s"));
+    expect(selected).not.toContain("\u001b[1m");
   });
 
   it("uses the pinned selectors' keybinding-hint footer wording", () => {

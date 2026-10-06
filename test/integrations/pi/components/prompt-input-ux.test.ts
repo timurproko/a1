@@ -8,7 +8,7 @@ import { hyperlinkTargetAtColumn, LineInput, PromptInput, promptRule, renderInpu
 import { applyPiTheme, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS } from "../../../../src/integrations/pi/components/index.js";
 import { createPiShellThinkingSelector } from "../../../../src/integrations/pi/components/thinking-selector-dialog.js";
 import { KeybindingsManager, useWindowsKeybindings } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
-import { cellStyle } from "../../../support/ansi-cell-style.js";
+import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
 import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
@@ -264,6 +264,11 @@ describe("owned level and model keybindings", () => {
     expect(cellStyle(selectedRow, "m")).toEqual(cellStyle(piTheme().fg("accent", "m"), "m"));
     expect(cellStyle(selectedRow, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
     expect(cellStyle(unselectedRow, "L")).toEqual(cellStyle(piTheme().fg("muted", "L"), "L"));
+    expect(stripTerminalSequences(selectedRow)).toHaveLength(100);
+    const selectionBackground = cellBackgroundAt(piTheme().bg("customMessageBg", "x"), 0);
+    expect(cellBackgroundAt(selectedRow, 1)).toBe(selectionBackground);
+    expect(cellBackgroundAt(selectedRow, 99)).toBe(selectionBackground);
+    expect(selectedRow).not.toContain("\u001b[1m");
     expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
     expect(cellStyle(selectedRow, "[")).toEqual(cellStyle(piTheme().fg("muted", "["), "["));
     expect(rows.filter(row => stripTerminalSequences(row).includes("Moderate reasoning"))).toHaveLength(1);
