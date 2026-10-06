@@ -2570,7 +2570,8 @@
       "version": "1.0.3",
       "summary": "The `azure` provider (renamed from `azure-openai-responses`) now also serves Foundry Chat Completions deployments, starting with `azure/deepseek-v4-pro`.",
       "since": "1.0.4",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Provider discovery, credentials, and Foundry request routing remain package-owned in the pinned model and provider runtime used by A1's public session factory."
     },
     {
       "id": "changelog:1.0.3:codemode-images-saved-to-files",
@@ -2579,7 +2580,8 @@
       "version": "1.0.3",
       "summary": "`image()` also writes each image to a temp file and names the path in the result, so later turns can copy or move generated images.",
       "since": "1.0.4",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "The pinned built-in codemode extension loaded through A1's public session factory owns generated-image persistence and reports its temporary paths unchanged."
     },
     {
       "id": "changelog:1.0.4:codemode-persists-images",
@@ -2588,7 +2590,8 @@
       "version": "1.0.4",
       "summary": "`tools.read()` on an image file now gives back an image block that `image()` can show.",
       "since": "1.0.4",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "The pinned read tool and built-in codemode extension loaded through A1's public session factory preserve image blocks without an A1-private adapter."
     },
     {
       "id": "changelog:1.0.4:tool-patterns-and-no-mcp",
@@ -2597,7 +2600,8 @@
       "version": "1.0.4",
       "summary": "`--tools` and `--exclude-tools` accept `*` patterns, for example `--tools read,codemode,'mcp__radius__*'` keeps only one MCP server's tools. `--tools` now keeps MCP tools unless an entry starts with `mcp__`, and `--no-mcp` turns off MCP for one run.",
       "since": "1.0.4",
-      "disposition": "pending"
+      "disposition": "declined",
+      "reason": "A1 owns its command-line grammar and hosted-session tool loadout rather than forwarding Pi CLI filters; ordinary MCP tools remain available through the pinned built-in extension."
     }
   ]
 }

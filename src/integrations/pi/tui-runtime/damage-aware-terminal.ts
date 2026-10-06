@@ -1,6 +1,6 @@
 import type { PiTuiTerminalPort } from "./contracts.js";
 
-export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@1.0.2:tui-alt-screen-one-write-v1";
+export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@1.0.4:tui-alt-screen-one-write-v1";
 
 export interface PiTuiDamageFrameDescriptor {
   readonly frameId: number;

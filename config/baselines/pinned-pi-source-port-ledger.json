@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-06T07:39:30.333Z",
+  "recordedAt": "2026-10-06T08:13:13.127Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -890,7 +890,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Unchanged image bytes are losslessly encoded in an attributed owned JSON resource by scripts/pi/update-command-resources.mjs. Source bytes and digest are verified against this pinned asset authority; runtime reads only the owned resource, never the dependency directory.",
       "upgradeStrategy": "three-way",
-      "localSha256": "d296bc2c6ca6bbf1f68e9f186165f976c5b88b39e5bad4a1f9313ba6e04afd9b",
+      "localSha256": "59de78ffa731dbfa635511c3588d04618525062d844d4427321ba983d798d2a6",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
