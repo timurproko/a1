@@ -470,6 +470,14 @@ export class OwnedUiSessionShell {
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
           if (inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
+          // Compatibility: modal-local paging must win over the fullscreen transcript's PageUp/PageDown handler.
+          if (!this.runtime.hasOverlay() && !this.root.usesDefaultInputSurface()
+            && (this.root.editor.matchesTerminalKey(data, "pageUp")
+              || this.root.editor.matchesTerminalKey(data, "pageDown"))) {
+            this.root.handleInput(data);
+            this.runtime.requestRender();
+            return { consume: true };
+          }
           // Compatibility: Pi's fullscreen renderer also intercepts plain Home/End.
           // Deliver them to the focused owned input before that outer scroll handler;
           // overlays retain Pi's normal dispatch, and comparison profiles never enter here.

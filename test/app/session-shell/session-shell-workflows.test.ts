@@ -374,6 +374,44 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await shell.dispose();
   });
 
+  it("routes PageUp and PageDown to the open tree instead of the transcript viewport", async () => {
+    const { adapter, terminal, shell } = await fixture();
+    const children = Array.from({ length: 12 }, (_, index) => ({
+      entry: {
+        type: "message" as const,
+        id: `page-user-${index}`,
+        parentId: "page-system",
+        timestamp: new Date(index + 1).toISOString(),
+        message: { role: "user" as const, content: [{ type: "text" as const, text: `Question${index}` }], timestamp: index + 1 },
+      },
+      children: [],
+    }));
+    vi.spyOn(adapter, "pinnedTreeSelectorContext").mockReturnValue({
+      tree: [{
+        entry: {
+          type: "message",
+          id: "page-system",
+          parentId: null,
+          timestamp: new Date(0).toISOString(),
+          message: { role: "system", content: "System prompt", timestamp: 0 },
+        },
+        children,
+      }],
+      currentLeafId: "page-user-0",
+      filterMode: "all",
+      skipSummaryPrompt: false,
+      appendLabelChange() {},
+    });
+
+    await shell.submit("/tree");
+    expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toMatch(/→ .*user: Question0/u);
+    terminal.input("\x1b[6~");
+    expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toMatch(/→ .*user: Question11/u);
+    terminal.input("\x1b[5~");
+    expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("→ session");
+    await shell.dispose();
+  });
+
   it("renders configured and unconfigured provider state from the model authority", async () => {
     const { terminal, shell } = await fixture();
     await shell.submit("/login");
