@@ -45,3 +45,11 @@ Testing at this seam is preferred to a broad screen snapshot because it directly
 ## Migration Plan
 
 No stored data or configuration changes. Shipping changes only future bare-A1 Session Info rendering; rollback restores the prior formatter and generic wrapping behavior.
+
+## Implementation Evidence
+
+- The focused Pi shell component suite passed all 44 tests, including fitting and overflowing Windows paths, path reconstruction across continuation rows, width bounds, identity ordering, and the retained pinned presenter.
+- The production build and source/bin typechecks passed.
+- Strict OpenSpec validation, changed code-documentation governance, owned-UI customization prerequisites, architecture boundaries, product identity checks, pinned-Pi source-ledger provenance, and terminal-host provenance passed.
+- The formatter now consumes the File row's remaining visible columns, including paths containing spaces, before continuing the complete value on full-width rows ahead of ID.
+- No known implementation or environment gaps remain. The handoff uses the built `./scripts/dev` interactive route.
