@@ -12,6 +12,7 @@
 - `npx vitest run test/integrations/pi/components/shell-components.test.ts test/app/session-shell/session-shell.test.ts test/integrations/pi/components/modal-frame.test.ts test/ui/components/spans.test.ts test/ui/components/visible-hyperlinks.test.ts test/repository-governance/pi-modal-surface-inventory.test.ts` — 6 files and 135 tests passed.
 - `npx openspec validate standardize-share-dialog --strict` — passed.
 - `git diff --check` — passed.
+- After merging current `origin/develop`, the build, typecheck, strict OpenSpec validation, and the same 135 focused tests passed again.
 
 ## Manual evidence
 
