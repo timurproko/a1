@@ -17,17 +17,17 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-06-add-name-command-input-dialog/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-06-add-name-command-input-dialog/acceptance.md",
   "finalizedDate": "2026-10-06",
-  "specBaseSha": "1dc3913502e0172a1000eb43c95954941a34035d",
+  "specBaseSha": "bb2b7e65d9673ec1ce2d3491acf66707118d7961",
   "acceptanceScenarios": [
     "Argument-free `/name` opens a compact `Session Name` input with standard submit and cancel hints.",
     "Enter applies a non-empty name through the direct workflow and reports its normalized result.",
     "Escape and whitespace-only submission restore the ordinary prompt without changing the session name or adding a result.",
     "Direct naming with `/name Project` remains immediate and the explicit `a1 pi` comparison behavior remains unchanged."
   ],
-  "archiveDigest": "b6485272d3799f7e8759583f9e50a768d5b7a7d526a186e635b25e5536fbb888",
-  "specDigest": "a84cbe0135e85c8d3cb920fece95470c40d92e24f2fa30b36436a0c2d189b246",
+  "archiveDigest": "7d832c6d14a31f2289b8f02c171e8cfd014f571d60c5b4537f2096d565709e4e",
+  "specDigest": "34ae9d608f9a87209b1c90bdb9a6d4bcbac3e9cbbb46f21430678b5175f3c57d",
   "tasksDigest": "edeff7bc9b6ab7513a54f83b4aab64e0d51fcbb0d2ab31140e92d8eb29e4e849",
-  "evidenceDigest": "0f9f4c4dd65315120586f7c347a878def1930cabf2f594ba336f05376c86dd2c",
+  "evidenceDigest": "057ad39d9d3dc0509feb18f8c636e020d8d1c2f0816b9f4be41ca8e16bc74828",
   "knownGaps": []
 }
 ```
