@@ -1978,7 +1978,7 @@ A steering or follow-up submission made while a compaction is in progress SHALL 
 ### Requirement: Bare A1 unifies model selection and scope management
 Bare A1 SHALL expose one `/models` command for selecting the active model and managing the model scope used by cycling. Bare A1 SHALL NOT advertise or execute `/model` or `/scoped-models` as compatibility aliases. The pinned `a1 pi` comparison profile SHALL retain its existing `/model` and `/scoped-models` routes and presentations.
 
-The Models dialog SHALL use the available authenticated model catalog and SHALL present an `all` filter and a `scoped` filter, searchable model rows ordered by provider and model identifier, the selected model's display name, and the effective model-scope state. Each row SHALL render its scope marker before the model identifier and its provider as `[provider]`. The active-model checkmark SHALL render immediately after `[provider]`, not before the provider or in another column.
+The Models dialog SHALL use the available authenticated model catalog and SHALL present an `all` filter and a `scoped` filter, searchable model rows ordered by provider and model identifier, the selected model's display name, and the effective model-scope state. Each row SHALL render its scope marker before the model identifier and its provider as `[provider]`. A filled scope marker `●` SHALL use the semantic accent foreground matching Thinking Level's filled default radio marker `◉`, while an empty scope marker `○` SHALL remain dim. The active-model checkmark SHALL remain success-colored and render immediately after `[provider]`, not before the provider or in another column.
 
 Space SHALL toggle the selected model's membership in the session's cycling scope without closing the dialog. Tab SHALL switch the filter while preserving the applicable query and selection. Enter SHALL select the highlighted model, persist it as the default through the existing model-selection policy, and close the dialog on success. Existing bulk-enable, clear, provider-toggle, and scope-order actions SHALL remain reachable through their effective model-scope bindings. Escape SHALL close silently while retaining session-only scope changes and SHALL NOT persist those changes implicitly.
 
@@ -1999,8 +1999,10 @@ While a real catalog refresh runs in the background, the dialog SHALL show a mut
 
 #### Scenario: Render scope and active-model state
 - **WHEN** a model row is rendered
-- **THEN** its filled or empty scope marker SHALL precede the model identifier
-- **AND** its active-model checkmark, when present, SHALL appear immediately after its `[provider]` badge
+- **THEN** its filled accent-colored or empty dim scope marker SHALL precede the model identifier
+- **AND** the filled marker SHALL use the same semantic accent foreground as Thinking Level's filled default radio marker
+- **AND** its success-colored active-model checkmark, when present, SHALL appear immediately after its `[provider]` badge
+- **AND** marker colors SHALL remain independent of whether the row is highlighted
 
 #### Scenario: Toggle scope without saving
 - **WHEN** the user presses Space on a model whose scope membership changes
