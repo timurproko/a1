@@ -3,7 +3,7 @@
  * packages/coding-agent/src/modes/interactive/components/trust-selector.ts.
  * Modifications: Mechanical source-synchronized trust selector port with injected public
  * ProjectTrustStore-derived options, remapped owned theme imports, the shared bare-A1 modal shortcut
- * row and compact padded modal frame, and standard semantic trust styling with compact marker/footer
+ * row and compact padded modal frame, and standard semantic trust styling with marker-free choice
  * geometry.
  * Deviations: owned-modal-shortcut-hints.
  */
@@ -65,7 +65,7 @@ export class TrustSelectorComponent extends Container {
     ]), 0, 0));
     this.addChild(new DynamicBorder(text => piTheme().fg("border", text)));
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
-    this.updateList(options.savedDecision);
+    this.updateList();
     this.handleInput = data => {
       const kb = getKeybindings();
       if (kb.matches(data, "tui.select.up") || data === "k") this.selectedIndex = Math.max(0, this.selectedIndex - 1);
@@ -78,21 +78,19 @@ export class TrustSelectorComponent extends Container {
         options.onCancel();
         return;
       } else return;
-      this.updateList(options.savedDecision);
+      this.updateList();
     };
   }
 
-  private updateList(savedDecision: TrustDecision | null): void {
+  private updateList(): void {
     this.listContainer.clear();
     for (let index = 0; index < this.trustOptions.length; index += 1) {
       const option = this.trustOptions[index];
       if (!option) continue;
       const selected = index === this.selectedIndex;
-      const current = option.savedPath !== undefined && savedDecision?.decision === option.trusted && savedDecision.path === option.savedPath;
       const prefix = selected ? piTheme().fg("accent", "→ ") : "  ";
       const label = selected ? piTheme().fg("accent", option.label) : piTheme().fg("text", option.label);
-      const currentMarker = current ? piTheme().fg("accent", "✓ ") : "";
-      this.listContainer.addChild(new Text(`${prefix}${currentMarker}${label}`, 0, 0));
+      this.listContainer.addChild(new Text(`${prefix}${label}`, 0, 0));
     }
   }
 }

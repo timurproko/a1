@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md` for motivation. Bare A1 has two trust presentations with different constraints. The startup selector runs before trust resolution and therefore uses a self-contained ANSI renderer that cannot import the post-trust theme or component graph. The in-session `/trust` selector runs inside the owned Pi component layer and already uses semantic theme roles and the shared modal frame, but its status lines are styled as one muted span and its list reserves a two-cell saved-marker slot even when no marker exists.
+See `proposal.md` for motivation. Bare A1 has two trust presentations with different constraints. The startup selector runs before trust resolution and therefore uses a self-contained ANSI renderer that cannot import the post-trust theme or component graph. The in-session `/trust` selector runs inside the owned Pi component layer and already uses semantic theme roles and the shared modal frame, but its status lines are styled as one muted span and its choice list mixes active-selection navigation with a separate saved-state checkmark.
 
 The shared dialog family resolves the built-in dark theme to accent violet, border blue, normal text, muted text, and dim shortcut-key roles. Its compact modal geometry places the bottom rule immediately after the shortcut component; no extra spacer belongs below that row.
 
@@ -9,7 +9,7 @@ The shared dialog family resolves the built-in dark theme to accent violet, bord
 **Goals:**
 - Make both bare-A1 trust surfaces visibly belong to the existing standard dialog family.
 - Preserve the pre-resource import and data boundary while matching the standard fixed dark-theme roles.
-- Make list markers and status-value emphasis structural and independently testable.
+- Keep the option list a marker-free choice menu while making status-value emphasis independently testable.
 - Keep focused tests sensitive to ANSI roles, visible spacing, and exact row geometry.
 
 **Non-Goals:**
@@ -31,11 +31,11 @@ Importing the theme was rejected because trust must be decided before project-de
 
 Styling each complete line as normal text was rejected because labels would become too prominent; leaving each complete line muted was rejected because the decision itself is the information users need to scan.
 
-### 3. Emit only marker spacing that has semantic content
+### 3. Keep the choice list marker-free
 
-The in-session selector will build each row from a selection prefix, an optional saved marker, and the label. A selected row with no saved marker will be exactly `→ <label>` in visible text. A matching saved row may render `✓ ` after the arrow or unselected indent, but nonmatching rows will not reserve an invisible marker slot.
+The in-session selector will build each row only from its selection prefix and label. Every selected row will be exactly `→ <label>` in visible text, and no row will display a saved-decision checkmark. The saved-decision status line already communicates persistence, while an exact saved choice remains the initial active selection.
 
-Retaining a fixed marker column was rejected because it creates the reported multi-space gap. Removing the saved marker entirely was rejected because it communicates persisted state independently from selection.
+Retaining either a fixed marker column or a visible checkmark was rejected because this surface is a choice menu, not a multi-state checklist, and the additional marker duplicates the status summary.
 
 ### 4. Use the shared footer boundary without a trailing spacer
 
@@ -50,7 +50,7 @@ Focused tests will verify resolved ANSI colors for startup title, selected optio
 ## Risks / Trade-offs
 
 - **[Fixed startup colors can drift from a future built-in theme revision]** → Keep role values explicit and test them against the reviewed standard dark-dialog values; a future theme update must deliberately update the startup-safe mirror.
-- **[Removing the empty marker slot changes option-label columns]** → Limit the change to trust rows and retain the check marker only where it carries saved-state meaning.
+- **[Removing the saved marker reduces an at-a-glance persistence cue]** → Keep the explicit saved-decision status line and preselect the exact saved choice when one exists.
 - **[Compact footer geometry could hide hints on short terminals]** → Preserve the existing bounded fallback order and add row-level assertions for preferred and constrained frames.
 - **[ANSI assertions can become brittle]** → Assert semantic spans and visible row relationships only for the trust surfaces, while retaining plain-text interaction assertions.
 

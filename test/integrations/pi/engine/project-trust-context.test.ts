@@ -92,7 +92,7 @@ describe("canonical project trust context", () => {
     await expect(f.context()).rejects.toThrow("Failed to read trust store");
   });
 
-  it.each(["trusted", "denied", "parent", "ancestor"] as const)("matches saved %s selection and inherited presentation", async kind => {
+  it.each(["trusted", "denied", "parent", "ancestor"] as const)("preselects saved %s choices without adding a marker", async kind => {
     const f = await fixture();
     const savedPath = kind === "parent" ? dirname(f.canonical) : kind === "ancestor" ? dirname(dirname(f.canonical)) : f.canonical;
     f.store.set(savedPath, kind !== "denied");
@@ -106,8 +106,8 @@ describe("canonical project trust context", () => {
     expect(raw.some(row => row.includes(`${piTheme().fg("muted", "Saved decision:")} ${piTheme().fg("text", decisionValue)}`))).toBe(true);
     expect(raw.some(row => row.includes(`${piTheme().fg("muted", "Current session:")} ${piTheme().fg("text", "untrusted")}`))).toBe(true);
     const selected = kind === "denied" ? "Do not trust" : kind === "parent" ? `Trust parent folder (${savedPath})` : "Trust";
-    // Rationale: the saved option carries a checkmark; an inherited ancestor matches no option.
-    expect(rendered.some(row => row.trim() === `→ ${kind === "ancestor" ? "" : "✓ "}${selected}`)).toBe(true);
+    expect(rendered.some(row => row.trim() === `→ ${selected}`)).toBe(true);
+    expect(rendered.join("\n")).not.toContain("✓");
     expect(rendered.some(row => row.trim() === resolve(f.alias))).toBe(true);
     const headingIndex = rendered.findIndex(row => row.includes("Project trust"));
     const heading = rendered[headingIndex]!;

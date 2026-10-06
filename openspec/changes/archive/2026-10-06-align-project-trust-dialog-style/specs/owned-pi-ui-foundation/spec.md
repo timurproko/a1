@@ -4,7 +4,7 @@
 
 Both the pre-resource startup trust selector and the in-session project-trust selector SHALL use the established bare-A1 dialog hierarchy. Titles and active selections SHALL use the accent role; top and bottom rules SHALL use the standard border role; ordinary path and label context SHALL remain muted; and shortcut rows SHALL use distinct dim key and muted action roles with whitespace-only entry gaps. The startup selector SHALL reproduce those fixed dark-dialog roles without consulting project settings, project themes, extensions, prompts, packages, skills, or post-trust components.
 
-In the in-session selector, `Saved decision:` and `Current session:` SHALL remain muted labels while their decision values use the normal text role. A selected trust option without a saved-decision marker SHALL contain exactly one visible space between its arrow and label. A saved-decision check marker SHALL appear only when that option actually represents the saved decision. The shortcut row SHALL be followed immediately by the bottom rule without an intervening blank row.
+In the in-session selector, `Saved decision:` and `Current session:` SHALL remain muted labels while their decision values use the normal text role. Every selected trust option SHALL contain exactly one visible space between its arrow and label. The choice list SHALL NOT display a saved-decision checkmark; an exact saved choice SHALL instead be represented by the status line and initial active selection. The shortcut row SHALL be followed immediately by the bottom rule without an intervening blank row.
 
 These presentation requirements SHALL NOT change trust outcomes, persistence, policy resolution, navigation, confirmation, exit/cancel behavior, terminal restoration, constrained-terminal fallback, or the explicit `a1 pi` comparison profile.
 
@@ -23,17 +23,17 @@ These presentation requirements SHALL NOT change trust outcomes, persistence, po
 - **AND** `Saved decision:` and `Current session:` SHALL be muted while the value following each label SHALL use the normal text role
 - **AND** the shortcut row SHALL be directly adjacent to the bottom rule
 
-#### Scenario: Select an option without a saved marker
+#### Scenario: Select a trust option
 
-- **WHEN** the active in-session trust option does not represent the saved decision
+- **WHEN** any in-session trust option is active
 - **THEN** its visible row SHALL render the arrow, exactly one space, and the option label
-- **AND** it SHALL not reserve an empty saved-marker gap
+- **AND** no option SHALL reserve a saved-marker gap or display a checkmark
 
-#### Scenario: Show a saved option marker
+#### Scenario: Open with an exact saved choice
 
 - **WHEN** an in-session trust option exactly represents the saved decision
-- **THEN** that option SHALL display the saved-decision check marker
-- **AND** moving active selection SHALL not make the saved marker appear on any other option
+- **THEN** that option SHALL receive the initial active selection
+- **AND** the saved-decision status line SHALL communicate persistence without adding a second marker to the choice list
 
 #### Scenario: Constrain or close a trust dialog
 

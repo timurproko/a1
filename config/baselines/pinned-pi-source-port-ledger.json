@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-06T15:30:10.061Z",
+  "recordedAt": "2026-10-06T15:55:10.593Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -2742,9 +2742,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/trust-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options, remapped owned theme imports, the shared bare-A1 modal shortcut row and compact padded modal frame, and standard semantic trust styling with compact marker/footer geometry.",
+      "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options, remapped owned theme imports, the shared bare-A1 modal shortcut row and compact padded modal frame, and standard semantic trust styling with marker-free choice geometry.",
       "upgradeStrategy": "three-way",
-      "localSha256": "2baa9e5a5c03f77d418be4ed5afdb956336e45e0c27783fd3b00ea413cbeac0d",
+      "localSha256": "237d5fe5a471773bc68708b56a122f69a71a0b2d05b95a1ddafa8883a1659d01",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",

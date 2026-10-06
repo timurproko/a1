@@ -6,7 +6,7 @@
 ## 2. Align in-session trust presentation
 
 - [x] 2.1 Render saved-decision and current-session labels as muted spans with normal-text values, and verify exact styled boundaries for direct, inherited, trusted, and untrusted states.
-- [x] 2.2 Remove empty saved-marker padding so an unmarked selected option renders `→ <label>` with one space while exact saved options retain their check marker; verify selection movement does not move persisted-state marking.
+- [x] 2.2 Remove saved-marker rendering so every selected option renders `→ <label>` with one space and the choice list never displays a checkmark; verify exact saved choices remain initially selected and status text retains persisted-state meaning.
 - [x] 2.3 Remove the trailing footer spacer so the bottom rule immediately follows the shared shortcut row, and verify title, selection, border, shortcut roles, and complete rendered row geometry match standard dialogs.
 
 ## 3. Preserve behavior and delivery evidence

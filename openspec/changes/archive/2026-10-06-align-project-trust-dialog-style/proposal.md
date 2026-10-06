@@ -8,7 +8,7 @@ The two bare-A1 project-trust surfaces still look like exceptions to the standar
 - Keep the pre-resource startup selector isolated from project-derived themes while making its fixed ANSI colors match the standard dark dialog roles.
 - Render the in-session saved-decision and current-session values with the normal text color while retaining muted labels and path context.
 - Remove the in-session dialog's blank row between shortcut hints and the bottom rule.
-- Make an unmarked selected trust option render with exactly one space between its arrow and label, while retaining a check marker only when a saved option actually matches.
+- Render every trust option as a plain menu choice with no saved-decision checkmark, using exactly one space between the active arrow and label; keep saved state in the status lines and initial selection.
 - Preserve trust choices, persistence, navigation, exit/cancel behavior, startup terminal restoration, responsive fallback, and the explicit `a1 pi` comparison profile.
 
 ## Capabilities
