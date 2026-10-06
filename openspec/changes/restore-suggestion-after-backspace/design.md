@@ -45,9 +45,15 @@ Regression assertions will verify the same suggestion text returns, generation o
 - **Backspace repair revives invalidated suggestions.** Test both retained draft edits and negative acceptance/submission lifecycle cases.
 - **The regression passes only through direct state inspection.** Require terminal write/frame evidence after the final Backspace.
 
+## Implementation Result
+
+The existing one-character regression passed because it inspected a direct editor render, while the session shell had no explicit lifecycle step that republished an available suggestion after an edit returned the prompt to empty. Restoration therefore depended on the editor's incidental retained presentation state.
+
+The controller now exposes a bounded `restoreAvailable()` operation that republishes only an enabled, current `available` suggestion and requests a frame without generating again or recording another diagnostic outcome. The shell schedules that restoration when an editor change reports empty; the microtask runs after the editor completes deletion-owned autocomplete synchronization and before Pi's scheduled frame. A multi-character terminal-input regression verifies every intermediate Backspace keeps the ghost hidden, the final Backspace explicitly republishes it in terminal output, and Tab accepts the same text.
+
 ## Known Gaps
 
-The exact failing boundary is not yet established because current focused tests assert the intended result. Implementation begins with the production-path reproduction and records the observed transition before changing code.
+None. Interactive terminal confirmation remains the maintainer acceptance step.
 
 ## Migration Plan
 

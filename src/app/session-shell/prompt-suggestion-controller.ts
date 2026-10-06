@@ -136,6 +136,15 @@ export class ContextualPromptSuggestionController {
     request.abort.abort();
   }
 
+  /** Reasserts retained ghost text after an editor mutation makes the prompt eligible again. */
+  restoreAvailable(): void {
+    if (this.#disposed || !this.#enabled || this.#state.status !== "available") return;
+    const reason = this.options.surface.presentationBlockReason?.(this.#state.identity)
+      ?? (this.options.surface.canPresent(this.#state.identity) ? null : "presentation-unavailable");
+    if (reason !== null || !this.options.surface.present(this.#state.text)) return;
+    this.options.surface.requestRender();
+  }
+
   dispose(): void {
     this.#disposed = true;
     this.invalidate();
