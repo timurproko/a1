@@ -13,6 +13,6 @@
 - `npx openspec validate standardize-share-dialog --strict` — passed.
 - `git diff --check` — passed.
 
-## Pending manual evidence
+## Manual evidence
 
-A supported-terminal run remains required before finalization to observe the native dashed idle underline, solid hover underline, and Ctrl+click opening for both generated URLs, and to compare the bare-A1 dialog with the unchanged `a1 pi` loader. No implementation gap is currently known.
+On 2026-10-06 the maintainer reviewed the pushed interactive candidate in the supported terminal and reported that it looked good. This accepts the standard bare-A1 `Share` dialog presentation, its compact bottom spacing and aligned hints, the generated viewer/gist link appearance and interaction, and the unchanged comparison-profile behavior. No implementation gap is known.
