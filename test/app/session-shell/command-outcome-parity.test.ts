@@ -64,10 +64,10 @@ function verify(actual: Capture, expected: Capture): void {
   if (/\/(tree|scoped-models|trust|resume|thinking|model|login)\//u.test(expected.id)) {
     // Compatibility: bare A1 changes modal chrome/padding, hint styling, display casing, separators, and consequent wrapping; pinned text and behavior remain the oracle.
     const surfaceWidth = Number(expected.id.split("/").at(-1));
-    const plainSurfaceText = (rows: readonly string[], reduceContentWidth = false) => {
+    const plainSurfaceText = (rows: readonly string[], options: { readonly reduceContentWidth?: boolean; readonly omitTrustSavedMarker?: boolean } = {}) => {
       let text = rows.map(row => {
         const plain = stripTerminalSequences(row);
-        const reduced = reduceContentWidth && plain.length >= surfaceWidth && !/^─+$/u.test(plain.trim()) ? plain.slice(0, -1) : plain;
+        const reduced = options.reduceContentWidth && plain.length >= surfaceWidth && !/^─+$/u.test(plain.trim()) ? plain.slice(0, -1) : plain;
         return reduced.replace(/\s*·\s*/gu, " ");
       }).join("\n").replace(/\s+/gu, " ").trim()
         .replace(/\b(?:Alt|Backspace|Cmd|Ctrl|Delete|Down|End|Enter|Esc|Escape|Home|Insert|Left|Meta|Option|PageDown|PageUp|PgDn|PgUp|Return|Right|Shift|Space|Tab|Up)\b/gu, key => key.toLowerCase())
@@ -76,12 +76,15 @@ function verify(actual: Capture, expected: Capture): void {
         text = text.replace("Session-only. to save to settings.", "Session-only.")
           .replace("provider /shift+ctrl+down reorder save all enabled", "provider shift+ctrl+down reorder all enabled");
       }
-      return text.replace(/\s+/gu, "");
+      text = text.replace(/\s+/gu, "");
+      return options.omitTrustSavedMarker ? text.replace("→✓", "→") : text;
     };
     const actualText = plainSurfaceText(actual.surfaceRows);
     // Compatibility: bare A1 keeps Ctrl+C implicit at dialog boundaries and advertises only Escape.
-    const expectedText = plainSurfaceText(expected.surfaceRows, expected.id.includes("/tree/"))
-      .replace(/(esc(?:ape)?)\/ctrl\+c(?=(?:to)?(?:close|cancel))/gu, "$1");
+    const expectedText = plainSurfaceText(expected.surfaceRows, {
+      reduceContentWidth: expected.id.includes("/tree/"),
+      omitTrustSavedMarker: expected.id.includes("/trust/"),
+    }).replace(/(esc(?:ape)?)\/ctrl\+c(?=(?:to)?(?:close|cancel))/gu, "$1");
     if (expected.id.includes("/tree/")) {
       // Compatibility: bare A1 intentionally replaces Pi's tree filter, search, selection, and footer presentation.
       // Keep this cross-runtime gate on the shared entry content and selection counter instead of divergent chrome.
@@ -140,6 +143,12 @@ describe("independent command outcome parity", () => {
     expect(trustIndex).toBeGreaterThanOrEqual(0);
     const trust = actual[trustIndex]!;
     const trustReference = expected[trustIndex]!;
+    const savedTrustIndexes = expected.map((frame, index) => /\/trust\/(?:alias|canonical)-saved-(?:trusted|denied|parent)\/80$/u.test(frame.id) ? index : -1).filter(index => index >= 0);
+    expect(savedTrustIndexes.length).toBeGreaterThan(0);
+    for (const index of savedTrustIndexes) {
+      expect(expected[index]!.surfaceRows.join("\n"), `${expected[index]!.id} pinned saved marker`).toContain("✓");
+      expect(actual[index]!.surfaceRows.join("\n"), `${actual[index]!.id} marker-free choice menu`).not.toContain("✓");
+    }
     const lexicalParent = join(directory, "trust-alias");
     const leakedLexicalParent = trust.surfaceRows.map(row => row.includes("Trust parent folder")
       ? row.replace("Trust parent folder", `Trust parent folder (${lexicalParent})`)
