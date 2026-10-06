@@ -3044,7 +3044,7 @@ Reverse Tab SHALL be handled only while one of these dialogs owns input. It SHAL
 
 ### Requirement: Bare-A1 session naming supports direct and prompted entry
 
-Bare A1 SHALL accept `/name <name>` as an immediate session-name update. When the user invokes `/name` without an argument, bare A1 SHALL present a compact single-line input instead of appending the usage warning or only reporting the current name. The input SHALL use the accent title `Session Name`, the standard focused text-entry row, and the shared `Enter submit` and `Esc close` shortcut hints.
+Bare A1 SHALL accept `/name <name>` as an immediate session-name update. When the user invokes `/name` without an argument, bare A1 SHALL present a compact single-line input instead of appending the usage warning or only reporting the current name. The input SHALL use the accent title `Session Name`, the standard focused text-entry row, and the shared Enter-submit and Escape-cancel shortcut hints.
 
 Submitting a non-empty value SHALL apply it through the same session-name workflow as the direct command and SHALL report the resulting normalized name. Cancelling, or submitting only whitespace, SHALL restore the ordinary prompt without changing the session name or appending a warning, error, or completion message. The explicit `a1 pi` comparison profile SHALL retain its pinned argument-free `/name` behavior.
 
@@ -3056,7 +3056,7 @@ Submitting a non-empty value SHALL apply it through the same session-name workfl
 #### Scenario: Open the name input
 - **WHEN** the user invokes `/name` without an argument in bare A1
 - **THEN** a compact input titled `Session Name` SHALL replace the ordinary prompt
-- **AND** it SHALL show the shared `Enter submit` and `Esc close` shortcut hints
+- **AND** it SHALL show the shared Enter-submit and Escape-cancel shortcut hints
 - **AND** no usage warning or current-name-only result SHALL be appended
 
 #### Scenario: Submit a prompted name
@@ -3084,7 +3084,7 @@ When all-session discovery supplies partial results, the result list SHALL updat
 
 Every selected session result SHALL use the Session Tree's accent `→` arrow, accent primary title without selected-title bolding, muted path/count/age metadata, and subtle purple accent-tinted selection background. That background SHALL form one continuous full-width selection, regardless of the title or path length. When cwd or explicit path metadata is visible, every rendered row SHALL reserve a shared path column followed by separately aligned message-count and age columns. Session titles SHALL truncate before the path column with visible separation, and paths that exceed their bounded column SHALL truncate within that column rather than displacing the title, count, or age columns.
 
-The selector's search-syntax and action shortcut hints SHALL appear below the session results, aligned to the same shared content inset as the title and status row. Every ordinary or state-specific footer SHALL end with the canonical `Esc close` entry, preserving it completely by clipping preceding guidance first when width is constrained. In the ordinary state the bottom rule SHALL immediately follow the final hint row. Delete confirmation, transient mutation status, and load errors SHALL use this bottom feedback area rather than replacing or joining the title/status rows. Existing search, scope switching, sorting, name filtering, path display, rename, deletion, selection, loading, cancellation, and result-list behavior SHALL remain available.
+The selector's search-syntax and action shortcut hints SHALL appear below the session results, aligned to the same shared content inset as the title and status row. In the ordinary state the bottom rule SHALL immediately follow the final hint row. Delete confirmation, transient mutation status, and load errors SHALL use this bottom feedback area rather than replacing or joining the title/status rows. Existing search, scope switching, sorting, name filtering, path display, rename, deletion, selection, loading, cancellation, and result-list behavior SHALL remain available.
 
 #### Scenario: Open Resume Session
 - **WHEN** the user opens the bare-A1 Resume Session selector
@@ -3132,18 +3132,16 @@ The selector's search-syntax and action shortcut hints SHALL appear below the se
 - **WHEN** the ordinary Resume Session selector is visible
 - **THEN** its search-syntax and action shortcut rows SHALL appear below the session results
 - **AND** the title, filter/status row, and shortcut rows SHALL share the standard modal content inset
-- **AND** the final shortcut row SHALL end with `Esc close`
 - **AND** the frame's bottom rule SHALL immediately follow the final shortcut row
 
 #### Scenario: Confirm session deletion
 - **WHEN** the user starts deletion of a selected session
-- **THEN** the bottom feedback area SHALL replace ordinary shortcut hints with delete-confirm guidance followed by `Esc close`
-- **AND** it SHALL NOT expose a cancel action or implicit Ctrl+C alias
+- **THEN** the bottom feedback area SHALL replace ordinary shortcut hints with delete confirm/cancel guidance
 - **AND** the title and filter/status rows SHALL remain in their standard positions
 
 #### Scenario: Report session-selector status
 - **WHEN** session loading fails or a session mutation reports transient success or failure
-- **THEN** the message SHALL appear in the bottom feedback area before the final `Esc close` entry
+- **THEN** the message SHALL appear in the bottom feedback area
 - **AND** it SHALL NOT be appended to or replace the stable title and filter/status row
 
 #### Scenario: Use existing session operations
