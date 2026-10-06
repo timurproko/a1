@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-06T12:10:52.106Z",
+  "recordedAt": "2026-10-06T13:16:42.709Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "cd32f7725fdbddbaecdff5b1e68491563394e0ca",
@@ -446,9 +446,9 @@
       "localDestination": "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model selection, Tab tree-filter cycling, and cross-platform Alt+Up queued-message restoration.",
+      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model selection, Tab tree-filter cycling, tree-local navigation aliases, and cross-platform Alt+Up queued-message restoration.",
       "upgradeStrategy": "three-way",
-      "localSha256": "76d69eaefa86c76fad99290bf7656d5096e167e345020d9ec750b618f816e9e8",
+      "localSha256": "e5722f07eec2391d1ea5e290b8c1ff9f2b3675ef728a03634df795238cc4bb6a",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
@@ -470,7 +470,7 @@
         },
         {
           "id": "owned-session-tree-dialog",
-          "reason": "Bare A1 uses Tab for Models-style Session Tree filter cycling instead of the pinned Ctrl+O binding.",
+          "reason": "Bare A1 uses Tab for Models-style Session Tree filter cycling instead of the pinned Ctrl+O binding and adds tree-local unmodified-arrow plus Home/End navigation actions.",
           "upstreamBehavior": "The comparison profile retains the pinned Ctrl+O tree-filter cycle shortcut.",
           "acceptanceTest": "test/integrations/pi/components/tree-selector.test.ts"
         }
@@ -2701,9 +2701,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tree-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, Models-style filter status with Tab cycling and all-first presentation excluding model/thinking metadata, standard search input, purple accent-backed menu-arrow selection without path bullets, semantic role colors, and semantic shortcut footers.",
+      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, Models-style filter status with Tab cycling and all-first presentation excluding model/thinking metadata, standard search input, purple accent-backed menu-arrow selection without path bullets, accent entry labels, semantic role colors, standard paging/first-last/folding keys, and semantic shortcut footers.",
       "upgradeStrategy": "three-way",
-      "localSha256": "441a9fd18857a3d69ebbd1d2e526225146e9460be90ff4000155a508b139c3d7",
+      "localSha256": "adee8f47519dbdd82380f1a436b6e12de600fbc4a6dd9eb899437f59fab44b9c",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2713,7 +2713,7 @@
         },
         {
           "id": "owned-session-tree-dialog",
-          "reason": "Bare A1 aligns tree filter status and cycling, excludes model/thinking bookkeeping, and aligns search, focused label editing, role labels, purple accent-backed bullet-free selection, spacing, and footer placement with its standard dialog presentation.",
+          "reason": "Bare A1 aligns tree filter status and cycling, excludes model/thinking bookkeeping, and aligns search, focused label editing, accent and role labels, standard paging/first-last/folding keys, purple accent-backed bullet-free selection, spacing, and footer placement with its standard dialog presentation.",
           "upstreamBehavior": "The comparison profile retains the pinned tree selector presentation and geometry.",
           "acceptanceTest": "test/integrations/pi/components/tree-selector.test.ts"
         }

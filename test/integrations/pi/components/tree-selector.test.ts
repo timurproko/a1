@@ -39,6 +39,7 @@ function tree() {
         timestamp: new Date(3).toISOString(),
         message: { role: "user", content: [{ type: "text", text: "QuestionABC" }], timestamp: 3 },
       },
+      label: "hello",
       children: [{
         entry: {
           type: "message",
@@ -93,6 +94,7 @@ describe("bare-A1 session tree presentation", () => {
     expect(cellStyle(selected, "a")).toEqual(cellStyle(piTheme().bg("customMessageBg", piTheme().fg("accent", "a")), "a"));
     expect(cellStyle(selected, "X")).toEqual(cellStyle(piTheme().bg("customMessageBg", piTheme().fg("muted", "X")), "X"));
     const unselected = rows.find(row => stripTerminalSequences(row).includes("user: QuestionABC"))!;
+    expect(cellStyle(unselected, "h")).toEqual(cellStyle(piTheme().fg("accent", "h"), "h"));
     expect(cellStyle(unselected, "u")).toEqual(cellStyle(piTheme().fg("success", "u"), "u"));
     expect(cellStyle(unselected, "Q")).toEqual(cellStyle(piTheme().fg("muted", "Q"), "Q"));
     const system = rows.find(row => stripTerminalSequences(row).trim() === "system")!;
@@ -113,6 +115,9 @@ describe("bare-A1 session tree presentation", () => {
     expect(cellStyle(rows[hintIndex]!, "↑")).toEqual(cellStyle(piTheme().fg("dim", "↑"), "↑"));
     expect(cellStyle(rows[hintIndex]!, "m")).toEqual(cellStyle(piTheme().fg("muted", "m"), "m"));
     expect(plain.some(row => row.includes("Tab filter"))).toBe(true);
+    expect(plain.join("\n")).toContain("PgUp/PgDn page");
+    expect(plain.join("\n")).toContain("Home/End first/last");
+    expect(plain.join("\n")).toContain("←/→ branch");
     expect(plain.join("\n")).not.toContain("Ctrl+O");
     expect(rows.every(row => visibleWidth(row) <= 80)).toBe(true);
 
@@ -120,6 +125,19 @@ describe("bare-A1 session tree presentation", () => {
     const cycledFilter = component.render(80).find(row => stripTerminalSequences(row).includes("Filter:"))!;
     expect(cellStyle(cycledFilter, "s")).toEqual(cellStyle(piTheme().fg("accent", "s"), "s"));
     expect(cellStyle(cycledFilter, "a")).toEqual(cellStyle(piTheme().fg("muted", "a"), "a"));
+
+    component.handleInput?.("\x1b[F");
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("→ assistant: ResponseXYZ");
+    component.handleInput?.("\x1b[5~");
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("→ system");
+    component.handleInput?.("\x1b[6~");
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("→ assistant: ResponseXYZ");
+    component.handleInput?.("\x1b[H");
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("→ system");
+    component.handleInput?.("\x1b[D");
+    expect(stripTerminalSequences(component.render(80).join("\n"))).not.toContain("QuestionABC");
+    component.handleInput?.("\x1b[C");
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("QuestionABC");
 
     component.handleInput?.("L");
     const labelRows = component.render(80);

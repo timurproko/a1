@@ -4,8 +4,8 @@
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
  * preserving tree behavior; bare A1 uses compact modal chrome and label editing, Models-style filter
  * status with Tab cycling and all-first presentation excluding model/thinking metadata, standard
- * search input, purple accent-backed menu-arrow selection without path bullets, semantic role colors,
- * and semantic shortcut footers.
+ * search input, purple accent-backed menu-arrow selection without path bullets, accent entry labels,
+ * semantic role colors, standard paging/first-last/folding keys, and semantic shortcut footers.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -744,7 +744,7 @@ class TreeList implements Component {
 			const showsFoldInConnector = flatNode.showConnector && !flatNode.isVirtualRootChild;
 			const foldMarker = isFolded && !showsFoldInConnector ? theme.fg("accent", "⊞ ") : "";
 
-			const label = flatNode.node.label ? theme.fg("warning", `[${flatNode.node.label}] `) : "";
+			const label = flatNode.node.label ? theme.fg("accent", `[${flatNode.node.label}] `) : "";
 			const labelTimestamp =
 				this.showLabelTimestamps && flatNode.node.label && flatNode.node.labelTimestamp
 					? theme.fg("muted", `${this.formatLabelTimestamp(flatNode.node.labelTimestamp)} `)
@@ -1005,6 +1005,18 @@ class TreeList implements Component {
 			this.selectedIndex = this.selectedIndex === 0 ? this.filteredNodes.length - 1 : this.selectedIndex - 1;
 		} else if (kb.matches(keyData, "tui.select.down")) {
 			this.selectedIndex = this.selectedIndex === this.filteredNodes.length - 1 ? 0 : this.selectedIndex + 1;
+		} else if (kb.matches(keyData, "owned.tree.collapse")) {
+			const currentId = this.filteredNodes[this.selectedIndex]?.node.entry.id;
+			if (currentId && this.isFoldable(currentId) && !this.foldedNodes.has(currentId)) {
+				this.foldedNodes.add(currentId);
+				this.applyFilter();
+			}
+		} else if (kb.matches(keyData, "owned.tree.expand")) {
+			const currentId = this.filteredNodes[this.selectedIndex]?.node.entry.id;
+			if (currentId && this.foldedNodes.has(currentId)) {
+				this.foldedNodes.delete(currentId);
+				this.applyFilter();
+			}
 		} else if (kb.matches(keyData, "app.tree.foldOrUp")) {
 			const currentId = this.filteredNodes[this.selectedIndex]?.node.entry.id;
 			if (currentId && this.isFoldable(currentId) && !this.foldedNodes.has(currentId)) {
@@ -1021,12 +1033,14 @@ class TreeList implements Component {
 			} else {
 				this.selectedIndex = this.findBranchSegmentStart("down");
 			}
-		} else if (kb.matches(keyData, "tui.editor.cursorLeft") || kb.matches(keyData, "tui.select.pageUp")) {
-			// Page up
+		} else if (kb.matches(keyData, "tui.select.pageUp")) {
 			this.selectedIndex = Math.max(0, this.selectedIndex - this.maxVisibleLines);
-		} else if (kb.matches(keyData, "tui.editor.cursorRight") || kb.matches(keyData, "tui.select.pageDown")) {
-			// Page down
+		} else if (kb.matches(keyData, "tui.select.pageDown")) {
 			this.selectedIndex = Math.min(this.filteredNodes.length - 1, this.selectedIndex + this.maxVisibleLines);
+		} else if (kb.matches(keyData, "owned.tree.first")) {
+			this.selectedIndex = 0;
+		} else if (kb.matches(keyData, "owned.tree.last")) {
+			this.selectedIndex = Math.max(0, this.filteredNodes.length - 1);
 		} else if (kb.matches(keyData, "tui.select.confirm")) {
 			const selected = this.filteredNodes[this.selectedIndex];
 			if (selected && this.onSelect) {
@@ -1116,13 +1130,7 @@ class TreeList implements Component {
 		return siblings !== undefined && siblings.length > 1;
 	}
 
-	/**
-	 * Find the index of the next branch segment start in the given direction.
-	 * A segment start is the first child of a branch point.
-	 *
-	 * "up" walks the visible parent chain; "down" walks visible children
-	 * (always following the first child).
-	 */
+	/** Find the next branch segment start for the retained modified-arrow shortcuts. */
 	private findBranchSegmentStart(direction: "up" | "down"): number {
 		const selectedId = this.filteredNodes[this.selectedIndex]?.node.entry.id;
 		if (!selectedId) return this.selectedIndex;
@@ -1138,16 +1146,13 @@ class TreeList implements Component {
 			}
 		}
 
-		// direction === "up"
 		while (true) {
 			const parentId: string | null = this.visibleParentMap.get(currentId) ?? null;
 			if (parentId === null) return indexByEntryId.get(currentId)!;
 			const children = this.visibleChildrenMap.get(parentId) ?? [];
 			if (children.length > 1) {
 				const segmentStart = indexByEntryId.get(currentId)!;
-				if (segmentStart < this.selectedIndex) {
-					return segmentStart;
-				}
+				if (segmentStart < this.selectedIndex) return segmentStart;
 			}
 			currentId = parentId;
 		}
@@ -1242,8 +1247,9 @@ class TreeHelp implements Component {
 
 const TREE_HELP_ITEMS: Array<{ keys: Keybinding[]; label: string; labelFirst?: boolean }> = [
 	{ keys: ["tui.select.up", "tui.select.down"], label: "move" },
-	{ keys: ["tui.editor.cursorLeft", "tui.editor.cursorRight"], label: "page" },
-	{ keys: ["app.tree.foldOrUp", "app.tree.unfoldOrDown"], label: "branch" },
+	{ keys: ["tui.select.pageUp", "tui.select.pageDown"], label: "page" },
+	{ keys: ["owned.tree.first", "owned.tree.last"], label: "first/last" },
+	{ keys: ["owned.tree.collapse", "owned.tree.expand"], label: "branch" },
 	{ keys: ["app.message.copy"], label: "copy" },
 	{ keys: ["app.tree.editLabel"], label: "label" },
 	{ keys: ["app.tree.toggleLabelTimestamp"], label: "label time" },
