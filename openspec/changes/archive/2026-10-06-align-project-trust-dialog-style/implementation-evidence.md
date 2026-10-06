@@ -18,6 +18,7 @@
 
 - Finalized-head run `37488506619` exposed one stale raw-ANSI assertion in `session-shell-workflows.test.ts`: the intended muted-label/normal-value boundary means `Current session: untrusted` is no longer contiguous in the styled byte stream.
 - The assertion now evaluates stripped visible text while the dedicated trust-context tests continue to assert the exact semantic ANSI spans. The repaired focused set (`session-shell-workflows`, startup trust prompt, and trust context) passed 3 files and 44 tests.
+- After the marker-free refinement, finalized-head run `37491953866` exposed the independent pinned/owned command-outcome comparison still requiring pinned Pi's saved-choice checkmark. The parity gate now names and removes only that pinned marker from text equivalence while separately proving pinned output contains it and every equivalent bare-A1 saved-choice menu omits it; all 4 truecolor/256-color command-outcome parity tests passed.
 
 ## Manual refinement
 
