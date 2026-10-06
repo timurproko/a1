@@ -18,7 +18,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-06-close-dialogs-with-ctrl-c/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-06-close-dialogs-with-ctrl-c/acceptance.md",
   "finalizedDate": "2026-10-06",
-  "specBaseSha": "99e849aca28c25b645cb50008d3427f4fdb2a050",
+  "specBaseSha": "44a4dbf13767a0e3e92bdc63feeaf2181a4658eb",
   "acceptanceScenarios": [
     "One Ctrl+C closes an active built-in dialog immediately, including when its search or input is populated.",
     "Ctrl+C in a nested dialog cancels only that active step and restores its expected parent surface.",
