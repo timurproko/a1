@@ -5,8 +5,9 @@
  * preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode
  * Models-style filter status with Tab cycling and concise all-first presentation excluding internal
  * bookkeeping, standard search input, purple accent-backed menu-arrow selection without path bullets,
- * accent entry labels and bracketed timestamps, semantic role colors, standard
- * paging/first-last/containing-branch folding keys, and Models-ordered semantic shortcut footers.
+ * accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with
+ * session naming for the system root, standard paging/first-last/containing-branch folding keys, and
+ * Models-ordered semantic shortcut footers without a redundant select hint.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -666,7 +667,7 @@ class TreeList implements Component {
 	}
 
 	private getStatusLabels(): string {
-		return this.showLabelTimestamps ? " [+label time]" : "";
+		return this.showLabelTimestamps ? " label time" : "";
 	}
 
 	render(width: number): string[] {
@@ -804,7 +805,7 @@ class TreeList implements Component {
 					const command = normalize((msg as { command?: string }).command ?? "");
 					result = primary("dim", "[bash]: ") + description(command, "dim");
 				} else {
-					result = primary("dim", role === "system" ? role : `[${role}]`);
+					result = primary("dim", role === "system" ? "session" : `[${role}]`);
 				}
 				break;
 			}
@@ -1257,7 +1258,6 @@ const TREE_HELP_ITEMS: Array<{ keys: Keybinding[]; label: string; labelFirst?: b
 	{ keys: [], label: "type to search" },
 	{ keys: ["tui.select.up", "tui.select.down"], label: "navigate" },
 	{ keys: ["app.tree.filter.cycleForward"], label: "filter" },
-	{ keys: ["tui.select.confirm"], label: "select" },
 	{ keys: ["tui.select.pageUp", "tui.select.pageDown"], label: "page" },
 	{ keys: ["owned.tree.first", "owned.tree.last"], label: "first/last" },
 	{ keys: ["owned.tree.collapse", "owned.tree.expand"], label: "branch" },
