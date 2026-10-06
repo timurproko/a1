@@ -12,8 +12,8 @@ Recorded: 2026-10-06
 
 ## Physical acceptance
 
-Maintainer review identified follow-up refinements: shorten `current folder` to `current`, remove loader work-unit progress from the filter row in favor of progressive result paging, make every selected row full width, align/truncate titles and paths in stable columns, and match Session Tree's arrow and selection colors. Those refinements are implemented; physical re-review of the rebuilt `./scripts/dev` candidate is pending.
+Maintainer review identified and then rechecked the requested refinements: `current` scope wording, stable filter status during progressive all-session discovery, growing result paging, full-width selection, aligned and independently truncated title/path/count/age columns, and Session Tree's accent `→` arrow plus subtle purple selection roles. The maintainer confirmed the rebuilt candidate looks good and approved it for delivery.
 
 ## Gap disposition
 
-No known automated implementation gaps remain. Physical presentation re-acceptance is pending; full regression and native-host gates remain CI-owned under repository policy.
+No known implementation or physical-acceptance gaps remain. Full regression and native-host gates remain CI-owned under repository policy.

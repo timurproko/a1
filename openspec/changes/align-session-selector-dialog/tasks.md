@@ -8,4 +8,4 @@
 ## 2. Validate the Delivered Experience
 
 - [x] 2.1 Run the focused Resume Session component and session-shell workflow tests plus permitted typecheck/build scopes, and record passing behavior and any explicit gap disposition in `evidence/validation.md`.
-- [ ] 2.2 Build the interactive candidate and obtain maintainer physical terminal review that the title, stable filter/status row, progressive paging count, full-width selection, aligned result columns, content inset, and bottom hints match the requested modal presentation; record the result in `evidence/validation.md` before finalization.
+- [x] 2.2 Build the interactive candidate and obtain maintainer physical terminal review that the title, stable filter/status row, progressive paging count, full-width selection, aligned result columns, content inset, and bottom hints match the requested modal presentation; record the result in `evidence/validation.md` before finalization.
