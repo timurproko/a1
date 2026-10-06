@@ -12,8 +12,8 @@ Recorded: 2026-10-06
 
 ## Physical acceptance
 
-The earlier physical acceptance remains valid for scope wording, stable filter status, progressive paging, full-width selection, aligned result columns, and Session Tree selection roles. A subsequent maintainer review identified that the top and bottom rules still used the title accent rather than the standard dialog border role. That implementation gap is fixed; physical recheck of the rebuilt candidate is pending.
+The earlier physical acceptance remains valid for scope wording, stable filter status, progressive paging, full-width selection, aligned result columns, and Session Tree selection roles. A subsequent maintainer review identified that the top and bottom rules still used the title accent rather than the standard dialog border role. After rebuilding with the standard rule role, the maintainer physically rechecked and approved the dialog.
 
 ## Gap disposition
 
-No known implementation gap remains. Physical confirmation of the standard top and bottom rule colors is pending. Full regression and native-host gates remain CI-owned under repository policy.
+No known implementation or physical-acceptance gap remains. Full regression and native-host gates remain CI-owned under repository policy.
