@@ -22,9 +22,10 @@ vi.mock("node:worker_threads", async importOriginal => {
 });
 import { createPiEngineAdapter, PINNED_PI_HIDDEN_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../../src/integrations/pi/engine/index.js";
 import { piTheme } from "../../../src/integrations/pi/components/index.js";
+import { readVisibleHyperlinks } from "../../../src/ui/components/visible-hyperlinks.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
-import { Session, Runtime, fixture, nextImmediate } from "./session-shell-fixture.js";
+import { Session, Runtime, fixture, nextImmediate, withPinnedHyperlinks } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell commands, notices, and presentation", () => {
   it("renders every advertised and hidden route without a generic raw/plain fallback at narrow and wide widths", async () => {
@@ -224,7 +225,9 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       : Promise.resolve({ command: request.command, outcome: "completed", message: "Reloaded keybindings, extensions, skills, prompts, themes, and context files" }));
 
     const share = shell.runWorkflow({ command: "share", argument: "" });
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Creating gist...");
+    const pinnedLoading = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+    expect(pinnedLoading.some(row => row.includes("Creating gist..."))).toBe(true);
+    expect(pinnedLoading).not.toContain(" Share");
     resolveShare?.({ command: "share", outcome: "completed", message: "Share URL: https://example.test", detail: "https://gist.test/id" });
     await share;
     const shareRows = shell.root.render(100);
@@ -241,6 +244,46 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Reloading keybindings");
     expect(execute).toHaveBeenCalledTimes(2);
     await shell.dispose();
+  });
+
+  it("uses the standard share dialog and native blue result links only in bare A1", async () => {
+    await withPinnedHyperlinks(async () => {
+      const { adapter, shell } = await fixture([], [], true);
+      let resolveShare: ((result: Awaited<ReturnType<typeof adapter.executeWorkflow>>) => void) | undefined;
+      vi.spyOn(adapter, "executeWorkflow").mockImplementation(request => new Promise(resolve => {
+        if (request.command === "share") resolveShare = resolve;
+      }));
+
+      const share = shell.runWorkflow({ command: "share", argument: "" });
+      const loading = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+      expect(loading).toContain(" Share");
+      expect(loading).toContain(" Escape/Ctrl+C cancel");
+      resolveShare?.({
+        command: "share",
+        outcome: "completed",
+        message: "Share URL: https://example.test/session/#id",
+        detail: "https://gist.github.com/example/id",
+      });
+      await share;
+
+      const rows = shell.root.render(100);
+      const viewerRow = rows.find(row => stripTerminalSequences(row).includes("Share URL:"));
+      const gistRow = rows.find(row => stripTerminalSequences(row).includes("Gist:"));
+      expect(viewerRow).toBeDefined();
+      expect(gistRow).toBeDefined();
+      expect(viewerRow).toContain(piTheme().fg("mdLink", "https://example.test/session/#id"));
+      expect(gistRow).toContain(piTheme().fg("mdLink", "https://gist.github.com/example/id"));
+      expect([viewerRow!, gistRow!].flatMap(row => readVisibleHyperlinks(row).ranges).map(link => link.target)).toEqual([
+        "https://example.test/session/#id",
+        "https://gist.github.com/example/id",
+      ]);
+
+      shell.root.appendWorkflowStatus("ordinary status");
+      const ordinaryRow = shell.root.render(100).find(row => stripTerminalSequences(row).includes("ordinary status"));
+      expect(ordinaryRow).toBeDefined();
+      expect(readVisibleHyperlinks(ordinaryRow!).ranges).toEqual([]);
+      await shell.dispose();
+    });
   });
 
   it("holds the reload box for the minimum visible window when reload finishes instantly", async () => {

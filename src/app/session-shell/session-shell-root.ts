@@ -324,6 +324,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     readonly kind: "status" | "warning" | "error";
     readonly message: string;
     readonly errorCode?: ImageAttachmentError["code"];
+    readonly nativeLinks?: boolean;
   } | undefined;
   // Invariant: bare A1 docks the release notice above the live status; closing it lasts for this session only.
   #releaseNoticeDismissed = false;
@@ -1046,7 +1047,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     if (notice === undefined) return [];
     if (notice.kind === "status") {
       // Compatibility: Pi pads its status text by one cell regardless of the output pad setting.
-      return ["", ...renderPiShellStatusText(notice.message, width, PINNED_PI_LAYOUT.outputPad)];
+      const rows = renderPiShellStatusText(notice.message, width, PINNED_PI_LAYOUT.outputPad);
+      // Share results keep their pinned labels and geometry while their explicit URLs receive the
+      // same native link presentation as transcript URLs. Ordinary statuses remain untouched.
+      return ["", ...(notice.nativeLinks === true
+        ? rows.map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor))
+        : rows)];
     }
     return renderPiShellCommandMessage({ kind: notice.kind, message: notice.message }, width, this.#outputPad);
   }
@@ -1267,12 +1273,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return rows.join("\n");
   }
 
-  appendWorkflowStatus(message: string): void {
+  appendWorkflowStatus(message: string, nativeLinks = false): void {
     // Rationale: bare A1 acknowledges commands in one dock notice above the editor, where the
     // reader's eye already is, instead of a transcript row that opens an empty session at the
     // top-left or sinks into a long feed. The pinned route keeps Pi's chat placement.
     if (this.#customViewport) {
-      this.#dockNotice = { kind: "status", message };
+      this.#dockNotice = { kind: "status", message, ...(nativeLinks ? { nativeLinks: true } : {}) };
       this.#invalidateChrome();
       return;
     }
@@ -1371,7 +1377,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const message = result.command === "share" && result.detail
       ? `${linkShareUrl(result.message)}\nGist: ${piShellHyperlink(result.detail)}`
       : result.message;
-    this.appendWorkflowStatus(message);
+    this.appendWorkflowStatus(message, result.command === "share" && result.outcome === "completed" && result.detail !== undefined);
   }
 
   toggleThinkingVisibility(): void {

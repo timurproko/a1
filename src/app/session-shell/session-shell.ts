@@ -65,6 +65,7 @@ import {
   createPiShellModelsDialog,
   createPiShellOperationLoader,
   createPiShellReloadBox,
+  createPiShellShareOperationDialog,
   createPiShellScopedModelsSelector,
   createPiShellSelector,
   createPiShellSessionSelector,
@@ -1400,7 +1401,7 @@ export class OwnedUiSessionShell {
       this.root.resetExtensionUi();
     }
     const shareSurface = request.command === "share"
-      ? createPiShellOperationLoader({
+      ? (this.#customViewport ? createPiShellShareOperationDialog : createPiShellOperationLoader)({
           getColumns: () => this.runtime.viewport().columns,
           getRows: () => this.runtime.viewport().rows,
           requestRender: () => this.runtime.requestRender(),

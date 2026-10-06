@@ -31,6 +31,7 @@ export {
   createPiShellSessionInfo,
   createPiShellSessionSelector,
   createPiShellSettingsSelector,
+  createPiShellShareOperationDialog,
   createPiShellShowImagesSelector,
   createPiShellSkillsSelector,
   createPiShellStatus,

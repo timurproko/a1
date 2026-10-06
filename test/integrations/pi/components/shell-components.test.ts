@@ -19,6 +19,7 @@ import {
   createPiShellLoginDialog,
   createPiQueuedInputStatus,
   createPiShellSettingsSelector,
+  createPiShellShareOperationDialog,
   createPiShellSessionInfo,
   createPiShellSelector,
   createPiShellUserMessageSelector,
@@ -67,6 +68,44 @@ function view(): OwnedUiSessionViewModel {
 }
 
 describe("Pi shell public component adapters", () => {
+  it("renders the bare-A1 share operation as a compact standard dialog", () => {
+    const dialog = createPiShellShareOperationDialog({
+      getColumns: () => 80,
+      getRows: () => 24,
+      requestRender() {},
+    }, "Creating gist...");
+    try {
+      const rows = dialog.render(40);
+      const plainRows = rows.map(row => stripTerminalSequences(row).trimEnd());
+      const titleRow = plainRows.findIndex(row => row === " Share");
+      const hintRow = plainRows.findIndex(row => row === " Escape/Ctrl+C cancel");
+
+      expect(titleRow).toBe(1);
+      expect(plainRows[0]).toBe("─".repeat(40));
+      expect(plainRows.some(row => row.includes("Creating gist..."))).toBe(true);
+      expect(hintRow).toBeGreaterThan(titleRow);
+      expect(plainRows[hintRow + 1]).toBe("─".repeat(40));
+      expect(rows[titleRow]).toContain(piTheme().fg("accent", piTheme().bold("Share")));
+      expect(rows[hintRow]).toContain(piTheme().fg("dim", "Escape/Ctrl+C"));
+      expect(rows[hintRow]).toContain(piTheme().fg("muted", "cancel"));
+      expect(dialog.render(12).every(row => visibleWidth(row) <= 12)).toBe(true);
+    } finally {
+      dialog.dispose?.();
+    }
+  });
+
+  it.each([["Escape", "\x1b"], ["Ctrl+C", "\x03"]])("cancels the bare-A1 share operation with %s", (_label, input) => {
+    const dialog = createPiShellShareOperationDialog({
+      getColumns: () => 80,
+      getRows: () => 24,
+      requestRender() {},
+    }, "Creating gist...");
+    expect(dialog.signal.aborted).toBe(false);
+    dialog.handleInput?.(input);
+    expect(dialog.signal.aborted).toBe(true);
+    dialog.dispose?.();
+  });
+
   it("matches Pi's queued steering rows and derives the dequeue hint from live bindings", () => {
     let dequeueBinding = "alt+up";
     const queued = createPiQueuedInputStatus(
