@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-06-standardize-share-dialog/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-06-standardize-share-dialog/acceptance.md",
   "finalizedDate": "2026-10-06",
-  "specBaseSha": "cf775a8ca99953436c90e4a0e21044c4d890cf5e",
+  "specBaseSha": "f3d4a7f61da672b3996d3deea3f341b40ed305ff",
   "acceptanceScenarios": [
     "Bare A1 presents gist creation in a titled `Share` dialog with aligned semantic cancellation hints and no gap above the bottom rule.",
     "Successful viewer and gist URLs use blue native-link styling, dashed idle decoration, solid hover underlines, and exact Ctrl+click targets.",
