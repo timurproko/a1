@@ -470,19 +470,13 @@ export class OwnedUiSessionShell {
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
           if (inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
-          // Compatibility: Pi's fullscreen renderer also intercepts boundary keys.
-          // Deliver plain Home/End to the focused owned input before that outer scroll handler.
-          // Pi 1.0.4 no longer binds Ctrl+Home/End in its editor, so protect those keys for an
-          // active replacement too; the default input still routes them through A1's viewport.
-          // Overlays retain Pi's normal dispatch, and comparison profiles never enter here.
-          const defaultInputSurface = this.root.usesDefaultInputSurface();
-          const replacementContentBoundary = !defaultInputSurface
-            && (this.root.editor.matchesTerminalKey(data, "ctrl+home")
-              || this.root.editor.matchesTerminalKey(data, "ctrl+end"));
-          if (!this.runtime.hasOverlay() && (replacementContentBoundary
-            || this.root.editor.matchesTerminalKey(data, "home")
-            || this.root.editor.matchesTerminalKey(data, "end"))) {
-            if (defaultInputSurface) this.root.handleViewportPreInput(data, true);
+          // Route boundary keys before Pi's fullscreen handler.
+          const isDefault = this.root.usesDefaultInputSurface();
+          if (!this.runtime.hasOverlay() && (this.root.editor.matchesTerminalKey(data, "home")
+            || this.root.editor.matchesTerminalKey(data, "end")
+            || !isDefault && (this.root.editor.matchesTerminalKey(data, "ctrl+home")
+              || this.root.editor.matchesTerminalKey(data, "ctrl+end")))) {
+            if (isDefault) this.root.handleViewportPreInput(data, true);
             this.root.handleInput(data);
             this.runtime.requestRender();
             return { consume: true };
