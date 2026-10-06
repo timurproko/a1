@@ -4,7 +4,7 @@ Verdict: accepted only when the containing exact pull-request head is manually m
 
 The manual merge accepts these scenarios:
 - Bare A1 shows `✓ New session started` directly above the idle input instead of at the top of an empty transcript.
-- The prompt-adjacent confirmation retains its accent styling, wording, wrapping, padding, and surrounding blank rows.
+- The prompt-adjacent confirmation retains its accent styling, wording, wrapping, and horizontal padding with exactly one blank row before the input.
 - The confirmation remains outside selectable, copyable, navigable, and persisted transcript content.
 - The first accepted prompt replaces the confirmation with `Working…` without displaying both messages together.
 - Ordinary dock notices and pre-work prompt failures retain their existing truthful presentation.
@@ -22,16 +22,16 @@ The manual merge accepts these scenarios:
   "specBaseSha": "99e849aca28c25b645cb50008d3427f4fdb2a050",
   "acceptanceScenarios": [
     "Bare A1 shows `✓ New session started` directly above the idle input instead of at the top of an empty transcript.",
-    "The prompt-adjacent confirmation retains its accent styling, wording, wrapping, padding, and surrounding blank rows.",
+    "The prompt-adjacent confirmation retains its accent styling, wording, wrapping, and horizontal padding with exactly one blank row before the input.",
     "The confirmation remains outside selectable, copyable, navigable, and persisted transcript content.",
     "The first accepted prompt replaces the confirmation with `Working…` without displaying both messages together.",
     "Ordinary dock notices and pre-work prompt failures retain their existing truthful presentation.",
     "The `a1 pi` route retains its chronological transcript-bound new-session confirmation."
   ],
-  "archiveDigest": "ed04ba1d09a93288dc7944f646a979f8a8dc197d35ef8a37c97f4f98eff67ca0",
-  "specDigest": "ca11df2a0eaabac411e5095dcc7b1b1b4f460eac32f4c9e3e54dcf97681c118a",
-  "tasksDigest": "bd189ab075b31f86817949455fb633003261ed9347c43f6388aaf25b6cdb932f",
-  "evidenceDigest": "42fa05d93addcd426a6868d55983a415532706cc2a1df4699969bb5beabeb167",
+  "archiveDigest": "0678b6d3db3ac9cbc543f86006bd772efc327eb9cb9c524a4987b7a841742e09",
+  "specDigest": "4e37ef19e2fcb1656c56b6e6aa87749dfdbe3c42e1101242aa2cda06dfaa11bd",
+  "tasksDigest": "2b6651b3c811ff9da27e027688904699fccd7fdd8945f83802bae40238ef57d8",
+  "evidenceDigest": "c59848dc80bb21565c7780c7d8a25ee2fb07dc2a7ab89aa748d4af34e2de5ce1",
   "knownGaps": []
 }
 ```
