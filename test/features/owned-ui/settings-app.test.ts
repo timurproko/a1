@@ -736,18 +736,39 @@ describe("the list view behind the screen", () => {
 });
 
 describe("the value dropdown behind the screen", () => {
-  it("opens from the value and applies the chosen row", async () => {
+  it("opens without an active row and keeps keyboard navigation based on the effective value", async () => {
     const { app: target, writes } = await app();
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Thinking level"));
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
-    expect(screen(target).some(line => line.includes("✓ low"))).toBe(true);
+
+    const opened = target.render({ width: 80, height: 24 }, NAMING_HOST);
+    expect(opened.join("\n")).not.toContain("<highlight>");
+    expect(opened.join("\n")).toContain("<panel><accent>✓</accent></panel><panel> low");
 
     target.onInput?.(DOWN, HOST);
-    expect(screen(target).some(line => line.includes("✓ low"))).toBe(true);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).toContain("<highlight><accent>✓</accent></highlight><highlight> low");
+    target.onInput?.(DOWN, HOST);
     target.onInput?.(ENTER, HOST);
     expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "high" });
+  });
+
+  it("highlights only after the pointer enters a menu row and clears after it leaves", async () => {
+    const { app: target } = await app();
+    const lines = screen(target);
+    const row = lines.findIndex(line => line.includes("Thinking level"));
+    const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
+
+    const menu = screen(target);
+    const highRow = menu.findIndex(line => line.includes("high"));
+    const highColumn = (menu[highRow] ?? "").indexOf("high") + 1;
+    target.onMouse?.({ kind: "motion", button: 0, row: highRow + 1, column: highColumn }, HOST);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes("high"))).toContain("<highlight>");
+
+    target.onMouse?.({ kind: "motion", button: 0, row: highRow + 1, column: 1 }, HOST);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).not.toContain("<highlight>");
   });
 
   it("applies the choice pressed inside the shared menu", async () => {

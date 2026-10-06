@@ -551,8 +551,9 @@ export class SettingsApp implements UiApp {
       return;
     }
     const current = shown === null ? 0 : Math.max(0, entry.choices.indexOf(shown));
-    // Compatibility: pinned SelectList opens on the value currently in effect.
-    this.#menu = { entry, current, anchorKey: `${entry.backend}:${entry.id}`, choices: entry.choices, index: current };
+    // Invariant: the opening press targeted the setting value, not an option. Keep the
+    // effective value as the keyboard origin without painting it as pointer-picked.
+    this.#menu = { entry, current, anchorKey: `${entry.backend}:${entry.id}`, choices: entry.choices, index: -1 };
   }
 
   // Rationale: a structured setting opens as its own flag list rather than a value menu.
