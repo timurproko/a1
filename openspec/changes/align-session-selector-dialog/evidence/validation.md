@@ -8,7 +8,7 @@ Recorded: 2026-10-06
 - Result-row coverage verifies mixed title and path lengths retain one aligned path column plus separate message-count and age columns, titles truncate before the metadata boundary, long paths truncate inside their column, explicit file paths preserve their useful tail, and selection matches Session Tree's accent `→` arrow, accent non-bold primary title, muted metadata, and subtle purple `customMessageBg` color across the complete available width before and after moving between differently sized rows at wide and narrow widths.
 - Integrated session-shell workflow coverage verifies current/all scope changes update the filter role without changing or duplicating the `Resume Session` title, while selection and silent cancellation remain intact.
 - Focused component and session-shell runs passed 20 tests.
-- Production build, TypeScript project typecheck, architecture and identity boundaries, copied-source provenance, terminal-host provenance, strict OpenSpec validation, and diff whitespace checks passed.
+- Production build, TypeScript project typecheck, architecture and identity boundaries, copied-source provenance, terminal-host provenance, strict OpenSpec validation, and diff whitespace checks passed after reconciling current `origin/develop`.
 
 ## Physical acceptance
 
