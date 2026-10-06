@@ -79,7 +79,9 @@ function verify(actual: Capture, expected: Capture): void {
       return text.replace(/\s+/gu, "");
     };
     const actualText = plainSurfaceText(actual.surfaceRows);
-    const expectedText = plainSurfaceText(expected.surfaceRows, expected.id.includes("/tree/"));
+    // Compatibility: bare A1 keeps Ctrl+C implicit at dialog boundaries and advertises only Escape.
+    const expectedText = plainSurfaceText(expected.surfaceRows, expected.id.includes("/tree/"))
+      .replace(/(esc(?:ape)?)\/ctrl\+c(?=(?:to)?(?:close|cancel))/gu, "$1");
     if (expected.id.includes("/tree/")) {
       // Compatibility: bare A1 intentionally replaces Pi's tree filter, search, selection, and footer presentation.
       // Keep this cross-runtime gate on the shared entry content and selection counter instead of divergent chrome.

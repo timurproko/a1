@@ -190,10 +190,11 @@ describe("bare-A1 session tree presentation", () => {
     expect(plainLabelRows.join("\n")).not.toContain("Filter:");
     expect(plainLabelRows.join("\n")).not.toMatch(/\bmove\b/u);
     const labelHintIndex = plainLabelRows.findIndex(row => row.includes("save") && row.includes("cancel"));
-    expect(plainLabelRows[labelHintIndex]).toContain("Enter save  Escape/Ctrl+C cancel");
+    expect(plainLabelRows[labelHintIndex]).toContain("Enter save  Escape cancel");
+    expect(plainLabelRows[labelHintIndex]).not.toContain("Ctrl+C");
     expect(plainLabelRows[labelHintIndex + 1]).toBe("─".repeat(80));
 
-    component.handleInput?.("\x1b");
+    component.handleInput?.("\x03");
     const restored = component.render(80).map(stripTerminalSequences).join("\n");
     expect(restored).toContain("Session Tree");
     expect(restored).toContain("navigate");
