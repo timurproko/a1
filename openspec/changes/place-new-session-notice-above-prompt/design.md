@@ -26,7 +26,7 @@ This reuses the dock's established exclusion from transcript semantics and its b
 
 ### 2. Retire the confirmation on the accepted busy transition
 
-When the session view transitions from non-busy to busy, clear the `new-session` notice before composing the updated frame. The same update installs the live working status, so the first busy frame contains `Working…` in the bottom-aligned transient tail and no stale confirmation beneath it. If prompt dispatch is rejected before the engine accepts it, the idle confirmation remains because no truthful working replacement exists.
+When the session view transitions from non-busy to busy, clear the `new-session` notice before composing the updated frame. The same update installs the live working status, so the first busy frame contains `Working…` in the bottom-aligned transient tail and no stale confirmation beneath it. If prompt dispatch fails before the engine accepts it, the existing failure-notice path may replace the confirmation but no working status is fabricated.
 
 The existing user/bash block dismissal remains as a defensive later lifecycle boundary. Generic status, warning, and error notices keep their accepted behavior of surviving assistant/tool streaming and appearing below live working status.
 
@@ -38,7 +38,7 @@ Focused shell tests will render an empty custom viewport after a successful new-
 
 - [The special notice accidentally adopts dim status styling] -> Keep the semantic variant explicit and render it through the existing `new` command-message presenter.
 - [The confirmation and working indicator appear together for one frame] -> Clear only the special notice in the same non-busy-to-busy view update that refreshes status placement.
-- [A failed submission removes useful confirmation without showing work] -> Bind retirement to accepted busy lifecycle, not keypress or dispatch attempt.
+- [A failed submission is mistaken for active work] -> Bind working replacement to accepted busy lifecycle; retain the existing truthful failure-notice path without fabricating status.
 - [The change alters all dock-notice lifecycle behavior] -> Branch only on the `new-session` variant; retain generic notice replacement and dismissal paths unchanged.
 - [Pinned parity regresses] -> Gate the new route on the custom viewport and keep focused pinned presentation coverage.
 

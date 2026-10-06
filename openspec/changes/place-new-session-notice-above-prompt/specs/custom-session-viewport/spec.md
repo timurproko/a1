@@ -3,7 +3,7 @@
 ### Requirement: Informational messages are a transient dock notice
 Bare A1 SHALL present informational workflow status messages, including model and thinking-level confirmations, reload and compaction confirmations, generic completed command results, `status`-kind workflow messages, and extension `info` notifications, as one transient notice at the top of the dock rather than as transcript content. The notice SHALL consist of one blank row followed by the message in the existing dim status style with Pi's one-cell status padding regardless of the output pad setting, SHALL be placed after any non-live dock status rows and before above-editor widgets and the editor, and SHALL therefore sit directly below the live working status when that status is visible and directly above the editor group otherwise. The notice SHALL wrap at the dock width and SHALL NOT scroll with transcript content.
 
-A successful `/new` result in bare A1 SHALL use the same transient prompt-adjacent ownership instead of transcript ownership, but SHALL preserve the existing accent `✓ New session started` wording, command-message wrapping, one-cell horizontal padding, and surrounding blank rows. While the replacement session is idle, its confirmation SHALL appear directly above the editor group at the bottom of the frame. When the first accepted prompt transitions the session from non-busy to busy, the confirmation SHALL be removed in the same presentation update that introduces the live working status, so `Working…` replaces it and the two SHALL NOT be visible together. A submission rejected before the busy transition SHALL NOT remove the confirmation.
+A successful `/new` result in bare A1 SHALL use the same transient prompt-adjacent ownership instead of transcript ownership, but SHALL preserve the existing accent `✓ New session started` wording, command-message wrapping, one-cell horizontal padding, and surrounding blank rows. While the replacement session is idle, its confirmation SHALL appear directly above the editor group at the bottom of the frame. When the first accepted prompt transitions the session from non-busy to busy, the confirmation SHALL be removed in the same presentation update that introduces the live working status, so `Working…` replaces it and the two SHALL NOT be visible together. A submission that fails before the busy transition MAY replace the confirmation with the existing truthful failure notice but SHALL NOT fabricate live working status.
 
 A newer simple workflow notice of any informational, warning, or error severity SHALL replace the current notice in place. The notice SHALL be removed when a submitted prompt or shell command block is mounted, when a structured workflow presentation or celebratory component is appended to the transcript, and when workflow presentation is reset for a new, resumed, forked, or replaced session. Assistant, thinking, tool, custom, and compaction blocks that start or update while the agent works SHALL NOT remove an ordinary informational, warning, or error notice, the agent finishing SHALL NOT remove it, and no timer SHALL remove it. The notice SHALL NOT enter transcript order, the selectable document, copied text, prompt navigation, persisted session content, or the pinned `a1 pi` route, whose transcript placement of status text and new-session confirmation SHALL remain unchanged.
 
@@ -25,9 +25,9 @@ A newer simple workflow notice of any informational, warning, or error severity 
 - **AND** `✓ New session started` SHALL no longer be visible
 - **AND** no frame composed from that accepted transition SHALL show both messages
 
-#### Scenario: Keep the confirmation when prompt dispatch is rejected
-- **WHEN** a prompt submission is rejected before the replacement session transitions to busy
-- **THEN** the idle new-session confirmation SHALL remain visible
+#### Scenario: Report a prompt failure before work begins
+- **WHEN** a prompt submission fails before the replacement session transitions to busy
+- **THEN** the existing prompt failure notice MAY replace the idle new-session confirmation
 - **AND** no live working status SHALL be fabricated
 
 #### Scenario: Switch models while the agent is working
