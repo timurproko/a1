@@ -309,6 +309,27 @@ describe("suggestion lifecycle diagnostics", () => {
     prepared.controller.dispose();
   });
 
+  it("reasserts an available suggestion without another diagnostic outcome", async () => {
+    const pending = deferredGenerator();
+    const visible = observed(pending.generator);
+    const present = vi.spyOn(visible.target.port, "present");
+    visible.controller.consider(IDENTITY, null);
+    visible.controller.settle(IDENTITY);
+    pending.resolve({ identity: IDENTITY, text: "archive it" });
+    await tick();
+    present.mockClear();
+    visible.target.port.requestRender.mockClear();
+
+    visible.controller.restoreAvailable();
+
+    expect(present).toHaveBeenCalledOnce();
+    expect(present).toHaveBeenCalledWith("archive it");
+    expect(visible.target.port.requestRender).toHaveBeenCalledOnce();
+    expect(visible.records.map(record => record.event)).toEqual(["started", "displayed"]);
+    expect(pending.generator.generate).toHaveBeenCalledOnce();
+    visible.controller.dispose();
+  });
+
   it("records blocked presentation rather than empty output", async () => {
     const records: SuggestionDiagnosticRecord[] = [];
     const target = surface();
