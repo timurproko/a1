@@ -42,7 +42,7 @@ export class ExtensionInputComponent extends Container {
     this.#onCancel = onCancel;
     this.#baseTitle = title;
     const theme = piTheme();
-    this.#titleText = new Text(theme.fg("accent", title), 0, 0);
+    this.#titleText = new Text(theme.fg("accent", theme.bold(title)), 0, 0);
     const header = addPiModalHeader(this, new DynamicBorder(), this.#titleText);
     if (opts?.description) {
       this.addChild(new Spacer(1));
@@ -52,7 +52,7 @@ export class ExtensionInputComponent extends Container {
     this.#countdown = opts?.timeout !== undefined && opts.timeout > 0 && opts.tui !== undefined
       ? new CountdownTimer(opts.timeout, opts.tui, seconds => {
         const current = piTheme();
-        this.#titleText.setText(current.fg("accent", `${this.#baseTitle} (${seconds}s)`));
+        this.#titleText.setText(current.fg("accent", current.bold(`${this.#baseTitle} (${seconds}s)`)));
       }, () => this.#onCancel())
       : undefined;
     if (opts?.initialValue !== undefined) this.#input.setValue(opts.initialValue);
@@ -63,7 +63,6 @@ export class ExtensionInputComponent extends Container {
       { key: keys.getKeys("tui.select.confirm").join("/"), action: "submit" },
       { key: keys.getKeys("tui.select.cancel").join("/"), action: "cancel" },
     ]), 0, 0));
-    this.addChild(new Spacer(1));
     this.addChild(new DynamicBorder());
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
   }

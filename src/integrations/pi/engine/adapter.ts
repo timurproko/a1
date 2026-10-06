@@ -508,8 +508,12 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#workflows.reloadBlockedResult();
   }
 
-  executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
-    return this.#workflows.executeWorkflow(request);
+  async executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
+    const result = await this.#workflows.executeWorkflow(request);
+    if (request.command === "tree" && result.outcome === "completed" && request.selection !== undefined) {
+      this.#refreshNavigatedSession(result.detail);
+    }
+    return result;
   }
 
   /**
@@ -711,6 +715,21 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       case "remove-customization":
         throw new Error("owned UI state commands belong to the owned UI layer, not the Pi engine adapter");
     }
+  }
+
+  // Invariant: in-place tree navigation rebuilds derived content without clearing the editor draft.
+  #refreshNavigatedSession(editorText?: string): void {
+    const session = this.#engine.session;
+    if (!session) return;
+    if (editorText && !this.#editor.text.trim()) {
+      this.#editor = { ...this.#editor, text: editorText, selection: null, cursorOffset: editorText.length };
+    }
+    this.#activeModel = readModel(session.model);
+    this.#reconcileActiveModelAvailability();
+    this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
+    this.#projection.assets.clear();
+    this.#setTranscript(this.#projection.rebuild(session.messages, "finalized"));
+    this.#emitView();
   }
 
   // Invariant: the runtime already advanced the generation and subscribed; this rebuilds what the view derives from a session.

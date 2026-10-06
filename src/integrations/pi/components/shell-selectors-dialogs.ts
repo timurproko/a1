@@ -2,7 +2,6 @@ import {
   ArminComponent,
   BorderedLoader,
   DynamicBorder,
-  ExtensionSelectorComponent,
   getSelectListTheme,
   LoginDialogComponent,
   ModelSelectorComponent,
@@ -19,6 +18,7 @@ import {
 import {
   EarendilAnnouncementComponent,
 } from "./upstream/components/earendil-announcement.js";
+import { ExtensionSelectorComponent } from "./upstream/components/extension-selector.js";
 import {
   Box,
   Container,
@@ -450,16 +450,7 @@ export function createPiShellExtensionSelector(
   onCancel: () => void,
 ): PiShellComponentPort {
   ensureTheme();
-  const selector = new ExtensionSelectorComponent(title, [...options], onSelect, onCancel);
-  const preInsetContent = [selector.children[2]!, selector.children[4]!, selector.children[6]!];
-  const header = adoptPiModalHeader(selector, 0, 2);
-  adoptPiModalFrame(selector, {
-    topIndex: 0,
-    bottomIndex: selector.children.length - 1,
-    header,
-    preInsetContent,
-  });
-  return componentPort(selector);
+  return componentPort(new ExtensionSelectorComponent(title, [...options], onSelect, onCancel));
 }
 
 export function createPiShellThemeSelector(
