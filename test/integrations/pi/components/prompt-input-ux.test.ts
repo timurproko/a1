@@ -199,11 +199,11 @@ describe("owned level and model keybindings", () => {
       const assertTheme = () => {
         const rows = selector.render(100);
         const selected = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
-        expect(stripTerminalSequences(selected).replace(/\s+/g, " ")).toContain("→ medium ✓ [default] Moderate reasoning");
+        expect(stripTerminalSequences(selected).replace(/\s+/g, " ")).toContain("→ ● medium ✓ Moderate reasoning");
         expect(cellStyle(selected, "m")).toEqual(cellStyle(piTheme().fg("accent", "m"), "m"));
         expect(cellStyle(selected, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
         expect(cellStyle(selected, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
-        expect(cellStyle(selected, "[")).toEqual(cellStyle(piTheme().fg("muted", "["), "["));
+        expect(cellStyle(selected, "●")).toEqual(cellStyle(piTheme().fg("success", "●"), "●"));
         expect(cellStyle(rows[0]!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
       };
       assertTheme();
@@ -213,7 +213,7 @@ describe("owned level and model keybindings", () => {
     applyPiTheme("dark", false, "truecolor");
   });
 
-  it("renders an item-adjacent active marker with aligned default state and persists defaults immediately", async () => {
+  it("renders item-adjacent active state with radio-style defaults and persists defaults immediately", async () => {
     const { input } = await editor();
     const selected = vi.fn();
     const saved = vi.fn();
@@ -243,9 +243,10 @@ describe("owned level and model keybindings", () => {
     const selectedRow = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
     const unselectedRow = rows.find(row => stripTerminalSequences(row).includes("Light reasoning"))!;
     const plainSelectedRow = stripTerminalSequences(selectedRow);
-    expect(plainSelectedRow.replace(/\s+/g, " ")).toContain("→ medium ✓ [default] Moderate reasoning (~8k tokens)");
+    expect(plainSelectedRow.replace(/\s+/g, " ")).toContain("→ ● medium ✓ Moderate reasoning (~8k tokens)");
     expect(plainSelectedRow).toContain("medium ✓");
-    expect(plain).not.toContain("· default");
+    expect(rows.filter(row => stripTerminalSequences(row).includes("●"))).toHaveLength(1);
+    expect(plain).not.toContain("[default]");
     const descriptions = ["No reasoning", "Very brief reasoning", "Light reasoning", "Moderate reasoning", "Deep reasoning"];
     const descriptionColumns = descriptions
       .map(description => rows.map(stripTerminalSequences).find(row => row.includes(description))!.indexOf(description));
@@ -260,8 +261,8 @@ describe("owned level and model keybindings", () => {
         defaultLevel,
         { profile: "bare", cycleBinding },
       );
-      const defaultRow = candidate.render(100).map(stripTerminalSequences).find(row => row.includes("[default]"))!;
-      return defaultRow.indexOf("[default]");
+      const defaultRow = candidate.render(100).map(stripTerminalSequences).find(row => row.includes("●"))!;
+      return defaultRow.indexOf("●");
     });
     expect(new Set(defaultMarkerColumns).size).toBe(1);
     for (const activeLevel of ["high", "minimal"] as const) {
@@ -277,8 +278,8 @@ describe("owned level and model keybindings", () => {
       const candidateRows = candidate.render(100).map(stripTerminalSequences);
       const activeRow = candidateRows.find(row => row.includes("✓"))!;
       expect(activeRow.indexOf("✓")).toBe(activeRow.indexOf(activeLevel) + activeLevel.length + 1);
-      const defaultRow = candidateRows.find(row => row.includes("[default]"))!;
-      expect(defaultRow.indexOf("[default]")).toBe(defaultMarkerColumns[0]);
+      const defaultRow = candidateRows.find(row => row.includes("●"))!;
+      expect(defaultRow.indexOf("●")).toBe(defaultMarkerColumns[0]);
       const candidateDescriptionColumns = descriptions
         .map(description => candidateRows.find(row => row.includes(description))!.indexOf(description));
       expect(candidateDescriptionColumns).toEqual(descriptionColumns);
@@ -287,7 +288,8 @@ describe("owned level and model keybindings", () => {
     expect(cellStyle(selectedRow, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
     expect(cellStyle(unselectedRow, "L")).toEqual(cellStyle(piTheme().fg("muted", "L"), "L"));
     expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
-    expect(cellStyle(selectedRow, "[")).toEqual(cellStyle(piTheme().fg("muted", "["), "["));
+    expect(cellStyle(selectedRow, "●")).toEqual(cellStyle(piTheme().fg("success", "●"), "●"));
+    expect(cellStyle(unselectedRow, "○")).toEqual(cellStyle(piTheme().fg("dim", "○"), "○"));
     expect(rows.filter(row => stripTerminalSequences(row).includes("Moderate reasoning"))).toHaveLength(1);
     const controls = rows.find(row => stripTerminalSequences(row).includes("Enter select"))!;
     expect(stripTerminalSequences(controls).trim()).toBe("Enter select  Space default  Esc close");
@@ -305,9 +307,11 @@ describe("owned level and model keybindings", () => {
     expect(saved).toHaveBeenCalledWith("low");
     const persistedLowRow = selector.render(100).map(stripTerminalSequences)
       .find(row => row.includes("Light reasoning"))!;
-    expect(persistedLowRow.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
+    expect(persistedLowRow.replace(/\s+/g, " ")).toContain("● low Light reasoning (~2k tokens)");
     expect(persistedLowRow).not.toContain("✓");
-    expect(selector.render(100).map(stripTerminalSequences).join("\n")).not.toContain("unsaved");
+    const persistedSelectorRows = selector.render(100).map(stripTerminalSequences);
+    expect(persistedSelectorRows.filter(row => row.includes("●"))).toHaveLength(1);
+    expect(persistedSelectorRows.join("\n")).not.toContain("unsaved");
     selector.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("low");
 
@@ -326,21 +330,22 @@ describe("owned level and model keybindings", () => {
       .toContain(`${process.platform === "darwin" ? "Option" : "Alt"}+R cycles thinking levels in-session`);
     const customActiveRow = customRows.find(row => row.includes("Deep reasoning"))!;
     const customDefaultRow = customRows.find(row => row.includes("Light reasoning"))!;
-    expect(customActiveRow.replace(/\s+/g, " ")).toContain("→ high ✓ Deep reasoning (~16k tokens)");
-    expect(customActiveRow).not.toContain("[default]");
-    expect(customDefaultRow.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
+    expect(customActiveRow.replace(/\s+/g, " ")).toContain("→ ○ high ✓ Deep reasoning (~16k tokens)");
+    expect(customActiveRow).not.toContain("●");
+    expect(customDefaultRow.replace(/\s+/g, " ")).toContain("● low Light reasoning (~2k tokens)");
     expect(customDefaultRow).not.toContain("✓");
     expect(customActiveRow.indexOf("Deep reasoning")).toBe(customDefaultRow.indexOf("Light reasoning"));
-    const initialDefaultColumn = customDefaultRow.indexOf("[default]");
+    const initialDefaultColumn = customDefaultRow.indexOf("●");
     custom.handleInput?.(" ");
     expect(customSaved).toHaveBeenCalledOnce();
     expect(customSaved).toHaveBeenCalledWith("high");
     const persistedRows = custom.render(100).map(stripTerminalSequences);
     const persistedDefaultRow = persistedRows.find(row => row.includes("Deep reasoning"))!;
     expect(persistedDefaultRow.replace(/\s+/g, " "))
-      .toContain("→ high ✓ [default] Deep reasoning (~16k tokens)");
-    expect(persistedDefaultRow.indexOf("[default]")).toBe(initialDefaultColumn);
-    expect(persistedRows.find(row => row.includes("Light reasoning"))).not.toContain("[default]");
+      .toContain("→ ● high ✓ Deep reasoning (~16k tokens)");
+    expect(persistedDefaultRow.indexOf("●")).toBe(initialDefaultColumn);
+    expect(persistedRows.filter(row => row.includes("●"))).toHaveLength(1);
+    expect(persistedRows.find(row => row.includes("Light reasoning"))).toContain("○");
     custom.handleInput?.("\x13");
     expect(customSaved).toHaveBeenCalledOnce();
     custom.handleInput?.("\x03");

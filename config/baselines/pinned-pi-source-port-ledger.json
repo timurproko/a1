@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-06T15:09:00.662Z",
+  "recordedAt": "2026-10-06T15:30:32.524Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -2579,9 +2579,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/thinking-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering an item-adjacent active checkmark before aligned bracketed-default and muted-description columns. Bare A1 persists defaults immediately on Space, closes only on Escape, and uses the shared compact semantic shortcut row. All list and border colors use the owned theme and its explicit color mode. The comparison profile retains the public pinned component.",
+      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering Models-style filled/hollow default markers before level names, an item-adjacent active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space, closes only on Escape, and uses the shared compact semantic shortcut row. All list and border colors use the owned theme and its explicit color mode. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "1303ff07baf253f0aec746eb3f4e6285c27f81465506ef78ea0d4b3ef3fc11fe",
+      "localSha256": "84c1e31de110eaa974df572e1c4aa46420fe4931ce47bec7a70ab95c6259722b",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2597,7 +2597,7 @@
         },
         {
           "id": "owned-thinking-selector-heading",
-          "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including an adjacent muted hint, unique level rows, an item-adjacent success-colored active marker, and aligned bracketed-default and muted-description columns.",
+          "reason": "The accepted bare-A1 presentation uses the same bold semantic accent heading and compact row treatment as its Models configuration surface, including an adjacent muted hint, unique level rows, Models-style filled/hollow default markers, an item-adjacent success-colored active marker, and aligned muted descriptions.",
           "upstreamBehavior": "The comparison profile retains the pinned selector presentation; duplicate footer level presentation is suppressed only while the bare selector is open.",
           "acceptanceTest": "test/app/session-shell/session-shell-workflows.test.ts"
         },
