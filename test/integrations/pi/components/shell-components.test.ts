@@ -786,8 +786,8 @@ describe("Pi shell public component adapters", () => {
       if (action!.includes("prompt")) expect(row).not.toContain("Ctrl+End");
     }
     expect(pinned).not.toContain("Start of content");
-    expect(pinned.split("\n").find(line => line.includes("Start of line"))).toContain("Ctrl+Home");
-    expect(pinned.split("\n").find(line => line.includes("End of line"))).toContain("Ctrl+End");
+    expect(pinned.split("\n").find(line => line.includes("Start of line"))).toContain("Home/Ctrl+A");
+    expect(pinned.split("\n").find(line => line.includes("End of line"))).toContain("End/Ctrl+E");
   });
 
   it.each([80, 120])("renders the reference screen rows as the in-feed documents minus their chrome at %i columns", width => {

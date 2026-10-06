@@ -470,20 +470,20 @@ export class OwnedUiSessionShell {
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
           if (inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
-          // Compatibility: modal-local paging must win over the fullscreen transcript's PageUp/PageDown handler.
-          if (!this.runtime.hasOverlay() && !this.root.usesDefaultInputSurface()
+          // Compatibility: route modal paging and boundary keys before Pi's fullscreen handlers.
+          const isDefault = this.root.usesDefaultInputSurface();
+          if (!this.runtime.hasOverlay() && !isDefault
             && (this.root.editor.matchesTerminalKey(data, "pageUp")
               || this.root.editor.matchesTerminalKey(data, "pageDown"))) {
             this.root.handleInput(data);
             this.runtime.requestRender();
             return { consume: true };
           }
-          // Compatibility: Pi's fullscreen renderer also intercepts plain Home/End.
-          // Deliver them to the focused owned input before that outer scroll handler;
-          // overlays retain Pi's normal dispatch, and comparison profiles never enter here.
           if (!this.runtime.hasOverlay() && (this.root.editor.matchesTerminalKey(data, "home")
-            || this.root.editor.matchesTerminalKey(data, "end"))) {
-            if (this.root.usesDefaultInputSurface()) this.root.handleViewportPreInput(data, true);
+            || this.root.editor.matchesTerminalKey(data, "end")
+            || !isDefault && (this.root.editor.matchesTerminalKey(data, "ctrl+home")
+              || this.root.editor.matchesTerminalKey(data, "ctrl+end")))) {
+            if (isDefault) this.root.handleViewportPreInput(data, true);
             this.root.handleInput(data);
             this.runtime.requestRender();
             return { consume: true };
