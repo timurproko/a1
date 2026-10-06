@@ -52,7 +52,12 @@ The session-shell boundary tests will also verify Ctrl+C retains its existing ed
 
 ## Implementation Evidence
 
-To be completed during implementation.
+- The owned keybinding manager now keeps Ctrl+C as an unconditional `tui.select.cancel` match while omitting it from displayed cancel-key lists; explicit configured cancel keys continue to dispatch and render normally.
+- Thinking, Models, and scoped-model dialogs use the shared cancel action, so a populated search no longer consumes the first Ctrl+C and the established cancel callback runs immediately.
+- Extension-hosted custom replacement and overlay surfaces receive the same implicit Ctrl+C cancellation at their owned bridge boundary without forwarding the input to extension content.
+- Focused component and integrated session-shell coverage passes 145 tests across ten suites, including populated searches, Thinking, Skills, Login, Project Trust, nested resume rename, nested tree summary input, and extension custom overlays.
+- Build, source/bin typechecking, changed-file code-documentation governance, strict OpenSpec validation, and `git diff --check` pass after rebasing onto `origin/develop` at `7c310475`.
+- No implementation gaps are known. Interactive terminal review of representative built-in, nested, and extension dialogs remains the maintainer-controlled acceptance activity.
 
 ## Migration Plan
 
