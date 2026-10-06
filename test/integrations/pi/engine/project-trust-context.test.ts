@@ -6,6 +6,7 @@ import { ProjectTrustStore, SettingsManager, VERSION, type AgentSessionRuntime }
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPiEngineAdapter } from "../../../../src/integrations/pi/engine/adapter.js";
+import { piTheme } from "../../../../src/integrations/pi/components/theme.js";
 import { TrustSelectorComponent } from "../../../../src/integrations/pi/components/upstream/components/trust-selector.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 
@@ -97,16 +98,39 @@ describe("canonical project trust context", () => {
     f.store.set(savedPath, kind !== "denied");
     const { value } = await f.context();
     const selector = new TrustSelectorComponent({ ...value, onSelect() {}, onCancel() {} });
-    const rendered = rows(selector);
+    const raw = selector.render(600);
+    const rendered = raw.map(stripTerminalSequences);
     const decision = kind === "denied" ? "untrusted" : "trusted";
-    expect(rendered.join("\n")).toContain(`Saved decision: ${decision} (${kind === "parent" || kind === "ancestor" ? "inherited from " : ""}${savedPath})`);
+    const decisionValue = `${decision} (${kind === "parent" || kind === "ancestor" ? "inherited from " : ""}${savedPath})`;
+    expect(rendered.join("\n")).toContain(`Saved decision: ${decisionValue}`);
+    expect(raw.some(row => row.includes(`${piTheme().fg("muted", "Saved decision:")} ${piTheme().fg("text", decisionValue)}`))).toBe(true);
+    expect(raw.some(row => row.includes(`${piTheme().fg("muted", "Current session:")} ${piTheme().fg("text", "untrusted")}`))).toBe(true);
     const selected = kind === "denied" ? "Do not trust" : kind === "parent" ? `Trust parent folder (${savedPath})` : "Trust";
-    // Rationale: 0.85.1 marks the saved option with a leading checkmark before its label.
-    expect(rendered.some(row => row.trim() === `→ ${kind === "ancestor" ? "  " : "✓ "}${selected}`)).toBe(true);
+    // Rationale: the saved option carries a checkmark; an inherited ancestor matches no option.
+    expect(rendered.some(row => row.trim() === `→ ${kind === "ancestor" ? "" : "✓ "}${selected}`)).toBe(true);
     expect(rendered.some(row => row.trim() === resolve(f.alias))).toBe(true);
-    const heading = rendered.find(row => row.includes("Project trust"))!;
-    const hint = rendered.find(row => row.includes("↑↓ navigate  Enter save  Escape/Ctrl+C cancel"))!;
+    const headingIndex = rendered.findIndex(row => row.includes("Project trust"));
+    const heading = rendered[headingIndex]!;
+    expect(raw[headingIndex]).toContain(piTheme().fg("accent", piTheme().bold("Project trust")));
+    const activeIndex = rendered.findIndex(row => row.trim().startsWith("→ "));
+    expect(raw[activeIndex]).toContain(piTheme().fg("accent", "→ "));
+    expect(raw[activeIndex]).toContain(piTheme().fg("accent", selected));
+    const rules = raw.filter(row => /^─+$/u.test(stripTerminalSequences(row)));
+    expect(rules).toHaveLength(2);
+    expect(rules.every(row => row === piTheme().fg("border", "─".repeat(600)))).toBe(true);
+    const hintIndex = rendered.findIndex(row => row.includes("↑↓ navigate  Enter save  Escape/Ctrl+C cancel"));
+    const hint = rendered[hintIndex]!;
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
+    expect(rendered[hintIndex + 1]).toMatch(/^─+$/u);
+  });
+
+  it("styles a trusted current-session value as normal text", async () => {
+    const f = await fixture();
+    const { value } = await f.context();
+    const selector = new TrustSelectorComponent({ ...value, projectTrusted: true, onSelect() {}, onCancel() {} });
+    expect(selector.render(600).some(row => row.includes(
+      `${piTheme().fg("muted", "Current session:")} ${piTheme().fg("text", "trusted")}`,
+    ))).toBe(true);
   });
 
   it.each(["trust", "deny", "parent", "cancel"] as const)("keeps %s effects explicit, canonical and restart-only", async action => {
