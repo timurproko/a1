@@ -19,7 +19,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-06-place-new-session-notice-above-prompt/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-06-place-new-session-notice-above-prompt/acceptance.md",
   "finalizedDate": "2026-10-06",
-  "specBaseSha": "7c31047556e44ce7c6c83a2750d52b00ce18bdc5",
+  "specBaseSha": "99e849aca28c25b645cb50008d3427f4fdb2a050",
   "acceptanceScenarios": [
     "Bare A1 shows `✓ New session started` directly above the idle input instead of at the top of an empty transcript.",
     "The prompt-adjacent confirmation retains its accent styling, wording, wrapping, padding, and surrounding blank rows.",
