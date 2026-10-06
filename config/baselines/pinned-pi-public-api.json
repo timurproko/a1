@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "1.0.2",
+      "version": "1.0.4",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -39,7 +39,7 @@
         {
           "name": "AgentSession",
           "kind": "class",
-          "hash": "0d23f09019a1acbbacbbfdfc24fb8ba3c7673e4d2aed0ae1dd4f20570b38525f",
+          "hash": "8a29dc07550378a4d4428247dd04d70698b0d36698ed4823a4660e94b2e7df46",
           "consumers": [
             "src/integrations/pi/engine/adapter.ts",
             "src/integrations/pi/engine/compaction-progress.ts",
@@ -141,7 +141,7 @@
         {
           "name": "Args",
           "kind": "interface",
-          "hash": "5806413bd3277e55000bbb69a0e69e7868d8a471ceb56ef7fb469f8be661fc79",
+          "hash": "806a8b9e848e7fe13f6b921ebbc37c7d465c848d3052684fcadd3adb25a45d1c",
           "consumers": []
         },
         {
@@ -323,7 +323,7 @@
         {
           "name": "BuildSystemPromptOptions",
           "kind": "interface",
-          "hash": "89456f766780703c481efe1d2be2bf13522189778468342ee552623fc78354ab",
+          "hash": "e96f855e0d1d4772a6377845b673ffdb61e14f8cb0eab4b2e53c2b8e4b7d3f44",
           "consumers": []
         },
         {
@@ -887,7 +887,7 @@
         {
           "name": "DefaultResourceLoader",
           "kind": "class",
-          "hash": "6daf44421acc4c0cc114930dc55f4dd292e0e9bd5378d224e6b36df7734ebc82",
+          "hash": "4db8990f60805350b42c37b2d06a5153c6e6223e47b1ab68a66bdaf24683ab4c",
           "consumers": []
         },
         {
@@ -1238,7 +1238,7 @@
         {
           "name": "formatSkillsForPrompt",
           "kind": "function",
-          "hash": "c3c68b2df75d47cb185fc9a4992bd6932df9569b036bb2fa99552512b23c98d0",
+          "hash": "18443f0ec227fe250ceb306e397799734013da23df19f6cfc5c23a50c836136f",
           "consumers": []
         },
         {
@@ -1467,7 +1467,7 @@
         {
           "name": "InteractiveMode",
           "kind": "class",
-          "hash": "de1d1e818bd06bf59559de9b58f8acb842d98163b19e2b011ff01c3b3359f27c",
+          "hash": "efbc7d024b74fe06967c7044829f10e9caad7ed931b6bf88e706ac73f148d5e8",
           "consumers": []
         },
         {
@@ -1852,7 +1852,7 @@
         {
           "name": "NormalizedBuildSystemPromptOptions",
           "kind": "type",
-          "hash": "dc338b28224841fa06ca1f9c1dce7a894582463d41b1aeed16db9740411613c9",
+          "hash": "1b9d62afc9e1da68f18b32b16090d04506334a1f47e66f963909d39a42b7250e",
           "consumers": []
         },
         {
@@ -2778,7 +2778,7 @@
         {
           "name": "ToolLoadout",
           "kind": "interface",
-          "hash": "c1b1e751b2b9fe847f5ea7ee9d3cc62b3e64b9bb25099232486bae583a3d0b1d",
+          "hash": "d501e066fd7ce5622ba2dfdc24b15650bfcfb85ec6123312eae3a86493aa3407",
           "consumers": []
         },
         {
@@ -3042,7 +3042,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "1.0.2",
+      "version": "1.0.4",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -4256,7 +4256,7 @@
         {
           "name": "TUI_KEYBINDINGS",
           "kind": "const",
-          "hash": "2c0a74d99f4aba9648ccf0344988ed8abd72410c3714c41beca3f008280549f3",
+          "hash": "a594b4685855d3a723a10e903295f171719df75118f0282bbf6d99f2883fb5e3",
           "consumers": [
             "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts"
           ]

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPiShellEditor, type PiShellEditorPort } from "../../../../src/integrations/pi/components/index.js";
 
-const CTRL_HOME = "\u001b[1;5H";
+const HOME = "\u001b[H";
 const CTRL_LEFT = "\u001b[1;5D";
 const CTRL_RIGHT = "\u001b[1;5C";
 const CTRL_BACKSPACE = "\u001b[127;5u";
@@ -59,7 +59,7 @@ describe("bare-A1 path word editing", () => {
 
     const forward = editor();
     forward.setText(path);
-    input(forward, CTRL_HOME);
+    input(forward, HOME);
     input(forward, CTRL_RIGHT);
     input(forward, "|");
     expect(forward.getText()).toBe(`${path}|`);
@@ -69,7 +69,7 @@ describe("bare-A1 path word editing", () => {
     const caret = WINDOWS_PATH.indexOf("windows") + 3;
     const backward = editor();
     backward.setText(WINDOWS_PATH);
-    input(backward, CTRL_HOME);
+    input(backward, HOME);
     moveRight(backward, caret);
     input(backward, CTRL_LEFT);
     input(backward, "|");
@@ -77,7 +77,7 @@ describe("bare-A1 path word editing", () => {
 
     const forward = editor();
     forward.setText(WINDOWS_PATH);
-    input(forward, CTRL_HOME);
+    input(forward, HOME);
     moveRight(forward, caret);
     input(forward, CTRL_RIGHT);
     input(forward, "|");
@@ -88,7 +88,7 @@ describe("bare-A1 path word editing", () => {
     const value = `open ${WINDOWS_PATH} now`;
     const prompt = editor();
     prompt.setText(value);
-    input(prompt, CTRL_HOME);
+    input(prompt, HOME);
     moveRight(prompt, "open ".length + WINDOWS_PATH.length);
 
     input(prompt, CTRL_LEFT);
@@ -105,7 +105,7 @@ describe("bare-A1 path word editing", () => {
 
     const forward = editor();
     forward.setText(WINDOWS_PATH);
-    input(forward, CTRL_HOME);
+    input(forward, HOME);
     input(forward, CTRL_DELETE);
     expect(forward.getText()).toBe("");
   });
@@ -114,14 +114,14 @@ describe("bare-A1 path word editing", () => {
     const caret = WINDOWS_PATH.indexOf("windows") + 3;
     const backward = editor();
     backward.setText(WINDOWS_PATH);
-    input(backward, CTRL_HOME);
+    input(backward, HOME);
     moveRight(backward, caret);
     input(backward, CTRL_BACKSPACE);
     expect(backward.getText()).toBe(WINDOWS_PATH.slice(caret));
 
     const forward = editor();
     forward.setText(WINDOWS_PATH);
-    input(forward, CTRL_HOME);
+    input(forward, HOME);
     moveRight(forward, caret);
     input(forward, CTRL_DELETE);
     expect(forward.getText()).toBe(WINDOWS_PATH.slice(0, caret));
