@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-06T17:26:55.205Z",
+  "recordedAt": "2026-10-06T17:32:06.271Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -2270,9 +2270,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, and the shared bare-A1 modal shortcut row and compact padded modal frame.",
+      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal shortcut row and compact padded modal frame.",
       "upgradeStrategy": "three-way",
-      "localSha256": "e605f1754ec3f71e2b0e14e6c11c1fab10e3f89621c855454a3b01c08a9afe29",
+      "localSha256": "cc3fe6ef3209558a47f2f3818231f9af4aba5bc46582bea6c37ff0c82a33782e",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2701,9 +2701,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tree-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab cycling and concise all-first presentation excluding internal bookkeeping, standard search input, purple accent-backed menu-arrow selection without path bullets, accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with session naming for the system root, standard paging/first-last/containing-branch folding keys, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic shortcut footers without a redundant select hint.",
+      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation excluding internal bookkeeping, standard search input, purple accent-backed menu-arrow selection without path bullets, accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with session naming for the system root, standard paging/first-last/containing-branch folding keys, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "99fd9c702d14d04cd9d0d75c0fe4101b42daef75ab4d8479c9ed1fd194b50962",
+      "localSha256": "a650f27b09a9b39c2fd7f9aa92f55d37e94bb183134ab18d29044afb3b93a8fa",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",

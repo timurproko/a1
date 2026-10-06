@@ -19,7 +19,6 @@
 
 - `npm run typecheck`
 - `npm run check:architecture`
-- 21 focused component, owned-UI, shell-workflow, and governance files: 272 tests passed
-- 4 focused launch/comparison-profile files: 39 tests passed
+- 25 focused component, owned-UI, shell-workflow, governance, and comparison-profile files: 317 tests passed after target reconciliation
 - `npx openspec validate unify-dialog-close-hints --strict`
 - `git diff --check`
