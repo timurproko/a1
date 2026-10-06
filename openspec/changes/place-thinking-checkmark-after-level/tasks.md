@@ -16,3 +16,10 @@
 - [x] 3.2 Preserve immediate Space persistence, active/default independence, item-adjacent `✓`, aligned descriptions, narrow rendering, filtering, and comparison isolation.
 - [x] 3.3 Extend focused tests for marker order, semantic colors, exactly-one-default movement, and stable columns; regenerate and validate source provenance.
 - [x] 3.4 Run focused tests, typechecking, build, and strict OpenSpec validation; record refined evidence and hand off the exact candidate for Windows Terminal review.
+
+## 4. Distinguish exclusive default state
+
+- [x] 4.1 Replace the Models-style `●` default glyph with an accent-colored radio `◉`, retaining dim `○` markers for every non-default level.
+- [x] 4.2 Preserve the success-green active `✓`, aligned descriptions, immediate persistence, filtering, narrow rendering, and comparison isolation.
+- [x] 4.3 Extend focused assertions to reject the multi-select `●`, verify accent/dim radio semantics, and prove exactly-one-default movement.
+- [x] 4.4 Regenerate provenance and rerun focused tests, typechecking, build, and strict OpenSpec validation before exact-candidate handoff.

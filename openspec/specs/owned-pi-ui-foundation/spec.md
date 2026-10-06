@@ -2251,7 +2251,7 @@ or collapsed startup changelog behavior and acknowledgement unchanged.
 - **THEN** no A1 note or acknowledgement SHALL be used, and Pi's pinned expanded or collapsed startup changelog behavior SHALL remain unchanged
 
 ### Requirement: The bare-A1 thinking selector uses the established selector treatment
-The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Every level row SHALL begin with a fixed-width default-state marker matching the Models dialog's filled/hollow grammar: the configured default SHALL use exactly one semantic success-green `●`, and every non-default level SHALL use a semantic dim `○`. One space after that marker, every row SHALL render its unpadded level name. The active session level SHALL have exactly one semantic success-green checkmark one space immediately after the final visible cell of its level name, matching the item-adjacent active treatment used by other dialogs; the checkmark SHALL NOT be delayed to a shared marker column. Width-balancing padding SHALL follow the optional active marker so every description renders inline in semantic muted grey and begins at the same column regardless of active/default placement. The selector SHALL NOT render the textual `[default]` marker. Space SHALL immediately persist the highlighted level as the configured global default, move the single filled bullet to that row, and replace the previous row's marker with a hollow bullet without closing the selector, changing the active session level, or creating an unsaved state. Enter SHALL continue selecting the highlighted session level, and only Escape SHALL close the selector. Ctrl+C SHALL NOT close the selector or invoke cancellation. The shortcut footer SHALL use semantic hint styling and read `Enter select  Space default  Esc close`. While the selector is open, the shell footer SHALL omit its thinking-level suffix so the active level is not duplicated below the selector, then restore that suffix when the selector closes. The interaction change SHALL preserve the selector's borders, search input, navigation, filtering, focus, restoration behavior, narrow-width bounds, and comparison-profile isolation.
+The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Every level SHALL occupy a name region sized to the widest available level name, followed by a fixed-width active-marker slot and a fixed-width default-marker slot. The active session level SHALL have exactly one semantic success-green checkmark in the active slot. The configured default level SHALL render the literal `[default]` marker in semantic muted grey at the same fixed column regardless of which level is configured or whether it is active. Every description SHALL render inline in semantic muted grey and begin one separator after the complete fixed state region, so marker and description columns SHALL NOT move when the default changes. Space SHALL immediately persist the highlighted level as the configured global default without closing the selector, changing the active session level, or creating an unsaved state. Enter SHALL continue selecting the highlighted session level, and only Escape SHALL close the selector. Ctrl+C SHALL NOT close the selector or invoke cancellation. The shortcut footer SHALL use semantic hint styling and read `Enter select  Space default  Esc close`. While the selector is open, the shell footer SHALL omit its thinking-level suffix so the active level is not duplicated below the selector, then restore that suffix when the selector closes. The interaction change SHALL preserve the selector's borders, search input, navigation, filtering, focus, restoration behavior, and comparison-profile isolation.
 
 #### Scenario: Render the thinking selector heading
 - **WHEN** the user opens the bare-A1 thinking selector
@@ -2262,12 +2262,10 @@ The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic acc
 #### Scenario: Render level rows
 - **WHEN** the selector displays selected and unselected level rows
 - **THEN** repeated available-level values SHALL render exactly once
-- **AND** every row SHALL begin with a fixed default-state marker followed by one space and the unpadded level name
-- **AND** only the configured default level SHALL use a semantic success-green `●`
-- **AND** every non-default level SHALL use a semantic dim `○`
-- **AND** no row SHALL render `[default]`
-- **AND** only the active session level SHALL place one semantic success-green checkmark one space immediately after its name
-- **AND** trailing width-balancing space SHALL follow the optional active checkmark rather than separate it from the name
+- **AND** each level SHALL occupy the same widest-name region
+- **AND** only the active session level SHALL place one semantic success-green checkmark in the fixed active slot
+- **AND** only the configured default level SHALL place a semantic muted-grey `[default]` in the fixed default slot
+- **AND** `[default]` SHALL begin at the same column for every possible configured level
 - **AND** every description SHALL use semantic muted grey and begin at the same column regardless of active/default placement
 - **AND** the shell footer SHALL omit its thinking-level suffix until the selector closes
 - **AND** closing the selector SHALL restore the shell footer's current thinking-level suffix
@@ -2275,15 +2273,14 @@ The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic acc
 #### Scenario: Interact with the styled selector
 - **WHEN** the user filters or navigates levels, selects a session level, changes the default level, or closes the selector
 - **THEN** the selector SHALL retain its specified interaction and restoration outcomes
-- **AND** heading and row styling SHALL NOT alter list geometry, narrow-width bounds, focus, or instruction placement
+- **AND** heading and row styling SHALL NOT alter list geometry, focus, or instruction placement
 
 #### Scenario: Stage and save a default level
 - **WHEN** the user highlights a level and presses Space
-- **THEN** the single filled `●` SHALL move to that level immediately
-- **AND** the previous default row SHALL render `○`
+- **THEN** the `[default]` marker SHALL move to that level immediately
 - **AND** that level SHALL be persisted as the global default immediately
 - **AND** the selector SHALL remain open
-- **AND** the active session level and its item-adjacent checkmark SHALL remain unchanged
+- **AND** the active session level and its checkmark SHALL remain unchanged
 - **AND** no unsaved label or staged state SHALL appear
 
 #### Scenario: Select or close
