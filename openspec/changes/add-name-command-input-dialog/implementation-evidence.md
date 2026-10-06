@@ -18,9 +18,8 @@
 
 ## Manual review
 
-Pending maintainer review in a physical terminal. Review `/name <name>`, argument-free `/name`, typed Enter submission, Escape cancellation, whitespace-only dismissal, title/input/shortcut spacing, and restoration of the ordinary prompt.
+The maintainer approved the built interactive candidate after handoff for `/name <name>`, argument-free `/name`, typed Enter submission, Escape cancellation, whitespace-only dismissal, title/input/shortcut spacing, and restoration of the ordinary prompt.
 
 ## Known gaps
 
-- Physical terminal presentation is not yet maintainer-reviewed; the focused rendered-frame assertions cover title styling, prompt placement, hint alignment, and both settlement paths until that review is recorded.
-- No known implementation or automated-validation gap.
+None.

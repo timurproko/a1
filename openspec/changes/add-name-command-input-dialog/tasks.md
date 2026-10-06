@@ -7,4 +7,4 @@
 ## 2. Validate the delivered behavior
 
 - [x] 2.1 Run the focused session-shell, extension-input, and workflow-runner tests plus source typechecking and strict OpenSpec validation; verify direct naming, dialog rendering, lifecycle cleanup, and comparison-profile behavior remain covered.
-- [ ] 2.2 Build the interactive candidate and record manual review of `/name <name>`, argument-free `/name`, Enter submission, Escape cancellation, and compact title/input/shortcut presentation in `implementation-evidence.md`, including any explicit known gap.
+- [x] 2.2 Build the interactive candidate and record manual review of `/name <name>`, argument-free `/name`, Enter submission, Escape cancellation, and compact title/input/shortcut presentation in `implementation-evidence.md`, including any explicit known gap.
