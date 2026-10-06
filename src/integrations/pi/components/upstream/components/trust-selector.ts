@@ -2,8 +2,9 @@
  * Provenance: @earendil-works/pi-coding-agent 1.0.4 (MIT), commit 7c10bd4337495ee613f2224843ecdf349b80d1df,
  * packages/coding-agent/src/modes/interactive/components/trust-selector.ts.
  * Modifications: Mechanical source-synchronized trust selector port with injected public
- * ProjectTrustStore-derived options, remapped owned theme imports, and the shared bare-A1 modal
- * shortcut row and compact padded modal frame.
+ * ProjectTrustStore-derived options, remapped owned theme imports, the shared bare-A1 modal shortcut
+ * row and compact padded modal frame, and standard semantic trust styling with marker-free choice
+ * geometry.
  * Deviations: owned-modal-shortcut-hints.
  */
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
@@ -47,11 +48,11 @@ export class TrustSelectorComponent extends Container {
       && options.savedDecision?.decision === option.trusted
       && options.savedDecision.path === option.savedPath;
     this.selectedIndex = Math.max(0, this.trustOptions.findIndex(isSaved));
-    const header = addPiModalHeader(this, new DynamicBorder(), new Text(piTheme().fg("accent", piTheme().bold("Project trust")), 0, 0));
+    const header = addPiModalHeader(this, new DynamicBorder(text => piTheme().fg("border", text)), new Text(piTheme().fg("accent", piTheme().bold("Project trust")), 0, 0));
     this.addChild(new Text(piTheme().fg("muted", options.cwd), 0, 0));
     this.addChild(new Spacer(1));
-    this.addChild(new Text(piTheme().fg("muted", `Saved decision: ${formatDecision(this.trustOptions[0]?.savedPath, options.savedDecision)}`), 0, 0));
-    this.addChild(new Text(piTheme().fg("muted", `Current session: ${options.projectTrusted ? "trusted" : "untrusted"}`), 0, 0));
+    this.addChild(new Text(`${piTheme().fg("muted", "Saved decision:")} ${piTheme().fg("text", formatDecision(this.trustOptions[0]?.savedPath, options.savedDecision))}`, 0, 0));
+    this.addChild(new Text(`${piTheme().fg("muted", "Current session:")} ${piTheme().fg("text", options.projectTrusted ? "trusted" : "untrusted")}`, 0, 0));
     this.addChild(new Spacer(1));
     this.listContainer = new Container();
     this.addChild(this.listContainer);
@@ -62,10 +63,9 @@ export class TrustSelectorComponent extends Container {
       { key: keybindings.getKeys("tui.select.confirm").join("/"), action: "save" },
       { key: keybindings.getKeys("tui.select.cancel").join("/"), action: "cancel" },
     ]), 0, 0));
-    this.addChild(new Spacer(1));
-    this.addChild(new DynamicBorder());
+    this.addChild(new DynamicBorder(text => piTheme().fg("border", text)));
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
-    this.updateList(options.savedDecision);
+    this.updateList();
     this.handleInput = data => {
       const kb = getKeybindings();
       if (kb.matches(data, "tui.select.up") || data === "k") this.selectedIndex = Math.max(0, this.selectedIndex - 1);
@@ -78,21 +78,19 @@ export class TrustSelectorComponent extends Container {
         options.onCancel();
         return;
       } else return;
-      this.updateList(options.savedDecision);
+      this.updateList();
     };
   }
 
-  private updateList(savedDecision: TrustDecision | null): void {
+  private updateList(): void {
     this.listContainer.clear();
     for (let index = 0; index < this.trustOptions.length; index += 1) {
       const option = this.trustOptions[index];
       if (!option) continue;
       const selected = index === this.selectedIndex;
-      const current = option.savedPath !== undefined && savedDecision?.decision === option.trusted && savedDecision.path === option.savedPath;
       const prefix = selected ? piTheme().fg("accent", "→ ") : "  ";
       const label = selected ? piTheme().fg("accent", option.label) : piTheme().fg("text", option.label);
-      const currentMarker = current ? piTheme().fg("accent", "✓ ") : "  ";
-      this.listContainer.addChild(new Text(`${prefix}${currentMarker}${label}`, 0, 0));
+      this.listContainer.addChild(new Text(`${prefix}${label}`, 0, 0));
     }
   }
 }
