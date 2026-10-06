@@ -153,7 +153,7 @@ function pinnedTheme(): UiTheme {
     bold: (text: string) => piTheme().bold(text),
     plain: (text: string) => text,
     disabled: (text: string) => faint(piTheme().fg("dim", text)),
-    highlight: (text: string) => `\u001b[48;2;82;82;82m\u001b[97m${text}\u001b[39m\u001b[49m`,
+    highlight: (text: string) => piTheme().bg("selectedBg", text),
     panel: (text: string) => `\u001b[48;2;55;55;55m${text}\u001b[49m`,
   };
 }

@@ -197,7 +197,7 @@ describe("the settings screen", () => {
     expect(lines[4]).toContain("Quit animation");
     expect(lines.find(line => line.includes("Generic"))?.startsWith(" ")).toBe(true);
     expect(lines.find(line => line.includes("Generic"))).toContain("<mdHeading><b>Generic</b></mdHeading>");
-    expect(lines.find(line => line.includes("Quit animation"))?.startsWith(" <accent>→ ")).toBe(true);
+    expect(lines.find(line => line.includes("Quit animation"))?.startsWith(" <highlight><accent>→ ")).toBe(true);
     expect(lines.at(-2)).toBe(`<border>${rule}</border>`);
     expect(lines.at(-1)?.startsWith(" <dim>")).toBe(true);
 
@@ -263,16 +263,16 @@ describe("the settings screen", () => {
     expect(lines.join("\n")).not.toContain("When the session transcript scrollbar is visible.");
   });
 
-  // Rationale: the selected value once regressed to the accent through pinned-row parity;
-  // the screen itself now pins that only the cursor and label take the selection colour.
-  it("paints the selected row's label in the accent and its value like every other value", async () => {
+  // Rationale: the selected value keeps its semantic foreground while the item gains a surface.
+  it("paints the selected row with an accent cursor, text label, muted value, and highlight", async () => {
     const { app: target } = await app();
     const named = () => target.render({ width: 80, height: 24 }, NAMING_HOST).map(line => line.trimEnd());
     const lines = named();
     const selectedRow = lines.findIndex(line => line.includes("<accent>→ </accent>"));
     expect(selectedRow).toBeGreaterThanOrEqual(0);
     const selected = lines[selectedRow]!;
-    expect(selected).toContain("<accent>Quit animation");
+    expect(selected).toMatch(/^ <highlight>.*<\/highlight>$/u);
+    expect(selected).toContain("<text>Quit animation");
     expect(selected).toContain("<muted>yes</muted>");
     expect(selected).not.toContain("<accent>yes");
     const unselected = lines.find(line => line.includes("Scrollbar style"))!;
@@ -282,8 +282,9 @@ describe("the settings screen", () => {
     const valueColumn = screen(target)[selectedRow]!.indexOf("yes") + 1;
     target.onMouse?.({ kind: "motion", button: 0, row: selectedRow + 1, column: valueColumn }, NAMING_HOST);
     const pointed = named()[selectedRow]!;
-    expect(pointed).toContain("<accent>Quit animation");
-    expect(pointed).toMatch(/\s+yes$/);
+    expect(pointed).toContain("<text>Quit animation");
+    expect(pointed).toMatch(/^ <highlight>.*<\/highlight>$/u);
+    expect(pointed).toMatch(/\s+yes<\/highlight>$/u);
     expect(pointed).not.toContain("<muted>yes");
     expect(pointed).not.toContain("<accent>yes");
   });

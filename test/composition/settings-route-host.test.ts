@@ -3,11 +3,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createOwnedRouteHost } from "../../src/composition/index.js";
-import { applyPiTheme } from "../../src/integrations/pi/components/index.js";
+import { applyPiTheme, piTheme } from "../../src/integrations/pi/components/index.js";
 import {
   OwnedSettingsManager,
   type OwnedUiSettingDeclaration,
 } from "../../src/ui/settings/index.js";
+import { cellBackgroundAt, cellStyle } from "../support/ansi-cell-style.js";
 
 const ESC = "\u001b";
 const STYLE = new RegExp(`${ESC}\\[[0-9;]*m`, "gu");
@@ -55,7 +56,7 @@ describe("owned settings route opening", () => {
 });
 
 describe("owned settings route theme", () => {
-  it("renders a dark floating panel and a lighter white-text active choice", async () => {
+  it("uses the standard selection palette for settings rows and active choices", async () => {
     applyPiTheme("dark", false, "truecolor");
     const root = mkdtempSync(path.join(tmpdir(), "a1-settings-menu-theme-"));
     roots.push(root);
@@ -78,6 +79,17 @@ describe("owned settings route theme", () => {
     expect(initial[1]?.replace(STYLE, "").trimEnd()).toBe(" Settings");
     expect(initial.some(line => line.includes(`${ESC}[38;2;205;154;34m`))).toBe(true);
 
+    const selected = initial.find(line => line.replace(STYLE, "").includes("Mode"))!;
+    const selectedText = selected.replace(STYLE, "");
+    const itemStart = selectedText.indexOf("→");
+    const itemEnd = selectedText.indexOf("auto") + "auto".length - 1;
+    const selectionBackground = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
+    expect(cellBackgroundAt(selected, itemStart)).toBe(selectionBackground);
+    expect(cellBackgroundAt(selected, itemEnd)).toBe(selectionBackground);
+    expect(cellBackgroundAt(selected, itemEnd + 1)).toBe("default");
+    expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
+    expect(cellStyle(selected, "M")).toEqual(cellStyle(piTheme().fg("text", "M"), "M"));
+
     const row = initial.findIndex(line => line.replace(STYLE, "").includes("Mode"));
     const column = (initial[row] ?? "").replace(STYLE, "").indexOf("auto") + 1;
     surface!.handleMouse({ kind: "press", button: 0, row: row + 1, column });
@@ -85,7 +97,8 @@ describe("owned settings route theme", () => {
 
     const menu = surface!.render(48, 12).join("\n");
     expect(menu).toContain(`${ESC}[48;2;55;55;55m${ESC}[38;2;167;152;215m✓`);
-    expect(menu).toContain(`${ESC}[48;2;82;82;82m${ESC}[97m  always `);
+    const selectionStart = piTheme().bg("selectedBg", "MARK").split("MARK")[0]!;
+    expect(menu).toContain(`${selectionStart}  always `);
     expect(menu).toContain(`${ESC}[39m${ESC}[49m`);
   });
 });

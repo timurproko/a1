@@ -4,12 +4,12 @@
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
  * preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode
  * Models-style filter status with Tab cycling and concise all-first presentation excluding internal
- * bookkeeping, standard search input, purple accent-backed menu-arrow selection without path bullets,
- * accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with
- * session naming for the system root, standard paging/first-last/containing-branch folding keys,
- * single-character ellipses on both clipped edges with bracket-delimiter preservation and
- * selected-fragment highlighting, and Models-ordered semantic shortcut footers without a redundant
- * select hint.
+ * bookkeeping, standard search input, blue item-bounded menu-arrow selection with a normal-text
+ * primary label and no path bullets, accent entry labels, bracketed timestamps, and plain label-time
+ * status, semantic role colors with session naming for the system root, standard
+ * paging/first-last/containing-branch folding keys, single-character ellipses on both clipped edges
+ * with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic
+ * shortcut footers without a redundant select hint.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -126,7 +126,7 @@ function renderHorizontalViewport(rows: HorizontalViewportRow[], width: number):
 		const rightMarkerWidth = rightClipped ? visibleWidth(rightMarkerText) : 0;
 		const bodyWidth = Math.max(0, widthAfterLeftMarker - rightMarkerWidth);
 		const marker = (text: string) => row.isSelected
-			? theme.bg("customMessageBg", theme.fg("muted", text))
+			? theme.bg("selectedBg", theme.fg("muted", text))
 			: theme.fg("muted", text);
 		const body = sliceByColumn(row.body, horizontalScroll, bodyWidth, true);
 		const line = `${row.gutter}${leftClipped ? marker("…") : ""}${body}${rightClipped ? marker(rightMarkerText) : ""}\x1b[0m`;
@@ -765,8 +765,8 @@ class TreeList implements Component {
 			let gutter = cursor;
 			let body = prefixPart + label + labelTimestamp + content;
 			if (isSelected) {
-				gutter = theme.bg("customMessageBg", gutter);
-				body = theme.bg("customMessageBg", body);
+				gutter = theme.bg("selectedBg", gutter);
+				body = theme.bg("selectedBg", body);
 			}
 			const rightClipSuffix = entry.type === "message" && entry.message.role === "toolResult" ? "]" : "";
 			renderedRows.push({ gutter, body, anchorCol, bodyWidth: visibleWidth(body), rightClipSuffix, isSelected });
@@ -788,7 +788,7 @@ class TreeList implements Component {
 		let result: string;
 
 		const normalize = (s: string) => s.replace(/[\n\t]/g, " ").trim();
-		const primary = (color: Parameters<typeof theme.fg>[0], text: string) => theme.fg(isSelected ? "accent" : color, text);
+		const primary = (color: Parameters<typeof theme.fg>[0], text: string) => theme.fg(isSelected ? "text" : color, text);
 		const description = (text: string, color: Parameters<typeof theme.fg>[0] = "muted") =>
 			theme.fg(isSelected ? "muted" : color, text);
 
