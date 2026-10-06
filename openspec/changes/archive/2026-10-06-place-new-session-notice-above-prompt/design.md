@@ -6,7 +6,7 @@ The workflow runner already returns the pinned-compatible accent result `✓ New
 
 **Goals:**
 - Put the successful bare-A1 new-session confirmation at the bottom of an idle frame directly above the input prompt.
-- Preserve its pinned semantic accent, exact text, padding, blank rows, and width-aware wrapping.
+- Preserve its pinned semantic accent, exact text, horizontal padding, leading separation, and width-aware wrapping while leaving exactly one blank row before the input.
 - Remove it atomically with the accepted-prompt transition to busy so `Working…` takes over the prompt-adjacent status position without both messages being visible.
 - Keep the confirmation outside transcript, selection, copy, prompt navigation, persistence, and viewport scroll accounting.
 - Keep `a1 pi` behavior unchanged.
@@ -20,7 +20,7 @@ The workflow runner already returns the pinned-compatible accent result `✓ New
 
 ### 1. Give the dock notice an explicit new-session presentation
 
-Extend the root-owned transient notice state with a `new-session` variant. Render that variant through the existing command-message presenter using its `new` shape, preserving the accent styling, one-cell horizontal padding, leading spacer, and vertical blank row already used by the transcript presentation. Route only a completed `new` result into this variant when the custom viewport is active. The pinned route continues through the existing anchored transcript component.
+Extend the root-owned transient notice state with a `new-session` variant. Render that variant through the existing command-message presenter's `accent` shape, preserving accent styling, one-cell horizontal padding, leading separation, and wrapping without importing the transcript-bound `new` shape's extra trailing vertical pad. The dock's established editor separator then supplies exactly one blank row below the confirmation. Route only a completed `new` result into this variant when the custom viewport is active. The pinned route continues through the existing anchored `new` transcript component and retains its complete Pi spacing.
 
 This reuses the dock's established exclusion from transcript semantics and its bottom placement without changing the workflow contract or duplicating presentation rules.
 
@@ -32,11 +32,11 @@ The existing user/bash block dismissal remains as a defensive later lifecycle bo
 
 ### 3. Verify placement and semantic exclusion at the shell boundary
 
-Focused shell tests will render an empty custom viewport after a successful new-session result and assert the confirmation is directly above the editor group, the selectable document remains empty, and the top remains blank. A lifecycle test will drive the accepted first prompt into busy state and assert the confirmation disappears in the same frame that `Working…` appears. A pinned-layout assertion will retain the chronological transcript placement and existing rendering shape.
+Focused shell tests will render an empty custom viewport after a successful new-session result and assert the confirmation is directly above the editor group with exactly one blank row below it, the selectable document remains empty, and the top remains blank. A lifecycle test will drive the accepted first prompt into busy state and assert the confirmation disappears in the same frame that `Working…` appears. A pinned-layout assertion will retain the chronological transcript placement and existing rendering shape.
 
 ## Risks / Trade-offs
 
-- [The special notice accidentally adopts dim status styling] -> Keep the semantic variant explicit and render it through the existing `new` command-message presenter.
+- [The special notice accidentally adopts dim status styling] -> Keep the semantic variant explicit and render it through the existing accent command-message shape.
 - [The confirmation and working indicator appear together for one frame] -> Clear only the special notice in the same non-busy-to-busy view update that refreshes status placement.
 - [A failed submission is mistaken for active work] -> Bind working replacement to accepted busy lifecycle; retain the existing truthful failure-notice path without fabricating status.
 - [The change alters all dock-notice lifecycle behavior] -> Branch only on the `new-session` variant; retain generic notice replacement and dismissal paths unchanged.

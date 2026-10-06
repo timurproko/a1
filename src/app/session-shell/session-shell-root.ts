@@ -1052,7 +1052,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       return ["", ...renderPiShellStatusText(notice.message, width, PINNED_PI_LAYOUT.outputPad)];
     }
     return renderPiShellCommandMessage({
-      kind: notice.kind === "new-session" ? "new" : notice.kind,
+      kind: notice.kind === "new-session" ? "accent" : notice.kind,
       message: notice.message,
     }, width, this.#outputPad);
   }

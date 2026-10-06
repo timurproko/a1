@@ -5,7 +5,7 @@ Bare A1 currently appends `✓ New session started` at the top of the empty tran
 ## What Changes
 
 - Present bare A1's successful `/new` confirmation as transient prompt-adjacent chrome directly above the input instead of transcript content.
-- Preserve the existing accent checkmark, wording, wrapping, horizontal padding, and surrounding blank-row treatment.
+- Preserve the existing accent checkmark, wording, wrapping, and horizontal padding while using exactly one blank row between the confirmation and input.
 - Remove the confirmation when an accepted prompt starts work so the live working status replaces it rather than appearing alongside it.
 - Keep failed/cancelled `/new` outcomes, other structured command presentations, and the pinned `a1 pi` route unchanged.
 - Add focused rendering and lifecycle coverage for an empty new session, first-prompt transition, transcript/selection exclusion, and pinned-route compatibility.

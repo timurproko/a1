@@ -636,8 +636,8 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       border = rows.findIndex((row, index) => index > notice && /^─+$/.test(row));
       expect(notice).toBeGreaterThan(0);
       expect(rows.slice(0, notice).every(row => row === "")).toBe(true);
-      expect(border).toBeGreaterThan(notice);
-      expect(rows.slice(notice + 1, border).every(row => row === "")).toBe(true);
+      expect(border).toBe(notice + 2);
+      expect(rows[notice + 1]).toBe("");
       expect(rawRows[notice]).toContain(piTheme().fg("accent", "✓ New session started"));
       expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBe(0);
 
