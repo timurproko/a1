@@ -146,19 +146,34 @@ describe("OwnedUiSessionShell prompt suggestions", () => {
       await nextImmediate();
       const rendered = () => stripTerminalSequences(target.shell.root.editor.render(50).join("\n"));
       expect(rendered()).toContain("❯ run the tests");
+      const presentation = vi.spyOn(target.shell.root, "setPromptSuggestion");
 
-      target.terminal.input("x");
+      const draft = clearing === "backspace" ? "draft" : "x";
+      target.terminal.input(draft);
       await nextImmediate();
-      expect(target.shell.root.editor.getText()).toBe("x");
+      expect(target.shell.root.editor.getText()).toBe(draft);
       expect(rendered()).not.toContain("run the tests");
       target.terminal.input("\t");
       await nextImmediate();
-      expect(target.shell.root.editor.getText()).toBe("x");
+      expect(target.shell.root.editor.getText()).toBe(draft);
 
-      target.terminal.input(clearing === "backspace" ? "\u007f" : "\u0003");
-      await nextImmediate();
+      if (clearing === "backspace") {
+        for (let remaining = draft.length - 1; remaining >= 0; remaining--) {
+          const writeStart = target.terminal.writes.length;
+          target.terminal.input("\u007f");
+          await nextImmediate();
+          expect(target.shell.root.editor.getText()).toBe(draft.slice(0, remaining));
+          if (remaining > 0) expect(rendered()).not.toContain("run the tests");
+          else expect(stripTerminalSequences(target.terminal.writes.slice(writeStart).join(""))).toContain("run the tests");
+        }
+      } else {
+        target.terminal.input("\u0003");
+        await nextImmediate();
+      }
       expect(target.shell.root.editor.getText()).toBe("");
       expect(rendered()).toContain("❯ run the tests");
+      expect(presentation).toHaveBeenCalledOnce();
+      expect(presentation).toHaveBeenCalledWith("run the tests");
       expect(generator.generate).toHaveBeenCalledTimes(1);
 
       target.terminal.input("\t");
