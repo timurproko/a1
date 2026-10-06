@@ -16,12 +16,14 @@ export interface ImagePasteJob {
 }
 const IMAGE_CELL_PREVIEW_MS = 5_000;
 
-export function usesWindowsTerminalSubmittedImagePreview(
+export function usesWindowsSubmittedImageCellPreview(
   platform: NodeJS.Platform = process.platform,
   environment: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  if (platform !== "win32" || environment.WT_SESSION === undefined) return false;
-  return environment.WEZTERM_PANE === undefined && environment.TERM_PROGRAM?.toLowerCase() !== "wezterm";
+  if (platform !== "win32") return false;
+  return environment.WT_SESSION !== undefined
+    || environment.WEZTERM_PANE !== undefined
+    || environment.TERM_PROGRAM?.toLowerCase() === "wezterm";
 }
 
 export function startImageCellPreview(

@@ -9,8 +9,8 @@ const STYLE = /\u001b\[38;2;(\d{1,3});(\d{1,3});(\d{1,3});48;2;(\d{1,3});(\d{1,3
 const GLYPH = /[ ▘▝▀▖▌▞▛▗▚▐▜▄▙▟█]/uy;
 const RESET = "\u001b[0m";
 
-/** Mounted only for bare A1's Windows Terminal submitted-image fallback. */
-export class WindowsTerminalImagePresentation implements Component {
+/** Mounted only for bare A1's Windows-host submitted-image fallback. */
+export class WindowsImageCellPresentation implements Component {
   readonly #assetId: string;
   readonly #image: OwnedUiImageAttachment;
   readonly #preview: NonNullable<PiShellImageAssetResolver["preview"]>;

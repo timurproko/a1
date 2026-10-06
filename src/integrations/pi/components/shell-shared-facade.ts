@@ -158,7 +158,7 @@ export interface PiShellImagePreviewJob {
 
 export interface PiShellImageAssetResolver {
   resolve(assetId: string): OwnedUiImageAttachment | null;
-  /** Present only for bare A1's Windows Terminal submitted-image fallback. */
+  /** Present only for bare A1's Windows-host submitted-image fallback. */
   preview?(
     assetId: string,
     source: OwnedUiImageAttachment,

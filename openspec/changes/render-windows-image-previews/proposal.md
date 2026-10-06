@@ -1,11 +1,11 @@
 ## Why
 
-Fresh development already renders submitted images correctly in Windows WezTerm, but Windows Terminal falls back to metadata because Pi reports no native image protocol there. The previous cross-terminal raster implementation changed shared rendering and destabilized the working WezTerm path, so this replacement is intentionally Windows-Terminal-only.
+Windows Terminal needs a visual fallback because Pi reports no native image protocol there. Physical review also found that Windows WezTerm's retained Kitty placements disappear when their anchor scrolls offscreen and can remain painted above fullscreen dialogs. Submitted-image previews therefore need ordinary composable terminal rows on both supported Windows hosts.
 
 ## What Changes
 
-- Preserve Pi's existing `Image` component path unchanged for Windows WezTerm, non-Windows terminals, tool images, extensions, and `a1 pi`.
-- Detect bare A1 running in Windows Terminal and render retained submitted-user images as bounded truecolor quadrant-cell rows.
+- Preserve Pi's existing `Image` component path unchanged for non-Windows terminals, tool images, extensions, and `a1 pi`.
+- Detect bare A1 running in Windows Terminal or Windows WezTerm and render retained submitted-user images as bounded truecolor quadrant-cell rows.
 - Decode and resize previews in the existing image worker with strict dimensions, output, deadline, and lifecycle bounds.
 - Preserve original attachment bytes, MIME type, provider payload, prompt text, history, and image visibility/width settings.
 
@@ -15,10 +15,10 @@ No Sixel registry, terminal protocol injection, viewport/damage transformation, 
 
 ### Modified Capabilities
 
-- `custom-session-viewport`: Add a narrowly scoped Windows Terminal submitted-image preview while preserving every established image path elsewhere.
+- `custom-session-viewport`: Add a narrowly scoped Windows-host submitted-image preview while preserving every established image path elsewhere.
 
 ## Impact
 
-- The submitted-image presenter gains an optional preview callback only when the session host is Windows Terminal.
+- The submitted-image presenter gains an optional preview callback only when the bare A1 session host is Windows Terminal or Windows WezTerm.
 - The existing worker gains one bounded cell-preview request using the already pinned Photon decoder.
-- Focused evidence covers host routing, lifecycle cancellation, bounded rows, payload retention, and unchanged WezTerm/native behavior.
+- Focused evidence covers host routing, lifecycle cancellation, bounded rows, payload retention, WezTerm scrolling/dialog composition, and unchanged native behavior elsewhere.

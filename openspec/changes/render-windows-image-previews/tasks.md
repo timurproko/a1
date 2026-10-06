@@ -1,7 +1,8 @@
-## 1. Windows Terminal policy
+## 1. Windows host policy
 
 - [x] 1.1 Detect bare A1 Windows Terminal sessions while excluding Windows WezTerm, non-Windows hosts, and comparison profiles.
 - [x] 1.2 Expose the custom preview operation only through the Windows Terminal retained-image resolver; leave all other image paths unchanged.
+- [x] 1.3 Select the same ordinary-cell preview for bare A1 on Windows WezTerm while keeping unknown and non-Windows hosts unchanged.
 
 ## 2. Bounded preview worker
 
@@ -15,6 +16,6 @@
 
 ## 4. Evidence and physical review
 
-- [x] 4.1 Add focused host-routing, worker, presenter, attachment-retention, and unchanged-path tests.
+- [x] 4.1 Add focused host-routing, worker, presenter, attachment-retention, partial-scroll/dialog-composition, and unchanged-path tests.
 - [x] 4.2 Verify typecheck, build, architecture/documentation governance, strict OpenSpec validation, and focused rendering tests.
 - [ ] 4.3 Physically review the exact candidate in Windows Terminal and Windows WezTerm, including initial paint, scrolling, dialogs, later output, resize, and responsiveness.

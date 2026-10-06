@@ -13,7 +13,7 @@ import { SkillInvocationMessageComponent } from "./upstream/components/skill-inv
 import { piToolArguments as toolArguments, updatePiToolResult as updateToolResult } from "./tool-result-adapter.js";
 import { createTranscriptImageResolver } from "./transcript-image-resolver.js";
 import { createMermaidMarkdownTransformer, type MermaidRenderingMode } from "./upstream/components/mermaid.js";
-import { WindowsTerminalImagePresentation } from "./windows-terminal-image-presentation.js";
+import { WindowsImageCellPresentation } from "./windows-image-cell-presentation.js";
 import {
   Container,
   Image,
@@ -71,7 +71,7 @@ export function createPiShellTranscriptComponent(
   let dirty = false;
   let presentationRevision = 0;
   let mountedTool: ToolExecutionComponent | undefined;
-  let mountedImages: WindowsTerminalImagePresentation[] = [];
+  let mountedImages: WindowsImageCellPresentation[] = [];
   const mutate = <T>(action: () => T): T => {
     const previous = updating;
     updating = true;
@@ -167,7 +167,7 @@ function withTranscriptImages(
   showImages: boolean,
   imageWidthCells: number,
   changed: () => void,
-  mountedImages: WindowsTerminalImagePresentation[],
+  mountedImages: WindowsImageCellPresentation[],
 ): Component {
   // Compatibility: Pi owns tool images and renderer state, including references introduced after the call header.
   if (component instanceof ToolExecutionComponent) return component;
@@ -183,7 +183,7 @@ function withTranscriptImages(
     } else if (asset === null) {
       container.addChild(new Text(piTheme().fg("warning", `[Image unavailable: ${reference.mimeType}]`), 1, 0));
     } else if (assets?.preview !== undefined) {
-      const preview = new WindowsTerminalImagePresentation(
+      const preview = new WindowsImageCellPresentation(
         reference.assetId, asset, assets.preview, imageWidthCells, changed,
       );
       mountedImages.push(preview);

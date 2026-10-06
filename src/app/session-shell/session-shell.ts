@@ -122,7 +122,7 @@ import type {
 import {
   runImageWorker,
   startImageCellPreview,
-  usesWindowsTerminalSubmittedImagePreview,
+  usesWindowsSubmittedImageCellPreview,
 } from "./image-preparation-client.js";
 import type { ClipboardImageData } from "./clipboard-image.js";
 import {
@@ -353,7 +353,7 @@ export class OwnedUiSessionShell {
       getShortcuts: bindings => this.backend.pinnedShortcutDescriptions(bindings),
     }, sessionLayout, {
       resolve: assetId => this.backend.resolveTranscriptImage(assetId),
-      ...(this.#customViewport && usesWindowsTerminalSubmittedImagePreview() ? {
+      ...(this.#customViewport && usesWindowsSubmittedImageCellPreview() ? {
         preview: (_assetId, source, columns, cell) => startImageCellPreview(source, columns, cell),
       } : {}),
     });

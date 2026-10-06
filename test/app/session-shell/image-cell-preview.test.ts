@@ -7,17 +7,18 @@ import {
 } from "../../../src/app/session-shell/image-cell-preview.js";
 import {
   runImageWorker,
-  usesWindowsTerminalSubmittedImagePreview,
+  usesWindowsSubmittedImageCellPreview,
 } from "../../../src/app/session-shell/image-preparation-client.js";
 import { screenshotPng } from "../../fixtures/image-sources.js";
 
-describe("Windows Terminal submitted-image preview", () => {
-  it("selects only Windows Terminal and excludes WezTerm and non-Windows hosts", () => {
-    expect(usesWindowsTerminalSubmittedImagePreview("win32", { WT_SESSION: "session" })).toBe(true);
-    expect(usesWindowsTerminalSubmittedImagePreview("win32", { WT_SESSION: "session", WEZTERM_PANE: "1" })).toBe(false);
-    expect(usesWindowsTerminalSubmittedImagePreview("win32", { WT_SESSION: "session", TERM_PROGRAM: "WezTerm" })).toBe(false);
-    expect(usesWindowsTerminalSubmittedImagePreview("win32", {})).toBe(false);
-    expect(usesWindowsTerminalSubmittedImagePreview("linux", { WT_SESSION: "session" })).toBe(false);
+describe("Windows submitted-image cell preview", () => {
+  it("selects Windows Terminal and Windows WezTerm but excludes other hosts", () => {
+    expect(usesWindowsSubmittedImageCellPreview("win32", { WT_SESSION: "session" })).toBe(true);
+    expect(usesWindowsSubmittedImageCellPreview("win32", { WEZTERM_PANE: "1" })).toBe(true);
+    expect(usesWindowsSubmittedImageCellPreview("win32", { TERM_PROGRAM: "WezTerm" })).toBe(true);
+    expect(usesWindowsSubmittedImageCellPreview("win32", { WT_SESSION: "inherited", WEZTERM_PANE: "1" })).toBe(true);
+    expect(usesWindowsSubmittedImageCellPreview("win32", {})).toBe(false);
+    expect(usesWindowsSubmittedImageCellPreview("linux", { WEZTERM_PANE: "1" })).toBe(false);
   });
 
   it("pairs four RGBA samples into one truecolor quadrant and resets the row", () => {
