@@ -18,7 +18,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-06-align-session-selector-dialog/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-06-align-session-selector-dialog/acceptance.md",
   "finalizedDate": "2026-10-06",
-  "specBaseSha": "1dc3913502e0172a1000eb43c95954941a34035d",
+  "specBaseSha": "bb2b7e65d9673ec1ce2d3491acf66707118d7961",
   "acceptanceScenarios": [
     "Resume Session and rename mode use the same standard full-width top and bottom rule color as Session Tree and Models, distinct from the accent title.",
     "Resume Session shows one accent title and a stable lower-case filter/name/sort row without duplicated scope or loader progress.",
@@ -27,7 +27,7 @@ The manual merge accepts these scenarios:
     "Selected sessions use Session Tree's accent `→`, accent non-bold title, muted metadata, and subtle purple full-row highlight."
   ],
   "archiveDigest": "a07aa104a01e3dd64da101051ebe0f0ff89f9080efb508973136e51798b4043d",
-  "specDigest": "27e36e1b8eae5faecbc587854f3a8235310112b672c2cafd7ac7baa66cc77865",
+  "specDigest": "fa2beecd596b613e1b3cf3537d2b6d8aedcc08d29cb8d27ee415d1aab43f76aa",
   "tasksDigest": "6727c7f041b0e5723250990d1497f660e8bcab4e00c17d45587fbee34a342d3a",
   "evidenceDigest": "7b3b22f34a34599e3466e23e89c1a5df555ae1feabbc078a7ef1240b2ffa697c",
   "knownGaps": []
