@@ -6,7 +6,7 @@
 - Existing `→` arrows remain accent-colored, primary labels use normal `text`, and provider/reasoning/tree/setting/command descriptions plus scope, active, current, and default markers retain their semantic foreground roles without whole-row bolding.
 - The shared selected-row renderer clips with ANSI-aware terminal utilities, adds no trailing selected cells, and leaves unused dialog width and unselected rows unfilled.
 - Search, filtering, wrap navigation, autocomplete completion, tree hierarchy/clipping, Settings scrolling/pointer/value persistence, model scope and save actions, skill application, Thinking Enter/Space actions, focus, counters, descriptions, cancellation, and the explicit pinned comparison profile remain unchanged.
-- The reviewed startup baseline records the resulting 159-file / 1,550,773-byte eager graph, and the Thinking and Session Tree source-ledger records capture the updated owned presentation deviations and local hashes.
+- The reviewed startup baseline records the resulting 159-file / 1,550,621-byte eager graph, and the Thinking and Session Tree source-ledger records capture the updated owned presentation deviations and local hashes.
 
 ## Local validation
 
@@ -16,7 +16,7 @@
 - `npm run check:architecture` — passed, including the refreshed startup baseline and source-port ledger.
 - `npm run check:code-documentation:changed` — passed.
 - `node scripts/pi/update-pinned-pi-source-ledger.mjs --check` — passed at 127 records.
-- `node scripts/pi/update-startup-graph-baseline.mjs --check` — passed at 159 files / 1,550,773 source bytes with unchanged Pi artifact totals.
+- `node scripts/pi/update-startup-graph-baseline.mjs --check` — passed at 159 files / 1,550,621 source bytes with unchanged Pi artifact totals.
 - `npx openspec validate unify-standard-dialog-selection --type change --strict --no-interactive` — passed.
 - `git diff --check` — passed.
 
