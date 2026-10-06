@@ -145,6 +145,7 @@ describe("owned pinned session selector", () => {
     expect(filterRow).toContain(piTheme().fg("accent", "threaded"));
     expect(plainInitialRows[firstHintIndex]).toContain('Tab scope  re:<pattern> regex  "phrase" exact');
     expect(initialRows.slice(firstHintIndex, finalHintIndex + 1).join("\n")).not.toMatch(/[·•]/u);
+    expect(frame()).not.toContain("Shift+Tab");
 
     input("Prompt other");
     expect(frame()).toContain("Prompt other");
@@ -192,11 +193,24 @@ describe("owned pinned session selector", () => {
       expect(statusRows[statusIndex + 1]).toMatch(/^─+$/u);
     }, { timeout: 5000, interval: 25 });
 
+    for (const [reverseTab, scope] of [
+      ["\x1b[Z", "all"],
+      ["\x1b[9;2u", "current"],
+      ["\x1b[27;2;9~", "all"],
+    ] as const) {
+      input(reverseTab);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const scopeRow = component.render(100).find(row => stripPortableTerminalSequences(row).includes("Filter: current | all"))!;
+      expect(scopeRow).toContain(piTheme().fg("accent", scope));
+      expect(frame()).toContain("Resume Session");
+      expect(frame()).not.toContain("Resume Session (");
+    }
     input("\t");
     await new Promise(resolve => setTimeout(resolve, 0));
+    const currentScopeRow = component.render(100).find(row => stripPortableTerminalSequences(row).includes("Filter: current | all"))!;
+    expect(currentScopeRow).toContain(piTheme().fg("accent", "current"));
     expect(frame()).toContain("Resume Session");
     expect(frame()).not.toContain("Resume Session (");
-    expect(frame()).toContain("Filter: current | all");
     input("\x1b");
     expect(cancelled).toBe(1);
     expect(rendered).toBeGreaterThan(0);

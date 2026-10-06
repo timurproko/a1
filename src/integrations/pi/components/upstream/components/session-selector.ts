@@ -4,9 +4,10 @@
  * Modifications: Source-synchronized session selector port: preserve threaded/current/all scope,
  * search, sort, named/path filters, rename, delete confirmation, active-session protection,
  * progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned
- * keybindings/theme, canonical path handling, and the shared bare-A1 modal frame with standalone
- * title, standard outer rules, stable filter/status row, progressive result paging, aligned result
- * columns, Session Tree selection roles, and bottom dynamic feedback and shortcut footer.
+ * keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal
+ * frame with standalone title, standard outer rules, stable filter/status row, progressive result
+ * paging, aligned result columns, Session Tree selection roles, and bottom dynamic feedback and
+ * shortcut footer.
  * Deviations: owned-modal-shortcut-hints, owned-resume-session-dialog.
  */
 import { spawnSync } from "node:child_process";
@@ -19,6 +20,7 @@ import {
 	type Focusable,
 	getKeybindings,
 	Input,
+	matchesKey,
 	sliceByColumn,
 	Spacer,
 	Text,
@@ -626,7 +628,7 @@ class SessionList implements Component, Focusable {
 			return;
 		}
 
-		if (kb.matches(keyData, "tui.input.tab")) {
+		if (matchesKey(keyData, "shift+tab") || kb.matches(keyData, "tui.input.tab")) {
 			if (this.onToggleScope) {
 				this.onToggleScope();
 			}
