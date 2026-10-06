@@ -16,7 +16,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-06-add-reverse-dialog-filter-cycling/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-06-add-reverse-dialog-filter-cycling/acceptance.md",
   "finalizedDate": "2026-10-06",
-  "specBaseSha": "99e849aca28c25b645cb50008d3427f4fdb2a050",
+  "specBaseSha": "44a4dbf13767a0e3e92bdc63feeaf2181a4658eb",
   "acceptanceScenarios": [
     "Shift+Tab cycles backward in Models, Resume Session, and Session Tree while Tab retains forward cycling.",
     "Reverse cycling preserves each dialog's query, selection, loading, folding, and wraparound behavior.",
