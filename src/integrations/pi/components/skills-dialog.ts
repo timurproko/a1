@@ -130,7 +130,7 @@ class SkillsSelectorComponent extends Container {
       const skill = this.#filtered[index]!;
       const selected = index === this.#selectedIndex;
       const label = `${SKILL_COMMAND_PREFIX}${skill.name}`;
-      const content = `${selected ? theme.fg("accent", "→ ") : "  "}${selected ? theme.fg("accent", label) : label}`;
+      const content = `${selected ? theme.fg("accent", "→ ") : "  "}${selected ? theme.fg("text", label) : label}`;
       this.#listContainer.addChild(new SkillRow(content, selected));
     }
     if (start > 0 || end < this.#filtered.length) {

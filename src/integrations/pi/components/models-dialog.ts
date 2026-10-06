@@ -361,7 +361,7 @@ export class ModelsDialogComponent implements Component, Focusable {
         // Invariant: arrow, scope marker, model id, [provider], then the active checkmark, in that order.
         const prefix = selected ? theme.fg("accent", "→ ") : "  ";
         const marker = scoped ? theme.fg("success", "●") : theme.fg("dim", "○");
-        const label = selected ? theme.fg("accent", row.model.id) : row.model.id;
+        const label = selected ? theme.fg("text", row.model.id) : row.model.id;
         const provider = theme.fg("muted", `[${row.model.provider}]`);
         const active = row.fullId === this.#activeModelId ? ` ${theme.fg("success", "✓")}` : "";
         push(renderPiModalListRow(`${prefix}${marker} ${label} ${provider}${active}`, width, selected));

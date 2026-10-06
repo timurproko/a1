@@ -1,33 +1,40 @@
 ## ADDED Requirements
 
-### Requirement: Standard bare-A1 dialogs share one selected-row presentation
+### Requirement: Standard bare-A1 lists share one selection palette
 
-The bare-A1 Models, Skills, Thinking Level, and Session Tree dialogs SHALL present their selected list row with the ordinary menu arrow `→`, an accent primary label, muted descriptive text, and the subtle purple `customMessageBg` selection background. The selected background SHALL cover only the rendered item span from its arrow through its final visible content cell, SHALL NOT fill otherwise unused cells after the item, and SHALL remain clipped within the frame without causing wrapping. Selection SHALL NOT bold the whole row.
+The bare-A1 Models, Skills, Thinking Level, and editor autocomplete menus SHALL present their selected item with their existing ordinary menu arrow `→` in accent foreground, the primary label in normal `text`, muted descriptive text, and the blue `selectedBg` selection background. The selected background SHALL cover only the rendered item span from its arrow through its final visible content cell, SHALL NOT fill otherwise unused cells after the item, and SHALL remain clipped within the available width without causing wrapping. Selection SHALL NOT bold the whole row.
 
-The selected-row treatment SHALL preserve domain-specific semantic markers and content. Models SHALL retain its scoped/unscoped marker, provider badge, and active-model checkmark. Skills SHALL retain its `skill:<name>` label and separately presented selected description. Thinking Level SHALL retain aligned level, current, default, and reasoning-description columns. Session Tree SHALL retain its specialized hierarchy, role labels, and horizontal viewport.
+The selected-item treatment SHALL preserve domain-specific semantic markers and content. Models SHALL retain its scoped/unscoped marker, provider badge, and active-model checkmark. Skills SHALL retain its `skill:<name>` label and separately presented selected description. Thinking Level SHALL retain aligned level, current, default, and reasoning-description columns. Autocomplete SHALL retain aligned command descriptions and completion behavior. Resume Session and Session Tree SHALL retain their specialized arrows, hierarchy, metadata, and geometry.
 
 Unselected rows, search and filter behavior, list ordering, counters, descriptions, navigation, selection actions, default and scope persistence, cancellation, and dialog lifecycle SHALL remain unchanged. The explicit `a1 pi` comparison profile SHALL retain pinned Pi presentation.
 
 #### Scenario: Highlight a model
 
 - **WHEN** a model row is selected in the Models dialog
-- **THEN** its arrow and model identifier SHALL use accent foreground on `customMessageBg`
+- **THEN** its arrow SHALL use accent foreground and its model identifier SHALL use normal `text` on `selectedBg`
 - **AND** its provider badge SHALL remain muted and its scope and active-state markers SHALL retain their semantic roles
 - **AND** the background SHALL end with the row's final marker or provider content without changing the row order or model action
 
 #### Scenario: Highlight a skill
 
 - **WHEN** a skill row is selected in the Skills dialog
-- **THEN** its arrow and `skill:<name>` label SHALL use accent foreground on `customMessageBg`
+- **THEN** its arrow SHALL use accent foreground and its `skill:<name>` label SHALL use normal `text` on `selectedBg`
 - **AND** the background SHALL end with the final character of the `skill:<name>` label
 - **AND** the selected skill description SHALL remain separately muted below the list
 
 #### Scenario: Highlight a thinking level
 
 - **WHEN** a thinking-level row is selected
-- **THEN** its arrow and level SHALL use accent foreground on `customMessageBg`
+- **THEN** its arrow SHALL use accent foreground and its level SHALL use normal `text` on `selectedBg`
 - **AND** its reasoning description SHALL remain muted while current and default markers retain their semantic roles
 - **AND** the aligned columns, selected value, and Enter and Space actions SHALL remain unchanged
+
+#### Scenario: Highlight a slash command
+
+- **WHEN** a command is selected in the bare-A1 `/` menu
+- **THEN** its existing `→` SHALL remain accent-colored, its command label SHALL use normal `text`, and its description SHALL remain muted on `selectedBg`
+- **AND** the background SHALL end with the final visible command or description character
+- **AND** navigation and completion behavior SHALL remain unchanged
 
 #### Scenario: Render a selected row at narrow width
 

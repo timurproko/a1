@@ -200,7 +200,8 @@ describe("owned level and model keybindings", () => {
         const rows = selector.render(100);
         const selected = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
         expect(stripTerminalSequences(selected).replace(/\s+/g, " ")).toContain("→ medium ✓ [default] Moderate reasoning");
-        expect(cellStyle(selected, "m")).toEqual(cellStyle(piTheme().fg("accent", "m"), "m"));
+        expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
+        expect(cellStyle(selected, "m")).toEqual(cellStyle(piTheme().fg("text", "m"), "m"));
         expect(cellStyle(selected, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
         expect(cellStyle(selected, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
         expect(cellStyle(selected, "[")).toEqual(cellStyle(piTheme().fg("muted", "["), "["));
@@ -261,13 +262,14 @@ describe("owned level and model keybindings", () => {
       return defaultRow.indexOf("[default]");
     });
     expect(new Set(defaultMarkerColumns).size).toBe(1);
-    expect(cellStyle(selectedRow, "m")).toEqual(cellStyle(piTheme().fg("accent", "m"), "m"));
+    expect(cellStyle(selectedRow, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
+    expect(cellStyle(selectedRow, "m")).toEqual(cellStyle(piTheme().fg("text", "m"), "m"));
     expect(cellStyle(selectedRow, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
     expect(cellStyle(unselectedRow, "L")).toEqual(cellStyle(piTheme().fg("muted", "L"), "L"));
     const selectedText = stripTerminalSequences(selectedRow);
     expect(selectedText.endsWith("Moderate reasoning (~8k tokens)")).toBe(true);
     expect(selectedText).toBe(selectedText.trimEnd());
-    const selectionBackground = cellBackgroundAt(piTheme().bg("customMessageBg", "x"), 0);
+    const selectionBackground = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
     expect(cellBackgroundAt(selectedRow, 1)).toBe(selectionBackground);
     expect(cellBackgroundAt(selectedRow, selectedText.length - 1)).toBe(selectionBackground);
     expect(selectedRow).not.toContain("\u001b[1m");

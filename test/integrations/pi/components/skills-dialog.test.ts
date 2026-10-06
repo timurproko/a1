@@ -87,16 +87,17 @@ describe("the Skills dialog", () => {
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
     // Platform: chalk decides whether bold is emitted for this terminal; the accent role is what the theme guarantees.
     expect(rows[1]).toMatch(/^ <accent>(?:<b>)?Skills(?:<\/b>)?<\/>$/u);
-    expect(rows[5]).toContain("<accent>→ </><accent>skill:framer</>");
+    expect(rows[5]).toContain("<accent>→ </><text>skill:framer</>");
     expect(rows[6]).toBe("   skill:code-review");
     expect(rows[9]).toBe(" <muted>  Design, edit, and publish Framer sites</>");
     const selected = rendered[5]!;
     const selectedText = stripTerminalSequences(selected);
     expect(selectedText).toBe(" → skill:framer");
-    const selectionBackground = cellBackgroundAt(piTheme().bg("customMessageBg", "x"), 0);
+    const selectionBackground = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
     expect(cellBackgroundAt(selected, 1)).toBe(selectionBackground);
     expect(cellBackgroundAt(selected, selectedText.length - 1)).toBe(selectionBackground);
-    expect(cellStyle(selected, "s")).toEqual(cellStyle(piTheme().fg("accent", "s"), "s"));
+    expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
+    expect(cellStyle(selected, "s")).toEqual(cellStyle(piTheme().fg("text", "s"), "s"));
     expect(selected).not.toContain("\u001b[1m");
   });
 

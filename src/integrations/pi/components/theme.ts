@@ -9,13 +9,15 @@ export * from "./upstream/theme/theme.js";
 
 export type PiModalShortcutHint = SemanticShortcutHint;
 
-/**
- * One standard bare-A1 list row. Selected rows paint only their rendered item span with the same
- * low-intensity purple surface as Session Tree while retaining the row's semantic foregrounds.
- */
+/** Paint one selected bare-A1 list item with the standard blue selection surface. */
+export function renderPiListSelection(content: string): string {
+  return piTheme().bg("selectedBg", content);
+}
+
+/** One standard bare-A1 modal row, clipped before its item-bounded selection is painted. */
 export function renderPiModalListRow(content: string, width: number, selected: boolean): string {
   const clipped = truncateToWidth(content, Math.max(0, width), "");
-  return selected ? piTheme().bg("customMessageBg", clipped) : clipped;
+  return selected ? renderPiListSelection(clipped) : clipped;
 }
 
 /** The common bare-A1 modal footer: quiet display-cased keys, muted names, and whitespace-only gaps. */
