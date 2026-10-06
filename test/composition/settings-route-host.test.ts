@@ -10,6 +10,7 @@ import {
 } from "../../src/ui/settings/index.js";
 
 const ESC = "\u001b";
+const INTERRUPT = "\u0003";
 const STYLE = new RegExp(`${ESC}\\[[0-9;]*m`, "gu");
 const DOWN = `${ESC}[B`;
 const DECLARATIONS: readonly OwnedUiSettingDeclaration[] = [{
@@ -50,7 +51,10 @@ describe("owned settings route opening", () => {
     }
     expect(loaded.some(line => line.replace(STYLE, "").includes("Mode"))).toBe(true);
     expect(loaded.join("\n")).not.toContain("Loading settings");
-    surface!.close();
+    expect(surface!.handleInput("/")).toBe(true);
+    expect(surface!.isClosed()).toBe(false);
+    expect(surface!.handleInput(INTERRUPT)).toBe(true);
+    expect(surface!.isClosed()).toBe(true);
   });
 });
 
@@ -168,6 +172,7 @@ describe("owned reference routes", () => {
     expect(lines[2]?.startsWith("changelog complete at 58")).toBe(true);
     expect(lines[6]).toBe("─".repeat(60));
     expect(lines.at(-1)?.startsWith(" Esc close  ↑↓ scroll")).toBe(true);
+    expect(lines.at(-1)).not.toContain("Ctrl+C");
     expect(lines.at(-1)).not.toMatch(/[·•]/u);
     complete.close();
     expect(complete.isClosed()).toBe(true);
@@ -208,7 +213,7 @@ describe("owned reference routes", () => {
     refreshed.close();
   });
 
-  it("forwards keys and pointer reports to the screen and propagates close and exit", async () => {
+  it("forwards keys and pointer reports and closes reference screens on one Ctrl+C", async () => {
     const session = await manager();
     const rows = Array.from({ length: 30 }, (_row, index) => `row ${String(index + 1).padStart(2, "0")}`);
     const host = createOwnedRouteHost(session, {
@@ -233,19 +238,17 @@ describe("owned reference routes", () => {
     expect(surface.render(60, 8).map(PLAIN)[1]?.startsWith("row 26")).toBe(true);
     expect(surface.isClosed()).toBe(false);
 
-    expect(surface.handleInput(ESC)).toBe(true);
+    expect(surface.handleInput(INTERRUPT)).toBe(true);
     expect(surface.isClosed()).toBe(true);
     expect(exits).toBe(0);
 
-    const chord = host.open("hotkeys")!;
-    let chordExits = 0;
-    chord.onExitRequested(() => { chordExits += 1; });
-    await settled(chord, current => current[2]?.startsWith("row") === true);
-    chord.handleInput("\u0003");
-    expect(chord.isClosed()).toBe(false);
-    chord.handleInput("\u0003");
-    expect(chord.isClosed()).toBe(true);
-    expect(chordExits).toBe(1);
+    const shortcuts = host.open("hotkeys")!;
+    let shortcutExits = 0;
+    shortcuts.onExitRequested(() => { shortcutExits += 1; });
+    await settled(shortcuts, current => current[2]?.startsWith("row") === true);
+    expect(shortcuts.handleInput(INTERRUPT)).toBe(true);
+    expect(shortcuts.isClosed()).toBe(true);
+    expect(shortcutExits).toBe(0);
   });
 
   it("reports a failing document provider as a loading failure", async () => {

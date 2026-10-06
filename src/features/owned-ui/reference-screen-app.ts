@@ -40,7 +40,7 @@ const LOADING_NOTICE = "Loading…";
 type Action = "up" | "down" | "page-up" | "page-down" | "first" | "last" | "close";
 
 export const REFERENCE_SCREEN_SHORTCUTS = new ShortcutRegistry<Action>();
-// Compatibility: Ctrl+C remains the A1 interrupt chord here rather than a close key.
+// Compatibility: Ctrl+C stays implicit in this app's hints; an opted-in host closes the screen before dispatch.
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen", hint: { keys: "esc", does: "close" } }, "close");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Scroll up", section: "Navigate", hint: { keys: "↑↓", does: "scroll" } }, "up");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Scroll down", section: "Navigate", hint: { keys: "↑↓", does: "scroll" } }, "down");
@@ -98,8 +98,8 @@ export interface ReferenceScreenOptions {
  * Presents one read-only document full screen between two accent rules: the bold
  * title leads the scrolled rows, the shared scrollbar rail runs beside them, and
  * the hint line closes the frame. Rows come from a provider per content width and
- * are cached until the width changes; the screen closes on Escape and leaves the
- * interrupt chord to its host.
+ * are cached until the width changes; Escape closes locally, while an opted-in
+ * host closes on Ctrl+C before dispatching it into the screen.
  */
 export class ReferenceScreenApp implements UiApp {
   readonly id: string;
