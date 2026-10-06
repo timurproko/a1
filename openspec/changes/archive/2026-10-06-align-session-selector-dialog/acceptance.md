@@ -3,6 +3,7 @@
 Verdict: accepted only when the containing exact pull-request head is manually merged by an authorized human after required current-head validation.
 
 The manual merge accepts these scenarios:
+- Resume Session and rename mode use the same standard full-width top and bottom rule color as Session Tree and Models, distinct from the accent title.
 - Resume Session shows one accent title and a stable lower-case filter/name/sort row without duplicated scope or loader progress.
 - Progressive all-session discovery grows the ordinary result paging total while shortcuts and dynamic feedback remain at the bottom.
 - Session titles, paths, message counts, and ages stay in aligned independently truncated columns.
@@ -19,15 +20,16 @@ The manual merge accepts these scenarios:
   "finalizedDate": "2026-10-06",
   "specBaseSha": "1dc3913502e0172a1000eb43c95954941a34035d",
   "acceptanceScenarios": [
+    "Resume Session and rename mode use the same standard full-width top and bottom rule color as Session Tree and Models, distinct from the accent title.",
     "Resume Session shows one accent title and a stable lower-case filter/name/sort row without duplicated scope or loader progress.",
     "Progressive all-session discovery grows the ordinary result paging total while shortcuts and dynamic feedback remain at the bottom.",
     "Session titles, paths, message counts, and ages stay in aligned independently truncated columns.",
     "Selected sessions use Session Tree's accent `→`, accent non-bold title, muted metadata, and subtle purple full-row highlight."
   ],
-  "archiveDigest": "08b6ba88ff590dc420928cc045dcb1d95cab3af4d79c13e7560005220669b77c",
-  "specDigest": "0de60e948e8ca6e56b8224361e4627f1c01ff20782645b80abfca59de9d13bae",
-  "tasksDigest": "4d5d1d43cbf633ebdeed79bb5e9ed23edf50ac49c227a7d4fc6ff6a2d375455e",
-  "evidenceDigest": "97ab51617e0e16e5464f30af340cd69d02002cb9e24f289bb10bea226a0fdfd2",
+  "archiveDigest": "a07aa104a01e3dd64da101051ebe0f0ff89f9080efb508973136e51798b4043d",
+  "specDigest": "27e36e1b8eae5faecbc587854f3a8235310112b672c2cafd7ac7baa66cc77865",
+  "tasksDigest": "6727c7f041b0e5723250990d1497f660e8bcab4e00c17d45587fbee34a342d3a",
+  "evidenceDigest": "7b3b22f34a34599e3466e23e89c1a5df555ae1feabbc078a7ef1240b2ffa697c",
   "knownGaps": []
 }
 ```
