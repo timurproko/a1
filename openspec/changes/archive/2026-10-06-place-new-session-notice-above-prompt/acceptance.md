@@ -19,7 +19,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-06-place-new-session-notice-above-prompt/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-06-place-new-session-notice-above-prompt/acceptance.md",
   "finalizedDate": "2026-10-06",
-  "specBaseSha": "99e849aca28c25b645cb50008d3427f4fdb2a050",
+  "specBaseSha": "44a4dbf13767a0e3e92bdc63feeaf2181a4658eb",
   "acceptanceScenarios": [
     "Bare A1 shows `✓ New session started` directly above the idle input instead of at the top of an empty transcript.",
     "The prompt-adjacent confirmation retains its accent styling, wording, wrapping, and horizontal padding with exactly one blank row before the input.",
@@ -28,10 +28,10 @@ The manual merge accepts these scenarios:
     "Ordinary dock notices and pre-work prompt failures retain their existing truthful presentation.",
     "The `a1 pi` route retains its chronological transcript-bound new-session confirmation."
   ],
-  "archiveDigest": "0678b6d3db3ac9cbc543f86006bd772efc327eb9cb9c524a4987b7a841742e09",
+  "archiveDigest": "f6c45d4f2608eb321c56f0328ace7a7fce4fd20e657b49a124516386c66a885c",
   "specDigest": "4e37ef19e2fcb1656c56b6e6aa87749dfdbe3c42e1101242aa2cda06dfaa11bd",
   "tasksDigest": "2b6651b3c811ff9da27e027688904699fccd7fdd8945f83802bae40238ef57d8",
-  "evidenceDigest": "c59848dc80bb21565c7780c7d8a25ee2fb07dc2a7ab89aa748d4af34e2de5ce1",
+  "evidenceDigest": "f41797a4441dc5491d075ddb1650db0b91ecbbe07dad3b55f999223ffb76fc63",
   "knownGaps": []
 }
 ```
