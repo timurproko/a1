@@ -17,17 +17,17 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-06-align-project-trust-dialog-style/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-06-align-project-trust-dialog-style/acceptance.md",
   "finalizedDate": "2026-10-06",
-  "specBaseSha": "7c31047556e44ce7c6c83a2750d52b00ce18bdc5",
+  "specBaseSha": "99e849aca28c25b645cb50008d3427f4fdb2a050",
   "acceptanceScenarios": [
     "The startup trust selector uses the standard accent title and selection, standard border rules, and concise semantic shortcut hints without loading project-derived presentation.",
     "The in-session trust selector shows muted status labels with normal-text decision values and standard themed title, selection, rules, and shortcut roles.",
     "Every active trust option has exactly one space after its arrow, and the choice menu displays no checkmark while preserving saved state in the status summary and initial selection.",
     "Project-trust shortcut hints sit directly above the bottom rule without an extra blank row, while trust choices, key behavior, constrained fallback, and terminal restoration remain unchanged."
   ],
-  "archiveDigest": "26609c6a5c8fa8e01eb9ff8dce11ee4129a44320c7ca87c92b8b1f3724f9be52",
-  "specDigest": "4319122a0847eb71fa5c52369dfc17870e6778bedf395eb3189e9b39470db5d2",
+  "archiveDigest": "48b197b6d307f6062e1e63f8b758d45c9549e41d24a1249ef79300917f9330cb",
+  "specDigest": "6ffba1f959ec1f96eea41c3656d26027879a7ff0e03fb531a9930c7e1f8a5646",
   "tasksDigest": "c15486066b68d4e560684986653e107f7200bd216061e0083ecd2ef50cfec4f7",
-  "evidenceDigest": "5443b41017a16a45b2cbca98dadd5d8802e995e40081f8e31c3333d171d156b4",
+  "evidenceDigest": "e5316cadd407faec9fe047fed77ab24fcd377cdd5749dd7cfd604fde850eb2fb",
   "knownGaps": []
 }
 ```
