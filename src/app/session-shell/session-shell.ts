@@ -306,6 +306,11 @@ export class OwnedUiSessionShell {
       onEditorChange: text => {
         this.#editorRevision++;
         promptSuggestionController?.abortPending();
+        if (text.length === 0) {
+          // Concurrency: the editor synchronizes deletion-owned autocomplete after onChange.
+          // Reassert retained ghost text in the microtask before Pi emits its scheduled frame.
+          queueMicrotask(() => promptSuggestionController?.restoreAvailable());
+        }
         this.root.reconcilePromptImageLimitNotice(text);
       },
       onPromptSuggestionAccepted: () => promptSuggestionController?.accept(),
