@@ -470,7 +470,7 @@ export class OwnedUiSessionShell {
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
           if (inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
-          // Route boundary keys before Pi's fullscreen handler.
+          // Compatibility: route boundary keys before Pi.
           const isDefault = this.root.usesDefaultInputSurface();
           if (!this.runtime.hasOverlay() && (this.root.editor.matchesTerminalKey(data, "home")
             || this.root.editor.matchesTerminalKey(data, "end")
