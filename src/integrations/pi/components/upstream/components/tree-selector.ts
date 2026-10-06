@@ -3,13 +3,13 @@
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
  * preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode
- * Models-style filter status with Tab cycling and concise all-first presentation excluding internal
- * bookkeeping, standard search input, blue item-bounded menu-arrow selection that preserves per-entry
- * semantic foregrounds and has no path bullets, accent entry labels, bracketed timestamps, and plain
- * label-time status, semantic role colors with session naming for the system root, standard
- * paging/first-last/containing-branch folding keys, single-character ellipses on both clipped edges
- * with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic
- * shortcut footers without a redundant select hint.
+ * Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation
+ * excluding internal bookkeeping, standard search input, blue item-bounded menu-arrow selection that
+ * preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed
+ * timestamps, and plain label-time status, semantic role colors with session naming for the system
+ * root, standard paging/first-last/containing-branch folding keys, single-character ellipses on both
+ * clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and
+ * Models-ordered semantic shortcut footers without a redundant select hint.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -18,6 +18,7 @@ import {
 	type Focusable,
 	Input,
 	type Keybinding,
+	matchesKey,
 	Spacer,
 	sliceByColumn,
 	Text,
@@ -1088,7 +1089,7 @@ class TreeList implements Component {
 			this.filterMode = "all";
 			this.foldedNodes.clear();
 			this.applyFilter();
-		} else if (kb.matches(keyData, "app.tree.filter.cycleBackward")) {
+		} else if (matchesKey(keyData, "shift+tab") || kb.matches(keyData, "app.tree.filter.cycleBackward")) {
 			const currentIndex = FILTER_MODES.indexOf(this.filterMode);
 			this.filterMode = FILTER_MODES[(currentIndex - 1 + FILTER_MODES.length) % FILTER_MODES.length]!;
 			this.foldedNodes.clear();

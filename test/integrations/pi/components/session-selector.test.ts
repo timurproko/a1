@@ -75,6 +75,7 @@ describe("owned pinned session selector", () => {
     expect(firstVisibleTextColumn(hintRows[0]!)).toBe(firstVisibleTextColumn(heading));
     expect(hintRows.map(stripPortableTerminalSequences).join("\n")).toContain('Tab scope  re:<pattern> regex  "phrase" exact');
     expect(hintRows.join("\n")).not.toMatch(/[·•]/u);
+    expect(frame()).not.toContain("Shift+Tab");
 
     input("Prompt other");
     expect(frame()).toContain("Prompt other");
@@ -113,9 +114,18 @@ describe("owned pinned session selector", () => {
       expect(frame()).toMatch(/Session (moved to trash|deleted)/);
     }, { timeout: 5000, interval: 25 });
 
+    for (const [reverseTab, scope] of [
+      ["\x1b[Z", "All"],
+      ["\x1b[9;2u", "Current Folder"],
+      ["\x1b[27;2;9~", "All"],
+    ] as const) {
+      input(reverseTab);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(frame()).toContain(`Resume Session (${scope})`);
+    }
     input("\t");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(frame()).toContain("Resume Session (All)");
+    expect(frame()).toContain("Resume Session (Current Folder)");
     input("\x1b");
     expect(cancelled).toBe(1);
     expect(rendered).toBeGreaterThan(0);
