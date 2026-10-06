@@ -3,9 +3,10 @@
  * packages/coding-agent/src/core/keybindings.ts.
  * Modifications: Mechanical source port with Node import prefixes, public package-root agent-directory
  * resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model
- * selection, and cross-platform Alt+Up queued-message restoration.
+ * selection, Tab tree-filter cycling, tree-local navigation aliases, and cross-platform Alt+Up
+ * queued-message restoration.
  * Deviations: keybindings-public-config-boundary, owned-level-cycle-shortcut,
- * owned-input-keybinding-aliases.
+ * owned-input-keybinding-aliases, owned-session-tree-dialog.
  */
 import {
 	type Keybinding,
@@ -69,6 +70,10 @@ export interface AppKeybindings {
 	"owned.editor.redo": true;
 	"owned.editor.extendLeft": true;
 	"owned.editor.extendRight": true;
+	"owned.tree.collapse": true;
+	"owned.tree.expand": true;
+	"owned.tree.first": true;
+	"owned.tree.last": true;
 }
 
 export type AppKeybinding = keyof AppKeybindings;
@@ -257,6 +262,7 @@ const OWNED_INPUT_KEYBINDINGS = {
 	"app.thinking.cycle": { ...KEYBINDINGS["app.thinking.cycle"], defaultKeys: "ctrl+l" },
 	"app.model.select": { ...KEYBINDINGS["app.model.select"], defaultKeys: [] },
 	"app.message.dequeue": { ...KEYBINDINGS["app.message.dequeue"], defaultKeys: "alt+up" },
+	"app.tree.filter.cycleForward": { ...KEYBINDINGS["app.tree.filter.cycleForward"], defaultKeys: "tab" },
 	"tui.editor.deleteWordBackward": {
 		...KEYBINDINGS["tui.editor.deleteWordBackward"],
 		defaultKeys: [...KEYBINDINGS["tui.editor.deleteWordBackward"].defaultKeys, "ctrl+backspace"],
@@ -271,15 +277,17 @@ const OWNED_INPUT_KEYBINDINGS = {
 	},
 	// Ctrl+Z edits the prompt in bare A1 instead of suspending the process.
 	"app.suspend": { ...KEYBINDINGS["app.suspend"], defaultKeys: [] },
-	// Owned prompt-selection actions are intercepted before vanilla Pi editor
-	// actions. Keeping them in the keybinding manager makes the UX declarative,
-	// configurable, and independent of terminal escape-sequence spellings.
+	// Owned prompt-selection actions remain declarative and take priority.
 	"owned.editor.selectAll": { defaultKeys: "ctrl+a", description: "Select all prompt text" },
 	"owned.editor.cut": { defaultKeys: "ctrl+x", description: "Cut selected prompt text" },
 	"owned.editor.paste": { defaultKeys: "ctrl+v", description: "Paste clipboard text" },
 	"owned.editor.redo": { defaultKeys: "ctrl+y", description: "Redo prompt edit" },
 	"owned.editor.extendLeft": { defaultKeys: "shift+left", description: "Extend prompt selection left" },
 	"owned.editor.extendRight": { defaultKeys: "shift+right", description: "Extend prompt selection right" },
+	"owned.tree.collapse": { defaultKeys: "left", description: "Collapse selected tree branch" },
+	"owned.tree.expand": { defaultKeys: "right", description: "Expand selected tree branch" },
+	"owned.tree.first": { defaultKeys: "home", description: "Select first tree entry" },
+	"owned.tree.last": { defaultKeys: "end", description: "Select last tree entry" },
 } as const satisfies KeybindingDefinitions;
 
 const KEYBINDING_NAME_MIGRATIONS = {
