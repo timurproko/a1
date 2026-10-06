@@ -6,4 +6,4 @@
 ## 2. Validate the presentation
 
 - [x] 2.1 Run the focused Models dialog tests and permitted type/build checks; record durable evidence and any explicit gap disposition.
-- [ ] 2.2 Build the interactive candidate and obtain maintainer review that `/models` filled scope markers match `/thinking` filled default-marker color while empty markers, active checks, and actions remain distinct; record the physical result before finalization.
+- [x] 2.2 Build the interactive candidate and obtain maintainer review that `/models` filled scope markers match `/thinking` filled default-marker color while empty markers, active checks, and actions remain distinct; record the physical result before finalization.

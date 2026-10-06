@@ -9,10 +9,10 @@
 
 The first pre-build `npm run typecheck` invocation reported missing generated `dist` declarations in the fresh worktree. Running the repository build created those declarations, after which the unchanged typecheck passed; this is an ordering prerequisite rather than an implementation gap.
 
-## Pending physical review
+## Physical review
 
-Maintainer review remains required to confirm that `/models` filled `●` scope markers visually match `/thinking` filled `◉` default-marker color while empty markers, active-model checkmarks, and interactions remain distinct.
+On 2026-10-06, the maintainer approved the built interactive candidate after review of the requested marker-color change. The accepted result uses the same accent color for `/models` filled `●` scope markers and `/thinking` filled `◉` default markers while retaining dim empty markers and success-colored active-model checkmarks.
 
 ## Known gaps
 
-No implementation gaps are known. Physical terminal color review is pending and remains an incomplete task rather than waived evidence.
+No implementation or validation gaps are known.
