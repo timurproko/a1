@@ -623,8 +623,8 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     }
   });
 
-  it("shows bare-A1 command errors and warnings as the transient dock notice above the editor", async () => {
-    const { terminal, shell } = await fixture([], [], true);
+  it("shows bare-A1 command errors, warnings, and new-session confirmation above the editor", async () => {
+    const { engine, adapter, terminal, shell } = await fixture([], [], true);
     try {
       terminal.resize(100, 20);
       const exportFailure = "Failed to export session: Nothing to export yet - start a conversation first";
@@ -671,11 +671,41 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       expect(wrappedNotice).toContain("narrow dock");
       expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBe(0);
 
-      shell.root.appendWorkflowResult({ command: "new", outcome: "completed", message: "New session started" });
-      rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+      await shell.submit("/new");
+      rawRows = shell.root.render(100);
+      rows = rawRows.map(row => stripTerminalSequences(row).trimEnd());
       expect(rows.some(row => row.includes("Extension warning"))).toBe(false);
-      expect(rows.some(row => row.includes("New session started"))).toBe(true);
-      expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBeGreaterThan(0);
+      notice = rows.findIndex(row => row.includes("✓ New session started"));
+      border = rows.findIndex((row, index) => index > notice && /^─+$/.test(row));
+      expect(notice).toBeGreaterThan(0);
+      expect(rows.slice(0, notice).every(row => row === "")).toBe(true);
+      expect(border).toBe(notice + 2);
+      expect(rows[notice + 1]).toBe("");
+      expect(rawRows[notice]).toContain(piTheme().fg("accent", "✓ New session started"));
+      expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBe(0);
+
+      await shell.submit("first prompt");
+      expect(engine.session.calls).toContain("prompt:first prompt");
+      engine.session.emit({ type: "agent_start" });
+      await adapter.flushEvents();
+      rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+      expect(rows.some(row => row.includes("New session started"))).toBe(false);
+      expect(rows.some(row => row.includes("Working…"))).toBe(true);
+    } finally {
+      await shell.dispose();
+    }
+  });
+
+  it("keeps the new-session confirmation in the pinned transcript route", async () => {
+    const { shell } = await fixture();
+    try {
+      await shell.submit("/new");
+      const rawRows = shell.root.render(80);
+      const rows = rawRows.map(row => stripTerminalSequences(row).trimEnd());
+      const notice = rows.findIndex(row => row.includes("✓ New session started"));
+      expect(notice).toBeGreaterThan(0);
+      expect(rawRows[notice]).toContain(piTheme().fg("accent", "✓ New session started"));
+      expect(shell.root.viewportFrameDescriptor()).toBeNull();
     } finally {
       await shell.dispose();
     }
