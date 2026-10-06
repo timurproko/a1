@@ -82,21 +82,25 @@ describe("bounded project trust terminal preflight", () => {
     expect(output.text).toContain("Trust (this session only)");
     expect(output.text).toContain("Do not trust");
     expect(output.text).toContain("Do not trust (this session only)");
-    expect(output.text).toContain("\u001b[38;2;102;102;102m↑/↓\u001b[38;2;128;128;128m to navigate  \u001b[38;2;102;102;102mEnter\u001b[38;2;128;128;128m to select");
-    expect(output.text).toContain("Esc\u001b[38;2;128;128;128m to exit");
-    expect(output.text).not.toContain("Ctrl+C\u001b[38;2;128;128;128m to exit");
+    expect(output.text).toContain("\u001b[38;2;126;136;142m↑↓\u001b[38;2;157;165;169m navigate  \u001b[38;2;126;136;142mEnter\u001b[38;2;157;165;169m select");
+    expect(output.text).toContain("Esc\u001b[38;2;157;165;169m exit");
+    expect(output.text).not.toContain("Ctrl+C\u001b[38;2;157;165;169m exit");
     expect(output.text).not.toMatch(/[·•]/u);
     const lastFrame = frames(output.text).reverse()
       .find(frame => frame.includes("Trust project folder?"))!.split("\n");
     const heading = lastFrame.find(line => line.includes("Trust project folder?"))!;
-    const hint = lastFrame.find(line => line.includes("↑/↓"))!;
+    const hintIndex = lastFrame.findIndex(line => line.includes("↑↓"));
+    const hint = lastFrame[hintIndex]!;
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
+    expect(heading).toContain("\u001b[38;2;167;152;215mTrust project folder?");
+    expect(lastFrame.find(line => line.includes("→ "))).toContain("\u001b[38;2;167;152;215m→ ");
     expect(lastFrame.findIndex(line => line.includes("─"))).toBeGreaterThanOrEqual(0);
     expect(lastFrame.findLastIndex(line => line.includes("─"))).toBe(17);
     const rules = lastFrame.filter(line => line.includes("─"));
     expect(rules).toHaveLength(2);
-    expect(rules.every(line => line.startsWith("\u001b[38;2;95;135;255m"))).toBe(true);
+    expect(rules.every(line => line.startsWith("\u001b[38;2;97;133;204m"))).toBe(true);
     expect(rules.every(line => line.replace(/\u001b\[[0-9;:]*m/gu, "").length === output.columns)).toBe(true);
+    expect(lastFrame[hintIndex + 1]).toBe(rules[1]);
     expect(input.rawTransitions).toEqual([true, false]);
   });
 
@@ -131,7 +135,7 @@ describe("bounded project trust terminal preflight", () => {
     expect(frame.split("\n")).toHaveLength(5);
     expect(frame).toContain("→ Do not trust");
     expect(frame).toContain("this session only");
-    expect(frame).toContain("↑/↓");
+    expect(frame).toContain("↑↓");
     expect(frame).not.toContain("─");
   });
 
