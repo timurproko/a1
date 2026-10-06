@@ -18,7 +18,7 @@ import { DynamicBorder, getSelectListTheme } from "@earendil-works/pi-coding-age
 import type { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { editInExternalEditor } from "../external-editor.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export class ExtensionEditorComponent extends Container {
   readonly #editor: Editor;
@@ -73,8 +73,8 @@ export class ExtensionEditorComponent extends Container {
     const hint = renderPiModalShortcutHints([
       { key: this.#keybindings.getKeys("tui.select.confirm").join("/"), action: "submit" },
       { key: this.#keybindings.getKeys("tui.input.newLine").join("/"), action: "newline" },
-      { key: this.#keybindings.getKeys("tui.select.cancel").join("/"), action: "cancel" },
       { key: this.#keybindings.getKeys("app.editor.external").join("/"), action: "external editor" },
+      DIALOG_CLOSE_SHORTCUT_HINT,
     ]);
     this.addChild(new Text(hint, 0, 0));
     this.addChild(new Spacer(1));

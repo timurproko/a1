@@ -57,7 +57,7 @@ export type {
   ScrollbarSpeed,
   ScrollbarStyle,
 } from "./scrollbar.js";
-export { renderShortcutHints } from "./shortcut-hints.js";
+export { renderShortcutHints, renderShortcutHintsWithClose } from "./shortcut-hints.js";
 export type { ShortcutHintEntry } from "./shortcut-hints.js";
 export { GLOBAL_SCOPE, ShortcutRegistry, assembleShortcuts, assertNoShortcutConflicts } from "./shortcuts.js";
 export type { ShortcutConflict, ShortcutDeclaration, ShortcutRegistryResult } from "./shortcuts.js";

@@ -29,7 +29,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export type ThinkingSelectorLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
@@ -113,7 +113,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		this.addChild(new Text(renderPiModalShortcutHints([
 			{ key: this.keyDisplayText("tui.select.confirm"), action: "select" },
 			{ key: "Space", action: "default" },
-			{ key: "Esc", action: "close" },
+			DIALOG_CLOSE_SHORTCUT_HINT,
 		]), 0, 0));
 		this.addChild(new DynamicBorder((text: string) => piTheme().fg("border", text)));
 		adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });

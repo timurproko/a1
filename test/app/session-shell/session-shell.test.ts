@@ -206,7 +206,9 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     });
 
     const share = shell.runWorkflow({ command: "share", argument: "" });
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Creating gist...");
+    const loadingFrame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(loadingFrame).toContain("Creating gist...");
+    expect(loadingFrame).toContain("Esc close");
     terminal.input("\x1b");
     await share;
     const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
@@ -236,7 +238,8 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     expect(plainShareRows[shareRow + 1]?.trimEnd()).toBe(" Gist: https://gist.test/id");
 
     const reload = shell.runWorkflow({ command: "reload", argument: "" });
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Reloading keybindings, extensions, skills, prompts, themes, and context files...");
+    const reloadFrame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(reloadFrame).toContain("Reloading keybindings, extensions, skills, prompts, themes, and context files...");
     await reload;
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Reloading keybindings");
     expect(execute).toHaveBeenCalledTimes(2);

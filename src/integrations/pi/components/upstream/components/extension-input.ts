@@ -10,7 +10,7 @@
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, getKeybindings, Input, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 import { CountdownTimer } from "./countdown-timer.js";
 
 interface ExtensionInputOptions {
@@ -61,7 +61,7 @@ export class ExtensionInputComponent extends Container {
     const keys = getKeybindings();
     this.addChild(new Text(renderPiModalShortcutHints([
       { key: keys.getKeys("tui.select.confirm").join("/"), action: "submit" },
-      { key: keys.getKeys("tui.select.cancel").join("/"), action: "cancel" },
+      DIALOG_CLOSE_SHORTCUT_HINT,
     ]), 0, 0));
     this.addChild(new DynamicBorder());
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });

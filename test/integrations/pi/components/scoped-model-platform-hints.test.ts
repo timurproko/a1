@@ -47,6 +47,7 @@ for (const platform of ["darwin", "win32", "linux"] as const) {
       withSelector(platform, {}, (selector, _callbacks, keys) => {
         expect(text(selector)).toContain(`${alt}+Up/${alt}+Down reorder`);
         expect(text(selector)).toContain("Session-only. Ctrl+S to save to settings.");
+        expect(text(selector)).toContain("Esc close");
         const rows = selector.render(600);
         const heading = rows.find(row => stripTerminalSequences(row).includes("Model Configuration"))!;
         const hint = rows.find(row => stripTerminalSequences(row).includes("toggle"))!;

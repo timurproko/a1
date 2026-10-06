@@ -21,6 +21,8 @@ import {
   createPiShellSettingsSelector,
   createPiShellSessionInfo,
   createPiShellSelector,
+  createPiShellShowImagesSelector,
+  createPiShellThemeSelector,
   createPiShellUserMessageSelector,
   createPiShellStatus,
   createPiShellTranscriptComponent,
@@ -884,6 +886,7 @@ describe("Pi shell public component adapters", () => {
     });
     const rows = stripTerminalSequences(settings.render(88).join("\n"));
     expect(rows).toMatch(/Auto-compact\s+true/);
+    expect(stripTerminalSequences(settings.render(12).join("\n"))).toContain("Esc close");
     expect(rows).toMatch(/Auto-resize images\s+true/);
     settings.handleInput?.("\x1b[B");
     expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/32)");
@@ -891,7 +894,12 @@ describe("Pi shell public component adapters", () => {
     expect(cancelled).toHaveBeenCalledOnce();
 
     const selected = vi.fn();
+    const theme = createPiShellThemeSelector("dark", selected, cancelled, vi.fn());
+    expect(stripTerminalSequences(theme.render(80).join("\n"))).toContain("↑↓ navigate  Enter select  Esc close");
+    const images = createPiShellShowImagesSelector(true, selected, cancelled);
+    expect(stripTerminalSequences(images.render(80).join("\n"))).toContain("↑↓ navigate  Enter select  Esc close");
     const messages = createPiShellUserMessageSelector([{ id: "entry-1", label: "first prompt" }], selected, cancelled);
+    expect(stripTerminalSequences(messages.render(80).join("\n"))).toContain("Esc close");
     messages.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("entry-1");
     const auth = createPiShellAuthProviderSelector("login", [{
@@ -904,6 +912,7 @@ describe("Pi shell public component adapters", () => {
     const authRows = auth.render(80).map(stripTerminalSequences);
     expect(authRows[1]?.trimEnd()).toBe(" Select provider to configure:");
     expect(authRows.join("\n")).toContain("OpenAI ✓ stored");
+    expect(authRows.join("\n")).toContain("Esc close");
     auth.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("oauth:openai");
 
@@ -914,6 +923,12 @@ describe("Pi shell public component adapters", () => {
     );
     const loginRows = login.render(80).map(stripTerminalSequences);
     expect(loginRows[1]?.trimEnd()).toBe(" Login to openai");
+    expect(loginRows.join("\n")).toContain("Esc close");
+    login.showWaiting("Waiting for authentication");
+    const waitingRows = stripTerminalSequences(login.render(80).join("\n"));
+    expect(waitingRows).toContain("Waiting for authentication");
+    expect(waitingRows).toContain("Esc close");
+    expect(waitingRows).not.toContain("to cancel");
 
     const unconfigured = createPiShellAuthProviderSelector("login", [{
       id: "api_key:anthropic",

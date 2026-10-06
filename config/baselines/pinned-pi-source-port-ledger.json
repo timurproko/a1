@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-06T16:07:39.470Z",
+  "recordedAt": "2026-10-06T17:26:55.205Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -1626,7 +1626,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle; bare A1 uses the shared semantic modal shortcut row and compact padded modal frame.",
       "upgradeStrategy": "three-way",
-      "localSha256": "c91f306df88c9a654c39880ac565c9b7e86bc0608fad878ede9fa0230809d26d",
+      "localSha256": "d13ad879f15fb6ad41d1784080440c1f70b112254a0e6d333f39476c6e46b0a0",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1673,7 +1673,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving input, timeout, focus, submission, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "a947f22a26836565fc120224439be97db3aa54a53a32370a3656c0c5c122cf60",
+      "localSha256": "df8c0cd12fbfa2e58fb577b651204e9730cfc7e87ec5381735d296810c9ca441",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1723,7 +1723,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving options, timeout, navigation, selection, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "ebcc1df32a9c6a83d43d6d377f409605a2110fc8758bc50ea4bb69663bcd021e",
+      "localSha256": "73e6b333810ee847fa9393bb524d4b68764c830d89623cccc5533eec0a57ea36",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2184,7 +2184,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities, and bare A1 uses the shared semantic modal shortcut row and compact padded modal frame.",
       "upgradeStrategy": "three-way",
-      "localSha256": "bf45499c4785aaa4e75afe827a9cbfbc3d7bb799c2a688cc5268f0031f3cdae3",
+      "localSha256": "b07f4d867330b44bed5d1534c7fb65a2bc8d83903bd72fbc6425bd27d1c63088",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2272,7 +2272,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, and the shared bare-A1 modal shortcut row and compact padded modal frame.",
       "upgradeStrategy": "three-way",
-      "localSha256": "5c214c18f6e84bef7219e6438f8d7151fa8ea0b0e3a1ce4a93ad084c6040b465",
+      "localSha256": "e605f1754ec3f71e2b0e14e6c11c1fab10e3f89621c855454a3b01c08a9afe29",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2587,7 +2587,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering exclusive radio-style default markers before level names, an item-adjacent active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space, closes only on Escape, and uses the shared compact semantic shortcut row. All list and border colors use the owned theme and its explicit color mode. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "df57a0df73336931de84b7ba1d62e21b6e304f78592fbcaacd5fe349e75bad5e",
+      "localSha256": "056d5f1d2a6402a68249420cff8a8864e17ea5c44f715a26b559f798ebb8ebe5",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2703,7 +2703,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab cycling and concise all-first presentation excluding internal bookkeeping, standard search input, purple accent-backed menu-arrow selection without path bullets, accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with session naming for the system root, standard paging/first-last/containing-branch folding keys, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "b9d928309e17ee9bcb148fc293ae6097d611b31e3b0670f9990a8d4a2dc8b27c",
+      "localSha256": "99fd9c702d14d04cd9d0d75c0fe4101b42daef75ab4d8479c9ed1fd194b50962",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2756,7 +2756,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options, remapped owned theme imports, the shared bare-A1 modal shortcut row and compact padded modal frame, and standard semantic trust styling with marker-free choice geometry.",
       "upgradeStrategy": "three-way",
-      "localSha256": "237d5fe5a471773bc68708b56a122f69a71a0b2d05b95a1ddafa8883a1659d01",
+      "localSha256": "5365be975f03f18207b6c201d91e16703e41967e9b5029fe8352de00588a083e",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",

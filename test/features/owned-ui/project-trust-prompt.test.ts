@@ -83,7 +83,7 @@ describe("bounded project trust terminal preflight", () => {
     expect(output.text).toContain("Do not trust");
     expect(output.text).toContain("Do not trust (this session only)");
     expect(output.text).toContain("\u001b[38;2;126;136;142m↑↓\u001b[38;2;157;165;169m navigate  \u001b[38;2;126;136;142mEnter\u001b[38;2;157;165;169m select");
-    expect(output.text).toContain("Esc\u001b[38;2;157;165;169m exit");
+    expect(output.text).toContain("Esc\u001b[38;2;157;165;169m close");
     expect(output.text).not.toContain("Ctrl+C\u001b[38;2;157;165;169m exit");
     expect(output.text).not.toMatch(/[·•]/u);
     const lastFrame = frames(output.text).reverse()

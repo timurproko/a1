@@ -84,6 +84,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     terminal.input("theme");
     terminal.input("\r");
     expect(frame()).toContain("Select a theme, or choose automatic to follow terminal appearance.");
+    expect(frame()).toContain("Esc close");
+    expect(frame()).not.toContain("Esc to go back");
     terminal.input("\x1b[A");
     terminal.input("\r");
     expect(frame()).toContain("Automatic Theme");
@@ -94,7 +96,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     terminal.input("\x1b");
     expect(frame()).toContain("Automatic Theme");
     terminal.input("\x1b");
-    expect(frame()).toContain("Type to search · Enter/Space to change · Esc to cancel");
+    expect(frame()).toContain("Type to search · Enter/Space to change · Esc close");
     expect(frame()).toContain("> theme");
     terminal.input("\x1b");
 
@@ -278,6 +280,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(surfaceChanges).toHaveBeenCalled();
     expect(surfaceChanges.mock.calls.every(([surface]) => surface !== null)).toBe(true);
     const summaryHintIndex = plainSummaryRows.findIndex(row => row.includes("navigate") && row.includes("select"));
+    expect(plainSummaryRows[summaryHintIndex]).toContain("Esc close");
     expect(plainSummaryRows[summaryHintIndex + 1]).toBe("─".repeat(100));
     surfaceChanges.mockClear();
     terminal.input("\x1b");
@@ -300,8 +303,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       cellStyle(piTheme().fg("accent", piTheme().bold("C")), "C"),
     );
     expect(plainCustomRows[customTitleIndex + 2]?.trimStart()).toMatch(/^>/);
-    const customHintIndex = plainCustomRows.findIndex(row => row.includes("submit") && row.includes("cancel"));
-    expect(plainCustomRows[customHintIndex]).toContain("Enter submit  Escape/Ctrl+C cancel");
+    const customHintIndex = plainCustomRows.findIndex(row => row.includes("submit") && row.includes("close"));
+    expect(plainCustomRows[customHintIndex]).toContain("Enter submit  Esc close");
     expect(cellStyle(customRows[customHintIndex]!, "E")).toEqual(cellStyle(piTheme().fg("dim", "E"), "E"));
     expect(cellStyle(customRows[customHintIndex]!, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
     expect(plainCustomRows[customHintIndex]).not.toContain("newline");

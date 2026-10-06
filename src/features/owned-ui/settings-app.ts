@@ -1,3 +1,4 @@
+import { DIALOG_CLOSE_SHORTCUT_HINT } from "../../contracts/presentation/index.js";
 import type { AppHostServices, UiApp } from "../../ui/apps/index.js";
 import type {
   ListViewRow,
@@ -24,7 +25,7 @@ import {
   renderInputRow,
   renderListRow,
   renderNote,
-  renderShortcutHints,
+  renderShortcutHintsWithClose,
   dialogRowAt,
   menuRowAt,
   regionAt,
@@ -106,13 +107,16 @@ SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Change va
 SETTINGS_SHORTCUTS.declare({ key: "space", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "to change" } }, "activate");
 SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change", hint: { keys: "←→", does: "to adjust" } }, "previous-value");
 SETTINGS_SHORTCUTS.declare({ key: "right", scope: SCOPE, description: "Next value", section: "Change", hint: { keys: "←→", does: "to adjust" } }, "next-value");
-SETTINGS_SHORTCUTS.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen", hint: { keys: "Esc", does: "to cancel" } }, "close");
 SETTINGS_SHORTCUTS.declare({ key: "enter", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "to change" } }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "space", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "to change" } }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "left", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts" }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "right", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts" }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "up", scope: DIALOG_SCOPE, description: "Previous part", section: "Parts" }, "part-previous");
 SETTINGS_SHORTCUTS.declare({ key: "down", scope: DIALOG_SCOPE, description: "Next part", section: "Parts" }, "part-next");
+SETTINGS_SHORTCUTS.declare({
+  key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen",
+  hint: { keys: DIALOG_CLOSE_SHORTCUT_HINT.key, does: DIALOG_CLOSE_SHORTCUT_HINT.action },
+}, "close");
 assertNoShortcutConflicts(SETTINGS_SHORTCUTS.assemble());
 
 const KEYS: Readonly<Record<string, string>> = {
@@ -908,7 +912,7 @@ export class SettingsApp implements UiApp {
       ? notice
       : this.#interruptArmed ? "press ctrl+c again to exit a1" : null;
     const status = plainStatus === null
-      ? truncateToWidth(renderShortcutHints(SETTINGS_SHORTCUTS.hintEntries(SCOPE), theme, width > 0 ? 1 : 0), width)
+      ? renderShortcutHintsWithClose(SETTINGS_SHORTCUTS.hintEntries(SCOPE), theme, width, width > 0 ? 1 : 0)
       : truncateToWidth(`${width > 0 ? " " : ""}${theme.fg("dim", plainStatus)}`, width);
     const input = this.#filter;
     if (input === null) return [status];

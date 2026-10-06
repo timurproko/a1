@@ -70,6 +70,8 @@ describe("owned pinned session selector", () => {
     const heading = initialRows.find(row => stripPortableTerminalSequences(row).includes("Resume Session"))!;
     expect(firstVisibleTextColumn(hintRows[0]!)).toBe(firstVisibleTextColumn(heading));
     expect(hintRows.map(stripPortableTerminalSequences).join("\n")).toContain('Tab scope  re:<pattern> regex  "phrase" exact');
+    expect(stripPortableTerminalSequences(initialRows.join("\n"))).toContain("Esc close");
+    expect(stripPortableTerminalSequences(component.render(12).join("\n"))).toContain("Esc close");
     expect(hintRows.join("\n")).not.toMatch(/[·•]/u);
 
     input("Prompt other");
@@ -94,6 +96,7 @@ describe("owned pinned session selector", () => {
     const renameRows = component.render(100);
     const renameHeading = renameRows.find(row => stripPortableTerminalSequences(row).includes("Rename Session"))!;
     const renameHint = renameRows.find(row => stripPortableTerminalSequences(row).includes("to save"))!;
+    expect(stripPortableTerminalSequences(renameHint)).toContain("Enter to save  Esc close");
     expect(firstVisibleTextColumn(renameHint)).toBe(firstVisibleTextColumn(renameHeading));
     input("Renamed session");
     input("\r");

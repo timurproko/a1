@@ -453,12 +453,12 @@ describe("the settings screen", () => {
     // Invariant: the declaration decides what a flag shows before anything is stored.
     expect(find(target, "Anthropic extra usage")).toContain("true");
     expect(find(target, "Unknown tools")).toContain("false");
-    expect(find(target, "Enter/Space to change")).toContain("Esc to cancel");
+    expect(find(target, "Enter/Space to change")).toContain("Esc close");
     const rendered = target.render({ width: 200, height: 24 }, NAMING_HOST);
     const styledHint = rendered.find(line => line.includes("Enter/Space")) ?? "";
     const title = rendered.find(line => line.includes("Settings")) ?? "";
     expect(firstVisibleTextColumn(styledHint)).toBe(firstVisibleTextColumn(title));
-    expect(styledHint).toContain("<dim>Esc</dim> <muted>to cancel</muted>  <dim>Enter/Space</dim> <muted>to change</muted>");
+    expect(styledHint).toContain("<dim>Enter/Space</dim> <muted>to change</muted>  <dim>Esc</dim> <muted>close</muted>");
     expect(styledHint).not.toMatch(/[·•]/u);
 
     target.onInput?.(SPACE, HOST);
@@ -793,7 +793,7 @@ describe("the input row and status line behind the screen", () => {
     expect(hint).toContain("Shift+↑↓ to jump");
     expect(hint).toContain("Enter/Space to change");
     expect(hint).toContain("←→ to adjust");
-    expect(hint).toContain("Esc to cancel");
+    expect(hint).toContain("Esc close");
     expect(hint).not.toContain("Type to search");
     expect(hint).not.toMatch(/[·•]/u);
     const styledHint = target.render({ width: 200, height: 24 }, NAMING_HOST).find(line => line.includes("<dim>/</dim>")) ?? "";

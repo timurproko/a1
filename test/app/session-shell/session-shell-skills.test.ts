@@ -103,7 +103,7 @@ describe("OwnedUiSessionShell skills command", () => {
       expect(shown).toContain("→ skill:framer");
       expect(shown).toContain("  skill:code-review");
       expect(shown).toContain("Design, edit, and publish Framer sites");
-      expect(shown).toContain("↑↓ navigate  Enter select  Escape/Ctrl+C cancel");
+      expect(shown).toContain("↑↓ navigate  Enter select  Esc close");
       terminal.input("\u001b");
       await settle();
       expect(shell.root.usesDefaultInputSurface()).toBe(true);
