@@ -1,6 +1,6 @@
 # Implementation Validation Evidence
 
-Recorded: 2026-10-05
+Recorded: 2026-10-06
 
 ## Passing evidence
 
@@ -13,8 +13,8 @@ Recorded: 2026-10-05
 
 ## Physical acceptance
 
-Maintainer review identified role-color, path-bullet, cursor-position, purple active-row treatment, selected-branch content/editor restoration including returned user prompts, Models-style all-first filter/Tab cycling with model/thinking metadata exclusion, summary-cancellation transition, custom-summary input/title/footer, and focused label-dialog refinements; those are implemented and automated. Recheck through `./scripts/dev` is pending for the complete spacing, title, search, selection, empty-state, footer, custom-input, and bidirectional no-flash summary scenarios.
+Maintainer review through the built `./scripts/dev` candidate passed after iterative checks of compact spacing, title-case nested dialogs, standard search, concise filters, selection and clipping, label presentation, tree paging/folding, selected-branch editor restoration, and prompt-free cancellation transitions. The maintainer confirmed the final physical result looks good and requested ready-for-review CI validation.
 
 ## Gap disposition
 
-No known implementation or automated-validation gaps remain. Physical terminal acceptance is pending; Full regression and native host gates remain CI-owned under repository policy.
+No known implementation or physical-acceptance gaps remain. Full regression and native host gates remain CI-owned under repository policy.

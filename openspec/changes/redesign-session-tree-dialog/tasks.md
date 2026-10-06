@@ -18,4 +18,4 @@
 ## 3. Validate the Delivered Experience
 
 - [x] 3.1 Run the focused tree, session-shell workflow, extension-selector, modal-inventory, and typecheck/build scopes permitted by repository policy; record passing behavior and any explicit gap disposition in `evidence/validation.md`.
-- [ ] 3.2 Build the interactive candidate and obtain maintainer review in bare A1 for the supplied spacing, title, search, selection, empty-state, footer, and no-flash summary scenarios; record the physical result in `evidence/validation.md` before finalization.
+- [x] 3.2 Build the interactive candidate and obtain maintainer review in bare A1 for the supplied spacing, title, search, selection, empty-state, footer, and no-flash summary scenarios; record the physical result in `evidence/validation.md` before finalization.
