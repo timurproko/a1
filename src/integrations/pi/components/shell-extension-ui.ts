@@ -31,6 +31,7 @@ import {
   createTuiFacade,
   ensureTheme,
   isRecord,
+  withPiDialogCancel,
   type PiShellComponentPort,
   type PiShellEditorOptions,
 } from "./shell-shared-facade.js";
@@ -224,7 +225,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
           if ("dispose" in component && typeof component.dispose === "function") component.dispose();
           return;
         }
-        surface = componentPort(component);
+        surface = withPiDialogCancel(componentPort(component), cancelCustom);
         activeCancel = cancelCustom;
         if (options?.overlay) {
           const overlayOptions = typeof options.overlayOptions === "function" ? options.overlayOptions() : options.overlayOptions;

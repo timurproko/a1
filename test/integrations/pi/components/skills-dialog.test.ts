@@ -59,7 +59,7 @@ describe("the Skills dialog", () => {
       "",
       "   Design, edit, and publish Framer sites",
       "",
-      " ↑↓ navigate  Enter select  Escape/Ctrl+C cancel",
+      " ↑↓ navigate  Enter select  Escape cancel",
       "─".repeat(80),
     ]);
     expect(plain(40)).toEqual([
@@ -74,9 +74,8 @@ describe("the Skills dialog", () => {
       "",
       "   Design, edit, and publish Framer site",
       "",
-      // Invariant: the shared frame gives wrapped content one cell less than its full-width rules.
-      " ↑↓ navigate  Enter select",
-      " Escape/Ctrl+C cancel",
+      " ↑↓ navigate  Enter select  Escape",
+      " cancel",
       "─".repeat(40),
     ]);
     const rendered = component.render(80);
@@ -97,14 +96,15 @@ describe("the Skills dialog", () => {
       .map(row => stripTerminalSequences(row).trim()).find(row => row.includes("navigate"));
     const footer = component.render(80).map(row => stripTerminalSequences(row).trim()).find(row => row.includes("navigate"));
     expect(footer?.toLowerCase()).toBe(pinned);
-    expect(footer).toBe("↑↓ navigate  Enter select  Escape/Ctrl+C cancel");
+    expect(footer).toBe("↑↓ navigate  Enter select  Escape cancel");
+    expect(footer).not.toContain("Ctrl+C");
   });
 
   it("wraps the selection, shows the selected description, and applies with Enter", () => {
     const { component, onSelect, onCancel, plain } = dialog();
     component.handleInput?.(UP);
     // Invariant: a skill without a description shows no description block.
-    expect(plain(80).slice(5, 10)).toEqual(["   skill:framer", "   skill:code-review", " → skill:apply-patch", "", " ↑↓ navigate  Enter select  Escape/Ctrl+C cancel"]);
+    expect(plain(80).slice(5, 10)).toEqual(["   skill:framer", "   skill:code-review", " → skill:apply-patch", "", " ↑↓ navigate  Enter select  Escape cancel"]);
     component.handleInput?.(DOWN);
     expect(plain(80).slice(5, 10)).toEqual([" → skill:framer", "   skill:code-review", "   skill:apply-patch", "", "   Design, edit, and publish Framer sites"]);
     component.handleInput?.(DOWN);
@@ -119,14 +119,14 @@ describe("the Skills dialog", () => {
     const { plain } = dialog([{ name: "openspec-update-change", description: long }]);
     const rows = plain(60);
     expect(rows[7]).toBe("   " + long.slice(0, 57));
-    expect(rows.slice(8)).toEqual(["", " ↑↓ navigate  Enter select  Escape/Ctrl+C cancel", "─".repeat(60)]);
+    expect(rows.slice(8)).toEqual(["", " ↑↓ navigate  Enter select  Escape cancel", "─".repeat(60)]);
   });
 
   it("filters on name or description ignoring case and skill:, resets the selection, and reports no matches", () => {
     const { component, onSelect, plain, type } = dialog();
     component.handleInput?.(DOWN);
     type("SKILL:APP");
-    expect(plain(80).slice(3, 8)).toEqual([" > SKILL:APP", "", " → skill:apply-patch", "", " ↑↓ navigate  Enter select  Escape/Ctrl+C cancel"]);
+    expect(plain(80).slice(3, 8)).toEqual([" > SKILL:APP", "", " → skill:apply-patch", "", " ↑↓ navigate  Enter select  Escape cancel"]);
     for (let index = 0; index < "SKILL:APP".length; index++) component.handleInput?.(BACKSPACE);
     type("diff");
     expect(plain(80).slice(5, 8)).toEqual([" → skill:code-review", "", "   Review the current diff"]);
@@ -141,9 +141,10 @@ describe("the Skills dialog", () => {
     expect(semantic(component.render(80))[5]).toBe(" <muted>  No matching skills</>");
   });
 
-  it("cancels on Escape without selecting", () => {
-    const { component, onSelect, onCancel } = dialog();
-    component.handleInput?.(ESC);
+  it.each([ESC, "\u0003"])("cancels on %j without selecting or clearing a populated search", key => {
+    const { component, onSelect, onCancel, type } = dialog();
+    type("review");
+    component.handleInput?.(key);
     expect(onCancel).toHaveBeenCalledOnce();
     expect(onSelect).not.toHaveBeenCalled();
   });

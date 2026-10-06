@@ -1,8 +1,6 @@
 import {
   Input,
-  Key,
   getKeybindings,
-  matchesKey,
   truncateToWidth,
   type Component,
   type Focusable,
@@ -275,15 +273,6 @@ export class ModelsDialogComponent implements Component, Focusable {
       next[index] = next[target]!;
       next[target] = selected.fullId;
       this.#setScope(next, selected.fullId);
-      return;
-    }
-    if (matchesKey(data, Key.ctrl("c"))) {
-      if (this.#input.getValue().length > 0) {
-        this.#input.setValue("");
-        this.#selectedIndex = 0;
-        return;
-      }
-      this.#callbacks.onCancel();
       return;
     }
     if (kb.matches(data, "tui.select.cancel")) {

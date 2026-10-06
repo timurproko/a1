@@ -55,8 +55,6 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(bare.engine.session.calls).not.toContain("thinking:low");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
     bare.shell.root.handleInput("\x03");
-    expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
-    bare.shell.root.handleInput("\x1b");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
 
     await bare.shell.submit("/thinking");
@@ -298,7 +296,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     );
     expect(plainCustomRows[customTitleIndex + 2]?.trimStart()).toMatch(/^>/);
     const customHintIndex = plainCustomRows.findIndex(row => row.includes("submit") && row.includes("cancel"));
-    expect(plainCustomRows[customHintIndex]).toContain("Enter submit  Escape/Ctrl+C cancel");
+    expect(plainCustomRows[customHintIndex]).toContain("Enter submit  Escape cancel");
+    expect(plainCustomRows[customHintIndex]).not.toContain("Ctrl+C");
     expect(cellStyle(customRows[customHintIndex]!, "E")).toEqual(cellStyle(piTheme().fg("dim", "E"), "E"));
     expect(cellStyle(customRows[customHintIndex]!, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
     expect(plainCustomRows[customHintIndex]).not.toContain("newline");
@@ -306,7 +305,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(plainCustomRows[customHintIndex + 1]).toBe("─".repeat(100));
 
     const customSurfaceChanges = vi.spyOn(shell.root, "setInputSurface");
-    terminal.input("\x1b");
+    terminal.input("\u0003");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Summarize Branch?");
     expect(customSurfaceChanges).toHaveBeenCalled();

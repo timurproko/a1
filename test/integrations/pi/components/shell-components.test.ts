@@ -907,13 +907,19 @@ describe("Pi shell public component adapters", () => {
     auth.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("oauth:openai");
 
+    const loginComplete = vi.fn();
     const login = createPiShellLoginDialog(
       { getColumns: () => 80, getRows: () => 24, requestRender: vi.fn() },
       "openai",
-      vi.fn(),
+      loginComplete,
     );
+    login.showInfo("Continue in your browser", [], true);
     const loginRows = login.render(80).map(stripTerminalSequences);
     expect(loginRows[1]?.trimEnd()).toBe(" Login to openai");
+    expect(loginRows.join("\n")).toContain("escape to close");
+    expect(loginRows.join("\n")).not.toContain("Ctrl+C");
+    login.handleInput?.("\u0003");
+    expect(loginComplete).toHaveBeenCalledExactlyOnceWith(false, "Login cancelled");
 
     const unconfigured = createPiShellAuthProviderSelector("login", [{
       id: "api_key:anthropic",

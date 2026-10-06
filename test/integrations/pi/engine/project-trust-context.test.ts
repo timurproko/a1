@@ -6,6 +6,7 @@ import { ProjectTrustStore, SettingsManager, VERSION, type AgentSessionRuntime }
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPiEngineAdapter } from "../../../../src/integrations/pi/engine/adapter.js";
+import { createPiShellTrustSelector } from "../../../../src/integrations/pi/components/index.js";
 import { TrustSelectorComponent } from "../../../../src/integrations/pi/components/upstream/components/trust-selector.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 
@@ -46,7 +47,7 @@ async function fixture() {
   }
   return { home, target, alias, agentDir, canonical, store, context };
 }
-function rows(selector: TrustSelectorComponent) { return selector.render(600).map(stripTerminalSequences); }
+function rows(selector: { render(width: number): readonly string[] }) { return selector.render(600).map(stripTerminalSequences); }
 
 describe("canonical project trust context", () => {
   it("uses the target parent, not the alias parent, without rewriting the cwd heading", async () => {
@@ -96,7 +97,7 @@ describe("canonical project trust context", () => {
     const savedPath = kind === "parent" ? dirname(f.canonical) : kind === "ancestor" ? dirname(dirname(f.canonical)) : f.canonical;
     f.store.set(savedPath, kind !== "denied");
     const { value } = await f.context();
-    const selector = new TrustSelectorComponent({ ...value, onSelect() {}, onCancel() {} });
+    const selector = createPiShellTrustSelector({ ...value, onSelect() {}, onCancel() {} });
     const rendered = rows(selector);
     const decision = kind === "denied" ? "untrusted" : "trusted";
     expect(rendered.join("\n")).toContain(`Saved decision: ${decision} (${kind === "parent" || kind === "ancestor" ? "inherited from " : ""}${savedPath})`);
@@ -105,7 +106,8 @@ describe("canonical project trust context", () => {
     expect(rendered.some(row => row.trim() === `→ ${kind === "ancestor" ? "  " : "✓ "}${selected}`)).toBe(true);
     expect(rendered.some(row => row.trim() === resolve(f.alias))).toBe(true);
     const heading = rendered.find(row => row.includes("Project trust"))!;
-    const hint = rendered.find(row => row.includes("↑↓ navigate  Enter save  Escape/Ctrl+C cancel"))!;
+    const hint = rendered.find(row => row.includes("↑↓ navigate  Enter save  Escape cancel"))!;
+    expect(hint).not.toContain("Ctrl+C");
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
   });
 

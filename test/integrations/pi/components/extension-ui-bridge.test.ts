@@ -60,7 +60,8 @@ describe("pinned extension UI bridge", () => {
     expect(firstVisibleTextColumn(selectorRows.find(row => stripTerminalSequences(row).includes("Choose"))!))
       .toBe(firstVisibleTextColumn(selectorRows.find(row => stripTerminalSequences(row).includes("↑↓ navigate"))!));
     expect(selectorFrame).toContain("alpha");
-    expect(selectorFrame).toContain("↑↓ navigate  Enter select  Escape/Ctrl+C cancel");
+    expect(selectorFrame).toContain("↑↓ navigate  Enter select  Escape cancel");
+    expect(selectorFrame).not.toContain("Ctrl+C");
     expect(selectorFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("\x1b[B");
     value.inputSurface!.handleInput?.("\r");
@@ -73,7 +74,8 @@ describe("pinned extension UI bridge", () => {
     expect(stripTerminalSequences(inputRows[1]!)).toContain("Name");
     expect(firstVisibleTextColumn(inputRows.find(row => stripTerminalSequences(row).includes("Name"))!))
       .toBe(firstVisibleTextColumn(inputRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!));
-    expect(inputFrame).toContain("Enter submit  Escape/Ctrl+C cancel");
+    expect(inputFrame).toContain("Enter submit  Escape cancel");
+    expect(inputFrame).not.toContain("Ctrl+C");
     expect(inputFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("Ada");
     value.inputSurface!.handleInput?.("\r");
@@ -85,10 +87,12 @@ describe("pinned extension UI bridge", () => {
     expect(stripTerminalSequences(editorRows[1]!)).toContain("Notes");
     expect(firstVisibleTextColumn(editorRows.find(row => stripTerminalSequences(row).includes("Notes"))!))
       .toBe(firstVisibleTextColumn(editorRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!));
-    expect(editorFrame).toContain("Enter submit  Shift+Enter/Ctrl+J newline  Escape/Ctrl+C cancel  Ctrl+G external editor");
+    expect(editorFrame).toContain("Enter submit  Shift+Enter/Ctrl+J newline  Escape cancel  Ctrl+G external editor");
+    expect(editorFrame).not.toContain("Ctrl+C");
     expect(editorFrame).not.toMatch(/[·•]/u);
-    value.inputSurface!.handleInput?.("\x1b");
+    value.inputSurface!.handleInput?.("\u0003");
     await expect(editor).resolves.toBeUndefined();
+    expect(value.inputSurface).toBeNull();
 
     const controller = new AbortController();
     const cancelled = value.bridge.context.select("Abort", ["one"], { signal: controller.signal });
@@ -152,6 +156,18 @@ describe("pinned extension UI bridge", () => {
     await expect(value.bridge.context.custom(() => { throw new Error("custom boom"); })).rejects.toThrow("custom boom");
     await expect(value.bridge.context.custom((() => ({})) as never)).rejects.toThrow(/malformed component/);
     expect(value.notifications).not.toContain("error:Extension custom surface failed: custom boom");
+    expect(value.inputSurface).toBeNull();
+
+    const customInput = vi.fn();
+    const cancelled = value.bridge.context.custom(() => ({
+      render: () => ["custom dialog"],
+      invalidate() {},
+      handleInput: customInput,
+    }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    value.inputSurface!.handleInput?.("\u0003");
+    await expect(cancelled).resolves.toBeUndefined();
+    expect(customInput).not.toHaveBeenCalled();
     expect(value.inputSurface).toBeNull();
 
     const switched = value.bridge.context.custom(() => new Text("switch custom", 0, 0));

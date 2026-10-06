@@ -322,9 +322,9 @@ describe("owned level and model keybindings", () => {
     custom.handleInput?.("\x13");
     expect(customSaved).toHaveBeenCalledOnce();
     custom.handleInput?.("\x03");
-    expect(canceled).not.toHaveBeenCalled();
-    custom.handleInput?.("\x1b");
     expect(canceled).toHaveBeenCalledOnce();
+    custom.handleInput?.("\x1b");
+    expect(canceled).toHaveBeenCalledTimes(2);
   });
 
   it.each(["\u000c", "\u001b[108;5u", "\u001b[27;5;108~"])("cycles once without opening model selection for %j", async key => {
@@ -387,9 +387,12 @@ describe("owned level and model keybindings", () => {
     custom.input.handleInput?.("\u001b[109;5u");
     expect(custom.cycle).toHaveBeenCalledOnce();
     expect(custom.select).toHaveBeenCalledOnce();
-    const ownedKeys = KeybindingsManager.fromOwnedBindings();
+    const ownedKeys = KeybindingsManager.fromOwnedBindings({ "tui.select.cancel": "alt+x" });
     expect(ownedKeys.getKeys("app.tree.filter.labeledOnly")).toEqual(["ctrl+l"]);
     expect(ownedKeys.getKeys("app.tree.filter.cycleForward")).toEqual(["tab"]);
+    expect(ownedKeys.getKeys("tui.select.cancel")).toEqual(["alt+x"]);
+    expect(ownedKeys.matches("\u001bx", "tui.select.cancel")).toBe(true);
+    expect(ownedKeys.matches("\u0003", "tui.select.cancel")).toBe(true);
     expect(ownedKeys.getConflicts().some(conflict => conflict.keybindings.includes("app.model.select"))).toBe(false);
     expect(ownedKeys.getConflicts().some(conflict => conflict.keybindings.includes("app.message.dequeue"))).toBe(false);
     const pinned = await editor("pi");

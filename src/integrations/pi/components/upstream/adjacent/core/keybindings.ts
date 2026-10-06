@@ -3,16 +3,17 @@
  * packages/coding-agent/src/core/keybindings.ts.
  * Modifications: Mechanical source port with Node import prefixes, public package-root agent-directory
  * resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model
- * selection, Tab tree-filter cycling, tree-local navigation aliases, and cross-platform Alt+Up
- * queued-message restoration.
+ * selection, Tab tree-filter cycling, tree-local navigation aliases, cross-platform Alt+Up queued-
+ * message restoration, and an implicit Ctrl+C selection-cancel alias omitted from displayed key lists.
  * Deviations: keybindings-public-config-boundary, owned-level-cycle-shortcut,
- * owned-input-keybinding-aliases, owned-session-tree-dialog.
+ * owned-input-keybinding-aliases, owned-session-tree-dialog, owned-dialog-ctrl-c-cancel.
  */
 import {
 	type Keybinding,
 	type KeybindingDefinitions,
 	type KeybindingsConfig,
 	type KeyId,
+	matchesKey,
 	TUI_KEYBINDINGS,
 	KeybindingsManager as TuiKeybindingsManager,
 } from "@earendil-works/pi-tui";
@@ -448,6 +449,17 @@ export class KeybindingsManager extends TuiKeybindingsManager {
 
 	static createForOwnedInput(agentDir: string = getAgentDir()): KeybindingsManager {
 		return KeybindingsManager.createWithDefinitions(agentDir, OWNED_INPUT_KEYBINDINGS);
+	}
+
+	// Protocol: Ctrl+C is a conventional dialog escape hatch, not advertised keybinding chrome.
+	override matches(data: string, keybinding: Keybinding): boolean {
+		return keybinding === "tui.select.cancel" && matchesKey(data, "ctrl+c")
+			|| super.matches(data, keybinding);
+	}
+
+	override getKeys(keybinding: Keybinding): KeyId[] {
+		const keys = super.getKeys(keybinding);
+		return keybinding === "tui.select.cancel" ? keys.filter(key => key !== "ctrl+c") : keys;
 	}
 
 	private static createWithDefinitions(agentDir: string, definitions: KeybindingDefinitions): KeybindingsManager {

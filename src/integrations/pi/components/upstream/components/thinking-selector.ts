@@ -6,11 +6,12 @@
  * title with the established bold semantic accent treatment, placing it directly below the top rule
  * through the shared compact padded modal frame and its muted hint directly below it, deduplicating
  * levels, and rendering aligned muted descriptions after fixed active and bracketed default columns.
- * Bare A1 persists defaults immediately on Space, closes only on Escape, and uses the shared compact
- * semantic shortcut row. All list and border colors use the owned theme and its explicit color mode.
+ * Bare A1 persists defaults immediately on Space, closes through the implicit Ctrl+C-capable selection-
+ * cancel action, and uses the shared compact semantic shortcut row without advertising that alias. All
+ * list and border colors use the owned theme and its explicit color mode.
  * The comparison profile retains the public pinned component.
  * Deviations: owned-modal-shortcut-hints, owned-level-cycle-shortcut, owned-thinking-selector-heading,
- * owned-thinking-selector-controls.
+ * owned-thinking-selector-controls, owned-dialog-ctrl-c-cancel.
  */
 import {
 	Container,
@@ -18,8 +19,6 @@ import {
 	fuzzyFilter,
 	getKeybindings,
 	Input,
-	Key,
-	matchesKey,
 	type SelectItem,
 	SelectList,
 	type SelectListLayoutOptions,
@@ -174,7 +173,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 			}
 			return;
 		}
-		if (matchesKey(keyData, Key.escape)) {
+		if (kb.matches(keyData, "tui.select.cancel")) {
 			this.onCancel();
 			return;
 		}
