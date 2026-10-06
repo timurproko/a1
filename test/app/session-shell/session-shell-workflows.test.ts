@@ -341,6 +341,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       command: "tree",
       outcome: "completed",
       message: "Navigated to selected point",
+      detail: "First prompt",
     });
 
     await shell.submit("/tree");

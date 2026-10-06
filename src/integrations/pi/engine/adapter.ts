@@ -721,7 +721,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   #refreshNavigatedSession(editorText?: string): void {
     const session = this.#engine.session;
     if (!session) return;
-    if (editorText !== undefined) {
+    if (editorText && !this.#editor.text.trim()) {
       this.#editor = { ...this.#editor, text: editorText, selection: null, cursorOffset: editorText.length };
     }
     this.#activeModel = readModel(session.model);

@@ -74,7 +74,7 @@ The branch-summary choice SHALL retain its title, options, navigation, selection
 
 Custom summarization instructions SHALL use the ordinary single-line dialog input pattern instead of the multiline editor. The prompt SHALL have an accent-bold title, the standard input prompt and cursor behavior, and only the shared submit/cancel shortcut hints. The bottom rule SHALL immediately follow those hints without an empty row.
 
-After successful tree navigation, bare A1 SHALL rebuild the visible transcript from the newly selected branch and restore the ordinary input surface for that point. When Pi returns editor text for a selected user-message point, the input SHALL be populated with that text and its cursor SHALL be placed at the end; otherwise the existing editor draft SHALL remain intact. Model and thinking state SHALL reconcile to the selected branch.
+After successful tree navigation, bare A1 SHALL rebuild the visible transcript from the newly selected branch and restore the ordinary input surface for that point. When Pi returns editor text for a selected user-message point and the input has no non-whitespace draft, the input SHALL be populated with that text and its cursor SHALL be placed at the end; otherwise the existing editor draft SHALL remain intact. Model and thinking state SHALL reconcile to the selected branch.
 
 #### Scenario: Open the branch-summary choice
 - **WHEN** the user selects a non-current tree entry and summary prompting is enabled
@@ -90,8 +90,8 @@ After successful tree navigation, bare A1 SHALL rebuild the visible transcript f
 - **WHEN** navigation to a selected tree entry completes
 - **THEN** the content area SHALL show the selected branch transcript
 - **AND** the ordinary editor SHALL be visible
-- **AND** a selected user-message prompt returned by Pi SHALL populate the editor with its cursor at the end
-- **AND** navigation without returned prompt text SHALL preserve the existing draft
+- **AND** a selected user-message prompt returned by Pi SHALL populate an empty editor with its cursor at the end
+- **AND** navigation without returned prompt text, or with an existing non-whitespace draft, SHALL preserve the existing draft
 
 #### Scenario: Render branch-summary shortcuts
 - **WHEN** the branch-summary choice is visible

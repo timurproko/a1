@@ -1459,7 +1459,7 @@ export class OwnedUiSessionShell {
       this.#installAutocompleteCommands();
     }
     if (request.command === "tree" && result.outcome === "completed") {
-      if (result.detail !== undefined) this.root.editor.setText(result.detail);
+      if (result.detail && !this.root.editor.getText().trim()) this.root.editor.setText(result.detail);
       this.root.resumeViewportFollowing();
     }
     this.root.appendWorkflowResult(result);
