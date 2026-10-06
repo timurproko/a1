@@ -9,10 +9,13 @@ import { nativeHyperlinkStyle } from "../../ui/components/index.js";
 export { createPiShellOperationLoader, createPiShellShareOperationDialog };
 
 export function renderPiShellShareResult(message: string, gistUrl: string): string {
+  const theme = piTheme();
   const match = /^Share URL: (\S+)$/u.exec(message);
-  const linked = match === null ? message : `Share URL: ${piShellHyperlink(match[1]!)}`;
+  const linked = match === null
+    ? theme.fg("dim", message)
+    : `${theme.fg("dim", "Share URL: ")}${piShellHyperlink(match[1]!)}`;
   return nativeHyperlinkStyle(
-    `${linked}\nGist: ${piShellHyperlink(gistUrl)}`,
-    text => piTheme().fg("mdLink", text),
+    `${linked}\n${theme.fg("dim", "Gist: ")}${piShellHyperlink(gistUrl)}`,
+    text => theme.fg("mdLink", text),
   );
 }

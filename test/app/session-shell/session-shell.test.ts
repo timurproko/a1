@@ -275,6 +275,8 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       const gistRow = rows.find(row => stripTerminalSequences(row).includes("Gist:"));
       expect(viewerRow).toBeDefined();
       expect(gistRow).toBeDefined();
+      expect(viewerRow).toContain(piTheme().fg("dim", "Share URL: "));
+      expect(gistRow).toContain(piTheme().fg("dim", "Gist: "));
       expect(viewerRow).toContain(piTheme().fg("mdLink", "https://example.test/session/#id"));
       expect(gistRow).toContain(piTheme().fg("mdLink", "https://gist.github.com/example/id"));
       expect([viewerRow!, gistRow!].flatMap(row => readVisibleHyperlinks(row).ranges).map(link => link.target)).toEqual([
