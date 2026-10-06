@@ -2,7 +2,7 @@
 
 ### Requirement: Windows-host submitted images use a bounded cell preview
 
-Bare A1 running in Windows Terminal or Windows WezTerm SHALL present retained submitted-user images as bounded ordinary truecolor terminal-cell rows when transcript image visibility is enabled. Preview generation SHALL run off the main thread and SHALL preserve source aspect ratio within the existing configured image width and declared safety limits.
+Bare A1 running in Windows Terminal or Windows WezTerm SHALL present retained submitted-user images as bounded ordinary truecolor terminal-cell rows when transcript image visibility is enabled. Preview generation SHALL run off the main thread and SHALL preserve source aspect ratio within the existing configured image width, the terminal's reported cell pixel dimensions, and declared safety limits.
 
 The preview SHALL NOT contain source base64, Sixel, Kitty graphics, iTerm image controls, or another retained terminal raster protocol. Failure or unavailability SHALL use a bounded existing fallback without changing the retained attachment.
 
@@ -12,6 +12,7 @@ The preview SHALL NOT contain source base64, Sixel, Kitty graphics, iTerm image 
 - **THEN** the transcript SHALL show a bounded truecolor quadrant-cell preview rather than only image metadata
 - **AND** the preview SHALL scroll, clip, and compose with dialogs and later output as ordinary transcript rows
 - **AND** every preview row SHALL reset its terminal styling before surrounding padding or scrollbar content
+- **AND** a valid terminal cell-size response SHALL regenerate the preview with host-accurate physical proportions
 
 #### Scenario: Hide images or replace the mounted transcript
 

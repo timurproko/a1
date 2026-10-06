@@ -122,6 +122,7 @@ import type {
 import {
   runImageWorker,
   startImageCellPreview,
+  TERMINAL_CELL_SIZE_QUERY,
   usesWindowsSubmittedImageCellPreview,
 } from "./image-preparation-client.js";
 import type { ClipboardImageData } from "./clipboard-image.js";
@@ -703,6 +704,10 @@ export class OwnedUiSessionShell {
     if (this.#started) return;
     this.#started = true;
     this.runtime.start();
+    // Platform: Pi skips cell-pixel queries when no native image protocol is active.
+    if (this.#customViewport && usesWindowsSubmittedImageCellPreview()) {
+      this.runtime.writeControl(TERMINAL_CELL_SIZE_QUERY);
+    }
     this.#promptHistory?.start();
     this.#syncTerminalProgress(this.view());
     if (this.#customViewport) this.#setPointerReporting(true);

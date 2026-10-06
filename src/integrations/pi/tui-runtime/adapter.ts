@@ -362,10 +362,9 @@ export class PiTuiRuntimeAdapter {
   }
 
   /**
-   * Writes a terminal control sequence. Used to enable and disable mouse
-   * reporting while an A1-owned application is presented and to paint the quit
-   * outro while presentation is frozen, and for nothing else: the transparent
-   * and pinned paths never call it.
+   * Writes a terminal control sequence. Used for A1-owned mouse reporting,
+   * terminal metric queries, and the quit outro while presentation is frozen.
+   * The transparent and pinned paths never call it.
    */
   writeControl(data: string): void {
     this.#assertRunning("control sequence");

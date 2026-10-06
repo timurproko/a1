@@ -30,7 +30,7 @@ This keeps host policy outside the Pi integration and avoids changing tool-image
 
 The worker decodes through the already pinned Photon package, applies source orientation, preserves aspect ratio, and resizes to two horizontal and two vertical samples per terminal cell. Each cell selects two representative colors and one Unicode quadrant glyph. Rows end with explicit style resets and contain no source base64 or terminal image protocol.
 
-Preview width follows Pi's existing `imageWidthCells` setting. Height, decoded bytes, terminal bytes, and row count are bounded. Unsupported or failed conversion falls back to the existing unavailable presentation without altering the retained attachment.
+Preview width follows Pi's existing `imageWidthCells` setting. Bare A1 requests the standard terminal cell-size report on supported Windows hosts because Pi otherwise skips that query when no native image protocol is available. A valid reply invalidates the mounted component and rekeys the preview by the reported cell width and height, keeping physical proportions consistent across Windows Terminal and WezTerm. Height, decoded bytes, terminal bytes, and row count are bounded. Unsupported or failed conversion falls back to the existing unavailable presentation without altering the retained attachment.
 
 ### 3. Own asynchronous work with the mounted presenter
 
@@ -43,8 +43,9 @@ The presenter emits ordinary component rows, so no terminal adapter, viewport, d
 - **Cell previews are less sharp than native pixels.** Use truecolor 2×2 quadrant sampling and preserve the configured physical cell width; accept this Windows-host tradeoff for stable clipping and dialog composition.
 - **Large screenshots could stall input.** Decode and resize in the existing worker under strict byte, geometry, deadline, and concurrency bounds.
 - **Host detection could affect unrelated terminals.** Require Windows plus a Windows Terminal or WezTerm indicator and assert unknown/non-Windows hosts keep their native path.
+- **A terminal may not answer the cell-size query.** Keep Pi's bounded default metrics as fallback; accept only Pi's validated positive cell-size response and regenerate when it changes.
 - **Late work could repaint replaced content.** Tie each job to mount generation and cancellation, and reject stale completion.
 
 ## Validation
 
-Focused evidence will verify Windows Terminal and Windows WezTerm selection, bounded ordinary rows that survive partial scrolling and dialog composition, width/aspect behavior, explicit resets, malformed/oversized failure, worker cancellation, stale completion, exact attachment retention, and unchanged tool-image and comparison-profile paths. Physical acceptance remains required in Windows Terminal and Windows WezTerm.
+Focused evidence will verify Windows Terminal and Windows WezTerm selection, cell-size querying and regeneration, bounded ordinary rows that survive partial scrolling and dialog composition, physical width/aspect behavior, explicit resets, malformed/oversized failure, worker cancellation, stale completion, exact attachment retention, and unchanged tool-image and comparison-profile paths. Physical acceptance remains required in Windows Terminal and Windows WezTerm.

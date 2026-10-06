@@ -15,6 +15,7 @@ export interface ImagePasteJob {
   cancel(): void;
 }
 const IMAGE_CELL_PREVIEW_MS = 5_000;
+export const TERMINAL_CELL_SIZE_QUERY = "\u001b[16t";
 
 export function usesWindowsSubmittedImageCellPreview(
   platform: NodeJS.Platform = process.platform,

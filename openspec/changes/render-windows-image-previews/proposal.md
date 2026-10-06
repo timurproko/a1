@@ -6,7 +6,7 @@ Windows Terminal needs a visual fallback because Pi reports no native image prot
 
 - Preserve Pi's existing `Image` component path unchanged for non-Windows terminals, tool images, extensions, and `a1 pi`.
 - Detect bare A1 running in Windows Terminal or Windows WezTerm and render retained submitted-user images as bounded truecolor quadrant-cell rows.
-- Decode and resize previews in the existing image worker with strict dimensions, output, deadline, and lifecycle bounds.
+- Query the selected terminal's cell pixel dimensions and decode/resize previews in the existing image worker with strict dimensions, output, deadline, and lifecycle bounds.
 - Preserve original attachment bytes, MIME type, provider payload, prompt text, history, and image visibility/width settings.
 
 No Sixel registry, terminal protocol injection, viewport/damage transformation, overlay lifecycle customization, package replacement, or new user setting is authorized.

@@ -1,8 +1,10 @@
-import { compositeTuiLine, stripTerminalSequences } from "@earendil-works/pi-tui";
-import { describe, expect, it, vi } from "vitest";
+import { compositeTuiLine, setCellDimensions, stripTerminalSequences } from "@earendil-works/pi-tui";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { WindowsImageCellPresentation } from "../../../../src/integrations/pi/components/windows-image-cell-presentation.js";
 
 const row = "\u001b[38;2;255;0;0;48;2;0;0;0m▀\u001b[0m";
+
+afterEach(() => setCellDimensions({ widthPx: 9, heightPx: 18 }));
 
 function fixture() {
   const jobs: Array<{ resolve: (value: { rows: readonly string[] }) => void; cancel: ReturnType<typeof vi.fn> }> = [];
@@ -35,6 +37,20 @@ describe("Windows image cell presentation", () => {
     expect(preview).toHaveBeenCalledTimes(2);
     component.dispose();
     expect(jobs[1]!.cancel).toHaveBeenCalledOnce();
+  });
+
+  it("regenerates when a terminal cell-size response changes physical proportions", () => {
+    const { component, preview, jobs } = fixture();
+    setCellDimensions({ widthPx: 9, heightPx: 18 });
+    component.render(80);
+    expect((preview.mock.calls[0] as unknown[])[3]).toEqual({ widthPx: 9, heightPx: 18 });
+
+    setCellDimensions({ widthPx: 10, heightPx: 25 });
+    component.invalidate();
+    component.render(80);
+    expect((preview.mock.calls[1] as unknown[])[3]).toEqual({ widthPx: 10, heightPx: 25 });
+    expect(jobs[0]!.cancel).toHaveBeenCalledOnce();
+    component.dispose();
   });
 
   it("remains visible when top rows clip and composes below opaque dialog rows", async () => {
