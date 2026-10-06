@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-06T17:58:01.003Z",
+  "recordedAt": "2026-10-06T18:25:46.113Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -2282,14 +2282,20 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal shortcut row and compact padded modal frame.",
+      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal frame with standalone title, standard outer rules, stable filter/status row, progressive result paging, aligned result columns, Session Tree selection roles, and bottom dynamic feedback and shortcut footer.",
       "upgradeStrategy": "three-way",
-      "localSha256": "b8ed4a4f4ff3d0cdfa3866843a578b448e216e8dda434dbdb7eea6de3c932d9e",
+      "localSha256": "db025da10552b11c1001a9d3215131181d16b7d9e040ab2a93e5fbd8ecb549ee",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
           "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
           "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/session-selector.test.ts"
+        },
+        {
+          "id": "owned-resume-session-dialog",
+          "reason": "Bare A1 aligns Resume Session with its standard modal hierarchy through standard outer-rule colors, a stable accent title, a lower-case current/all filter row without loader progress, progressive result paging, aligned title/path/count/age columns, the Session Tree accent arrow/title, muted metadata, subtle purple full-width selection, and bottom-aligned dynamic feedback and shortcut hints.",
+          "upstreamBehavior": "The comparison profile retains the pinned Resume Session title, status placement, and shortcut geometry.",
           "acceptanceTest": "test/integrations/pi/components/session-selector.test.ts"
         }
       ],

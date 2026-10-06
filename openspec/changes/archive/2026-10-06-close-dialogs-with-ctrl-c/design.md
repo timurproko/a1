@@ -58,8 +58,8 @@ The host and session-shell boundary tests will also verify Ctrl+C retains its ex
 - Thinking, Models, and scoped-model dialogs use the shared cancel action, so a populated search no longer consumes the first Ctrl+C and the established cancel callback runs immediately.
 - Extension-hosted custom replacement and overlay surfaces receive the same implicit Ctrl+C cancellation at their owned bridge boundary without forwarding the input to extension content.
 - The owned application host now enforces `closeOnInterrupt` before app-local input, so Settings—including an active filter—and the Changelog, Keyboard Shortcuts, and Session Info reference screens close on one Ctrl+C without arming or invoking the application exit chord.
-- Focused component, host, composition, and integrated session-shell coverage passes 232 tests across sixteen suites, including populated searches, Thinking, Skills, Login, Project Trust, nested resume/tree/name flows, extension overlays, close-on-interrupt isolation, Settings, reference screens, and the reconciled reverse-filter cycling baseline.
-- Build, source/bin typechecking, architecture and provenance checks, changed-file code-documentation governance, docs-sensitive governance, strict owned-spec validation, and `git diff --check` pass after reconciling `origin/develop` at `457def6c`.
+- Focused component, host, composition, and integrated session-shell coverage passes 235 tests across sixteen suites, including populated searches, Thinking, Skills, Login, Project Trust, nested resume/tree/name flows, extension overlays, close-on-interrupt isolation, Settings, reference screens, and the reconciled Session selector presentation baseline.
+- Build, source/bin typechecking, architecture and provenance checks, changed-file code-documentation governance, docs-sensitive governance, strict owned-spec validation, and `git diff --check` pass after reconciling `origin/develop` at `cf775a8c`.
 - No implementation gaps are known. Interactive terminal review of representative built-in, nested, extension, Settings, Changelog, and Keyboard Shortcuts surfaces remains the maintainer-controlled acceptance activity.
 
 ## Migration Plan
