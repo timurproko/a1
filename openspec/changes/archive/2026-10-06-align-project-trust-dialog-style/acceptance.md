@@ -24,10 +24,10 @@ The manual merge accepts these scenarios:
     "An unmarked active trust option has exactly one space after its arrow, while only the exact saved option displays a check marker.",
     "Project-trust shortcut hints sit directly above the bottom rule without an extra blank row, while trust choices, key behavior, constrained fallback, and terminal restoration remain unchanged."
   ],
-  "archiveDigest": "5718e6353bae95e7cff7f7a2d344d47e6927aa4628c9cb124940f9843ccd3647",
+  "archiveDigest": "69a2b83b277da7c584e7feeb993e85dbbaa6bcbecd4f407b1cbdae7d2bb4820a",
   "specDigest": "7f59855e43f5b99d2ed216205f5acfbeb50df4cb21c23a81ab4c613f00f39cca",
   "tasksDigest": "932203a7d051055a2b81b528b5d9b83b888f8801d9b4767982045a1b7d1c240e",
-  "evidenceDigest": "02eb5d0fa748b30e1a5e01263a68ab071df7ee2312fd278d78b98369c091d6df",
+  "evidenceDigest": "aefa4d16348b71b6e045c770d11782ca580ebb79c73970b80233d582d0910575",
   "knownGaps": []
 }
 ```
