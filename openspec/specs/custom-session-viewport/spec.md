@@ -1252,7 +1252,9 @@ When an interactive bare-A1 session quits through `/quit`, the second `Ctrl+C` o
 ### Requirement: Informational messages are a transient dock notice
 Bare A1 SHALL present informational workflow status messages, including model and thinking-level confirmations, reload and compaction confirmations, generic completed command results, `status`-kind workflow messages, and extension `info` notifications, as one transient notice at the top of the dock rather than as transcript content. The notice SHALL consist of one blank row followed by the message in the existing dim status style with Pi's one-cell status padding regardless of the output pad setting, SHALL be placed after any non-live dock status rows and before above-editor widgets and the editor, and SHALL therefore sit directly below the live working status when that status is visible and directly above the editor group otherwise. The notice SHALL wrap at the dock width and SHALL NOT scroll with transcript content.
 
-A newer simple workflow notice of any informational, warning, or error severity SHALL replace the current notice in place. The notice SHALL be removed when a submitted prompt or shell command block is mounted, when a structured workflow presentation or celebratory component is appended to the transcript, and when workflow presentation is reset for a new, resumed, forked, or replaced session. Assistant, thinking, tool, custom, and compaction blocks that start or update while the agent works SHALL NOT remove it, the agent finishing SHALL NOT remove it, and no timer SHALL remove it. The notice SHALL NOT enter transcript order, the selectable document, copied text, prompt navigation, persisted session content, or the pinned `a1 pi` route, whose transcript placement of status text SHALL remain unchanged.
+A successful `/new` result in bare A1 SHALL use the same transient prompt-adjacent ownership instead of transcript ownership, but SHALL preserve the existing accent `✓ New session started` wording, command-message wrapping, one-cell horizontal padding, and surrounding blank rows. While the replacement session is idle, its confirmation SHALL appear directly above the editor group at the bottom of the frame. When the first accepted prompt transitions the session from non-busy to busy, the confirmation SHALL be removed in the same presentation update that introduces the live working status, so `Working…` replaces it and the two SHALL NOT be visible together. A submission that fails before the busy transition MAY replace the confirmation with the existing truthful failure notice but SHALL NOT fabricate live working status.
+
+A newer simple workflow notice of any informational, warning, or error severity SHALL replace the current notice in place. The notice SHALL be removed when a submitted prompt or shell command block is mounted, when a structured workflow presentation or celebratory component is appended to the transcript, and when workflow presentation is reset for a new, resumed, forked, or replaced session. Assistant, thinking, tool, custom, and compaction blocks that start or update while the agent works SHALL NOT remove an ordinary informational, warning, or error notice, the agent finishing SHALL NOT remove it, and no timer SHALL remove it. The notice SHALL NOT enter transcript order, the selectable document, copied text, prompt navigation, persisted session content, or the pinned `a1 pi` route, whose transcript placement of status text and new-session confirmation SHALL remain unchanged.
 
 #### Scenario: Confirm a model switch in a fresh session
 - **WHEN** model selection from `/models` completes in a bare-A1 session with no transcript content
@@ -1260,8 +1262,25 @@ A newer simple workflow notice of any informational, warning, or error severity 
 - **AND** no transcript row SHALL be added for it
 - **AND** the top of the viewport SHALL remain empty
 
+#### Scenario: Confirm a new session beside the prompt
+- **WHEN** `/new` successfully creates an idle bare-A1 session
+- **THEN** the accent `✓ New session started` confirmation SHALL appear directly above the input prompt at the bottom of the frame
+- **AND** it SHALL preserve its existing wrapping, one-cell horizontal padding, and surrounding blank rows
+- **AND** the selectable transcript document and the top of the viewport SHALL remain empty
+
+#### Scenario: Replace the new-session confirmation with working status
+- **WHEN** the reader submits the first prompt and the replacement session accepts it by transitioning to busy
+- **THEN** the first busy frame SHALL show the live `Working…` status directly above the dock
+- **AND** `✓ New session started` SHALL no longer be visible
+- **AND** no frame composed from that accepted transition SHALL show both messages
+
+#### Scenario: Report a prompt failure before work begins
+- **WHEN** a prompt submission fails before the replacement session transitions to busy
+- **THEN** the existing prompt failure notice MAY replace the idle new-session confirmation
+- **AND** no live working status SHALL be fabricated
+
 #### Scenario: Switch models while the agent is working
-- **WHEN** an informational message arrives while the live working status is visible
+- **WHEN** an ordinary informational message arrives while the live working status is visible
 - **THEN** the working status SHALL remain immediately above the dock and the notice SHALL render directly below it
 - **AND** streamed updates, further assistant blocks, and tool blocks in that run SHALL NOT remove the notice
 - **AND** the notice SHALL remain after the run finishes until the next submitted prompt
@@ -1273,12 +1292,12 @@ A newer simple workflow notice of any informational, warning, or error severity 
 
 #### Scenario: Keep the notice out of content semantics
 - **WHEN** a selection is dragged toward the dock, the transcript is copied, prompt navigation is used, or the session is persisted and resumed
-- **THEN** the notice text SHALL be excluded from selection, copy, navigation targets, and persisted content
+- **THEN** the notice text, including a new-session confirmation, SHALL be excluded from selection, copy, navigation targets, and persisted content
 - **AND** returning to the session SHALL NOT resurrect a dismissed notice
 
 #### Scenario: Keep the pinned route unchanged
-- **WHEN** the same informational message is produced in the `a1 pi` route
-- **THEN** it SHALL be appended to the transcript exactly as before, including back-to-back replacement of the previous status row
+- **WHEN** the same informational message or successful `/new` result is produced in the `a1 pi` route
+- **THEN** it SHALL be appended to the transcript exactly as before, including back-to-back replacement of the previous status row and the existing accent new-session shape
 
 ### Requirement: The reload box stays visible for a minimum window
 When `/reload` runs in bare A1, the shell SHALL show the reload box in place of the editor and SHALL keep it visible for at least 400 ms measured from the moment it was first shown, regardless of how quickly the reload workflow completes. A reload that takes longer than the window SHALL remove the box as soon as the workflow finishes. A reload that finishes sooner SHALL wait only for the remainder of the window before restoring the editor and presenting the completion notice; the reload workflow itself SHALL NOT be delayed by the hold. The window, the clock, and the wait SHALL be injectable through the session shell options so tests are deterministic, and production SHALL use the defaults. Disposing the shell during the hold SHALL release the hold without restoring the editor. The share surface and the `a1 pi` route SHALL be unchanged.
@@ -1327,9 +1346,9 @@ Bare A1 SHALL move the transcript only for vertical wheel input and in the direc
 - **AND** the horizontal reports SHALL NOT change end-following or viewport-control state
 
 ### Requirement: Command failures and warnings are a transient dock notice
-Bare A1 SHALL present simple workflow failures and warnings, including built-in command failures, explicit `error`- or `warning`-kind workflow messages, and extension error/warning notifications, through the same single transient dock-notice region used by informational messages rather than as transcript content. The notice SHALL preserve the existing contextual wording, `Error:` or `Warning:` prefix, severity theme role, output-padding rule, leading blank row, and width-aware wrapping supplied by the command-message presenter. It SHALL sit directly above the editor group, or directly below live working status when that status is visible, and SHALL NOT scroll with transcript content.
+Bare A1 SHALL present simple workflow failures and warnings, including built-in command failures, explicit `error`- or `warning`-kind workflow messages, and extension error/warning notifications, through the same single transient dock-notice region used by informational messages and the bare-A1 new-session confirmation rather than as transcript content. The notice SHALL preserve the existing contextual wording, `Error:` or `Warning:` prefix, severity theme role, output-padding rule, leading blank row, and width-aware wrapping supplied by the command-message presenter. It SHALL sit directly above the editor group, or directly below live working status when that status is visible, and SHALL NOT scroll with transcript content.
 
-The latest simple workflow notice SHALL replace any earlier informational, warning, or error notice in place. A submitted prompt or shell command, a structured transcript-bound workflow presentation, an owned full-screen reference route, or workflow/session reset SHALL dismiss it under the common notice lifecycle. Structured command output SHALL remain transcript content unless its command is declared as an owned full-screen replacement; such a route SHALL append no transcript content. The pinned `a1 pi` route SHALL retain its chronological transcript placement of command failures, warnings, and structured session information.
+The latest simple workflow notice SHALL replace any earlier informational, warning, error, or new-session notice in place. A submitted prompt or shell command, a structured transcript-bound workflow presentation, an owned full-screen reference route, or workflow/session reset SHALL dismiss it under the common notice lifecycle, subject to the new-session confirmation's accepted-busy replacement rule. Structured command output SHALL remain transcript content unless its command is declared as an owned full-screen replacement or as the bare-A1 new-session confirmation; such a route SHALL append no transcript content. The pinned `a1 pi` route SHALL retain its chronological transcript placement of command failures, warnings, new-session confirmations, and structured session information.
 
 #### Scenario: Fail to export an empty session
 - **WHEN** `/export` fails in a fresh bare-A1 session because there is nothing to export
@@ -1343,7 +1362,7 @@ The latest simple workflow notice SHALL replace any earlier informational, warni
 - **AND** it SHALL NOT become transcript, selection, copy, prompt-navigation, or persisted-session content
 
 #### Scenario: Replace notices across severity
-- **WHEN** an error or warning follows an informational notice, or an informational notice follows an error or warning
+- **WHEN** an error or warning follows an informational or new-session notice, or an informational notice follows an error or warning
 - **THEN** the newer message SHALL replace the older notice in the same dock position
 - **AND** no stale notice row or transcript component SHALL remain
 
@@ -1353,7 +1372,7 @@ The latest simple workflow notice SHALL replace any earlier informational, warni
 - **AND** no extension-specific duplicate SHALL be appended to the transcript
 
 #### Scenario: Keep structured output in the transcript
-- **WHEN** a route presents new/name/debug output or another structured component that is not declared as an owned full-screen replacement
+- **WHEN** a route presents name/debug output or another structured component that is neither an owned full-screen replacement nor the bare-A1 new-session confirmation
 - **THEN** that component SHALL retain its existing transcript placement
 - **AND** it SHALL dismiss any stale simple dock notice
 
@@ -1362,8 +1381,8 @@ The latest simple workflow notice SHALL replace any earlier informational, warni
 - **THEN** the screen SHALL dismiss any stale simple dock notice and append no structured component, status, or placeholder to the transcript
 
 #### Scenario: Keep pinned command-message placement
-- **WHEN** the same command failure or warning is produced through `a1 pi`
-- **THEN** it SHALL remain chronological transcript content with its pinned spacing, prefix, style, and wording
+- **WHEN** the same command failure, warning, or successful `/new` result is produced through `a1 pi`
+- **THEN** it SHALL remain chronological transcript content with its pinned spacing, prefix or accent style, and wording
 - **AND** no custom-viewport dock notice SHALL be introduced
 
 ### Requirement: Bare A1 omits generated resize guidance from submitted prompts
