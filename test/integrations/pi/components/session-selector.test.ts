@@ -14,6 +14,21 @@ function stripPortableTerminalSequences(value: string): string {
     .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
+function selectedBackgroundCells(row: string): number {
+  let selected = false;
+  let cells = 0;
+  for (const token of row.matchAll(/\u001b\[([\d;]*)m|([^\u001b])/gu)) {
+    if (token[1] !== undefined) {
+      const codes = token[1].split(";").map(Number);
+      if (codes.includes(0) || codes.includes(49)) selected = false;
+      if (codes.includes(48)) selected = true;
+    } else if (selected) {
+      cells += 1;
+    }
+  }
+  return cells;
+}
+
 function session(path: string, id: string, name: string | undefined, modified: number): SessionInfo {
   return {
     path,
@@ -66,12 +81,12 @@ describe("owned pinned session selector", () => {
     const input = (data: string) => component.handleInput?.(data);
     expect(frame()).toContain("Resume Session");
     expect(frame()).not.toContain("Resume Session (");
-    expect(frame()).toContain("Filter: current folder | all  Name: all  Sort: threaded");
+    expect(frame()).toContain("Filter: current | all  Name: all  Sort: threaded");
     expect(frame()).toContain("Current session");
     const initialRows = component.render(100);
     const plainInitialRows = initialRows.map(stripPortableTerminalSequences);
     const headingIndex = plainInitialRows.findIndex(row => row.includes("Resume Session"));
-    const filterIndex = plainInitialRows.findIndex(row => row.includes("Filter: current folder"));
+    const filterIndex = plainInitialRows.findIndex(row => row.includes("Filter: current | all"));
     const resultIndex = plainInitialRows.findIndex(row => row.includes("Current session"));
     const firstHintIndex = plainInitialRows.findIndex(row => row.includes("Tab scope"));
     const finalHintIndex = plainInitialRows.findIndex(row => row.includes("Ctrl+S sort"));
@@ -85,7 +100,7 @@ describe("owned pinned session selector", () => {
     expect(firstVisibleTextColumn(initialRows[firstHintIndex]!)).toBe(firstVisibleTextColumn(heading));
     expect(firstVisibleTextColumn(filterRow)).toBe(firstVisibleTextColumn(heading));
     expect(cellStyle(heading, "R")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("R")), "R"));
-    expect(filterRow).toContain(piTheme().fg("accent", "current folder"));
+    expect(filterRow).toContain(piTheme().fg("accent", "current"));
     expect(filterRow).toContain(piTheme().fg("dim", "all"));
     expect(filterRow).toContain(piTheme().fg("accent", "all"));
     expect(filterRow).toContain(piTheme().fg("accent", "threaded"));
@@ -140,22 +155,24 @@ describe("owned pinned session selector", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(frame()).toContain("Resume Session");
     expect(frame()).not.toContain("Resume Session (");
-    expect(frame()).toContain("Filter: current folder | all");
+    expect(frame()).toContain("Filter: current | all");
     input("\x1b");
     expect(cancelled).toBe(1);
     expect(rendered).toBeGreaterThan(0);
   });
 
-  it("keeps loading progress with the active filter and clips status below a stable title", async () => {
+  it("keeps the all filter stable while partial results grow the paging total", async () => {
     applyPiTheme("dark", false, "truecolor");
-    const value = session("D:/sessions/loading.jsonl", "loading", undefined, Date.now());
-    let finishCurrent!: (sessions: SessionInfo[]) => void;
+    const values = Array.from({ length: 15 }, (_, index) =>
+      session(`D:/sessions/loading-${index}.jsonl`, `loading-${index}`, undefined, Date.now() - index));
+    let reportAll!: (loaded: number, total: number, partial?: readonly SessionInfo[]) => void;
+    let finishAll!: (sessions: SessionInfo[]) => void;
     const component = await createPiShellSessionSelector({
-      currentSessionsLoader: progress => new Promise(resolve => {
-        finishCurrent = resolve;
-        progress?.(1, 2, [value]);
+      currentSessionsLoader: async () => [],
+      allSessionsLoader: progress => new Promise(resolve => {
+        reportAll = progress!;
+        finishAll = resolve;
       }),
-      allSessionsLoader: async () => [value],
       currentSessionFilePath: undefined,
       requestRender() {},
       renameSession: async () => {},
@@ -163,20 +180,77 @@ describe("owned pinned session selector", () => {
       onCancel() {},
       onExit() {},
     });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    component.handleInput?.("\t");
 
-    const loadingRows = component.render(100);
-    const loadingPlain = loadingRows.map(stripPortableTerminalSequences);
-    expect(loadingPlain).toContain(" Resume Session");
-    expect(loadingPlain).toContain(" Filter: current folder (loading 1/2) | all  Name: all  Sort: threaded");
-    expect(loadingRows.find(row => stripPortableTerminalSequences(row).includes("Filter:")))
-      .toContain(piTheme().fg("accent", "current folder (loading 1/2)"));
+    reportAll(12, 100, values.slice(0, 12));
+    let rows = component.render(100);
+    let plain = rows.map(stripPortableTerminalSequences);
+    expect(plain).toContain(" Resume Session");
+    expect(plain).toContain(" Filter: current | all  Name: all  Sort: threaded");
+    expect(plain.find(row => row.includes("Filter:"))).not.toContain("loading");
+    expect(plain.some(row => row.trim() === "(1/12)")).toBe(true);
+    expect(rows.find(row => stripPortableTerminalSequences(row).includes("Filter:")))
+      .toContain(piTheme().fg("accent", "all"));
+
+    reportAll(15, 100, values);
+    plain = component.render(100).map(stripPortableTerminalSequences);
+    expect(plain.some(row => row.trim() === "(1/15)")).toBe(true);
+    expect(plain.join("\n")).not.toContain("15/100");
     const narrow = component.render(28).map(stripPortableTerminalSequences);
     expect(narrow).toContain(" Resume Session");
-    expect(narrow.find(row => row.includes("Filter:"))).toBe(" Filter: current folder (loa");
-    finishCurrent([value]);
+    expect(narrow.find(row => row.includes("Filter:"))).toBe(" Filter: current | all  Name");
+    finishAll(values);
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripPortableTerminalSequences(component.render(100).join("\n")))
-      .toContain("Filter: current folder | all  Name: all  Sort: threaded");
+  });
+
+  it("aligns result metadata columns and keeps every selected row full width", async () => {
+    applyPiTheme("dark", false, "truecolor");
+    const now = Date.now();
+    const values = [
+      { ...session("D:/sessions/short.jsonl", "short", "Short title", now), cwd: "D:/short", messageCount: 7 },
+      { ...session("D:/sessions/long.jsonl", "long", "A title long enough to truncate before the reserved path column", now - 1), cwd: "D:/a/very/long/project/path/that/must/truncate/inside/its/column", messageCount: 22 },
+      { ...session("D:/sessions/medium.jsonl", "medium", "Medium title", now - 2), cwd: "D:/medium/path", messageCount: 333 },
+    ];
+    const component = await createPiShellSessionSelector({
+      currentSessionsLoader: async () => [],
+      allSessionsLoader: async () => values,
+      currentSessionFilePath: undefined,
+      requestRender() {},
+      renameSession: async () => {},
+      onSelect() {},
+      onCancel() {},
+      onExit() {},
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    component.handleInput?.("\t");
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    let rawRows = component.render(100);
+    let rows = rawRows.map(stripPortableTerminalSequences);
+    const shortIndex = rows.findIndex(row => row.includes("Short title"));
+    const longIndex = rows.findIndex(row => row.includes("A title long"));
+    const mediumIndex = rows.findIndex(row => row.includes("Medium title"));
+    const pathStarts = [
+      rows[shortIndex]!.indexOf("D:/short"),
+      rows[longIndex]!.indexOf("D:/a/very"),
+      rows[mediumIndex]!.indexOf("D:/medium/path"),
+    ];
+    expect(new Set(pathStarts).size).toBe(1);
+    expect(rows[longIndex]).toMatch(/A title long.*…  D:\/a\/very.*…  +22 now$/u);
+    expect(new Set([shortIndex, longIndex, mediumIndex].map(index => rows[index]!.lastIndexOf(" now"))).size).toBe(1);
+    expect(selectedBackgroundCells(rawRows[shortIndex]!)).toBe(99);
+
+    component.handleInput?.("\x1b[B");
+    rawRows = component.render(100);
+    rows = rawRows.map(stripPortableTerminalSequences);
+    expect(selectedBackgroundCells(rawRows.find(row => stripPortableTerminalSequences(row).includes("Short title"))!)).toBe(0);
+    expect(selectedBackgroundCells(rawRows.find(row => stripPortableTerminalSequences(row).includes("A title long"))!)).toBe(99);
+
+    const narrowRows = component.render(52);
+    const narrowSelected = narrowRows.find(row => stripPortableTerminalSequences(row).includes("A title"))!;
+    expect(stripPortableTerminalSequences(narrowSelected)).toMatch(/^ › A title.*…  D:\/a\/very.*…  +22 now$/u);
+    expect(selectedBackgroundCells(narrowSelected)).toBe(51);
   });
 
   it("places load failures in the bottom feedback area", async () => {
@@ -195,7 +269,7 @@ describe("owned pinned session selector", () => {
 
     const rows = component.render(100).map(stripPortableTerminalSequences);
     const titleIndex = rows.findIndex(row => row.includes("Resume Session"));
-    const filterIndex = rows.findIndex(row => row.includes("Filter: current folder | all"));
+    const filterIndex = rows.findIndex(row => row.includes("Filter: current | all"));
     const emptyIndex = rows.findIndex(row => row.includes("No sessions in current folder"));
     const errorIndex = rows.findIndex(row => row.includes("Failed to load sessions: catalog unavailable"));
     expect(titleIndex).toBeLessThan(filterIndex);

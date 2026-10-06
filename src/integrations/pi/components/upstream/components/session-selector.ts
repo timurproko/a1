@@ -2,10 +2,11 @@
  * Provenance: @earendil-works/pi-coding-agent 1.0.4 (MIT), commit 7c10bd4337495ee613f2224843ecdf349b80d1df,
  * packages/coding-agent/src/modes/interactive/components/session-selector.ts.
  * Modifications: Source-synchronized session selector port: preserve threaded/current/all scope,
- * search, sort, named/path filters, rename, delete confirmation, active-session protection, loading
- * progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme,
- * canonical path handling, and the shared bare-A1 modal frame with standalone title, filter/status
- * row, and bottom dynamic feedback and shortcut footer.
+ * search, sort, named/path filters, rename, delete confirmation, active-session protection,
+ * progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned
+ * keybindings/theme, canonical path handling, and the shared bare-A1 modal frame with standalone
+ * title, stable filter/status row, progressive result paging, and bottom dynamic feedback and shortcut
+ * footer.
  * Deviations: owned-modal-shortcut-hints, owned-resume-session-dialog.
  */
 import { spawnSync } from "node:child_process";
@@ -18,6 +19,7 @@ import {
 	type Focusable,
 	getKeybindings,
 	Input,
+	sliceByColumn,
 	Spacer,
 	Text,
 	truncateToWidth,
@@ -81,6 +83,29 @@ function formatSessionDate(date: Date): string {
 	return `${Math.floor(diffDays / 365)}y`;
 }
 
+function fitToWidth(value: string, width: number, ellipsis = ""): string {
+	const available = Math.max(0, width);
+	const clipped = truncateToWidth(value, available, ellipsis);
+	return `${clipped}${" ".repeat(Math.max(0, available - visibleWidth(clipped)))}`;
+}
+
+function fitPathToWidth(value: string, width: number, preserveTail: boolean): string {
+	if (!preserveTail || visibleWidth(value) <= width) return fitToWidth(value, width, "…");
+	const tailWidth = Math.max(0, width - 1);
+	const tail = sliceByColumn(value, Math.max(0, visibleWidth(value) - tailWidth), tailWidth, true);
+	return fitToWidth(`…${tail}`, width);
+}
+
+function renderSelectedRow(value: string): string {
+	const marker = "\u0000";
+	const wrapper = theme.bg("selectedBg", marker);
+	const markerIndex = wrapper.indexOf(marker);
+	const on = wrapper.slice(0, markerIndex);
+	const off = wrapper.slice(markerIndex + marker.length);
+	const reasserted = value.replace(/\u001b\[[0-?]*[ -/]*m/gu, sequence => `${sequence}${on}`);
+	return `${on}${reasserted}${off}`;
+}
+
 function canonicalizePath(path: string | undefined): string | undefined {
 	if (!path) return path;
 	try {
@@ -96,8 +121,6 @@ class SessionSelectorHeader implements Component {
 	private nameFilter: NameFilter;
 	private requestRender: () => void;
 	private keybindings: KeybindingsManager;
-	private loading = false;
-	private loadProgress: { loaded: number; total: number } | null = null;
 	private showPath = false;
 	private confirmingDeletePath: string | null = null;
 	private statusMessage: { type: "info" | "error"; message: string } | null = null;
@@ -128,16 +151,6 @@ class SessionSelectorHeader implements Component {
 
 	setNameFilter(nameFilter: NameFilter): void {
 		this.nameFilter = nameFilter;
-	}
-
-	setLoading(loading: boolean): void {
-		this.loading = loading;
-		// Progress is scoped to the current load; clear whenever the loading state is set
-		this.loadProgress = null;
-	}
-
-	setProgress(loaded: number, total: number): void {
-		this.loadProgress = { loaded, total };
 	}
 
 	setShowPath(showPath: boolean): void {
@@ -174,14 +187,10 @@ class SessionSelectorHeader implements Component {
 
 	render(width: number): string[] {
 		const title = theme.fg("accent", theme.bold("Resume Session"));
-		const progressText = this.loadProgress ? `${this.loadProgress.loaded}/${this.loadProgress.total}` : "...";
-		const loadingSuffix = this.loading ? ` (loading ${progressText})` : "";
-		const currentLabel = `current folder${this.scope === "current" ? loadingSuffix : ""}`;
-		const allLabel = `all${this.scope === "all" ? loadingSuffix : ""}`;
 		const scopeText = theme.fg("muted", "Filter: ")
-			+ theme.fg(this.scope === "current" ? "accent" : "dim", currentLabel)
+			+ theme.fg(this.scope === "current" ? "accent" : "dim", "current")
 			+ theme.fg("muted", " | ")
-			+ theme.fg(this.scope === "all" ? "accent" : "dim", allLabel);
+			+ theme.fg(this.scope === "all" ? "accent" : "dim", "all");
 		const nameText = theme.fg("muted", "Name: ") + theme.fg("accent", this.nameFilter);
 		const sortLabel = this.sortMode === "relevance" ? "fuzzy" : this.sortMode;
 		const sortText = theme.fg("muted", "Sort: ") + theme.fg("accent", sortLabel);
@@ -469,6 +478,11 @@ class SessionList implements Component, Focusable {
 		return (canonicalizePath(path) ?? path) === this.currentSessionCanonicalPath;
 	}
 
+	private sessionPathText(session: SessionInfo): string {
+		if (this.showPath) return shortenPath(session.path);
+		return this.showCwd && session.cwd ? shortenPath(session.cwd) : "";
+	}
+
 	invalidate(): void {}
 
 	render(width: number): string[] {
@@ -504,8 +518,19 @@ class SessionList implements Component, Focusable {
 			Math.min(this.selectedIndex - Math.floor(this.maxVisible / 2), this.filteredSessions.length - this.maxVisible),
 		);
 		const endIndex = Math.min(startIndex + this.maxVisible, this.filteredSessions.length);
+		const pathTexts = this.filteredSessions.map((node) => this.sessionPathText(node.session));
+		const longestPath = Math.max(0, ...pathTexts.map((path) => visibleWidth(path)));
+		const countColumnWidth = Math.max(1, ...this.filteredSessions.map((node) => String(node.session.messageCount).length));
+		const ageColumnWidth = Math.max(1, ...this.filteredSessions.map((node) => formatSessionDate(node.session.modified).length));
+		const trailingColumnsWidth = countColumnWidth + 1 + ageColumnWidth;
+		const columnGapWidth = 2;
+		const maxPathColumnWidth = Math.max(0, width - trailingColumnsWidth - columnGapWidth * 2 - 12);
+		const pathColumnWidth = Math.min(longestPath, Math.floor(width * 0.45), maxPathColumnWidth);
+		const metadataWidth = columnGapWidth + trailingColumnsWidth
+			+ (pathColumnWidth > 0 ? pathColumnWidth + columnGapWidth : 0);
+		const titleColumnWidth = Math.max(0, width - metadataWidth);
 
-		// Render visible sessions (one line each with tree structure)
+		// Render visible sessions (one line each with stable title, path, count, and age columns)
 		for (let i = startIndex; i < endIndex; i++) {
 			const node = this.filteredSessions[i]!;
 			const session = node.session;
@@ -521,26 +546,15 @@ class SessionList implements Component, Focusable {
 			const displayText = session.name ?? session.firstMessage;
 			const normalizedMessage = displayText.replace(/[\x00-\x1f\x7f]/g, " ").trim();
 
-			// Right side: message count and age
 			const age = formatSessionDate(session.modified);
 			const msgCount = String(session.messageCount);
-			let rightPart = `${msgCount} ${age}`;
-			if (this.showCwd && session.cwd) {
-				rightPart = `${shortenPath(session.cwd)} ${rightPart}`;
-			}
-			if (this.showPath) {
-				rightPart = `${shortenPath(session.path)} ${rightPart}`;
-			}
+			const pathText = this.sessionPathText(session);
 
-			// Cursor
+			// Cursor and title stay inside their column so metadata always begins at one boundary.
 			const cursor = isSelected ? theme.fg("accent", "› ") : "  ";
-
-			// Calculate available width for message
 			const prefixWidth = visibleWidth(prefix);
-			const rightWidth = visibleWidth(rightPart) + 2; // +2 for spacing
-			const availableForMsg = width - 2 - prefixWidth - rightWidth; // -2 for cursor
-
-			const truncatedMsg = truncateToWidth(normalizedMessage, Math.max(10, availableForMsg), "…");
+			const availableForMsg = Math.max(0, titleColumnWidth - 2 - prefixWidth);
+			const truncatedMsg = truncateToWidth(normalizedMessage, availableForMsg, "…");
 
 			// Style message
 			let messageColor: "error" | "warning" | "accent" | null = null;
@@ -556,17 +570,18 @@ class SessionList implements Component, Focusable {
 				styledMsg = theme.bold(styledMsg);
 			}
 
-			// Build line
-			const leftPart = cursor + theme.fg("dim", prefix) + styledMsg;
-			const leftWidth = visibleWidth(leftPart);
-			const spacing = Math.max(1, width - leftWidth - visibleWidth(rightPart));
-			const styledRight = theme.fg(isConfirmingDelete ? "error" : "dim", rightPart);
-
-			let line = leftPart + " ".repeat(spacing) + styledRight;
-			if (isSelected) {
-				line = theme.bg("selectedBg", line);
-			}
-			lines.push(truncateToWidth(line, width));
+			const metadataColor = isConfirmingDelete ? "error" : "dim";
+			const titleColumn = fitToWidth(cursor + theme.fg("dim", prefix) + styledMsg, titleColumnWidth, "…");
+			const pathColumn = pathColumnWidth > 0
+				? `${theme.fg(metadataColor, fitPathToWidth(pathText, pathColumnWidth, this.showPath))}${" ".repeat(columnGapWidth)}`
+				: "";
+			const countColumn = theme.fg(metadataColor, msgCount.padStart(countColumnWidth));
+			const ageColumn = theme.fg(metadataColor, age.padStart(ageColumnWidth));
+			const fittedLine = fitToWidth(
+				`${titleColumn}${" ".repeat(columnGapWidth)}${pathColumn}${countColumn} ${ageColumn}`,
+				width,
+			);
+			lines.push(isSelected ? renderSelectedRow(fittedLine) : fittedLine);
 		}
 
 		// Add scroll indicator if needed
@@ -1004,11 +1019,10 @@ export class SessionSelectorComponent extends Container implements Focusable {
 			this.allLoad = controller;
 		}
 		this.header.setScope(scope);
-		this.header.setLoading(true);
 		this.requestRender();
 
 		const isActive = () => (scope === "current" ? this.currentLoad : this.allLoad) === controller;
-		const onProgress: SessionListProgress = (loaded, total, partialSessions) => {
+		const onProgress: SessionListProgress = (_loaded, _total, partialSessions) => {
 			if (!isActive()) return;
 			if (partialSessions) {
 				const sessions = [...partialSessions];
@@ -1020,7 +1034,6 @@ export class SessionSelectorComponent extends Container implements Focusable {
 				if (scope === this.scope) this.sessionList.setSessions(sessions, showCwd);
 			}
 			if (scope !== this.scope) return;
-			this.header.setProgress(loaded, total);
 			this.requestRender();
 		};
 
@@ -1039,7 +1052,6 @@ export class SessionSelectorComponent extends Container implements Focusable {
 			}
 
 			if (scope !== this.scope) return;
-			this.header.setLoading(false);
 			this.sessionList.setSessions(sessions, showCwd);
 			this.requestRender();
 		} catch (err) {
@@ -1054,7 +1066,6 @@ export class SessionSelectorComponent extends Container implements Focusable {
 			if (scope !== this.scope) return;
 
 			const message = err instanceof Error ? err.message : String(err);
-			this.header.setLoading(false);
 			this.header.setStatusMessage({ type: "error", message: `Failed to load sessions: ${message}` }, 4000);
 			this.sessionList.setSessions([], showCwd);
 			this.requestRender();
@@ -1088,7 +1099,6 @@ export class SessionSelectorComponent extends Container implements Focusable {
 		const sessions = this.scope === "current" ? this.currentSessions : this.allSessions;
 		const loading = (this.scope === "current" ? this.currentLoad : this.allLoad) !== null;
 		this.header.setScope(this.scope);
-		this.header.setLoading(loading);
 		this.sessionList.setSessions(sessions ?? [], this.scope === "all");
 		this.requestRender();
 		if (sessions === null && !loading) void this.loadScope(this.scope);
