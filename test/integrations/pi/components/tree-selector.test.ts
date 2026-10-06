@@ -87,11 +87,11 @@ describe("bare-A1 session tree presentation", () => {
     const selected = rows.find(row => stripTerminalSequences(row).includes("assistant: ResponseXYZ"))!;
     expect(stripTerminalSequences(selected)).toContain("→ assistant: ResponseXYZ");
     expect(stripTerminalSequences(selected)).not.toContain("•");
-    expect(selected).not.toContain("\u001b[48;");
+    expect(selected).toContain("\u001b[48;");
     expect(selected).not.toContain("\u001b[1m");
-    expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
-    expect(cellStyle(selected, "a")).toEqual(cellStyle(piTheme().fg("accent", "a"), "a"));
-    expect(cellStyle(selected, "X")).toEqual(cellStyle(piTheme().fg("muted", "X"), "X"));
+    expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().bg("customMessageBg", piTheme().fg("accent", "→")), "→"));
+    expect(cellStyle(selected, "a")).toEqual(cellStyle(piTheme().bg("customMessageBg", piTheme().fg("accent", "a")), "a"));
+    expect(cellStyle(selected, "X")).toEqual(cellStyle(piTheme().bg("customMessageBg", piTheme().fg("muted", "X")), "X"));
     const unselected = rows.find(row => stripTerminalSequences(row).includes("user: QuestionABC"))!;
     expect(cellStyle(unselected, "u")).toEqual(cellStyle(piTheme().fg("success", "u"), "u"));
     expect(cellStyle(unselected, "Q")).toEqual(cellStyle(piTheme().fg("muted", "Q"), "Q"));

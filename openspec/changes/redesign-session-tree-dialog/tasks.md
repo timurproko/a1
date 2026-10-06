@@ -2,7 +2,7 @@
 
 - [x] 1.1 Recompose the bare-A1 tree frame without its leading spacer or internal separator, style the title as accent-bold, place the shared shortcut hints at the bottom without a trailing frame gap, and verify focused render coverage pins one transcript gap, compact chrome, full-width outer rules, and heading/footer alignment.
 - [x] 1.2 Render the tree query through a focused standard input while preserving the tree list's action-first key dispatch and authoritative query state; keep the cursor after typed text and verify typing, deletion, clearing, text color, prompt icon, cursor/focus propagation, filtering, and narrow-width clipping.
-- [x] 1.3 Replace whole-row tree selection with the menu arrow, highlighted primary label, muted message description, green user label, yellow assistant label, and unbracketed system label; remove active-path bullets while retaining hierarchy, labels, filters, and horizontal-viewport semantics, and verify raw ANSI roles and selected/unselected geometry.
+- [x] 1.3 Replace tree selection with the menu arrow, subtle purple accent-tinted selected span, highlighted primary label, muted message description, green user label, yellow assistant label, and unbracketed system label; remove active-path bullets while retaining hierarchy, labels, filters, and horizontal-viewport semantics, and verify raw ANSI roles and selected/unselected geometry.
 - [x] 1.4 Remove the empty-result `(0/0)` counter while preserving `No entries found` and filter-status behavior; verify empty query results and non-empty overflow/status counters independently.
 - [x] 1.5 Recompose label editing with an accent-bold `Label` title, muted `Empty to remove` subheader, standard input, and save/cancel-only footer; hide tree search, results, and tree shortcuts until editing closes, then restore them intact.
 - [x] 1.6 Add the Models-style tree filter row with `all` active by default, move forward cycling from `Ctrl+O` to `Tab`, and reduce footer guidance to `Tab filter`; verify active/inactive ANSI roles, cycling, label-mode hiding, and owned keybinding resolution.
@@ -13,6 +13,7 @@
 - [x] 2.1 Replace the tree directly with the branch-summary choice when prompting is required, keep the summary mounted until the tree is ready on cancellation, and close before skipped-prompt navigation; verify neither transition exposes the ordinary prompt and cancellation restores the selected tree entry.
 - [x] 2.2 Remove the shared extension selector's trailing blank footer row so the summary-choice hint is immediately followed by its bottom rule; verify summary options, navigation, selection, cancellation, shared hint styling, and inventoried modal-frame coverage remain intact.
 - [x] 2.3 Replace the multiline custom-summary editor with the standard single-line extension input, accent-bold title, submit/cancel hints, and no trailing footer gap; verify custom-summary submission and compact frame geometry.
+- [x] 2.4 Reconcile the owned transcript, model, and thinking projections after successful in-place tree navigation without clearing the editor draft; verify the selected branch content replaces the content area and the editor state is preserved.
 
 ## 3. Validate the Delivered Experience
 

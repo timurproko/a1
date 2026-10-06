@@ -38,9 +38,9 @@ Keeping the internal separator as full-width frame content was rejected because 
 
 ### 3. Treat message text as description rather than selected-row chrome
 
-Tree rows will retain hierarchy prefixes, labels, and role semantics but remove active-path bullets that compete with the menu selection arrow. Selection will switch from `›` plus whole-row background/bold to the menu arrow `→`, selected emphasis on the primary entry label, and muted descriptive message text. Unselected user and assistant role labels will use green and yellow respectively, while system entries will use the muted unbracketed label `system`. Horizontal viewport measurement will continue to operate on the assembled ANSI row, but no background fill will be added.
+Tree rows will retain hierarchy prefixes, labels, and role semantics but remove active-path bullets that compete with the menu selection arrow. Selection will use the menu arrow `→`, selected emphasis on the primary entry label, muted descriptive message text, and the theme's subtle purple `customMessageBg` as an accent-tinted selected span without bolding the whole row. Unselected user and assistant role labels will use green and yellow respectively, while system entries will use the muted unbracketed label `system`. Horizontal viewport measurement will continue to operate on the assembled ANSI row.
 
-Using the generic SelectList was rejected because it cannot represent tree connectors, folding, and horizontal anchor clipping. Painting only part of the row with `selectedBg` was rejected because the requested reference is the foreground-only command-menu selection.
+Using the generic SelectList was rejected because it cannot represent tree connectors, folding, and horizontal anchor clipping. The generic `selectedBg` was rejected because it is blue in the owned theme; `customMessageBg` provides the requested low-intensity purple selection while preserving semantic foreground roles.
 
 ### 4. Treat label editing as its own compact tree state
 
@@ -51,6 +51,8 @@ Keeping label editing embedded below the search field was rejected because it ex
 ### 5. Make tree-to-summary replacement direct
 
 For a non-current entry with summary prompting enabled, the tree callback will not first clear the input surface. The shell will mount its owned summary selector synchronously so the root replaces the tree directly. On summary cancellation, that selector remains mounted until the asynchronously created tree is ready to replace it, preventing the ordinary prompt from appearing between the two surfaces. The tree will still close before direct navigation when the summary prompt is skipped, and current-entry selection will still close and report `Already at this point`.
+
+Successful Pi tree navigation mutates the currently bound session rather than replacing it, so the adapter will explicitly rebuild transcript, model, and thinking projections from that session and emit a fresh view. It will not run the full session-replacement path, because doing so would clear the owned editor draft that vanilla Pi preserves while moving between branches.
 
 Adding a loading surface or delaying rendering was rejected because the existing summary surface can safely remain visible during restoration. Changing the extension bridge's global close/mount behavior was rejected because a global change would risk unrelated extension interactions.
 
@@ -69,10 +71,10 @@ Restyling the multiline editor was rejected because it would retain unnecessary 
 ## Risks / Trade-offs
 
 - **[Mirroring query state into an Input can desynchronize cursor state]** → Keep the tree query authoritative, reconstruct the visual input from the complete query when it differs so its cursor lands at the query end, and test typing, deletion, clearing, focus, and narrow rendering.
-- **[Foreground-only selection may reduce distinction in low-color themes]** → Use the established semantic accent and muted roles already used by menu selection and preserve the explicit arrow.
+- **[A selected background can overpower role text]** → Use the low-intensity purple panel color only across the rendered selected span while preserving accent/muted foreground roles and the explicit arrow.
 - **[Removing shared extension-component footer spacers affects more than the tree workflow]** → Limit changes to structural trailing rows, retain all semantic children, and run focused extension-UI, modal-inventory, and session-shell dialog coverage.
 - **[Direct replacement could leave a stale surface visible]** → Branch explicitly on summary-prompt policy and test prompted, cancelled, current-entry, and skipped-prompt paths, including every input-surface assignment during cancellation.
 
 ## Migration Plan
 
-No data or configuration migration is required. The change is presentation-only and can be rolled back by reverting the component composition and transition edits together; session files and persisted tree-filter settings remain compatible.
+No data or configuration migration is required. The presentation and in-place navigation reconciliation can be rolled back together; session files, editor drafts, and persisted tree-filter settings remain compatible.

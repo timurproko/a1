@@ -8,7 +8,7 @@ The title SHALL be followed immediately by a Models-style `Filter: all | standar
 
 The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, the semantics of each filter mode, folding, navigation, copy, label, label-time, horizontal clipping, and non-cycle keybindings SHALL remain available.
 
-The selected tree entry SHALL use the ordinary menu arrow `→` without a whole-row background or whole-row bold treatment. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted. Tree entries SHALL NOT render active-path bullets. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `system` without square brackets. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
+The selected tree entry SHALL use the ordinary menu arrow `→` with the subtle purple accent-tinted selection background. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted, without whole-row bold treatment. Tree entries SHALL NOT render active-path bullets. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `system` without square brackets. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
 
 The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule.
 
@@ -42,7 +42,8 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 - **WHEN** a tree entry is selected
 - **THEN** the row SHALL begin with the ordinary menu arrow `→`
 - **AND** only its primary label SHALL receive selected emphasis while descriptive message text remains muted
-- **AND** no active-path bullet, selected background, or whole-row bold treatment SHALL be applied
+- **AND** the selected span SHALL use the subtle purple accent-tinted background
+- **AND** no active-path bullet or whole-row bold treatment SHALL be applied
 
 #### Scenario: Distinguish message roles
 - **WHEN** unselected user, assistant, and system entries are visible
@@ -73,6 +74,8 @@ The branch-summary choice SHALL retain its title, options, navigation, selection
 
 Custom summarization instructions SHALL use the ordinary single-line dialog input pattern instead of the multiline editor. The prompt SHALL have an accent-bold title, the standard input prompt and cursor behavior, and only the shared submit/cancel shortcut hints. The bottom rule SHALL immediately follow those hints without an empty row.
 
+After successful tree navigation, bare A1 SHALL rebuild the visible transcript from the newly selected branch and restore the ordinary input surface for that point. Any editor draft SHALL remain intact while model and thinking state reconcile to the selected branch.
+
 #### Scenario: Open the branch-summary choice
 - **WHEN** the user selects a non-current tree entry and summary prompting is enabled
 - **THEN** the branch-summary choice SHALL replace the tree directly
@@ -82,6 +85,11 @@ Custom summarization instructions SHALL use the ordinary single-line dialog inpu
 - **WHEN** the user cancels the branch-summary choice
 - **THEN** the Session Tree SHALL be restored with the chosen entry selected
 - **AND** no intermediate frame SHALL expose or flash the ordinary prompt
+
+#### Scenario: Complete tree navigation
+- **WHEN** navigation to a selected tree entry completes
+- **THEN** the content area SHALL show the selected branch transcript
+- **AND** the ordinary editor SHALL be visible with its existing draft preserved
 
 #### Scenario: Render branch-summary shortcuts
 - **WHEN** the branch-summary choice is visible

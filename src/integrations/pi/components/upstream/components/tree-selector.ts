@@ -4,8 +4,8 @@
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
  * preserving tree behavior; bare A1 uses compact modal chrome and label editing, Models-style filter
  * status with Tab cycling and all-first presentation excluding model/thinking metadata, standard
- * search input, menu-style selection without path bullets, semantic role colors, and semantic shortcut
- * footers.
+ * search input, purple accent-backed menu-arrow selection without path bullets, semantic role colors,
+ * and semantic shortcut footers.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -752,8 +752,12 @@ class TreeList implements Component {
 			const content = this.getEntryDisplayText(flatNode.node, isSelected);
 			const prefixPart = theme.fg("dim", prefix) + foldMarker;
 			const anchorCol = visibleWidth(prefixPart);
-			const gutter = cursor;
-			const body = prefixPart + label + labelTimestamp + content;
+			let gutter = cursor;
+			let body = prefixPart + label + labelTimestamp + content;
+			if (isSelected) {
+				gutter = theme.bg("customMessageBg", gutter);
+				body = theme.bg("customMessageBg", body);
+			}
 			renderedRows.push({ gutter, body, anchorCol, bodyWidth: visibleWidth(body), isSelected });
 		}
 
