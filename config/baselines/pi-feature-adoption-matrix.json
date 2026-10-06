@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "1.0.2"
+    "version": "1.0.4"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -2562,6 +2562,42 @@
       "since": "1.0.2",
       "disposition": "pinned",
       "note": "Model configuration parsing, thinking-level selection, and OpenAI-compatible request sampling remain package-owned in the pinned model and provider runtime."
+    },
+    {
+      "id": "changelog:1.0.3:azure-foundry-chat-completions",
+      "kind": "changelog",
+      "feature": "Azure Foundry Chat Completions",
+      "version": "1.0.3",
+      "summary": "The `azure` provider (renamed from `azure-openai-responses`) now also serves Foundry Chat Completions deployments, starting with `azure/deepseek-v4-pro`.",
+      "since": "1.0.4",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.3:codemode-images-saved-to-files",
+      "kind": "changelog",
+      "feature": "Codemode images saved to files",
+      "version": "1.0.3",
+      "summary": "`image()` also writes each image to a temp file and names the path in the result, so later turns can copy or move generated images.",
+      "since": "1.0.4",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.4:codemode-persists-images",
+      "kind": "changelog",
+      "feature": "Codemode persists images",
+      "version": "1.0.4",
+      "summary": "`tools.read()` on an image file now gives back an image block that `image()` can show.",
+      "since": "1.0.4",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.0.4:tool-patterns-and-no-mcp",
+      "kind": "changelog",
+      "feature": "Tool patterns and `--no-mcp`",
+      "version": "1.0.4",
+      "summary": "`--tools` and `--exclude-tools` accept `*` patterns, for example `--tools read,codemode,'mcp__radius__*'` keeps only one MCP server's tools. `--tools` now keeps MCP tools unless an entry starts with `mcp__`, and `--no-mcp` turns off MCP for one run.",
+      "since": "1.0.4",
+      "disposition": "pending"
     }
   ]
 }

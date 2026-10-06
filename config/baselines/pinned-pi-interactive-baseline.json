@@ -5,18 +5,18 @@
   "recordedAt": "2026-08-16T18:24:43.909Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "cd32f7725fdbddbaecdff5b1e68491563394e0ca",
+    "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
     "license": "MIT",
     "packages": [
       {
         "name": "@earendil-works/pi-coding-agent",
-        "version": "1.0.2",
-        "integrity": "sha512-3ZdIghMSELMGV3sKi5iASOb1Jwb696fLjmNu0aezaqDxTLLWWoRpqBYkGxJ1CgAMCbtfqXWEF0lcRrlVXmiEGQ=="
+        "version": "1.0.4",
+        "integrity": "sha512-+956nfMFHr5lDUVY/2Q4k+YzojzBuCaBXFgj0eSlXVGr7QVliVddKdc1Pz6yVg1dOlJQmb67doOVrlMsIcIdaw=="
       },
       {
         "name": "@earendil-works/pi-tui",
-        "version": "1.0.2",
-        "integrity": "sha512-ElfzjnckohEjzHK5Q5iOpqLpQ1YbM/c/XmjBdPVR5k4uoorQPnny5BtT+rvC0cAjVVCUOHWAWppust7FAaEsOQ=="
+        "version": "1.0.4",
+        "integrity": "sha512-TgvDJohtxvG3XWQID5w6bwEyBocywdG0F9yHZtP+Ywvtiq9RgeSMbeB8quUobk7/4ko6IvFOQo45AqIqNVr8Rg=="
       }
     ]
   },
@@ -26,8 +26,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
       "sourceMap": "modes/interactive/interactive-mode.js.map",
-      "lines": 7038,
-      "sha256": "7f9e6a7612634f26470026f0e42282ada8d1bbc871d80343c37ab81a2a2d9fe7"
+      "lines": 7073,
+      "sha256": "14abc51f5749f174045a5cb8879e4947b87dfee1a154db857cf2709bccfe9c50"
     },
     {
       "id": "commands",
@@ -51,7 +51,7 @@
       "path": "packages/tui/src/keybindings.ts",
       "sourceMap": "keybindings.js.map",
       "lines": 321,
-      "sha256": "eea5e3fe258ad50337595bb5320955a6d97bac0c8f6c0a838f988d75079bcf38"
+      "sha256": "475760dd4e3d02eca46bb5ee8704cd387c397b40d7a1f8967bdac3c481f5f702"
     },
     {
       "id": "startup",
@@ -224,8 +224,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          477,
-          505
+          480,
+          508
         ],
         "symbol": "InteractiveMode state fields",
         "anchors": [
@@ -247,8 +247,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          636,
-          644
+          640,
+          648
         ],
         "symbol": "constructor editor setup",
         "anchors": [
@@ -270,8 +270,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3008,
-          3077
+          3047,
+          3116
         ],
         "symbol": "setupKeyHandlers",
         "anchors": [
@@ -293,8 +293,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          679,
-          795
+          718,
+          834
         ],
         "symbol": "createBaseAutocompleteProvider and setupAutocompleteProvider",
         "anchors": [
@@ -361,8 +361,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3152,
-          3351
+          3179,
+          3378
         ],
         "symbol": "setupEditorSubmitHandler",
         "anchors": [
@@ -384,8 +384,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3152,
-          3351
+          3179,
+          3378
         ],
         "symbol": "setupEditorSubmitHandler",
         "anchors": [
@@ -407,8 +407,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          6917,
-          7008
+          6950,
+          7041
         ],
         "symbol": "handleBashCommand",
         "anchors": [
@@ -430,8 +430,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4798,
-          4830
+          4833,
+          4865
         ],
         "symbol": "disposeActiveSelector and showSelector",
         "anchors": [
@@ -453,8 +453,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4822,
-          5065
+          4869,
+          5112
         ],
         "symbol": "showSettingsSelector",
         "anchors": [
@@ -476,8 +476,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5632,
-          5710
+          5677,
+          5755
         ],
         "symbol": "showSessionSelector and handleResumeSession",
         "anchors": [
@@ -522,8 +522,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          6453,
-          6622
+          6488,
+          6657
         ],
         "symbol": "session utility command handlers",
         "anchors": [
@@ -546,8 +546,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5156,
-          5361
+          5191,
+          5396
         ],
         "symbol": "model handlers and selectors",
         "anchors": [
@@ -569,8 +569,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4452,
-          4519
+          4487,
+          4554
         ],
         "symbol": "cycleThinkingLevel and toggleThinkingBlockVisibility",
         "anchors": [
@@ -592,8 +592,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3353,
-          3741
+          3380,
+          3769
         ],
         "symbol": "subscribeToAgent and handleEvent",
         "anchors": [
@@ -638,8 +638,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3502,
-          3578
+          3529,
+          3605
         ],
         "symbol": "handleEvent tool and message cases",
         "anchors": [
@@ -707,8 +707,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3096,
-          3124
+          3123,
+          3151
         ],
         "symbol": "clipboard input handlers",
         "anchors": [
@@ -753,8 +753,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          2095,
-          2109
+          2109,
+          2123
         ],
         "symbol": "handleFatalRuntimeError",
         "anchors": [
@@ -775,8 +775,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4223,
-          4306
+          4251,
+          4338
         ],
         "symbol": "shutdown, emergencyTerminalExit, uncaughtCrash, signal handlers, suspend",
         "anchors": [
@@ -798,8 +798,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          7018,
-          7036
+          7053,
+          7071
         ],
         "symbol": "stop",
         "anchors": [
