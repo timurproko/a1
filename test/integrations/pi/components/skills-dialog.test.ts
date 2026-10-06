@@ -91,10 +91,11 @@ describe("the Skills dialog", () => {
     expect(rows[6]).toBe("   skill:code-review");
     expect(rows[9]).toBe(" <muted>  Design, edit, and publish Framer sites</>");
     const selected = rendered[5]!;
-    expect(stripTerminalSequences(selected)).toHaveLength(80);
+    const selectedText = stripTerminalSequences(selected);
+    expect(selectedText).toBe(" → skill:framer");
     const selectionBackground = cellBackgroundAt(piTheme().bg("customMessageBg", "x"), 0);
     expect(cellBackgroundAt(selected, 1)).toBe(selectionBackground);
-    expect(cellBackgroundAt(selected, 79)).toBe(selectionBackground);
+    expect(cellBackgroundAt(selected, selectedText.length - 1)).toBe(selectionBackground);
     expect(cellStyle(selected, "s")).toEqual(cellStyle(piTheme().fg("accent", "s"), "s"));
     expect(selected).not.toContain("\u001b[1m");
   });

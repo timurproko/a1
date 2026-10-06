@@ -9,7 +9,7 @@ The three dialogs have different row content. Models combines scope and active-s
 **Goals:**
 
 - Give Models, Skills, and Thinking Level the same selected-row treatment as Session Tree.
-- Make the highlight fill the available modal content width without wrapping or exceeding narrow terminals.
+- Limit the highlight to the rendered item span without wrapping or exceeding narrow terminals.
 - Keep primary, descriptive, success, dim, and muted roles legible on the purple background.
 - Establish a reusable owned rendering boundary and focused style tests for future maintenance.
 
@@ -23,33 +23,33 @@ The three dialogs have different row content. Models combines scope and active-s
 
 ### 1. Treat Session Tree as the visual contract
 
-A selected standard-dialog row will begin with the accent `→`, render its primary selectable label in accent, retain muted supporting text and existing semantic state colors, and apply `customMessageBg` across the available content width. It will not bold the complete row. Unselected rows keep their current appearance.
+A selected standard-dialog row will begin with the accent `→`, render its primary selectable label in accent, retain muted supporting text and existing semantic state colors, and apply `customMessageBg` only around the rendered item span. It will not fill unused content width or bold the complete row. Unselected rows keep their current appearance.
 
 Using `selectedBg` was rejected because the owned theme maps it to the stronger blue selection surface; the Session Tree intentionally uses the lower-intensity purple `customMessageBg`. Accent-only selection was rejected because it is the inconsistency reported in the captures.
 
 ### 2. Centralize width-safe selected-row painting
 
-An owned dialog-row helper/component will receive already-semantic row fragments and the render width, truncate them with ANSI-aware utilities, pad the selected row to the available content width, and then apply the background. The helper will not discover selection by inspecting rendered text, and it will not own dialog state or input dispatch.
+An owned dialog-row helper/component will receive already-semantic row fragments and the render width, truncate them with ANSI-aware utilities, and apply the background only to the resulting item span. The helper will not discover selection by inspecting rendered text, add trailing selected cells, or own dialog state or input dispatch.
 
 Each dialog will continue to assemble its own domain-specific fragments. Models retains scope and active markers, Skills retains `skill:<name>`, and Thinking retains its aligned level/current/default/description columns. This keeps behavioral controllers specialized while sharing only the visual invariant.
 
-Duplicating `theme.bg("customMessageBg", ...)` in each component was rejected because direct `Text` children do not share a width-fill invariant and would drift on truncation. Rewriting final rendered rows by matching `→` was rejected because rendered-string substitution is not a semantic component boundary.
+Duplicating `theme.bg("customMessageBg", ...)` in each component was rejected because direct `Text` children do not share a clipping invariant and would drift on truncation. Padding the highlight to the frame edge was rejected because unused dialog space is not part of the selected item. Rewriting final rendered rows by matching `→` was rejected because rendered-string substitution is not a semantic component boundary.
 
 ### 3. Adapt Thinking without changing its controller behavior
 
-Thinking Level will preserve its authoritative item list, filtering, selected value, focus propagation, wrap navigation, Enter selection, Space default persistence, and aligned columns. Its row presentation will pass through the owned selected-row boundary rather than relying solely on `SelectListTheme.selectedText`, which does not paint unused row width.
+Thinking Level will preserve its authoritative item list, filtering, selected value, focus propagation, wrap navigation, Enter selection, Space default persistence, and aligned columns. Its row presentation will pass through the owned selected-row boundary so the same clipped item-span background contract applies to its composite row.
 
 Replacing the full Thinking workflow was rejected. Any small owned list adapter must delegate or reproduce only the existing `SelectList` row/navigation behavior required to expose the semantic selected row, with tests proving unchanged filtering and actions.
 
 ### 4. Pin semantic roles and geometry, not RGB snapshots
 
-Focused tests will assert the background role, accent arrow/primary text, muted descriptions, retained success/dim markers, absence of bold selection, full available-width highlight, and bounded narrow rendering. Existing behavioral tests remain authoritative for actions and state changes; shell-level coverage will verify that the dialogs still open and transition normally.
+Focused tests will assert the background role, accent arrow/primary text, muted descriptions, retained success/dim markers, absence of bold selection, absence of trailing selected cells, and bounded narrow rendering. Existing behavioral tests remain authoritative for actions and state changes; shell-level coverage will verify that the dialogs still open and transition normally.
 
 Literal RGB snapshots were rejected because themes and terminal color modes legitimately resolve semantic roles differently. Plain-text snapshots alone were rejected because they cannot detect the missing selection background.
 
 ## Risks / Trade-offs
 
-- **[Background padding changes visible row width]** → Pad only inside the width already supplied by the shared modal frame and verify every rendered row remains bounded at narrow widths.
+- **[Background styling changes visible row width]** → Never pad selected rows; clip the semantic item first and verify the highlighted span ends with the final visible item cell.
 - **[Nested ANSI foreground resets drop the background]** → Apply background after semantic fragments are assembled and assert representative cells across the full Models and Thinking rows.
 - **[Thinking list adaptation changes navigation or filtering]** → Keep its existing state transitions and add focused wrap, filter, Enter, Space, and selected-value regressions around the styled renderer.
 - **[The pending Session Tree branch evolves]** → Bind the contract to semantic roles (`customMessageBg`, accent primary, muted description, no bold) rather than copying unstable row internals.

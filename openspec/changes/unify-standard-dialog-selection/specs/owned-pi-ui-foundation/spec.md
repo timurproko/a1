@@ -2,7 +2,7 @@
 
 ### Requirement: Standard bare-A1 dialogs share one selected-row presentation
 
-The bare-A1 Models, Skills, Thinking Level, and Session Tree dialogs SHALL present their selected list row with the ordinary menu arrow `→`, an accent primary label, muted descriptive text, and the subtle purple `customMessageBg` selection background. The selected background SHALL extend across the available dialog content width, including otherwise unused cells after the row content, without extending beyond the frame or causing wrapping. Selection SHALL NOT bold the whole row.
+The bare-A1 Models, Skills, Thinking Level, and Session Tree dialogs SHALL present their selected list row with the ordinary menu arrow `→`, an accent primary label, muted descriptive text, and the subtle purple `customMessageBg` selection background. The selected background SHALL cover only the rendered item span from its arrow through its final visible content cell, SHALL NOT fill otherwise unused cells after the item, and SHALL remain clipped within the frame without causing wrapping. Selection SHALL NOT bold the whole row.
 
 The selected-row treatment SHALL preserve domain-specific semantic markers and content. Models SHALL retain its scoped/unscoped marker, provider badge, and active-model checkmark. Skills SHALL retain its `skill:<name>` label and separately presented selected description. Thinking Level SHALL retain aligned level, current, default, and reasoning-description columns. Session Tree SHALL retain its specialized hierarchy, role labels, and horizontal viewport.
 
@@ -13,13 +13,13 @@ Unselected rows, search and filter behavior, list ordering, counters, descriptio
 - **WHEN** a model row is selected in the Models dialog
 - **THEN** its arrow and model identifier SHALL use accent foreground on `customMessageBg`
 - **AND** its provider badge SHALL remain muted and its scope and active-state markers SHALL retain their semantic roles
-- **AND** the background SHALL fill the available content width without changing the row order or model action
+- **AND** the background SHALL end with the row's final marker or provider content without changing the row order or model action
 
 #### Scenario: Highlight a skill
 
 - **WHEN** a skill row is selected in the Skills dialog
 - **THEN** its arrow and `skill:<name>` label SHALL use accent foreground on `customMessageBg`
-- **AND** the background SHALL fill the available content width
+- **AND** the background SHALL end with the final character of the `skill:<name>` label
 - **AND** the selected skill description SHALL remain separately muted below the list
 
 #### Scenario: Highlight a thinking level
@@ -33,7 +33,8 @@ Unselected rows, search and filter behavior, list ordering, counters, descriptio
 
 - **WHEN** any standard dialog renders its selected row with less width than the complete content requires
 - **THEN** the row SHALL remain single-line and ANSI-aware clipped within the available content width
-- **AND** every visible selected cell SHALL retain the selection background
+- **AND** every visible item cell SHALL retain the selection background
+- **AND** cells after the visible item SHALL remain outside the selection background
 - **AND** no rendered row SHALL exceed the frame width
 
 #### Scenario: Render an unselected row

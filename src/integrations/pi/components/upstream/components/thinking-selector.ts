@@ -8,9 +8,9 @@
  * levels, and rendering aligned muted descriptions after fixed active and bracketed default columns.
  * Bare A1 persists defaults immediately on Space, closes only on Escape, and uses the shared compact
  * semantic shortcut row. All list and border colors use the owned theme and its explicit color mode.
- * Selected rows use the shared bare-A1 purple selection surface across the available list width while
- * preserving level, current/default marker, and description roles. The comparison profile retains the
- * public pinned component.
+ * Selected rows use the shared bare-A1 purple selection surface only around the rendered item span
+ * while preserving level, current/default marker, and description roles. The comparison profile
+ * retains the public pinned component.
  * Deviations: owned-modal-shortcut-hints, owned-level-cycle-shortcut, owned-thinking-selector-heading,
  * owned-thinking-selector-controls, owned-standard-dialog-selection.
  */

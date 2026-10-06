@@ -5,9 +5,9 @@ The Models, Skills, and Thinking Level dialogs still indicate selection with onl
 ## What Changes
 
 - Apply the Session Tree's selected-row treatment to Models, Skills, and Thinking Level: an accent `→`, accent primary label, muted supporting text, and the subtle purple `customMessageBg` background.
-- Extend the selected background across the dialog's available content width while keeping rows single-line, clipped, and free of whole-row bold styling.
+- Limit the selected background to the rendered item span while keeping rows single-line, clipped, and free of whole-row bold styling.
 - Preserve each dialog's semantic state markers, search, navigation, filtering, model scope/default actions, descriptions, counters, and close/select behavior.
-- Centralize the owned selected-row rendering contract and add focused ANSI-role, width, and interaction regressions so these selectors cannot drift independently.
+- Centralize the owned selected-row rendering contract and add focused ANSI-role, span, clipping, and interaction regressions so these selectors cannot drift independently.
 
 ## Capabilities
 

@@ -264,10 +264,12 @@ describe("owned level and model keybindings", () => {
     expect(cellStyle(selectedRow, "m")).toEqual(cellStyle(piTheme().fg("accent", "m"), "m"));
     expect(cellStyle(selectedRow, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
     expect(cellStyle(unselectedRow, "L")).toEqual(cellStyle(piTheme().fg("muted", "L"), "L"));
-    expect(stripTerminalSequences(selectedRow)).toHaveLength(100);
+    const selectedText = stripTerminalSequences(selectedRow);
+    expect(selectedText.endsWith("Moderate reasoning (~8k tokens)")).toBe(true);
+    expect(selectedText).toBe(selectedText.trimEnd());
     const selectionBackground = cellBackgroundAt(piTheme().bg("customMessageBg", "x"), 0);
     expect(cellBackgroundAt(selectedRow, 1)).toBe(selectionBackground);
-    expect(cellBackgroundAt(selectedRow, 99)).toBe(selectionBackground);
+    expect(cellBackgroundAt(selectedRow, selectedText.length - 1)).toBe(selectionBackground);
     expect(selectedRow).not.toContain("\u001b[1m");
     expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
     expect(cellStyle(selectedRow, "[")).toEqual(cellStyle(piTheme().fg("muted", "["), "["));
