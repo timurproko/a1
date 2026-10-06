@@ -4046,6 +4046,7 @@
           "hash": "f81e15732dc355a21592f6377fa88189b46003b8837fd275705671c0ea9484e2",
           "consumers": [
             "src/integrations/pi/components/shell-session-info-reference.ts",
+            "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]

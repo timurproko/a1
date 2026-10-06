@@ -273,10 +273,23 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
 
     await shell.submit("/resume");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Resume Session (Current Folder)");
+    const currentRows = shell.root.render(100);
+    const currentFrame = stripTerminalSequences(currentRows.join("\n"));
+    expect(currentFrame).toContain("Resume Session");
+    expect(currentFrame).not.toContain("Resume Session (");
+    expect(currentFrame).toContain("Filter: current | all  Name: all  Sort: threaded");
+    expect(currentRows.find(row => stripTerminalSequences(row).includes("Filter:")))
+      .toContain(piTheme().fg("accent", "current"));
     terminal.input("\t");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Resume Session (All)");
+    const allRows = shell.root.render(100);
+    const allFrame = stripTerminalSequences(allRows.join("\n"));
+    expect(allFrame).toContain("Resume Session");
+    expect(allFrame).not.toContain("Resume Session (");
+    expect(allFrame).toContain("Filter: current | all  Name: all  Sort: threaded");
+    const allFilterRow = allRows.find(row => stripTerminalSequences(row).includes("Filter:"))!;
+    expect(allFilterRow).toContain(piTheme().fg("dim", "current"));
+    expect(allFilterRow).toContain(piTheme().fg("accent", "all"));
     terminal.input("\x1b");
     expect(shell.root.render(100).join("\n")).not.toContain("Resume Session");
     expect(shell.root.render(100).join("\n")).not.toContain("Resume cancelled");
