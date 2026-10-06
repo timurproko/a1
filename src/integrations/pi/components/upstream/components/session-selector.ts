@@ -5,8 +5,8 @@
  * search, sort, named/path filters, rename, delete confirmation, active-session protection,
  * progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned
  * keybindings/theme, canonical path handling, and the shared bare-A1 modal frame with standalone
- * title, stable filter/status row, progressive result paging, and bottom dynamic feedback and shortcut
- * footer.
+ * title, stable filter/status row, progressive result paging, aligned result columns, Session Tree
+ * selection roles, and bottom dynamic feedback and shortcut footer.
  * Deviations: owned-modal-shortcut-hints, owned-resume-session-dialog.
  */
 import { spawnSync } from "node:child_process";
@@ -98,7 +98,7 @@ function fitPathToWidth(value: string, width: number, preserveTail: boolean): st
 
 function renderSelectedRow(value: string): string {
 	const marker = "\u0000";
-	const wrapper = theme.bg("selectedBg", marker);
+	const wrapper = theme.bg("customMessageBg", marker);
 	const markerIndex = wrapper.indexOf(marker);
 	const on = wrapper.slice(0, markerIndex);
 	const off = wrapper.slice(markerIndex + marker.length);
@@ -551,7 +551,7 @@ class SessionList implements Component, Focusable {
 			const pathText = this.sessionPathText(session);
 
 			// Cursor and title stay inside their column so metadata always begins at one boundary.
-			const cursor = isSelected ? theme.fg("accent", "› ") : "  ";
+			const cursor = isSelected ? theme.fg("accent", "→ ") : "  ";
 			const prefixWidth = visibleWidth(prefix);
 			const availableForMsg = Math.max(0, titleColumnWidth - 2 - prefixWidth);
 			const truncatedMsg = truncateToWidth(normalizedMessage, availableForMsg, "…");
@@ -565,12 +565,15 @@ class SessionList implements Component, Focusable {
 			} else if (hasName) {
 				messageColor = "warning";
 			}
-			let styledMsg = messageColor ? theme.fg(messageColor, truncatedMsg) : truncatedMsg;
-			if (isSelected) {
-				styledMsg = theme.bold(styledMsg);
-			}
+			const styledMsg = isConfirmingDelete
+				? theme.fg("error", truncatedMsg)
+				: isSelected
+					? theme.fg("accent", truncatedMsg)
+					: messageColor
+						? theme.fg(messageColor, truncatedMsg)
+						: truncatedMsg;
 
-			const metadataColor = isConfirmingDelete ? "error" : "dim";
+			const metadataColor = isConfirmingDelete ? "error" : isSelected ? "muted" : "dim";
 			const titleColumn = fitToWidth(cursor + theme.fg("dim", prefix) + styledMsg, titleColumnWidth, "…");
 			const pathColumn = pathColumnWidth > 0
 				? `${theme.fg(metadataColor, fitPathToWidth(pathText, pathColumnWidth, this.showPath))}${" ".repeat(columnGapWidth)}`

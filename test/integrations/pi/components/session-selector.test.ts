@@ -29,6 +29,41 @@ function selectedBackgroundCells(row: string): number {
   return cells;
 }
 
+function cellBackground(row: string, target: string): string {
+  let background = "default";
+  for (const token of row.matchAll(/\u001b\[([\d;]*)m|([^\u001b])/gu)) {
+    if (token[1] !== undefined) {
+      const codes = token[1].split(";").map(Number);
+      for (let index = 0; index < codes.length; index += 1) {
+        const code = codes[index];
+        if (code === 0 || code === 49) background = "default";
+        else if (code === 48 && codes[index + 1] === 2) {
+          background = codes.slice(index + 2, index + 5).join(";"); index += 4;
+        } else if (code === 48 && codes[index + 1] === 5) {
+          background = `palette:${codes[index + 2]}`; index += 2;
+        }
+      }
+    } else if (token[2] === target) {
+      return background;
+    }
+  }
+  throw new Error(`Missing character ${target} in ${stripPortableTerminalSequences(row)}`);
+}
+
+function cellBold(row: string, target: string): boolean {
+  let bold = false;
+  for (const token of row.matchAll(/\u001b\[([\d;]*)m|([^\u001b])/gu)) {
+    if (token[1] !== undefined) {
+      const codes = token[1].split(";").map(Number);
+      if (codes.includes(0) || codes.includes(22)) bold = false;
+      if (codes.includes(1)) bold = true;
+    } else if (token[2] === target) {
+      return bold;
+    }
+  }
+  throw new Error(`Missing character ${target} in ${stripPortableTerminalSequences(row)}`);
+}
+
 function session(path: string, id: string, name: string | undefined, modified: number): SessionInfo {
   return {
     path,
@@ -239,7 +274,20 @@ describe("owned pinned session selector", () => {
     expect(new Set(pathStarts).size).toBe(1);
     expect(rows[longIndex]).toMatch(/A title long.*…  D:\/a\/very.*…  +22 now$/u);
     expect(new Set([shortIndex, longIndex, mediumIndex].map(index => rows[index]!.lastIndexOf(" now"))).size).toBe(1);
-    expect(selectedBackgroundCells(rawRows[shortIndex]!)).toBe(99);
+    const selectedShort = rawRows[shortIndex]!;
+    expect(stripPortableTerminalSequences(selectedShort)).toMatch(/^ → Short title/u);
+    expect(cellStyle(selectedShort, "→"))
+      .toEqual(cellStyle(piTheme().bg("customMessageBg", piTheme().fg("accent", "→")), "→"));
+    expect(cellStyle(selectedShort, "S"))
+      .toEqual(cellStyle(piTheme().bg("customMessageBg", piTheme().fg("accent", "S")), "S"));
+    expect(cellStyle(selectedShort, "D"))
+      .toEqual(cellStyle(piTheme().bg("customMessageBg", piTheme().fg("muted", "D")), "D"));
+    expect(cellBold(selectedShort, "S")).toBe(false);
+    expect(cellBackground(selectedShort, "→"))
+      .toBe(cellBackground(piTheme().bg("customMessageBg", "→"), "→"));
+    expect(cellBackground(selectedShort, "→"))
+      .not.toBe(cellBackground(piTheme().bg("selectedBg", "→"), "→"));
+    expect(selectedBackgroundCells(selectedShort)).toBe(99);
 
     component.handleInput?.("\x1b[B");
     rawRows = component.render(100);
@@ -249,7 +297,7 @@ describe("owned pinned session selector", () => {
 
     const narrowRows = component.render(52);
     const narrowSelected = narrowRows.find(row => stripPortableTerminalSequences(row).includes("A title"))!;
-    expect(stripPortableTerminalSequences(narrowSelected)).toMatch(/^ › A title.*…  D:\/a\/very.*…  +22 now$/u);
+    expect(stripPortableTerminalSequences(narrowSelected)).toMatch(/^ → A title.*…  D:\/a\/very.*…  +22 now$/u);
     expect(selectedBackgroundCells(narrowSelected)).toBe(51);
   });
 

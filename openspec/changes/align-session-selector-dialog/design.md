@@ -44,13 +44,13 @@ Moving only ordinary hints while leaving confirmation and status in the header w
 
 Each result row will reserve trailing columns for path metadata, message count, and age. The path column will start at one shared position for the rendered result set, truncate within a bounded width when necessary, and leave explicit spacing on both sides; the title/tree-prefix region will truncate before that boundary instead of consuming path space. Count and age will retain their own aligned columns.
 
-The renderer will fit and pad the complete row to the available width before applying the selected background as the outermost style. This makes every selected row cover the same full width regardless of title or path length and prevents truncation from ending the highlight early.
+The renderer will fit and pad the complete row to the available width before applying the Session Tree's subtle purple `customMessageBg` selection as the outermost, reset-safe style. Selected rows will use the same accent `→` arrow and accent primary title without whole-row bold treatment, while path/count/age metadata remains muted. This makes every selected row cover the same full width regardless of title or path length and prevents truncation from ending the highlight early.
 
-Keeping one free-form right-hand metadata string was rejected because variable path lengths move the column boundary. Applying selection before final truncation was rejected because truncation can terminate the outer background at different visible positions.
+Keeping one free-form right-hand metadata string was rejected because variable path lengths move the column boundary. Retaining the Resume Session selector's `›`, blue `selectedBg`, named/current foreground distinction, or selected-title bolding was rejected because those roles diverge from the Session Tree selection language. Applying selection before final truncation was rejected because truncation can terminate the outer background at different visible positions.
 
 ### 5. Verify semantics and ANSI roles rather than snapshotting a terminal image
 
-Focused selector tests will assert exact plain-text row order, shared left inset, title styling, active/inactive status roles, stable loading-time filter text, progressively growing paging totals, full-width selected-background coverage, aligned path/count/age columns, title and path truncation, footer placement, and dynamic confirmation/status behavior. Shell workflow coverage will assert the integrated Resume Session surface no longer includes scoped title suffixes while scope switching and closure still work.
+Focused selector tests will assert exact plain-text row order, shared left inset, title styling, active/inactive status roles, stable loading-time filter text, progressively growing paging totals, Session Tree arrow/foreground/background selection roles with full-width coverage, aligned path/count/age columns, title and path truncation, footer placement, and dynamic confirmation/status behavior. Shell workflow coverage will assert the integrated Resume Session surface no longer includes scoped title suffixes while scope switching and closure still work.
 
 A screenshot-only assertion was rejected because it cannot reliably distinguish semantic ANSI roles or prevent header/footer and row-layout regressions.
 

@@ -8,7 +8,7 @@ The row immediately below the title SHALL begin with `Filter: current | all`, fo
 
 When all-session discovery supplies partial results, the result list SHALL update incrementally. Whenever the existing paging indicator is applicable, its `(selection/total)` total SHALL count the currently discovered sessions that match the active query and name filter, and SHALL grow as further matching sessions arrive. It SHALL NOT label that count as loading or substitute loader work-unit progress for the visible matching-result total.
 
-Every selected session result SHALL use one continuous full-width selection background, regardless of the title or path length. When cwd or explicit path metadata is visible, every rendered row SHALL reserve a shared path column followed by separately aligned message-count and age columns. Session titles SHALL truncate before the path column with visible separation, and paths that exceed their bounded column SHALL truncate within that column rather than displacing the title, count, or age columns.
+Every selected session result SHALL use the Session Tree's accent `→` arrow, accent primary title without selected-title bolding, muted path/count/age metadata, and subtle purple accent-tinted selection background. That background SHALL form one continuous full-width selection, regardless of the title or path length. When cwd or explicit path metadata is visible, every rendered row SHALL reserve a shared path column followed by separately aligned message-count and age columns. Session titles SHALL truncate before the path column with visible separation, and paths that exceed their bounded column SHALL truncate within that column rather than displacing the title, count, or age columns.
 
 The selector's search-syntax and action shortcut hints SHALL appear below the session results, aligned to the same shared content inset as the title and status row. In the ordinary state the bottom rule SHALL immediately follow the final hint row. Delete confirmation, transient mutation status, and load errors SHALL use this bottom feedback area rather than replacing or joining the title/status rows. Existing search, scope switching, sorting, name filtering, path display, rename, deletion, selection, loading, cancellation, and result-list behavior SHALL remain available.
 
@@ -39,7 +39,9 @@ The selector's search-syntax and action shortcut hints SHALL appear below the se
 
 #### Scenario: Highlight a complete session result row
 - **WHEN** a session result is selected
-- **THEN** one continuous selection background SHALL cover the complete available row width
+- **THEN** it SHALL begin with the accent `→` arrow used by Session Tree
+- **AND** its primary title SHALL use accent without selected-title bolding while path, count, and age remain muted
+- **AND** the Session Tree's subtle purple accent-tinted selection background SHALL cover the complete available row width
 - **AND** moving selection between rows with different title or path lengths SHALL NOT change the highlight width
 
 #### Scenario: Change session name and sort filters
