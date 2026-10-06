@@ -1419,7 +1419,7 @@ export class OwnedUiSessionShell {
         getColumns: () => this.runtime.viewport().columns,
         getRows: () => this.runtime.viewport().rows,
         requestRender: () => this.runtime.requestRender(),
-      }, "Creating gist...");
+      }, "Creating gist…");
     const operationSurface = shareSurface ?? (request.command === "reload" ? createPiShellReloadBox() : undefined);
     const now = this.#reloadPresentation?.now ?? Date.now;
     const shownAt = now();

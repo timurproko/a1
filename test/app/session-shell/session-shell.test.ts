@@ -207,7 +207,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     });
 
     const share = shell.runWorkflow({ command: "share", argument: "" });
-    await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Creating gist..."));
+    await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Creating gist…"));
     terminal.input("\x1b");
     await share;
     const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
@@ -227,13 +227,13 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     const share = shell.runWorkflow({ command: "share", argument: "" });
     await vi.waitFor(() => {
       const pinnedLoading = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
-      expect(pinnedLoading.some(row => row.includes("Creating gist..."))).toBe(true);
+      expect(pinnedLoading.some(row => row.includes("Creating gist…"))).toBe(true);
       expect(pinnedLoading).not.toContain(" Share");
     });
     resolveShare?.({ command: "share", outcome: "completed", message: "Share URL: https://example.test", detail: "https://gist.test/id" });
     await share;
     const shareRows = shell.root.render(100);
-    expect(stripTerminalSequences(shareRows.join("\n"))).not.toContain("Creating gist...");
+    expect(stripTerminalSequences(shareRows.join("\n"))).not.toContain("Creating gist…");
     expect(shareRows.every(row => !row.includes("\n"))).toBe(true);
     const plainShareRows = shareRows.map(row => stripTerminalSequences(row));
     const shareRow = plainShareRows.findIndex(row => row.trimEnd() === " Share URL: https://example.test");

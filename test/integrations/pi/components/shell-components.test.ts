@@ -73,7 +73,7 @@ describe("Pi shell public component adapters", () => {
       getColumns: () => 80,
       getRows: () => 24,
       requestRender() {},
-    }, "Creating gist...");
+    }, "Creating gist…");
     try {
       const rows = dialog.render(40);
       const plainRows = rows.map(row => stripTerminalSequences(row).trimEnd());
@@ -82,7 +82,7 @@ describe("Pi shell public component adapters", () => {
 
       expect(titleRow).toBe(1);
       expect(plainRows[0]).toBe("─".repeat(40));
-      expect(plainRows.some(row => row.includes("Creating gist..."))).toBe(true);
+      expect(plainRows.some(row => row.includes("Creating gist…"))).toBe(true);
       expect(hintRow).toBeGreaterThan(titleRow);
       expect(plainRows[hintRow + 1]).toBe("─".repeat(40));
       expect(rows[titleRow]).toContain(piTheme().fg("accent", piTheme().bold("Share")));
@@ -99,7 +99,7 @@ describe("Pi shell public component adapters", () => {
       getColumns: () => 80,
       getRows: () => 24,
       requestRender() {},
-    }, "Creating gist...");
+    }, "Creating gist…");
     expect(dialog.signal.aborted).toBe(false);
     dialog.handleInput?.(input);
     expect(dialog.signal.aborted).toBe(true);
