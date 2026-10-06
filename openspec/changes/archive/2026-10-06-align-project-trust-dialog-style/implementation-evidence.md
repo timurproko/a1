@@ -14,6 +14,11 @@
 - `npm run build`: the interactive checkout built successfully.
 - `npm exec -- openspec validate align-project-trust-dialog-style --strict`: passed.
 
+## CI repair
+
+- Finalized-head run `37488506619` exposed one stale raw-ANSI assertion in `session-shell-workflows.test.ts`: the intended muted-label/normal-value boundary means `Current session: untrusted` is no longer contiguous in the styled byte stream.
+- The assertion now evaluates stripped visible text while the dedicated trust-context tests continue to assert the exact semantic ANSI spans. The repaired focused set (`session-shell-workflows`, startup trust prompt, and trust context) passed 3 files and 44 tests.
+
 ## Known gaps
 
 No implementation gap is known. Physical-terminal color and spacing confirmation remains the maintainer's manual acceptance step; the build-first handoff exercises the startup selector before trust and the in-session `/trust` selector without claiming that automated ANSI assertions substitute for visual acceptance.
