@@ -4,8 +4,9 @@
  * Modifications: Source-synchronized session selector port: preserve threaded/current/all scope,
  * search, sort, named/path filters, rename, delete confirmation, active-session protection, loading
  * progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme,
- * canonical path handling, and the shared bare-A1 modal shortcut row and compact padded modal frame.
- * Deviations: owned-modal-shortcut-hints.
+ * canonical path handling, and the shared bare-A1 modal frame with standalone title, filter/status
+ * row, and bottom dynamic feedback and shortcut footer.
+ * Deviations: owned-modal-shortcut-hints, owned-resume-session-dialog.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
@@ -172,66 +173,68 @@ class SessionSelectorHeader implements Component {
 	invalidate(): void {}
 
 	render(width: number): string[] {
-		const title = this.scope === "current" ? "Resume Session (Current Folder)" : "Resume Session (All)";
-		const leftText = theme.bold(title);
-
-		const sortLabel = this.sortMode === "threaded" ? "Threaded" : this.sortMode === "recent" ? "Recent" : "Fuzzy";
+		const title = theme.fg("accent", theme.bold("Resume Session"));
+		const progressText = this.loadProgress ? `${this.loadProgress.loaded}/${this.loadProgress.total}` : "...";
+		const loadingSuffix = this.loading ? ` (loading ${progressText})` : "";
+		const currentLabel = `current folder${this.scope === "current" ? loadingSuffix : ""}`;
+		const allLabel = `all${this.scope === "all" ? loadingSuffix : ""}`;
+		const scopeText = theme.fg("muted", "Filter: ")
+			+ theme.fg(this.scope === "current" ? "accent" : "dim", currentLabel)
+			+ theme.fg("muted", " | ")
+			+ theme.fg(this.scope === "all" ? "accent" : "dim", allLabel);
+		const nameText = theme.fg("muted", "Name: ") + theme.fg("accent", this.nameFilter);
+		const sortLabel = this.sortMode === "relevance" ? "fuzzy" : this.sortMode;
 		const sortText = theme.fg("muted", "Sort: ") + theme.fg("accent", sortLabel);
+		const status = `${scopeText}  ${nameText}  ${sortText}`;
+		return [truncateToWidth(title, width, ""), truncateToWidth(status, width, "")];
+	}
 
-		const nameLabel = this.nameFilter === "all" ? "All" : "Named";
-		const nameText = theme.fg("muted", "Name: ") + theme.fg("accent", nameLabel);
-
-		let scopeText: string;
-		if (this.loading) {
-			const progressText = this.loadProgress ? `${this.loadProgress.loaded}/${this.loadProgress.total}` : "...";
-			scopeText = `${theme.fg("muted", "○ Current Folder | ")}${theme.fg("accent", `Loading ${progressText}`)}`;
-		} else if (this.scope === "current") {
-			scopeText = `${theme.fg("accent", "◉ Current Folder")}${theme.fg("muted", " | ○ All")}`;
-		} else {
-			scopeText = `${theme.fg("muted", "○ Current Folder | ")}${theme.fg("accent", "◉ All")}`;
-		}
-
-		const rightText = truncateToWidth(`${scopeText}  ${nameText}  ${sortText}`, width, "");
-		const availableLeft = Math.max(0, width - visibleWidth(rightText) - 1);
-		const left = truncateToWidth(leftText, availableLeft, "");
-		const spacing = Math.max(0, width - visibleWidth(left) - visibleWidth(rightText));
-
-		// Build hint lines - changes based on state (all branches truncate to width)
-		let hintLine1: string;
-		let hintLine2: string;
+	renderFooter(width: number): string[] {
 		if (this.confirmingDeletePath !== null) {
 			const confirmHint = theme.fg("error", "Delete session? ") + renderPiModalShortcutHints([
 				shortcutHint("tui.select.confirm", "confirm", this.keybindings),
 				shortcutHint("tui.select.cancel", "cancel", this.keybindings),
 			]);
-			hintLine1 = truncateToWidth(confirmHint, width, "…");
-			hintLine2 = "";
-		} else if (this.statusMessage) {
+			return [truncateToWidth(confirmHint, width, "…")];
+		}
+		if (this.statusMessage) {
 			const color = this.statusMessage.type === "error" ? "error" : "accent";
-			hintLine1 = theme.fg(color, truncateToWidth(this.statusMessage.message, width, "…"));
-			hintLine2 = "";
-		} else {
-			const pathState = this.showPath ? "(on)" : "(off)";
-			const hint1 = renderPiModalShortcutHints([
-				shortcutHint("tui.input.tab", "scope", this.keybindings),
-				{ action: "re:<pattern> regex" },
-				{ action: '"phrase" exact' },
-			]);
-			const hint2Parts: PiModalShortcutHint[] = [
-				shortcutHint("app.session.toggleSort", "sort", this.keybindings),
-				shortcutHint("app.session.toggleNamedFilter", "named", this.keybindings),
-				shortcutHint("app.session.delete", "delete", this.keybindings),
-				shortcutHint("app.session.togglePath", `path ${pathState}`, this.keybindings),
-			];
-			if (this.showRenameHint) {
-				hint2Parts.push(shortcutHint("app.session.rename", "rename", this.keybindings));
-			}
-			const hint2 = renderPiModalShortcutHints(hint2Parts);
-			hintLine1 = truncateToWidth(hint1, width, "…");
-			hintLine2 = truncateToWidth(hint2, width, "…");
+			return [theme.fg(color, truncateToWidth(this.statusMessage.message, width, "…"))];
 		}
 
-		return [`${left}${" ".repeat(spacing)}${rightText}`, hintLine1, hintLine2];
+		const pathState = this.showPath ? "(on)" : "(off)";
+		const hint1 = renderPiModalShortcutHints([
+			shortcutHint("tui.input.tab", "scope", this.keybindings),
+			{ action: "re:<pattern> regex" },
+			{ action: '"phrase" exact' },
+		]);
+		const hint2Parts: PiModalShortcutHint[] = [
+			shortcutHint("app.session.toggleSort", "sort", this.keybindings),
+			shortcutHint("app.session.toggleNamedFilter", "named", this.keybindings),
+			shortcutHint("app.session.delete", "delete", this.keybindings),
+			shortcutHint("app.session.togglePath", `path ${pathState}`, this.keybindings),
+		];
+		if (this.showRenameHint) hint2Parts.push(shortcutHint("app.session.rename", "rename", this.keybindings));
+		return [
+			truncateToWidth(hint1, width, "…"),
+			truncateToWidth(renderPiModalShortcutHints(hint2Parts), width, "…"),
+		];
+	}
+}
+
+class SessionSelectorFooter implements Component {
+	private readonly presentation: SessionSelectorHeader;
+
+	constructor(presentation: SessionSelectorHeader) {
+		this.presentation = presentation;
+	}
+
+	invalidate(): void {
+		this.presentation.invalidate();
+	}
+
+	render(width: number): string[] {
+		return this.presentation.renderFooter(width);
 	}
 }
 
@@ -758,6 +761,7 @@ export class SessionSelectorComponent extends Container implements Focusable {
 	private canRename = true;
 	private sessionList: SessionList;
 	private header: SessionSelectorHeader;
+	private footer: SessionSelectorFooter;
 	private keybindings: KeybindingsManager;
 	private scope: SessionScope = "current";
 	private sortMode: SortMode = "threaded";
@@ -800,6 +804,7 @@ export class SessionSelectorComponent extends Container implements Focusable {
 		this.addChild(new Spacer(1));
 		this.addChild(content);
 		this.addChild(new Spacer(1));
+		if (showHeader) this.addChild(this.footer);
 		this.addChild(new DynamicBorder((s) => theme.fg("accent", s)));
 		const frame = { topIndex: 1, bottomIndex: this.children.length - 1 } as const;
 		if (modalHeader === undefined) adoptPiModalFrame(this, frame);
@@ -826,6 +831,7 @@ export class SessionSelectorComponent extends Container implements Focusable {
 		this.allSessionsLoader = allSessionsLoader;
 		this.requestRender = requestRender;
 		this.header = new SessionSelectorHeader(this.scope, this.sortMode, this.nameFilter, this.requestRender, this.keybindings);
+		this.footer = new SessionSelectorFooter(this.header);
 		const renameSession = options?.renameSession;
 		this.renameSession = renameSession;
 		this.canRename = !!renameSession;
