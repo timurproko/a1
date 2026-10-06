@@ -31,8 +31,9 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     const plain = rows.map(stripTerminalSequences).join("\n");
     expect(plain).toContain("Ctrl+L cycles thinking levels in-session");
     expect(plain).not.toContain("Shift+Tab");
-    expect(plain.replace(/\s+/g, " ")).toContain("medium ✓ [default] Moderate reasoning (~8k tokens)");
-    expect(plain).not.toContain("· default");
+    expect(plain.replace(/\s+/g, " ")).toContain("◉ medium ✓ Moderate reasoning (~8k tokens)");
+    expect(plain).not.toContain("[default]");
+    expect(plain).not.toContain("●");
     expect(plain.match(/Moderate reasoning/g)).toHaveLength(1);
     expect(plain.match(/\bmedium\b/g)).toHaveLength(1);
     expect(plain).toContain("Enter select  Space default  Esc close");
@@ -42,12 +43,13 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(cellStyle(heading, "T")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("T")), "T"));
     const selectedRow = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
     expect(cellStyle(selectedRow, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
+    expect(cellStyle(selectedRow, "◉")).toEqual(cellStyle(piTheme().fg("accent", "◉"), "◉"));
     expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
 
     bare.shell.root.handleInput("low");
     bare.shell.root.handleInput(" ");
     const persisted = bare.shell.root.render(100).map(stripTerminalSequences).join("\n");
-    expect(persisted.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
+    expect(persisted.replace(/\s+/g, " ")).toContain("◉ low Light reasoning (~2k tokens)");
     expect(persisted).not.toContain("unsaved");
     expect(bare.engine.calls).toContain("default-thinking:low");
     expect(bare.engine.defaultThinkingLevel).toBe("low");
@@ -59,8 +61,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
 
     await bare.shell.submit("/thinking");
     const reopened = bare.shell.root.render(100).map(stripTerminalSequences).join("\n");
-    expect(reopened.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
-    expect(reopened.replace(/\s+/g, " ")).toContain("medium ✓ Moderate reasoning (~8k tokens)");
+    expect(reopened.replace(/\s+/g, " ")).toContain("◉ low Light reasoning (~2k tokens)");
+    expect(reopened.replace(/\s+/g, " ")).toContain("○ medium ✓ Moderate reasoning (~8k tokens)");
     bare.shell.root.handleInput("\x1b");
     await bare.shell.dispose();
 

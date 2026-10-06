@@ -3,8 +3,9 @@
  * packages/coding-agent/src/core/keybindings.ts.
  * Modifications: Mechanical source port with Node import prefixes, public package-root agent-directory
  * resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model
- * selection, Tab tree-filter cycling, tree-local navigation aliases, cross-platform Alt+Up queued-
- * message restoration, and an implicit Ctrl+C selection-cancel alias omitted from displayed key lists.
+ * selection, Tab tree-filter cycling, tree-local navigation aliases, cross-platform Alt+Up
+ * queued-message restoration, and an implicit Ctrl+C selection-cancel alias omitted from shortcut
+ * labels.
  * Deviations: keybindings-public-config-boundary, owned-level-cycle-shortcut,
  * owned-input-keybinding-aliases, owned-session-tree-dialog, owned-dialog-ctrl-c-cancel.
  */

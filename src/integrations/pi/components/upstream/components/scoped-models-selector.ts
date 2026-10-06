@@ -4,9 +4,9 @@
  * Modifications: Source-synchronized scoped-model selector port: preserve session-only toggles,
  * search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status,
  * cancellation, and focus while remapping theme and public helper imports; local key labels preserve
- * pinned platform formatting before layout without changing binding identities, Ctrl+C cancels even
- * with a populated filter, and bare A1 uses the shared semantic modal shortcut row and compact padded
- * modal frame.
+ * pinned platform formatting before layout without changing binding identities, and bare A1 uses the
+ * shared semantic modal shortcut row and compact padded modal frame while immediately closing on the
+ * implicit Ctrl+C selection-cancel alias without advertising it.
  * Deviations: owned-modal-shortcut-hints, owned-dialog-ctrl-c-cancel.
  */
 interface ScopedModel {

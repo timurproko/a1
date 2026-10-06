@@ -5,11 +5,11 @@
  * selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the
  * title with the established bold semantic accent treatment, placing it directly below the top rule
  * through the shared compact padded modal frame and its muted hint directly below it, deduplicating
- * levels, and rendering aligned muted descriptions after fixed active and bracketed default columns.
- * Bare A1 persists defaults immediately on Space, closes through the implicit Ctrl+C-capable selection-
- * cancel action, and uses the shared compact semantic shortcut row without advertising that alias. All
- * list and border colors use the owned theme and its explicit color mode.
- * The comparison profile retains the public pinned component.
+ * levels, and rendering exclusive radio-style default markers before level names, an item-adjacent
+ * active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space,
+ * closes through the implicit Ctrl+C-capable selection-cancel action, and uses the shared compact
+ * semantic shortcut row without advertising that alias. All list and border colors use the owned theme
+ * and its explicit color mode. The comparison profile retains the public pinned component.
  * Deviations: owned-modal-shortcut-hints, owned-level-cycle-shortcut, owned-thinking-selector-heading,
  * owned-thinking-selector-controls, owned-dialog-ctrl-c-cancel.
  */
@@ -127,23 +127,34 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 	}
 
 	private buildSelectList(items: SelectItem[], preselect?: ThinkingSelectorLevel): SelectList {
+		const theme = piTheme();
 		const levelWidth = this.allItems.reduce((widest, item) => Math.max(widest, (item.label ?? item.value).length), 0);
+		const selectedDefaultMarker = theme.fg("accent", "◉");
+		const unselectedDefaultMarker = theme.fg("dim", "○");
 		const themedItems = items.map((item) => {
-			const level = (item.label ?? item.value).padEnd(levelWidth);
-			const currentMarker = item.value === this.currentLevel ? ` ${piTheme().fg("success", "✓")}` : "  ";
-			const defaultMarker = item.value === this.defaultThinkingLevel
-				? ` ${piTheme().fg("muted", "[default]")}`
-				: "          ";
-			const description = item.description ? piTheme().fg("muted", item.description) : "";
-			return { value: item.value, label: `${level}${currentMarker}${defaultMarker} ${description}` };
+			const level = item.label ?? item.value;
+			const isCurrent = item.value === this.currentLevel;
+			const currentMarker = isCurrent ? ` ${theme.fg("success", "✓")}` : "";
+			const statePadding = " ".repeat(levelWidth - level.length + (isCurrent ? 0 : 2));
+			const defaultMarker = item.value === this.defaultThinkingLevel ? selectedDefaultMarker : unselectedDefaultMarker;
+			const description = item.description ? theme.fg("muted", item.description) : "";
+			return { value: item.value, label: `${defaultMarker} ${level}${currentMarker}${statePadding} ${description}` };
 		});
 		// Invariant: the bare selector uses the owned theme's explicit color mode, not upstream's host detection.
 		const list = new SelectList(themedItems, Math.max(1, themedItems.length), {
-			selectedPrefix: text => piTheme().fg("accent", text),
-			selectedText: text => piTheme().fg("accent", text),
-			description: text => piTheme().fg("muted", text),
-			scrollInfo: text => piTheme().fg("muted", text),
-			noMatch: text => piTheme().fg("muted", text),
+			selectedPrefix: text => theme.fg("accent", text),
+			selectedText: text => {
+				const marker = text.includes(selectedDefaultMarker) ? selectedDefaultMarker : unselectedDefaultMarker;
+				const markerIndex = text.indexOf(marker);
+				return markerIndex === -1
+					? theme.fg("accent", text)
+					: theme.fg("accent", text.slice(0, markerIndex))
+						+ marker
+						+ theme.fg("accent", text.slice(markerIndex + marker.length));
+			},
+			description: text => theme.fg("muted", text),
+			scrollInfo: text => theme.fg("muted", text),
+			noMatch: text => theme.fg("muted", text),
 		}, THINKING_SELECT_LIST_LAYOUT);
 		const currentIndex = themedItems.findIndex((item) => item.value === preselect);
 		if (currentIndex !== -1) list.setSelectedIndex(currentIndex);
