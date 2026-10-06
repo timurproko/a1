@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { createPiShellTreeSelector, piTheme } from "../../../../src/integrations/pi/components/index.js";
 import { cellStyle } from "../../../support/ansi-cell-style.js";
 
+const REVERSE_TABS = ["\u001b[Z", "\u001b[9;2u", "\u001b[27;2;9~"] as const;
+
 function tree() {
   return [{
     entry: {
@@ -198,6 +200,19 @@ describe("bare-A1 session tree presentation", () => {
     const restored = component.render(80).map(stripTerminalSequences).join("\n");
     expect(restored).toContain("Session Tree");
     expect(restored).toContain("navigate");
+  });
+
+  it.each(REVERSE_TABS)("cycles filters backward for reverse Tab %j without advertising it", async reverseTab => {
+    const component = await selector();
+    component.handleInput?.(reverseTab);
+    const reversedRows = component.render(80);
+    const reversedFilter = reversedRows.find(row => stripTerminalSequences(row).includes("Filter:"))!;
+    expect(cellStyle(reversedFilter, "b")).toEqual(cellStyle(piTheme().fg("accent", "b"), "b"));
+    expect(stripTerminalSequences(reversedRows.join("\n"))).not.toContain("Shift+Tab");
+
+    component.handleInput?.("\t");
+    const restoredFilter = component.render(80).find(row => stripTerminalSequences(row).includes("Filter:"))!;
+    expect(cellStyle(restoredFilter, "a")).toEqual(cellStyle(piTheme().fg("accent", "a"), "a"));
   });
 
   it("pages the visible result window with PageUp and PageDown", async () => {

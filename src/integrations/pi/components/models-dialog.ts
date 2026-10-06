@@ -1,6 +1,7 @@
 import {
   Input,
   getKeybindings,
+  matchesKey,
   truncateToWidth,
   type Component,
   type Focusable,
@@ -225,7 +226,7 @@ export class ModelsDialogComponent implements Component, Focusable {
       if (rows.length > 0) this.#selectedIndex = this.#selectedIndex === rows.length - 1 ? 0 : this.#selectedIndex + 1;
       return;
     }
-    if (kb.matches(data, "tui.input.tab")) {
+    if (matchesKey(data, "shift+tab") || kb.matches(data, "tui.input.tab")) {
       this.#filter = this.#filter === "all" ? "scoped" : "all";
       this.#restoreSelection(preferredId);
       return;

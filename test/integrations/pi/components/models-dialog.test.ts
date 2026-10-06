@@ -15,6 +15,7 @@ const ids = { claude: "anthropic/claude", gpt5: "openai/gpt-5", mini: "openai/gp
 const SPACE = " ";
 const ENTER = "\r";
 const TAB = "\t";
+const REVERSE_TABS = ["\u001b[Z", "\u001b[9;2u", "\u001b[27;2;9~"] as const;
 const ESCAPE = "\u001b";
 const CTRL_S = "\u0013";
 const DOWN = "\u001b[B";
@@ -124,6 +125,21 @@ describe("unified Models dialog", () => {
       expect(dialog.query).toBe("nothinghere");
       expect(callbacks.onSelect).not.toHaveBeenCalled();
     }, { initialQuery: "" });
+  });
+
+  it.each(REVERSE_TABS)("cycles the filter backward for reverse Tab %j without advertising it", reverseTab => {
+    withDialog(dialog => {
+      expect(dialog.filter).toBe("all");
+      expect(dialog.query).toBe("gpt");
+      expect(dialog.selectedModelId).toBe(ids.gpt5);
+      dialog.handleInput(reverseTab);
+      expect(dialog.filter).toBe("scoped");
+      expect(dialog.query).toBe("gpt");
+      expect(dialog.selectedModelId).toBe(ids.gpt5);
+      expect(text(dialog)).not.toContain("Shift+Tab");
+      dialog.handleInput(TAB);
+      expect(dialog.filter).toBe("all");
+    }, { scopeIds: [ids.gpt5, ids.mini], initialQuery: "gpt" });
   });
 
   it("seeds the query from the initial argument and switches only on Enter", () => {
