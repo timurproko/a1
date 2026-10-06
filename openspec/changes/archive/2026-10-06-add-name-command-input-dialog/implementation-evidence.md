@@ -13,6 +13,7 @@
 - `npx vitest run test/app/session-shell/session-shell-workflows.test.ts test/integrations/pi/components/extension-ui-bridge.test.ts test/integrations/pi/engine/workflow-runner.test.ts` — 30 tests passed.
 - `npm run build` — passed and produced the interactive candidate.
 - `npm run typecheck` — passed after the build supplied the bin contract's generated `dist` imports.
+- `npm run check:architecture` — passed after re-pinning the intentional 659-byte startup-graph increase from the name-dialog route.
 - `npx openspec validate add-name-command-input-dialog --strict` — passed.
 - `git diff --check` — passed.
 
