@@ -262,7 +262,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     const treeStatusIndex = plainTreeRows.findIndex(row => row.includes("Tree dialog spacing"));
     expect(plainTreeRows.slice(treeStatusIndex + 1, treeHeadingIndex)).toEqual(["", "─".repeat(100)]);
     const treeHeading = treeRows[treeHeadingIndex]!;
-    const treeHint = treeRows.find(row => stripTerminalSequences(row).includes("move"))!;
+    const treeHint = treeRows.find(row => stripTerminalSequences(row).includes("type to search"))!;
     expect(firstVisibleTextColumn(treeHint)).toBe(firstVisibleTextColumn(treeHeading));
     expect(cellStyle(treeHeading, "S")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("S")), "S"));
 

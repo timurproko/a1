@@ -6,11 +6,11 @@ The bare-A1 Session Tree SHALL use the same compact framed hierarchy as the Mode
 
 The title SHALL be followed immediately by a Models-style `Filter: all | standard | no tools | user | labeled` row using accent for the active mode and muted styling for inactive modes. An unset or `default` initial setting SHALL open with `all` active, while an explicitly configured non-default mode SHALL remain active. `Tab` SHALL cycle filters forward and replace `Ctrl+O` as the displayed/default cycle shortcut; the footer SHALL show `Tab filter` instead of the individual filter bindings. Model-change and thinking-level-change metadata entries SHALL remain hidden in every filter mode, including `all`, and SHALL NOT contribute to the visible result counter.
 
-The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, the semantics of each filter mode, folding, navigation, copy, label, label-time, and horizontal clipping SHALL remain available. `PageUp` and `PageDown` SHALL move by one visible page, `Home` and `End` SHALL select the first and last visible entries, and unmodified `Left` and `Right` SHALL collapse and expand the branch under the cursor when that action is available.
+The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, the semantics of each filter mode, folding, navigation, copy, label, label-time, and horizontal clipping SHALL remain available. `PageUp` and `PageDown` SHALL move by one visible page, `Home` and `End` SHALL select the first and last visible entries, and unmodified `Left` SHALL collapse the nearest expanded branch containing the cursor, even when a descendant is selected, and `Right` SHALL expand that branch after the collapsed view selects its branch root.
 
-The selected tree entry SHALL use the ordinary menu arrow `→` with the subtle purple accent-tinted selection background. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted, without whole-row bold treatment. Tree entries SHALL NOT render active-path bullets. Entry labels SHALL use the theme accent color. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `system` without square brackets. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
+The selected tree entry SHALL use the ordinary menu arrow `→` with the subtle purple accent-tinted selection background. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted, without whole-row bold treatment. Tree entries SHALL NOT render active-path bullets. Entry labels SHALL use the theme accent color. When label-time display is enabled, its timestamp SHALL be enclosed in square brackets and use the same accent color as the label. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `system` without square brackets. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
 
-The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule.
+The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule. Their order SHALL follow the Models dialog: `type to search`, vertical navigation, `Tab filter`, `Enter select`, extended page/first-last/branch navigation, then copy and label actions.
 
 While editing an entry label, the frame title SHALL become accent-bold `Label`, followed immediately by a muted `Empty to remove` subheader. The standard single-line input SHALL follow after one blank row. The tree search control, results, filter/navigation shortcuts, and `Session Tree` title SHALL be hidden. Only the shared save/cancel shortcut footer SHALL remain, immediately followed by the bottom rule.
 
@@ -35,8 +35,10 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 #### Scenario: Navigate and fold the tree with standard keys
 - **WHEN** the user presses `PageUp`, `PageDown`, `Home`, or `End`
 - **THEN** selection SHALL move by one visible page, one visible page, to the first visible entry, or to the last visible entry respectively
-- **AND WHEN** the selected entry is an expandable branch and the user presses `Left` or `Right`
-- **THEN** that selected branch SHALL collapse or expand respectively without moving selection to another branch
+- **AND WHEN** any entry within an expanded branch is selected and the user presses `Left`
+- **THEN** the nearest containing branch SHALL collapse and selection SHALL resolve to its visible branch root
+- **AND WHEN** the user then presses `Right`
+- **THEN** that branch SHALL expand without moving selection to another branch
 
 #### Scenario: Search the tree
 - **WHEN** the Session Tree is open and the user types a search query
@@ -54,8 +56,14 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 #### Scenario: Distinguish message roles and entry labels
 - **WHEN** labeled, unselected user, assistant, and system entries are visible
 - **THEN** the entry label SHALL use the theme accent color
+- **AND** any enabled label timestamp SHALL use the same accent color and square-bracket form
 - **AND** `user:` SHALL be green and `assistant:` SHALL be yellow
 - **AND** the system entry SHALL read `system` without square brackets
+
+#### Scenario: Read tree shortcut hints
+- **WHEN** the ordinary Session Tree is visible
+- **THEN** its footer SHALL begin with typing guidance, vertical navigation, `Tab filter`, and `Enter select` in that order
+- **AND** page, first/last, branch, copy, and label guidance SHALL follow
 
 #### Scenario: Edit an entry label
 - **WHEN** the user opens label editing for a tree entry

@@ -40,6 +40,11 @@ function tree() {
         message: { role: "user", content: [{ type: "text", text: "QuestionABC" }], timestamp: 3 },
       },
       label: "hello",
+      labelTimestamp: (() => {
+        const timestamp = new Date();
+        timestamp.setHours(14, 59, 0, 0);
+        return timestamp.toISOString();
+      })(),
       children: [{
         entry: {
           type: "message",
@@ -109,11 +114,15 @@ describe("bare-A1 session tree presentation", () => {
     const unselectedAssistant = movedRows.find(row => stripTerminalSequences(row).includes("assistant: ResponseXYZ"))!;
     expect(cellStyle(unselectedAssistant, "a")).toEqual(cellStyle(piTheme().fg("warning", "a"), "a"));
 
-    const hintIndex = plain.findIndex(row => row.includes("move"));
+    const hintIndex = plain.findIndex(row => row.includes("type to search"));
     expect(plain.slice(hintIndex, -1).every(row => row.length > 0)).toBe(true);
     expect(plain.at(-1)).toMatch(/^─+$/u);
     expect(cellStyle(rows[hintIndex]!, "↑")).toEqual(cellStyle(piTheme().fg("dim", "↑"), "↑"));
-    expect(cellStyle(rows[hintIndex]!, "m")).toEqual(cellStyle(piTheme().fg("muted", "m"), "m"));
+    expect(cellStyle(rows[hintIndex]!, "n")).toEqual(cellStyle(piTheme().fg("muted", "n"), "n"));
+    const hints = plain.slice(hintIndex).join("\n");
+    expect(hints.indexOf("type to search")).toBeLessThan(hints.indexOf("↑/↓ navigate"));
+    expect(hints.indexOf("↑/↓ navigate")).toBeLessThan(hints.indexOf("Tab filter"));
+    expect(hints.indexOf("Tab filter")).toBeLessThan(hints.indexOf("Enter select"));
     expect(plain.some(row => row.includes("Tab filter"))).toBe(true);
     expect(plain.join("\n")).toContain("PgUp/PgDn page");
     expect(plain.join("\n")).toContain("Home/End first/last");
@@ -134,10 +143,18 @@ describe("bare-A1 session tree presentation", () => {
     expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("→ assistant: ResponseXYZ");
     component.handleInput?.("\x1b[H");
     expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("→ system");
+    component.handleInput?.("\x1b[F");
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("→ assistant: ResponseXYZ");
     component.handleInput?.("\x1b[D");
-    expect(stripTerminalSequences(component.render(80).join("\n"))).not.toContain("QuestionABC");
+    const collapsedTree = stripTerminalSequences(component.render(80).join("\n"));
+    expect(collapsedTree).toMatch(/→ .*system/u);
+    expect(collapsedTree).not.toContain("QuestionABC");
     component.handleInput?.("\x1b[C");
     expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("QuestionABC");
+    component.handleInput?.("T");
+    const timestampedLabel = component.render(80).find(row => stripTerminalSequences(row).includes("[hello]"))!;
+    expect(stripTerminalSequences(timestampedLabel)).toContain("[hello] [14:59] user:");
+    expect(cellStyle(timestampedLabel, "1")).toEqual(cellStyle(piTheme().fg("accent", "1"), "1"));
 
     component.handleInput?.("L");
     const labelRows = component.render(80);
@@ -161,7 +178,7 @@ describe("bare-A1 session tree presentation", () => {
     component.handleInput?.("\x1b");
     const restored = component.render(80).map(stripTerminalSequences).join("\n");
     expect(restored).toContain("Session Tree");
-    expect(restored).toContain("move");
+    expect(restored).toContain("navigate");
   });
 
   it("mirrors action-aware typing through the standard input and omits the empty counter", async () => {
