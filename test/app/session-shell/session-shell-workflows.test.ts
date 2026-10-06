@@ -251,20 +251,39 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       command: request.command,
       outcome: "completed",
       message: "Navigated to selected point",
+      detail: "Selected branch prompt",
     }));
 
+    shell.root.appendWorkflowStatus("Tree dialog spacing");
     await shell.submit("/tree");
     const treeRows = shell.root.render(100);
-    expect(stripTerminalSequences(treeRows.join("\n"))).toContain("Session Tree");
-    const treeHeading = treeRows.find(row => stripTerminalSequences(row).includes("Session Tree"))!;
-    const treeHint = treeRows.find(row => stripTerminalSequences(row).includes("move"))!;
+    const plainTreeRows = treeRows.map(stripTerminalSequences);
+    expect(plainTreeRows.join("\n")).toContain("Session Tree");
+    const treeHeadingIndex = plainTreeRows.findIndex(row => row.includes("Session Tree"));
+    const treeStatusIndex = plainTreeRows.findIndex(row => row.includes("Tree dialog spacing"));
+    expect(plainTreeRows.slice(treeStatusIndex + 1, treeHeadingIndex)).toEqual(["", "─".repeat(100)]);
+    const treeHeading = treeRows[treeHeadingIndex]!;
+    const treeHint = treeRows.find(row => stripTerminalSequences(row).includes("type to search"))!;
     expect(firstVisibleTextColumn(treeHint)).toBe(firstVisibleTextColumn(treeHeading));
+    expect(cellStyle(treeHeading, "S")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("S")), "S"));
+
+    const surfaceChanges = vi.spyOn(shell.root, "setInputSurface");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Summarize branch?");
+    const summaryRows = shell.root.render(100);
+    const plainSummaryRows = summaryRows.map(stripTerminalSequences);
+    expect(plainSummaryRows.join("\n")).toContain("Summarize Branch?");
+    expect(surfaceChanges).toHaveBeenCalled();
+    expect(surfaceChanges.mock.calls.every(([surface]) => surface !== null)).toBe(true);
+    const summaryHintIndex = plainSummaryRows.findIndex(row => row.includes("navigate") && row.includes("select"));
+    expect(plainSummaryRows[summaryHintIndex + 1]).toBe("─".repeat(100));
+    surfaceChanges.mockClear();
     terminal.input("\x1b");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session Tree");
+    expect(surfaceChanges).toHaveBeenCalled();
+    expect(surfaceChanges.mock.calls.every(([surface]) => surface !== null)).toBe(true);
+    surfaceChanges.mockRestore();
 
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -272,7 +291,34 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     terminal.input("\x1b[B");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Custom summarization instructions");
+    const customRows = shell.root.render(100);
+    const plainCustomRows = customRows.map(stripTerminalSequences);
+    const customTitleIndex = plainCustomRows.findIndex(row => row.includes("Custom Summarization Instructions"));
+    expect(cellStyle(customRows[customTitleIndex]!, "C")).toEqual(
+      cellStyle(piTheme().fg("accent", piTheme().bold("C")), "C"),
+    );
+    expect(plainCustomRows[customTitleIndex + 2]?.trimStart()).toMatch(/^>/);
+    const customHintIndex = plainCustomRows.findIndex(row => row.includes("submit") && row.includes("cancel"));
+    expect(plainCustomRows[customHintIndex]).toContain("Enter submit  Escape/Ctrl+C cancel");
+    expect(cellStyle(customRows[customHintIndex]!, "E")).toEqual(cellStyle(piTheme().fg("dim", "E"), "E"));
+    expect(cellStyle(customRows[customHintIndex]!, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
+    expect(plainCustomRows[customHintIndex]).not.toContain("newline");
+    expect(plainCustomRows[customHintIndex]).not.toContain("external editor");
+    expect(plainCustomRows[customHintIndex + 1]).toBe("─".repeat(100));
+
+    const customSurfaceChanges = vi.spyOn(shell.root, "setInputSurface");
+    terminal.input("\x1b");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Summarize Branch?");
+    expect(customSurfaceChanges).toHaveBeenCalled();
+    expect(customSurfaceChanges.mock.calls.every(([surface]) => surface !== null)).toBe(true);
+    customSurfaceChanges.mockRestore();
+
+    terminal.input("\x1b[B");
+    terminal.input("\x1b[B");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Custom Summarization Instructions");
     terminal.input("Preserve decisions");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -283,6 +329,87 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       treeSummary: { summarize: true, customInstructions: "Preserve decisions" },
     });
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Navigated to selected point");
+    expect(shell.root.editor.getText()).toBe("Selected branch prompt");
+    await shell.dispose();
+  });
+
+  it("closes the tree before direct navigation when summary prompting is skipped", async () => {
+    const { adapter, terminal, shell } = await fixture();
+    const tree = [{
+      entry: {
+        type: "message",
+        id: "entry-1",
+        parentId: null,
+        timestamp: new Date(0).toISOString(),
+        message: { role: "user", content: [{ type: "text", text: "First prompt" }], timestamp: 0 },
+      },
+      children: [],
+    }];
+    vi.spyOn(adapter, "pinnedTreeSelectorContext").mockReturnValue({
+      tree,
+      currentLeafId: null,
+      filterMode: "default",
+      skipSummaryPrompt: true,
+      appendLabelChange() {},
+    });
+    const execute = vi.spyOn(adapter, "executeWorkflow").mockResolvedValue({
+      command: "tree",
+      outcome: "completed",
+      message: "Navigated to selected point",
+      detail: "First prompt",
+    });
+
+    await shell.submit("/tree");
+    shell.root.editor.setText("Keep existing draft");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(execute).toHaveBeenCalledWith({
+      command: "tree",
+      argument: "",
+      selection: "entry-1",
+      treeSummary: { summarize: false },
+    });
+    expect(shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(shell.root.editor.getText()).toBe("Keep existing draft");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Summarize Branch?");
+    await shell.dispose();
+  });
+
+  it("routes PageUp and PageDown to the open tree instead of the transcript viewport", async () => {
+    const { adapter, terminal, shell } = await fixture();
+    const children = Array.from({ length: 12 }, (_, index) => ({
+      entry: {
+        type: "message" as const,
+        id: `page-user-${index}`,
+        parentId: "page-system",
+        timestamp: new Date(index + 1).toISOString(),
+        message: { role: "user" as const, content: [{ type: "text" as const, text: `Question${index}` }], timestamp: index + 1 },
+      },
+      children: [],
+    }));
+    vi.spyOn(adapter, "pinnedTreeSelectorContext").mockReturnValue({
+      tree: [{
+        entry: {
+          type: "message",
+          id: "page-system",
+          parentId: null,
+          timestamp: new Date(0).toISOString(),
+          message: { role: "system", content: "System prompt", timestamp: 0 },
+        },
+        children,
+      }],
+      currentLeafId: "page-user-0",
+      filterMode: "all",
+      skipSummaryPrompt: false,
+      appendLabelChange() {},
+    });
+
+    await shell.submit("/tree");
+    expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toMatch(/→ .*user: Question0/u);
+    terminal.input("\x1b[6~");
+    expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toMatch(/→ .*user: Question11/u);
+    terminal.input("\x1b[5~");
+    expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("→ session");
     await shell.dispose();
   });
 
