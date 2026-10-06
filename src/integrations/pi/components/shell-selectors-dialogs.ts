@@ -125,8 +125,8 @@ export function createPiShellSettingsSelector(options: PiShellSettingsSelectorOp
   const port = componentPort(selector, data => settingsList.handleInput(data));
   return {
     ...port,
-    // Dependency boundary: Pi's nested settings components own their hint rows and do not expose
-    // hint entries. Rebuild only the footer row so the canonical close entry survives narrow clipping.
+    // Rationale: Pi's nested settings components own their hint rows and do not expose hint entries.
+    // Rebuild only the footer row so the canonical close entry survives narrow clipping.
     render(width) {
       const rows = [...port.render(width)];
       const hintIndex = rows.length - 2;
@@ -378,7 +378,7 @@ export function createPiShellLoginDialog(
       return result;
     },
     showDetails: lines => dialog.showDetails([...lines]),
-    // The persistent canonical footer replaces the dependency's optional close hint.
+    // Rationale: The persistent canonical footer replaces the dependency's optional close hint.
     showInfo: (message, links = []) => dialog.showInfo(message, [...links], false),
     showWaiting(message) {
       dialog.showWaiting(message);
