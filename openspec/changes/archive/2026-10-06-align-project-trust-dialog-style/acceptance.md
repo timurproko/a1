@@ -17,7 +17,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-06-align-project-trust-dialog-style/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-06-align-project-trust-dialog-style/acceptance.md",
   "finalizedDate": "2026-10-06",
-  "specBaseSha": "44a4dbf13767a0e3e92bdc63feeaf2181a4658eb",
+  "specBaseSha": "1dc3913502e0172a1000eb43c95954941a34035d",
   "acceptanceScenarios": [
     "The startup trust selector uses the standard accent title and selection, standard border rules, and concise semantic shortcut hints without loading project-derived presentation.",
     "The in-session trust selector shows muted status labels with normal-text decision values and standard themed title, selection, rules, and shortcut roles.",
