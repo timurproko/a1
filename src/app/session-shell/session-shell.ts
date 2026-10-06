@@ -1338,6 +1338,17 @@ export class OwnedUiSessionShell {
 
   async runWorkflow(request: PiWorkflowRequest): Promise<AdapterCommandResult> {
     if (request.command === "quit") return this.shutdown();
+    if (this.#customViewport && request.command === "name" && request.argument.trim().length === 0) {
+      void this.#extensionBridge.input("Session Name", "Enter name").then(value => {
+        if (this.#disposed || value === undefined || value.trim().length === 0) return;
+        return this.runWorkflow({ ...request, argument: value });
+      }).catch(error => {
+        if (this.#disposed) return;
+        this.root.appendWorkflowResult({ command: "name", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
+        this.runtime.requestRender();
+      });
+      return { outcome: "completed", diagnostic: null };
+    }
     const copyGeneration = request.command === "copy" ? this.backend.sessionBindingGeneration : undefined;
     if (request.command === "login" && request.selection !== undefined) {
       const setup = this.backend.pinnedAmbientAuthentication(request.selection);
