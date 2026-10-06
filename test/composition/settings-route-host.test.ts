@@ -88,8 +88,8 @@ describe("owned settings route theme", () => {
     surface!.handleInput(DOWN);
 
     const menu = surface!.render(48, 12).join("\n");
-    expect(menu).toContain(`${ESC}[48;2;55;55;55m${ESC}[38;2;167;152;215m✓`);
-    expect(menu).toContain(`${ESC}[48;2;82;82;82m${ESC}[97m  always `);
+    expect(menu).toContain(`${ESC}[48;2;82;82;82m${ESC}[97m${ESC}[38;2;167;152;215m✓`);
+    expect(menu).toContain(`${ESC}[48;2;55;55;55m  always `);
     expect(menu).toContain(`${ESC}[39m${ESC}[49m`);
   });
 });
