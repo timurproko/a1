@@ -213,7 +213,7 @@ describe("owned level and model keybindings", () => {
     applyPiTheme("dark", false, "truecolor");
   });
 
-  it("renders fixed thinking-state columns and persists defaults immediately", async () => {
+  it("renders an item-adjacent active marker with aligned default state and persists defaults immediately", async () => {
     const { input } = await editor();
     const selected = vi.fn();
     const saved = vi.fn();
@@ -242,9 +242,12 @@ describe("owned level and model keybindings", () => {
     expect(cellStyle(hint, "C")).toEqual(cellStyle(piTheme().fg("muted", "C"), "C"));
     const selectedRow = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
     const unselectedRow = rows.find(row => stripTerminalSequences(row).includes("Light reasoning"))!;
-    expect(stripTerminalSequences(selectedRow).replace(/\s+/g, " ")).toContain("→ medium ✓ [default] Moderate reasoning (~8k tokens)");
+    const plainSelectedRow = stripTerminalSequences(selectedRow);
+    expect(plainSelectedRow.replace(/\s+/g, " ")).toContain("→ medium ✓ [default] Moderate reasoning (~8k tokens)");
+    expect(plainSelectedRow).toContain("medium ✓");
     expect(plain).not.toContain("· default");
-    const descriptionColumns = ["No reasoning", "Very brief reasoning", "Light reasoning", "Moderate reasoning", "Deep reasoning"]
+    const descriptions = ["No reasoning", "Very brief reasoning", "Light reasoning", "Moderate reasoning", "Deep reasoning"];
+    const descriptionColumns = descriptions
       .map(description => rows.map(stripTerminalSequences).find(row => row.includes(description))!.indexOf(description));
     expect(new Set(descriptionColumns).size).toBe(1);
     const defaultMarkerColumns = (["off", "minimal", "low", "medium", "high"] as const).map(defaultLevel => {
@@ -261,6 +264,25 @@ describe("owned level and model keybindings", () => {
       return defaultRow.indexOf("[default]");
     });
     expect(new Set(defaultMarkerColumns).size).toBe(1);
+    for (const activeLevel of ["high", "minimal"] as const) {
+      const candidate = createPiShellThinkingSelector(
+        activeLevel,
+        ["off", "minimal", "low", "medium", "high"],
+        vi.fn(),
+        vi.fn(),
+        vi.fn(),
+        "off",
+        { profile: "bare", cycleBinding },
+      );
+      const candidateRows = candidate.render(100).map(stripTerminalSequences);
+      const activeRow = candidateRows.find(row => row.includes("✓"))!;
+      expect(activeRow.indexOf("✓")).toBe(activeRow.indexOf(activeLevel) + activeLevel.length + 1);
+      const defaultRow = candidateRows.find(row => row.includes("[default]"))!;
+      expect(defaultRow.indexOf("[default]")).toBe(defaultMarkerColumns[0]);
+      const candidateDescriptionColumns = descriptions
+        .map(description => candidateRows.find(row => row.includes(description))!.indexOf(description));
+      expect(candidateDescriptionColumns).toEqual(descriptionColumns);
+    }
     expect(cellStyle(selectedRow, "m")).toEqual(cellStyle(piTheme().fg("accent", "m"), "m"));
     expect(cellStyle(selectedRow, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
     expect(cellStyle(unselectedRow, "L")).toEqual(cellStyle(piTheme().fg("muted", "L"), "L"));

@@ -42,3 +42,11 @@ Focused tests will assert that `✓` immediately follows the active level name f
 2. Update focused geometry assertions and regenerate the source-port ledger.
 3. Run focused component, source-ledger, type, and build validation before interactive handoff.
 4. Roll back the formatter, tests, and generated ledger together if needed; no data migration is required.
+
+## Implementation Evidence
+
+- `npm exec vitest -- run test/integrations/pi/components/prompt-input-ux.test.ts` passes all 21 focused tests, including immediate checkmark adjacency for short and widest level names, stable default/description columns, filtering, persistence, controls, and comparison routing.
+- `node scripts/governance/check-pinned-pi-source-ledger.mjs` verifies all 127 source-port records and 29 mapped behaviors after regeneration.
+- `npm run build` and the subsequent `npm run typecheck` pass for the application and binary TypeScript projects. The build was completed before the final typecheck because both commands share generated `dist` output.
+- `npx --yes @fission-ai/openspec@1.11.0 validate place-thinking-checkmark-after-level --strict --no-interactive` validates the change strictly.
+- No known implementation gaps remain. Windows Terminal appearance is included in the exact-candidate manual handoff.
