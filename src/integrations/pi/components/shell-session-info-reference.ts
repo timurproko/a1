@@ -1,4 +1,4 @@
-import { Text } from "@earendil-works/pi-tui";
+import { sliceByColumn, Text, visibleWidth } from "@earendil-works/pi-tui";
 import { formatCacheWarmingStatus, type PiShellSessionInfoPresentation } from "./shell-presenters-info.js";
 import { ensureTheme, formatSessionTokens } from "./shell-shared-facade.js";
 import { piTheme } from "./theme.js";
@@ -6,6 +6,40 @@ import { piTheme } from "./theme.js";
 export interface PiShellSessionInfoReferenceDocument {
   readonly preamble: readonly string[];
   readonly sections: readonly { readonly title: string; readonly rows: readonly string[] }[];
+}
+
+/** Splits a plain path by visible columns, preserving every source grapheme in order. */
+function splitSessionFile(sessionFile: string, firstWidth: number, continuationWidth: number): readonly string[] {
+  const rows: string[] = [];
+  let remaining = sessionFile;
+  let rowWidth = firstWidth;
+  while (remaining) {
+    let row = sliceByColumn(remaining, 0, rowWidth, true);
+    if (!row && rowWidth !== continuationWidth) {
+      rows.push("");
+      rowWidth = continuationWidth;
+      continue;
+    }
+    // Compatibility: a one-column frame cannot fit a wide grapheme; preserve it for outer truncation.
+    if (!row) row = sliceByColumn(remaining, 0, rowWidth);
+    rows.push(row);
+    remaining = remaining.slice(row.length);
+    rowWidth = continuationWidth;
+  }
+  return rows.length > 0 ? rows : [""];
+}
+
+/** Keeps the file value on its labelled row before using full continuation rows. */
+function sessionFileRows(sessionFile: string, width: number): readonly string[] {
+  // Compatibility: match Text's reduced-padding rule so these explicit breaks survive its renderer.
+  const paddingX = Math.min(1, Math.max(0, Math.floor((width - 1) / 2)));
+  const contentWidth = Math.max(1, width - paddingX * 2);
+  const label = piTheme().fg("dim", "File:");
+  const firstValueWidth = Math.max(0, contentWidth - visibleWidth("File: "));
+  const [first = "", ...continuation] = splitSessionFile(sessionFile, firstValueWidth, contentWidth);
+  return firstValueWidth > 0
+    ? [`${label} ${first}`, ...continuation]
+    : [label, ...continuation];
 }
 
 /** Renders the pinned report values while leaving group names semantic for the owned screen. */
@@ -18,7 +52,7 @@ export function renderPiShellSessionInfoReferenceDocument(
   const render = (rows: readonly string[]) => new Text(rows.join("\n"), 1, 0).render(width);
   const preamble = [
     ...(sessionName ? [`${piTheme().fg("dim", "Name:")} ${sessionName}`] : []),
-    `${piTheme().fg("dim", "File:")} ${stats.sessionFile ?? "In-memory"}`,
+    ...sessionFileRows(stats.sessionFile ?? "In-memory", width),
     `${piTheme().fg("dim", "ID:")} ${stats.sessionId}`,
   ];
   const messages = [
