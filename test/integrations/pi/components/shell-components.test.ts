@@ -755,7 +755,7 @@ describe("Pi shell public component adapters", () => {
     const presentation = {
       sessionName: "Parity fixture",
       stats: {
-        sessionFile: "D:/sessions/parity.jsonl", sessionId: "session-1", userMessages: 2,
+        sessionFile: "C:\\sessions\\parity.jsonl", sessionId: "session-1", userMessages: 2,
         assistantMessages: 2, toolCalls: 1, toolResults: 1, totalMessages: 6,
         tokens: { input: 100, output: 20, cacheRead: 300, cacheWrite: 50, total: 470 }, cost: 0.125,
       },
@@ -779,7 +779,28 @@ describe("Pi shell public component adapters", () => {
     expect(reference.sections.map(section => section.title)).toEqual(["Messages", "Tokens", "Cache Warming", "Cost"]);
     expect(reference.sections.every(section => !section.title.includes("\u001b"))).toBe(true);
     const preamble = stripTerminalSequences(reference.preamble.join("\n"));
-    expect(preamble).toMatch(/Name: Parity fixture\s*\n\s*File: D:\/sessions\/parity\.jsonl\s*\n\s*ID: session-1/);
+    expect(preamble).toMatch(/Name: Parity fixture\s*\n\s*File: C:\\sessions\\parity\.jsonl\s*\n\s*ID: session-1/);
+
+    const longSessionFile = String.raw`C:\Users\Timur Prokopiev\.a1\agent\sessions\--E--Git-a1-.worktrees-session-tree-dialog-design--\2026-10-06T14-50-37-124Z_01a111b1-f2c3-76dc-a3f7-7b6e82c49ebb.jsonl`;
+    const overflowWidth = 32;
+    const overflow = renderPiShellSessionInfoReferenceDocument({
+      ...presentation,
+      stats: { ...presentation.stats, sessionFile: longSessionFile },
+    }, overflowWidth);
+    const overflowRows = overflow.preamble.map(row => stripTerminalSequences(row).trimEnd());
+    const fileIndex = overflowRows.findIndex(row => row.startsWith(" File:"));
+    const idIndex = overflowRows.findIndex(row => row.startsWith(" ID:"));
+    expect(fileIndex).toBe(1);
+    expect(idIndex).toBeGreaterThan(fileIndex + 1);
+    expect(overflowRows[fileIndex]).toBe(` File: ${longSessionFile.slice(0, 24)}`);
+    const pathRows = [
+      overflowRows[fileIndex]!.slice(" File: ".length),
+      ...overflowRows.slice(fileIndex + 1, idIndex).map(row => row.slice(1)),
+    ];
+    expect(pathRows.join("")).toBe(longSessionFile);
+    expect(overflowRows[idIndex]).toBe(" ID: session-1");
+    expect(overflow.preamble.every(row => visibleWidth(row) <= overflowWidth)).toBe(true);
+
     const grouped = stripTerminalSequences(reference.sections.flatMap(section => section.rows).join("\n"));
     expect(grouped).toMatch(/Total: 6\s*\n\s*User: 2\s*\n\s*Assistant: 2\s*\n\s*Tools: 1 calls, 1 results/);
     expect(grouped).toMatch(/Input: 450\s*\n\s*Cached: 300 \(66\.7%\)\s*\n\s*Uncached: 150 \(50 written to cache\)/);

@@ -210,7 +210,8 @@ describe("pinned Pi modal transition graph", () => {
     expect(models).toContain("renderPiModalShortcutHints(this.#hints())");
     const tree = await readFile("src/integrations/pi/components/upstream/components/tree-selector.ts", "utf8");
     expect(tree).toContain('const indent = "";');
-    expect(tree).toContain('new Text(theme.bold("Session Tree"), 0, 0)');
+    expect(tree).toContain('new Text(theme.fg("accent", theme.bold("Session Tree")), 0, 0)');
+    expect(tree).toContain("class TreeSearchInput implements Component, Focusable");
     const startupTrust = await readFile("src/features/owned-ui/project-trust-prompt.ts", "utf8");
     expect(startupTrust).toContain("${DIM}↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select");
     expect(startupTrust).not.toContain("${DIM}  ↑/↓");

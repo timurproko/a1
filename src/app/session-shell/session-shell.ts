@@ -307,6 +307,11 @@ export class OwnedUiSessionShell {
       onEditorChange: text => {
         this.#editorRevision++;
         promptSuggestionController?.abortPending();
+        if (text.length === 0) {
+          // Concurrency: the editor synchronizes deletion-owned autocomplete after onChange.
+          // Reassert retained ghost text in the microtask before Pi emits its scheduled frame.
+          queueMicrotask(() => promptSuggestionController?.restoreAvailable());
+        }
         this.root.reconcilePromptImageLimitNotice(text);
       },
       onPromptSuggestionAccepted: () => promptSuggestionController?.accept(),
@@ -471,8 +476,15 @@ export class OwnedUiSessionShell {
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
           if (inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
-          // Compatibility: route boundary keys before Pi.
+          // Compatibility: route modal paging and boundary keys before Pi's fullscreen handlers.
           const isDefault = this.root.usesDefaultInputSurface();
+          if (!this.runtime.hasOverlay() && !isDefault
+            && (this.root.editor.matchesTerminalKey(data, "pageUp")
+              || this.root.editor.matchesTerminalKey(data, "pageDown"))) {
+            this.root.handleInput(data);
+            this.runtime.requestRender();
+            return { consume: true };
+          }
           if (!this.runtime.hasOverlay() && (this.root.editor.matchesTerminalKey(data, "home")
             || this.root.editor.matchesTerminalKey(data, "end")
             || !isDefault && (this.root.editor.matchesTerminalKey(data, "ctrl+home")
@@ -1181,12 +1193,13 @@ export class OwnedUiSessionShell {
       },
       onCancel: close,
       onSelect: entryId => {
-        close();
         if (entryId === context.currentLeafId) {
+          close();
           this.root.appendWorkflowStatus("Already at this point");
           this.runtime.requestRender();
           return;
         }
+        if (context.skipSummaryPrompt) close();
         void this.#completeTreeSelection(entryId, context.skipSummaryPrompt);
       },
     });
@@ -1458,6 +1471,10 @@ export class OwnedUiSessionShell {
       this.root.resetWorkflowPresentation();
       this.root.editor.reloadKeybindings();
       this.#installAutocompleteCommands();
+    }
+    if (request.command === "tree" && result.outcome === "completed") {
+      if (result.detail && !this.root.editor.getText().trim()) this.root.editor.setText(result.detail);
+      this.root.resumeViewportFollowing();
     }
     this.root.appendWorkflowResult(result);
     this.runtime.requestRender();
@@ -2072,7 +2089,7 @@ export class OwnedUiSessionShell {
     return this.#submitSkillPrompt(skillPrompt(skill.name, separator < 0 ? "" : trimmed.slice(separator + 1)), text);
   }
 
-  // Rationale: the engine expands "/skill:<name> args" itself; history keeps the form the user typed so recall restores the invocation.
+  // Rationale: engine expands skill arguments; history retains typed input for recall.
   #submitSkillPrompt(prompt: string, typed: string): Promise<AdapterCommandResult> {
     this.#rememberInput(typed, "slash");
     this.root.resumeViewportFollowing();
@@ -2084,28 +2101,38 @@ export class OwnedUiSessionShell {
     });
   }
 
+  #treeSummary(): Promise<string | undefined> {
+    return new Promise(resolve => {
+      this.root.setInputSurface(createPiShellExtensionSelector(
+        "Summarize Branch?",
+        ["No summary", "Summarize", "Summarize with custom prompt"],
+        resolve,
+        () => resolve(undefined),
+      ), true, "opaque");
+      this.runtime.requestRender();
+    });
+  }
+
   async #completeTreeSelection(entryId: string, skipSummaryPrompt: boolean): Promise<void> {
     let summarize = false;
     let customInstructions: string | undefined;
     if (!skipSummaryPrompt) {
       while (true) {
-        const choice = await this.#extensionBridge.context.select("Summarize branch?", [
-          "No summary",
-          "Summarize",
-          "Summarize with custom prompt",
-        ]);
+        const choice = await this.#treeSummary();
         if (choice === undefined) {
           await this.showTreeSelector(entryId);
           return;
         }
         summarize = choice !== "No summary";
         if (choice === "Summarize with custom prompt") {
-          customInstructions = await this.#extensionBridge.context.editor("Custom summarization instructions", "");
+          customInstructions = await this.#extensionBridge.input("Custom Summarization Instructions", "", { retainSurfaceOnSettle: true });
           if (customInstructions === undefined) continue;
         }
         break;
       }
     }
+    this.root.setInputSurface(null);
+    this.runtime.requestRender();
     const result = await this.runWorkflow({
       command: "tree",
       argument: "",

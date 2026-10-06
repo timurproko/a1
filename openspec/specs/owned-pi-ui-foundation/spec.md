@@ -2251,7 +2251,7 @@ or collapsed startup changelog behavior and acknowledgement unchanged.
 - **THEN** no A1 note or acknowledgement SHALL be used, and Pi's pinned expanded or collapsed startup changelog behavior SHALL remain unchanged
 
 ### Requirement: The bare-A1 thinking selector uses the established selector treatment
-The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Every level SHALL occupy a name region sized to the widest available level name, followed by a fixed-width active-marker slot and a fixed-width default-marker slot. The active session level SHALL have exactly one semantic success-green checkmark in the active slot. The configured default level SHALL render the literal `[default]` marker in semantic muted grey at the same fixed column regardless of which level is configured or whether it is active. Every description SHALL render inline in semantic muted grey and begin one separator after the complete fixed state region, so marker and description columns SHALL NOT move when the default changes. Space SHALL immediately persist the highlighted level as the configured global default without closing the selector, changing the active session level, or creating an unsaved state. Enter SHALL continue selecting the highlighted session level, and only Escape SHALL close the selector. Ctrl+C SHALL NOT close the selector or invoke cancellation. The shortcut footer SHALL use semantic hint styling and read `Enter select  Space default  Esc close`. While the selector is open, the shell footer SHALL omit its thinking-level suffix so the active level is not duplicated below the selector, then restore that suffix when the selector closes. The interaction change SHALL preserve the selector's borders, search input, navigation, filtering, focus, restoration behavior, and comparison-profile isolation.
+The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Every level row SHALL begin with a fixed-width exclusive-radio marker that differs from the Models dialog's multi-select state: the configured default SHALL use exactly one semantic accent-colored `◉`, and every non-default level SHALL use a semantic dim `○`. One space after that marker, every row SHALL render its unpadded level name. The active session level SHALL have exactly one semantic success-green checkmark one space immediately after the final visible cell of its level name, matching the item-adjacent active treatment used by other dialogs; the checkmark SHALL NOT be delayed to a shared marker column. Width-balancing padding SHALL follow the optional active marker so every description renders inline in semantic muted grey and begins at the same column regardless of active/default placement. The selector SHALL NOT render the textual `[default]` marker. Space SHALL immediately persist the highlighted level as the configured global default, move the single selected radio to that row, and replace the previous row's marker with an unselected radio without closing the selector, changing the active session level, or creating an unsaved state. Enter SHALL continue selecting the highlighted session level, and only Escape SHALL close the selector. Ctrl+C SHALL NOT close the selector or invoke cancellation. The shortcut footer SHALL use semantic hint styling and read `Enter select  Space default  Esc close`. While the selector is open, the shell footer SHALL omit its thinking-level suffix so the active level is not duplicated below the selector, then restore that suffix when the selector closes. The interaction change SHALL preserve the selector's borders, search input, navigation, filtering, focus, restoration behavior, narrow-width bounds, and comparison-profile isolation.
 
 #### Scenario: Render the thinking selector heading
 - **WHEN** the user opens the bare-A1 thinking selector
@@ -2262,10 +2262,12 @@ The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic acc
 #### Scenario: Render level rows
 - **WHEN** the selector displays selected and unselected level rows
 - **THEN** repeated available-level values SHALL render exactly once
-- **AND** each level SHALL occupy the same widest-name region
-- **AND** only the active session level SHALL place one semantic success-green checkmark in the fixed active slot
-- **AND** only the configured default level SHALL place a semantic muted-grey `[default]` in the fixed default slot
-- **AND** `[default]` SHALL begin at the same column for every possible configured level
+- **AND** every row SHALL begin with a fixed exclusive-radio marker followed by one space and the unpadded level name
+- **AND** only the configured default level SHALL use a semantic accent-colored `◉`
+- **AND** every non-default level SHALL use a semantic dim `○`
+- **AND** no row SHALL render the Models multi-select `●` or the textual `[default]` marker
+- **AND** only the active session level SHALL place one semantic success-green checkmark one space immediately after its name
+- **AND** trailing width-balancing space SHALL follow the optional active checkmark rather than separate it from the name
 - **AND** every description SHALL use semantic muted grey and begin at the same column regardless of active/default placement
 - **AND** the shell footer SHALL omit its thinking-level suffix until the selector closes
 - **AND** closing the selector SHALL restore the shell footer's current thinking-level suffix
@@ -2273,14 +2275,15 @@ The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic acc
 #### Scenario: Interact with the styled selector
 - **WHEN** the user filters or navigates levels, selects a session level, changes the default level, or closes the selector
 - **THEN** the selector SHALL retain its specified interaction and restoration outcomes
-- **AND** heading and row styling SHALL NOT alter list geometry, focus, or instruction placement
+- **AND** heading and row styling SHALL NOT alter list geometry, narrow-width bounds, focus, or instruction placement
 
 #### Scenario: Stage and save a default level
 - **WHEN** the user highlights a level and presses Space
-- **THEN** the `[default]` marker SHALL move to that level immediately
+- **THEN** the single selected radio `◉` SHALL move to that level immediately
+- **AND** the previous default row SHALL render `○`
 - **AND** that level SHALL be persisted as the global default immediately
 - **AND** the selector SHALL remain open
-- **AND** the active session level and its checkmark SHALL remain unchanged
+- **AND** the active session level and its item-adjacent checkmark SHALL remain unchanged
 - **AND** no unsaved label or staged state SHALL appear
 
 #### Scenario: Select or close
@@ -2770,7 +2773,7 @@ Bare A1 SHALL present hyperlinks in both the complete `/changelog` history and s
 ### Requirement: The session command opens a reference screen in bare A1
 Bare A1 SHALL declare `/session` as an A1-owned replacement for the pinned in-feed session-information document. The owned route host SHALL claim the route ahead of the pinned workflow table, obtain a fresh structured session-information snapshot for each invocation, and open the shared reference screen full screen over the session. Invoking the command SHALL append no document, status, checkmark, error, or placeholder row to the feed.
 
-The screen SHALL use `Session Info` as its accent title. It SHALL present the optional session Name followed by File and ID as identity rows before the grouped report. `Messages`, `Tokens`, `Cache Warming`, and, when its existing condition is met, `Cost` SHALL be structured sections using the same shared bold yellow Markdown-heading role, one-cell left inset, content adjacency, inter-section spacing, and active-section pinning as the `Navigation` section of Keyboard Shortcuts and owned Settings. The report SHALL preserve the existing labels, values, calculations, conditional details, indentation, semantic label/value styles, wrapping, and group order.
+The screen SHALL use `Session Info` as its accent title. It SHALL present the optional session Name followed by File and ID as identity rows before the grouped report. When the session file value fits on its identity row, it SHALL begin immediately after `File:`. When the complete value does not fit, it SHALL use the remaining visible columns after `File:` before continuing the complete, untruncated value on subsequent rows; only a frame too narrow to leave any value column after the label MAY begin the value on the following row. `Messages`, `Tokens`, `Cache Warming`, and, when its existing condition is met, `Cost` SHALL be structured sections using the same shared bold yellow Markdown-heading role, one-cell left inset, content adjacency, inter-section spacing, and active-section pinning as the `Navigation` section of Keyboard Shortcuts and owned Settings. The report SHALL preserve the existing labels, values, calculations, conditional details, indentation, semantic label/value styles, wrapping outside this declared File-row refinement, and group order.
 
 The session screen SHALL retain the shared reference screen's keyboard, wheel, scrollbar rail, close, interrupt, resize, and viewport-restoration behavior. The `a1 pi` comparison profile SHALL keep the pinned `/session` workflow and chronological in-feed presentation and SHALL open no A1-owned session reference screen.
 
@@ -2784,6 +2787,11 @@ The session screen SHALL retain the shared reference screen's keyboard, wheel, s
 - **THEN** Name when present, File, and ID SHALL appear before the first section
 - **AND** `Messages`, `Tokens`, `Cache Warming`, and `Cost` SHALL use the same shared section-header presentation as Keyboard Shortcuts' `Navigation` heading
 - **AND** all existing report values, details, indentation, order, and conditional rows SHALL remain complete
+
+#### Scenario: Render a long session file path
+- **WHEN** the session file value is longer than the visible space remaining after `File:`
+- **THEN** the value SHALL begin directly after `File:` and fill that row's remaining visible columns
+- **AND** the rest of the complete value SHALL continue on following rows before the ID row without truncation or an intervening blank row
 
 #### Scenario: Omit conditional session information
 - **WHEN** the session has no name and its existing cost and cache-waste condition does not require a Cost group
@@ -2803,3 +2811,137 @@ The session screen SHALL retain the shared reference screen's keyboard, wheel, s
 - **WHEN** the user submits `/session` in `a1 pi`
 - **THEN** the pinned workflow SHALL append the complete pinned session-information component at its chronological feed position
 - **AND** no A1-owned reference screen SHALL open
+
+### Requirement: Bare-A1 Session Tree follows the standard dialog presentation
+
+The bare-A1 Session Tree SHALL use the same compact framed hierarchy as the Models dialog. Exactly one empty visual row SHALL separate preceding transcript or status content from the tree's top rule. The top rule SHALL be followed immediately by an accent-bold `Session Tree` title, and the frame SHALL contain no separator rule between search and results.
+
+The title SHALL be followed immediately by a Models-style `Filter: all | no tools | user | labeled` row using accent for the active mode and muted styling for inactive modes. The product `all` mode SHALL use the concise former-standard view: it SHALL show resolved entry labels while hiding raw label-change, context-edit, custom bookkeeping, session-info, usage, model-change, and thinking-level-change entries. An unset, upstream `default`, or upstream `all` initial setting SHALL open with product `all` active, while an explicitly configured `no tools`, `user`, or `labeled` mode SHALL remain active. `Tab` SHALL cycle the four product filters forward and replace `Ctrl+O` as the displayed/default cycle shortcut; the footer SHALL show `Tab filter` instead of the individual filter bindings. Hidden bookkeeping entries SHALL NOT contribute to the visible result counter.
+
+The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, the semantics of each filter mode, folding, navigation, copy, label, label-time, and horizontal clipping SHALL remain available. A row clipped at either horizontal edge SHALL show the single-character ellipsis `…` at that edge. On a selected row, every visible clipped fragment and ellipsis SHALL remain inside the selection highlight. A right-clipped bracketed tool row SHALL end with `…]` so its closing delimiter remains visible. `PageUp` and `PageDown` SHALL move by one visible page, `Home` and `End` SHALL select the first and last visible entries, and unmodified `Left` SHALL collapse the nearest expanded branch containing the cursor, even when a descendant is selected, and `Right` SHALL expand that branch after the collapsed view selects its branch root.
+
+The selected tree entry SHALL use the ordinary menu arrow `→` with the subtle purple accent-tinted selection background. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted, without whole-row bold treatment. Tree entries SHALL NOT render active-path bullets. Entry labels SHALL use the theme accent color. When label-time display is enabled, its timestamp SHALL be enclosed in square brackets and use the same accent color as the label. The result counter SHALL append plain `label time` status text without brackets or a leading plus sign. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `session`. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
+
+The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule. Their order SHALL follow the Models dialog: `type to search`, vertical navigation, `Tab filter`, extended page/first-last/branch navigation, then copy and label actions. The footer SHALL omit an `Enter select` hint.
+
+While editing an entry label, the frame title SHALL become accent-bold `Label`, followed immediately by a muted `Empty to remove` subheader. The standard single-line input SHALL follow after one blank row. The tree search control, results, filter/navigation shortcuts, and `Session Tree` title SHALL be hidden. Only the shared save/cancel shortcut footer SHALL remain, immediately followed by the bottom rule.
+
+#### Scenario: Open the Session Tree below existing content
+- **WHEN** the user opens `/tree` after transcript or status content is visible
+- **THEN** exactly one empty visual row SHALL separate that content from the tree's top rule
+- **AND** the accent-bold title SHALL immediately follow the top rule
+- **AND** no internal rule SHALL separate the search control from the tree results
+
+#### Scenario: Open and cycle the tree filter
+- **WHEN** the Session Tree opens without an explicitly configured non-default filter
+- **THEN** the Models-style filter row SHALL show `all` as active
+- **AND WHEN** the user presses `Tab`
+- **THEN** the next filter SHALL become active
+- **AND** the shortcut footer SHALL show `Tab filter` without `Ctrl+O` filter-cycle guidance
+
+#### Scenario: Keep product all concise
+- **WHEN** the Session Tree contains resolved entry labels and raw bookkeeping entries
+- **THEN** product `all` SHALL show each resolved label on its target entry
+- **AND** raw label-change, context-edit, custom bookkeeping, session-info, usage, model-change, and thinking-level-change entries SHALL NOT render
+- **AND** the filter row SHALL NOT offer a separate `standard` mode or raw-bookkeeping `all` mode
+- **AND** the visible result counter SHALL exclude hidden bookkeeping entries
+
+#### Scenario: Navigate and fold the tree with standard keys
+- **WHEN** the user presses `PageUp`, `PageDown`, `Home`, or `End`
+- **THEN** `PageUp` and `PageDown` SHALL move selection and the visible result window by one page, while `Home` and `End` SHALL select the first or last visible entry respectively
+- **AND WHEN** any entry within an expanded branch is selected and the user presses `Left`
+- **THEN** the nearest containing branch SHALL collapse and selection SHALL resolve to its visible branch root
+- **AND WHEN** the user then presses `Right`
+- **THEN** that branch SHALL expand without moving selection to another branch
+
+#### Scenario: Clip a long tree row
+- **WHEN** a tree item extends beyond the left or right edge
+- **THEN** each clipped edge SHALL show the single-character ellipsis `…`
+- **AND** a selected clipped row SHALL keep its complete visible fragment, including ellipses, selected
+- **AND** a right-clipped bracketed tool row SHALL end with `…]`
+
+#### Scenario: Search the tree
+- **WHEN** the Session Tree is open and the user types a search query
+- **THEN** the search row SHALL show the ordinary input prompt icon and text-colored query without `Type to search:`
+- **AND** the cursor SHALL appear after the final typed character unless the user moved it
+- **AND** the tree SHALL retain its existing search and filter behavior
+
+#### Scenario: Highlight an entry
+- **WHEN** a tree entry is selected
+- **THEN** the row SHALL begin with the ordinary menu arrow `→`
+- **AND** only its primary label SHALL receive selected emphasis while descriptive message text remains muted
+- **AND** the selected span SHALL use the subtle purple accent-tinted background
+- **AND** no active-path bullet or whole-row bold treatment SHALL be applied
+
+#### Scenario: Distinguish message roles and entry labels
+- **WHEN** labeled, unselected user, assistant, and system entries are visible
+- **THEN** the entry label SHALL use the theme accent color
+- **AND** any enabled label timestamp SHALL use the same accent color and square-bracket form
+- **AND** the result counter SHALL show plain `label time` rather than `[+label time]`
+- **AND** `user:` SHALL be green and `assistant:` SHALL be yellow
+- **AND** the system entry SHALL read `session`
+
+#### Scenario: Read tree shortcut hints
+- **WHEN** the ordinary Session Tree is visible
+- **THEN** its footer SHALL begin with typing guidance, vertical navigation, and `Tab filter` in that order
+- **AND** it SHALL omit an `Enter select` hint
+- **AND** page, first/last, branch, copy, and label guidance SHALL follow
+
+#### Scenario: Edit an entry label
+- **WHEN** the user opens label editing for a tree entry
+- **THEN** the frame SHALL show the accent-bold title `Label` and muted subheader `Empty to remove`
+- **AND** one standard single-line input SHALL be visible without the tree search or results
+- **AND** only save and cancel shortcut hints SHALL be visible immediately above the bottom rule
+
+#### Scenario: Search with no matches
+- **WHEN** the current query matches no tree entries
+- **THEN** the result area SHALL show `No entries found`
+- **AND** it SHALL NOT show `(0/0)`
+
+#### Scenario: Render tree shortcuts
+- **WHEN** the Session Tree renders navigation and action hints
+- **THEN** those hints SHALL use the shared shortcut-row key/action styles below the result area
+- **AND** the next rendered row SHALL be the frame's bottom rule
+
+### Requirement: Session-tree nested dialogs transition without exposing the prompt
+
+When a non-current tree entry requires a branch-summary choice, bare A1 SHALL replace the Session Tree directly with the summary-choice dialog without rendering the ordinary prompt between them. Cancellation SHALL restore the tree with the selected entry retained. A skipped summary choice SHALL retain the existing direct navigation behavior.
+
+The branch-summary choice SHALL retain its title, options, navigation, selection, and cancellation behavior. Its semantic shortcut footer SHALL use the shared dialog style at the bottom of the frame, and the frame's bottom rule SHALL immediately follow that footer without an empty row.
+
+Custom summarization instructions SHALL use the ordinary single-line dialog input pattern instead of the multiline editor. Nested dialog titles SHALL use title case: `Summarize Branch?` and `Custom Summarization Instructions`. The prompt SHALL have an accent-bold title, the standard input prompt and cursor behavior, and only the shared submit/cancel shortcut hints. The bottom rule SHALL immediately follow those hints without an empty row.
+
+After successful tree navigation, bare A1 SHALL rebuild the visible transcript from the newly selected branch and restore the ordinary input surface for that point. When Pi returns editor text for a selected user-message point and the input has no non-whitespace draft, the input SHALL be populated with that text and its cursor SHALL be placed at the end; otherwise the existing editor draft SHALL remain intact. Model and thinking state SHALL reconcile to the selected branch.
+
+#### Scenario: Open the branch-summary choice
+- **WHEN** the user selects a non-current tree entry and summary prompting is enabled
+- **THEN** the branch-summary choice SHALL replace the tree directly
+- **AND** no intermediate frame SHALL expose or flash the ordinary prompt
+
+#### Scenario: Cancel custom summarization instructions
+- **WHEN** the user cancels `Custom Summarization Instructions`
+- **THEN** `Summarize Branch?` SHALL replace it directly
+- **AND** no intermediate frame SHALL expose or flash the ordinary prompt
+
+#### Scenario: Cancel the branch-summary choice
+- **WHEN** the user cancels the branch-summary choice
+- **THEN** the Session Tree SHALL be restored with the chosen entry selected
+- **AND** no intermediate frame SHALL expose or flash the ordinary prompt
+
+#### Scenario: Complete tree navigation
+- **WHEN** navigation to a selected tree entry completes
+- **THEN** the content area SHALL show the selected branch transcript
+- **AND** the ordinary editor SHALL be visible
+- **AND** a selected user-message prompt returned by Pi SHALL populate an empty editor with its cursor at the end
+- **AND** navigation without returned prompt text, or with an existing non-whitespace draft, SHALL preserve the existing draft
+
+#### Scenario: Render branch-summary shortcuts
+- **WHEN** the branch-summary choice is visible
+- **THEN** its shortcut hints SHALL use the shared dialog key/action styling at the bottom of the frame
+- **AND** its bottom rule SHALL immediately follow the hint row
+
+#### Scenario: Enter custom summarization instructions
+- **WHEN** the user selects `Summarize with custom prompt`
+- **THEN** an accent-bold `Custom Summarization Instructions` title SHALL appear above a standard single-line input
+- **AND** the shortcut footer SHALL contain submit and cancel actions without newline or external-editor actions
+- **AND** the frame's bottom rule SHALL immediately follow the shortcut footer
