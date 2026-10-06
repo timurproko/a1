@@ -4,6 +4,7 @@ import { applyPiTheme, applyPiThemeInstance, piTheme } from "../../../../src/int
 import { KeybindingsManager, type KeybindingsConfig } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { ModelsDialogComponent, type ModelsDialogConfig } from "../../../../src/integrations/pi/components/models-dialog.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
+import { cellStyle } from "../../../support/ansi-cell-style.js";
 import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
 
 const models = [
@@ -100,6 +101,21 @@ describe("unified Models dialog", () => {
       expect(stripped).not.toContain("(unsaved)");
       expect(dialog.selectedModelId).toBe(ids.gpt5);
     });
+  });
+
+  it("uses the default-radio accent for filled scope markers independently of row focus", () => {
+    withDialog(dialog => {
+      const lines = dialog.render(200);
+      const unselectedScoped = lines.find(line => stripTerminalSequences(line).includes("● claude"))!;
+      const selectedScoped = lines.find(line => stripTerminalSequences(line).includes("● gpt-5 "))!;
+      const unselectedEmpty = lines.find(line => stripTerminalSequences(line).includes("○ gpt-5-mini"))!;
+
+      const accentMarker = cellStyle(piTheme().fg("accent", "●"), "●");
+      expect(cellStyle(unselectedScoped, "●")).toEqual(accentMarker);
+      expect(cellStyle(selectedScoped, "●")).toEqual(accentMarker);
+      expect(cellStyle(unselectedEmpty, "○")).toEqual(cellStyle(piTheme().fg("dim", "○"), "○"));
+      expect(cellStyle(selectedScoped, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
+    }, { scopeIds: [ids.claude, ids.gpt5], savedScopeIds: [ids.claude, ids.gpt5] });
   });
 
   it("truncates every row to the width and keeps narrow frames free of wrapped fragments", () => {
