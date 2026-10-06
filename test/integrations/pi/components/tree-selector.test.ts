@@ -141,7 +141,8 @@ describe("bare-A1 session tree presentation", () => {
     expect(plain.join("\n")).not.toContain("Ctrl+O");
     expect(rows.every(row => visibleWidth(row) <= 80)).toBe(true);
     const narrowUser = component.render(24).find(row => stripTerminalSequences(row).includes("user:"))!;
-    expect(stripTerminalSequences(narrowUser)).toMatch(/\.\.\.$/u);
+    expect(stripTerminalSequences(narrowUser)).toMatch(/…$/u);
+    expect(stripTerminalSequences(narrowUser)).not.toContain("...");
 
     component.handleInput?.("\t");
     const cycledFilter = component.render(80).find(row => stripTerminalSequences(row).includes("Filter:"))!;
@@ -232,6 +233,13 @@ describe("bare-A1 session tree presentation", () => {
     const nextPage = stripTerminalSequences(component.render(80).join("\n"));
     expect(nextPage).toMatch(/→ .*user: Question5/u);
     expect(nextPage).not.toContain("Question0");
+    const clippedSelected = component.render(8).find(row => stripTerminalSequences(row).includes("→"))!;
+    expect(stripTerminalSequences(clippedSelected)).toMatch(/^\s*→ ….*…$/u);
+    expect(stripTerminalSequences(clippedSelected)).not.toContain("...");
+    expect(clippedSelected).toContain("\u001b[48;");
+    expect(cellStyle(clippedSelected, "…")).toEqual(
+      cellStyle(piTheme().bg("customMessageBg", piTheme().fg("muted", "…")), "…"),
+    );
     component.handleInput?.("\x1b[5~");
     expect(stripTerminalSequences(component.render(80).join("\n"))).toMatch(/→ .*user: Question0/u);
   });
@@ -261,7 +269,7 @@ describe("bare-A1 session tree presentation", () => {
     component.handleInput?.("\x1b");
     plain = component.render(24).map(row => stripTerminalSequences(row).trimEnd());
     expect(plain.join("\n")).not.toContain("missin");
-    expect(plain.join("\n")).toContain("assistant: Respons...");
+    expect(plain.join("\n")).toMatch(/assistant: Response.*…/u);
     expect(cancel).not.toHaveBeenCalled();
   });
 });
