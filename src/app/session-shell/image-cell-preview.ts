@@ -55,11 +55,12 @@ export async function createImageCellPreview(
     }
     const sourceWidth = image.get_width(), sourceHeight = image.get_height();
     let columns = Math.max(1, Math.min(requestedColumns, IMAGE_CELL_PREVIEW_MAX_COLUMNS, Math.ceil(sourceWidth / 2)));
-    let cellRows = Math.max(1, Math.ceil(columns * cellWidthPx * sourceHeight / sourceWidth / cellHeightPx));
-    if (cellRows > IMAGE_CELL_PREVIEW_MAX_ROWS) {
-      columns = Math.max(1, Math.floor(columns * IMAGE_CELL_PREVIEW_MAX_ROWS / cellRows));
-      cellRows = IMAGE_CELL_PREVIEW_MAX_ROWS;
+    let idealCellRows = columns * cellWidthPx * sourceHeight / sourceWidth / cellHeightPx;
+    if (idealCellRows > IMAGE_CELL_PREVIEW_MAX_ROWS) {
+      columns = Math.max(1, Math.floor(columns * IMAGE_CELL_PREVIEW_MAX_ROWS / idealCellRows));
+      idealCellRows = columns * cellWidthPx * sourceHeight / sourceWidth / cellHeightPx;
     }
+    const cellRows = leastDistortedCellRows(idealCellRows);
     const pixelColumns = columns * 2, pixelRows = cellRows * 2;
     resized = photon.resize(image, pixelColumns, pixelRows, photon.SamplingFilter.Lanczos3);
     const rows = renderImageCellRows(resized.get_raw_pixels(), pixelColumns, pixelRows, options.background);
@@ -74,6 +75,14 @@ export async function createImageCellPreview(
     resized?.free();
     image?.free();
   }
+}
+
+export function leastDistortedCellRows(idealRows: number): number {
+  if (!Number.isFinite(idealRows) || idealRows <= 1) return 1;
+  const upper = Math.min(IMAGE_CELL_PREVIEW_MAX_ROWS, Math.ceil(idealRows));
+  const lower = Math.max(1, Math.min(upper, Math.floor(idealRows)));
+  const distortion = (rows: number): number => Math.max(rows / idealRows, idealRows / rows);
+  return distortion(lower) < distortion(upper) ? lower : upper;
 }
 
 const QUADRANT_GLYPHS = [" ", "▘", "▝", "▀", "▖", "▌", "▞", "▛", "▗", "▚", "▐", "▜", "▄", "▙", "▟", "█"] as const;

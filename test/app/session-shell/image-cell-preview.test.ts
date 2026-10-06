@@ -2,6 +2,7 @@ import { stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
 import {
   IMAGE_CELL_PREVIEW_MAX_ROWS,
+  leastDistortedCellRows,
   renderImageCellRows,
   type ImageCellPreview,
 } from "../../../src/app/session-shell/image-cell-preview.js";
@@ -19,6 +20,13 @@ describe("Windows submitted-image cell preview", () => {
     expect(usesWindowsSubmittedImageCellPreview("win32", { WT_SESSION: "inherited", WEZTERM_PANE: "1" })).toBe(true);
     expect(usesWindowsSubmittedImageCellPreview("win32", {})).toBe(false);
     expect(usesWindowsSubmittedImageCellPreview("linux", { WEZTERM_PANE: "1" })).toBe(false);
+  });
+
+  it("chooses the adjacent whole-row count with the smallest aspect distortion", () => {
+    expect(leastDistortedCellRows(15)).toBe(15);
+    expect(leastDistortedCellRows(15.49)).toBe(15);
+    expect(leastDistortedCellRows(15.495)).toBe(16);
+    expect(leastDistortedCellRows(40.8)).toBe(IMAGE_CELL_PREVIEW_MAX_ROWS);
   });
 
   it("pairs four RGBA samples into one truecolor quadrant and resets the row", () => {

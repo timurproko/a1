@@ -9,6 +9,7 @@
 - [x] 2.1 Add a worker request that decodes, orients, aspect-fits, and renders submitted images as bounded truecolor quadrant-cell rows.
 - [x] 2.2 Enforce decoded-size, width, row, terminal-byte, deadline, cancellation, and payload-free failure bounds.
 - [x] 2.3 Request and consume terminal cell pixel dimensions so Windows Terminal and WezTerm preserve the same physical source aspect ratio.
+- [x] 2.4 Choose the adjacent whole-row count with the smallest physical aspect-ratio error.
 
 ## 3. Mounted presentation lifecycle
 
@@ -17,6 +18,6 @@
 
 ## 4. Evidence and physical review
 
-- [x] 4.1 Add focused host-routing, cell-metric regeneration, worker, presenter, attachment-retention, partial-scroll/dialog-composition, and unchanged-path tests.
+- [x] 4.1 Add focused host-routing, least-distorted row quantization, cell-metric regeneration, worker, presenter, attachment-retention, partial-scroll/dialog-composition, and unchanged-path tests.
 - [x] 4.2 Verify typecheck, build, architecture/documentation governance, strict OpenSpec validation, and focused rendering tests.
 - [ ] 4.3 Physically review the exact candidate in Windows Terminal and Windows WezTerm, including initial paint, scrolling, dialogs, later output, resize, and responsiveness.
