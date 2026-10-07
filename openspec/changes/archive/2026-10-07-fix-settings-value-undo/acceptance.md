@@ -8,7 +8,7 @@ The manual merge accepts these scenarios:
 - Undo closes an open scalar menu and preserves an active Settings search query.
 - Structured-setting undo restores the preceding whole value and updates the open dialog.
 - Failed forward saves create no undo step, while failed restorations keep their step available for retry.
-- The shared owned-dialog hint boundary rejects connective `to` actions and consistently renders dim keys with muted actions, including `Ctrl+Z undo` and `Esc close`.
+- Settings and structured-dialog footers advertise `Ctrl+Z to undo` from the same declarations used for dispatch.
 
 ```openspec-delivery
 {
@@ -26,7 +26,7 @@ The manual merge accepts these scenarios:
     "Undo closes an open scalar menu and preserves an active Settings search query.",
     "Structured-setting undo restores the preceding whole value and updates the open dialog.",
     "Failed forward saves create no undo step, while failed restorations keep their step available for retry.",
-    "The shared owned-dialog hint boundary rejects connective `to` actions and consistently renders dim keys with muted actions, including `Ctrl+Z undo` and `Esc close`."
+    "Settings and structured-dialog footers advertise `Ctrl+Z to undo` from the same declarations used for dispatch."
   ],
   "archiveDigest": "90314ada0b27dc6ca1c55a77d6fb0df0cfda7c49642c6e81afaa5b401fb53f07",
   "specDigest": "6d085c9e6c0d6018baa6cfe24f7686ea77743b63f3f6495bf55cbe2de15eca41",
