@@ -2869,7 +2869,7 @@ The search control SHALL use the ordinary dialog input presentation, including i
 
 The selected tree entry SHALL use the ordinary menu arrow `→` with the subtle purple accent-tinted selection background. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted, without whole-row bold treatment. Tree entries SHALL NOT render active-path bullets. Entry labels SHALL use the theme accent color. When label-time display is enabled, its timestamp SHALL be enclosed in square brackets and use the same accent color as the label. The result counter SHALL append plain `label time` status text without brackets or a leading plus sign. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `session`. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
 
-The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule. Their order SHALL follow the Models dialog: `type to search`, vertical navigation, `Tab filter`, extended page/first-last/branch navigation, then copy and label actions. The footer SHALL omit an `Enter select` hint.
+The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule. Their order SHALL follow the Models dialog: `type to search`, vertical navigation, `Tab filter`, extended page/first-last/branch navigation, then copy and label actions. The label-timestamp shortcut action SHALL read `time (off)` while label timestamps are hidden and `time (on)` while they are visible, updating with the current state after each toggle. The footer SHALL omit an `Enter select` hint.
 
 While editing an entry label, the frame title SHALL become accent-bold `Label`, followed immediately by a muted `Empty to remove` subheader. The standard single-line input SHALL follow after one blank row. The tree search control, results, filter/navigation shortcuts, and `Session Tree` title SHALL be hidden. Only the shared save/cancel shortcut footer SHALL remain, immediately followed by the bottom rule.
 
@@ -2946,10 +2946,13 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 - **AND** the system entry SHALL read `session`
 
 #### Scenario: Read tree shortcut hints
-- **WHEN** the ordinary Session Tree is visible
+- **WHEN** the ordinary Session Tree is visible with label timestamps hidden
 - **THEN** its footer SHALL begin with typing guidance, vertical navigation, and `Tab filter` in that order
+- **AND** its label-timestamp action SHALL read `time (off)` rather than `label time`
+- **AND WHEN** the user toggles label timestamps on
+- **THEN** the same action SHALL read `time (on)`
 - **AND** it SHALL omit an `Enter select` hint
-- **AND** page, first/last, branch, copy, and label guidance SHALL follow
+- **AND** page, first/last, branch, copy, and label guidance SHALL retain their established order
 
 #### Scenario: Edit an entry label
 - **WHEN** the user opens label editing for a tree entry
