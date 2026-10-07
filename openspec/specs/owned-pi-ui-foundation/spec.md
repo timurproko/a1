@@ -3126,7 +3126,7 @@ When all-session discovery supplies partial results, the result list SHALL updat
 
 Every selected ordinary session result SHALL use the Session Tree's accent `→` arrow, success-green primary title without selected-title bolding, muted path/count/age metadata, and blue `selectedBg` selection background. A selected delete-confirmation result SHALL retain its error-colored primary title. The background SHALL form one continuous full-width selection, regardless of the title or path length. When cwd or explicit path metadata is visible, every rendered row SHALL reserve a shared path column followed by separately aligned message-count and age columns. Session titles SHALL truncate before the path column with visible separation, and paths that exceed their bounded column SHALL truncate within that column rather than displacing the title, count, or age columns.
 
-While the ordinary search query is empty, its input SHALL show the exact presentation-only placeholder `re:<pattern> regex, "phrase" exact`. The comma after `regex` SHALL visibly separate the regular-expression form from the quoted exact-phrase form. Placeholder text SHALL use the established quiet search-suggestion treatment, place the caret on its first cell, and SHALL NOT become part of the query. Entering a real query SHALL replace the placeholder while preserving existing fuzzy, regex, and exact-phrase matching behavior.
+While the ordinary search query is empty, its input SHALL show the exact presentation-only placeholder `re:<pattern> regex, "phrase" exact`. The comma after `regex` SHALL visibly separate the regular-expression form from the quoted exact-phrase form. Placeholder text after the caret SHALL use the established quiet search-suggestion treatment, while the active reversed caret cell SHALL retain the ordinary neutral-white input weight used by Settings search rather than inheriting the grey suggestion weight. The caret SHALL occupy the placeholder's first cell, and the placeholder SHALL NOT become part of the query. Entering a real query SHALL replace the placeholder while preserving existing fuzzy, regex, and exact-phrase matching behavior.
 
 The ordinary shortcut footer SHALL appear below the session results as one semantic row aligned to the same shared content inset as the title and status row. Its entries SHALL be ordered as `Type search`, vertical navigation, `Enter select`, `Tab scope`, sort, named filtering, delete, path display with current state, optional rename, and `Esc close`. Keys and actions SHALL use the shared shortcut roles. The footer SHALL preserve the canonical `Esc close` entry completely by clipping preceding guidance first when width is constrained, and SHALL NOT wrap into a second ordinary hint row. The bottom rule SHALL immediately follow that row. Delete confirmation, transient mutation status, and load errors SHALL continue to use the bottom feedback area rather than replacing or joining the title/status rows. Existing search, scope switching, sorting, name filtering, path display, rename, deletion, selection, loading, cancellation, and result-list behavior SHALL remain available.
 
@@ -3179,9 +3179,10 @@ The ordinary shortcut footer SHALL appear below the session results as one seman
 
 #### Scenario: Read empty Resume Session search guidance
 - **WHEN** the ordinary Resume Session search query is empty
-- **THEN** its input SHALL show `re:<pattern> regex, "phrase" exact` using the established quiet suggestion treatment
+- **THEN** its input SHALL show `re:<pattern> regex, "phrase" exact` with quiet suggestion styling after the caret
 - **AND** the comma SHALL separate the regex and exact-phrase descriptions
 - **AND** the placeholder SHALL remain presentation-only with the caret on its first cell
+- **AND** that active reversed caret cell SHALL use ordinary neutral-white input weight rather than the grey suggestion weight
 
 #### Scenario: Enter a Resume Session query
 - **WHEN** the user types into the Resume Session search input
