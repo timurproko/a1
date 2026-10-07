@@ -2,7 +2,11 @@ import { readdir, readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { createTierPlan, FULL_REGRESSION_SHARDS, partitionFullRegressionPlan } from "../../scripts/release/validation-tier.mjs";
-import { publicationValidationMatrix } from "../../scripts/release/publication-validation-matrix.mjs";
+import {
+  publicationSequentialValidationMatrix,
+  publicationValidationMatrix,
+  publicationWindowsShardMatrix,
+} from "../../scripts/release/publication-validation-matrix.mjs";
 
 describe("complete regression automation", () => {
   it("runs on its own nightly schedule and on explicit demand, apart from publication", async () => {
@@ -91,36 +95,60 @@ describe("complete regression automation", () => {
     const release = parse(await readFile(".github/workflows/publish.yml", "utf8"));
     const regression = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
     const wrapper = parse(await readFile(".github/workflows/full-regression.yml", "utf8"));
-    const releaseJob = release.jobs.validate;
+    const sequentialJob = release.jobs.validate_sequential;
+    const releaseShard = release.jobs.validate_windows_shard;
+    const releaseLane = release.jobs.validate_windows_lane;
+    const releaseAggregate = release.jobs.validate;
     const fullJob = regression.jobs["windows-shard"];
     const lanes = (matrix: { include: { os: string; node: number }[] }) => matrix.include.map(({ os, node }) => `${os}:${node}`).sort();
     const windows = fullJob.strategy.matrix.node.map((node: number) => `windows-2025:${node}`);
     expect([...lanes(regression.jobs["full-regression"].strategy.matrix), ...windows].sort()).toEqual(["macos-15:24", "ubuntu-24.04:24", "windows-2025:22", "windows-2025:24"]);
-    expect(releaseJob.strategy.matrix).toBe("${{ fromJson(needs.plan.outputs.validate_matrix) }}");
-    expect(release.jobs.plan.outputs.validate_matrix).toBe("${{ steps.lanes.outputs.validate_matrix }}");
+    expect(sequentialJob.strategy.matrix).toBe("${{ fromJson(needs.plan.outputs.sequential_validate_matrix) }}");
+    expect(releaseShard.strategy.matrix).toBe("${{ fromJson(needs.plan.outputs.windows_shard_matrix) }}");
+    expect(release.jobs.plan.outputs).toMatchObject({
+      validate_matrix: "${{ steps.lanes.outputs.validate_matrix }}",
+      sequential_validate_matrix: "${{ steps.lanes.outputs.sequential_validate_matrix }}",
+      windows_shard_matrix: "${{ steps.lanes.outputs.windows_shard_matrix }}",
+    });
     const lanesStep = release.jobs.plan.steps.find((step: { id: string }) => step.id === "lanes");
     expect(lanesStep.env.MODE).toBe("${{ needs.source.outputs.mode }}");
     expect(lanesStep.run).toContain('node scripts/release/publication-validation-matrix.mjs --mode "$MODE"');
-    for (const mode of ["nightly", "stable"]) {
+    for (const mode of ["nightly", "candidate", "stable"]) {
       expect(lanes(publicationValidationMatrix(mode))).toEqual(["macos-15:24", "ubuntu-24.04:24", "windows-2025:22", "windows-2025:24"]);
     }
     expect(lanes(publicationValidationMatrix("develop"))).toEqual(["macos-15:24", "ubuntu-24.04:24", "windows-2025:24"]);
+    expect(lanes(publicationSequentialValidationMatrix("develop"))).toEqual(["macos-15:24", "ubuntu-24.04:24", "windows-2025:24"]);
+    for (const mode of ["nightly", "candidate"]) {
+      expect(lanes(publicationSequentialValidationMatrix(mode))).toEqual(["macos-15:24", "ubuntu-24.04:24"]);
+      expect(publicationWindowsShardMatrix(mode).include.map(({ os, node, shard }) => `${os}:${node}:${shard}`)).toEqual([
+        ...FULL_REGRESSION_SHARDS.map(shard => `windows-2025:24:${shard}`),
+        ...FULL_REGRESSION_SHARDS.map(shard => `windows-2025:22:${shard}`),
+      ]);
+    }
+    expect(publicationWindowsShardMatrix("develop").include).toEqual([]);
+    expect(publicationWindowsShardMatrix("stable").include).toEqual([]);
     expect(() => publicationValidationMatrix("preview")).toThrow(/unknown publication mode/);
+    expect(() => publicationSequentialValidationMatrix("preview")).toThrow(/unknown publication mode/);
+    expect(() => publicationWindowsShardMatrix("preview")).toThrow(/unknown publication mode/);
     const guardianCache = release.jobs.guardians.steps.find((step: { name: string }) => step.name === "Cache process guardian build");
     expect(guardianCache.uses).toBe("Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6");
     expect(guardianCache.with).toEqual({ workspaces: "native/process-guardian" });
     expect(release.jobs.guardians.steps.indexOf(guardianCache)).toBeLessThan(release.jobs.guardians.steps.findIndex((step: { run: string }) => step.run === "npm run build:process-guardian"));
-    for (const job of [releaseJob, fullJob]) {
+    for (const [job, defenderCondition, consumerName] of [
+      [sequentialJob, "runner.os == 'Windows'", "Validate the exact package"],
+      [releaseShard, "matrix.shard == 'package'", "Run complete publication validation shard"],
+      [fullJob, "matrix.shard == 'package'", "Run complete non-physical validation shard"],
+    ] as const) {
       expect(job.strategy["fail-fast"]).toBe(false);
       expect(job["continue-on-error"]).toBeUndefined();
       const defender = job.steps.findIndex((step: { name: string }) => step.name === "Enable Defender real-time protection for startup acceptance");
       expect(defender).toBeGreaterThanOrEqual(0);
-      expect(job.steps[defender].if).toBe(job === fullJob ? "matrix.shard == 'package'" : "runner.os == 'Windows'");
+      expect(job.steps[defender].if).toBe(defenderCondition);
       expect(job.steps[defender].run).toContain("Set-MpPreference -DisableRealtimeMonitoring $false");
       expect(job.steps[defender].run).toContain('throw "Windows Defender real-time protection could not be enabled"');
       const install = job.steps.findIndex((step: { run: string }) => step.run === "npm ci");
       const prepare = job.steps.findIndex((step: { name: string }) => step.name === "Prepare the exact package");
-      const consume = job.steps.findIndex((step: { name: string }) => ["Validate the exact package", "Run complete non-physical validation shard"].includes(step.name));
+      const consume = job.steps.findIndex((step: { name: string }) => step.name === consumerName);
       expect(install).toBeGreaterThanOrEqual(0);
       expect(prepare).toBeGreaterThan(install);
       expect(defender).toBeGreaterThan(prepare);
@@ -130,18 +158,25 @@ describe("complete regression automation", () => {
       expect(job.steps[consume].run).toContain("--exact-package-handoff .artifacts/validation/exact-package-handoff.json");
       expect(JSON.stringify(job)).not.toMatch(/continue-on-error|--retry/);
     }
+    expect(releaseShard.steps.find((step: { name: string }) => step.name === "Bind publication shard evidence").run)
+      .toBe("node scripts/release/full-regression-evidence.mjs --record-shard");
+    expect(releaseLane.needs).toEqual(["plan", "validate_windows_shard"]);
+    expect(releaseLane.steps.find((step: { name: string }) => step.name === "Reconstruct the Windows publication lane").run)
+      .toContain("full-regression-evidence.mjs --merge-shards");
+    expect(releaseAggregate.needs).toEqual(["plan", "package", "documentation", "validate_sequential", "validate_windows_shard", "validate_windows_lane"]);
+    expect(releaseAggregate.steps[0].run).toContain('test "$WINDOWS_SHARDS" = success');
     expect(release.on.schedule).toEqual([{ cron: "17 3 * * *" }]);
     expect(wrapper.on).toEqual({ schedule: [{ cron: "47 2 * * *" }], workflow_dispatch: null });
     expect(wrapper.jobs.complete.uses).toBe("./.github/workflows/full-regression-shared.yml");
     expect(wrapper.jobs.complete.with.source).toBe("${{ github.sha }}");
-    const selection = releaseJob.steps.find((step: { id: string }) => step.id === "selection");
+    const selection = sequentialJob.steps.find((step: { id: string }) => step.id === "selection");
     expect(selection.env.MODE).toBe("${{ needs.plan.outputs.mode }}");
     expect(selection.run).toContain('if [ "$MODE" = "develop" ]; then');
     expect(selection.run).toContain("selected='[\"package-smoke\",\"package-install\"]'");
     expect(selection.run).toContain("selected='[\"full-release\"]'");
-    const bindStep = releaseJob.steps.find((step: { name: string }) => step.name === "Bind downloaded package to this validation job");
+    const bindStep = sequentialJob.steps.find((step: { name: string }) => step.name === "Bind downloaded package to this validation job");
     expect(bindStep.run).toContain("--build-receipt .artifacts/validation/receipts/build.json");
-    const packageStep = releaseJob.steps.find((step: { name: string }) => step.name === "Validate the exact package");
+    const packageStep = sequentialJob.steps.find((step: { name: string }) => step.name === "Validate the exact package");
     expect(packageStep.if).toBeUndefined();
     expect(packageStep.env.VALIDATION_SELECTION_JSON).toBe("${{ steps.selection.outputs.selected }}");
     expect(packageStep.env.VALIDATION_CANDIDATE_TARBALL).toBe("${{ github.workspace }}/.artifacts/release/candidate.tgz");
@@ -186,7 +221,7 @@ describe("complete regression automation", () => {
     ]);
     expect(invocations.findIndex(invocation => invocation.id === "vitest-package-startup"))
       .toBeLessThan(invocations.findIndex(invocation => invocation.id === "vitest-package-contracts"));
-    expect(plan.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["package-startup", "package-contracts"] });
+    expect(plan.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["package-startup", "package-contracts", "update-predecessor"] });
     const resourceArguments = invocations.filter(invocation => invocation.evidence?.executionClass === "resource-sensitive")
       .flatMap(invocation => invocation.arguments);
     expect(resourceArguments).toContain("test/features/prompt-history/store.test.ts");
@@ -217,6 +252,12 @@ describe("complete regression automation", () => {
     expect(predecessor).toEqual([{ id: "vitest-update-predecessor", scopes: ["update-predecessor"], arguments: ["vitest", "run", "test/foundation/release/update-predecessor.integration.test.ts", "--testTimeout=30000"] }]);
     expect(partitionFullRegressionPlan(plan).shards.package.invocations).toContain("vitest-update-predecessor");
     expect(source).toContain('UPDATE_PREDECESSOR_COUNT ?? "3"');
+    expect(source).toContain('verifyExactPackagePreparation({ candidatePath: candidate.path, consumer: "update-predecessor" })');
+    expect(source).not.toContain("fixture.install(candidate.path)");
+    expect(source.match(/fixture\.install\(`@timurproko\/a1@\$\{version\}`/gu)).toHaveLength(1);
+    expect(source).not.toContain("fixture.install(`@timurproko/a1@${directVersion}`");
+    expect(source).toContain('fixture.install(`@timurproko/a1@${bridgeVersion}`');
+    expect(source).toContain('const bridgeVersion = "0.2.2"');
     expect(source).toContain("fixture.phase(900_000");
     expect(source).toContain("fixture.phase(1_800_000");
     expect(source).not.toMatch(/retry|cache/i);
