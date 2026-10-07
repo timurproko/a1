@@ -13,7 +13,7 @@ describe("impact-aware validation workflows", () => {
     expect(workflow.jobs.modular.strategy["fail-fast"]).toBe(false);
     expect(workflow.jobs.modular.strategy).not.toHaveProperty("max-parallel");
     expect(workflow.jobs.modular.strategy.matrix).toBe("${{ fromJSON(needs.changes.outputs.modular-matrix) }}");
-    expect(workflow.jobs.changes.outputs["modular-matrix"]).toBe("${{ steps.matrix.outputs.modular_matrix }}");
+    expect(workflow.jobs.changes.outputs["modular-matrix"]).toContain("steps.matrix.outputs.modular_matrix");
     const matrixStep = workflow.jobs.changes.steps.find((step: { id?: string }) => step.id === "matrix");
     expect(matrixStep.run).toContain("validation-matrix.mjs --impact .artifacts/validation/impact.json");
     expect(matrixStep.run).not.toContain("--manual-no-comparison");
@@ -31,7 +31,7 @@ describe("impact-aware validation workflows", () => {
     for (const name of ["Check out head", "Set up Node", "Install exact analysis dependencies",
       "Select validation from the complete impact", "Select modular jobs from the trusted selection", "Upload exact impact selection"]) {
       expect(changes.steps.find((step: { name: string }) => step.name === name)?.if)
-        .toBe("steps.route.outputs.acceptance_only != 'true'");
+        .toBe("steps.route.outputs.acceptance_only != 'true' && needs.readiness.outputs.release-reopening != 'true'");
     }
     for (const name of ["docs", "naming", "documentation", "modular", "rendering"]) {
       expect(workflow.jobs[name].if).toContain("needs.changes.outputs.acceptance-only != 'true'");
@@ -75,8 +75,30 @@ describe("impact-aware validation workflows", () => {
     for (const name of ["Download exact impact selection", "Download all modular outcomes", "Require exact selected owner outcomes", "Upload aggregate evidence"]) {
       const condition = workflow.jobs.required.steps.find((step: { name: string }) => step.name === name)?.if;
       expect(condition).toContain("needs.changes.outputs.acceptance-only != 'true'");
+      expect(condition).toContain("needs.changes.outputs.release-reopening != 'true'");
       expect(condition).not.toContain("acceptance-phase");
     }
+  });
+
+  it("routes verified release reopenings without generic analysis or product lanes", async () => {
+    const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
+    expect(workflow.jobs.readiness.outputs["release-reopening"]).toContain("release_reopening");
+    const changes = workflow.jobs.changes;
+    expect(changes.outputs["release-reopening"]).toBe("${{ needs.readiness.outputs.release-reopening || 'false' }}");
+    const reopening = changes.steps.find((step: { id?: string }) => step.id === "reopening");
+    expect(reopening.if).toBe("needs.readiness.outputs.release-reopening == 'true'");
+    expect(reopening.run).toContain("implementation_bound=false");
+    expect(reopening.run).toContain("modular_matrix={\"include\":[]}");
+    expect(reopening.run).toContain("head_sha=$EXPECTED_HEAD");
+    expect(changes.steps.find((step: { id?: string }) => step.id === "route").if).toContain("release-reopening != 'true'");
+    for (const name of ["Check out head", "Set up Node", "Install exact analysis dependencies", "Select validation from the complete impact",
+      "Select modular jobs from the trusted selection", "Upload exact impact selection"]) {
+      expect(changes.steps.find((step: { name: string }) => step.name === name).if).toContain("release-reopening != 'true'");
+    }
+    expect(workflow.jobs.modular.if).toContain("release-reopening != 'true'");
+    expect(workflow.jobs.rendering.if).toContain("release-reopening != 'true'");
+    const aggregate = workflow.jobs.required.steps.find((step: { name: string }) => step.name === "Require current impact-selected validation");
+    expect(aggregate.env.RELEASE_REOPENING).toBe("${{ needs.changes.outputs.release-reopening }}");
   });
 
   it("keeps the bounded PR core and selected resource-sensitive work isolated", async () => {
@@ -148,6 +170,7 @@ describe("impact-aware validation workflows", () => {
     expect(classifier.run).toContain("scripts/release/development-validation-readiness.mjs");
     expect(classifier.run).toContain("reason=policy-bootstrap");
     expect(classifier.env).toMatchObject({ PULL_NUMBER: "${{ github.event.pull_request.number || '' }}", EXPECTED_HEAD: "${{ github.event.pull_request.head.sha || '' }}", EXPECTED_BASE: "${{ github.event.pull_request.base.sha || '' }}", GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" });
+    expect(workflow.jobs.readiness.outputs["release-reopening"]).toBe("${{ steps.readiness.outputs.release_reopening || 'false' }}");
     expect(JSON.stringify(workflow.jobs.readiness)).not.toMatch(/npm ci|npm install|pull_request_target|contents: write/);
     expect(workflow.jobs.changes.needs).toBe("readiness");
     expect(workflow.jobs.changes.if).toBe("needs.readiness.outputs.validate == 'true'");
