@@ -1,9 +1,4 @@
-import {
-  CHANGELOG_ROUTE,
-  CHANGELOG_TITLE,
-  HOTKEYS_ROUTE,
-  HOTKEYS_TITLE,
-} from "../features/owned-ui/reference-routes.js";
+import { CHANGELOG_ROUTE, HOTKEYS_ROUTE, HOTKEYS_TITLE } from "../features/owned-ui/reference-routes.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "../features/owned-ui/settings-route.js";
 import { piTheme } from "../integrations/pi/components/upstream/theme/theme.js";
 import type { ReferenceDocumentProvider } from "../features/owned-ui/reference-screen-app.js";
@@ -34,7 +29,7 @@ export function createOwnedRouteHost(settings: OwnedSettingsManager, references?
       }
       const changelog = route === CHANGELOG_ROUTE;
       const session = route === "session";
-      const title = session ? "Session Info" : changelog ? CHANGELOG_TITLE : HOTKEYS_TITLE;
+      const title = session ? "Session Info" : changelog ? input ? "What's New" : "Changelog" : HOTKEYS_TITLE;
       const document = session ? references!.session() : changelog ? references!.changelog(input) : references!.hotkeys();
       return deferredSurface(route, title, () => loadReferenceSurface(settings, route, route, title, document));
     },
