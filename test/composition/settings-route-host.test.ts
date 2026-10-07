@@ -82,6 +82,7 @@ describe("owned settings route theme", () => {
     const column = (initial[row] ?? "").replace(STYLE, "").indexOf("auto") + 1;
     surface!.handleMouse({ kind: "press", button: 0, row: row + 1, column });
     surface!.handleInput(DOWN);
+    surface!.handleInput(DOWN);
 
     const menu = surface!.render(48, 12).join("\n");
     expect(menu).toContain(`${ESC}[48;2;55;55;55m${ESC}[38;2;167;152;215m✓`);
