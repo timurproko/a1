@@ -3126,7 +3126,9 @@ When all-session discovery supplies partial results, the result list SHALL updat
 
 Every selected ordinary session result SHALL use the Session Tree's accent `→` arrow, success-green primary title without selected-title bolding, muted path/count/age metadata, and blue `selectedBg` selection background. A selected delete-confirmation result SHALL retain its error-colored primary title. The background SHALL form one continuous full-width selection, regardless of the title or path length. When cwd or explicit path metadata is visible, every rendered row SHALL reserve a shared path column followed by separately aligned message-count and age columns. Session titles SHALL truncate before the path column with visible separation, and paths that exceed their bounded column SHALL truncate within that column rather than displacing the title, count, or age columns.
 
-The selector's search-syntax and action shortcut hints SHALL appear below the session results, aligned to the same shared content inset as the title and status row. Every ordinary or state-specific footer SHALL end with the canonical `Esc close` entry, preserving it completely by clipping preceding guidance first when width is constrained. In the ordinary state the bottom rule SHALL immediately follow the final hint row. Delete confirmation, transient mutation status, and load errors SHALL use this bottom feedback area rather than replacing or joining the title/status rows. Existing search, scope switching, sorting, name filtering, path display, rename, deletion, selection, loading, cancellation, and result-list behavior SHALL remain available.
+While the ordinary search query is empty, its input SHALL show the exact presentation-only placeholder `re:<pattern> regex, "phrase" exact`. The comma after `regex` SHALL visibly separate the regular-expression form from the quoted exact-phrase form. Placeholder text after the caret SHALL use the established quiet search-suggestion treatment, while the active reversed caret cell SHALL retain the ordinary neutral-white input weight used by Settings search rather than inheriting the grey suggestion weight. The caret SHALL occupy the placeholder's first cell, and the placeholder SHALL NOT become part of the query. Entering a real query SHALL replace the placeholder while preserving existing fuzzy, regex, and exact-phrase matching behavior.
+
+The ordinary shortcut footer SHALL appear below the session results as one semantic row aligned to the same shared content inset as the title and status row. Its entries SHALL be ordered as `Type search`, vertical navigation, `Enter select`, `Tab scope`, sort, named filtering, delete, path display with current state, optional rename, and `Esc close`. Keys and actions SHALL use the shared shortcut roles. The footer SHALL preserve the canonical `Esc close` entry completely by clipping preceding guidance first when width is constrained, and SHALL NOT wrap into a second ordinary hint row. The bottom rule SHALL immediately follow that row. Delete confirmation, transient mutation status, and load errors SHALL continue to use the bottom feedback area rather than replacing or joining the title/status rows. Existing search, scope switching, sorting, name filtering, path display, rename, deletion, selection, loading, cancellation, and result-list behavior SHALL remain available.
 
 #### Scenario: Open Resume Session
 - **WHEN** the user opens the bare-A1 Resume Session selector
@@ -3175,12 +3177,28 @@ The selector's search-syntax and action shortcut hints SHALL appear below the se
 - **THEN** the `Name:` and `Sort:` values on the row below the title SHALL update using lower-case display text
 - **AND** the updated current values SHALL use the accent role
 
+#### Scenario: Read empty Resume Session search guidance
+- **WHEN** the ordinary Resume Session search query is empty
+- **THEN** its input SHALL show `re:<pattern> regex, "phrase" exact` with quiet suggestion styling after the caret
+- **AND** the comma SHALL separate the regex and exact-phrase descriptions
+- **AND** the placeholder SHALL remain presentation-only with the caret on its first cell
+- **AND** that active reversed caret cell SHALL use ordinary neutral-white input weight rather than the grey suggestion weight
+
+#### Scenario: Enter a Resume Session query
+- **WHEN** the user types into the Resume Session search input
+- **THEN** the real query SHALL replace the placeholder without inheriting its styling or content
+- **AND** fuzzy, `re:` regex, and quoted exact-phrase matching SHALL retain their existing semantics
+
 #### Scenario: Read Resume Session shortcuts
-- **WHEN** the ordinary Resume Session selector is visible
-- **THEN** its search-syntax and action shortcut rows SHALL appear below the session results
-- **AND** the title, filter/status row, and shortcut rows SHALL share the standard modal content inset
-- **AND** the final shortcut row SHALL end with `Esc close`
-- **AND** the frame's bottom rule SHALL immediately follow the final shortcut row
+- **WHEN** the ordinary Resume Session selector is visible at a width that fits every shortcut
+- **THEN** one footer row SHALL show `Type search`, vertical navigation, `Enter select`, `Tab scope`, sort, named filtering, delete, path state, optional rename, and `Esc close` in that order
+- **AND** the title, filter/status row, search input, and shortcut row SHALL share the standard modal content inset
+- **AND** the frame's bottom rule SHALL immediately follow the single shortcut row
+
+#### Scenario: Constrain Resume Session shortcuts
+- **WHEN** the ordinary Resume Session shortcut row does not fit the available width
+- **THEN** it SHALL remain one row and preserve the complete `Esc close` suffix
+- **AND** preceding entries SHALL be clipped before the close suffix rather than wrapping to another row
 
 #### Scenario: Confirm session deletion
 - **WHEN** the user starts deletion of a selected session
@@ -3341,13 +3359,18 @@ When the bare-A1 default editor applies a selected top-level slash-command row, 
 
 ### Requirement: Searchable dialog typing guidance uses shortcut roles
 
-Bare A1's Models, Skills, Thinking Level, Resume Session, and Session Tree dialogs SHALL present their typing-based search guidance as the exact visible text `Type search`. `Type` SHALL use the shared quiet key role, and `search` SHALL use the shared action-text role used by neighboring shortcut hints. This presentation change SHALL NOT alter search input, filtering, hint order, spacing, width handling, keybindings, or the pinned `a1 pi` comparison profile.
+Bare A1's Models, Skills, Thinking Level, Resume Session, and Session Tree dialogs SHALL present their typing-based search guidance as the exact visible text `Type search`. `Type` SHALL use the shared quiet key role, and `search` SHALL use the shared action-text role used by neighboring shortcut hints. Resume Session MAY additionally present its query grammar as quiet placeholder text inside its empty search field and consolidate its shortcut guidance into one row. These presentation changes SHALL NOT alter filtering semantics, keybindings, or the pinned `a1 pi` comparison profile; every other covered dialog SHALL retain its established input and hint order, spacing, and width handling.
 
 #### Scenario: Read typing guidance in a searchable dialog
 - **WHEN** the ordinary Models, Skills, Thinking Level, Resume Session, or Session Tree dialog is visible
-- **THEN** its shortcut guidance SHALL begin with `Type search`
+- **THEN** its shortcut guidance SHALL include `Type search`
 - **AND** `Type` SHALL use the key role while `search` uses the action role
-- **AND** the remaining hints SHALL retain their established order and behavior
+- **AND** the remaining hints SHALL retain the order and behavior declared for that dialog
+
+#### Scenario: Read Resume Session query grammar
+- **WHEN** Resume Session is visible with an empty search query
+- **THEN** its query grammar SHALL appear as quiet placeholder text in the input rather than as shortcut entries
+- **AND** `Type search` SHALL remain the first footer entry
 
 #### Scenario: Use the comparison profile
 - **WHEN** a corresponding searchable surface is presented through `a1 pi`

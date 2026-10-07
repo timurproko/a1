@@ -6,9 +6,10 @@
  * progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned
  * keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal
  * frame with standalone title, standard outer rules, stable filter/status row, progressive result
- * paging, aligned result columns, Session Tree selection roles, and bottom dynamic feedback and
- * Type/search shortcut footer. Selected session rows use the blue selection surface, success-green
- * primary title, muted metadata, and ordinary text weight.
+ * paging, aligned result columns, Session Tree selection roles, quiet in-field query syntax guidance,
+ * and one-line bottom dynamic feedback and searchable-dialog shortcut footer. Selected session rows
+ * use the blue selection surface, success-green primary title, muted metadata, and ordinary text
+ * weight.
  * Deviations: owned-modal-shortcut-hints, owned-resume-session-dialog,
  * owned-standard-dialog-selection.
  */
@@ -225,23 +226,18 @@ class SessionSelectorHeader implements Component {
 		}
 
 		const pathState = this.showPath ? "(on)" : "(off)";
-		const hint1 = renderPiModalShortcutHints([
+		const hints: PiModalShortcutHint[] = [
 			{ key: "Type", action: "search" },
+			{ key: "↑↓", action: "navigate" },
+			shortcutHint("tui.select.confirm", "select", this.keybindings),
 			shortcutHint("tui.input.tab", "scope", this.keybindings),
-			{ action: "re:<pattern> regex" },
-			{ action: '"phrase" exact' },
-		]);
-		const hint2Parts: PiModalShortcutHint[] = [
 			shortcutHint("app.session.toggleSort", "sort", this.keybindings),
 			shortcutHint("app.session.toggleNamedFilter", "named", this.keybindings),
 			shortcutHint("app.session.delete", "delete", this.keybindings),
 			shortcutHint("app.session.togglePath", `path ${pathState}`, this.keybindings),
 		];
-		if (this.showRenameHint) hint2Parts.push(shortcutHint("app.session.rename", "rename", this.keybindings));
-		return [
-			truncateToWidth(hint1, width, "…"),
-			withCloseHint(renderPiModalShortcutHints(hint2Parts), width),
-		];
+		if (this.showRenameHint) hints.push(shortcutHint("app.session.rename", "rename", this.keybindings));
+		return [withCloseHint(renderPiModalShortcutHints(hints), width)];
 	}
 }
 
@@ -405,7 +401,10 @@ class SessionList implements Component, Focusable {
 	) {
 		this.allSessions = sessions;
 		this.filteredSessions = [];
-		this.searchInput = new Input();
+		this.searchInput = new Input({
+			placeholder: 're:<pattern> regex, "phrase" exact',
+			placeholderStyle: text => text === "r" ? text : `\u001b[2m${text}\u001b[22m`,
+		});
 		this.showCwd = showCwd;
 		this.sortMode = sortMode;
 		this.nameFilter = nameFilter;
