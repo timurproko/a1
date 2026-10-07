@@ -146,6 +146,8 @@ describe("owned pinned session selector", () => {
     expect(filterRow).toContain(piTheme().fg("accent", "all"));
     expect(filterRow).toContain(piTheme().fg("accent", "threaded"));
     expect(plainInitialRows[searchIndex]).toContain('> re:<pattern> regex, "phrase" exact');
+    expect(searchRow).toContain("\u001b[7mr\u001b[27m");
+    expect(cellStyle(searchRow, "r").faint).toBe(false);
     expect(cellStyle(searchRow, "e").faint).toBe(true);
     expect(plainInitialRows[hintIndex]).toContain(
       "Type search  ↑↓ navigate  Enter select  Tab scope  Ctrl+S sort  Ctrl+N named  Ctrl+D delete  Ctrl+P path (off)  Ctrl+R rename  Esc close",

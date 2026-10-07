@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-07T14:10:28.900Z",
+  "recordedAt": "2026-10-07T14:22:49.282Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -2290,7 +2290,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal frame with standalone title, standard outer rules, stable filter/status row, progressive result paging, aligned result columns, Session Tree selection roles, quiet in-field query syntax guidance, and one-line bottom dynamic feedback and searchable-dialog shortcut footer. Selected session rows use the blue selection surface, success-green primary title, muted metadata, and ordinary text weight.",
       "upgradeStrategy": "three-way",
-      "localSha256": "a2d5b8311a605ce88d92c3a611c3507aaea19268f139607a6bb0212b99d0caed",
+      "localSha256": "7a0e7d430c283b6e1d9ef15600fe55ab63c49973478c1d8e1625b94122bde5de",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2300,7 +2300,7 @@
         },
         {
           "id": "owned-resume-session-dialog",
-          "reason": "Bare A1 aligns Resume Session with its standard modal hierarchy through standard outer-rule colors, a stable accent title, a lower-case current/all filter row without loader progress, quiet in-field query syntax guidance, progressive result paging, aligned title/path/count/age columns, the Session Tree accent arrow, success-green selected title, muted metadata, blue full-width selection, one-line bottom-aligned dynamic feedback and searchable-dialog shortcut hints, and compact notice-to-control spacing without the redundant Pi leading spacer.",
+          "reason": "Bare A1 aligns Resume Session with its standard modal hierarchy through standard outer-rule colors, a stable accent title, a lower-case current/all filter row without loader progress, quiet in-field query syntax guidance with a neutral active cursor cell, progressive result paging, aligned title/path/count/age columns, the Session Tree accent arrow, success-green selected title, muted metadata, blue full-width selection, one-line bottom-aligned dynamic feedback and searchable-dialog shortcut hints, and compact notice-to-control spacing without the redundant Pi leading spacer.",
           "upstreamBehavior": "The comparison profile retains the pinned Resume Session title, status placement, and shortcut geometry.",
           "acceptanceTest": "test/integrations/pi/components/session-selector.test.ts"
         },

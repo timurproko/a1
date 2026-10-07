@@ -403,7 +403,7 @@ class SessionList implements Component, Focusable {
 		this.filteredSessions = [];
 		this.searchInput = new Input({
 			placeholder: 're:<pattern> regex, "phrase" exact',
-			placeholderStyle: text => `\u001b[2m${text}\u001b[22m`,
+			placeholderStyle: text => text === "r" ? text : `\u001b[2m${text}\u001b[22m`,
 		});
 		this.showCwd = showCwd;
 		this.sortMode = sortMode;

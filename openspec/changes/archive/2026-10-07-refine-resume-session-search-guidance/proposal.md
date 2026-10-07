@@ -4,7 +4,7 @@ Resume Session currently explains its two special query forms in the shortcut fo
 
 ## What Changes
 
-- Show `re:<pattern> regex, "phrase" exact` as quiet suggestion-style placeholder text in Resume Session's empty search input.
+- Show `re:<pattern> regex, "phrase" exact` as quiet suggestion-style placeholder text in Resume Session's empty search input, with the active cursor cell remaining neutral white like Settings search.
 - Replace the two-row ordinary footer with one semantic shortcut row ordered like other searchable dialogs: typing, navigation, selection, session-specific actions, then close.
 - Keep state-specific feedback, narrow-width close preservation, search behavior, keybindings, and the explicit `a1 pi` comparison profile unchanged.
 - Add focused rendering coverage for placeholder wording/style, footer order, one-row geometry, and populated-query behavior.

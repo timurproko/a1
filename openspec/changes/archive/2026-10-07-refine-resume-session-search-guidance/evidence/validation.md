@@ -4,12 +4,13 @@
 - `npm run build` — passed and produced development runtime artifacts for manual testing.
 - `npm run typecheck` — passed both source and bin configurations after the build generated required runtime declarations.
 - `npm run check:architecture` — passed architecture, product identity, pinned Pi source-ledger provenance, and terminal-host provenance checks.
-- `npx openspec validate refine-resume-session-search-guidance --strict` — passed.
+- `npx openspec validate refine-resume-session-search-guidance --strict` — passed before initial finalization.
+- `node scripts/governance/finalize-openspec-delivery.mjs ...` inspection — reported `would-refinalize` after the cursor refinement, validating the archived form and identifying only the acceptance manifest and canonical owned-Pi specification for regeneration.
 - `git diff --check` — passed.
 
 ## Behavior evidence
 
-- The empty Resume Session field renders `re:<pattern> regex, "phrase" exact`; its non-caret text uses the same faint presentation as existing search suggestions, and typed query text replaces it without adding placeholder content.
+- The empty Resume Session field renders `re:<pattern> regex, "phrase" exact`; its active reversed `r` cursor cell retains ordinary non-faint neutral-white input weight, following text uses the same faint presentation as existing search suggestions, and typed query text replaces it without adding placeholder content.
 - The complete ordinary footer occupies one row in the requested order, exposes dynamic path state and optional rename, and preserves `Esc close` when constrained.
 - Existing selector coverage continues to pass for filtering, scope cycling, navigation and selection, sort and named filters, path display, rename, delete confirmation and protection, transient feedback, empty states, progressive loading, cancellation, and shell restoration.
 - The copied-source ledger and provenance header record the owned placeholder and one-line footer deviations; the comparison profile remains unchanged.
