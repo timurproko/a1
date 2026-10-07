@@ -57,7 +57,7 @@ describe("workflow prerequisite receipts", () => {
     for (const [jobName, bindName, runName] of [
       ["validate_sequential", "Bind downloaded package to this validation job", "Validate the exact package"],
       ["validate_windows_shard", "Bind downloaded package to this validation shard", "Run complete publication validation shard"],
-    ]) {
+    ] as const) {
       const validate = workflow.jobs[jobName];
       const build = step(validate, "Record verified install-time build");
       const bound = step(validate, bindName);
