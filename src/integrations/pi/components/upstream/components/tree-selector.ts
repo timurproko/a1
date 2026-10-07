@@ -7,9 +7,10 @@
  * excluding internal bookkeeping, standard search input, purple accent-backed menu-arrow selection
  * without path bullets, accent entry labels, bracketed timestamps, and plain label-time status,
  * semantic role colors with session naming for the system root, standard paging/first-last/non-root
- * containing-branch folding keys with a permanently expanded session root, single-character ellipses
- * on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and
- * Models-ordered semantic shortcut footers without a redundant select hint.
+ * containing-branch folding keys with a permanently expanded system session entry even behind hidden
+ * metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and
+ * selected-fragment highlighting, and Models-ordered semantic shortcut footers without a redundant
+ * select hint.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -169,7 +170,7 @@ class TreeList implements Component {
 	private showLabelTimestamps = false;
 	private visibleParentMap: Map<string, string | null> = new Map();
 	private visibleChildrenMap: Map<string | null, string[]> = new Map();
-	private persistedRootIds: Set<string> = new Set();
+	private sessionRootIds: Set<string> = new Set();
 	private lastSelectedId: string | null = null;
 	private foldedNodes: Set<string> = new Set();
 
@@ -231,7 +232,7 @@ class TreeList implements Component {
 	private flattenTree(roots: SessionTreeNode[]): FlatNode[] {
 		const result: FlatNode[] = [];
 		this.toolCallMap.clear();
-		this.persistedRootIds = new Set(roots.map((root) => root.entry.id));
+		this.sessionRootIds.clear();
 
 		// Indentation rules:
 		// - At indent 0: stay at 0 unless parent has >1 children (then +1)
@@ -283,8 +284,11 @@ class TreeList implements Component {
 		while (stack.length > 0) {
 			const [node, indent, justBranched, showConnector, isLast, gutters, isVirtualRootChild] = stack.pop()!;
 
-			// Extract tool calls from assistant messages for later lookup
+			// Extract structural roots and tool calls from messages for later lookup.
 			const entry = node.entry;
+			if (entry.type === "message" && entry.message.role === "system") {
+				this.sessionRootIds.add(entry.id);
+			}
 			if (entry.type === "message" && entry.message.role === "assistant") {
 				const content = (entry.message as { content?: unknown }).content;
 				if (Array.isArray(content)) {
@@ -1131,12 +1135,13 @@ class TreeList implements Component {
 	}
 
 	/**
-	 * Whether a node can be folded. The persisted session root stays expanded;
-	 * other nodes are foldable when they have visible children and either appear
-	 * at the filtered root or begin a segment below a visible branch point.
+	 * Whether a node can be folded. The system entry rendered as the session root
+	 * stays expanded even when hidden metadata precedes it; other nodes are
+	 * foldable when they have visible children and either appear at the filtered
+	 * root or begin a segment below a visible branch point.
 	 */
 	private isFoldable(entryId: string): boolean {
-		if (this.persistedRootIds.has(entryId)) return false;
+		if (this.sessionRootIds.has(entryId)) return false;
 
 		const children = this.visibleChildrenMap.get(entryId);
 		if (!children || children.length === 0) return false;

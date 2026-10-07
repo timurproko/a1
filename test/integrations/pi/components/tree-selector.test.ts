@@ -8,63 +8,63 @@ const REVERSE_TABS = ["\u001b[Z", "\u001b[9;2u", "\u001b[27;2;9~"] as const;
 function tree() {
   return [{
     entry: {
-      type: "message",
-      id: "system-1",
+      type: "model_change",
+      id: "model-1",
       parentId: null,
       timestamp: new Date(0).toISOString(),
-      message: { role: "system", content: "System prompt", timestamp: 0 },
+      provider: "openai-codex",
+      modelId: "gpt-5.6-sol",
     },
     children: [{
       entry: {
-        type: "model_change",
-        id: "model-1",
-        parentId: "system-1",
-        timestamp: new Date(1).toISOString(),
-        provider: "openai-codex",
-        modelId: "gpt-5.6-sol",
-      },
-      children: [],
-    }, {
-      entry: {
         type: "thinking_level_change",
         id: "thinking-1",
-        parentId: "system-1",
-        timestamp: new Date(2).toISOString(),
+        parentId: "model-1",
+        timestamp: new Date(1).toISOString(),
         thinkingLevel: "high",
       },
-      children: [],
-    }, {
-      entry: {
-        type: "message",
-        id: "user-1",
-        parentId: "system-1",
-        timestamp: new Date(3).toISOString(),
-        message: { role: "user", content: [{ type: "text", text: "QuestionABC" }], timestamp: 3 },
-      },
-      label: "hello",
-      labelTimestamp: (() => {
-        const timestamp = new Date();
-        timestamp.setHours(14, 59, 0, 0);
-        return timestamp.toISOString();
-      })(),
       children: [{
         entry: {
           type: "message",
-          id: "assistant-1",
-          parentId: "user-1",
-          timestamp: new Date(4).toISOString(),
-          message: { role: "assistant", content: [{ type: "text", text: "ResponseXYZ" }], timestamp: 4 },
+          id: "system-1",
+          parentId: "thinking-1",
+          timestamp: new Date(2).toISOString(),
+          message: { role: "system", content: "System prompt", timestamp: 2 },
         },
         children: [{
           entry: {
-            type: "label",
-            id: "label-1",
-            parentId: "assistant-1",
-            timestamp: new Date(5).toISOString(),
-            targetId: "user-1",
-            label: "hello",
+            type: "message",
+            id: "user-1",
+            parentId: "system-1",
+            timestamp: new Date(3).toISOString(),
+            message: { role: "user", content: [{ type: "text", text: "QuestionABC" }], timestamp: 3 },
           },
-          children: [],
+          label: "hello",
+          labelTimestamp: (() => {
+            const timestamp = new Date();
+            timestamp.setHours(14, 59, 0, 0);
+            return timestamp.toISOString();
+          })(),
+          children: [{
+            entry: {
+              type: "message",
+              id: "assistant-1",
+              parentId: "user-1",
+              timestamp: new Date(4).toISOString(),
+              message: { role: "assistant", content: [{ type: "text", text: "ResponseXYZ" }], timestamp: 4 },
+            },
+            children: [{
+              entry: {
+                type: "label",
+                id: "label-1",
+                parentId: "assistant-1",
+                timestamp: new Date(5).toISOString(),
+                targetId: "user-1",
+                label: "hello",
+              },
+              children: [],
+            }],
+          }],
         }],
       }],
     }],
