@@ -8,63 +8,63 @@ const REVERSE_TABS = ["\u001b[Z", "\u001b[9;2u", "\u001b[27;2;9~"] as const;
 function tree() {
   return [{
     entry: {
-      type: "message",
-      id: "system-1",
+      type: "model_change",
+      id: "model-1",
       parentId: null,
       timestamp: new Date(0).toISOString(),
-      message: { role: "system", content: "System prompt", timestamp: 0 },
+      provider: "openai-codex",
+      modelId: "gpt-5.6-sol",
     },
     children: [{
       entry: {
-        type: "model_change",
-        id: "model-1",
-        parentId: "system-1",
-        timestamp: new Date(1).toISOString(),
-        provider: "openai-codex",
-        modelId: "gpt-5.6-sol",
-      },
-      children: [],
-    }, {
-      entry: {
         type: "thinking_level_change",
         id: "thinking-1",
-        parentId: "system-1",
-        timestamp: new Date(2).toISOString(),
+        parentId: "model-1",
+        timestamp: new Date(1).toISOString(),
         thinkingLevel: "high",
       },
-      children: [],
-    }, {
-      entry: {
-        type: "message",
-        id: "user-1",
-        parentId: "system-1",
-        timestamp: new Date(3).toISOString(),
-        message: { role: "user", content: [{ type: "text", text: "QuestionABC" }], timestamp: 3 },
-      },
-      label: "hello",
-      labelTimestamp: (() => {
-        const timestamp = new Date();
-        timestamp.setHours(14, 59, 0, 0);
-        return timestamp.toISOString();
-      })(),
       children: [{
         entry: {
           type: "message",
-          id: "assistant-1",
-          parentId: "user-1",
-          timestamp: new Date(4).toISOString(),
-          message: { role: "assistant", content: [{ type: "text", text: "ResponseXYZ" }], timestamp: 4 },
+          id: "system-1",
+          parentId: "thinking-1",
+          timestamp: new Date(2).toISOString(),
+          message: { role: "system", content: "System prompt", timestamp: 2 },
         },
         children: [{
           entry: {
-            type: "label",
-            id: "label-1",
-            parentId: "assistant-1",
-            timestamp: new Date(5).toISOString(),
-            targetId: "user-1",
-            label: "hello",
+            type: "message",
+            id: "user-1",
+            parentId: "system-1",
+            timestamp: new Date(3).toISOString(),
+            message: { role: "user", content: [{ type: "text", text: "QuestionABC" }], timestamp: 3 },
           },
-          children: [],
+          label: "hello",
+          labelTimestamp: (() => {
+            const timestamp = new Date();
+            timestamp.setHours(14, 59, 0, 0);
+            return timestamp.toISOString();
+          })(),
+          children: [{
+            entry: {
+              type: "message",
+              id: "assistant-1",
+              parentId: "user-1",
+              timestamp: new Date(4).toISOString(),
+              message: { role: "assistant", content: [{ type: "text", text: "ResponseXYZ" }], timestamp: 4 },
+            },
+            children: [{
+              entry: {
+                type: "label",
+                id: "label-1",
+                parentId: "assistant-1",
+                timestamp: new Date(5).toISOString(),
+                targetId: "user-1",
+                label: "hello",
+              },
+              children: [],
+            }],
+          }],
         }],
       }],
     }],
@@ -174,13 +174,18 @@ describe("bare-A1 session tree presentation", () => {
     component.handleInput?.("\x1b[H");
     expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("→ session");
     component.handleInput?.("\x1b[F");
-    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("→ assistant: ResponseXYZ");
+    const expandedFromDescendant = stripTerminalSequences(component.render(80).join("\n"));
+    expect(expandedFromDescendant).toContain("→ assistant: ResponseXYZ");
     component.handleInput?.("\x1b[D");
-    const collapsedTree = stripTerminalSequences(component.render(80).join("\n"));
-    expect(collapsedTree).toMatch(/→ .*session/u);
-    expect(collapsedTree).not.toContain("QuestionABC");
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toBe(expandedFromDescendant);
+
+    component.handleInput?.("\x1b[H");
+    const expandedAtRoot = stripTerminalSequences(component.render(80).join("\n"));
+    expect(expandedAtRoot).toContain("→ session");
+    component.handleInput?.("\x1b[D");
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toBe(expandedAtRoot);
     component.handleInput?.("\x1b[C");
-    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("QuestionABC");
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toBe(expandedAtRoot);
     component.handleInput?.("T");
     const timestampedRows = component.render(80);
     const timestampedFrame = timestampedRows.map(stripTerminalSequences).join("\n");
@@ -214,6 +219,129 @@ describe("bare-A1 session tree presentation", () => {
     const restored = component.render(80).map(stripTerminalSequences).join("\n");
     expect(restored).toContain("Session Tree");
     expect(restored).toContain("navigate");
+  });
+
+  it("folds the nearest eligible non-root branch and expands it in place", async () => {
+    const component = await createPiShellTreeSelector({
+      tree: [{
+        entry: {
+          type: "message",
+          id: "system-branch",
+          parentId: null,
+          timestamp: new Date(0).toISOString(),
+          message: { role: "system", content: "System prompt", timestamp: 0 },
+        },
+        children: [{
+          entry: {
+            type: "message",
+            id: "user-branch",
+            parentId: "system-branch",
+            timestamp: new Date(1).toISOString(),
+            message: { role: "user", content: [{ type: "text", text: "Branch A" }], timestamp: 1 },
+          },
+          children: [{
+            entry: {
+              type: "message",
+              id: "assistant-branch",
+              parentId: "user-branch",
+              timestamp: new Date(2).toISOString(),
+              message: { role: "assistant", content: [{ type: "text", text: "Nested response" }], timestamp: 2 },
+            },
+            children: [],
+          }],
+        }, {
+          entry: {
+            type: "message",
+            id: "user-sibling",
+            parentId: "system-branch",
+            timestamp: new Date(3).toISOString(),
+            message: { role: "user", content: [{ type: "text", text: "Branch B" }], timestamp: 3 },
+          },
+          children: [],
+        }],
+      }],
+      currentLeafId: "assistant-branch",
+      terminalHeight: 24,
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+      onLabelChange: vi.fn(),
+    });
+
+    component.handleInput?.("\x1b[D");
+    const collapsed = stripTerminalSequences(component.render(80).join("\n"));
+    expect(collapsed).toMatch(/→ .*user: Branch A/u);
+    expect(collapsed).not.toContain("Nested response");
+    expect(collapsed).toContain("user: Branch B");
+    expect(collapsed).toContain("session");
+
+    component.handleInput?.("\x1b[C");
+    const expanded = stripTerminalSequences(component.render(80).join("\n"));
+    expect(expanded).toMatch(/→ .*user: Branch A/u);
+    expect(expanded).toContain("assistant: Nested response");
+    expect(expanded).toContain("user: Branch B");
+  });
+
+  it("retains folding for a non-root branch exposed by filtering", async () => {
+    const component = await createPiShellTreeSelector({
+      tree: [{
+        entry: {
+          type: "message",
+          id: "system-filter",
+          parentId: null,
+          timestamp: new Date(0).toISOString(),
+          message: { role: "system", content: "System prompt", timestamp: 0 },
+        },
+        children: [{
+          entry: {
+            type: "message",
+            id: "user-filter-parent",
+            parentId: "system-filter",
+            timestamp: new Date(1).toISOString(),
+            message: { role: "user", content: [{ type: "text", text: "Visible parent" }], timestamp: 1 },
+          },
+          children: [{
+            entry: {
+              type: "message",
+              id: "assistant-filter",
+              parentId: "user-filter-parent",
+              timestamp: new Date(2).toISOString(),
+              message: { role: "assistant", content: [{ type: "text", text: "Hidden intermediary" }], timestamp: 2 },
+            },
+            children: [{
+              entry: {
+                type: "message",
+                id: "user-filter-child",
+                parentId: "assistant-filter",
+                timestamp: new Date(3).toISOString(),
+                message: { role: "user", content: [{ type: "text", text: "Visible child" }], timestamp: 3 },
+              },
+              children: [],
+            }],
+          }],
+        }],
+      }],
+      currentLeafId: "user-filter-child",
+      terminalHeight: 24,
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+      onLabelChange: vi.fn(),
+      initialFilterMode: "user-only",
+    });
+
+    const filtered = stripTerminalSequences(component.render(80).join("\n"));
+    expect(filtered).not.toContain("session");
+    expect(filtered).toContain("user: Visible parent");
+    expect(filtered).toContain("→ user: Visible child");
+
+    component.handleInput?.("\x1b[D");
+    const collapsed = stripTerminalSequences(component.render(80).join("\n"));
+    expect(collapsed).toMatch(/→ .*user: Visible parent/u);
+    expect(collapsed).not.toContain("Visible child");
+
+    component.handleInput?.("\x1b[C");
+    const expanded = stripTerminalSequences(component.render(80).join("\n"));
+    expect(expanded).toContain("→ user: Visible parent");
+    expect(expanded).toContain("user: Visible child");
   });
 
   it.each(REVERSE_TABS)("cycles filters backward for reverse Tab %j without advertising it", async reverseTab => {
