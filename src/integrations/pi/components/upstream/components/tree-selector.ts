@@ -6,10 +6,10 @@
  * Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation
  * excluding internal bookkeeping, standard search input, purple accent-backed menu-arrow selection
  * without path bullets, accent entry labels, bracketed timestamps, and plain label-time status,
- * semantic role colors with session naming for the system root, standard
- * paging/first-last/containing-branch folding keys, single-character ellipses on both clipped edges
- * with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic
- * shortcut footers without a redundant select hint.
+ * semantic role colors with session naming for the system root, standard paging/first-last/non-root
+ * containing-branch folding keys with a permanently expanded session root, single-character ellipses
+ * on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and
+ * Models-ordered semantic shortcut footers without a redundant select hint.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -169,6 +169,7 @@ class TreeList implements Component {
 	private showLabelTimestamps = false;
 	private visibleParentMap: Map<string, string | null> = new Map();
 	private visibleChildrenMap: Map<string | null, string[]> = new Map();
+	private persistedRootIds: Set<string> = new Set();
 	private lastSelectedId: string | null = null;
 	private foldedNodes: Set<string> = new Set();
 
@@ -230,6 +231,7 @@ class TreeList implements Component {
 	private flattenTree(roots: SessionTreeNode[]): FlatNode[] {
 		const result: FlatNode[] = [];
 		this.toolCallMap.clear();
+		this.persistedRootIds = new Set(roots.map((root) => root.entry.id));
 
 		// Indentation rules:
 		// - At indent 0: stay at 0 unless parent has >1 children (then +1)
@@ -1129,11 +1131,13 @@ class TreeList implements Component {
 	}
 
 	/**
-	 * Whether a node can be folded. A node is foldable if it has visible children
-	 * and is either a root (no visible parent) or a segment start (visible parent
-	 * has multiple visible children).
+	 * Whether a node can be folded. The persisted session root stays expanded;
+	 * other nodes are foldable when they have visible children and either appear
+	 * at the filtered root or begin a segment below a visible branch point.
 	 */
 	private isFoldable(entryId: string): boolean {
+		if (this.persistedRootIds.has(entryId)) return false;
+
 		const children = this.visibleChildrenMap.get(entryId);
 		if (!children || children.length === 0) return false;
 		const parentId = this.visibleParentMap.get(entryId);
