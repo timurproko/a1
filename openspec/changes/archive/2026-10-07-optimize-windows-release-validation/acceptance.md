@@ -18,7 +18,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-07-optimize-windows-release-validation/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-07-optimize-windows-release-validation/acceptance.md",
   "finalizedDate": "2026-10-07",
-  "specBaseSha": "8c2d639328f9b4d6d9ae8fe631479d687d2b7ecb",
+  "specBaseSha": "28ea6dcadef21d34625ad953871dbee24627341b",
   "acceptanceScenarios": [
     "Candidate and nightly validation reconstruct each Windows Node 22 and Node 24 lane only after its core, resource, rendering, and package shards pass.",
     "Development preview validation retains its three sequential Node 24 platform lanes without scheduling Windows shards.",
