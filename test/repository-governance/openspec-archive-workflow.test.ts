@@ -108,7 +108,8 @@ describe("trusted archive workflow wiring", () => {
     expect(config).toContain("docs/openspec-archive-automation.md");
     expect(docs).toContain("openspec-implementation");
     expect(docs).toContain("openspec-delivery");
-    expect(docs).toContain("authorized maintainer's manual merge");
+    expect(docs).toContain("An authorized maintainer chooses integration");
+    expect(docs).toContain("personally enabling GitHub native auto-merge");
     expect(docs).toContain("App credentials are unnecessary");
     expect(docs).toContain("--dry-run --pr <implementation-pr>");
   });

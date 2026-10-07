@@ -157,7 +157,7 @@ export async function verifyCleanupEvidence(reader, entry) {
   if (source.implementation?.version === 3 && source.implementation.change === entry.change) {
     // Protocol: an unmerged hand-off is reported, never acted on; closure alone grants no discard authority.
     if (source.disposition === "closed") return { disposition: "awaiting-discard", reason: "pr-closed-unmerged", sourcePr: source.pull.number };
-    if (["draft", "needs-finalization", "ready-for-manual-merge"].includes(source.disposition)) return { disposition: "pending", reason: "pr-open", sourcePr: source.pull.number };
+    if (["draft", "needs-finalization", "ready-for-maintainer-integration"].includes(source.disposition)) return { disposition: "pending", reason: "pr-open", sourcePr: source.pull.number };
   }
   if (source.disposition !== "eligible" || source.implementation.change !== entry.change) fail("source-association");
   if (source.implementation.version === 3) {

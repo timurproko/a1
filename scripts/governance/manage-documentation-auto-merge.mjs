@@ -4,6 +4,8 @@ import { inspectDocumentationLifecycle } from "./documentation-lifecycle.mjs";
 import { classifyReleaseReopening } from "./release-reopening-auto-merge.mjs";
 import { executeMergedBranchCleanup } from "./execute-merged-branch-cleanup.mjs";
 import { readArchiveMarker, archiveAuthorityCurrent } from "./openspec-archive-publication.mjs";
+import { parseImplementation } from "./openspec-archive-policy.mjs";
+import { assertHumanAutoMergeArm } from "./openspec-acceptance-policy.mjs";
 
 class GitHubGraphQLError extends Error {
   constructor(status, body) {
@@ -185,6 +187,10 @@ async function isTrustedEligible(pull) {
           ? "the pull request is a draft"
           : `the base branch is ${pull.base?.ref ?? "unknown"}, not develop`
       : classification.reason;
+    if (await preserveHumanImplementationArm(pull)) {
+      await summary(`PR #${number}: preserved authorized human auto-merge for the exact finalized implementation head; documentation automation remains ineligible.`);
+      return false;
+    }
     await disableIfArmed(pull, reason);
     await summary(`PR #${number}: auto-merge not eligible — ${reason}.`);
     return false;
@@ -192,6 +198,10 @@ async function isTrustedEligible(pull) {
   try {
     const lifecycle = await inspectDocumentationLifecycle(pull, files, { prefix: `/repos/${repositoryName}`, get: rest });
     if (lifecycle.held) {
+      if (await preserveHumanImplementationArm(pull)) {
+        await summary(`PR #${number}: preserved authorized human auto-merge for the exact finalized implementation head; documentation automation remains ineligible.`);
+        return false;
+      }
       await disableIfArmed(pull, lifecycle.reason);
       await summary(`PR #${number}: manual implementation hold (${lifecycle.reason}).`);
       return false;
@@ -201,6 +211,37 @@ async function isTrustedEligible(pull) {
     throw error;
   }
   return "documentation allowlist";
+}
+
+async function preserveHumanImplementationArm(pull) {
+  if (!pull.auto_merge || pull.state !== "open" || pull.draft !== false
+    || pull.base?.ref !== "develop" || pull.head?.repo?.full_name !== repositoryName
+    || (event.pull_request && ["edited", "synchronize", "converted_to_draft"].includes(event.action))) return false;
+  let implementation;
+  try { implementation = parseImplementation(pull.body ?? ""); }
+  catch { return false; }
+  if (implementation?.version !== 3 || !implementation.archive || !implementation.acceptanceManifest) return false;
+  const actor = pull.auto_merge?.enabled_by;
+  if (actor?.type !== "User" || !/^[a-zA-Z0-9-]{1,39}$/.test(actor.login ?? "")) return false;
+  try {
+    const [permission, events] = await Promise.all([
+      rest(`/repos/${owner}/${repository}/collaborators/${actor.login}/permission`),
+      timelineEvents(pull.number),
+    ]);
+    assertHumanAutoMergeArm(pull, permission.permission, events);
+    return true;
+  } catch { return false; }
+}
+
+async function timelineEvents(number) {
+  const events = [];
+  for (let page = 1; ; page += 1) {
+    if (page > 10) throw new Error("timeline response exceeded policy limit");
+    const batch = await rest(`/repos/${owner}/${repository}/issues/${number}/timeline?per_page=100&page=${page}`);
+    if (!Array.isArray(batch)) throw new Error("timeline response was not an array");
+    events.push(...batch);
+    if (batch.length < 100) return events;
+  }
 }
 
 async function readFileAt(path, ref) {
