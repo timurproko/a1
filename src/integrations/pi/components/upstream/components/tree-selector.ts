@@ -6,10 +6,11 @@
  * Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation
  * excluding internal bookkeeping, standard search input, blue item-bounded menu-arrow selection that
  * preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed
- * timestamps, and plain label-time status, semantic role colors with session naming for the system
- * root, standard paging/first-last/non-root containing-branch folding keys with a permanently expanded
- * system session entry even behind hidden metadata, single-character ellipses on both clipped edges
- * with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic
+ * timestamps, numeric result counters without duplicate label-time status, and a stateful time on/off
+ * shortcut, semantic role colors with session naming for the system root, standard
+ * paging/first-last/non-root containing-branch folding keys with a permanently expanded system session
+ * entry even behind hidden metadata, single-character ellipses on both clipped edges with
+ * bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic
  * Type/search shortcut footers without a redundant select hint.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
@@ -660,6 +661,10 @@ class TreeList implements Component {
 		return this.filterMode;
 	}
 
+	isLabelTimestampVisible(): boolean {
+		return this.showLabelTimestamps;
+	}
+
 	getSelectedNode(): SessionTreeNode | undefined {
 		return this.filteredNodes[this.selectedIndex]?.node;
 	}
@@ -684,17 +689,11 @@ class TreeList implements Component {
 		}
 	}
 
-	private getStatusLabels(): string {
-		return this.showLabelTimestamps ? " label time" : "";
-	}
-
 	render(width: number): string[] {
 		const lines: string[] = [];
 
 		if (this.filteredNodes.length === 0) {
 			lines.push(truncateToWidth(theme.fg("muted", "  No entries found"), width));
-			const status = this.getStatusLabels().trim();
-			if (status) lines.push(truncateToWidth(theme.fg("muted", `  ${status}`), width));
 			return lines;
 		}
 
@@ -781,10 +780,7 @@ class TreeList implements Component {
 
 		lines.push(...renderHorizontalViewport(renderedRows, width));
 		lines.push(
-			truncateToWidth(
-				theme.fg("muted", `  (${this.selectedIndex + 1}/${this.filteredNodes.length})${this.getStatusLabels()}`),
-				width,
-			),
+			truncateToWidth(theme.fg("muted", `  (${this.selectedIndex + 1}/${this.filteredNodes.length})`), width),
 		);
 
 		return lines;
@@ -1235,13 +1231,22 @@ class TreeFilter implements Component {
 
 /** Component that renders tree help as semantic rows with chunk-aware wrapping */
 class TreeHelp implements Component {
+	private readonly treeList: TreeList;
+
+	constructor(treeList: TreeList) {
+		this.treeList = treeList;
+	}
+
 	invalidate(): void {}
 
 	render(width: number): string[] {
 		const items = [
 			...TREE_HELP_ITEMS.map(({ keys, label, labelFirst, displayKey }) => {
 				const key = displayKey ?? formatHelpKeys(keys);
-				return renderPiModalShortcutHints([key ? { key, action: label, ...(labelFirst === undefined ? {} : { actionFirst: labelFirst }) } : { action: label }]);
+				const action = keys.includes("app.tree.toggleLabelTimestamp")
+					? `time (${this.treeList.isLabelTimestampVisible() ? "on" : "off"})`
+					: label;
+				return renderPiModalShortcutHints([key ? { key, action, ...(labelFirst === undefined ? {} : { actionFirst: labelFirst }) } : { action }]);
 			}),
 			renderPiModalShortcutHints([DIALOG_CLOSE_SHORTCUT_HINT]),
 		];
@@ -1285,7 +1290,7 @@ const TREE_HELP_ITEMS: Array<{ keys: Keybinding[]; label: string; labelFirst?: b
 	{ keys: ["owned.tree.collapse", "owned.tree.expand"], label: "branch" },
 	{ keys: ["app.message.copy"], label: "copy" },
 	{ keys: ["app.tree.editLabel"], label: "label" },
-	{ keys: ["app.tree.toggleLabelTimestamp"], label: "label time" },
+	{ keys: ["app.tree.toggleLabelTimestamp"], label: "time" },
 ];
 
 function formatHelpKeys(keybindings: Keybinding[]): string {
@@ -1386,7 +1391,7 @@ export class TreeSelectorComponent extends Container implements Focusable {
 	private readonly treeContainer = new Container();
 	private readonly labelInputContainer = new Container();
 	private readonly footerContainer = new Container();
-	private readonly treeHelp = new TreeHelp();
+	private readonly treeHelp: TreeHelp;
 	private labelInput: LabelInput | null = null;
 	private onLabelChangeCallback: ((entryId: string, label: string | undefined) => void) | undefined;
 	public onCopy?: (text: string | undefined) => void;
@@ -1424,6 +1429,7 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		this.treeList.onLabelEdit = (entryId, currentLabel) => this.showLabelInput(entryId, currentLabel);
 		this.searchInput = new TreeSearchInput(this.treeList);
 		this.treeFilter = new TreeFilter(this.treeList);
+		this.treeHelp = new TreeHelp(this.treeList);
 		this.titleText = new Text(theme.fg("accent", theme.bold("Session Tree")), 0, 0);
 		this.restoreTreeContent();
 
