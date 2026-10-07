@@ -2511,6 +2511,7 @@
           "kind": "interface",
           "hash": "f935798786a5493267d7434d04e2d1ccb466b65832b1f7f4e28ecd976cffe7c5",
           "consumers": [
+            "src/integrations/pi/components/lazy-selectors.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts"
           ]

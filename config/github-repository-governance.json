@@ -292,7 +292,7 @@
       "triggers": ["schedule", "workflow_call"],
       "permissions": ["actions: read", "contents: read", "contents: write", "id-token: write"],
       "trustedSource": "authoritative-develop",
-      "authority": ["npm-next", "npm-latest", "master-fast-forward"],
+      "authority": ["complete-regression", "master-fast-forward", "npm-latest", "npm-next"],
       "concurrency": "a1-registry-publication",
       "environments": ["npm-publish"],
       "artifactRetentionDays": [1, 30]

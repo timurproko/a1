@@ -16,7 +16,7 @@ export const EXACT_PACKAGE_PREPARATION_ENV = Object.freeze({
   consumer: "VALIDATION_EXACT_PACKAGE_CONSUMER",
 });
 
-const ALLOWED_CONSUMERS = new Set(["package-contracts", "package-startup"]);
+const ALLOWED_CONSUMERS = new Set(["package-contracts", "package-startup", "update-predecessor"]);
 const MAX_FILES = 16_384;
 const MAX_BYTES = 512 * 1024 * 1024;
 const MAX_PATH = 4_096;

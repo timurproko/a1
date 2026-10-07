@@ -40,7 +40,7 @@ export interface ExactPackagePreparationEvidence {
   prefix?: string;
   installedIdentity?: Record<string, unknown>;
   phases?: { installMs: number; installedIdentityMs: number };
-  consumers: Array<"package-startup" | "package-contracts">;
+  consumers: Array<"package-startup" | "package-contracts" | "update-predecessor">;
   cleanup: null | { status: "passed" | "deferred" | "failed"; durationMs?: number; error: string | null };
 }
 
@@ -67,7 +67,7 @@ export interface ValidationPlan {
     id: "exact-package-preparation";
     count: 1;
     policy: string;
-    consumers: Array<"package-startup" | "package-contracts">;
+    consumers: Array<"package-startup" | "package-contracts" | "update-predecessor">;
   };
   commands: ValidationCommandPlan[];
   vitest: null | {
@@ -81,7 +81,7 @@ export const EXACT_PACKAGE_HANDOFF_SCHEMA: "a1-exact-package-handoff-v1";
 
 export interface ExactPackageHandoff {
   schema: "a1-exact-package-handoff-v1";
-  consumers: Array<"package-startup" | "package-contracts">;
+  consumers: Array<"package-startup" | "package-contracts" | "update-predecessor">;
   root: string;
   prefix: string;
   packageRoot: string;
