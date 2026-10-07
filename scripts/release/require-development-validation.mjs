@@ -17,6 +17,15 @@ export function requireDevelopmentValidation(value) {
   } else if (value.implementationBound === "false") {
     requireSkipped(value.deliveryResult, "finalized delivery validation");
   } else throw new Error("implementation-bound routing result is missing");
+  if (value.releaseReopening === "true") {
+    if (value.implementationBound !== "false") throw new Error("release reopening must not be implementation-bound");
+    if (value.namingRequired !== "false") throw new Error("release reopening must not require naming validation");
+    if (value.docsOnly !== "false" || value.versionOnly !== "false") throw new Error("release reopening must use its dedicated route");
+    if (value.documentationRequired !== "false" || value.renderingTier !== "none") throw new Error("release reopening selected an unexpected generic lane");
+    requireGenericLanesSkipped(value);
+    return { mode: "release-reopening" };
+  }
+  if (value.releaseReopening !== "false") throw new Error("release-reopening routing result is missing");
   if (value.namingRequired === "true") {
     requireResult(value.namingResult, "internal naming validation");
     if (value.namingHead !== value.expectedHead) throw new Error("naming validation result is stale or missing its head");
@@ -78,6 +87,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     renderingResult: "RENDERING_RESULT",
     docsOnly: "DOCS_ONLY",
     versionOnly: "VERSION_ONLY",
+    releaseReopening: "RELEASE_REOPENING",
     openspecTouched: "OPENSPEC_TOUCHED",
     documentationRequired: "DOCUMENTATION_REQUIRED",
     renderingTier: "RENDERING_TIER",

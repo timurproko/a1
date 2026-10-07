@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyCurrentDevelopmentValidationReadiness,
+  classifyCurrentReleaseReopeningValidationRoute,
   classifyDevelopmentValidationReadiness,
   classifyDevelopmentValidationReadinessFromRepository,
+  classifyReleaseReopeningValidationRoute,
 } from "../../scripts/release/development-validation-readiness.mjs";
 
 function implementation(value: object): string {
@@ -80,6 +82,62 @@ describe("development validation readiness", () => {
     };
     await expect(classifyDevelopmentValidationReadinessFromRepository({ eventName: "pull_request", pull, reader }))
       .resolves.toEqual({ validate: false, reason: "missing-implementation-association", errorCode: "missing-implementation-association", changes: ["example-change"] });
+  });
+
+  it("selects an exact current-head post-publication reopening", async () => {
+    const base = "b".repeat(40), head = "a".repeat(40);
+    const installerManifest = ["packages", "a1-install", "package.json"].join("/");
+    const note = "## [0.2.5] - 2026-10-07\n\n### Fixed\n\n- Example.\n";
+    const manifests = (version: string) => ({
+      "package.json": JSON.stringify({ name: "@timurproko/a1", version }),
+      "package-lock.json": JSON.stringify({ name: "@timurproko/a1", version, packages: { "": { name: "@timurproko/a1", version } } }),
+      [installerManifest]: JSON.stringify({ name: "@timurproko/a1-install", version }),
+    });
+    const content = { [base]: manifests("0.2.5-dev"), [head]: { ...manifests("0.2.6-dev"), "docs/releases/0.2.5.md": note } };
+    const pull = {
+      number: 706, changed_files: 4, draft: false, body: "Reopens development.",
+      user: { login: "openspec-ci[bot]", id: 329165293, type: "Bot" },
+      base: { ref: "develop", sha: base },
+      head: { ref: "chore/release-0.2.6-dev", sha: head, repo: { full_name: "owner/repo" } },
+    };
+    const reader = {
+      repository: "owner/repo", prefix: "/repos/owner/repo",
+      async pages() {
+        return [
+          { filename: "docs/releases/0.2.5.md", status: "added" },
+          { filename: "package-lock.json", status: "modified" },
+          { filename: "package.json", status: "modified" },
+          { filename: installerManifest, status: "modified" },
+        ];
+      },
+      async get(path: string) {
+        if (path.endsWith("/releases/tags/v0.2.5")) return { tag_name: "v0.2.5", draft: false, prerelease: false, body: note };
+        const match = /\/contents\/(.+)\?ref=([a-f0-9]{40})$/u.exec(path);
+        if (!match) throw new Error(path);
+        const value = (content as Record<string, Record<string, string>>)[match[2]!]?.[decodeURIComponent(match[1]!)];
+        if (value === undefined) throw new Error(path);
+        return { type: "file", encoding: "base64", content: Buffer.from(value).toString("base64") };
+      },
+    };
+    await expect(classifyCurrentReleaseReopeningValidationRoute({
+      eventName: "pull_request", pull, reader, expectedNumber: 706, expectedHead: head, expectedBase: base,
+    })).resolves.toMatchObject({ selected: true, reason: "verified release reopening 0.2.5 -> 0.2.6-dev" });
+    await expect(classifyCurrentReleaseReopeningValidationRoute({
+      eventName: "pull_request", pull, reader, expectedNumber: 706, expectedHead: "c".repeat(40), expectedBase: base,
+    })).rejects.toMatchObject({ archiveCode: "association-event-drift" });
+  });
+
+  it("grants no reopening route to lookalikes or unavailable evidence", async () => {
+    const branch = { head: { ref: "feature/ordinary" } };
+    await expect(classifyReleaseReopeningValidationRoute({ eventName: "pull_request", pull: branch, reader: {} }))
+      .resolves.toEqual({ selected: false, reason: "not-release-reopening" });
+    const lookalike = { number: 8, changed_files: 5, head: { ref: "chore/release-0.2.6-dev" } };
+    await expect(classifyReleaseReopeningValidationRoute({ eventName: "pull_request", pull: lookalike, reader: {} }))
+      .resolves.toEqual({ selected: false, reason: "reopening PR must change exactly four files" });
+    const unavailable = { ...lookalike, changed_files: 4 };
+    await expect(classifyReleaseReopeningValidationRoute({
+      eventName: "pull_request", pull: unavailable, reader: { async pages() { throw new Error("unavailable"); } },
+    })).resolves.toEqual({ selected: false, reason: "release-reopening verification unavailable" });
   });
 
   it("preserves non-pull-request dispatch", () => {
