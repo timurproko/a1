@@ -1924,6 +1924,19 @@ export class OwnedUiSessionShell {
     let armedAt = 0;
     const removeInterruptWatch = this.runtime.addInputListener(data => {
       if (!data.includes(INTERRUPT)) return undefined;
+      // Protocol: route hosts decide whether one interrupt closes their app. Raw-input forwarding
+      // is required because Pi handles Ctrl+C before the fullscreen overlay receives normal input.
+      const consumedBySurface = surface.handleInput(INTERRUPT);
+      if (surface.isClosed()) {
+        armedAt = 0;
+        closeSurface();
+        return { consume: true };
+      }
+      if (consumedBySurface) {
+        armedAt = 0;
+        this.runtime.requestRender();
+        return { consume: true };
+      }
       const now = Date.now();
       if (armedAt !== 0 && now - armedAt <= INTERRUPT_CHORD_MS) {
         armedAt = 0;

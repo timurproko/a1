@@ -176,6 +176,14 @@ describe("owned pinned session selector", () => {
     expect(renameRules).toEqual([standardRule, standardRule]);
     expect(stripPortableTerminalSequences(renameHint)).toContain("Enter to save  Esc close");
     expect(firstVisibleTextColumn(renameHint)).toBe(firstVisibleTextColumn(renameHeading));
+    expect(stripPortableTerminalSequences(renameHint)).not.toContain("Ctrl+C");
+    input("discarded rename");
+    input("\u0003");
+    expect(frame()).toContain("Resume Session");
+    expect(frame()).not.toContain("Rename Session");
+    expect(renamed).toEqual([]);
+    expect(cancelled).toBe(0);
+    input("\x12");
     input("Renamed session");
     input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));

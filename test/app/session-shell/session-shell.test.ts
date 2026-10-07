@@ -262,6 +262,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
         const loading = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
         expect(loading).toContain(" Share");
         expect(loading).toContain(" Esc close");
+        expect(loading.join("\n")).not.toContain("Ctrl+C");
       });
       resolveShare?.({
         command: "share",

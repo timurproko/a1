@@ -90,6 +90,7 @@ describe("Pi shell public component adapters", () => {
       expect(rows[titleRow]).toContain(piTheme().fg("accent", piTheme().bold("Share")));
       expect(rows[hintRow]).toContain(piTheme().fg("dim", "Esc"));
       expect(rows[hintRow]).toContain(piTheme().fg("muted", "close"));
+      expect(plainRows.join("\n")).not.toContain("Ctrl+C");
       expect(dialog.render(12).every(row => visibleWidth(row) <= 12)).toBe(true);
     } finally {
       dialog.dispose?.();
@@ -955,19 +956,25 @@ describe("Pi shell public component adapters", () => {
     auth.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("oauth:openai");
 
+    const loginComplete = vi.fn();
     const login = createPiShellLoginDialog(
       { getColumns: () => 80, getRows: () => 24, requestRender: vi.fn() },
       "openai",
-      vi.fn(),
+      loginComplete,
     );
+    login.showInfo("Continue in your browser", [], true);
     const loginRows = login.render(80).map(stripTerminalSequences);
     expect(loginRows[1]?.trimEnd()).toBe(" Login to openai");
     expect(loginRows.join("\n")).toContain("Esc close");
+    expect(loginRows.join("\n")).not.toContain("Ctrl+C");
     login.showWaiting("Waiting for authentication");
     const waitingRows = stripTerminalSequences(login.render(80).join("\n"));
     expect(waitingRows).toContain("Waiting for authentication");
     expect(waitingRows).toContain("Esc close");
+    expect(waitingRows).not.toContain("Ctrl+C");
     expect(waitingRows).not.toContain("to cancel");
+    login.handleInput?.("\u0003");
+    expect(loginComplete).toHaveBeenCalledExactlyOnceWith(false, "Login cancelled");
 
     const unconfigured = createPiShellAuthProviderSelector("login", [{
       id: "api_key:anthropic",

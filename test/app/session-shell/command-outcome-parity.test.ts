@@ -86,18 +86,21 @@ function verify(actual: Capture, expected: Capture): void {
       reduceContentWidth: expected.id.includes("/tree/"),
       omitTrustSavedMarker: expected.id.includes("/trust/"),
       omitHintRow: settingsHintException,
-    });
+    }).replace(/(esc(?:ape)?)\/ctrl\+c(?=(?:to)?(?:close|cancel))/gu, "$1");
     if (expected.id.includes("/login/")) {
       // Compatibility: bare A1 adds canonical login-selector guidance and replaces Pi's implicit Ctrl+C alias.
       actualText = actualText.replace("↑↓navigateenterselectescclose", "").replace("escclose", "");
       expectedText = expectedText
         .replace("↑↓navigateenterselectescape/ctrl+ccancel", "")
-        .replace("(escape/ctrl+ctoclose)", "");
-    } else if (/\/(scoped-models|trust|resume|thinking|model)\//u.test(expected.id)) {
+        .replace("↑↓navigateenterselectescapecancel", "")
+        .replace("(escape/ctrl+ctoclose)", "")
+        .replace("(escapetoclose)", "");
+    } else if (/\/(scoped-models|trust|resume|thinking|model)\//u.test(expected.id) && actualText.includes("escclose")) {
       // Compatibility: bare A1 adds or replaces these selectors' final guidance with the canonical close hint.
       actualText = actualText.replace("escclose", "");
       expectedText = expectedText
         .replace("escape/ctrl+ccancel", "")
+        .replace("escapecancel", "")
         .replace("esccancel", "")
         .replace("escapetocancel", "");
     }

@@ -38,9 +38,10 @@ const INTERRUPT = "";
 const INTERRUPT_CHORD_MS = 1_500;
 
 /**
- * Presents at most one app. Input reaches the presented app first; anything it
- * does not consume continues to the caller. A failure while rendering or
- * handling input closes the app rather than leaving a broken surface on screen.
+ * Presents at most one app. An opted-in interrupt closes at the host boundary;
+ * other input reaches the presented app first and anything it does not consume
+ * continues to the caller. A failure while rendering or handling input closes
+ * the app rather than leaving a broken surface on screen.
  */
 export class UiAppHost {
   readonly #registry: UiAppRegistry;
@@ -109,6 +110,10 @@ export class UiAppHost {
   handleInput(data: string): PaneInputResult {
     const app = this.#app;
     if (app === null) return { consumed: false };
+    if (data === INTERRUPT && this.#closeOnInterrupt) {
+      this.close();
+      return { consumed: true, render: true };
+    }
 
     const result = this.#guard(() => app.onInput?.(data, this.#services())) ?? { consumed: false };
     if (this.#app === null) return { consumed: true, render: true };
@@ -128,7 +133,7 @@ export class UiAppHost {
     return result;
   }
 
-  // Protocol: two interrupts within the chord window leave A1 from every screen.
+  // Protocol: a non-opted-in host preserves the two-interrupt application exit chord.
   #interrupt(): PaneInputResult {
     const now = Date.now();
     const armed = this.#interruptArmedAt;

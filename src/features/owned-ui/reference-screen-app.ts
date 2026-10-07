@@ -102,8 +102,8 @@ export interface ReferenceScreenOptions {
  * Presents one read-only document full screen between two accent rules: the bold
  * title leads the scrolled rows, the shared scrollbar rail runs beside them, and
  * the hint line closes the frame. Rows come from a provider per content width and
- * are cached until the width changes; the screen closes on Escape and leaves the
- * interrupt chord to its host.
+ * are cached until the width changes; Escape closes locally, while an opted-in
+ * host closes on Ctrl+C before dispatching it into the screen.
  */
 export class ReferenceScreenApp implements UiApp {
   readonly id: string;

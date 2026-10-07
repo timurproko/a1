@@ -39,7 +39,7 @@ class FakeSurface implements UiRouteSurface {
   }
   handleInput(data: string): boolean {
     this.inputs.push(data);
-    if (data === ESC) this.close();
+    if (data === ESC || data === "\u0003") this.close();
     return true;
   }
   handleMouse(): boolean { this.mouse.push(1); return true; }
@@ -130,6 +130,23 @@ describe("bare A1 reference command screens", () => {
     // Invariant: the custom viewport keeps its own pointer reporting after the screen closes.
     expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(false);
     expect(feed(shell)).toBe(before);
+    await shell.dispose();
+  });
+
+  it.each(["settings", "session", "changelog", "hotkeys"])("closes the /%s fullscreen route on one Ctrl+C", async route => {
+    const { shell, terminal, routes, adapter } = await shellFixture({ customViewport: true });
+    shell.start();
+    shell.root.editor.setText(`/${route}`);
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(shell.runtime.hasOverlay()).toBe(true);
+
+    terminal.input("\u0003");
+
+    expect(routes!.surfaces[0]!.inputs).toContain("\u0003");
+    expect(routes!.surfaces[0]!.isClosed()).toBe(true);
+    expect(shell.runtime.hasOverlay()).toBe(false);
+    expect(adapter.view().lifecycle).not.toBe("stopped");
     await shell.dispose();
   });
 

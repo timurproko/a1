@@ -365,7 +365,7 @@ describe("ReferenceScreenApp scrolling", () => {
 });
 
 describe("ReferenceScreenApp in the app host", () => {
-  it("renders through the host, closes on Escape, and exits on the interrupt chord", () => {
+  it("renders through the host and closes on either Ctrl+C or Escape", () => {
     const registry = new UiAppRegistry();
     registry.register({
       id: "reference",
@@ -384,13 +384,12 @@ describe("ReferenceScreenApp in the app host", () => {
     expect(frame![1]?.startsWith(" Hosted")).toBe(true);
     expect(frame![2]?.startsWith("hosted row")).toBe(true);
     expect(frame![RECT.height - 2]).toBe(RULE);
-    expect(host.handleInput(INTERRUPT)).toEqual({ consumed: true, render: true });
-    expect(host.isPresenting).toBe(true);
-    host.render();
-    expect(frame!.at(-1)).toContain("press ctrl+c again to exit a1");
+    expect(frame!.at(-1)).toContain("Esc close");
+    expect(frame!.at(-1)).not.toContain("Ctrl+C");
     expect(host.handleInput(INTERRUPT)).toEqual({ consumed: true, render: true });
     expect(host.isPresenting).toBe(false);
-    expect(exit).toHaveBeenCalledTimes(1);
+    expect(frame).toBeNull();
+    expect(exit).not.toHaveBeenCalled();
 
     host.open("reference");
     expect(host.handleInput(ESC).consumed).toBe(true);

@@ -122,6 +122,17 @@ for (const platform of ["darwin", "win32", "linux"] as const) {
   });
 }
 
+it("closes immediately on Ctrl+C without clearing a populated search or advertising the alias", () => {
+  withSelector("linux", { "tui.select.cancel": "escape" }, (selector, callbacks, keys) => {
+    for (const character of "Second") selector.handleInput(character);
+    selector.handleInput("\u0003");
+    expect(callbacks.onCancel).toHaveBeenCalledOnce();
+    expect(selector.getSearchInput().getValue()).toBe("Second");
+    expect(keys.getKeys("tui.select.cancel")).toEqual(["escape"]);
+    expect(text(selector)).not.toContain("Ctrl+C");
+  });
+});
+
 it("restores the platform and binding owner after a failing assertion", () => {
   const platform = Object.getOwnPropertyDescriptor(process, "platform");
   const keys = getKeybindings();

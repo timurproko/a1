@@ -1,5 +1,6 @@
 import {
   hyperlink,
+  matchesKey,
   setKeybindings,
   visibleWidth,
   truncateToWidth,
@@ -318,6 +319,17 @@ export function componentPort(component: Component, handleInput?: (data: string)
     invalidate: () => component.invalidate(),
     ...("focused" in focusable ? { setFocused: (focused: boolean) => { focusable.focused = focused; } } : {}),
     ...(typeof disposable.dispose === "function" ? { dispose: () => disposable.dispose?.() } : {}),
+  };
+}
+
+/** Gives an extension-hosted dialog the shell's implicit close alias without rewriting its component. */
+export function withPiDialogCancel(port: PiShellComponentPort, onCancel: () => void): PiShellComponentPort {
+  return {
+    ...port,
+    handleInput: data => {
+      if (matchesKey(data, "ctrl+c")) onCancel();
+      else port.handleInput?.(data);
+    },
   };
 }
 

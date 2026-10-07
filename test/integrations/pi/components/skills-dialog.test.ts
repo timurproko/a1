@@ -92,6 +92,7 @@ describe("the Skills dialog", () => {
     const { component } = dialog();
     const footer = component.render(80).map(row => stripTerminalSequences(row).trim()).find(row => row.includes("navigate"));
     expect(footer).toBe("↑↓ navigate  Enter select  Esc close");
+    expect(footer).not.toContain("Ctrl+C");
   });
 
   it("wraps the selection, shows the selected description, and applies with Enter", () => {
@@ -135,9 +136,10 @@ describe("the Skills dialog", () => {
     expect(semantic(component.render(80))[5]).toBe(" <muted>  No matching skills</>");
   });
 
-  it("cancels on Escape without selecting", () => {
-    const { component, onSelect, onCancel } = dialog();
-    component.handleInput?.(ESC);
+  it.each([ESC, "\u0003"])("cancels on %j without selecting or clearing a populated search", key => {
+    const { component, onSelect, onCancel, type } = dialog();
+    type("review");
+    component.handleInput?.(key);
     expect(onCancel).toHaveBeenCalledOnce();
     expect(onSelect).not.toHaveBeenCalled();
   });

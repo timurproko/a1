@@ -129,8 +129,8 @@ describe("unified Models dialog", () => {
     });
   });
 
-  it("filters by search while keeping catalog order and retains the selection where the row survives", () => {
-    withDialog(dialog => {
+  it("filters by search, retains surviving selection, and closes immediately on Ctrl+C", () => {
+    withDialog((dialog, callbacks) => {
       for (const character of "mini") dialog.handleInput(character);
       expect(rows(dialog)).toEqual([" → ○ gpt-5-mini [openai]"]);
       expect(dialog.selectedModelId).toBe(ids.mini);
@@ -139,9 +139,9 @@ describe("unified Models dialog", () => {
       for (const character of "nothing here") dialog.handleInput(character);
       expect(text(dialog)).toContain("  No matching models");
       dialog.handleInput("\u0003");
-      expect(dialog.query).toBe("");
-      expect(rows(dialog)).toHaveLength(3);
-      dialog.handleInput("\u0003");
+      expect(callbacks.onCancel).toHaveBeenCalledOnce();
+      expect(dialog.query).toBe("nothinghere");
+      expect(callbacks.onSelect).not.toHaveBeenCalled();
     }, { initialQuery: "" });
   });
 
