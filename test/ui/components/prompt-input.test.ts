@@ -29,6 +29,7 @@ describe("shared prompt input presentation", () => {
     expect(cellStyle(search[1]!, "e").faint).toBe(true);
     expect(cellStyle(search[2]!, "─")).toEqual({ foreground: "154;160;166", faint: false });
     expect(renderInputRow(new LineInput("hello"), 20, { ruled: false, theme }).lines).toHaveLength(1);
+    expect(stripAnsi(renderInputRow(new LineInput("model"), 20, { ruled: false, promptGlyph: "> ", theme }).lines[0] ?? "").trimEnd()).toBe("> model");
   });
 
   it("retains semantic annotations and aligns continuation and menu rows", () => {

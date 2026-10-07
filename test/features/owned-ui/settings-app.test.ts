@@ -450,6 +450,8 @@ describe("the settings screen", () => {
   it("steps to the next value on enter", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Thinking level");
+    target.onInput?.(SPACE, HOST);
+    expect(writes).toEqual([]);
     target.onInput?.(ENTER, HOST);
     expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
   });
@@ -601,17 +603,22 @@ describe("the settings screen", () => {
     expect(find(target, "Unknown tools")).toContain("false");
     expect(find(target, "Warnings")).toContain("Warnings");
     expect(find(target, "Warn when Anthropic subscription auth may use paid extra usage")).not.toBe("");
-    const dialogHint = find(target, "Enter/Space change");
+    const dialogHint = find(target, "Enter change");
     expect(dialogHint).toContain("Ctrl+Z undo");
     expect(dialogHint).toContain("Esc close");
+    expect(dialogHint).not.toContain("Space");
     expect(dialogHint).not.toContain(" to ");
     const rendered = target.render({ width: 200, height: 24 }, NAMING_HOST);
-    const styledHint = rendered.find(line => line.includes("Enter/Space")) ?? "";
+    const styledHint = rendered.find(line => line.includes("<dim>Enter</dim>")) ?? "";
     const title = rendered.find(line => line.includes("Settings")) ?? "";
     expect(firstVisibleTextColumn(styledHint)).toBe(firstVisibleTextColumn(title));
     expect(styledHint).not.toBe("");
 
     target.onInput?.(SPACE, HOST);
+    expect(find(target, "Anthropic extra usage")).toContain("true");
+    expect(writes).toHaveLength(0);
+
+    target.onInput?.(ENTER, HOST);
     expect(find(target, "Anthropic extra usage")).toContain("false");
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
     await settleChanges();
@@ -622,7 +629,7 @@ describe("the settings screen", () => {
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: true, unknownTools: false } });
 
     // Invariant: a further press steps from what the restored dialog shows.
-    target.onInput?.(SPACE, HOST);
+    target.onInput?.(ENTER, HOST);
     expect(find(target, "Anthropic extra usage")).toContain("false");
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
   });
@@ -659,7 +666,7 @@ describe("the settings screen", () => {
     expect(shown).toContain("gpt-5.3-codex-spark [openai]");
     expect(shown).toContain("Type search · Enter select · Esc back");
     expect(shown).not.toContain("Ctrl+Z undo");
-    expect(shown).not.toContain("Enter/Space change");
+    expect(shown).not.toContain("Enter change");
 
     for (const character of "spark") target.onInput?.(character, HOST);
     shown = screen(target).join("\n");
@@ -678,6 +685,9 @@ describe("the settings screen", () => {
     expect(shown).not.toContain("Thinking Level for");
     expect(shown).toContain("low");
     expect(shown).toContain("Light reasoning (~2k tokens)");
+    const selectedLevel = screen(target).find(line => line.includes("low") && line.includes("Light reasoning")) ?? "";
+    expect(selectedLevel.startsWith(" → low")).toBe(true);
+    expect(selectedLevel.startsWith(" →  low")).toBe(false);
     expect(shown).not.toContain("(clear override)");
     target.onInput?.(ESC, HOST);
     expect(screen(target).join("\n")).toContain("Thinking Level (step 1/2)");
@@ -1057,7 +1067,8 @@ describe("the input row and status line behind the screen", () => {
     expect(hint.startsWith(" ")).toBe(true);
     expect(hint).toContain("↑↓ navigate");
     expect(hint).toContain("Shift+↑↓ jump");
-    expect(hint).toContain("Enter/Space change");
+    expect(hint).toContain("Enter change");
+    expect(hint).not.toContain("Space");
     expect(hint).toContain("←→ adjust");
     expect(hint).toContain("Ctrl+Z undo");
     expect(hint).toContain("Esc close");

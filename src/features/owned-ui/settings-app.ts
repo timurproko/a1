@@ -106,13 +106,11 @@ SETTINGS_SHORTCUTS.declare({ key: "pageDown", scope: SCOPE, description: "Down a
 // Home and End stay with the search input's cursor.
 SETTINGS_SHORTCUTS.declare({ key: "ctrl+home", scope: SCOPE, description: "First setting", section: "Navigate" }, "first");
 SETTINGS_SHORTCUTS.declare({ key: "ctrl+end", scope: SCOPE, description: "Last setting", section: "Navigate" }, "last");
-SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "change" } }, "activate");
-SETTINGS_SHORTCUTS.declare({ key: "space", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "change" } }, "activate");
+SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter", does: "change" } }, "activate");
 SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change", hint: { keys: "←→", does: "adjust" } }, "previous-value");
 SETTINGS_SHORTCUTS.declare({ key: "right", scope: SCOPE, description: "Next value", section: "Change", hint: { keys: "←→", does: "adjust" } }, "next-value");
 SETTINGS_SHORTCUTS.declare({ key: "ctrl+z", scope: SCOPE, description: "Undo setting change", section: "Change", hint: { keys: "Ctrl+Z", does: "undo" } }, "undo");
-SETTINGS_SHORTCUTS.declare({ key: "enter", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "change" } }, "part-change");
-SETTINGS_SHORTCUTS.declare({ key: "space", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "change" } }, "part-change");
+SETTINGS_SHORTCUTS.declare({ key: "enter", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter", does: "change" } }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "left", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts" }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "right", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts" }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "up", scope: DIALOG_SCOPE, description: "Previous part", section: "Parts" }, "part-previous");
@@ -1105,7 +1103,10 @@ export class SettingsApp implements UiApp {
       current: this.#shownValue(menu.entry) === null ? null : displayValue(this.#shownValue(menu.entry)!),
       index: menu.index,
     };
-    const frame = valueMenuFrame(state, { screenRow: anchor.screenRow, valueColumn }, {
+    const frame = valueMenuFrame(state, {
+      screenRow: anchor.screenRow,
+      valueColumn: valueColumn + SETTINGS_CONTENT_INSET,
+    }, {
       bodyTop: this.#bodyTopForFrame,
       bodyHeight: this.#bodyHeightForFrame,
       surfaceWidth: rect.width,
@@ -1155,7 +1156,7 @@ export class SettingsApp implements UiApp {
     const selected = open.entry.flags.find(flag => flag.key === open.modelKey);
     const current = selected === undefined ? undefined : structuredValue(open.entry, open.record)[selected.key];
     const allRows: readonly DialogRow[] = (selected === undefined ? [] : this.#modelLevelOptions(open, selected)).map(choice => ({
-      label: `${choice.value === current ? "✓ " : "  "}${choice.label}`,
+      label: choice.value === current ? `✓ ${choice.label}` : choice.label,
       value: choice.description,
     }));
     const visible = dialogWindow(allRows, open.index, 10);

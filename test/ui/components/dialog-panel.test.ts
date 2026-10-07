@@ -58,7 +58,8 @@ describe("shared dialog panel", () => {
     expect(rows.at(-1)).toBe("─".repeat(80));
     expect(rows.filter(row => row === "─".repeat(80))).toHaveLength(2);
     expect(rows.join("\n")).toContain("Thinking Level (step 1/2)");
-    expect(rows.join("\n")).toContain("❯ spark");
+    expect(rows.join("\n")).toContain("> spark");
+    expect(rows.join("\n")).not.toContain("❯ spark");
     expect(rows.join("\n")).toContain("Select a model to configure");
     expect(rows.join("\n")).toContain("Type search · Enter select · Esc back");
   });

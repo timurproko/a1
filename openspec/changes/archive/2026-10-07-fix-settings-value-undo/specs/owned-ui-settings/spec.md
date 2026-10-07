@@ -86,14 +86,14 @@ When the owned Settings screen opens a structured-setting dialog, the dialog's o
 
 ### Requirement: The per-model thinking setting uses the pinned stepped selector
 
-The owned Settings screen SHALL present the Agent `modelThinkingLevels` structured setting through a keyboard-only two-step selector matching A1's modal hierarchy rather than through the generic object-part panel. Both steps SHALL use the title `Thinking Level` followed on the same line by a muted `(step N/2)` marker. Step 1 SHALL show the muted next-line description `Select a model to configure`, a focused searchable input, and the models supplied by the setting descriptor. A bracketed provider suffix such as `[openai-codex]` SHALL use the muted role on selected and unselected model rows, matching the Models dialog. Typing SHALL filter model labels, Up/Down SHALL move the selected model, Enter SHALL advance to that model's supported level choices, and Escape SHALL close from step 1.
+The owned Settings screen SHALL present the Agent `modelThinkingLevels` structured setting through a keyboard-only two-step selector matching A1's modal hierarchy rather than through the generic object-part panel. Both steps SHALL use the title `Thinking Level` followed on the same line by a muted `(step N/2)` marker. Step 1 SHALL show the muted next-line description `Select a model to configure`, a focused searchable input using the ASCII `> ` prompt marker, and the models supplied by the setting descriptor. A bracketed provider suffix such as `[openai-codex]` SHALL use the muted role on selected and unselected model rows, matching the Models dialog. A selected model or thinking-level row SHALL place exactly one space between its arrow cursor and visible label; unselected levels SHALL NOT reserve hidden checkmark spacing. Typing SHALL filter model labels, Up/Down SHALL move the selected model, Enter SHALL advance to that model's supported level choices, and Escape SHALL close from step 1.
 
 Step 2 SHALL retain the `Thinking Level` title with `(step 2/2)`, show the muted next-line description `Select default thinking level for {model label}`, offer only the supported levels declared for that model, and add pinned Pi's clear-override choice when that model has an override. The model label SHALL NOT replace or extend the title. Enter on clear override SHALL remove that model's override; Enter on a level SHALL write the whole updated object through the Agent backend and return to step 1 so another model can be configured. Escape SHALL return to step 1 without writing. The footer SHALL describe only the active step's keyboard behavior, including `Type search`, `Enter select`, and `Esc back` on step 1, rather than showing the main Settings adjustment or undo hints.
 
 #### Scenario: Open per-model thinking levels
 
 - **WHEN** the user opens the `modelThinkingLevels` setting
-- **THEN** the dialog SHALL show `Thinking Level` with a muted `(step 1/2)`, the muted next-line description `Select a model to configure`, a focused search input, and descriptor-supplied model rows
+- **THEN** the dialog SHALL show `Thinking Level` with a muted `(step 1/2)`, the muted next-line description `Select a model to configure`, a focused search input beginning with ASCII `> `, and descriptor-supplied model rows
 - **AND** bracketed provider suffixes SHALL be muted as they are in the Models dialog
 - **AND** its footer SHALL show `Type search`, `Enter select`, and `Esc back` rather than generic Settings guidance
 
@@ -106,6 +106,7 @@ Step 2 SHALL retain the `Thinking Level` title with `(step 2/2)`, show the muted
 - **AND** the next line SHALL say `Select default thinking level for {model label}` in the muted role
 - **AND** the model label SHALL NOT appear in the title
 - **AND** the menu SHALL show its declared supported levels plus clear override when an override exists
+- **AND** the selected row's arrow SHALL be followed by exactly one space before its visible label
 
 #### Scenario: Save a model level
 
@@ -139,6 +140,16 @@ While any structured-setting dialog is open, pointer motion, presses, releases, 
 
 - **WHEN** a pointer report lands outside the visible structured rows while the dialog is open
 - **THEN** it SHALL NOT act on the Settings list, scrollbar, or values behind the dialog
+
+### Requirement: Scalar value menus align choices with the source value
+
+When the owned Settings screen opens a scalar value menu, the menu SHALL shift its frame one cell left of the source value column so the visible choice text aligns with the value text in the setting row. The effective-value mark SHALL occupy the preceding menu cells without pushing choice labels one cell to the right.
+
+#### Scenario: Open a scalar value menu
+
+- **WHEN** the user opens an enumerated setting's value menu
+- **THEN** each choice label SHALL begin in the same terminal column as the source setting value
+- **AND** the effective-value mark SHALL remain visible immediately before the current choice
 
 ## MODIFIED Requirements
 

@@ -151,7 +151,7 @@ Bare A1's startup help, shortcut listing, and pending-queue edit hint SHALL deri
 
 ### Requirement: Settings undo dispatch and guidance share one declaration
 
-The owned Settings surface SHALL declare `Ctrl+Z` as its undo action in every ordinary Settings scope that can change or continue presenting a setting value. The list, scalar value menu, active search state, and generic structured-part dialog SHALL dispatch the chord to the same screen-local Settings undo behavior. The active Settings shortcut declarations SHALL supply the concise `Ctrl+Z undo` footer guidance and shortcut listing entry; no separate hardcoded hint SHALL advertise the action. Every visible owned Settings hint SHALL use a concise `<shortcut> <action>` label without the connective word `to`, including `/ search`, `↑↓ navigate`, `Enter/Space change`, `Ctrl+Z undo`, and `Esc close`. This grammar and the shared dim-key/muted-action roles SHALL be enforced centrally at owned shortcut declaration and rendering boundaries so new owned dialogs inherit the rule without per-dialog consistency assertions. Pinned Pi surfaces MAY retain upstream wording through their separate adapter. A specialized stepped selector that replaces ordinary setting editing, including per-model thinking configuration, SHALL instead advertise and dispatch only its step-specific keyboard actions while it is open. The chord SHALL remain local to Settings and SHALL NOT change editor undo or pinned comparison-profile bindings.
+The owned Settings surface SHALL declare `Ctrl+Z` as its undo action in every ordinary Settings scope that can change or continue presenting a setting value. The list, scalar value menu, active search state, and generic structured-part dialog SHALL dispatch the chord to the same screen-local Settings undo behavior. The active Settings shortcut declarations SHALL supply the concise `Ctrl+Z undo` footer guidance and shortcut listing entry; no separate hardcoded hint SHALL advertise the action. Every visible owned Settings hint SHALL use a concise `<shortcut> <action>` label without the connective word `to`, including `/ search`, `↑↓ navigate`, `Enter change`, `Ctrl+Z undo`, and `Esc close`. Space SHALL NOT be declared as a Settings change action. This grammar and the shared dim-key/muted-action roles SHALL be enforced centrally at owned shortcut declaration and rendering boundaries so new owned dialogs inherit the rule without per-dialog consistency assertions. Pinned Pi surfaces MAY retain upstream wording through their separate adapter. A specialized stepped selector that replaces ordinary setting editing, including per-model thinking configuration, SHALL instead advertise and dispatch only its step-specific keyboard actions while it is open. The chord SHALL remain local to Settings and SHALL NOT change editor undo or pinned comparison-profile bindings.
 
 #### Scenario: Undo from the settings list
 
@@ -180,6 +180,12 @@ The owned Settings surface SHALL declare `Ctrl+Z` as its undo action in every or
 - **THEN** it SHALL include `Ctrl+Z undo`
 - **AND** all visible hints SHALL use concise shortcut/action labels without the connective word `to`
 - **AND** the same declaration SHALL identify `Ctrl+Z` as Settings undo in shortcut listings
+
+#### Scenario: Advertise only Enter for Settings changes
+
+- **WHEN** the Settings list or generic structured dialog presents its change hint
+- **THEN** it SHALL show `Enter change`
+- **AND** Space SHALL NOT change the setting or appear in that hint
 
 #### Scenario: Reject an inconsistent owned-dialog hint centrally
 

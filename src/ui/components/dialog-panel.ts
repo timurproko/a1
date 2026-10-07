@@ -128,7 +128,7 @@ export function renderSteppedDialogPanel(
   });
   const input = state.input === undefined
     ? []
-    : [...renderInputRow(state.input, width, { ruled: false, theme }).lines, ""];
+    : [...renderInputRow(state.input, width, { ruled: false, promptGlyph: "> ", theme }).lines, ""];
   const step = `(step ${state.step}/${state.steps})`;
   const title = `${state.title} ${step}`;
   const paintedTitle = `${theme.bold(theme.fg("accent", state.title))} ${theme.fg("dim", step)}`;
