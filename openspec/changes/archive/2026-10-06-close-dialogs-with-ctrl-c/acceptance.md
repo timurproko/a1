@@ -28,7 +28,7 @@ The manual merge accepts these scenarios:
     "One Ctrl+C closes Settings, Changelog, Keyboard Shortcuts, and Session Info without invoking the application exit chord, including while Settings owns nested input.",
     "Ctrl+C outside dismissible-surface ownership retains the active editor, terminal, comparison-profile, or non-opted-in application's established behavior."
   ],
-  "archiveDigest": "bd7771c6a50a31dd3416031ec32eca692fb696ff4621f2f1b5bd00d7000b022b",
+  "archiveDigest": "65337ea7d70a55ab5b21496211b27dce81bb20402581b84f2580088c047e1835",
   "specDigest": "6863db6cdca5fcc69caf7b214c4ec2fb449a838330568e9fa8601e9cc5fbd390",
   "tasksDigest": "4d9d948fca7e8465b3d42f7e33c97342aad54c4cb88ba571d02d70740e6f3568",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
