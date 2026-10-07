@@ -8,8 +8,8 @@
  * frame with standalone title, standard outer rules, stable filter/status row, progressive result
  * paging, aligned result columns, Session Tree selection roles, quiet in-field query syntax guidance,
  * and one-line bottom dynamic feedback and searchable-dialog shortcut footer. Selected session rows
- * use the blue selection surface, success-green primary title, muted metadata, and ordinary text
- * weight.
+ * use the blue selection surface while preserving title and metadata foregrounds; the active session
+ * title uses success green independently of keyboard selection, with ordinary text weight.
  * Deviations: owned-modal-shortcut-hints, owned-resume-session-dialog,
  * owned-standard-dialog-selection.
  */
@@ -570,23 +570,17 @@ class SessionList implements Component, Focusable {
 			const truncatedMsg = truncateToWidth(normalizedMessage, availableForMsg, "…");
 
 			// Style message
-			let messageColor: "error" | "warning" | "accent" | null = null;
+			let messageColor: "error" | "warning" | "success" | null = null;
 			if (isConfirmingDelete) {
 				messageColor = "error";
 			} else if (isCurrent) {
-				messageColor = "accent";
+				messageColor = "success";
 			} else if (hasName) {
 				messageColor = "warning";
 			}
-			const styledMsg = isConfirmingDelete
-				? theme.fg("error", truncatedMsg)
-				: isSelected
-					? theme.fg("success", truncatedMsg)
-					: messageColor
-						? theme.fg(messageColor, truncatedMsg)
-						: truncatedMsg;
+			const styledMsg = messageColor ? theme.fg(messageColor, truncatedMsg) : truncatedMsg;
 
-			const metadataColor = isConfirmingDelete ? "error" : isSelected ? "muted" : "dim";
+			const metadataColor = isConfirmingDelete ? "error" : "dim";
 			const titleColumn = fitToWidth(cursor + theme.fg("dim", prefix) + styledMsg, titleColumnWidth, "…");
 			const pathColumn = pathColumnWidth > 0
 				? `${theme.fg(metadataColor, fitPathToWidth(pathText, pathColumnWidth, this.showPath))}${" ".repeat(columnGapWidth)}`
