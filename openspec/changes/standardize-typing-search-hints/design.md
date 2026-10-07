@@ -18,7 +18,7 @@ See `proposal.md` for motivation. The shared semantic shortcut renderer already 
 
 ### Use an explicit pseudo-key rather than special-case text styling
 
-Models will declare `{ key: "type", action: "search" }`. Session Tree's help declaration will carry the same semantic distinction through its existing adapter instead of using an empty key list. This lets the established formatter produce `Type search` and the correct role boundary without adding string matching or a renderer exception.
+Models will declare `{ key: "Type", action: "search" }`. Session Tree's help declaration will carry the same semantic distinction through its existing adapter instead of using an empty key list. The explicit display-case cue is necessary because shared key normalization preserves unrecognized multi-letter labels; this lets the established formatter produce `Type search` and the correct role boundary without adding string matching or a renderer exception.
 
 Keeping `type to search` and splitting it into styled substrings was rejected because `to` is not part of the requested wording and would preserve a one-off grammar. Adding a global renderer rule for keyless text was rejected because other keyless instructions remain legitimate action prose.
 

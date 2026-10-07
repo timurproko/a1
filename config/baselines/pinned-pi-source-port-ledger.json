@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-07T10:11:03.001Z",
+  "recordedAt": "2026-10-07T12:27:10.168Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -2743,9 +2743,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tree-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation excluding internal bookkeeping, standard search input, blue item-bounded menu-arrow selection that preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with session naming for the system root, standard paging/first-last/non-root containing-branch folding keys with a permanently expanded system session entry even behind hidden metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic shortcut footers without a redundant select hint.",
+      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation excluding internal bookkeeping, standard search input, blue item-bounded menu-arrow selection that preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with session naming for the system root, standard paging/first-last/non-root containing-branch folding keys with a permanently expanded system session entry even behind hidden metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic Type/search shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "3e982b7c477af217bd6b1f49e01ac934da158f8eaac5a3bc8025ce65ef0b5945",
+      "localSha256": "17b11027d4e4afe6a218f0fb3cf1ab323db14552e57c6bd4afae745b04003979",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",

@@ -101,9 +101,11 @@ describe("unified Models dialog", () => {
       expect(cellStyle(active, "[")).toEqual(cellStyle(piTheme().fg("muted", "["), "["));
       expect(active).not.toContain("\u001b[1m");
       expect(stripped).toContain("   Model Name: GPT-5");
-      expect(stripped.at(-2)).toBe(" type to search  ↑↓ navigate  Tab filter  Enter switch  Space scope  Ctrl+S save  Esc close");
+      expect(stripped.at(-2)).toBe(" Type search  ↑↓ navigate  Tab filter  Enter switch  Space scope  Ctrl+S save  Esc close");
       const footer = lines.at(-2)!;
       expect(firstVisibleTextColumn(footer)).toBe(firstVisibleTextColumn(lines[1]!));
+      expect(footer).toContain(piTheme().fg("dim", "Type"));
+      expect(footer).toContain(piTheme().fg("muted", "search"));
       expect(firstVisibleTextColumn(stripped.find(line => line.includes("○ claude"))!)).toBe(3);
       expect(footer).toContain(piTheme().fg("dim", "↑↓"));
       expect(footer).toContain(piTheme().fg("muted", "navigate"));
