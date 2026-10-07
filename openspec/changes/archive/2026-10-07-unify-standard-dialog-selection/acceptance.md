@@ -24,7 +24,7 @@ The manual merge accepts these scenarios:
     "Session Tree preserves user, assistant, system, tool, error, label, timestamp, and description colors while selected.",
     "Existing dialog, Settings, autocomplete, and comparison-profile behavior remains unchanged."
   ],
-  "archiveDigest": "e01e707397615b64733d4ded797a48e80fc005752043bde85a1bc70449c5c0e3",
+  "archiveDigest": "2dbe663b649e8af9fd2979bf52a2cb6ffb94af178e13825d9704d96a16643ffb",
   "specDigest": "a0a76dec4936a5ccfd5185a2ff971f22d043ed9590fa2198008295dbf4839e8c",
   "tasksDigest": "6b1922b7a93c2cc79007e58d09203953a72d085aed307be1af0bb8cb64ad90d6",
   "evidenceDigest": "8428bb8b24ab80f58a2a7a0b2b4cc0a96284fa25cb4331e393867532408a3ae1",
