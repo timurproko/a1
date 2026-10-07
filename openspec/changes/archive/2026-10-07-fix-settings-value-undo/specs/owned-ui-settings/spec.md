@@ -142,7 +142,7 @@ While any structured-setting dialog is open, pointer motion, presses, releases, 
 
 ## MODIFIED Requirements
 
-### Requirement: The Agent section exposes Pi's copy preference without redundant viewport scrolling
+### Requirement: The Agent section exposes Pi's fullscreen copy preference
 
 When bare A1 provides application-owned fullscreen frame selection, the owned settings screen SHALL expose pinned Pi's `fullscreenCopyOnSelect` setting exactly once in the existing Agent section. The entry SHALL use the concise bare-A1 label `Copy on select` and Pi's generated description, SHALL show the value persisted by Pi's settings manager, and SHALL remain an Agent-backend boolean rather than an A1-owned setting. It SHALL be writable through the engine settings port and SHALL declare live application.
 
