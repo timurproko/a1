@@ -44,6 +44,7 @@ export interface OwnedSettingsManagerOptions {
   readonly agent?: AgentSettingsPort | null;
   readonly agentProvider?: () => AgentSettingsPort | null;
   readonly hiddenAgentSettingIds?: readonly string[];
+  readonly agentSettingLabelOverrides?: Readonly<Record<string, string>>;
 }
 
 export interface OwnedUiSettingsChangeOutcome {
@@ -79,6 +80,7 @@ export class OwnedSettingsManager {
   readonly #agentProvider: (() => AgentSettingsPort | null) | null;
   readonly #listeners = new Set<OwnedUiSettingsListener>();
   readonly #hiddenAgentSettingIds: ReadonlySet<string>;
+  readonly #agentSettingLabelOverrides: Readonly<Record<string, string>>;
   #resolution: OwnedUiSettingsResolution;
   #agentSnapshot: AgentSettingsSnapshot | null = null;
   #pending = new Map<string, OwnedUiSettingValue>();
@@ -94,6 +96,7 @@ export class OwnedSettingsManager {
     this.#agent = options.agent ?? null;
     this.#agentProvider = options.agentProvider ?? null;
     this.#hiddenAgentSettingIds = new Set(options.hiddenAgentSettingIds ?? []);
+    this.#agentSettingLabelOverrides = { ...(options.agentSettingLabelOverrides ?? {}) };
     this.#resolution = this.read();
     for (const setting of this.#resolution.settings) {
       if (setting.declaration.application === "restart") this.#restartEffective.set(setting.declaration.id, setting.value);
@@ -147,9 +150,13 @@ export class OwnedSettingsManager {
   sections(): readonly OwnedUiSettingsSection[] {
     return buildOwnedUiSettingsSections({ resolution: this.#resolution, agent: this.#agentSnapshot }).map(section => ({
       ...section,
-      entries: section.entries.map(entry => entry.backend === "a1" && this.#restartEffective.has(entry.id)
-        ? { ...entry, effectiveValue: this.#restartEffective.get(entry.id)! }
-        : entry),
+      entries: section.entries.map(entry => {
+        if (entry.backend === "a1" && this.#restartEffective.has(entry.id)) {
+          return { ...entry, effectiveValue: this.#restartEffective.get(entry.id)! };
+        }
+        const label = entry.backend === "agent" ? this.#agentSettingLabelOverrides[entry.id] : undefined;
+        return label === undefined ? entry : { ...entry, label };
+      }),
     }));
   }
 

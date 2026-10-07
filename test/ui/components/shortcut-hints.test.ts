@@ -33,6 +33,23 @@ describe("modal shortcut hints", () => {
     expect(rendered).not.toMatch(/[·•]/u);
   });
 
+  it("applies the same key/action roles when a dialog requests compact separators", () => {
+    const rendered = renderShortcutHints([
+      { key: "Type", action: "search" },
+      { key: "enter", action: "select" },
+      { key: "esc", action: "back" },
+    ], theme, 1, " · ");
+    expect(rendered).toBe(" \u001b[2mType\u001b[0m \u001b[22msearch\u001b[0m · \u001b[2mEnter\u001b[0m \u001b[22mselect\u001b[0m · \u001b[2mEsc\u001b[0m \u001b[22mback\u001b[0m");
+    expect(stripAnsi(rendered)).toBe(" Type search · Enter select · Esc back");
+  });
+
+  it("rejects inconsistent keyed labels for every owned-dialog caller", () => {
+    expect(() => renderShortcutHints([{ key: "esc", action: "to close" }], theme)).toThrow(/omit connective "to"/u);
+    expect(() => renderShortcutHints([{ key: "esc", action: " close" }], theme)).toThrow(/surrounding whitespace/u);
+    expect(() => renderShortcutHints([{ key: "esc", action: "" }], theme)).toThrow(/nonempty/u);
+    expect(() => renderShortcutHints([{ key: " esc", action: "close" }], theme)).toThrow(/keys must not/u);
+  });
+
   it("keeps keyless prose, omits unbound entries, and preserves content punctuation", () => {
     const rendered = renderShortcutHints([
       { action: "start typing" },

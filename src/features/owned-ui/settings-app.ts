@@ -1,6 +1,7 @@
-import { DIALOG_CLOSE_SHORTCUT_HINT } from "../../contracts/presentation/index.js";
+import { DIALOG_BACK_SHORTCUT_HINT, DIALOG_CLOSE_SHORTCUT_HINT } from "../../contracts/presentation/index.js";
 import type { AppHostServices, UiApp } from "../../ui/apps/index.js";
 import type {
+  DialogRow,
   ListViewRow,
   NumericRange,
   RailPosition,
@@ -16,17 +17,16 @@ import {
   ShortcutRegistry,
   assertNoShortcutConflicts,
   blockJumpTarget,
-  dialogValueColumn,
   numericValues,
   RAIL_COLUMNS,
   renderDialogPanel,
+  renderSteppedDialogPanel,
   renderEmptyState,
   renderGroupHeader,
   renderInputRow,
   renderListRow,
   renderNote,
   renderShortcutHintsWithClose,
-  dialogRowAt,
   menuRowAt,
   regionAt,
   renderValueMenu,
@@ -62,6 +62,7 @@ import {
 } from "../../ui/components/index.js";
 import type {
   OwnedUiSettingValue,
+  OwnedUiSettingsChangeOutcome,
   OwnedUiSettingsEntry,
   OwnedSettingsManager,
 } from "../../ui/settings/index.js";
@@ -76,6 +77,8 @@ const SETTINGS_STATUS_ROWS = 1;
 const SETTINGS_CONTENT_INSET = 1;
 /** The panel a setting with parts opens: its own keys, its own hint. */
 const DIALOG_SCOPE = `${SETTINGS_APP_ID}-parts`;
+const MODEL_SCOPE = `${SETTINGS_APP_ID}-models`;
+const MODEL_LEVEL_SCOPE = `${SETTINGS_APP_ID}-model-levels`;
 const SCROLLBAR_TOP_INSET = 0;
 /** Identity of the settings list rail in the shared rail state. */
 const RAIL_KEY = "settings";
@@ -88,36 +91,49 @@ const CONFIGURE = "configure";
 
 type Action =
   | "move-up" | "move-down" | "block-up" | "block-down" | "first" | "last"
-  | "page-up" | "page-down" | "previous-value" | "next-value" | "activate" | "open-filter" | "close"
+  | "page-up" | "page-down" | "previous-value" | "next-value" | "activate" | "open-filter" | "close" | "undo"
   | "part-previous" | "part-next" | "part-change";
 
 export const SETTINGS_SHORTCUTS = new ShortcutRegistry<Action>();
-SETTINGS_SHORTCUTS.declare({ key: "/", scope: SCOPE, description: "Search settings", section: "Change", hint: { keys: "/", does: "to search" } }, "open-filter");
-SETTINGS_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Previous setting", section: "Navigate", hint: { keys: "↑↓", does: "to navigate" } }, "move-up");
-SETTINGS_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Next setting", section: "Navigate", hint: { keys: "↑↓", does: "to navigate" } }, "move-down");
-SETTINGS_SHORTCUTS.declare({ key: "shift+up", scope: SCOPE, description: "Previous section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "to jump" } }, "block-up");
-SETTINGS_SHORTCUTS.declare({ key: "shift+down", scope: SCOPE, description: "Next section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "to jump" } }, "block-down");
+SETTINGS_SHORTCUTS.declare({ key: "/", scope: SCOPE, description: "Search settings", section: "Change", hint: { keys: "/", does: "search" } }, "open-filter");
+SETTINGS_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Previous setting", section: "Navigate", hint: { keys: "↑↓", does: "navigate" } }, "move-up");
+SETTINGS_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Next setting", section: "Navigate", hint: { keys: "↑↓", does: "navigate" } }, "move-down");
+SETTINGS_SHORTCUTS.declare({ key: "shift+up", scope: SCOPE, description: "Previous section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "jump" } }, "block-up");
+SETTINGS_SHORTCUTS.declare({ key: "shift+down", scope: SCOPE, description: "Next section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "jump" } }, "block-down");
 SETTINGS_SHORTCUTS.declare({ key: "pageUp", scope: SCOPE, description: "Up a page", section: "Navigate" }, "page-up");
 SETTINGS_SHORTCUTS.declare({ key: "pageDown", scope: SCOPE, description: "Down a page", section: "Navigate" }, "page-down");
 // Compatibility: the same chords the transcript uses for its content boundaries; plain
 // Home and End stay with the search input's cursor.
 SETTINGS_SHORTCUTS.declare({ key: "ctrl+home", scope: SCOPE, description: "First setting", section: "Navigate" }, "first");
 SETTINGS_SHORTCUTS.declare({ key: "ctrl+end", scope: SCOPE, description: "Last setting", section: "Navigate" }, "last");
-SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "to change" } }, "activate");
-SETTINGS_SHORTCUTS.declare({ key: "space", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "to change" } }, "activate");
-SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change", hint: { keys: "←→", does: "to adjust" } }, "previous-value");
-SETTINGS_SHORTCUTS.declare({ key: "right", scope: SCOPE, description: "Next value", section: "Change", hint: { keys: "←→", does: "to adjust" } }, "next-value");
-SETTINGS_SHORTCUTS.declare({ key: "enter", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "to change" } }, "part-change");
-SETTINGS_SHORTCUTS.declare({ key: "space", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "to change" } }, "part-change");
+SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter", does: "change" } }, "activate");
+SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change", hint: { keys: "←→", does: "adjust" } }, "previous-value");
+SETTINGS_SHORTCUTS.declare({ key: "right", scope: SCOPE, description: "Next value", section: "Change", hint: { keys: "←→", does: "adjust" } }, "next-value");
+SETTINGS_SHORTCUTS.declare({ key: "ctrl+z", scope: SCOPE, description: "Undo setting change", section: "Change", hint: { keys: "Ctrl+Z", does: "undo" } }, "undo");
+SETTINGS_SHORTCUTS.declare({ key: "enter", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter", does: "change" } }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "left", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts" }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "right", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts" }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "up", scope: DIALOG_SCOPE, description: "Previous part", section: "Parts" }, "part-previous");
 SETTINGS_SHORTCUTS.declare({ key: "down", scope: DIALOG_SCOPE, description: "Next part", section: "Parts" }, "part-next");
+SETTINGS_SHORTCUTS.declare({ key: "ctrl+z", scope: DIALOG_SCOPE, description: "Undo setting change", section: "Parts", hint: { keys: "Ctrl+Z", does: "undo" } }, "undo");
 SETTINGS_SHORTCUTS.declare({
   key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen",
   hint: { keys: DIALOG_CLOSE_SHORTCUT_HINT.key, does: DIALOG_CLOSE_SHORTCUT_HINT.action },
 }, "close");
 assertNoShortcutConflicts(SETTINGS_SHORTCUTS.assemble());
+
+type ModelAction = "edit-filter" | "previous" | "next" | "select" | "close" | "back";
+const MODEL_SHORTCUTS = new ShortcutRegistry<ModelAction>();
+MODEL_SHORTCUTS.declare({ key: "edit", scope: MODEL_SCOPE, description: "Search models", section: "Choose", hint: { keys: "Type", does: "search" } }, "edit-filter");
+MODEL_SHORTCUTS.declare({ key: "up", scope: MODEL_SCOPE, description: "Previous model", section: "Choose" }, "previous");
+MODEL_SHORTCUTS.declare({ key: "down", scope: MODEL_SCOPE, description: "Next model", section: "Choose" }, "next");
+MODEL_SHORTCUTS.declare({ key: "enter", scope: MODEL_SCOPE, description: "Select model", section: "Choose", hint: { keys: "Enter", does: "select" } }, "select");
+MODEL_SHORTCUTS.declare({ key: "escape", scope: MODEL_SCOPE, description: "Close selector", section: "Choose", hint: { keys: DIALOG_CLOSE_SHORTCUT_HINT.key, does: DIALOG_CLOSE_SHORTCUT_HINT.action } }, "close");
+MODEL_SHORTCUTS.declare({ key: "up", scope: MODEL_LEVEL_SCOPE, description: "Previous level", section: "Choose", hint: { keys: "↑↓", does: "navigate" } }, "previous");
+MODEL_SHORTCUTS.declare({ key: "down", scope: MODEL_LEVEL_SCOPE, description: "Next level", section: "Choose", hint: { keys: "↑↓", does: "navigate" } }, "next");
+MODEL_SHORTCUTS.declare({ key: "enter", scope: MODEL_LEVEL_SCOPE, description: "Select level", section: "Choose", hint: { keys: "Enter", does: "select" } }, "select");
+MODEL_SHORTCUTS.declare({ key: "escape", scope: MODEL_LEVEL_SCOPE, description: "Return to models", section: "Choose", hint: { keys: DIALOG_BACK_SHORTCUT_HINT.key, does: DIALOG_BACK_SHORTCUT_HINT.action } }, "back");
+assertNoShortcutConflicts(MODEL_SHORTCUTS.assemble());
 
 const KEYS: Readonly<Record<string, string>> = {
   "\u001b[A": "up",
@@ -138,6 +154,7 @@ const KEYS: Readonly<Record<string, string>> = {
   "\n": "enter",
   " ": "space",
   "/": "/",
+  "\u001a": "ctrl+z",
 };
 
 type Row = ListRow<OwnedUiSettingsEntry>;
@@ -147,9 +164,20 @@ type Row = ListRow<OwnedUiSettingsEntry>;
  * toggle when the declaration offers no choices, and a choice cycle otherwise; a choice part at its
  * fallback is unset and leaves the record.
  */
+interface ModelLevelOption {
+  readonly value: string;
+  readonly label: string;
+  readonly description: string;
+}
+
 interface StructuredEdit {
   readonly entry: OwnedUiSettingsEntry;
   readonly flags: readonly string[];
+  readonly modelDialog: boolean;
+  readonly filter: LineInput | null;
+  step: "model" | "level";
+  modelKey: string | null;
+  modelIndex: number;
   index: number;
   readonly record: Record<string, boolean | string>;
 }
@@ -163,6 +191,23 @@ interface ValueMenu {
   readonly choices: readonly OwnedUiSettingValue[];
   index: number;
 }
+
+interface ScalarUndoRecord {
+  readonly kind: "scalar";
+  readonly sequence: number;
+  readonly entry: OwnedUiSettingsEntry;
+  readonly previous: OwnedUiSettingValue;
+}
+
+interface StructuredUndoRecord {
+  readonly kind: "structured";
+  readonly sequence: number;
+  readonly entry: OwnedUiSettingsEntry;
+  readonly previous: Readonly<Record<string, boolean | string>>;
+  readonly forward: Readonly<Record<string, boolean | string>>;
+}
+
+type SettingsUndoRecord = ScalarUndoRecord | StructuredUndoRecord;
 
 /**
  * The settings screen. Rows, sticky headers, scrolling, and the keymap come from
@@ -185,10 +230,13 @@ export class SettingsApp implements UiApp {
   #interruptArmed = false;
   // Invariant: pending values remain visible until the source reflects them.
   readonly #pending = new Map<string, OwnedUiSettingValue>();
-  #dialogValueColumn = 0;
+  readonly #undoHistory: SettingsUndoRecord[] = [];
+  #editSequence = 0;
+  #undoRequests = 0;
+  #undoActive = false;
+  #closed = false;
   #bodyTopForFrame = SETTINGS_TOP_RULE_ROWS + SETTINGS_TITLE_ROWS;
   #bodyHeightForFrame = 0;
-  #panelTop = 0;
   #panelTopForFrame = 0;
   #hoverKey: string | null = null;
   #hoverRegion: "label" | "value" | "minus" | "plus" = "label";
@@ -208,10 +256,14 @@ export class SettingsApp implements UiApp {
   }
 
   onActivate(host: AppHostServices): void {
+    this.#closed = false;
     void this.#session.load().then(() => host.requestRender());
   }
 
   onClose(_host: AppHostServices): void {
+    this.#closed = true;
+    this.#undoHistory.length = 0;
+    this.#undoRequests = 0;
     this.#clearActivityTimer();
     this.#rails.clear();
   }
@@ -222,7 +274,9 @@ export class SettingsApp implements UiApp {
     const rows = this.#rows();
     const selected = indexOfKey(rows, this.#selectedKey);
     const footer = this.#footerLines(rect.width, theme);
-    const dividerRows = this.#filter === null ? SETTINGS_FOOTER_DIVIDER_ROWS : 0;
+    // Invariant: the shared search input and structured panel each begin with their own standard rule.
+    // That rule replaces the ordinary content/footer divider instead of stacking beneath it.
+    const dividerRows = this.#filter === null && this.#structured === null ? SETTINGS_FOOTER_DIVIDER_ROWS : 0;
     const topRows = Math.min(SETTINGS_TOP_RULE_ROWS, rect.height);
     const contentHeight = Math.max(0, rect.height - topRows - dividerRows - footer.length);
     let titleRows = this.#scroll <= 0 ? Math.min(SETTINGS_TITLE_ROWS, contentHeight) : 0;
@@ -246,7 +300,6 @@ export class SettingsApp implements UiApp {
     this.#bodyTopForFrame = topRows + titleRows;
     this.#bodyHeightForFrame = bodyHeight;
     this.#panelTopForFrame = topRows + contentHeight + dividerRows;
-    this.#panelTop = this.#panelTopForFrame;
     this.#scroll = layout.scroll;
     const now = Date.now();
     // Rationale: every way of scrolling ends in this frame, so a moved list is noticed here
@@ -380,6 +433,9 @@ export class SettingsApp implements UiApp {
       case "next-value":
         this.#cycle(rows, selected, action === "next-value" ? 1 : -1);
         return { consumed: true };
+      case "undo":
+        this.#undo();
+        return { consumed: true };
       default:
         return { consumed: false };
     }
@@ -419,27 +475,9 @@ export class SettingsApp implements UiApp {
       return { consumed: true };
     }
 
-    const open = this.#structured;
-    if (open !== null) {
-      // Invariant: the panel owns the pointer while it is open; its flag rows are the targets.
-      // The panel's rows begin one line below its rule.
-      const panel = { firstRow: this.#panelTop + 1, rows: open.flags.length, valueColumn: this.#dialogValueColumn };
-      const row = event.row - 1 - panel.firstRow;
-      if (row < 0 || row >= panel.rows) return { consumed: true, render: false };
-      if (event.kind === "motion") {
-        if (open.index === row) return { consumed: true, render: false };
-        open.index = row;
-        return { consumed: true, render: true };
-      }
-      if (event.kind === "press") {
-        open.index = row;
-        // Rationale: pointing at the label picks the row; the value is what changes it,
-        // exactly as in the list behind the dialog.
-        const key = open.flags[row] ?? "";
-        const width = displayWidth((open.record[key] ?? false) ? "true" : "false");
-        if (dialogRowAt(panel, event.row - 1, event.column, width) !== null) this.#toggleFlag(row);
-        return { consumed: true };
-      }
+    if (this.#structured !== null) {
+      // Invariant: the structured surface is keyboard-only. It owns every pointer report so
+      // neither its selection nor the Settings list behind it can react.
       return { consumed: true, render: false };
     }
 
@@ -579,12 +617,24 @@ export class SettingsApp implements UiApp {
     this.#hoverKey = null;
     this.#hoverRegion = "label";
     this.#rails.clear();
-    this.#structured = { entry, flags: entry.flags.map(flag => flag.key), index: 0, record };
+    const modelDialog = entry.backend === "agent" && entry.id === "modelThinkingLevels";
+    this.#structured = {
+      entry,
+      flags: entry.flags.map(flag => flag.key),
+      modelDialog,
+      filter: modelDialog ? new LineInput("") : null,
+      step: "model",
+      modelKey: null,
+      modelIndex: 0,
+      index: 0,
+      record,
+    };
   }
 
   #structuredKey(data: string): PaneInputResult {
     const open = this.#structured;
     if (open === null) return { consumed: false };
+    if (open.modelDialog) return this.#modelDialogKey(open, data);
     switch (SETTINGS_SHORTCUTS.resolve(KEYS[data] ?? data, DIALOG_SCOPE)) {
       case "close":
         this.#structured = null;
@@ -598,15 +648,104 @@ export class SettingsApp implements UiApp {
       case "part-change":
         this.#toggleFlag(open.index);
         return { consumed: true };
+      case "undo":
+        this.#undo();
+        return { consumed: true };
       default:
         return { consumed: true, render: false };
     }
+  }
+
+  #modelDialogKey(open: StructuredEdit, data: string): PaneInputResult {
+    const key = KEYS[data] ?? data;
+    if (open.step === "model") {
+      const flags = this.#filteredModelFlags(open);
+      const action = MODEL_SHORTCUTS.resolve(key, MODEL_SCOPE) ?? "edit-filter";
+      if (action === "close") {
+        this.#structured = null;
+        return { consumed: true };
+      }
+      if (action === "previous" || action === "next") {
+        open.index = Math.min(
+          Math.max(0, flags.length - 1),
+          Math.max(0, open.index + (action === "next" ? 1 : -1)),
+        );
+        return { consumed: true };
+      }
+      if (action === "select") {
+        const selected = flags[open.index];
+        if (selected === undefined) return { consumed: true, render: false };
+        open.modelIndex = open.index;
+        open.modelKey = selected.key;
+        open.step = "level";
+        const options = this.#modelLevelOptions(open, selected);
+        const current = structuredValue(open.entry, open.record)[selected.key];
+        open.index = Math.max(0, options.findIndex(option => option.value === current));
+        return { consumed: true };
+      }
+      const input = open.filter;
+      if (input === null) return { consumed: true, render: false };
+      handleLineInputKey(input, data);
+      open.index = 0;
+      return { consumed: true };
+    }
+
+    const selected = open.entry.flags.find(flag => flag.key === open.modelKey);
+    const choices = selected === undefined ? [] : this.#modelLevelOptions(open, selected);
+    const action = MODEL_SHORTCUTS.resolve(key, MODEL_LEVEL_SCOPE);
+    if (action === "back") {
+      open.step = "model";
+      open.modelKey = null;
+      open.index = open.modelIndex;
+      return { consumed: true };
+    }
+    if (action === "previous" || action === "next") {
+      open.index = Math.min(
+        Math.max(0, choices.length - 1),
+        Math.max(0, open.index + (action === "next" ? 1 : -1)),
+      );
+      return { consumed: true };
+    }
+    if (action === "select") {
+      const choice = choices[open.index];
+      if (selected === undefined || choice === undefined) return { consumed: true, render: false };
+      const previous = { ...open.record };
+      open.record[selected.key] = choice.value;
+      const forward = { ...open.record };
+      this.#saveStructured(open, previous, forward);
+      open.step = "model";
+      open.modelKey = null;
+      open.index = open.modelIndex;
+      return { consumed: true };
+    }
+    return { consumed: true, render: false };
+  }
+
+  #filteredModelFlags(open: StructuredEdit): readonly OwnedUiSettingsEntry["flags"][number][] {
+    const needle = open.filter?.value.trim().toLowerCase() ?? "";
+    return open.entry.flags.filter(flag => needle.length === 0
+      || (flag.label ?? humanizeLabel(flag.key)).toLowerCase().includes(needle)
+      || flag.key.toLowerCase().includes(needle));
+  }
+
+  #modelLevelOptions(
+    open: StructuredEdit,
+    selected: OwnedUiSettingsEntry["flags"][number],
+  ): readonly ModelLevelOption[] {
+    const fallback = String(selected.fallback);
+    const supported = (selected.choices ?? [])
+      .filter(choice => choice !== fallback)
+      .map(choice => ({ value: choice, label: choice, description: thinkingLevelDescription(choice) }));
+    return structuredValue(open.entry, open.record)[selected.key] === undefined
+      ? supported
+      : [...supported, { value: fallback, label: "(clear override)", description: "Revert to global default" }];
   }
 
   #toggleFlag(index: number): void {
     const open = this.#structured;
     const flag = open?.flags[index];
     if (open === null || open === undefined || flag === undefined) return;
+    const previous = { ...open.record };
     const declared = open.entry.flags.find(candidate => candidate.key === flag);
     if (declared?.choices === undefined) open.record[flag] = !(open.record[flag] ?? false);
     else {
@@ -614,13 +753,28 @@ export class SettingsApp implements UiApp {
       const at = declared.choices.indexOf(String(open.record[flag] ?? declared.fallback));
       open.record[flag] = declared.choices[(at + 1) % declared.choices.length] ?? declared.fallback;
     }
-    // Invariant: a choice part at its fallback is unset: it is not written, so the engine's default applies.
-    const next = Object.fromEntries(Object.entries(open.record).filter(([key, value]) => {
-      const part = open.entry.flags.find(candidate => candidate.key === key);
-      return part?.choices === undefined || value !== part.fallback;
-    }));
-    void this.#session.changeStructured(open.entry.backend, open.entry.id, next).then(outcome => {
-      this.#notice = outcome.failure === null ? null : `Could not save ${labelOf(open.entry)}: ${outcome.failure}`;
+    const forward = { ...open.record };
+    this.#saveStructured(open, previous, forward);
+  }
+
+  #saveStructured(
+    open: StructuredEdit,
+    previous: Readonly<Record<string, boolean | string>>,
+    forward: Readonly<Record<string, boolean | string>>,
+  ): void {
+    const sequence = ++this.#editSequence;
+    void this.#session.changeStructured(open.entry.backend, open.entry.id, structuredValue(open.entry, forward)).then(outcome => {
+      const failure = changeFailure(outcome);
+      if (failure === null) {
+        this.#recordUndo({ kind: "structured", sequence, entry: open.entry, previous, forward });
+        this.#notice = outcome.status === "deferred" && outcome.application !== null
+          ? `${labelOf(open.entry)} is stored and applies ${applicationLabel(outcome.application)}`
+          : null;
+        return;
+      }
+      // Concurrency: only roll back the dialog if no later press has moved the record on.
+      if (this.#structured === open && sameRecord(open.record, forward)) replaceRecord(open.record, previous);
+      this.#notice = `Could not save ${labelOf(open.entry)}: ${failure}`;
     });
   }
 
@@ -628,6 +782,11 @@ export class SettingsApp implements UiApp {
     const menu = this.#menu;
     if (menu === null) return { consumed: false };
     const key = KEYS[data] ?? data;
+    if (SETTINGS_SHORTCUTS.resolve(key, SCOPE) === "undo") {
+      this.#menu = null;
+      this.#undo();
+      return { consumed: true };
+    }
     if (key === "escape") {
       this.#menu = null;
       return { consumed: true };
@@ -651,6 +810,10 @@ export class SettingsApp implements UiApp {
     if (input === null) return { consumed: false };
 
     const key = KEYS[data];
+    if (SETTINGS_SHORTCUTS.resolve(key ?? data, SCOPE) === "undo") {
+      this.#undo();
+      return { consumed: true };
+    }
     // Rationale: the boundary chords jump through the results; plain Home and End stay with
     // the search cursor, which the shared line input moves below.
     if (key === "ctrl+home" || key === "ctrl+end") {
@@ -723,20 +886,19 @@ export class SettingsApp implements UiApp {
 
   #apply(entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): void {
     const key = `${entry.backend}:${entry.id}`;
+    const previous = this.#shownValue(entry);
+    const sequence = ++this.#editSequence;
     // Invariant: shown immediately so the row never lags a keypress, and so the next press
     // steps from here rather than from a value the source has not caught up to.
     this.#pending.set(key, value);
     void this.#session.change(entry.backend, entry.id, value).then(outcome => {
-      if (outcome.failure !== null || outcome.status === "failed") {
-        this.#pending.delete(key);
-        this.#notice = `Could not save ${labelOf(entry)}: ${outcome.failure ?? "the effect failed"}`;
+      const failure = changeFailure(outcome);
+      if (failure !== null) {
+        if (this.#pending.get(key) === value) this.#pending.delete(key);
+        this.#notice = `Could not save ${labelOf(entry)}: ${failure}`;
         return;
       }
-      if (outcome.status === "unavailable" || outcome.limitationReason !== null) {
-        this.#pending.delete(key);
-        this.#notice = outcome.limitationReason ?? `${labelOf(entry)} is unavailable`;
-        return;
-      }
+      if (previous !== null && previous !== value) this.#recordUndo({ kind: "scalar", sequence, entry, previous });
       // Concurrency: a later press may have moved on; only the last request clears itself.
       if (this.#pending.get(key) === value) this.#pending.delete(key);
       this.#notice = outcome.status === "deferred" && outcome.application !== null
@@ -747,6 +909,67 @@ export class SettingsApp implements UiApp {
 
   #shownValue(entry: OwnedUiSettingsEntry): OwnedUiSettingValue | null {
     return this.#pending.get(`${entry.backend}:${entry.id}`) ?? entry.value;
+  }
+
+  #recordUndo(record: SettingsUndoRecord): void {
+    if (this.#closed) return;
+    const after = this.#undoHistory.findIndex(candidate => candidate.sequence > record.sequence);
+    if (after < 0) this.#undoHistory.push(record);
+    else this.#undoHistory.splice(after, 0, record);
+  }
+
+  #undo(): void {
+    this.#undoRequests++;
+    this.#drainUndo();
+  }
+
+  #drainUndo(): void {
+    if (this.#undoActive || this.#undoRequests === 0) return;
+    const record = this.#undoHistory.pop();
+    if (record === undefined) {
+      this.#undoRequests = 0;
+      return;
+    }
+    this.#undoRequests--;
+    this.#undoActive = true;
+
+    if (record.kind === "scalar") {
+      const key = `${record.entry.backend}:${record.entry.id}`;
+      this.#pending.set(key, record.previous);
+      void this.#session.change(record.entry.backend, record.entry.id, record.previous).then(outcome => {
+        if (this.#pending.get(key) === record.previous) this.#pending.delete(key);
+        this.#finishUndo(record, outcome);
+      });
+      return;
+    }
+
+    const open = this.#structured;
+    if (open !== null && sameEntry(open.entry, record.entry)) replaceRecord(open.record, record.previous);
+    void this.#session.changeStructured(
+      record.entry.backend,
+      record.entry.id,
+      structuredValue(record.entry, record.previous),
+    ).then(outcome => {
+      const failure = changeFailure(outcome);
+      if (failure !== null && this.#structured === open && open !== null && sameRecord(open.record, record.previous)) {
+        replaceRecord(open.record, record.forward);
+      }
+      this.#finishUndo(record, outcome);
+    });
+  }
+
+  #finishUndo(record: SettingsUndoRecord, outcome: OwnedUiSettingsChangeOutcome): void {
+    const failure = changeFailure(outcome);
+    if (failure !== null) {
+      this.#recordUndo(record);
+      this.#notice = `Could not restore ${labelOf(record.entry)}: ${failure}`;
+    } else {
+      this.#notice = outcome.status === "deferred" && outcome.application !== null
+        ? `${labelOf(record.entry)} is restored and applies ${applicationLabel(outcome.application)}`
+        : null;
+    }
+    this.#undoActive = false;
+    this.#drainUndo();
   }
 
   #scrollbarSpeed(): ScrollbarSpeed {
@@ -843,15 +1066,16 @@ export class SettingsApp implements UiApp {
   }
 
   #viewRow(entry: OwnedUiSettingsEntry): ListViewRow {
+    const key = `${entry.backend}:${entry.id}`;
     const shown = this.#shownValue(entry);
     const value = entry.structured
       ? CONFIGURE
       : shown === null
         ? describeRaw(entry.rawValue)
-        : effectiveDisplay(entry, shown);
+        : this.#pending.has(key) ? displayValue(shown) : effectiveDisplay(entry, shown);
     const range = rangeOf(entry);
     return {
-      key: `${entry.backend}:${entry.id}`,
+      key,
       label: labelOf(entry),
       value,
       ...(typeof shown === "number" && entry.editable ? { stepper: stepperEnds(range, shown) } : {}),
@@ -879,7 +1103,10 @@ export class SettingsApp implements UiApp {
       current: this.#shownValue(menu.entry) === null ? null : displayValue(this.#shownValue(menu.entry)!),
       index: menu.index,
     };
-    const frame = valueMenuFrame(state, { screenRow: anchor.screenRow, valueColumn }, {
+    const frame = valueMenuFrame(state, {
+      screenRow: anchor.screenRow,
+      valueColumn: valueColumn + SETTINGS_CONTENT_INSET,
+    }, {
       bodyTop: this.#bodyTopForFrame,
       bodyHeight: this.#bodyHeightForFrame,
       surfaceWidth: rect.width,
@@ -890,6 +1117,7 @@ export class SettingsApp implements UiApp {
   }
 
   #dialogLines(open: StructuredEdit, width: number, theme: UiTheme): readonly string[] {
+    if (open.modelDialog) return this.#modelDialogLines(open, width, theme);
     const rows = open.flags.map(key => {
       const declared = open.entry.flags.find(flag => flag.key === key);
       return {
@@ -899,9 +1127,48 @@ export class SettingsApp implements UiApp {
         ...(declared?.description === undefined ? {} : { description: declared.description }),
       };
     });
-    this.#dialogValueColumn = dialogValueColumn(rows);
-    this.#panelTop = this.#panelTopForFrame;
-    return renderDialogPanel({ rows, index: open.index, hint: SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE) }, width, theme);
+    return renderDialogPanel({ title: labelOf(open.entry), rows, index: open.index, hint: SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE) }, width, theme);
+  }
+
+  #modelDialogLines(open: StructuredEdit, width: number, theme: UiTheme): readonly string[] {
+    if (open.step === "model") {
+      const flags = this.#filteredModelFlags(open);
+      const stored = structuredValue(open.entry, open.record);
+      const allRows: readonly DialogRow[] = flags.length === 0
+        ? [{ label: "No models found", value: "" }]
+        : flags.map(flag => ({
+          ...modelLabelParts(flag.label ?? humanizeLabel(flag.key)),
+          value: stored[flag.key] === undefined ? "" : String(stored[flag.key]),
+        }));
+      const visible = dialogWindow(allRows, open.index, 10);
+      return renderSteppedDialogPanel({
+        title: "Thinking Level",
+        step: 1,
+        steps: 2,
+        description: "Select a model to configure",
+        ...(open.filter === null ? {} : { input: open.filter }),
+        rows: visible.rows,
+        index: visible.index,
+        hint: MODEL_SHORTCUTS.hintEntries(MODEL_SCOPE),
+      }, width, theme);
+    }
+
+    const selected = open.entry.flags.find(flag => flag.key === open.modelKey);
+    const current = selected === undefined ? undefined : structuredValue(open.entry, open.record)[selected.key];
+    const allRows: readonly DialogRow[] = (selected === undefined ? [] : this.#modelLevelOptions(open, selected)).map(choice => ({
+      label: choice.value === current ? `✓ ${choice.label}` : choice.label,
+      value: choice.description,
+    }));
+    const visible = dialogWindow(allRows, open.index, 10);
+    return renderSteppedDialogPanel({
+      title: "Thinking Level",
+      step: 2,
+      steps: 2,
+      description: `Select default thinking level for ${selected?.label ?? open.modelKey ?? "model"}`,
+      rows: visible.rows,
+      index: visible.index,
+      hint: MODEL_SHORTCUTS.hintEntries(MODEL_LEVEL_SCOPE),
+    }, width, theme);
   }
 
   #footerLines(width: number, theme: UiTheme): readonly string[] {
@@ -921,6 +1188,75 @@ export class SettingsApp implements UiApp {
   }
 }
 
+
+function modelLabelParts(label: string): Pick<DialogRow, "label" | "labelSuffix"> {
+  const match = /^(.*?)(\s+\[[^\]]+\])$/u.exec(label);
+  return match === null ? { label } : { label: match[1] ?? label, labelSuffix: match[2] ?? "" };
+}
+
+function dialogWindow(
+  rows: readonly DialogRow[],
+  index: number,
+  maximum: number,
+): { readonly rows: readonly DialogRow[]; readonly index: number } {
+  if (rows.length <= maximum) return { rows, index: Math.min(Math.max(0, rows.length - 1), Math.max(0, index)) };
+  const start = Math.min(rows.length - maximum, Math.max(0, index - Math.floor(maximum / 2)));
+  return { rows: rows.slice(start, start + maximum), index: index - start };
+}
+
+function thinkingLevelDescription(level: string): string {
+  switch (level) {
+    case "default": return "global default";
+    case "off": return "No reasoning";
+    case "minimal": return "Very brief reasoning (~1k tokens)";
+    case "low": return "Light reasoning (~2k tokens)";
+    case "medium": return "Moderate reasoning (~8k tokens)";
+    case "high": return "Deep reasoning (~16k tokens)";
+    case "xhigh": return "Extra-high reasoning (~32k tokens)";
+    case "max": return "Maximum reasoning";
+    default: return "";
+  }
+}
+
+function structuredValue(
+  entry: OwnedUiSettingsEntry,
+  record: Readonly<Record<string, boolean | string>>,
+): Record<string, boolean | string> {
+  // Invariant: a choice part at its fallback is unset, so the engine's default applies.
+  return Object.fromEntries(Object.entries(record).filter(([key, value]) => {
+    const part = entry.flags.find(candidate => candidate.key === key);
+    return part?.choices === undefined || value !== part.fallback;
+  }));
+}
+
+function sameEntry(left: OwnedUiSettingsEntry, right: OwnedUiSettingsEntry): boolean {
+  return left.backend === right.backend && left.id === right.id;
+}
+
+function sameRecord(
+  left: Readonly<Record<string, boolean | string>>,
+  right: Readonly<Record<string, boolean | string>>,
+): boolean {
+  const leftEntries = Object.entries(left);
+  const rightEntries = Object.entries(right);
+  return leftEntries.length === rightEntries.length
+    && leftEntries.every(([key, value]) => right[key] === value);
+}
+
+function replaceRecord(
+  target: Record<string, boolean | string>,
+  source: Readonly<Record<string, boolean | string>>,
+): void {
+  for (const key of Object.keys(target)) delete target[key];
+  Object.assign(target, source);
+}
+
+function changeFailure(outcome: OwnedUiSettingsChangeOutcome): string | null {
+  if (outcome.failure !== null) return outcome.failure;
+  if (outcome.status === "failed") return "the effect failed";
+  if (outcome.status === "unavailable") return outcome.limitationReason ?? "the setting is unavailable";
+  return outcome.limitationReason;
+}
 
 /** The source's own wording when it has one, otherwise the id made readable. */
 function labelOf(entry: OwnedUiSettingsEntry): string {

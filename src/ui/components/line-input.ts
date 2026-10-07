@@ -229,6 +229,8 @@ export interface InputRowOptions {
   readonly placeholder?: string;
   /** Rules above and below, in the prompt's own grey. Default true. */
   readonly ruled?: boolean;
+  /** Prompt marker including any following spacing. Defaults to the shared prompt glyph. */
+  readonly promptGlyph?: string;
   readonly theme?: Pick<UiTheme, "fg">;
 }
 
@@ -240,7 +242,7 @@ export interface InputRow {
 /** The input row as the reference draws one, padded to exactly the width. */
 export function renderInputRow(input: LineInput, width: number, options: InputRowOptions = {}): InputRow {
   const presentation = new PromptInput(options.theme);
-  const view = input.view(Math.max(0, width - presentation.geometry(width).prefixWidth));
+  const view = input.view(Math.max(0, width - presentation.geometry(width, 0, options.promptGlyph).prefixWidth));
   const placeholder = options.placeholder ?? "";
   const empty = view.text.length === 0 && placeholder.length > 0;
 
@@ -253,5 +255,5 @@ export function renderInputRow(input: LineInput, width: number, options: InputRo
   const body = empty
     ? `${caretCell(placeholder.slice(0, 1))}${faint(placeholder.slice(1))}`
     : `${before}${caretCell(under)}${after}`;
-  return { lines: presentation.render(width, () => ({ rows: [body] }), options.ruled) };
+  return { lines: presentation.render(width, () => ({ rows: [body] }), options.ruled, 0, options.promptGlyph) };
 }

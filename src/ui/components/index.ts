@@ -1,5 +1,5 @@
-export { dialogRowAt, dialogValueColumn, renderDialogPanel } from "./dialog-panel.js";
-export type { DialogPanelFrame, DialogPanelState, DialogRow } from "./dialog-panel.js";
+export { dialogRowAt, dialogValueColumn, renderDialogPanel, renderSteppedDialogPanel } from "./dialog-panel.js";
+export type { DialogPanelFrame, DialogPanelState, DialogRow, SteppedDialogPanelState } from "./dialog-panel.js";
 export { FrameContractError, assertPaneRect, finalizeFrame, validateFrame } from "./frame.js";
 export type { PaneRect } from "./frame.js";
 export { humanizeLabel, humanizeTitle } from "./label.js";
@@ -57,7 +57,7 @@ export type {
   ScrollbarSpeed,
   ScrollbarStyle,
 } from "./scrollbar.js";
-export { renderShortcutHints, renderShortcutHintsWithClose } from "./shortcut-hints.js";
+export { assertOwnedShortcutHintConventions, renderShortcutHints, renderShortcutHintsWithClose, shortcutHintsText } from "./shortcut-hints.js";
 export type { ShortcutHintEntry } from "./shortcut-hints.js";
 export { GLOBAL_SCOPE, ShortcutRegistry, assembleShortcuts, assertNoShortcutConflicts } from "./shortcuts.js";
 export type { ShortcutConflict, ShortcutDeclaration, ShortcutRegistryResult } from "./shortcuts.js";

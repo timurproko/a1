@@ -399,7 +399,7 @@ export class OwnedUiSessionShell {
       }),
       ...(terminal === undefined ? {} : { terminal: terminal }),
       hardwareCursor: this.backend.view().terminal.hardwareCursor,
-      wheelScrollLines: initialPiSettings.fullscreenWheelScrollLines,
+      ...(this.#customViewport ? {} : { wheelScrollLines: initialPiSettings.fullscreenWheelScrollLines }),
     };
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.runtime = runtime;
@@ -571,13 +571,14 @@ export class OwnedUiSessionShell {
       ...(this.#customViewport ? { fullscreenCopyOnSelect: { apply: (value: unknown) => {
         if (typeof value !== "boolean") throw new TypeError("Fullscreen copy-on-select setting is invalid");
         this.root.setFullscreenCopyOnSelect(value);
-      } } } : {}),
-      fullscreenWheelScrollLines: { apply: value => {
-        if (value !== "auto" && (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > 100)) {
-          throw new TypeError("Fullscreen wheel-scroll distance is invalid");
-        }
-        this.runtime.setWheelScrollLines(value);
-      } },
+      } } } : {
+        fullscreenWheelScrollLines: { apply: (value: unknown) => {
+          if (value !== "auto" && (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > 100)) {
+            throw new TypeError("Fullscreen wheel-scroll distance is invalid");
+          }
+          this.runtime.setWheelScrollLines(value);
+        } },
+      }),
     });
     if (this.#customViewport && promptHistory !== undefined) {
       this.#promptHistoryImageSidecar = promptHistory.imageSidecar;
