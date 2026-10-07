@@ -53,9 +53,9 @@ describe("the Skills dialog", () => {
       "",
       " >",
       "",
-      " → skill:framer",
-      "   skill:code-review",
-      "   skill:apply-patch",
+      " → framer",
+      "   code-review",
+      "   apply-patch",
       "",
       "   Design, edit, and publish Framer sites",
       "",
@@ -68,9 +68,9 @@ describe("the Skills dialog", () => {
       "",
       " >",
       "",
-      " → skill:framer",
-      "   skill:code-review",
-      "   skill:apply-patch",
+      " → framer",
+      "   code-review",
+      "   apply-patch",
       "",
       "   Design, edit, and publish Framer site",
       "",
@@ -84,17 +84,17 @@ describe("the Skills dialog", () => {
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
     // Platform: chalk decides whether bold is emitted for this terminal; the accent role is what the theme guarantees.
     expect(rows[1]).toMatch(/^ <accent>(?:<b>)?Skills(?:<\/b>)?<\/>$/u);
-    expect(rows[5]).toContain("<accent>→ </><text>skill:framer</>");
-    expect(rows[6]).toBe("   skill:code-review");
+    expect(rows[5]).toContain("<accent>→ </><text>framer</>");
+    expect(rows[6]).toBe("   code-review");
     expect(rows[9]).toBe(" <muted>  Design, edit, and publish Framer sites</>");
     const selected = rendered[5]!;
     const selectedText = stripTerminalSequences(selected);
-    expect(selectedText).toBe(" → skill:framer");
+    expect(selectedText).toBe(" → framer");
     const selectionBackground = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
     expect(cellBackgroundAt(selected, 1)).toBe(selectionBackground);
     expect(cellBackgroundAt(selected, selectedText.length - 1)).toBe(selectionBackground);
     expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
-    expect(cellStyle(selected, "s")).toEqual(cellStyle(piTheme().fg("text", "s"), "s"));
+    expect(cellStyle(selected, "f")).toEqual(cellStyle(piTheme().fg("text", "f"), "f"));
     expect(selected).not.toContain("\u001b[1m");
   });
 
@@ -109,11 +109,11 @@ describe("the Skills dialog", () => {
     const { component, onSelect, onCancel, plain } = dialog();
     component.handleInput?.(UP);
     // Invariant: a skill without a description shows no description block.
-    expect(plain(80).slice(5, 10)).toEqual(["   skill:framer", "   skill:code-review", " → skill:apply-patch", "", " ↑↓ navigate  Enter select  Esc close"]);
+    expect(plain(80).slice(5, 10)).toEqual(["   framer", "   code-review", " → apply-patch", "", " ↑↓ navigate  Enter select  Esc close"]);
     component.handleInput?.(DOWN);
-    expect(plain(80).slice(5, 10)).toEqual([" → skill:framer", "   skill:code-review", "   skill:apply-patch", "", "   Design, edit, and publish Framer sites"]);
+    expect(plain(80).slice(5, 10)).toEqual([" → framer", "   code-review", "   apply-patch", "", "   Design, edit, and publish Framer sites"]);
     component.handleInput?.(DOWN);
-    expect(plain(80).slice(5, 10)).toEqual(["   skill:framer", " → skill:code-review", "   skill:apply-patch", "", "   Review the current diff"]);
+    expect(plain(80).slice(5, 10)).toEqual(["   framer", " → code-review", "   apply-patch", "", "   Review the current diff"]);
     component.handleInput?.(ENTER);
     expect(onSelect).toHaveBeenCalledExactlyOnceWith("code-review");
     expect(onCancel).not.toHaveBeenCalled();
@@ -131,10 +131,10 @@ describe("the Skills dialog", () => {
     const { component, onSelect, plain, type } = dialog();
     component.handleInput?.(DOWN);
     type("SKILL:APP");
-    expect(plain(80).slice(3, 8)).toEqual([" > SKILL:APP", "", " → skill:apply-patch", "", " ↑↓ navigate  Enter select  Esc close"]);
+    expect(plain(80).slice(3, 8)).toEqual([" > SKILL:APP", "", " → apply-patch", "", " ↑↓ navigate  Enter select  Esc close"]);
     for (let index = 0; index < "SKILL:APP".length; index++) component.handleInput?.(BACKSPACE);
     type("diff");
-    expect(plain(80).slice(5, 8)).toEqual([" → skill:code-review", "", "   Review the current diff"]);
+    expect(plain(80).slice(5, 8)).toEqual([" → code-review", "", "   Review the current diff"]);
     // Invariant: Enter applies the skill only; the query is never appended as arguments.
     component.handleInput?.(ENTER);
     expect(onSelect).toHaveBeenCalledExactlyOnceWith("code-review");
@@ -169,11 +169,11 @@ describe("the Skills dialog", () => {
     const many = Array.from({ length: 12 }, (_, index) => ({ name: `skill-${String(index).padStart(2, "0")}`, description: `Skill ${index}` }));
     const { component, plain } = dialog(many);
     const initial = plain(80);
-    expect(initial.filter(row => row.startsWith("   skill:") || row.startsWith(" → skill:"))).toHaveLength(10);
+    expect(initial.filter(row => row.startsWith("   skill-") || row.startsWith(" → skill-"))).toHaveLength(10);
     expect(initial).toContain("   (1/12)");
     component.handleInput?.(UP);
     const wrapped = plain(80);
-    expect(wrapped).toContain(" → skill:skill-11");
+    expect(wrapped).toContain(" → skill-11");
     expect(wrapped).toContain("   (12/12)");
     expect(wrapped).toContain("   Skill 11");
     const { plain: few } = dialog(SKILLS);
