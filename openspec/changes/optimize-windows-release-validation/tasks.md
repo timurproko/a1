@@ -23,4 +23,4 @@
 - [x] 4.1 Add fail-closed workflow/evidence coverage for missing, duplicate, stale, wrong-plan, cross-runtime, cancelled, failed, or malformed publication shards and prove no individual shard can authorize publication.
 - [x] 4.2 Run focused predecessor, exact-package, validation-tier, publication-matrix, shard-evidence, workflow-policy, governance, typecheck, documentation, and strict OpenSpec checks; do not run local full or release suites.
 - [x] 4.3 Reconcile current `origin/develop`, complete implementation evidence and known-gap disposition, review the diff, and add implementation-specific acceptance scenarios.
-- [ ] 4.4 Report the exact-head CI result and, when the next native candidate/nightly run exists, record Windows shard overlap, elapsed wall time, runner-minute trade-off, and the remaining critical path without weakening or retrying a failed owner.
+- [x] 4.4 Report the exact-head CI state at handoff and retain native candidate/nightly overlap, elapsed time, runner-minute trade-off, install-count, and remaining-critical-path evidence as explicit unchecked acceptance scenarios until such a run exists; never weaken or retry a failed owner.
