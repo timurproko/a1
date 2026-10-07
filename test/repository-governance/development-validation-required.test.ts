@@ -6,7 +6,7 @@ const valid = {
   acceptanceOnly: "false", implementationBound: "true", acceptanceCandidate: "false", deliveryCandidate: "true",
   acceptanceResult: "skipped", deliveryResult: "success", changesResult: "success", docsResult: "skipped",
   namingRequired: "false", namingResult: "skipped", namingHead: head, documentationResult: "skipped",
-  modularResult: "success", renderingResult: "skipped", docsOnly: "false", versionOnly: "false",
+  modularResult: "success", renderingResult: "skipped", docsOnly: "false", versionOnly: "false", releaseReopening: "false",
   openspecTouched: "false", documentationRequired: "false", renderingTier: "none", selectedHead: head, expectedHead: head,
 };
 
@@ -54,6 +54,28 @@ describe("development validation aggregate", () => {
       .toThrow("finalized delivery validation must be skipped");
   });
 
+  it("accepts only intentional generic skips for an exact release reopening", () => {
+    const reopening = {
+      ...valid,
+      implementationBound: "false",
+      deliveryCandidate: "false",
+      deliveryResult: "skipped",
+      releaseReopening: "true",
+      modularResult: "skipped",
+    };
+    expect(requireDevelopmentValidation(reopening)).toEqual({ mode: "release-reopening" });
+    for (const override of [
+      { implementationBound: "true" },
+      { namingRequired: "true", namingResult: "success" },
+      { docsOnly: "true", docsResult: "success" },
+      { versionOnly: "true" },
+      { documentationRequired: "true", documentationResult: "success" },
+      { renderingTier: "smoke", renderingResult: "success" },
+      { modularResult: "success" },
+      { selectedHead: "b".repeat(40) },
+    ]) expect(() => requireDevelopmentValidation({ ...reopening, ...override })).toThrow();
+  });
+
   it("accepts exact docs, version, code, smoke, and full selections", () => {
     expect(requireDevelopmentValidation({ ...valid, docsOnly: "true", docsResult: "success", modularResult: "skipped" })).toMatchObject({ mode: "docs" });
     expect(requireDevelopmentValidation({ ...valid, versionOnly: "true", modularResult: "skipped" })).toMatchObject({ mode: "version" });
@@ -86,6 +108,7 @@ describe("development validation aggregate", () => {
     ["unexpected changed documentation", { documentationRequired: "false", documentationResult: "success" }],
     ["missing smoke", { renderingTier: "smoke", renderingResult: "skipped" }], ["failed full", { renderingTier: "full", renderingResult: "failure" }],
     ["unexpected rendering", { renderingTier: "none", renderingResult: "success" }], ["unknown rendering tier", { renderingTier: "partial" }],
+    ["missing reopening route", { releaseReopening: undefined }], ["unknown reopening route", { releaseReopening: "unknown" }],
     ["missing naming selection", { namingRequired: undefined }], ["skipped naming", { namingRequired: "true", namingResult: "skipped" }],
     ["failed naming", { namingRequired: "true", namingResult: "failure" }],
     ["stale naming", { namingRequired: "true", namingResult: "success", namingHead: "b".repeat(40) }],

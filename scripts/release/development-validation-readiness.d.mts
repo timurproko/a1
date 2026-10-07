@@ -25,3 +25,22 @@ export function classifyCurrentDevelopmentValidationReadiness(input: {
   expectedHead: string;
   expectedBase: string;
 }): Promise<DevelopmentValidationReadinessDecision>;
+
+export interface ReleaseReopeningValidationRoute {
+  selected: boolean;
+  reason: string;
+}
+
+export function classifyReleaseReopeningValidationRoute(input: {
+  eventName: string;
+  pull: any;
+  reader: any;
+}): Promise<ReleaseReopeningValidationRoute>;
+export function classifyCurrentReleaseReopeningValidationRoute(input: {
+  eventName: string;
+  pull: any;
+  reader: any;
+  expectedNumber: number;
+  expectedHead: string;
+  expectedBase: string;
+}): Promise<ReleaseReopeningValidationRoute>;
