@@ -21,5 +21,5 @@ None.
 
 ## Impact
 
-- Affected areas: the bare-A1 autocomplete provider composition and focused shell/skills-tunnel tests.
+- Affected areas: the bare-A1 autocomplete provider composition, the owned editor's declared tunnel-colon interception, focused shell/skills-tunnel tests, and corresponding copied-source/startup governance baselines.
 - No command execution, keybinding, public API, dependency, configuration, session format, or installed Pi package changes are intended.

@@ -191,11 +191,15 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     const resources = commands
       .filter(command => command.name !== collapsed.collapsedCommand?.name && command.source !== "builtin" && !builtInNames.has(command.name))
       .map(command => autocompleteCommand(command));
+    const catalog = [...builtIns, ...resources];
     const combined = new CombinedAutocompleteProvider(
-      [...builtIns, ...resources],
+      catalog,
       options.cwd ?? process.cwd(),
     );
-    autocompleteProvider = tunnelSkills.length === 0 ? combined : createSkillsTunnelProvider(combined, tunnelSkills);
+    const tunnelAware = tunnelSkills.length === 0 ? combined : createSkillsTunnelProvider(combined, tunnelSkills);
+    autocompleteProvider = options.keybindingProfile === "a1"
+      ? createDelimiterReadyCommandProvider(tunnelAware, catalog)
+      : tunnelAware;
     editor.setAutocompleteProvider(autocompleteProvider);
   };
   setAutocompleteCommands(options.autocompleteCommands ?? []);
@@ -353,6 +357,43 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   };
 }
 
+
+/** Bare A1 leaves an applied catalog command ready for `:`, a user-entered space, or submission. */
+function createDelimiterReadyCommandProvider(
+  base: AutocompleteProvider,
+  commands: readonly PiShellAutocompleteCommand[],
+): AutocompleteProvider {
+  const commandNames = new Set(commands.map(command => command.name));
+  return {
+    ...(base.triggerCharacters === undefined ? {} : { triggerCharacters: base.triggerCharacters }),
+    getSuggestions: (lines, cursorLine, cursorCol, options) => base.getSuggestions(lines, cursorLine, cursorCol, options),
+    applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
+      const result = base.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
+      const currentLine = lines[cursorLine] ?? "";
+      const textBeforeCursor = currentLine.slice(0, cursorCol);
+      const beforePrefix = currentLine.slice(0, cursorCol - prefix.length);
+      const completedLine = result.lines[result.cursorLine] ?? "";
+      const spacerIndex = result.cursorCol - 1;
+      const expectedCommand = `${beforePrefix}/${item.value}`;
+      const isCatalogCommand = commandNames.has(item.value)
+        && prefix.startsWith("/")
+        && !prefix.slice(1).includes("/")
+        && !prefix.includes(" ")
+        && textBeforeCursor.trimStart() === prefix;
+      if (!isCatalogCommand
+        || result.cursorLine !== cursorLine
+        || spacerIndex < 0
+        || completedLine[spacerIndex] !== " "
+        || completedLine.slice(0, spacerIndex) !== expectedCommand) return result;
+      const nextLines = [...result.lines];
+      nextLines[result.cursorLine] = completedLine.slice(0, spacerIndex) + completedLine.slice(spacerIndex + 1);
+      return { ...result, lines: nextLines, cursorCol: spacerIndex };
+    },
+    ...(base.shouldTriggerFileCompletion === undefined ? {} : {
+      shouldTriggerFileCompletion: (lines, cursorLine, cursorCol) => base.shouldTriggerFileCompletion!(lines, cursorLine, cursorCol),
+    }),
+  };
+}
 
 function autocompleteCommand(
   command: PiShellAutocompleteCommand,

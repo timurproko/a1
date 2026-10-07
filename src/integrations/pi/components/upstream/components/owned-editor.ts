@@ -5,7 +5,8 @@
  * private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input
  * frame, transient contextual-suggestion branch, and explicit body geometry for selection and
  * above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape. Bare
- * A1 also completes a selected tunnel command with `:` and reopens the menu on its tunnel rows.
+ * A1 also completes a selected or exact completed tunnel command with `:` and reopens the menu on its
+ * tunnel rows.
  * Deviations: owned-shared-input-frame, above-prompt-autocomplete-placement,
  * clear-command-search-on-escape, command-tunnel-colon-completion.
  */
@@ -131,7 +132,7 @@ return class extends Base {
 
   handleInput(data: string): void {
     if (this.onExtensionShortcut?.(data)) return;
-    if (data === ":" && this.#completeSelectedCommandTunnel()) return;
+    if (data === ":" && this.#completeCommandTunnel()) return;
     if (this.#promptSuggestion !== null
       && !this.isShowingAutocomplete()
       && this.canPresentPromptSuggestion()
@@ -177,15 +178,23 @@ return class extends Base {
   }
 
   /**
-   * Replace a sole top-level slash search whose selected row is a tunnel command with `/<command>:`
-   * and reopen the menu on the tunnel rows. The replacement goes through the public setText, which
-   * records the undo snapshot; every other colon stays ordinary text.
+   * Complete either a selected tunnel row or an exact command left by Tab to `/<command>:` and
+   * reopen the menu on the tunnel rows. Public setText records the undo snapshot; every other colon
+   * stays ordinary text.
    */
-  #completeSelectedCommandTunnel(): boolean {
-    if (!this.isTopLevelCommandSearch()) return false;
-    const selected = selectedAutocompleteValue(this);
-    if (selected === undefined || !this.#commandTunnels().includes(selected)) return false;
-    this.setText(`/${selected}:`);
+  #completeCommandTunnel(): boolean {
+    const tunnels = this.#commandTunnels();
+    let command: string | undefined;
+    if (this.isTopLevelCommandSearch()) {
+      const selected = selectedAutocompleteValue(this);
+      if (selected !== undefined && tunnels.includes(selected)) command = selected;
+    } else if (!this.isShowingAutocomplete()) {
+      const text = this.getText();
+      const cursor = this.getCursor();
+      command = tunnels.find(candidate => text === `/${candidate}` && cursor.line === 0 && cursor.col === text.length);
+    }
+    if (command === undefined) return false;
+    this.setText(`/${command}:`);
     triggerAutocomplete(this);
     return true;
   }

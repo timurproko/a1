@@ -35,11 +35,11 @@ The provider cannot and need not distinguish Tab from Enter. With the generated 
 
 This keeps direct commands such as `/settings` executable and commands such as `/login` editable without inventing a second application path.
 
-### 3. Reuse the existing tunnel trigger
+### 3. Extend the existing owned tunnel trigger to exact completed commands
 
-After Tab completes the selected `skills` row to `/skills`, typing `:` should produce `/skills:` and let the existing slash-context update request tunnel suggestions. The tunnel's candidate labels, filtering, selected-description styling, application result, submission rewrite, and history behavior remain unchanged.
+The owned editor already intercepts `:` while a tunnel command is selected in an open sole-command search, completes to `/<command>:`, and requests the tunnel rows. Extend that same declared exception to the no-menu state where editor text is exactly a configured tunnel command, the cursor is at its end, and Tab has left no spacer. It will use the existing public `setText` and autocomplete request path, preserving undo/change behavior and avoiding a generic colon trigger in the copied editor core.
 
-No generic colon semantics are added: commands without a declared tunnel simply retain their colon as ordinary prompt text under the existing editor rules.
+The tunnel's candidate labels, filtering, selected-description styling, application result, submission rewrite, and history behavior remain unchanged. Commands without a declared tunnel, text with any suffix, and cursors away from the exact command continue to treat `:` as ordinary input. The copied-source provenance and deviation ledger will record the widened accepted tunnel case.
 
 ### 4. Verify both owned editor paths and the comparison profile
 

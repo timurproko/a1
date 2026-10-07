@@ -152,6 +152,52 @@ describe("skills command helpers", () => {
 });
 
 describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)", history => {
+  it("leaves completed top-level commands ready for a delimiter or arguments", async () => {
+    const { editor, submitted, dispose } = await fixture(history);
+    try {
+      editor.setAutocompleteCommands([
+        ...COMMANDS,
+        { name: "login", description: "Configure provider authentication", source: "builtin",
+          argumentOptions: [{ id: "openai", label: "OpenAI" }] },
+      ]);
+
+      editor.handleInput?.("/sett");
+      await settle();
+      editor.handleInput?.(TAB);
+      expect(editor.getText()).toBe("/settings");
+      expect(menuText(editor)).toEqual([]);
+      editor.handleInput?.(":");
+      await settle();
+      expect(editor.getText()).toBe("/settings:");
+      expect(menuText(editor)).toEqual([]);
+
+      editor.setText("/settTAIL");
+      for (let index = 0; index < 4; index++) editor.handleInput?.("\u001b[D");
+      editor.handleInput?.(TAB);
+      await settle();
+      editor.handleInput?.(TAB);
+      expect(editor.getText()).toBe("/settingsTAIL");
+
+      editor.setText("");
+      editor.handleInput?.("/log");
+      await settle();
+      editor.handleInput?.(TAB);
+      expect(editor.getText()).toBe("/login");
+      editor.handleInput?.(" ");
+      editor.handleInput?.("o");
+      await settle();
+      expect(menuText(editor).join("\n")).toContain("OpenAI");
+      editor.handleInput?.(TAB);
+      expect(editor.getText()).toBe("/login openai");
+
+      editor.setText("");
+      editor.handleInput?.("/sett");
+      await settle();
+      editor.handleInput?.(ENTER);
+      expect(submitted).toEqual(["/settings"]);
+    } finally { await dispose(); }
+  });
+
   it("collapses the menu, lists tunnel rows, and completes the selected skills row with a colon", async () => {
     let presentation: "collapse" | "expand" = "collapse";
     const { editor, submitted, dispose } = await fixture(history, { skillsPresentation: () => presentation, getRows: () => 80 });
@@ -189,13 +235,27 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
       menu = menuText(editor).join("\n");
       expect(menu).toContain("skills");
       expect(menu).not.toContain("model");
+      editor.handleInput?.(TAB);
+      expect(editor.getText()).toBe("/skills");
+      expect(menuText(editor)).toEqual([]);
       editor.handleInput?.(":");
       await settle();
       expect(editor.getText()).toBe("/skills:");
-      const rows = menuText(editor);
+      let rows = menuText(editor);
       expect(rows.join("\n")).toContain("skills:framer");
       expect(rows.join("\n")).toContain("skills:code-review");
       expect(rows.join("\n")).toContain("Design, edit, and publish Framer sites");
+      expect(rows[0]!.trimStart()).toMatch(/^→ skills:framer/u);
+      editor.handleInput?.(ESC);
+      editor.setText("");
+
+      // Compatibility: typing the tunnel delimiter while `skills` is selected still completes it directly.
+      editor.handleInput?.("/sk");
+      await settle();
+      editor.handleInput?.(":");
+      await settle();
+      expect(editor.getText()).toBe("/skills:");
+      rows = menuText(editor);
       expect(rows[0]!.trimStart()).toMatch(/^→ skills:framer/u);
       editor.handleInput?.(UNDO);
       expect(editor.getText()).toBe("/sk");
@@ -335,6 +395,20 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
 });
 
 describe("skills tunnel outside collapse", () => {
+  it("keeps pinned trailing-space command completion in the comparison profile", async () => {
+    const root = await mkdtemp(join(tmpdir(), "command-spacing-pi-"));
+    try {
+      const editor = createPiShellEditor({
+        keybindingProfile: "pi", agentDir: root, cwd: root, getColumns: () => 80, getRows: () => 24,
+        requestRender() {}, onSubmit() {},
+      });
+      editor.handleInput?.("/sett");
+      await settle();
+      editor.handleInput?.(TAB);
+      expect(editor.getText()).toBe("/settings ");
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it("installs the pinned per-skill list in the comparison profile and without a presentation", async () => {
     const root = await mkdtemp(join(tmpdir(), "skills-tunnel-pi-"));
     try {
