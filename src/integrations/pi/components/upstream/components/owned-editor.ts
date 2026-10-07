@@ -6,9 +6,9 @@
  * frame, transient contextual-suggestion branch, and explicit body geometry for selection and
  * above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape. Bare
  * A1 also completes a selected or exact completed tunnel command with `:` and reopens the menu on its
- * tunnel rows.
+ * tunnel rows, and reopens an exact top-level command menu after Tab applies its row.
  * Deviations: owned-shared-input-frame, above-prompt-autocomplete-placement,
- * clear-command-search-on-escape, command-tunnel-colon-completion.
+ * clear-command-search-on-escape, command-tunnel-colon-completion, keep-command-menu-open-after-tab.
  */
 import {
   CURSOR_MARKER,
@@ -132,6 +132,9 @@ return class extends Base {
 
   handleInput(data: string): void {
     if (this.onExtensionShortcut?.(data)) return;
+    const tabbedCommand = this.keybindings.matches(data, "tui.input.tab") && this.isTopLevelCommandSearch()
+      ? selectedAutocompleteValue(this)
+      : undefined;
     if (data === ":" && this.#completeCommandTunnel()) return;
     if (this.#promptSuggestion !== null
       && !this.isShowingAutocomplete()
@@ -175,6 +178,14 @@ return class extends Base {
       if (action !== "app.interrupt" && action !== "app.exit" && this.keybindings.matches(data, action)) { handler(); return; }
     }
     super.handleInput(data);
+    if (tabbedCommand !== undefined) this.#reopenCompletedCommand(tabbedCommand);
+  }
+
+  /** Keep the exact completed command visible in its filtered menu after Tab applies the row. */
+  #reopenCompletedCommand(command: string): void {
+    const text = this.getText();
+    const cursor = this.getCursor();
+    if (text === `/${command}` && cursor.line === 0 && cursor.col === text.length) triggerAutocomplete(this);
   }
 
   /**

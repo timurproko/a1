@@ -164,8 +164,9 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
       editor.handleInput?.("/sett");
       await settle();
       editor.handleInput?.(TAB);
+      await settle();
       expect(editor.getText()).toBe("/settings");
-      expect(menuText(editor)).toEqual([]);
+      expect(menuText(editor).find(row => row.includes("→"))).toMatch(/→ settings\s+Open settings menu/u);
       editor.handleInput?.(":");
       await settle();
       expect(editor.getText()).toBe("/settings:");
@@ -182,7 +183,9 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
       editor.handleInput?.("/log");
       await settle();
       editor.handleInput?.(TAB);
+      await settle();
       expect(editor.getText()).toBe("/login");
+      expect(menuText(editor).find(row => row.includes("→"))).toMatch(/→ login\s+Configure provider authentication/u);
       editor.handleInput?.(" ");
       editor.handleInput?.("o");
       await settle();
@@ -236,8 +239,9 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
       expect(menu).toContain("skills");
       expect(menu).not.toContain("model");
       editor.handleInput?.(TAB);
+      await settle();
       expect(editor.getText()).toBe("/skills");
-      expect(menuText(editor)).toEqual([]);
+      expect(menuText(editor).find(row => row.includes("→"))).toMatch(/→ skills\s+Browse, search, and apply a skill/u);
       editor.handleInput?.(":");
       await settle();
       expect(editor.getText()).toBe("/skills:");

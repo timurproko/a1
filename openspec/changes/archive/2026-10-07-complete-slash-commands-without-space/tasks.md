@@ -1,7 +1,8 @@
 ## 1. Delimiter-ready command completion
 
-- [x] 1.1 Add focused failing tests for both bare-A1 history modes proving Tab completes ordinary and argument-bearing top-level command rows to `/<name>` with no trailing space, while Enter still submits the selected command and `a1 pi` retains pinned spacing.
+- [x] 1.1 Add focused failing tests for both bare-A1 history modes proving Tab completes ordinary and argument-bearing top-level command rows to `/<name>` with no trailing space and immediately shows the exact matching row, while Enter still submits the selected command and `a1 pi` retains pinned spacing.
 - [x] 1.2 Add a bare-A1 autocomplete-provider adapter that delegates completion and removes only the generated top-level command spacer, preserving original suffix text, cursor placement, undo/change handling, and non-command completions.
+- [x] 1.3 Reopen autocomplete through a fresh provider request only when Tab has applied the selected top-level row to the exact complete editor text; keep suffix, argument, resource, Enter, and comparison paths closed or unchanged.
 
 ## 2. Tunnel and argument safeguards
 
