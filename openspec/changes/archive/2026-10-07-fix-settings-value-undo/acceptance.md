@@ -10,7 +10,7 @@ The manual merge accepts these scenarios:
 - Failed forward saves create no undo step, while failed restorations keep their step available for retry.
 - Settings uses only `Enter change`—Space is inactive—and the shared owned-dialog hint boundary rejects connective `to` actions while consistently rendering dim keys with muted actions.
 - Structured dialogs show one upper boundary rule, title, muted selected-part description, menu, and hints, and consume pointer motion, clicks, releases, and wheel input without changing state.
-- Per-model thinking uses the stable `Thinking Level` title, muted step context, ASCII `> ` search prompt, one-space selection cursors, searchable model and level steps, clear-override behavior, whole-object writes, back navigation, and concise active-step hints.
+- Per-model thinking uses the stable `Thinking Level` title, muted step context, ASCII `> ` search prompt, one-space selection cursors, searchable model and level steps, clear-override behavior, whole-object writes, back navigation, `Esc close` on step 1, and `Esc back` on step 2.
 - Scalar value-menu choice text aligns with the source setting value while preserving the effective-value mark.
 - Bare A1 omits `Fullscreen wheel scrolling`, uses global Scroll settings for the custom viewport, and labels Pi's `fullscreenCopyOnSelect` setting `Copy on select`, while comparison retains pinned behavior.
 
@@ -32,14 +32,14 @@ The manual merge accepts these scenarios:
     "Failed forward saves create no undo step, while failed restorations keep their step available for retry.",
     "Settings uses only `Enter change`—Space is inactive—and the shared owned-dialog hint boundary rejects connective `to` actions while consistently rendering dim keys with muted actions.",
     "Structured dialogs show one upper boundary rule, title, muted selected-part description, menu, and hints, and consume pointer motion, clicks, releases, and wheel input without changing state.",
-    "Per-model thinking uses the stable `Thinking Level` title, muted step context, ASCII `> ` search prompt, one-space selection cursors, searchable model and level steps, clear-override behavior, whole-object writes, back navigation, and concise active-step hints.",
+    "Per-model thinking uses the stable `Thinking Level` title, muted step context, ASCII `> ` search prompt, one-space selection cursors, searchable model and level steps, clear-override behavior, whole-object writes, back navigation, `Esc close` on step 1, and `Esc back` on step 2.",
     "Scalar value-menu choice text aligns with the source setting value while preserving the effective-value mark.",
     "Bare A1 omits `Fullscreen wheel scrolling`, uses global Scroll settings for the custom viewport, and labels Pi's `fullscreenCopyOnSelect` setting `Copy on select`, while comparison retains pinned behavior."
   ],
-  "archiveDigest": "603ed2207dfe8cf6d87eb7cb23da1dc801c48d79dd1c0820ac1c423892a292a0",
-  "specDigest": "b6ee5439467a25ae0c797ae185ceb9619cc7f4b49fded7cf40788da0bdec12cc",
+  "archiveDigest": "6327db272247d36f5b3ec5177e5695b733b323c161729bc9f61bbba61018a793",
+  "specDigest": "a54cf4c5f71231047813533564f4f73d7a0c539aac1ea2a58638a919117b21a7",
   "tasksDigest": "099abbf01d4cd60b0a9eb763cb43324dccbbb29d5677eaf283608934a16191a7",
-  "evidenceDigest": "4d2f815adff689fb14db70dfc4293f6962fe487b3fd572d9fb8a6060fc2dba4c",
+  "evidenceDigest": "2059929c085ecddd7b0d4fcb31ce2474179db2c2c77b9d9ede24c9e41ba12108",
   "knownGaps": []
 }
 ```
