@@ -54,17 +54,23 @@ describe("workflow prerequisite receipts", () => {
     expect(step(packageJob, "Record downloaded registry candidate prerequisite").value.if).toBe("needs.plan.outputs.build != 'true'");
     const upload = packageJob.steps.find((candidate: any) => candidate.uses?.startsWith("actions/upload-artifact"));
     expect(upload.with.path).toContain("candidate.receipt.json");
-    const validate = workflow.jobs.validate;
-    expect(step(validate, "Record verified install-time build").index).toBeLessThan(step(validate, "Bind downloaded package to this validation job").index);
-    const bind = step(validate, "Bind downloaded package to this validation job").value.run;
-    expect(bind).toContain("--build-receipt .artifacts/validation/receipts/build.json");
-    expect(bind).toContain("--source-identity .artifacts/release/candidate-identity.json");
-    const run = step(validate, "Validate the exact package").value;
-    expect(run.env).toMatchObject({
-      VALIDATION_BUILD_RECEIPT: "${{ github.workspace }}/.artifacts/validation/receipts/build.json",
-      VALIDATION_PACKAGE_RECEIPT: "${{ github.workspace }}/.artifacts/release/candidate.receipt.json",
-      VALIDATION_PACKAGE_SOURCE_IDENTITY: "${{ github.workspace }}/.artifacts/release/candidate-identity.json",
-    });
+    for (const [jobName, bindName, runName] of [
+      ["validate_sequential", "Bind downloaded package to this validation job", "Validate the exact package"],
+      ["validate_windows_shard", "Bind downloaded package to this validation shard", "Run complete publication validation shard"],
+    ]) {
+      const validate = workflow.jobs[jobName];
+      const build = step(validate, "Record verified install-time build");
+      const bound = step(validate, bindName);
+      expect(build.index).toBeLessThan(bound.index);
+      expect(bound.value.run).toContain("--build-receipt .artifacts/validation/receipts/build.json");
+      expect(bound.value.run).toContain("--source-identity .artifacts/release/candidate-identity.json");
+      const run = step(validate, runName).value;
+      expect(run.env).toMatchObject({
+        VALIDATION_BUILD_RECEIPT: "${{ github.workspace }}/.artifacts/validation/receipts/build.json",
+        VALIDATION_PACKAGE_RECEIPT: "${{ github.workspace }}/.artifacts/release/candidate.receipt.json",
+        VALIDATION_PACKAGE_SOURCE_IDENTITY: "${{ github.workspace }}/.artifacts/release/candidate-identity.json",
+      });
+    }
   });
 
   it("never treats receipt or download caches as publication authority", async () => {
