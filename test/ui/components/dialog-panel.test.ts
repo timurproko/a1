@@ -50,7 +50,7 @@ describe("shared dialog panel", () => {
       hint: [
         { key: "Type", action: "search" },
         { key: "Enter", action: "select" },
-        { key: "esc", action: "back" },
+        { key: "esc", action: "close" },
       ],
     }, 80, PLAIN_THEME);
 
@@ -61,7 +61,7 @@ describe("shared dialog panel", () => {
     expect(rows.join("\n")).toContain("> spark");
     expect(rows.join("\n")).not.toContain("❯ spark");
     expect(rows.join("\n")).toContain("Select a model to configure");
-    expect(rows.join("\n")).toContain("Type search · Enter select · Esc back");
+    expect(rows.join("\n")).toContain("Type search · Enter select · Esc close");
   });
 
   it("mutes a stepped model row's bracketed provider, including on the selected row", () => {
@@ -72,7 +72,7 @@ describe("shared dialog panel", () => {
       description: "Select a model to configure",
       rows: [{ label: "gpt-5.3-codex-spark", labelSuffix: " [openai-codex]", value: "" }],
       index: 0,
-      hint: [{ key: "esc", action: "back" }],
+      hint: [{ key: "esc", action: "close" }],
     }, 100, NAMING_THEME);
 
     expect(rows[1]).toContain("<accent>Thinking Level</accent> <dim>(step 1/2)</dim>");

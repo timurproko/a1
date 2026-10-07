@@ -122,13 +122,13 @@ SETTINGS_SHORTCUTS.declare({
 }, "close");
 assertNoShortcutConflicts(SETTINGS_SHORTCUTS.assemble());
 
-type ModelAction = "edit-filter" | "previous" | "next" | "select" | "back";
+type ModelAction = "edit-filter" | "previous" | "next" | "select" | "close" | "back";
 const MODEL_SHORTCUTS = new ShortcutRegistry<ModelAction>();
 MODEL_SHORTCUTS.declare({ key: "edit", scope: MODEL_SCOPE, description: "Search models", section: "Choose", hint: { keys: "Type", does: "search" } }, "edit-filter");
 MODEL_SHORTCUTS.declare({ key: "up", scope: MODEL_SCOPE, description: "Previous model", section: "Choose" }, "previous");
 MODEL_SHORTCUTS.declare({ key: "down", scope: MODEL_SCOPE, description: "Next model", section: "Choose" }, "next");
 MODEL_SHORTCUTS.declare({ key: "enter", scope: MODEL_SCOPE, description: "Select model", section: "Choose", hint: { keys: "Enter", does: "select" } }, "select");
-MODEL_SHORTCUTS.declare({ key: "escape", scope: MODEL_SCOPE, description: "Close selector", section: "Choose", hint: { keys: DIALOG_BACK_SHORTCUT_HINT.key, does: DIALOG_BACK_SHORTCUT_HINT.action } }, "back");
+MODEL_SHORTCUTS.declare({ key: "escape", scope: MODEL_SCOPE, description: "Close selector", section: "Choose", hint: { keys: DIALOG_CLOSE_SHORTCUT_HINT.key, does: DIALOG_CLOSE_SHORTCUT_HINT.action } }, "close");
 MODEL_SHORTCUTS.declare({ key: "up", scope: MODEL_LEVEL_SCOPE, description: "Previous level", section: "Choose", hint: { keys: "↑↓", does: "navigate" } }, "previous");
 MODEL_SHORTCUTS.declare({ key: "down", scope: MODEL_LEVEL_SCOPE, description: "Next level", section: "Choose", hint: { keys: "↑↓", does: "navigate" } }, "next");
 MODEL_SHORTCUTS.declare({ key: "enter", scope: MODEL_LEVEL_SCOPE, description: "Select level", section: "Choose", hint: { keys: "Enter", does: "select" } }, "select");
@@ -661,7 +661,7 @@ export class SettingsApp implements UiApp {
     if (open.step === "model") {
       const flags = this.#filteredModelFlags(open);
       const action = MODEL_SHORTCUTS.resolve(key, MODEL_SCOPE) ?? "edit-filter";
-      if (action === "back") {
+      if (action === "close") {
         this.#structured = null;
         return { consumed: true };
       }

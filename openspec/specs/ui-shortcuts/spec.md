@@ -196,8 +196,9 @@ The owned Settings surface SHALL declare `Ctrl+Z` as its undo action in every or
 #### Scenario: Show stepped-selector guidance
 
 - **WHEN** the per-model thinking selector is open
-- **THEN** its footer SHALL use concise shortcut/action pairs for the active step, including `Type search`, `Enter select`, and `Esc back`
-- **AND** it SHALL NOT show the main Settings adjustment or undo hints as though those actions were active
+- **THEN** step 1 SHALL use `Type search`, `Enter select`, and `Esc close` because Escape closes the selector
+- **AND** step 2 SHALL use `Esc back` because Escape returns to step 1
+- **AND** neither step SHALL show the main Settings adjustment or undo hints as though those actions were active
 
 #### Scenario: Keep undo scopes isolated
 

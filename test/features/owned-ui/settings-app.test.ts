@@ -664,7 +664,7 @@ describe("the settings screen", () => {
     expect(shown).toContain("Select a model to configure");
     expect(shown).toContain("gpt-5 [openai]");
     expect(shown).toContain("gpt-5.3-codex-spark [openai]");
-    expect(shown).toContain("Type search · Enter select · Esc back");
+    expect(shown).toContain("Type search · Enter select · Esc close");
     expect(shown).not.toContain("Ctrl+Z undo");
     expect(shown).not.toContain("Enter change");
 
@@ -682,6 +682,7 @@ describe("the settings screen", () => {
     shown = screen(target).join("\n");
     expect(shown).toContain("Thinking Level (step 2/2)");
     expect(shown).toContain("Select default thinking level for gpt-5.3-codex-spark [openai]");
+    expect(shown).toContain("↑↓ navigate · Enter select · Esc back");
     expect(shown).not.toContain("Thinking Level for");
     expect(shown).toContain("low");
     expect(shown).toContain("Light reasoning (~2k tokens)");
@@ -691,6 +692,7 @@ describe("the settings screen", () => {
     expect(shown).not.toContain("(clear override)");
     target.onInput?.(ESC, HOST);
     expect(screen(target).join("\n")).toContain("Thinking Level (step 1/2)");
+    expect(screen(target).join("\n")).toContain("Esc close");
     expect(backing.writes).toHaveLength(0);
 
     target.onInput?.(ENTER, HOST);

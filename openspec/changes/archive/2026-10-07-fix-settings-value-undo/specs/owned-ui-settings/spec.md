@@ -88,14 +88,14 @@ When the owned Settings screen opens a structured-setting dialog, the dialog's o
 
 The owned Settings screen SHALL present the Agent `modelThinkingLevels` structured setting through a keyboard-only two-step selector matching A1's modal hierarchy rather than through the generic object-part panel. Both steps SHALL use the title `Thinking Level` followed on the same line by a muted `(step N/2)` marker. Step 1 SHALL show the muted next-line description `Select a model to configure`, a focused searchable input using the ASCII `> ` prompt marker, and the models supplied by the setting descriptor. A bracketed provider suffix such as `[openai-codex]` SHALL use the muted role on selected and unselected model rows, matching the Models dialog. A selected model or thinking-level row SHALL place exactly one space between its arrow cursor and visible label; unselected levels SHALL NOT reserve hidden checkmark spacing. Typing SHALL filter model labels, Up/Down SHALL move the selected model, Enter SHALL advance to that model's supported level choices, and Escape SHALL close from step 1.
 
-Step 2 SHALL retain the `Thinking Level` title with `(step 2/2)`, show the muted next-line description `Select default thinking level for {model label}`, offer only the supported levels declared for that model, and add pinned Pi's clear-override choice when that model has an override. The model label SHALL NOT replace or extend the title. Enter on clear override SHALL remove that model's override; Enter on a level SHALL write the whole updated object through the Agent backend and return to step 1 so another model can be configured. Escape SHALL return to step 1 without writing. The footer SHALL describe only the active step's keyboard behavior, including `Type search`, `Enter select`, and `Esc back` on step 1, rather than showing the main Settings adjustment or undo hints.
+Step 2 SHALL retain the `Thinking Level` title with `(step 2/2)`, show the muted next-line description `Select default thinking level for {model label}`, offer only the supported levels declared for that model, and add pinned Pi's clear-override choice when that model has an override. The model label SHALL NOT replace or extend the title. Enter on clear override SHALL remove that model's override; Enter on a level SHALL write the whole updated object through the Agent backend and return to step 1 so another model can be configured. Escape SHALL return to step 1 without writing. The footer SHALL describe only the active step's keyboard behavior, including `Type search`, `Enter select`, and `Esc close` on step 1 and `Esc back` on step 2, rather than showing the main Settings adjustment or undo hints.
 
 #### Scenario: Open per-model thinking levels
 
 - **WHEN** the user opens the `modelThinkingLevels` setting
 - **THEN** the dialog SHALL show `Thinking Level` with a muted `(step 1/2)`, the muted next-line description `Select a model to configure`, a focused search input beginning with ASCII `> `, and descriptor-supplied model rows
 - **AND** bracketed provider suffixes SHALL be muted as they are in the Models dialog
-- **AND** its footer SHALL show `Type search`, `Enter select`, and `Esc back` rather than generic Settings guidance
+- **AND** its footer SHALL show `Type search`, `Enter select`, and `Esc close` rather than generic Settings guidance
 
 #### Scenario: Filter and choose a model
 
@@ -122,9 +122,9 @@ Step 2 SHALL retain the `Thinking Level` title with `(step 2/2)`, show the muted
 
 #### Scenario: Go back without changing
 
-- **WHEN** the user presses Escape in step 2
+- **WHEN** the user presses Escape in step 2 while its footer shows `Esc back`
 - **THEN** the dialog SHALL return to step 1 without writing
-- **WHEN** the user presses Escape in step 1
+- **WHEN** the user presses Escape in step 1 while its footer shows `Esc close`
 - **THEN** the structured dialog SHALL close and restore the Settings list
 
 ### Requirement: Structured-setting dialogs are keyboard-only
