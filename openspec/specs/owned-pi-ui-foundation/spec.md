@@ -2162,7 +2162,7 @@ claim both routes ahead of the pinned workflow table, so invoking either in bare
 opens the A1-owned reference screen full screen over the session and appends no
 document, status, checkmark, or error row to the feed.
 
-`/changelog` SHALL open the screen titled `What's New` with the packaged, manually
+`/changelog` SHALL open the screen titled `Changelog` with the packaged, manually
 reviewed A1 release-note history newest first. It SHALL read only the deterministic
 local package resource and SHALL NOT query GitHub, npm, or another network service.
 `/hotkeys` SHALL open the screen titled `Keyboard Shortcuts` with the bare-A1
@@ -2184,7 +2184,7 @@ release-note acknowledgement or substitute A1 release notes for Pi's.
 
 #### Scenario: Invoke the changelog command in bare A1
 - **WHEN** the user submits `/changelog` in bare A1
-- **THEN** the `What's New` reference screen SHALL open with the complete packaged A1 release-note history in newest-first order, the editor SHALL be cleared, and the feed SHALL gain no rows
+- **THEN** the `Changelog` reference screen SHALL open with the complete packaged A1 release-note history in newest-first order, the editor SHALL be cleared, and the feed SHALL gain no rows
 
 #### Scenario: Use changelog without network access
 - **WHEN** the user opens `/changelog` while GitHub and npm are unavailable
@@ -2229,11 +2229,11 @@ or collapsed startup changelog behavior and acknowledgement unchanged.
 
 #### Scenario: Start bare A1 after an upgrade with the changelog expanded
 - **WHEN** bare A1 starts from stable `0.2.2`, the package carries reviewed note `0.2.2`, that version is not acknowledged, and Pi's `collapseChangelog` setting is off
-- **THEN** A1 SHALL paint an input-ready shell frame and then open the `0.2.2` note full screen without adding transcript content or showing the former transient notice
+- **THEN** A1 SHALL paint an input-ready shell frame and then open the `0.2.2` note in the `What's New` screen without adding transcript content or showing the former transient notice
 
 #### Scenario: Start bare A1 with the changelog collapsed
 - **WHEN** the same stable note is pending and Pi's `collapseChangelog` setting is on
-- **THEN** A1 SHALL open the same reviewed A1 note full screen because Pi's collapse preference does not control product release notes
+- **THEN** A1 SHALL open the same reviewed A1 note in the `What's New` screen because Pi's collapse preference does not control product release notes
 
 #### Scenario: Close the automatic release note
 - **WHEN** the matching automatic note rendered successfully and the user closes it
@@ -2265,7 +2265,7 @@ or collapsed startup changelog behavior and acknowledgement unchanged.
 
 #### Scenario: Open release notes on request
 - **WHEN** the user invokes `/changelog` before or after the automatic note is acknowledged
-- **THEN** the `What's New` reference screen SHALL open with complete packaged A1 release-note history and the feed SHALL gain no rows
+- **THEN** the `Changelog` reference screen SHALL open with complete packaged A1 release-note history and the feed SHALL gain no rows
 
 #### Scenario: Start the comparison profile after an upgrade
 - **WHEN** `a1 pi` starts under conditions that would make bare A1's current stable note pending

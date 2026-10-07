@@ -178,11 +178,11 @@ describe("owned reference routes", () => {
     expect(complete.id).toBe("changelog");
     // Invariant: no loading notice: the screen is blank until the document is drawn.
     expect(complete.render(60, 8).map(PLAIN).every(line => line.trim() === "")).toBe(true);
-    let lines = await settled(complete, current => current[1]?.includes("What's New") === true);
+    let lines = await settled(complete, current => current[1]?.includes("Changelog") === true);
     expect(changelog).toHaveBeenCalledWith(undefined);
     // Compatibility: the v2 frame: a rule, the title leading the document, a rule, the hint.
     expect(lines[0]).toBe("─".repeat(60));
-    expect(lines[1]?.startsWith(" What's New")).toBe(true);
+    expect(lines[1]?.startsWith(" Changelog")).toBe(true);
     expect(lines[2]?.startsWith("changelog complete at 58")).toBe(true);
     expect(lines[6]).toBe("─".repeat(60));
     expect(lines.at(-1)?.startsWith(" ↑↓ scroll  Esc close")).toBe(true);
@@ -194,6 +194,7 @@ describe("owned reference routes", () => {
     const supplied = host.open("changelog", { document: "0.85.2 notes" })!;
     lines = await settled(supplied, current => current[2]?.startsWith("changelog") === true);
     expect(changelog).toHaveBeenLastCalledWith({ document: "0.85.2 notes" });
+    expect(lines[1]?.startsWith(" What's New")).toBe(true);
     expect(lines[2]?.startsWith("changelog 0.85.2 notes at 58")).toBe(true);
     supplied.close();
 
@@ -274,7 +275,7 @@ describe("owned reference routes", () => {
     });
     const surface = host.open("changelog")!;
     const lines = await settled(surface, current => current[0]?.startsWith("Could not") === true);
-    expect(lines[0]).toBe("Could not load What's New: changelog unreadable");
+    expect(lines[0]).toBe("Could not load Changelog: changelog unreadable");
     expect(surface.isClosed()).toBe(false);
     expect(surface.handleInput(ESC)).toBe(true);
     surface.close();
