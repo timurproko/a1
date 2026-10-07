@@ -21,8 +21,8 @@
 
 ## Physical review
 
-Pending maintainer review in a physical terminal. Open `/resume`, move selection across the active session, named sessions, and ordinary sessions, and confirm only the blue background and arrow follow focus while the active session remains success green.
+The maintainer approved the built candidate after the `/resume` handoff. The reviewed result keeps title and metadata foregrounds stable while the blue background and accent arrow follow keyboard focus, and keeps the active session success green independently of focus.
 
 ## Known gaps
 
-None identified in implementation or deterministic coverage. Physical-terminal review remains the final pending task before readying the pull request.
+None.

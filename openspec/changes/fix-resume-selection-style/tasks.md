@@ -10,4 +10,4 @@
 
 ## 3. Confirm the Physical Result
 
-- [ ] 3.1 Build the interactive candidate and hand off `/resume` for physical-terminal review; verify selection movement changes only the blue row background/arrow, the active session remains success green like a checkmark, text roles remain stable, and no known gap is left undispositioned.
+- [x] 3.1 Build the interactive candidate and hand off `/resume` for physical-terminal review; verify selection movement changes only the blue row background/arrow, the active session remains success green like a checkmark, text roles remain stable, and no known gap is left undispositioned.
