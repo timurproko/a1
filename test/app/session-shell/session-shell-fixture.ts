@@ -27,6 +27,7 @@ vi.mock("node:worker_threads", async importOriginal => {
 });
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
 import { loadHistoryEditor } from "../../../src/integrations/pi/components/index.js";
+import type { PiShellLazySelectorLoader } from "../../../src/integrations/pi/components/lazy-selectors.js";
 import {
   OwnedUiSessionShell,
   type OwnedUiShellDiagnosticOptions,
@@ -289,6 +290,7 @@ export async function fixture(
   pastePreparation: OwnedUiShellDiagnosticOptions["pastePreparation"] | "forked" = { execute: inProcessPasteExecutor },
   skills?: OwnedUiShellSkillsOptions,
   promptImages?: OwnedUiShellPromptImagesOptions,
+  lazySelectors?: PiShellLazySelectorLoader,
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -314,6 +316,7 @@ export async function fixture(
       ...(clipboard === undefined ? {} : { clipboard }),
       ...(pasteDiagnostics === undefined ? {} : { paste: pasteDiagnostics }),
       ...(pastePreparation === "forked" ? {} : { pastePreparation }),
+      ...(lazySelectors === undefined ? {} : { lazySelectors }),
       responseCopy: responseCopy === "forked" ? {} : responseCopy ?? { execute: (snapshot, phase) => {
       const text = snapshot.rows.map((row, index) => selectionCopyRowText(snapshot, row, index)).join("\n");
       phase("extracted", Buffer.byteLength(text), "injected");

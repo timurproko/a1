@@ -53,6 +53,7 @@ import type {
   PiWorkflowRoute,
 } from "../../integrations/pi/engine/workflows.js";
 import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../../integrations/pi/components/shell-extension-ui.js";
+import type { PiShellLazySelectorLoader } from "../../integrations/pi/components/lazy-selectors.js";
 import { createPiShellEditor } from "../../integrations/pi/components/shell-editor-autocomplete.js";
 import {
   createPiQueuedInputStatus,
@@ -245,6 +246,8 @@ export interface OwnedUiShellDiagnosticOptions {
   readonly paste?: (event: PasteEvent) => void;
   /** Test seams for isolated paste preparation: an in-process starter, or the forked helper's entry. */
   readonly pastePreparation?: Omit<PastePreparationClientOptions, "onEvent" | "spareIdleMs">;
+  /** Test seam for pending and failed optional selector-module preparation. */
+  readonly lazySelectors?: PiShellLazySelectorLoader;
 }
 
 /** Live prompt-image admission policy supplied only by the bare-A1 profile. */
