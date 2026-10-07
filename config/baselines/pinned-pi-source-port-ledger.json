@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-07T09:17:25.783Z",
+  "recordedAt": "2026-10-07T10:11:03.001Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -1322,9 +1322,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/owned-editor.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape. Bare A1 also completes a selected tunnel command with `:` and reopens the menu on its tunnel rows.",
+      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape. Bare A1 also completes a selected or exact completed tunnel command with `:` and reopens the menu on its tunnel rows, and synchronously retains then refreshes an exact top-level command menu after Tab applies its row.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "1b57b04252b288acd3b6afad498513194218a701945a7a2ea8e50a98e4815099",
+      "localSha256": "920e5d2127c77db7d0ee49bad24717fb86bde48f951b01e9ce2708b12f0bdda5",
       "approvedDeviations": [
         {
           "id": "owned-shared-input-frame",
@@ -1346,8 +1346,14 @@
         },
         {
           "id": "command-tunnel-colon-completion",
-          "reason": "The accepted collapse-skills-into-skills-command change lets a typed `:` complete the selected `skills` row of a sole top-level slash search to `/skills:` and reopen the menu on the skills tunnel rows, following the v2 skills extension.",
-          "upstreamBehavior": "The pinned editor and the comparison profile insert every colon as ordinary text. Bare A1 replaces the search through the public setText (which records the undo snapshot) only when the menu is open on a sole top-level slash search whose highlighted row is a tunnel command supplied by the shell, then requests the menu again; every other colon, including one typed after other text, with no menu, or with another row highlighted, retains pinned behavior.",
+          "reason": "The accepted skills tunnel and delimiter-ready command completion changes let a typed `:` complete either the selected `skills` row or an exact Tab-completed `/skills` command to `/skills:` and reopen the menu on the skills tunnel rows, following the v2 skills extension.",
+          "upstreamBehavior": "The pinned editor and the comparison profile insert every colon as ordinary text. Bare A1 replaces through public setText (which records the undo snapshot) when either the menu is open on a sole top-level slash search whose highlighted row is a tunnel command supplied by the shell, or the menu is closed with the exact tunnel command and cursor at its end; it then requests the menu again. Every other colon, including one typed after other text, inside the command, or for a non-tunnel row, retains pinned behavior.",
+          "acceptanceTest": "test/integrations/pi/components/skills-command-tunnel.test.ts"
+        },
+        {
+          "id": "keep-command-menu-open-after-tab",
+          "reason": "The refined delimiter-ready completion keeps autocomplete continuously visible after Tab and refreshes a broad search to the exact matching command row, so users can continue with a tunnel or arguments without either a space-and-delete workaround or a close/reopen flash.",
+          "upstreamBehavior": "The pinned editor closes autocomplete after Tab applies a row. Bare A1 lets normal application finish, then synchronously retains the existing list and updates its prefix only when the selected top-level command exactly equals the complete editor text and the cursor is at its end; it requests suggestions for that exact prefix while the retained rows stay visible, so the provider result narrows the menu without an empty frame. Suffix, argument, resource, Enter, and comparison-profile paths retain their existing behavior.",
           "acceptanceTest": "test/integrations/pi/components/skills-command-tunnel.test.ts"
         }
       ],
