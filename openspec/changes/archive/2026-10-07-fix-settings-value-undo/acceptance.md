@@ -19,7 +19,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-07-fix-settings-value-undo/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-07-fix-settings-value-undo/acceptance.md",
   "finalizedDate": "2026-10-07",
-  "specBaseSha": "41383a19a28531db91e7aacc1bd3b0a790e9bb08",
+  "specBaseSha": "dc4726623778e968b69f898ea21a338b2446655d",
   "acceptanceScenarios": [
     "Pending scalar changes display only the requested value without flashing stale effective-state text.",
     "Repeated `Ctrl+Z` restores successful A1 and Agent scalar changes in reverse user-action order through their owning backends.",
