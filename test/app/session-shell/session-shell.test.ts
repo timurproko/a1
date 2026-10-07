@@ -260,7 +260,8 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       await vi.waitFor(() => {
         const loading = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
         expect(loading).toContain(" Share");
-        expect(loading).toContain(" Escape/Ctrl+C cancel");
+        expect(loading).toContain(" Escape cancel");
+        expect(loading.join("\n")).not.toContain("Ctrl+C");
       });
       resolveShare?.({
         command: "share",

@@ -78,7 +78,7 @@ describe("Pi shell public component adapters", () => {
       const rows = dialog.render(40);
       const plainRows = rows.map(row => stripTerminalSequences(row).trimEnd());
       const titleRow = plainRows.findIndex(row => row === " Share");
-      const hintRow = plainRows.findIndex(row => row === " Escape/Ctrl+C cancel");
+      const hintRow = plainRows.findIndex(row => row === " Escape cancel");
 
       expect(titleRow).toBe(1);
       expect(plainRows[0]).toBe("─".repeat(40));
@@ -86,8 +86,9 @@ describe("Pi shell public component adapters", () => {
       expect(hintRow).toBeGreaterThan(titleRow);
       expect(plainRows[hintRow + 1]).toBe("─".repeat(40));
       expect(rows[titleRow]).toContain(piTheme().fg("accent", piTheme().bold("Share")));
-      expect(rows[hintRow]).toContain(piTheme().fg("dim", "Escape/Ctrl+C"));
+      expect(rows[hintRow]).toContain(piTheme().fg("dim", "Escape"));
       expect(rows[hintRow]).toContain(piTheme().fg("muted", "cancel"));
+      expect(plainRows.join("\n")).not.toContain("Ctrl+C");
       expect(dialog.render(12).every(row => visibleWidth(row) <= 12)).toBe(true);
     } finally {
       dialog.dispose?.();
