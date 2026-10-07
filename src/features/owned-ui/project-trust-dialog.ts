@@ -1,3 +1,5 @@
+import { DIALOG_CLOSE_SHORTCUT_HINT, displayShortcutKeyLabel } from "../../contracts/presentation/index.js";
+
 const ACCENT = "\u001b[38;2;167;152;215m";
 const BORDER = "\u001b[38;2;97;133;204m";
 const MUTED = "\u001b[38;2;157;165;169m";
@@ -20,7 +22,8 @@ export function renderProjectTrustDialog(
   const title = ` ${BOLD}${ACCENT}Trust project folder?${RESET_FG}${RESET_BOLD}`;
   const path = ` ${MUTED}${sanitize(cwd)}${RESET_FG}`;
   const choices = options.map((label, index) => choice(label, selected === index));
-  const hint = ` ${DIM}↑↓${MUTED} navigate  ${DIM}Enter${MUTED} select  ${DIM}Esc${MUTED} exit${RESET_FG}`;
+  const closeKey = displayShortcutKeyLabel(DIALOG_CLOSE_SHORTCUT_HINT.key);
+  const hint = ` ${DIM}↑↓${MUTED} navigate  ${DIM}Enter${MUTED} select  ${DIM}${closeKey}${MUTED} ${DIALOG_CLOSE_SHORTCUT_HINT.action}${RESET_FG}`;
   const explanation = wrap(EXPLANATION, Math.max(1, width - 2)).map(line => ` ${line}`);
   const preferred = [rule, title, path, "", ...explanation, "", ...choices, "", hint, rule];
   if (preferred.length <= terminalRows) return preferred;

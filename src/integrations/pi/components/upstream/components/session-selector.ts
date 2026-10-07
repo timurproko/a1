@@ -30,7 +30,7 @@ import {
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { DynamicBorder, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
 
 type SessionListProgress = (
 	loaded: number,
@@ -55,6 +55,16 @@ function keyText(keybinding: KeybindingName, keybindings: KeybindingsManager): s
 
 function shortcutHint(keybinding: KeybindingName, action: string, keybindings: KeybindingsManager): PiModalShortcutHint {
 	return { key: keyText(keybinding, keybindings), action };
+}
+
+/** Keep the canonical close control complete while clipping preceding state-specific guidance. */
+function withCloseHint(content: string, width: number): string {
+	const close = renderPiModalShortcutHints([DIALOG_CLOSE_SHORTCUT_HINT]);
+	const closeWidth = visibleWidth(close);
+	if (width <= closeWidth) return truncateToWidth(close, width, "");
+	const bodyWidth = Math.max(0, width - closeWidth - 2);
+	const body = truncateToWidth(content, bodyWidth, "…");
+	return body.length === 0 ? close : `${body}  ${close}`;
 }
 import { filterAndSortSessions, hasSessionName, type NameFilter, type SortMode } from "./session-selector-search.js";
 
@@ -204,13 +214,12 @@ class SessionSelectorHeader implements Component {
 		if (this.confirmingDeletePath !== null) {
 			const confirmHint = theme.fg("error", "Delete session? ") + renderPiModalShortcutHints([
 				shortcutHint("tui.select.confirm", "confirm", this.keybindings),
-				shortcutHint("tui.select.cancel", "cancel", this.keybindings),
 			]);
-			return [truncateToWidth(confirmHint, width, "…")];
+			return [withCloseHint(confirmHint, width)];
 		}
 		if (this.statusMessage) {
 			const color = this.statusMessage.type === "error" ? "error" : "accent";
-			return [theme.fg(color, truncateToWidth(this.statusMessage.message, width, "…"))];
+			return [withCloseHint(theme.fg(color, this.statusMessage.message), width)];
 		}
 
 		const pathState = this.showPath ? "(on)" : "(off)";
@@ -228,7 +237,7 @@ class SessionSelectorHeader implements Component {
 		if (this.showRenameHint) hint2Parts.push(shortcutHint("app.session.rename", "rename", this.keybindings));
 		return [
 			truncateToWidth(hint1, width, "…"),
-			truncateToWidth(renderPiModalShortcutHints(hint2Parts), width, "…"),
+			withCloseHint(renderPiModalShortcutHints(hint2Parts), width),
 		];
 	}
 }
@@ -973,7 +982,7 @@ export class SessionSelectorComponent extends Container implements Focusable {
 		panel.addChild(new Spacer(1));
 		panel.addChild(new Text(renderPiModalShortcutHints([
 			shortcutHint("tui.select.confirm", "to save", this.keybindings),
-			shortcutHint("tui.select.cancel", "to cancel", this.keybindings),
+			DIALOG_CLOSE_SHORTCUT_HINT,
 		]), 1, 0));
 
 		this.buildBaseLayout(panel, { showHeader: false });

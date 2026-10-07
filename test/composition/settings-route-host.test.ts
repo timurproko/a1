@@ -82,6 +82,7 @@ describe("owned settings route theme", () => {
     const column = (initial[row] ?? "").replace(STYLE, "").indexOf("auto") + 1;
     surface!.handleMouse({ kind: "press", button: 0, row: row + 1, column });
     surface!.handleInput(DOWN);
+    surface!.handleInput(DOWN);
 
     const menu = surface!.render(48, 12).join("\n");
     expect(menu).toContain(`${ESC}[48;2;55;55;55m${ESC}[38;2;167;152;215m✓`);
@@ -167,7 +168,7 @@ describe("owned reference routes", () => {
     expect(lines[1]?.startsWith(" What's New")).toBe(true);
     expect(lines[2]?.startsWith("changelog complete at 58")).toBe(true);
     expect(lines[6]).toBe("─".repeat(60));
-    expect(lines.at(-1)?.startsWith(" Esc close  ↑↓ scroll")).toBe(true);
+    expect(lines.at(-1)?.startsWith(" ↑↓ scroll  Esc close")).toBe(true);
     expect(lines.at(-1)).not.toMatch(/[·•]/u);
     complete.close();
     expect(complete.isClosed()).toBe(true);

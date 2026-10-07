@@ -6,6 +6,9 @@ export interface SemanticShortcutHint {
   readonly actionFirst?: boolean;
 }
 
+/** Canonical dismissal guidance for every A1-rendered dialog surface. */
+export const DIALOG_CLOSE_SHORTCUT_HINT = Object.freeze({ key: "esc", action: "close" } satisfies SemanticShortcutHint);
+
 export interface ShortcutHintRoles {
   key(label: string): string;
   action(name: string): string;

@@ -1,7 +1,7 @@
 import { DynamicBorder } from "../startup-public.js";
 import { Container, getKeybindings, Input, Spacer, Text } from "@earendil-works/pi-tui";
 import { addPiModalHeader, adoptPiModalFrame } from "./modal-frame.js";
-import { PINNED_PI_LAYOUT, piTheme, renderPiModalShortcutHints } from "./theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, PINNED_PI_LAYOUT, piTheme, renderPiModalShortcutHints } from "./theme.js";
 import { componentPort, ensureTheme, piShellTruncateToWidth, piShellVisibleWidth, type PiShellComponentPort } from "./shell-shared-facade.js";
 import { SKILL_COMMAND_PREFIX, skillMatchesQuery, type PiShellSkillSummary } from "./skills-command.js";
 
@@ -57,7 +57,7 @@ class SkillsSelectorComponent extends Container {
     this.addChild(new Text(renderPiModalShortcutHints([
       { key: "↑↓", action: "navigate" },
       { key: bindings.getKeys("tui.select.confirm").join("/"), action: "select" },
-      { key: bindings.getKeys("tui.select.cancel").join("/"), action: "cancel" },
+      DIALOG_CLOSE_SHORTCUT_HINT,
     ]), 0, 0));
     this.addChild(new DynamicBorder());
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });

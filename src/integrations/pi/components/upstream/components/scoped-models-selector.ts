@@ -27,7 +27,7 @@ import {
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { getModelSearchText } from "../model-search.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 // Rationale: upstream's capitalized hint formatter is private to the package; the same mapping lives here.
 function keyDisplayText(keybinding: Parameters<ReturnType<typeof getKeybindings>["getKeys"]>[0]): string {
@@ -241,6 +241,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 			{ key: reorderKeys, action: "reorder" },
 			{ key: keyDisplayText("app.models.save"), action: "save" },
 			{ action: countText },
+			DIALOG_CLOSE_SHORTCUT_HINT,
 		]);
 		return this.isDirty ? `${hint} ${theme.fg("warning", "(unsaved)")}` : hint;
 	}

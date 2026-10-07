@@ -1,4 +1,4 @@
-import { renderShortcutHints, shortcutHintsText, type ShortcutHintEntry } from "./shortcut-hints.js";
+import { renderShortcutHintsWithClose, type ShortcutHintEntry } from "./shortcut-hints.js";
 import { displayWidth, truncateToWidth } from "./text.js";
 import type { UiTheme } from "./theme.js";
 
@@ -69,8 +69,8 @@ export function renderDialogPanel(state: DialogPanelState, width: number, theme:
   const description = state.rows[state.index]?.description ?? "";
   const hint = typeof state.hint === "string"
     ? theme.fg("dim", state.hint)
-    : renderShortcutHints(state.hint, theme, 0);
-  const plainHint = typeof state.hint === "string" ? state.hint : shortcutHintsText(state.hint, 0);
+    : renderShortcutHintsWithClose(state.hint, theme, contentWidth, 0);
+  const plainHint = typeof state.hint === "string" ? state.hint : " ".repeat(displayWidth(hint));
   return [
     rule,
     ...rows,

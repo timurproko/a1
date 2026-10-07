@@ -241,7 +241,8 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     expect(plainShareRows[shareRow + 1]?.trimEnd()).toBe(" Gist: https://gist.test/id");
 
     const reload = shell.runWorkflow({ command: "reload", argument: "" });
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Reloading keybindings, extensions, skills, prompts, themes, and context files...");
+    const reloadFrame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(reloadFrame).toContain("Reloading keybindings, extensions, skills, prompts, themes, and context files...");
     await reload;
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Reloading keybindings");
     expect(execute).toHaveBeenCalledTimes(2);
@@ -260,7 +261,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       await vi.waitFor(() => {
         const loading = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
         expect(loading).toContain(" Share");
-        expect(loading).toContain(" Escape/Ctrl+C cancel");
+        expect(loading).toContain(" Esc close");
       });
       resolveShare?.({
         command: "share",

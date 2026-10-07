@@ -61,7 +61,7 @@ function plainRows(component: { render(width: number): readonly string[] }, widt
 }
 
 describe("provider authentication selector presentation", () => {
-  it.each(STATES)("preserves untouched Pi for $name except for shared compact padded chrome", state => {
+  it.each(STATES)("preserves Pi content for $name except for shared chrome and the canonical close footer", state => {
     initTheme("dark", false);
     const upstreamSelected = vi.fn();
     const ownedSelected = vi.fn();
@@ -74,6 +74,7 @@ describe("provider authentication selector presentation", () => {
       expected.splice(1, 1);
       // Compatibility: the pinned title/list already own one cell; only its zero-inset search input moves.
       expected[3] = ` ${expected[3]!.slice(0, -1)}`;
+      expected.splice(-1, 0, " ↑↓ navigate  Enter select  Esc close".padEnd(width));
       expect(plainRows(owned, width), `${state.name}@${width}`).toEqual(expected);
     }
     upstream.handleInput("\r");
