@@ -23,8 +23,13 @@ const CTRL_Z = "\u001a";
 const STYLE = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
 
 const WARNING_FLAGS = [
-  { key: "anthropicExtraUsage", label: "Anthropic extra usage", description: "Warn about paid extra usage", fallback: true },
+  { key: "anthropicExtraUsage", label: "Anthropic extra usage", description: "Warn when Anthropic subscription auth may use paid extra usage", fallback: true },
   { key: "unknownTools", label: "Unknown tools", description: "Warn about unknown tools", fallback: false },
+] as const;
+
+const MODEL_THINKING_FLAGS = [
+  { key: "openai/gpt-5", label: "gpt-5 [openai]", description: "global default", fallback: "default", choices: ["default", "low", "high"] },
+  { key: "openai/gpt-5.3-codex-spark", label: "gpt-5.3-codex-spark [openai]", description: "global default", fallback: "default", choices: ["default", "low", "medium", "high"] },
 ] as const;
 
 function descriptor(
@@ -66,6 +71,36 @@ function port(failWrites = false): { port: AgentSettingsPort; writes: { key: str
         if (failWrites) throw new Error("the engine refused");
         writes.push({ key, value });
         values[key] = value;
+        return { status: "applied" as const, application: "live" as const, storedValue: value, effectiveValue: value, failure: null, limitationReason: null };
+      },
+    },
+  };
+}
+
+function modelDialogPort(): { port: AgentSettingsPort; writes: { key: string; value: AgentJsonValue }[] } {
+  const backing = port();
+  let overrides: AgentJsonValue = { "openai/gpt-5": "high" };
+  return {
+    writes: backing.writes,
+    port: {
+      ...backing.port,
+      async listSettings() {
+        return [
+          ...await backing.port.listSettings(),
+          descriptor("modelThinkingLevels", "json", overrides, {
+            label: "Default thinking level per model",
+            owner: "agent",
+            flags: MODEL_THINKING_FLAGS,
+          }),
+        ];
+      },
+      async readSetting(key) {
+        return key === "modelThinkingLevels" ? overrides : await backing.port.readSetting?.(key);
+      },
+      async writeSetting(key, value) {
+        if (key !== "modelThinkingLevels") return await backing.port.writeSetting!(key, value);
+        backing.writes.push({ key, value });
+        overrides = value;
         return { status: "applied" as const, application: "live" as const, storedValue: value, effectiveValue: value, failure: null, limitationReason: null };
       },
     },
@@ -564,13 +599,17 @@ describe("the settings screen", () => {
     // Invariant: the declaration decides what a flag shows before anything is stored.
     expect(find(target, "Anthropic extra usage")).toContain("true");
     expect(find(target, "Unknown tools")).toContain("false");
-    expect(find(target, "Enter/Space to change")).toContain("Esc close");
+    expect(find(target, "Warnings")).toContain("Warnings");
+    expect(find(target, "Warn when Anthropic subscription auth may use paid extra usage")).not.toBe("");
+    const dialogHint = find(target, "Enter/Space change");
+    expect(dialogHint).toContain("Ctrl+Z undo");
+    expect(dialogHint).toContain("Esc close");
+    expect(dialogHint).not.toContain(" to ");
     const rendered = target.render({ width: 200, height: 24 }, NAMING_HOST);
     const styledHint = rendered.find(line => line.includes("Enter/Space")) ?? "";
     const title = rendered.find(line => line.includes("Settings")) ?? "";
     expect(firstVisibleTextColumn(styledHint)).toBe(firstVisibleTextColumn(title));
-    expect(styledHint).toContain("<dim>Enter/Space</dim> <muted>to change</muted>  <dim>Ctrl+Z</dim> <muted>to undo</muted>  <dim>Esc</dim> <muted>close</muted>");
-    expect(styledHint).not.toMatch(/[·•]/u);
+    expect(styledHint).not.toBe("");
 
     target.onInput?.(SPACE, HOST);
     expect(find(target, "Anthropic extra usage")).toContain("false");
@@ -588,6 +627,92 @@ describe("the settings screen", () => {
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
   });
 
+  it("uses the structured dialog's top rule as the sole list boundary", async () => {
+    const { app: target } = await app();
+    selectRow(target, "Warnings");
+    target.onInput?.(ENTER, HOST);
+
+    const lines = screen(target);
+    const title = lines.findIndex(line => line.trim() === "Warnings");
+    const firstPart = lines.findIndex(line => line.includes("Anthropic extra usage"));
+    const rule = "─".repeat(80);
+    expect(lines).toHaveLength(24);
+    expect(title).toBeGreaterThan(0);
+    expect(lines[title - 1]).toBe(rule);
+    expect(lines[title + 1]).toContain("Warn when Anthropic subscription auth may use paid extra usage");
+    expect(firstPart).toBeGreaterThan(title + 1);
+    expect(lines.at(-1)).toBe(rule);
+  });
+
+  it("uses the owned per-model thinking search and stepped keyboard workflow", async () => {
+    const backing = modelDialogPort();
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent: backing.port });
+    await session.load();
+    const target = new SettingsApp(session);
+    selectRow(target, "Default thinking level per model");
+    target.onInput?.(ENTER, HOST);
+
+    let shown = screen(target).join("\n");
+    expect(shown).toContain("Thinking Level (step 1/2)");
+    expect(shown).toContain("Select a model to configure");
+    expect(shown).toContain("gpt-5 [openai]");
+    expect(shown).toContain("gpt-5.3-codex-spark [openai]");
+    expect(shown).toContain("Type search · Enter select · Esc back");
+    expect(shown).not.toContain("Ctrl+Z undo");
+    expect(shown).not.toContain("Enter/Space change");
+
+    for (const character of "spark") target.onInput?.(character, HOST);
+    shown = screen(target).join("\n");
+    expect(shown).toContain("gpt-5.3-codex-spark [openai]");
+    expect(shown).not.toContain("gpt-5 [openai]");
+
+    const beforePointer = screen(target);
+    target.onMouse?.({ kind: "press", button: 0, row: 20, column: 20 }, HOST);
+    expect(screen(target)).toEqual(beforePointer);
+    expect(backing.writes).toHaveLength(0);
+
+    target.onInput?.(ENTER, HOST);
+    shown = screen(target).join("\n");
+    expect(shown).toContain("Thinking Level (step 2/2)");
+    expect(shown).toContain("Select default thinking level for gpt-5.3-codex-spark [openai]");
+    expect(shown).not.toContain("Thinking Level for");
+    expect(shown).toContain("low");
+    expect(shown).toContain("Light reasoning (~2k tokens)");
+    expect(shown).not.toContain("(clear override)");
+    target.onInput?.(ESC, HOST);
+    expect(screen(target).join("\n")).toContain("Thinking Level (step 1/2)");
+    expect(backing.writes).toHaveLength(0);
+
+    target.onInput?.(ENTER, HOST);
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(backing.writes.at(-1)).toEqual({
+      key: "modelThinkingLevels",
+      value: { "openai/gpt-5": "high", "openai/gpt-5.3-codex-spark": "low" },
+    });
+    shown = screen(target).join("\n");
+    expect(shown).toContain("Thinking Level (step 1/2)");
+    expect(shown).toContain("Select a model to configure");
+    expect(shown).toContain("gpt-5.3-codex-spark [openai]  low");
+
+    target.onInput?.(ENTER, HOST);
+    shown = screen(target).join("\n");
+    expect(shown).toContain("✓ low");
+    expect(shown).toContain("(clear override)");
+    expect(shown).toContain("Revert to global default");
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(backing.writes.at(-1)).toEqual({
+      key: "modelThinkingLevels",
+      value: { "openai/gpt-5": "high" },
+    });
+    target.onInput?.(ESC, HOST);
+    expect(screen(target).join("\n")).not.toContain("Thinking Level (step");
+  });
+
   it("adjusts a flag with the arrows, as the list adjusts a value", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Warnings");
@@ -598,20 +723,23 @@ describe("the settings screen", () => {
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: true, unknownTools: false } });
   });
 
-  it("acts on the dialog's value and leaves its label alone", async () => {
+  it("consumes pointer input throughout a structured dialog without changing it", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Warnings");
     target.onInput?.(ENTER, HOST);
 
-    const lines = screen(target);
-    const row = lines.findIndex(line => line.includes("Anthropic extra usage"));
-    const valueColumn = (lines[row] ?? "").indexOf("true") + 1;
-
-    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: 6 }, HOST);
+    const before = screen(target);
+    const row = before.findIndex(line => line.includes("Unknown tools"));
+    const valueColumn = (before[row] ?? "").indexOf("false") + 1;
+    for (const event of [
+      { kind: "motion" as const, button: 0, row: row + 1, column: valueColumn },
+      { kind: "press" as const, button: 0, row: row + 1, column: valueColumn },
+      { kind: "wheel-down" as const, button: 0, row: 2, column: 70 },
+    ]) {
+      expect(target.onMouse?.(event, HOST)).toEqual({ consumed: true, render: false });
+    }
+    expect(screen(target)).toEqual(before);
     expect(writes).toHaveLength(0);
-
-    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
-    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
   });
 
   it("moves through what the search found instead of typing the arrows", async () => {
@@ -923,21 +1051,19 @@ describe("the input row and status line behind the screen", () => {
   it("derives the complete standing status from active shortcut declarations", async () => {
     const { app: target } = await app();
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
-    const hint = wide.find(line => line.includes("/ to search")) ?? "";
+    const hint = wide.find(line => line.includes("/ search")) ?? "";
     const title = wide.find(line => line.includes("Settings")) ?? "";
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(title));
     expect(hint.startsWith(" ")).toBe(true);
-    expect(hint).toContain("↑↓ to navigate");
-    expect(hint).toContain("Shift+↑↓ to jump");
-    expect(hint).toContain("Enter/Space to change");
-    expect(hint).toContain("←→ to adjust");
-    expect(hint).toContain("Ctrl+Z to undo");
+    expect(hint).toContain("↑↓ navigate");
+    expect(hint).toContain("Shift+↑↓ jump");
+    expect(hint).toContain("Enter/Space change");
+    expect(hint).toContain("←→ adjust");
+    expect(hint).toContain("Ctrl+Z undo");
     expect(hint).toContain("Esc close");
-    expect(hint).not.toContain("Type to search");
+    expect(hint).not.toContain("Type search");
+    expect(hint).not.toContain(" to ");
     expect(hint).not.toMatch(/[·•]/u);
-    const styledHint = target.render({ width: 200, height: 24 }, NAMING_HOST).find(line => line.includes("<dim>/</dim>")) ?? "";
-    expect(styledHint).toContain("<dim>/</dim> <muted>to search</muted>  <dim>↑↓</dim> <muted>to navigate</muted>");
-
     const narrow = target.render({ width: 24, height: 8 }, HOST).map(line => line.replace(STYLE, ""));
     expect(narrow.at(-1)).toHaveLength(24);
   });

@@ -1,4 +1,5 @@
-import { renderShortcutHintsWithClose, type ShortcutHintEntry } from "./shortcut-hints.js";
+import { LineInput, renderInputRow } from "./line-input.js";
+import { renderShortcutHints, renderShortcutHintsWithClose, shortcutHintsText, type ShortcutHintEntry } from "./shortcut-hints.js";
 import { displayWidth, truncateToWidth } from "./text.js";
 import type { UiTheme } from "./theme.js";
 
@@ -10,12 +11,14 @@ import type { UiTheme } from "./theme.js";
 
 export interface DialogRow {
   readonly label: string;
+  readonly labelSuffix?: string;
   readonly value: string;
   /** What this part does, shown while it is the one in hand. */
   readonly description?: string;
 }
 
 export interface DialogPanelState {
+  readonly title: string;
   readonly rows: readonly DialogRow[];
   /** The row in hand. */
   readonly index: number;
@@ -32,7 +35,19 @@ export interface DialogPanelFrame {
   readonly valueColumn: number;
 }
 
+export interface SteppedDialogPanelState {
+  readonly title: string;
+  readonly step: number;
+  readonly steps: number;
+  readonly description: string;
+  readonly input?: LineInput;
+  readonly rows: readonly DialogRow[];
+  readonly index: number;
+  readonly hint: readonly ShortcutHintEntry[];
+}
+
 const LABEL_COLUMN_CAP = 30;
+const STEPPED_LABEL_COLUMN_CAP = 46;
 
 /** The column values start at: past the widest label, capped so one long name cannot push them off. */
 export function dialogValueColumn(rows: readonly DialogRow[]): number {
@@ -72,13 +87,68 @@ export function renderDialogPanel(state: DialogPanelState, width: number, theme:
   const plainHint = typeof state.hint === "string" ? state.hint : " ".repeat(displayWidth(hint));
   return [
     rule,
-    ...rows,
+    contentRow(theme.bold(theme.fg("accent", state.title)), state.title),
+    contentRow(theme.fg("dim", description), description),
     "",
-    contentRow(theme.fg("dim", `  ${description}`), `  ${description}`),
+    ...rows,
     "",
     contentRow(hint, plainHint),
     rule,
   ];
+}
+
+/** Owned stepped-selector composition for structured settings with nested choices. */
+export function renderSteppedDialogPanel(
+  state: SteppedDialogPanelState,
+  width: number,
+  theme: UiTheme,
+): readonly string[] {
+  const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
+  const contentPadding = Math.min(1, Math.max(0, width));
+  const contentWidth = Math.max(0, width - contentPadding);
+  const inset = " ".repeat(contentPadding);
+  const contentRow = (painted: string, raw: string): string =>
+    `${inset}${pad(truncateToWidth(painted, contentWidth), contentWidth, raw)}`;
+  const labelColumn = Math.min(
+    STEPPED_LABEL_COLUMN_CAP,
+    Math.max(0, ...state.rows.map(row => displayWidth(`${row.label}${row.labelSuffix ?? ""}`))),
+  );
+  const rows = state.rows.map((row, index) => {
+    const selected = index === state.index;
+    const completeLabel = `${row.label}${row.labelSuffix ?? ""}`;
+    const padding = " ".repeat(Math.max(0, labelColumn - displayWidth(completeLabel)));
+    const suffix = row.value.length === 0 ? "" : `  ${row.value}`;
+    const cursor = selected ? "→ " : "  ";
+    const raw = `${cursor}${completeLabel}${padding}${suffix}`;
+    const label = `${theme.fg("text", row.label)}${theme.fg("muted", row.labelSuffix ?? "")}${padding}`;
+    const content = selected
+      ? `${theme.fg("accent", cursor)}${label}${theme.fg("muted", suffix)}`
+      : `${cursor}${label}${theme.fg("muted", suffix)}`;
+    return contentRow(selected ? theme.highlight(content) : content, raw);
+  });
+  const input = state.input === undefined
+    ? []
+    : [...renderInputRow(state.input, width, { ruled: false, theme }).lines, ""];
+  const step = `(step ${state.step}/${state.steps})`;
+  const title = `${state.title} ${step}`;
+  const paintedTitle = `${theme.bold(theme.fg("accent", state.title))} ${theme.fg("dim", step)}`;
+  return [
+    rule,
+    contentRow(paintedTitle, title),
+    contentRow(theme.fg("dim", state.description), state.description),
+    "",
+    ...input,
+    ...rows,
+    "",
+    renderSteppedHint(state.hint, width, theme),
+    rule,
+  ];
+}
+
+function renderSteppedHint(entries: readonly ShortcutHintEntry[], width: number, theme: UiTheme): string {
+  const raw = shortcutHintsText(entries, 1, " · ");
+  const painted = renderShortcutHints(entries, theme, 1, theme.fg("dim", " · "));
+  return `${truncateToWidth(painted, width)}${" ".repeat(Math.max(0, width - displayWidth(raw)))}`;
 }
 
 /** The row a pointer report lands on, or null when it is not on one. */

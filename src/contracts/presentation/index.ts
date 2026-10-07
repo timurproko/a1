@@ -8,6 +8,8 @@ export interface SemanticShortcutHint {
 
 /** Canonical dismissal guidance for every A1-rendered dialog surface. */
 export const DIALOG_CLOSE_SHORTCUT_HINT = Object.freeze({ key: "esc", action: "close" } satisfies SemanticShortcutHint);
+/** Canonical return guidance for a nested step within a dialog surface. */
+export const DIALOG_BACK_SHORTCUT_HINT = Object.freeze({ key: "esc", action: "back" } satisfies SemanticShortcutHint);
 
 export interface ShortcutHintRoles {
   key(label: string): string;
@@ -36,6 +38,7 @@ export function renderSemanticShortcutHints(
   entries: readonly SemanticShortcutHint[],
   roles: ShortcutHintRoles,
   indent = 0,
+  separator = "  ",
 ): string {
   const rendered = entries.flatMap(entry => {
     if (entry.key === "" || (entry.key !== undefined && entry.key.trim().length === 0)) return [];
@@ -44,7 +47,7 @@ export function renderSemanticShortcutHints(
     const action = roles.action(entry.action);
     return [entry.actionFirst ? `${action} ${key}` : `${key} ${action}`];
   });
-  return `${" ".repeat(Math.max(0, indent))}${rendered.join("  ")}`;
+  return `${" ".repeat(Math.max(0, indent))}${rendered.join(separator)}`;
 }
 
 export interface PresentationComponentPort {

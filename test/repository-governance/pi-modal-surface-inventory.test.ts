@@ -186,10 +186,16 @@ describe("pinned Pi modal transition graph", () => {
     const semanticRenderer = await readFile("src/contracts/presentation/index.ts", "utf8");
     expect(semanticRenderer).toContain("DIALOG_CLOSE_SHORTCUT_HINT");
     expect(semanticRenderer).toContain('{ key: "esc", action: "close" }');
+    expect(semanticRenderer).toContain("DIALOG_BACK_SHORTCUT_HINT");
+    expect(semanticRenderer).toContain('{ key: "esc", action: "back" }');
     expect(semanticRenderer).toContain("displayShortcutKeyLabel(entry.key)");
     expect(semanticRenderer).toContain("roles.key(");
     expect(semanticRenderer).toContain("roles.action(");
-    expect(semanticRenderer).toContain('.join("  ")');
+    expect(semanticRenderer).toContain('separator = "  "');
+    expect(semanticRenderer).toContain("rendered.join(separator)");
+    const ownedHelper = await readFile("src/ui/components/shortcut-hints.ts", "utf8");
+    expect(ownedHelper).toContain("assertOwnedShortcutHintConventions(entries)");
+    expect(ownedHelper).toContain('omit connective "to"');
     const helper = await readFile("src/integrations/pi/components/theme.ts", "utf8");
     expect(helper).toContain("renderSemanticShortcutHints");
     expect(helper).toContain("indent = 0");
@@ -208,6 +214,7 @@ describe("pinned Pi modal transition graph", () => {
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(SCOPE)");
     const dialogPanel = await readFile("src/ui/components/dialog-panel.ts", "utf8");
     expect(dialogPanel).toContain("renderShortcutHintsWithClose(state.hint, theme, contentWidth, 0)");
+    expect(dialogPanel).toContain('renderShortcutHints(entries, theme, 1, theme.fg("dim", " · "))');
     expect(dialogPanel).toContain("contentWidth = Math.max(0, width - contentPadding)");
     const reference = await readFile("src/features/owned-ui/reference-screen-app.ts", "utf8");
     expect(reference).toContain("REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme, rect.width, 1");
