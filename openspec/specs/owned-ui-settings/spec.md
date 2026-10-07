@@ -584,22 +584,26 @@ When bare A1 provides application-owned fullscreen frame selection, the owned se
 Bare A1 SHALL NOT expose or bind Pi's `fullscreenWheelScrollLines` setting because the custom viewport's global A1-owned `scrollbarSpeed` setting is its sole wheel-distance and acceleration authority. The pinned comparison profile SHALL retain Pi's original `Fullscreen copy on select` and `Fullscreen wheel scrolling` wording, settings, persistence, and effects.
 
 #### Scenario: Inspect the Agent section
+
 - **WHEN** bare A1 opens the owned settings screen with its selection owner and custom viewport attached
 - **THEN** the Agent section SHALL contain one `Copy on select` boolean entry backed by Pi's `fullscreenCopyOnSelect` key
 - **AND** its displayed value SHALL match the persisted Pi setting
 - **AND** no `Fullscreen wheel scrolling` entry SHALL appear
 
 #### Scenario: Change automatic copy
+
 - **WHEN** the reader changes `Copy on select`
 - **THEN** the change SHALL be written through the engine settings port and applied live to the active bare-A1 selection owner
 - **AND** no A1 settings document SHALL receive a duplicate value
 
 #### Scenario: Use global owned scrolling
+
 - **WHEN** bare A1's custom viewport handles wheel input
 - **THEN** its distance and acceleration SHALL come from the global A1-owned Scroll settings
 - **AND** Pi's `fullscreenWheelScrollLines` value SHALL NOT be bound as a competing bare-A1 shell effect
 
 #### Scenario: Keep comparison settings behavior unchanged
+
 - **WHEN** the reader uses the `a1 pi` comparison profile
 - **THEN** its pinned settings presentation SHALL retain `Fullscreen copy on select` and `Fullscreen wheel scrolling`
 - **AND** their fullscreen behavior SHALL remain owned by pinned Pi without a bare-A1 label override or duplicate setting
