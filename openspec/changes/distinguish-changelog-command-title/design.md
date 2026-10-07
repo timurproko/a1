@@ -28,9 +28,9 @@ The owned route host will choose the changelog title from the distinction it alr
 
 Adding a free-form title to `UiRouteInput` was rejected because callers should not control screen chrome and the two supported modes are already unambiguous. Adding a second `whats-new` route was rejected because both modes intentionally share loading, rendering, scrolling, close, and failure behavior.
 
-### 2. Keep command and release-note titles as separate owned constants
+### 2. Keep the distinction at the owned-route boundary
 
-The existing changelog title constant will represent the command-facing `Changelog` label, and a separate release-note title constant will preserve `What's New` for supplied current-note documents. Keeping both labels beside the route declarations makes the distinction explicit and reusable by route-host diagnostics and tests.
+The existing changelog title constant will represent the command-facing `Changelog` label. The route host will retain `What's New` only for a supplied current-note document, without exporting a second title through the startup graph. This keeps the command's public route metadata accurate while avoiding an unnecessary eager-startup surface for a label used only by this composition branch.
 
 Changing the shared Pi changelog presenter was rejected because it would alter pinned comparison behavior rather than only the bare-A1 modal requested here.
 
