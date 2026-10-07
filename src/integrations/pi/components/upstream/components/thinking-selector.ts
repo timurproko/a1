@@ -9,12 +9,15 @@
  * active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space,
  * closes through the implicit Ctrl+C-capable selection-cancel action, and uses the shared compact
  * semantic shortcut row without advertising that alias. All list and border colors use the owned theme
- * and its explicit color mode. The comparison profile retains the public pinned component.
+ * and its explicit color mode. Selected rows use the shared bare-A1 blue selection surface only around
+ * the rendered item span, with the existing accent arrow, normal-text level, and preserved
+ * current/default/description roles. The comparison profile retains the public pinned component.
  * Deviations: owned-modal-shortcut-hints, owned-level-cycle-shortcut, owned-thinking-selector-heading,
- * owned-thinking-selector-controls, owned-dialog-ctrl-c-cancel.
+ * owned-thinking-selector-controls, owned-dialog-ctrl-c-cancel, owned-standard-dialog-selection.
  */
 import {
 	Container,
+	type Component,
 	type Focusable,
 	fuzzyFilter,
 	getKeybindings,
@@ -23,11 +26,13 @@ import {
 	SelectList,
 	type SelectListLayoutOptions,
 	Spacer,
+	type TuiMouseEvent,
+	type TuiMouseEventResult,
 	Text,
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalListRow, renderPiModalShortcutHints } from "../../theme.js";
 
 export type ThinkingSelectorLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
@@ -45,6 +50,35 @@ const LEVEL_DESCRIPTIONS: Record<ThinkingSelectorLevel, string> = {
 	xhigh: "Extra-high reasoning (~32k tokens)",
 	max: "Maximum reasoning",
 };
+
+interface ThinkingSelectList {
+	readonly list: SelectList;
+	readonly presentation: Component;
+}
+
+class ThinkingSelectListPresentation implements Component {
+	private readonly list: SelectList;
+	private readonly items: readonly SelectItem[];
+
+	constructor(list: SelectList, items: readonly SelectItem[]) {
+		this.list = list;
+		this.items = items;
+	}
+
+	invalidate(): void {
+		this.list.invalidate();
+	}
+
+	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+		return this.list.handleMouse(event);
+	}
+
+	render(width: number): string[] {
+		const selected = this.list.getSelectedItem();
+		const selectedIndex = selected === null ? -1 : this.items.findIndex((item) => item.value === selected.value);
+		return this.list.render(width).map((row, index) => renderPiModalListRow(row, width, index === selectedIndex));
+	}
+}
 
 /** Bare-A1 thinking-level selector with profile-resolved shortcut presentation. */
 export class OwnedThinkingSelectorComponent extends Container implements Focusable {
@@ -103,9 +137,10 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		this.addChild(this.searchInput);
 		this.addChild(new Spacer(1));
 
-		this.selectList = this.buildSelectList(this.allItems, currentLevel);
+		const initialList = this.buildSelectList(this.allItems, currentLevel);
+		this.selectList = initialList.list;
 		this.selectListContainer = new Container();
-		this.selectListContainer.addChild(this.selectList);
+		this.selectListContainer.addChild(initialList.presentation);
 		this.addChild(this.selectListContainer);
 		this.addChild(new Spacer(1));
 		this.addChild(new Text(renderPiModalShortcutHints([
@@ -126,7 +161,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 			.join("/");
 	}
 
-	private buildSelectList(items: SelectItem[], preselect?: ThinkingSelectorLevel): SelectList {
+	private buildSelectList(items: SelectItem[], preselect?: ThinkingSelectorLevel): ThinkingSelectList {
 		const theme = piTheme();
 		const levelWidth = this.allItems.reduce((widest, item) => Math.max(widest, (item.label ?? item.value).length), 0);
 		const selectedDefaultMarker = theme.fg("accent", "◉");
@@ -144,13 +179,16 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		const list = new SelectList(themedItems, Math.max(1, themedItems.length), {
 			selectedPrefix: text => theme.fg("accent", text),
 			selectedText: text => {
+				const arrowEnd = text.startsWith("→ ") ? 2 : 0;
+				const arrow = arrowEnd === 0 ? "" : theme.fg("accent", text.slice(0, arrowEnd));
 				const marker = text.includes(selectedDefaultMarker) ? selectedDefaultMarker : unselectedDefaultMarker;
-				const markerIndex = text.indexOf(marker);
+				const markerIndex = text.indexOf(marker, arrowEnd);
 				return markerIndex === -1
-					? theme.fg("accent", text)
-					: theme.fg("accent", text.slice(0, markerIndex))
+					? arrow + theme.fg("text", text.slice(arrowEnd))
+					: arrow
+						+ theme.fg("text", text.slice(arrowEnd, markerIndex))
 						+ marker
-						+ theme.fg("accent", text.slice(markerIndex + marker.length));
+						+ theme.fg("text", text.slice(markerIndex + marker.length));
 			},
 			description: text => theme.fg("muted", text),
 			scrollInfo: text => theme.fg("muted", text),
@@ -159,7 +197,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		const currentIndex = themedItems.findIndex((item) => item.value === preselect);
 		if (currentIndex !== -1) list.setSelectedIndex(currentIndex);
 		list.onSelect = (item) => this.onSelect(item.value as ThinkingSelectorLevel);
-		return list;
+		return { list, presentation: new ThinkingSelectListPresentation(list, themedItems) };
 	}
 
 	private applyFilter(query: string): void {
@@ -169,8 +207,8 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		const selectedValue = this.selectList.getSelectedItem()?.value as ThinkingSelectorLevel | undefined;
 		const newList = this.buildSelectList(filtered, selectedValue);
 		this.selectListContainer.clear();
-		this.selectListContainer.addChild(newList);
-		this.selectList = newList;
+		this.selectListContainer.addChild(newList.presentation);
+		this.selectList = newList.list;
 	}
 
 	handleInput(keyData: string): void {

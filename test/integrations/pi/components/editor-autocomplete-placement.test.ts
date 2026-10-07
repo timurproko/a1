@@ -103,9 +103,18 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
               const border = frame.body[0]!;
               expect(border).toContain(piTheme().fg("dim", "1/12 "));
               colors.add(border.replace(/─/gu, ""));
-              expect(await replayTerminalBackgroundCells([
+              const backgrounds = await replayTerminalBackgroundCells([
                 { data: frame.rows.join("\r\n"), atMs: 0 },
-              ], { columns: width, rows: frame.rows.length })).toEqual([]);
+              ], { columns: width, rows: frame.rows.length });
+              const [selectionRole] = await replayTerminalBackgroundCells([
+                { data: piTheme().bg("selectedBg", "x"), atMs: 0 },
+              ], { columns: 1, rows: 1 });
+              expect(selectionRole).toBeDefined();
+              expect(backgrounds.length).toBeGreaterThan(0);
+              expect(backgrounds.length).toBeLessThan(width);
+              expect(new Set(backgrounds.map(cell => cell.row)).size).toBe(1);
+              expect(backgrounds.every(cell => cell.row < frame.geometry.rowOffset)).toBe(true);
+              expect(backgrounds.every(cell => cell.mode === selectionRole!.mode && cell.color === selectionRole!.color)).toBe(true);
             }
           }
         }

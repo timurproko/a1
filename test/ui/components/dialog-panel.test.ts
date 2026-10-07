@@ -10,6 +10,12 @@ const PLAIN_THEME: UiTheme = {
   panel: text => text,
 };
 
+const NAMING_THEME: UiTheme = {
+  ...PLAIN_THEME,
+  fg: (token, text) => `<${token}>${text}</${token}>`,
+  highlight: text => `<highlight>${text}</highlight>`,
+};
+
 describe("shared dialog panel", () => {
   it("keeps rules full width and gives every semantic content row the global left cell", () => {
     const rows = renderDialogPanel({
@@ -28,5 +34,17 @@ describe("shared dialog panel", () => {
     expect(rows[4]?.trimEnd()).toBe("   selected description");
     expect(rows[6]?.trimEnd()).toBe(" ↑↓ navigate");
     for (const row of rows.slice(1, -1).filter(row => row.trim().length > 0)) expect(row.startsWith(" ")).toBe(true);
+  });
+
+  it("uses the shared item-bounded selection roles for a structured setting", () => {
+    const rows = renderDialogPanel({
+      rows: [{ label: "Alpha", value: "one" }, { label: "Beta", value: "two" }],
+      index: 0,
+      hint: "change",
+    }, 200, NAMING_THEME);
+
+    expect(rows[1]).toContain("<highlight><accent>→ </accent><text>Alpha</text>  <muted>one</muted></highlight>");
+    expect(rows[1]).toMatch(/<\/highlight>\s+$/u);
+    expect(rows[2]).not.toContain("<highlight>");
   });
 });

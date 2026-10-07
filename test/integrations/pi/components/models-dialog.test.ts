@@ -4,7 +4,7 @@ import { applyPiTheme, applyPiThemeInstance, piTheme } from "../../../../src/int
 import { KeybindingsManager, type KeybindingsConfig } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { ModelsDialogComponent, type ModelsDialogConfig } from "../../../../src/integrations/pi/components/models-dialog.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
-import { cellStyle } from "../../../support/ansi-cell-style.js";
+import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
 import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
 
 const models = [
@@ -30,7 +30,7 @@ function text(dialog: ModelsDialogComponent, width = 200): string {
 }
 
 function rows(dialog: ModelsDialogComponent, width = 200): readonly string[] {
-  return dialog.render(width).map(stripTerminalSequences).filter(line => /^ (?:(?:→ |  )[●○] )/u.test(line));
+  return dialog.render(width).map(line => stripTerminalSequences(line).trimEnd()).filter(line => /^ (?:(?:→ |  )[●○] )/u.test(line));
 }
 
 /** Scope only synchronous presentation under owned bindings; native platform CI remains the independent authority. */
@@ -89,7 +89,17 @@ describe("unified Models dialog", () => {
       const active = lines.find(line => stripTerminalSequences(line).startsWith(" → "))!;
       expect(active).toContain(`${piTheme().fg("muted", "[openai]")} ${piTheme().fg("success", "✓")}`);
       expect(active).toContain(piTheme().fg("dim", "○"));
-      expect(active).toContain(piTheme().fg("accent", "gpt-5"));
+      expect(active).toContain(piTheme().fg("accent", "→ "));
+      expect(active).toContain(piTheme().fg("text", "gpt-5"));
+      const activeText = stripTerminalSequences(active);
+      expect(activeText).toBe(" → ○ gpt-5 [openai] ✓");
+      const selectionBackground = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
+      expect(cellBackgroundAt(active, 1)).toBe(selectionBackground);
+      expect(cellBackgroundAt(active, activeText.length - 1)).toBe(selectionBackground);
+      expect(cellStyle(active, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
+      expect(cellStyle(active, "g")).toEqual(cellStyle(piTheme().fg("text", "g"), "g"));
+      expect(cellStyle(active, "[")).toEqual(cellStyle(piTheme().fg("muted", "["), "["));
+      expect(active).not.toContain("\u001b[1m");
       expect(stripped).toContain("   Model Name: GPT-5");
       expect(stripped.at(-2)).toBe(" type to search  ↑↓ navigate  Tab filter  Enter switch  Space scope  Ctrl+S save  Esc close");
       const footer = lines.at(-2)!;

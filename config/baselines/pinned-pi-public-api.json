@@ -3181,11 +3181,13 @@
             "src/integrations/pi/components/shell-footer-status.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
+            "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/submitted-prompt-adapter.ts",
             "src/integrations/pi/components/tool-image-presentation.ts",
             "src/integrations/pi/components/upstream/components/session-footer.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/status-indicator.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts",
@@ -3582,11 +3584,7 @@
           "name": "Key",
           "kind": "const",
           "hash": "847a96b66a8fb66c38b648e4d33dd711165320f56e5f5dc3a9c4fcb2cbcecf1c",
-          "consumers": [
-            "src/integrations/pi/components/models-dialog.ts",
-            "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
-            "src/integrations/pi/components/upstream/components/thinking-selector.ts"
-          ]
+          "consumers": []
         },
         {
           "name": "Keybinding",
@@ -3711,9 +3709,9 @@
           "consumers": [
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/shell-editor-autocomplete.ts",
-            "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
+            "src/integrations/pi/components/shell-shared-facade.ts",
+            "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
-            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
@@ -4337,6 +4335,7 @@
           "kind": "interface",
           "hash": "71b68579b4a3a3c7825351b6fae6d31a4048fbc6fc9e9d858156d0f2698ed7e9",
           "consumers": [
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
@@ -4346,6 +4345,7 @@
           "kind": "interface",
           "hash": "07978917403b2f2168b40685670a08eed5929fffe6067b4ef33ce8b3e0fa5e36",
           "consumers": [
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
         },

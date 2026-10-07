@@ -37,6 +37,7 @@ import {
 import { renderPiShellSessionInfoReferenceDocument } from "../../../../src/integrations/pi/components/shell-session-info-reference.js";
 import { PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../../../src/integrations/pi/engine/index.js";
 import { composeSubmittedPromptRows, progressStatusFrame, progressStatusText, submittedPromptLayout } from "../../../../src/ui/components/index.js";
+import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
 
 function block(kind: OwnedUiTranscriptBlock["kind"], text: string, payload: unknown = {}): OwnedUiTranscriptBlock {
   return { id: `${kind}-1`, kind, status: "finalized", revision: 1, title: kind.startsWith("tool") ? "read" : null, text, payload };
@@ -511,7 +512,7 @@ describe("Pi shell public component adapters", () => {
     expect(await selectedRow(comparison, "/login", "login")).toContain("<provider> — Configure provider authentication");
   });
 
-  it("keeps selected autocomplete descriptions muted only in bare A1", async () => {
+  it("uses the standard selection palette for the bare-A1 command menu", async () => {
     const options = {
       getColumns: () => 80,
       getRows: () => 24,
@@ -528,7 +529,9 @@ describe("Pi shell public component adapters", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
 
     const accentStart = piTheme().fg("accent", "MARK").split("MARK")[0]!;
+    const textStart = piTheme().fg("text", "MARK").split("MARK")[0]!;
     const mutedStart = piTheme().fg("muted", "MARK").split("MARK")[0]!;
+    const selectionBackground = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
     const selectedRow = (editor: ReturnType<typeof createPiShellEditor>, width: number, label: string): string => {
       const row = editor.render(width)
         .map(line => line.replaceAll(/\u001b\[2?7m/gu, ""))
@@ -537,11 +540,18 @@ describe("Pi shell public component adapters", () => {
       return row!;
     };
     const expectSplitRoles = (row: string, label: string, description: string): void => {
-      const selected = row.slice(row.indexOf(`→ ${label}`));
-      expect(row).toContain(`${accentStart}→ ${label}`);
+      const plain = stripTerminalSequences(row);
+      const itemStart = plain.indexOf(`→ ${label}`);
+      const itemEnd = plain.trimEnd().length - 1;
+      const selected = row.slice(row.indexOf("→ "));
+      expect(row).toContain(`${accentStart}→ `);
+      expect(selected).toContain(`${textStart}${label}`);
       expect(selected).toContain(mutedStart);
       expect(stripTerminalSequences(selected.slice(selected.indexOf(mutedStart)))).toMatch(new RegExp(`^\\s+${description}`, "u"));
       expect(selected.slice(selected.indexOf(mutedStart))).not.toContain(accentStart);
+      expect(cellStyle(row, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
+      expect(cellBackgroundAt(row, itemStart)).toBe(selectionBackground);
+      expect(cellBackgroundAt(row, itemEnd)).toBe(selectionBackground);
     };
 
     expectSplitRoles(selectedRow(bare, 80, "settings"), "settings", "Open settings menu");

@@ -299,7 +299,17 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(engine.calls).toContain("switch:D:/sessions/one.jsonl");
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Resumed session");
+    const restoredRows = shell.root.render(100).map(stripTerminalSequences);
+    const restoredStatusIndex = restoredRows.findIndex(row => row.includes("Resumed session"));
+    expect(restoredRows.slice(restoredStatusIndex + 1, restoredStatusIndex + 3)).toEqual(["", "─".repeat(100)]);
+
+    await shell.submit("/resume");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const reopenedRows = shell.root.render(100).map(stripTerminalSequences);
+    const reopenedStatusIndex = reopenedRows.findIndex(row => row.includes("Resumed session"));
+    const reopenedHeadingIndex = reopenedRows.findIndex(row => row.includes("Resume Session"));
+    expect(reopenedRows.slice(reopenedStatusIndex + 1, reopenedHeadingIndex)).toEqual(["", "─".repeat(100)]);
+    terminal.input("\x1b");
     await shell.dispose();
   });
 

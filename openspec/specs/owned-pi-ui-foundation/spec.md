@@ -751,12 +751,13 @@ For the same terminal dimensions, theme, capabilities, semantic content, setting
 #### Scenario: Render the owned settings surface
 - **WHEN** A1 presents its A1 and Agent settings sections
 - **THEN** rows, values, selected state, numeric controls, menus, dialogs, notices, padding, wrapping, clipping, and narrow-terminal behavior SHALL retain the reviewed shared-component semantics
+- **AND** selected settings SHALL use an accent arrow, normal-`text` label, semantic value foreground, and item-bounded blue `selectedBg` surface
 - **AND** selected-entry descriptions SHALL remain model metadata without rendering description rows
 - **AND** search SHALL remain closed until `/` is invoked, then render through the shared ruled line-input composition with its search placeholder
 - **AND** ordinary printable input outside an open search SHALL not become a query
 - **AND** the standing status bar SHALL derive its visible guidance from the active settings shortcut declarations
 - **AND** settings-list wheel movement SHALL use the current effective `scrollbarSpeed` through the shared scrollbar distance policy, including a pending live selection, without an independent row-count literal
-- **AND** a scalar menu SHALL retain shared `ValueMenu` geometry and input behavior while rendering unselected choices on A1's dark floating-panel background, the active choice on its lighter background with white text, and `✓` beside the effective value independently of the active choice
+- **AND** a scalar menu SHALL retain shared `ValueMenu` geometry and input behavior while rendering unselected choices on A1's dark floating-panel background, the active choice on blue `selectedBg` with normal text, and `✓` beside the effective value independently of the active choice
 - **AND** A1-specific grouping, hidden entries, and this owned settings interaction SHALL remain declared product differences
 
 #### Scenario: Present project trust before loading project resources
@@ -2861,7 +2862,7 @@ The title SHALL be followed immediately by a Models-style `Filter: all | no tool
 
 The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, the semantics of each filter mode, folding, navigation, copy, label, label-time, and horizontal clipping SHALL remain available. A row clipped at either horizontal edge SHALL show the single-character ellipsis `…` at that edge. On a selected row, every visible clipped fragment and ellipsis SHALL remain inside the selection highlight. A right-clipped bracketed tool row SHALL end with `…]` so its closing delimiter remains visible. `PageUp` and `PageDown` SHALL move by one visible page, and `Home` and `End` SHALL select the first and last visible entries. The persisted top-level session/system root SHALL remain permanently expanded and SHALL NOT be a Left/Right fold target. Unmodified `Left` SHALL collapse the nearest expanded eligible non-root branch containing the cursor, even when a descendant is selected; if no such branch exists, it SHALL leave the tree and selection unchanged. `Right` SHALL expand an eligible branch after the collapsed view selects its branch root and SHALL leave the session root unchanged. Root eligibility SHALL follow persisted ancestry rather than visible ancestry, so filtering out the system row SHALL NOT by itself disable folding for an otherwise eligible non-root branch.
 
-The selected tree entry SHALL use the ordinary menu arrow `→` with the subtle purple accent-tinted selection background. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted, without whole-row bold treatment. Tree entries SHALL NOT render active-path bullets. Entry labels SHALL use the theme accent color. When label-time display is enabled, its timestamp SHALL be enclosed in square brackets and use the same accent color as the label. The result counter SHALL append plain `label time` status text without brackets or a leading plus sign. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `session`. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
+The selected tree entry SHALL use the ordinary menu arrow `→` in accent foreground and the blue `selectedBg` selection background, without whole-row bold treatment. Selection SHALL preserve the same semantic foreground and text-style roles rendered for that entry while unselected: entry labels and timestamps SHALL remain accent, `user:` SHALL remain green, `assistant:` SHALL remain yellow, system entries SHALL remain muted `session`, and tool, bash, error, description, dim, and italic content SHALL retain their existing roles. Tree entries SHALL NOT render active-path bullets. When label-time display is enabled, its timestamp SHALL be enclosed in square brackets. The result counter SHALL append plain `label time` status text without brackets or a leading plus sign. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
 
 The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule. Their order SHALL follow the Models dialog: `type to search`, vertical navigation, `Tab filter`, extended page/first-last/branch navigation, then copy and label actions. The footer SHALL omit an `Enter select` hint.
 
@@ -2915,7 +2916,7 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 - **WHEN** a tree item extends beyond the left or right edge
 - **THEN** each clipped edge SHALL show the single-character ellipsis `…`
 - **AND** a selected clipped row SHALL keep its complete visible fragment, including ellipses, selected
-- **AND** a right-clipped bracketed tool row SHALL end with `…]`
+- **AND** a right-clipped bracketed tool row SHALL end in `…]`
 
 #### Scenario: Search the tree
 - **WHEN** the Session Tree is open and the user types a search query
@@ -2925,13 +2926,13 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 
 #### Scenario: Highlight an entry
 - **WHEN** a tree entry is selected
-- **THEN** the row SHALL begin with the ordinary menu arrow `→`
-- **AND** only its primary label SHALL receive selected emphasis while descriptive message text remains muted
-- **AND** the selected span SHALL use the subtle purple accent-tinted background
+- **THEN** the row SHALL begin with the ordinary menu arrow `→` in accent foreground
+- **AND** every primary and descriptive fragment SHALL retain that entry's existing semantic foreground and text-style role
+- **AND** the selected span SHALL use the blue `selectedBg` background
 - **AND** no active-path bullet or whole-row bold treatment SHALL be applied
 
 #### Scenario: Distinguish message roles and entry labels
-- **WHEN** labeled, unselected user, assistant, and system entries are visible
+- **WHEN** labeled user, assistant, and system entries are visible in selected or unselected state
 - **THEN** the entry label SHALL use the theme accent color
 - **AND** any enabled label timestamp SHALL use the same accent color and square-bracket form
 - **AND** the result counter SHALL show plain `label time` rather than `[+label time]`
@@ -3107,13 +3108,13 @@ Submitting a non-empty value SHALL apply it through the same session-name workfl
 
 ### Requirement: Bare-A1 Resume Session follows the standard dialog hierarchy
 
-The bare-A1 Resume Session selector SHALL use the shared compact modal hierarchy of top rule, title, filter/status row, search and results, bottom shortcut footer, and bottom rule. Its full-width top and bottom rules SHALL use the same standard dialog border role as Session Tree and Models rather than the title accent role, including while rename mode is active. Its title SHALL be the standalone accent-bold text `Resume Session` and SHALL NOT repeat the active scope as `(Current Folder)` or `(All)`.
+The bare-A1 Resume Session selector SHALL use the shared compact modal hierarchy of top rule, title, filter/status row, search and results, bottom shortcut footer, and bottom rule. The owned selector SHALL NOT add a component-level blank row before its top rule, so a retained prompt-adjacent command notice has exactly one empty visual row before the dialog while it is open, matching the spacing after the default editor is restored. Its full-width top and bottom rules SHALL use the same standard dialog border role as Session Tree and Models rather than the title accent role, including while rename mode is active. Its title SHALL be the standalone accent-bold text `Resume Session` and SHALL NOT repeat the active scope as `(Current Folder)` or `(All)`.
 
 The row immediately below the title SHALL begin with `Filter: current | all`, followed by `Name: all` or `Name: named` and `Sort: threaded`, `Sort: recent`, or `Sort: fuzzy`. Labels, separators, and inactive scope values SHALL use the established inactive status styling; the active scope and current name and sort values SHALL use the accent role. Values SHALL use the specified lower-case display text. The row SHALL remain stable during asynchronous scope loading and SHALL NOT append `loading` or loader work-unit counts to either scope value.
 
 When all-session discovery supplies partial results, the result list SHALL update incrementally. Whenever the existing paging indicator is applicable, its `(selection/total)` total SHALL count the currently discovered sessions that match the active query and name filter, and SHALL grow as further matching sessions arrive. It SHALL NOT label that count as loading or substitute loader work-unit progress for the visible matching-result total.
 
-Every selected session result SHALL use the Session Tree's accent `→` arrow, accent primary title without selected-title bolding, muted path/count/age metadata, and subtle purple accent-tinted selection background. That background SHALL form one continuous full-width selection, regardless of the title or path length. When cwd or explicit path metadata is visible, every rendered row SHALL reserve a shared path column followed by separately aligned message-count and age columns. Session titles SHALL truncate before the path column with visible separation, and paths that exceed their bounded column SHALL truncate within that column rather than displacing the title, count, or age columns.
+Every selected ordinary session result SHALL use the Session Tree's accent `→` arrow, success-green primary title without selected-title bolding, muted path/count/age metadata, and blue `selectedBg` selection background. A selected delete-confirmation result SHALL retain its error-colored primary title. The background SHALL form one continuous full-width selection, regardless of the title or path length. When cwd or explicit path metadata is visible, every rendered row SHALL reserve a shared path column followed by separately aligned message-count and age columns. Session titles SHALL truncate before the path column with visible separation, and paths that exceed their bounded column SHALL truncate within that column rather than displacing the title, count, or age columns.
 
 The selector's search-syntax and action shortcut hints SHALL appear below the session results, aligned to the same shared content inset as the title and status row. Every ordinary or state-specific footer SHALL end with the canonical `Esc close` entry, preserving it completely by clipping preceding guidance first when width is constrained. In the ordinary state the bottom rule SHALL immediately follow the final hint row. Delete confirmation, transient mutation status, and load errors SHALL use this bottom feedback area rather than replacing or joining the title/status rows. Existing search, scope switching, sorting, name filtering, path display, rename, deletion, selection, loading, cancellation, and result-list behavior SHALL remain available.
 
@@ -3122,6 +3123,11 @@ The selector's search-syntax and action shortcut hints SHALL appear below the se
 - **THEN** the accent-bold title SHALL read `Resume Session` without a scope suffix
 - **AND** the next row SHALL show `Filter: current | all`, the current lower-case `Name:` value, and the current lower-case `Sort:` value
 - **AND** the active scope and current name and sort values SHALL use the accent role
+
+#### Scenario: Preserve compact spacing after a resume notice
+- **WHEN** the `Resumed session` command notice remains visible and the user opens Resume Session again
+- **THEN** exactly one empty visual row SHALL separate the notice from the dialog's top rule
+- **AND** closing the dialog SHALL restore the editor with the same one-empty-row notice-to-control spacing
 
 #### Scenario: Render standard dialog rules
 - **WHEN** Resume Session or its rename mode is visible
@@ -3148,10 +3154,10 @@ The selector's search-syntax and action shortcut hints SHALL appear below the se
 - **AND** long paths SHALL truncate within the path column
 
 #### Scenario: Highlight a complete session result row
-- **WHEN** a session result is selected
+- **WHEN** an ordinary session result is selected
 - **THEN** it SHALL begin with the accent `→` arrow used by Session Tree
-- **AND** its primary title SHALL use accent without selected-title bolding while path, count, and age remain muted
-- **AND** the Session Tree's subtle purple accent-tinted selection background SHALL cover the complete available row width
+- **AND** its primary title SHALL use the same success-green role as a checkmark without selected-title bolding while path, count, and age remain muted
+- **AND** the blue `selectedBg` selection background SHALL cover the complete available row width
 - **AND** moving selection between rows with different title or path lengths SHALL NOT change the highlight width
 
 #### Scenario: Change session name and sort filters
@@ -3168,7 +3174,8 @@ The selector's search-syntax and action shortcut hints SHALL appear below the se
 
 #### Scenario: Confirm session deletion
 - **WHEN** the user starts deletion of a selected session
-- **THEN** the bottom feedback area SHALL replace ordinary shortcut hints with delete-confirm guidance followed by `Esc close`
+- **THEN** the selected title SHALL use the error role on the blue full-width selection surface
+- **AND** the bottom feedback area SHALL replace ordinary shortcut hints with delete-confirm guidance followed by `Esc close`
 - **AND** it SHALL NOT expose a cancel action or implicit Ctrl+C alias
 - **AND** the title and filter/status rows SHALL remain in their standard positions
 
@@ -3215,3 +3222,77 @@ Close shortcut guidance SHALL keep Ctrl+C implicit. A close or cancel hint SHALL
 #### Scenario: Press Ctrl+C outside a dismissible surface
 - **WHEN** no dismissible surface owns input and the active editor, terminal surface, comparison profile, or non-opted-in application host receives Ctrl+C
 - **THEN** that surface's existing interrupt, clear, copy, close-chord, or exit behavior SHALL remain unchanged
+
+### Requirement: Standard bare-A1 lists share one selection palette
+
+The bare-A1 Models, Skills, Thinking Level, Resume Session, Session Tree, Settings, and editor autocomplete menus SHALL preserve their existing cursor and meaningful semantic foreground roles when selected. Every covered surface SHALL use the blue `selectedBg` selection background. Models, Skills, Thinking Level, Settings, and autocomplete SHALL retain their ordinary menu arrow `→` in accent foreground, a primary label in normal `text`, and muted descriptive text. Resume Session SHALL use an accent arrow, success-green selected title, and muted metadata, while Session Tree SHALL retain each entry's item-specific foreground and text-style roles. Selection SHALL NOT introduce bold styling. On item-bounded surfaces, the selected background SHALL cover only the rendered item span from its arrow through its final visible content cell, SHALL NOT fill otherwise unused cells after the item, and SHALL remain clipped within the available width without causing wrapping. Resume Session SHALL retain its established full-row selection geometry.
+
+The selected-item treatment SHALL preserve domain-specific semantic markers and content. Models SHALL retain its scoped/unscoped marker, provider badge, and active-model checkmark. Skills SHALL retain its `skill:<name>` label and separately presented selected description. Thinking Level SHALL retain aligned level, current, default, and reasoning-description columns. Settings SHALL retain aligned labels and values, steppers, structured-value rows, floating choices, scrolling, search, and pointer affordances. Autocomplete SHALL retain aligned command descriptions and completion behavior. Session Tree SHALL retain its hierarchy, semantic entry roles, horizontal viewport, and clipped-edge markers. Resume Session SHALL retain its specialized arrow, metadata, and full-row geometry.
+
+Unselected rows, search and filter behavior, list ordering, counters, descriptions, navigation, selection actions, default and scope persistence, cancellation, and dialog lifecycle SHALL remain unchanged. The explicit `a1 pi` comparison profile SHALL retain pinned Pi presentation.
+
+#### Scenario: Highlight a model
+
+- **WHEN** a model row is selected in the Models dialog
+- **THEN** its arrow SHALL use accent foreground and its model identifier SHALL use normal `text` on `selectedBg`
+- **AND** its provider badge SHALL remain muted and its scope and active-state markers SHALL retain their semantic roles
+- **AND** the background SHALL end with the row's final marker or provider content without changing the row order or model action
+
+#### Scenario: Highlight a skill
+
+- **WHEN** a skill row is selected in the Skills dialog
+- **THEN** its arrow SHALL use accent foreground and its `skill:<name>` label SHALL use normal `text` on `selectedBg`
+- **AND** the background SHALL end with the final character of the `skill:<name>` label
+- **AND** the selected skill description SHALL remain separately muted below the list
+
+#### Scenario: Highlight a thinking level
+
+- **WHEN** a thinking-level row is selected
+- **THEN** its arrow SHALL use accent foreground and its level SHALL use normal `text` on `selectedBg`
+- **AND** its reasoning description SHALL remain muted while current and default markers retain their semantic roles
+- **AND** the aligned columns, selected value, and Enter and Space actions SHALL remain unchanged
+
+#### Scenario: Highlight a Resume Session entry
+
+- **WHEN** a Resume Session entry is selected
+- **THEN** its accent cursor and muted metadata SHALL remain unchanged while its full row uses blue `selectedBg`
+- **AND** its primary title SHALL use the same success-green role as a checkmark without becoming bold
+- **AND** search, scope, sort, rename, delete, navigation, and selection behavior SHALL remain unchanged
+
+#### Scenario: Highlight a Session Tree entry
+
+- **WHEN** a Session Tree entry is selected
+- **THEN** its existing `→` SHALL remain accent-colored and every entry fragment SHALL keep the same semantic foreground and text-style role it has while unselected on `selectedBg`
+- **AND** the background SHALL cover every visible selected fragment and clipped-edge ellipsis without changing tree hierarchy or viewport behavior
+
+#### Scenario: Highlight a setting
+
+- **WHEN** a row is selected in the bare-A1 Settings screen, a structured-value panel, or a floating choice menu
+- **THEN** its existing arrow or marker SHALL remain accent-colored, its primary label SHALL use normal `text`, and its value SHALL retain its normal semantic foreground on `selectedBg`
+- **AND** the background SHALL end with the final visible value or control cell without filling unused screen width
+- **AND** navigation, search, scrolling, pointer actions, and value persistence SHALL remain unchanged
+
+#### Scenario: Highlight a slash command
+
+- **WHEN** a command is selected in the bare-A1 `/` menu
+- **THEN** its existing `→` SHALL remain accent-colored, its command label SHALL use normal `text`, and its description SHALL remain muted on `selectedBg`
+- **AND** the background SHALL end with the final visible command or description character
+- **AND** navigation and completion behavior SHALL remain unchanged
+
+#### Scenario: Render a selected row at narrow width
+
+- **WHEN** any covered item-bounded list renders its selected row with less width than the complete content requires
+- **THEN** the row SHALL remain single-line and ANSI-aware clipped within the available content width
+- **AND** every visible item cell SHALL retain the selection background
+- **AND** cells after the visible item SHALL remain outside the selection background
+- **AND** no rendered row SHALL exceed the frame width
+
+#### Scenario: Render an unselected row
+
+- **WHEN** a covered row is not selected
+- **THEN** it SHALL retain its existing semantic foreground roles without the selected background or whole-row bold styling
+
+#### Scenario: Use the pinned comparison profile
+
+- **WHEN** the user runs the explicit `a1 pi` comparison profile
+- **THEN** pinned Pi selector presentation SHALL remain unchanged by the bare-A1 selected-row treatment
