@@ -3,7 +3,7 @@ import { Container, getKeybindings, Input, Spacer, Text } from "@earendil-works/
 import { addPiModalHeader, adoptPiModalFrame } from "./modal-frame.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, PINNED_PI_LAYOUT, piTheme, renderPiModalShortcutHints } from "./theme.js";
 import { componentPort, ensureTheme, piShellTruncateToWidth, piShellVisibleWidth, type PiShellComponentPort } from "./shell-shared-facade.js";
-import { SKILL_COMMAND_PREFIX, skillMatchesQuery, type PiShellSkillSummary } from "./skills-command.js";
+import { skillMatchesQuery, type PiShellSkillSummary } from "./skills-command.js";
 
 export interface PiShellSkillsSelectorOptions {
   /** The skills the engine registered, in its discovery order. */
@@ -26,7 +26,7 @@ class ClippedLine {
 /**
  * The A1-owned searchable Skills dialog. Its composition is the model selector's (border, spacer,
  * search input, spacer, list, spacer, hint footer, border) built from public pi-tui components; its
- * content follows the v2 skills extension: an accent bold title, `skill:<name>` rows, the selected
+ * content follows the v2 skills extension: an accent bold title, bare skill-name rows, the selected
  * skill's description cut to one line under the rows, the pinned scroll counter on overflow,
  * and the two empty states. Enter applies the selected skill with no arguments; the query is never appended.
  */
@@ -114,7 +114,7 @@ class SkillsSelectorComponent extends Container {
     for (let index = start; index < end; index++) {
       const skill = this.#filtered[index]!;
       const selected = index === this.#selectedIndex;
-      const label = `${SKILL_COMMAND_PREFIX}${skill.name}`;
+      const label = skill.name;
       this.#listContainer.addChild(new Text(`${selected ? theme.fg("accent", "→ ") : "  "}${selected ? theme.fg("accent", label) : label}`, 0, 0));
     }
     if (start > 0 || end < this.#filtered.length) {
