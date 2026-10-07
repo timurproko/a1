@@ -129,6 +129,7 @@ describe("owned pinned session selector", () => {
     const filterRow = initialRows[filterIndex]!;
     const standardRule = new DynamicBorder().render(100)[0]!;
     const ruleRows = initialRows.filter(row => /^─+$/u.test(stripPortableTerminalSequences(row)));
+    expect(plainInitialRows[0]).toBe("─".repeat(100));
     expect(ruleRows).toEqual([standardRule, standardRule]);
     expect(cellStyle(ruleRows[0]!, "─")).not.toEqual(cellStyle(heading, "R"));
     expect(headingIndex).toBeLessThan(filterIndex);
@@ -310,16 +311,14 @@ describe("owned pinned session selector", () => {
     const selectedShort = rawRows[shortIndex]!;
     expect(stripPortableTerminalSequences(selectedShort)).toMatch(/^ → Short title/u);
     expect(cellStyle(selectedShort, "→"))
-      .toEqual(cellStyle(piTheme().bg("customMessageBg", piTheme().fg("accent", "→")), "→"));
+      .toEqual(cellStyle(piTheme().bg("selectedBg", piTheme().fg("accent", "→")), "→"));
     expect(cellStyle(selectedShort, "S"))
-      .toEqual(cellStyle(piTheme().bg("customMessageBg", piTheme().fg("accent", "S")), "S"));
+      .toEqual(cellStyle(piTheme().bg("selectedBg", piTheme().fg("success", "S")), "S"));
     expect(cellStyle(selectedShort, "D"))
-      .toEqual(cellStyle(piTheme().bg("customMessageBg", piTheme().fg("muted", "D")), "D"));
+      .toEqual(cellStyle(piTheme().bg("selectedBg", piTheme().fg("muted", "D")), "D"));
     expect(cellBold(selectedShort, "S")).toBe(false);
     expect(cellBackground(selectedShort, "→"))
-      .toBe(cellBackground(piTheme().bg("customMessageBg", "→"), "→"));
-    expect(cellBackground(selectedShort, "→"))
-      .not.toBe(cellBackground(piTheme().bg("selectedBg", "→"), "→"));
+      .toBe(cellBackground(piTheme().bg("selectedBg", "→"), "→"));
     expect(selectedBackgroundCells(selectedShort)).toBe(99);
 
     component.handleInput?.("\x1b[B");

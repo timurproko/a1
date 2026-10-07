@@ -7,8 +7,10 @@
  * keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal
  * frame with standalone title, standard outer rules, stable filter/status row, progressive result
  * paging, aligned result columns, Session Tree selection roles, and bottom dynamic feedback and
- * shortcut footer.
- * Deviations: owned-modal-shortcut-hints, owned-resume-session-dialog.
+ * shortcut footer. Selected session rows use the blue selection surface, success-green primary title,
+ * muted metadata, and ordinary text weight.
+ * Deviations: owned-modal-shortcut-hints, owned-resume-session-dialog,
+ * owned-standard-dialog-selection.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
@@ -110,7 +112,7 @@ function fitPathToWidth(value: string, width: number, preserveTail: boolean): st
 
 function renderSelectedRow(value: string): string {
 	const marker = "\u0000";
-	const wrapper = theme.bg("customMessageBg", marker);
+	const wrapper = theme.bg("selectedBg", marker);
 	const markerIndex = wrapper.indexOf(marker);
 	const on = wrapper.slice(0, markerIndex);
 	const off = wrapper.slice(markerIndex + marker.length);
@@ -579,7 +581,7 @@ class SessionList implements Component, Focusable {
 			const styledMsg = isConfirmingDelete
 				? theme.fg("error", truncatedMsg)
 				: isSelected
-					? theme.fg("accent", truncatedMsg)
+					? theme.fg("success", truncatedMsg)
 					: messageColor
 						? theme.fg(messageColor, truncatedMsg)
 						: truncatedMsg;
@@ -824,7 +826,6 @@ export class SessionSelectorComponent extends Container implements Focusable {
 
 	private buildBaseLayout(content: Component, options?: { showHeader?: boolean }): void {
 		this.clear();
-		this.addChild(new Spacer(1));
 		const showHeader = options?.showHeader ?? true;
 		const modalHeader = showHeader
 			? addPiModalHeader(this, new DynamicBorder(), this.header)
@@ -835,7 +836,7 @@ export class SessionSelectorComponent extends Container implements Focusable {
 		this.addChild(new Spacer(1));
 		if (showHeader) this.addChild(this.footer);
 		this.addChild(new DynamicBorder());
-		const frame = { topIndex: 1, bottomIndex: this.children.length - 1 } as const;
+		const frame = { topIndex: 0, bottomIndex: this.children.length - 1 } as const;
 		if (modalHeader === undefined) adoptPiModalFrame(this, frame);
 		else adoptPiModalFrame(this, { ...frame, header: modalHeader });
 	}
