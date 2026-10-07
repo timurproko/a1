@@ -256,6 +256,7 @@
           "kind": "class",
           "hash": "a7ccce3316a746fca12d4b5734fcfeda630c9120c8fb0e31615ba49b714d2580",
           "consumers": [
+            "src/integrations/pi/components/share-operation-dialog.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -914,6 +915,7 @@
           "consumers": [
             "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/models-dialog.ts",
+            "src/integrations/pi/components/share-operation-dialog.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
@@ -3107,7 +3109,8 @@
           "kind": "class",
           "hash": "9b99c0d166f012df02fbfeb5b19c4b07459daa57770e502d6497fbf100ecac82",
           "consumers": [
-            "src/integrations/pi/components/modal-frame.ts"
+            "src/integrations/pi/components/modal-frame.ts",
+            "src/integrations/pi/components/share-operation-dialog.ts"
           ]
         },
         {
@@ -3173,6 +3176,7 @@
           "consumers": [
             "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/models-dialog.ts",
+            "src/integrations/pi/components/share-operation-dialog.ts",
             "src/integrations/pi/components/shell-extension-ui.ts",
             "src/integrations/pi/components/shell-footer-status.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
@@ -4057,6 +4061,7 @@
           "hash": "f4da5befc73d33073373e2206cfd5fbaa99fbc121103b4e08452cf7d52789d69",
           "consumers": [
             "src/integrations/pi/components/modal-frame.ts",
+            "src/integrations/pi/components/share-operation-dialog.ts",
             "src/integrations/pi/components/shell-footer-status.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
@@ -4172,6 +4177,7 @@
           "hash": "256bdefed48634626a832802b714cf6c35670d2c29eb0fb536f9eb79bd014eb4",
           "consumers": [
             "src/integrations/pi/components/modal-frame.ts",
+            "src/integrations/pi/components/share-operation-dialog.ts",
             "src/integrations/pi/components/shell-extension-ui.ts",
             "src/integrations/pi/components/shell-footer-status.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",

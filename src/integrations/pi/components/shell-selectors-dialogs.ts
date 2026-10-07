@@ -26,7 +26,7 @@ import {
 } from "@earendil-works/pi-tui";
 import type { OwnedUiDialog } from "../../../contracts/owned-ui/index.js";
 import { ScopedModelsSelectorComponent } from "./upstream/components/scoped-models-selector.js";
-import { addPiModalSelectFooter, adoptPiModalFrame, adoptPiModalHeader, PiCancellableOperationFrame } from "./modal-frame.js";
+import { addPiModalSelectFooter, adoptPiModalFrame, adoptPiModalHeader } from "./modal-frame.js";
 import { ModelsDialogComponent, type ModelsDialogCallbacks, type ModelsDialogConfig } from "./models-dialog.js";
 import { TrustSelectorComponent, type TrustDecision, type TrustOption, type TrustUpdate } from "./upstream/components/trust-selector.js";
 import {
@@ -398,19 +398,6 @@ export function createPiShellArmin(
 export function createPiShellEarendilAnnouncement(): PiShellComponentPort {
   ensureTheme();
   return componentPort(new EarendilAnnouncementComponent());
-}
-
-export interface PiShellOperationLoaderPort extends PiShellComponentPort {
-  readonly signal: AbortSignal;
-}
-
-export function createPiShellOperationLoader(
-  runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
-  message: string,
-): PiShellOperationLoaderPort {
-  ensureTheme();
-  const loader = new PiCancellableOperationFrame(createTuiFacade(runtime), message);
-  return { ...componentPort(loader), signal: loader.signal };
 }
 
 export function createPiShellReloadBox(): PiShellComponentPort {
