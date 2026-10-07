@@ -8,11 +8,11 @@ The manual merge accepts these scenarios:
 - Undo closes an open scalar menu and preserves an active Settings search query.
 - Structured-setting undo restores the preceding whole value and updates the open generic dialog.
 - Failed forward saves create no undo step, while failed restorations keep their step available for retry.
-- The shared owned-dialog hint boundary rejects connective `to` actions and consistently renders dim keys with muted actions, including `Ctrl+Z undo` and `Esc close`.
+- Settings uses only `Enter change`—Space is inactive—and the shared owned-dialog hint boundary rejects connective `to` actions while consistently rendering dim keys with muted actions.
 - Structured dialogs show one upper boundary rule, title, muted selected-part description, menu, and hints, and consume pointer motion, clicks, releases, and wheel input without changing state.
-- Per-model thinking uses the stable `Thinking Level` title, muted inline step marker and next-line instruction, searchable model step, supported-level step, clear-override behavior, whole-object writes, back navigation, and concise active-step hints.
-- Bare A1 omits `Fullscreen wheel scrolling` and uses its global owned Scroll settings as the custom viewport's wheel authority.
-- Bare A1 labels Pi's `fullscreenCopyOnSelect` setting `Copy on select`, while the comparison profile retains pinned wording and behavior.
+- Per-model thinking uses the stable `Thinking Level` title, muted step context, ASCII `> ` search prompt, one-space selection cursors, searchable model and level steps, clear-override behavior, whole-object writes, back navigation, and concise active-step hints.
+- Scalar value-menu choice text aligns with the source setting value while preserving the effective-value mark.
+- Bare A1 omits `Fullscreen wheel scrolling`, uses global Scroll settings for the custom viewport, and labels Pi's `fullscreenCopyOnSelect` setting `Copy on select`, while comparison retains pinned behavior.
 
 ```openspec-delivery
 {
@@ -30,16 +30,16 @@ The manual merge accepts these scenarios:
     "Undo closes an open scalar menu and preserves an active Settings search query.",
     "Structured-setting undo restores the preceding whole value and updates the open generic dialog.",
     "Failed forward saves create no undo step, while failed restorations keep their step available for retry.",
-    "The shared owned-dialog hint boundary rejects connective `to` actions and consistently renders dim keys with muted actions, including `Ctrl+Z undo` and `Esc close`.",
+    "Settings uses only `Enter change`—Space is inactive—and the shared owned-dialog hint boundary rejects connective `to` actions while consistently rendering dim keys with muted actions.",
     "Structured dialogs show one upper boundary rule, title, muted selected-part description, menu, and hints, and consume pointer motion, clicks, releases, and wheel input without changing state.",
-    "Per-model thinking uses the stable `Thinking Level` title, muted inline step marker and next-line instruction, searchable model step, supported-level step, clear-override behavior, whole-object writes, back navigation, and concise active-step hints.",
-    "Bare A1 omits `Fullscreen wheel scrolling` and uses its global owned Scroll settings as the custom viewport's wheel authority.",
-    "Bare A1 labels Pi's `fullscreenCopyOnSelect` setting `Copy on select`, while the comparison profile retains pinned wording and behavior."
+    "Per-model thinking uses the stable `Thinking Level` title, muted step context, ASCII `> ` search prompt, one-space selection cursors, searchable model and level steps, clear-override behavior, whole-object writes, back navigation, and concise active-step hints.",
+    "Scalar value-menu choice text aligns with the source setting value while preserving the effective-value mark.",
+    "Bare A1 omits `Fullscreen wheel scrolling`, uses global Scroll settings for the custom viewport, and labels Pi's `fullscreenCopyOnSelect` setting `Copy on select`, while comparison retains pinned behavior."
   ],
-  "archiveDigest": "5059d7eaab6cffaffed1b3e36c5e428514864434fed7e78f244e834952ac59af",
-  "specDigest": "d038f0f1a643fe0ba831eb5c65677a5ca110e6675f60061a0a6aea99ef5d96ee",
-  "tasksDigest": "034480f253d5c558eb59d303c770e103d66cfb58fc5331b444f9be75bbacea93",
-  "evidenceDigest": "cb424856164e940b5411033118b21bd0a482fbb06816b815a2f4bcc8690e64b4",
+  "archiveDigest": "603ed2207dfe8cf6d87eb7cb23da1dc801c48d79dd1c0820ac1c423892a292a0",
+  "specDigest": "b6ee5439467a25ae0c797ae185ceb9619cc7f4b49fded7cf40788da0bdec12cc",
+  "tasksDigest": "099abbf01d4cd60b0a9eb763cb43324dccbbb29d5677eaf283608934a16191a7",
+  "evidenceDigest": "4d2f815adff689fb14db70dfc4293f6962fe487b3fd572d9fb8a6060fc2dba4c",
   "knownGaps": []
 }
 ```
