@@ -86,11 +86,12 @@ describe("development validation readiness", () => {
 
   it("selects an exact current-head post-publication reopening", async () => {
     const base = "b".repeat(40), head = "a".repeat(40);
+    const installerManifest = ["packages", "a1-install", "package.json"].join("/");
     const note = "## [0.2.5] - 2026-10-07\n\n### Fixed\n\n- Example.\n";
     const manifests = (version: string) => ({
       "package.json": JSON.stringify({ name: "@timurproko/a1", version }),
       "package-lock.json": JSON.stringify({ name: "@timurproko/a1", version, packages: { "": { name: "@timurproko/a1", version } } }),
-      "packages/a1-install/package.json": JSON.stringify({ name: "@timurproko/a1-install", version }),
+      [installerManifest]: JSON.stringify({ name: "@timurproko/a1-install", version }),
     });
     const content = { [base]: manifests("0.2.5-dev"), [head]: { ...manifests("0.2.6-dev"), "docs/releases/0.2.5.md": note } };
     const pull = {
@@ -106,7 +107,7 @@ describe("development validation readiness", () => {
           { filename: "docs/releases/0.2.5.md", status: "added" },
           { filename: "package-lock.json", status: "modified" },
           { filename: "package.json", status: "modified" },
-          { filename: "packages/a1-install/package.json", status: "modified" },
+          { filename: installerManifest, status: "modified" },
         ];
       },
       async get(path: string) {
