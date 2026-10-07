@@ -91,6 +91,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       configDir: resolveProductPaths().configDir,
       profileId: options.profileId,
       agentProvider: () => adapter.settingsPort(),
+      hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
+      agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
     });
   let releaseNotes: ReleaseNoteCatalog | null = null;
   let releaseNotesFailure: unknown;

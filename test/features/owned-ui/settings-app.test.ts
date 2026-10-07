@@ -19,11 +19,17 @@ const RXVT_CTRL_HOME = `${ESC}[7^`;
 const RXVT_CTRL_END = `${ESC}[8^`;
 const ENTER = "\r";
 const SPACE = " ";
+const CTRL_Z = "\u001a";
 const STYLE = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
 
 const WARNING_FLAGS = [
-  { key: "anthropicExtraUsage", label: "Anthropic extra usage", description: "Warn about paid extra usage", fallback: true },
+  { key: "anthropicExtraUsage", label: "Anthropic extra usage", description: "Warn when Anthropic subscription auth may use paid extra usage", fallback: true },
   { key: "unknownTools", label: "Unknown tools", description: "Warn about unknown tools", fallback: false },
+] as const;
+
+const MODEL_THINKING_FLAGS = [
+  { key: "openai/gpt-5", label: "gpt-5 [openai]", description: "global default", fallback: "default", choices: ["default", "low", "high"] },
+  { key: "openai/gpt-5.3-codex-spark", label: "gpt-5.3-codex-spark [openai]", description: "global default", fallback: "default", choices: ["default", "low", "medium", "high"] },
 ] as const;
 
 function descriptor(
@@ -65,6 +71,36 @@ function port(failWrites = false): { port: AgentSettingsPort; writes: { key: str
         if (failWrites) throw new Error("the engine refused");
         writes.push({ key, value });
         values[key] = value;
+        return { status: "applied" as const, application: "live" as const, storedValue: value, effectiveValue: value, failure: null, limitationReason: null };
+      },
+    },
+  };
+}
+
+function modelDialogPort(): { port: AgentSettingsPort; writes: { key: string; value: AgentJsonValue }[] } {
+  const backing = port();
+  let overrides: AgentJsonValue = { "openai/gpt-5": "high" };
+  return {
+    writes: backing.writes,
+    port: {
+      ...backing.port,
+      async listSettings() {
+        return [
+          ...await backing.port.listSettings(),
+          descriptor("modelThinkingLevels", "json", overrides, {
+            label: "Default thinking level per model",
+            owner: "agent",
+            flags: MODEL_THINKING_FLAGS,
+          }),
+        ];
+      },
+      async readSetting(key) {
+        return key === "modelThinkingLevels" ? overrides : await backing.port.readSetting?.(key);
+      },
+      async writeSetting(key, value) {
+        if (key !== "modelThinkingLevels") return await backing.port.writeSetting!(key, value);
+        backing.writes.push({ key, value });
+        overrides = value;
         return { status: "applied" as const, application: "live" as const, storedValue: value, effectiveValue: value, failure: null, limitationReason: null };
       },
     },
@@ -174,6 +210,10 @@ function selectRow(target: SettingsApp, label: string): void {
     target.onInput?.(DOWN, HOST);
   }
   throw new Error(`never reached ${label}`);
+}
+
+async function settleChanges(): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, 0));
 }
 
 beforeEach(() => {
@@ -410,8 +450,115 @@ describe("the settings screen", () => {
   it("steps to the next value on enter", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Thinking level");
+    target.onInput?.(SPACE, HOST);
+    expect(writes).toEqual([]);
     target.onInput?.(ENTER, HOST);
     expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
+  });
+
+  it("shows only the optimistic value while a live save is unresolved", async () => {
+    const { app: target, session } = await app(false, "normal", WHEEL_SETTINGS);
+    vi.spyOn(session, "change").mockReturnValue(new Promise(() => {}));
+
+    target.onInput?.(ENTER, HOST);
+    const row = find(target, "Speed");
+    expect(row).toMatch(/Speed\s+fast/u);
+    expect(row).not.toContain("effective normal");
+    expect(row).not.toContain("live");
+  });
+
+  it("undoes successful scalar changes in reverse order through their owning backends", async () => {
+    const { app: target, session, writes } = await app();
+    selectRow(target, "Prompt suggestions");
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(true);
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(true);
+
+    target.onInput?.(CTRL_HOME, HOST);
+    selectRow(target, "Thinking level");
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(writes.slice(-2)).toEqual([
+      { key: "thinkingLevel", value: "high" },
+      { key: "thinkingLevel", value: "low" },
+    ]);
+  });
+
+  it("undoes from a scalar menu and active search without losing the query", async () => {
+    const { app: target, writes } = await app();
+    selectRow(target, "Thinking level");
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+
+    let lines = screen(target);
+    let row = lines.findIndex(line => line.includes("Thinking level"));
+    let valueColumn = (lines[row] ?? "").indexOf("high") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
+    expect(screen(target).some(line => line.includes("✓ high"))).toBe(true);
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(screen(target).some(line => line.includes("✓ high"))).toBe(false);
+    expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "low" });
+
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    target.onInput?.("/", HOST);
+    for (const letter of "think") target.onInput?.(letter, HOST);
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    lines = screen(target);
+    row = lines.findIndex(line => line.includes("Thinking level"));
+    valueColumn = (lines[row] ?? "").indexOf("low");
+    expect(lines.some(line => line.includes("think"))).toBe(true);
+    expect(valueColumn).toBeGreaterThan(0);
+    expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "low" });
+  });
+
+  it("keeps a failed restore retryable without changing the authoritative value", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Prompt suggestions");
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+
+    vi.spyOn(session, "change").mockResolvedValueOnce({
+      status: "failed", applied: false, pendingRestart: false, application: null,
+      storedValue: null, effectiveValue: null, limitationReason: null, failure: "restore refused",
+    });
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+    expect(find(target, "Could not restore")).toContain("restore refused");
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(true);
+  });
+
+  it("discards undo history when the settings screen closes", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Prompt suggestions");
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+    target.onClose?.(HOST);
+
+    const reopened = new SettingsApp(session);
+    reopened.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
   });
 
   it("stops at the end of a range instead of reporting a rejected write", async () => {
@@ -454,23 +601,128 @@ describe("the settings screen", () => {
     // Invariant: the declaration decides what a flag shows before anything is stored.
     expect(find(target, "Anthropic extra usage")).toContain("true");
     expect(find(target, "Unknown tools")).toContain("false");
-    expect(find(target, "Enter/Space to change")).toContain("Esc close");
+    expect(find(target, "Warnings")).toContain("Warnings");
+    expect(find(target, "Warn when Anthropic subscription auth may use paid extra usage")).not.toBe("");
+    const dialogHint = find(target, "Enter change");
+    expect(dialogHint).toContain("Ctrl+Z undo");
+    expect(dialogHint).toContain("Esc close");
+    expect(dialogHint).not.toContain("Space");
+    expect(dialogHint).not.toContain(" to ");
     const rendered = target.render({ width: 200, height: 24 }, NAMING_HOST);
-    const styledHint = rendered.find(line => line.includes("Enter/Space")) ?? "";
+    const styledHint = rendered.find(line => line.includes("<dim>Enter</dim>")) ?? "";
     const title = rendered.find(line => line.includes("Settings")) ?? "";
     expect(firstVisibleTextColumn(styledHint)).toBe(firstVisibleTextColumn(title));
-    expect(styledHint).toContain("<dim>Enter/Space</dim> <muted>to change</muted>  <dim>Esc</dim> <muted>close</muted>");
-    expect(styledHint).not.toMatch(/[·•]/u);
+    expect(styledHint).not.toBe("");
 
-    target.onInput?.(SPACE, HOST);
-    expect(find(target, "Anthropic extra usage")).toContain("false");
-    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
-
-    // Invariant: a second press steps from what the dialog shows, not from the snapshot it
-    // was opened with.
     target.onInput?.(SPACE, HOST);
     expect(find(target, "Anthropic extra usage")).toContain("true");
+    expect(writes).toHaveLength(0);
+
+    target.onInput?.(ENTER, HOST);
+    expect(find(target, "Anthropic extra usage")).toContain("false");
+    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
+    await settleChanges();
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(find(target, "Anthropic extra usage")).toContain("true");
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: true, unknownTools: false } });
+
+    // Invariant: a further press steps from what the restored dialog shows.
+    target.onInput?.(ENTER, HOST);
+    expect(find(target, "Anthropic extra usage")).toContain("false");
+    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
+  });
+
+  it("uses the structured dialog's top rule as the sole list boundary", async () => {
+    const { app: target } = await app();
+    selectRow(target, "Warnings");
+    target.onInput?.(ENTER, HOST);
+
+    const lines = screen(target);
+    const title = lines.findIndex(line => line.trim() === "Warnings");
+    const firstPart = lines.findIndex(line => line.includes("Anthropic extra usage"));
+    const rule = "─".repeat(80);
+    expect(lines).toHaveLength(24);
+    expect(title).toBeGreaterThan(0);
+    expect(lines[title - 1]).toBe(rule);
+    expect(lines[title + 1]).toContain("Warn when Anthropic subscription auth may use paid extra usage");
+    expect(firstPart).toBeGreaterThan(title + 1);
+    expect(lines.at(-1)).toBe(rule);
+  });
+
+  it("uses the owned per-model thinking search and stepped keyboard workflow", async () => {
+    const backing = modelDialogPort();
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent: backing.port });
+    await session.load();
+    const target = new SettingsApp(session);
+    selectRow(target, "Default thinking level per model");
+    target.onInput?.(ENTER, HOST);
+
+    let shown = screen(target).join("\n");
+    expect(shown).toContain("Thinking Level (step 1/2)");
+    expect(shown).toContain("Select a model to configure");
+    expect(shown).toContain("gpt-5 [openai]");
+    expect(shown).toContain("gpt-5.3-codex-spark [openai]");
+    expect(shown).toContain("Type search · Enter select · Esc close");
+    expect(shown).not.toContain("Ctrl+Z undo");
+    expect(shown).not.toContain("Enter change");
+
+    for (const character of "spark") target.onInput?.(character, HOST);
+    shown = screen(target).join("\n");
+    expect(shown).toContain("gpt-5.3-codex-spark [openai]");
+    expect(shown).not.toContain("gpt-5 [openai]");
+
+    const beforePointer = screen(target);
+    target.onMouse?.({ kind: "press", button: 0, row: 20, column: 20 }, HOST);
+    expect(screen(target)).toEqual(beforePointer);
+    expect(backing.writes).toHaveLength(0);
+
+    target.onInput?.(ENTER, HOST);
+    shown = screen(target).join("\n");
+    expect(shown).toContain("Thinking Level (step 2/2)");
+    expect(shown).toContain("Select default thinking level for gpt-5.3-codex-spark [openai]");
+    expect(shown).toContain("↑↓ navigate · Enter select · Esc back");
+    expect(shown).not.toContain("Thinking Level for");
+    expect(shown).toContain("low");
+    expect(shown).toContain("Light reasoning (~2k tokens)");
+    const selectedLevel = screen(target).find(line => line.includes("low") && line.includes("Light reasoning")) ?? "";
+    expect(selectedLevel.startsWith(" → low")).toBe(true);
+    expect(selectedLevel.startsWith(" →  low")).toBe(false);
+    expect(shown).not.toContain("(clear override)");
+    target.onInput?.(ESC, HOST);
+    expect(screen(target).join("\n")).toContain("Thinking Level (step 1/2)");
+    expect(screen(target).join("\n")).toContain("Esc close");
+    expect(backing.writes).toHaveLength(0);
+
+    target.onInput?.(ENTER, HOST);
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(backing.writes.at(-1)).toEqual({
+      key: "modelThinkingLevels",
+      value: { "openai/gpt-5": "high", "openai/gpt-5.3-codex-spark": "low" },
+    });
+    shown = screen(target).join("\n");
+    expect(shown).toContain("Thinking Level (step 1/2)");
+    expect(shown).toContain("Select a model to configure");
+    expect(shown).toContain("gpt-5.3-codex-spark [openai]  low");
+
+    target.onInput?.(ENTER, HOST);
+    shown = screen(target).join("\n");
+    expect(shown).toContain("✓ low");
+    expect(shown).toContain("(clear override)");
+    expect(shown).toContain("Revert to global default");
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(backing.writes.at(-1)).toEqual({
+      key: "modelThinkingLevels",
+      value: { "openai/gpt-5": "high" },
+    });
+    target.onInput?.(ESC, HOST);
+    expect(screen(target).join("\n")).not.toContain("Thinking Level (step");
   });
 
   it("adjusts a flag with the arrows, as the list adjusts a value", async () => {
@@ -483,20 +735,23 @@ describe("the settings screen", () => {
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: true, unknownTools: false } });
   });
 
-  it("acts on the dialog's value and leaves its label alone", async () => {
+  it("consumes pointer input throughout a structured dialog without changing it", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Warnings");
     target.onInput?.(ENTER, HOST);
 
-    const lines = screen(target);
-    const row = lines.findIndex(line => line.includes("Anthropic extra usage"));
-    const valueColumn = (lines[row] ?? "").indexOf("true") + 1;
-
-    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: 6 }, HOST);
+    const before = screen(target);
+    const row = before.findIndex(line => line.includes("Unknown tools"));
+    const valueColumn = (before[row] ?? "").indexOf("false") + 1;
+    for (const event of [
+      { kind: "motion" as const, button: 0, row: row + 1, column: valueColumn },
+      { kind: "press" as const, button: 0, row: row + 1, column: valueColumn },
+      { kind: "wheel-down" as const, button: 0, row: 2, column: 70 },
+    ]) {
+      expect(target.onMouse?.(event, HOST)).toEqual({ consumed: true, render: false });
+    }
+    expect(screen(target)).toEqual(before);
     expect(writes).toHaveLength(0);
-
-    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
-    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
   });
 
   it("moves through what the search found instead of typing the arrows", async () => {
@@ -808,20 +1063,20 @@ describe("the input row and status line behind the screen", () => {
   it("derives the complete standing status from active shortcut declarations", async () => {
     const { app: target } = await app();
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
-    const hint = wide.find(line => line.includes("/ to search")) ?? "";
+    const hint = wide.find(line => line.includes("/ search")) ?? "";
     const title = wide.find(line => line.includes("Settings")) ?? "";
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(title));
     expect(hint.startsWith(" ")).toBe(true);
-    expect(hint).toContain("↑↓ to navigate");
-    expect(hint).toContain("Shift+↑↓ to jump");
-    expect(hint).toContain("Enter/Space to change");
-    expect(hint).toContain("←→ to adjust");
+    expect(hint).toContain("↑↓ navigate");
+    expect(hint).toContain("Shift+↑↓ jump");
+    expect(hint).toContain("Enter change");
+    expect(hint).not.toContain("Space");
+    expect(hint).toContain("←→ adjust");
+    expect(hint).toContain("Ctrl+Z undo");
     expect(hint).toContain("Esc close");
-    expect(hint).not.toContain("Type to search");
+    expect(hint).not.toContain("Type search");
+    expect(hint).not.toContain(" to ");
     expect(hint).not.toMatch(/[·•]/u);
-    const styledHint = target.render({ width: 200, height: 24 }, NAMING_HOST).find(line => line.includes("<dim>/</dim>")) ?? "";
-    expect(styledHint).toContain("<dim>/</dim> <muted>to search</muted>  <dim>↑↓</dim> <muted>to navigate</muted>");
-
     const narrow = target.render({ width: 24, height: 8 }, HOST).map(line => line.replace(STYLE, ""));
     expect(narrow.at(-1)).toHaveLength(24);
   });
@@ -1001,13 +1256,16 @@ describe("the input row and status line behind the screen", () => {
     expect(paged).toContain("Wheel row 10");
   });
 
-  it("reports a failed write instead of the hint", async () => {
-    const { app: target } = await app(true);
+  it("reports a failed write instead of the hint and does not make it undoable", async () => {
+    const { app: target, writes } = await app(true);
     selectRow(target, "Thinking level");
     target.onInput?.(ENTER, HOST);
     // Invariant: the write is reported once it has been attempted, not on the keypress.
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await settleChanges();
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
     expect(wide.find(line => line.includes("Could not save"))).toContain("Thinking level");
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(writes).toHaveLength(0);
   });
 });

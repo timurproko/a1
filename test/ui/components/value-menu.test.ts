@@ -7,6 +7,15 @@ import {
   type ValueMenuState,
 } from "../../../src/ui/components/index.js";
 
+const PLAIN_THEME: UiTheme = {
+  fg: (_token, text) => text,
+  bold: text => text,
+  plain: text => text,
+  highlight: text => text,
+  disabled: text => text,
+  panel: text => text,
+};
+
 const NAMING_THEME: UiTheme = {
   fg: (token, text) => `<${token}>${text}</${token}>`,
   bold: text => text,
@@ -46,11 +55,15 @@ describe("shared value menu", () => {
   });
 
   it("places below when possible and flips above while clipping at the right rail", () => {
-    expect(valueMenuFrame(STATE, { screenRow: 1, valueColumn: 8 }, {
+    const aligned = valueMenuFrame(STATE, { screenRow: 1, valueColumn: 8 }, {
       bodyHeight: 8,
       surfaceWidth: 30,
       reservedRight: 2,
-    })).toEqual({ top: 2, column: 8, width: 10, rows: 3 });
+    });
+    expect(aligned).toEqual({ top: 2, column: 6, width: 10, rows: 3 });
+    const rendered = renderValueMenu([" ".repeat(30), " ".repeat(30), " ".repeat(30), " ".repeat(30), " ".repeat(30)], STATE, aligned, PLAIN_THEME);
+    expect(rendered[aligned.top]?.indexOf("auto")).toBe(8);
+    expect(rendered[aligned.top + 1]?.indexOf("always")).toBe(8);
 
     expect(valueMenuFrame(STATE, { screenRow: 5, valueColumn: 27 }, {
       bodyHeight: 7,
@@ -64,7 +77,7 @@ describe("shared value menu", () => {
       bodyHeight: 4,
       surfaceWidth: 30,
       reservedRight: 2,
-    })).toEqual({ top: 2, column: 8, width: 10, rows: 3 });
+    })).toEqual({ top: 2, column: 6, width: 10, rows: 3 });
   });
 
   it("keeps pointer hit testing inside the visible menu cells", () => {

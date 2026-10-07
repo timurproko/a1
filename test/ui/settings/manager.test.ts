@@ -193,6 +193,36 @@ describe("owned settings manager", () => {
     expect(sections[1]?.entries.map(entry => entry.id)).toEqual(["autoCompact", "thinkingLevel"]);
   });
 
+  it("applies bare presentation overrides without changing agent setting identity", async () => {
+    const base = syntheticPort();
+    const agent: AgentSettingsPort = {
+      ...base,
+      async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
+        return [
+          ...await base.listSettings(),
+          settingDescriptor("fullscreenCopyOnSelect", "boolean", true),
+          { ...settingDescriptor("fullscreenWheelScrollLines", "json", "auto"), flags: [] },
+        ];
+      },
+    };
+    const target = new OwnedSettingsManager({
+      configDir: root,
+      profileId: "a1",
+      declarations: DECLARATIONS,
+      migrations: [],
+      agent,
+      hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
+      agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
+    });
+    await target.load();
+
+    const entries = target.sections().flatMap(section => section.entries);
+    expect(entries.find(entry => entry.id === "fullscreenCopyOnSelect")).toMatchObject({
+      id: "fullscreenCopyOnSelect", label: "Copy on select", value: true, backend: "agent",
+    });
+    expect(entries.some(entry => entry.id === "fullscreenWheelScrollLines")).toBe(false);
+  });
+
   it("omits unavailable agent controls without exposing their reason copy", async () => {
     const base = syntheticPort();
     const unavailable = { writable: false, available: false, limitationReason: "fixture reason must stay hidden" } as const;
