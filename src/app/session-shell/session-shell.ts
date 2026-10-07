@@ -38,6 +38,7 @@ import type {
   PiWorkflowRoute,
 } from "../../integrations/pi/engine/workflows.js";
 import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../../integrations/pi/components/shell-extension-ui.js";
+import type { PiShellLazySelectorLoader } from "../../integrations/pi/components/lazy-selectors.js";
 import { createPiShellEditor } from "../../integrations/pi/components/shell-editor-autocomplete.js";
 import {
   SKILLS_COMMAND_NAME,
@@ -70,7 +71,6 @@ import {
   createPiShellSettingsSelector,
   createPiShellSkillsSelector,
   type PiShellSettingsSelectorOptions,
-  createPiShellTreeSelector,
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
   type PiShellLoginDialogPort,
@@ -185,6 +185,8 @@ export class OwnedUiSessionShell {
   // Invariant: translated startup diagnostics create at most one dock notice per kind per shell.
   #startupTrustHandled = false;
   readonly #customViewport: boolean;
+  #lazySelectors: PiShellLazySelectorLoader | undefined;
+  #lazySelectorsPromise: Promise<PiShellLazySelectorLoader> | undefined;
   readonly #responseCopy: ResponseCopyCoordinator | null;
   // Rationale: only an executor this shell created owns a spare copy helper worth warming and disposing.
   #copyExecutor: OwnedResponseCopyExecutor | undefined;
@@ -224,6 +226,7 @@ export class OwnedUiSessionShell {
     this.#routeHost = routeHost ?? null;
     this.#startupRoute = options.engine.startupRoute;
     this.#customViewport = sessionLayout === "custom-viewport";
+    this.#lazySelectors = options.diagnostics?.lazySelectors;
     this.#stopped = new Promise(resolve => {
       this.#resolveStopped = resolve;
     });
@@ -717,6 +720,7 @@ export class OwnedUiSessionShell {
     setImmediate(() => {
       if (this.#disposed || !this.#customViewport) return;
       this.#presentStartupRoute();
+      void this.#loadLazySelectors().then(selectors => selectors.prepare()).catch(() => {});
       this.root.warmPastePreparation();
       this.#copyExecutor?.warm();
     });
@@ -1005,6 +1009,14 @@ export class OwnedUiSessionShell {
     return handle;
   }
 
+  #loadLazySelectors(): Promise<PiShellLazySelectorLoader> {
+    if (this.#lazySelectors !== undefined) return Promise.resolve(this.#lazySelectors);
+    return this.#lazySelectorsPromise ??= import("../../integrations/pi/components/lazy-selectors.js").then(module => {
+      this.#lazySelectors = module.piShellLazySelectors;
+      return module.piShellLazySelectors;
+    });
+  }
+
   async showThinkingSelector(): Promise<void> {
     const snapshot = this.backend.pinnedSettingsSnapshot();
     const close = () => {
@@ -1016,22 +1028,30 @@ export class OwnedUiSessionShell {
       close();
       void this.runWorkflow({ command: "thinking", argument: "", selection: level });
     };
-    const { createPiShellThinkingSelector } = await import("../../integrations/pi/components/thinking-selector-dialog.js");
-    const component = createPiShellThinkingSelector(
-      snapshot.thinkingLevel,
-      snapshot.availableThinkingLevels,
-      select,
-      close,
-      level => this.backend.setDefaultThinkingLevel(level),
-      snapshot.defaultThinkingLevel,
-      this.#customViewport ? {
-        profile: "bare",
-        cycleBinding: this.root.editor.keybindingConfig()["app.thinking.cycle"] ?? [],
-      } : undefined,
-    );
-    this.root.setFooterLevel(false);
-    this.root.setInputSurface(component);
-    this.runtime.requestRender();
+    const releasePresentation = this.#customViewport ? this.runtime.beginPresentationHold() : undefined;
+    try {
+      const selectors = await this.#loadLazySelectors();
+      const component = await selectors.createThinking({
+        currentLevel: snapshot.thinkingLevel,
+        availableLevels: snapshot.availableThinkingLevels,
+        onSelect: select,
+        onCancel: close,
+        onSelectAsDefault: level => this.backend.setDefaultThinkingLevel(level),
+        defaultLevel: snapshot.defaultThinkingLevel,
+        ...(this.#customViewport ? {
+          presentation: {
+            profile: "bare" as const,
+            cycleBinding: this.root.editor.keybindingConfig()["app.thinking.cycle"] ?? [],
+          },
+        } : {}),
+      });
+      if (this.#disposed) return;
+      this.root.setFooterLevel(false);
+      this.root.setInputSurface(component);
+      this.runtime.requestRender();
+    } finally {
+      releasePresentation?.();
+    }
   }
 
   /** The Skills dialog: a replacement input like the model selector, applying the chosen skill through the prompt path. */
@@ -1166,44 +1186,51 @@ export class OwnedUiSessionShell {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
     };
-    const component = await createPiShellTreeSelector({
-      tree: context.tree,
-      currentLeafId: context.currentLeafId,
-      terminalHeight: this.runtime.viewport().rows,
-      initialFilterMode: context.filterMode,
-      ...(initialSelectedId === undefined ? {} : { initialSelectedId }),
-      onLabelChange: context.appendLabelChange,
-      onCopy: text => {
-        if (!text) {
-          this.root.appendWorkflowResult({ command: "tree", outcome: "failed", message: "Selected entry has no text to copy" });
-          this.runtime.requestRender();
-          return;
-        }
-        const generation = this.backend.sessionBindingGeneration;
-        void this.backend.copyWorkflowText(text).then(acknowledged => {
-          if (this.#disposed || generation !== this.backend.sessionBindingGeneration) return;
-          this.root.appendWorkflowStatus(acknowledged ? "Copied selected message to clipboard" : "Submitted selected message to clipboard");
-          this.runtime.requestRender();
-        }).catch(error => {
-          if (this.#disposed || generation !== this.backend.sessionBindingGeneration) return;
-          this.root.appendWorkflowResult({ command: "tree", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
-          this.runtime.requestRender();
-        });
-      },
-      onCancel: close,
-      onSelect: entryId => {
-        if (entryId === context.currentLeafId) {
-          close();
-          this.root.appendWorkflowStatus("Already at this point");
-          this.runtime.requestRender();
-          return;
-        }
-        if (context.skipSummaryPrompt) close();
-        void this.#completeTreeSelection(entryId, context.skipSummaryPrompt);
-      },
-    });
-    this.root.setInputSurface(component);
-    this.runtime.requestRender();
+    const releasePresentation = this.#customViewport ? this.runtime.beginPresentationHold() : undefined;
+    try {
+      const selectors = await this.#loadLazySelectors();
+      const component = await selectors.createTree({
+        tree: context.tree,
+        currentLeafId: context.currentLeafId,
+        terminalHeight: this.runtime.viewport().rows,
+        initialFilterMode: context.filterMode,
+        ...(initialSelectedId === undefined ? {} : { initialSelectedId }),
+        onLabelChange: context.appendLabelChange,
+        onCopy: text => {
+          if (!text) {
+            this.root.appendWorkflowResult({ command: "tree", outcome: "failed", message: "Selected entry has no text to copy" });
+            this.runtime.requestRender();
+            return;
+          }
+          const generation = this.backend.sessionBindingGeneration;
+          void this.backend.copyWorkflowText(text).then(acknowledged => {
+            if (this.#disposed || generation !== this.backend.sessionBindingGeneration) return;
+            this.root.appendWorkflowStatus(acknowledged ? "Copied selected message to clipboard" : "Submitted selected message to clipboard");
+            this.runtime.requestRender();
+          }).catch(error => {
+            if (this.#disposed || generation !== this.backend.sessionBindingGeneration) return;
+            this.root.appendWorkflowResult({ command: "tree", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
+            this.runtime.requestRender();
+          });
+        },
+        onCancel: close,
+        onSelect: entryId => {
+          if (entryId === context.currentLeafId) {
+            close();
+            this.root.appendWorkflowStatus("Already at this point");
+            this.runtime.requestRender();
+            return;
+          }
+          if (context.skipSummaryPrompt) close();
+          void this.#completeTreeSelection(entryId, context.skipSummaryPrompt);
+        },
+      });
+      if (this.#disposed) return;
+      this.root.setInputSurface(component);
+      this.runtime.requestRender();
+    } finally {
+      releasePresentation?.();
+    }
   }
 
   showLoginAuthTypeSelector(): void {
