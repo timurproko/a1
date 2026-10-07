@@ -6,12 +6,12 @@
  * Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation
  * excluding internal bookkeeping, standard search input, blue item-bounded menu-arrow selection that
  * preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed
- * timestamps, plain label-time result status, and a stateful time on/off shortcut, semantic role
- * colors with session naming for the system root, standard paging/first-last/non-root
- * containing-branch folding keys with a permanently expanded system session entry even behind hidden
- * metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and
- * selected-fragment highlighting, and Models-ordered semantic Type/search shortcut footers without a
- * redundant select hint.
+ * timestamps, numeric result counters without duplicate label-time status, and a stateful time on/off
+ * shortcut, semantic role colors with session naming for the system root, standard
+ * paging/first-last/non-root containing-branch folding keys with a permanently expanded system session
+ * entry even behind hidden metadata, single-character ellipses on both clipped edges with
+ * bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic
+ * Type/search shortcut footers without a redundant select hint.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -689,17 +689,11 @@ class TreeList implements Component {
 		}
 	}
 
-	private getStatusLabels(): string {
-		return this.showLabelTimestamps ? " label time" : "";
-	}
-
 	render(width: number): string[] {
 		const lines: string[] = [];
 
 		if (this.filteredNodes.length === 0) {
 			lines.push(truncateToWidth(theme.fg("muted", "  No entries found"), width));
-			const status = this.getStatusLabels().trim();
-			if (status) lines.push(truncateToWidth(theme.fg("muted", `  ${status}`), width));
 			return lines;
 		}
 
@@ -786,10 +780,7 @@ class TreeList implements Component {
 
 		lines.push(...renderHorizontalViewport(renderedRows, width));
 		lines.push(
-			truncateToWidth(
-				theme.fg("muted", `  (${this.selectedIndex + 1}/${this.filteredNodes.length})${this.getStatusLabels()}`),
-				width,
-			),
+			truncateToWidth(theme.fg("muted", `  (${this.selectedIndex + 1}/${this.filteredNodes.length})`), width),
 		);
 
 		return lines;

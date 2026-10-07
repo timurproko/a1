@@ -2,7 +2,7 @@
 
 See `proposal.md` for motivation and `specs/owned-pi-ui-foundation/spec.md` for the observable contract. The Session Tree owns label-timestamp visibility in `TreeList`, where `Shift+T` flips a private boolean. Its footer is rendered by a separate `TreeHelp` component from a static shortcut-item table, so the current `label time` action has no access to the state it controls. Resume Session already demonstrates the desired pattern by deriving `path (on)` or `path (off)` during footer rendering.
 
-The result counter independently appends `label time` only when timestamps are enabled. That status describes the result presentation and is not the footer action the user asked to clarify, so it remains unchanged.
+The result area also appends `label time` when timestamps are enabled, either beside a populated result counter or as a standalone line beneath `No entries found`. Once the footer owns the explicit on/off state, both copies are redundant and should be removed while preserving the numeric count.
 
 ## Goals / Non-Goals
 
@@ -10,12 +10,13 @@ The result counter independently appends `label time` only when timestamps are e
 
 - Render `Shift+T time (off)` when label timestamps are hidden and `Shift+T time (on)` when they are visible.
 - Make the footer derive its text from the same state that controls timestamp rendering.
+- Remove duplicate `label time` status text from populated and empty result areas while preserving numeric counts.
 - Preserve shortcut ordering, styling, wrapping, and immediate state changes through the existing render cycle.
 
 **Non-Goals:**
 
 - Changing the `Shift+T` binding or timestamp visibility default.
-- Renaming the enabled result-counter status, changing timestamp formatting, or persisting the toggle.
+- Changing numeric result counts, timestamp formatting, or persisting the toggle.
 - Changing other Session Tree controls or the Resume Session selector.
 
 ## Decisions
@@ -24,7 +25,7 @@ The result counter independently appends `label time` only when timestamps are e
 
 `TreeList` will provide a narrow read-only state query, and `TreeHelp` will receive the owning list so each render can derive the action as `time (${state})`. This keeps the control text tied to the authoritative rendering state without duplicating a boolean or adding a callback lifecycle.
 
-Passing only an initial label was rejected because it would become stale after `Shift+T`. Moving the toggle state into `TreeHelp` was rejected because timestamp rows and result status are rendered by `TreeList`, creating competing sources of truth.
+Passing only an initial label was rejected because it would become stale after `Shift+T`. Moving the toggle state into `TreeHelp` was rejected because timestamp rows are rendered by `TreeList`, creating competing sources of truth.
 
 ### 2. Keep static help metadata for state-independent actions
 
@@ -32,9 +33,15 @@ The existing static help table will retain all ordinary actions. The timestamp i
 
 Rebuilding the complete footer outside the shared mapping was rejected because it would duplicate formatting and increase the chance of ordering or wrapping regressions for an otherwise local label change.
 
-### 3. Verify both states in the focused component path
+### 3. Keep timestamp state in the footer only
 
-The Session Tree component test will assert the initial off hint, toggle with the existing `Shift+T` input, then assert the on hint and retained timestamp/result behavior. This proves the visible label follows interaction state rather than only checking a helper in isolation.
+The result renderer will retain its numeric selection/total counter but stop appending `label time`. Its empty branch will render only `No entries found`, regardless of timestamp state. The footer remains the single visible state indicator while labeled rows continue to show timestamps when enabled.
+
+Keeping the populated status but hiding only the empty line was rejected because it would leave two state indicators whenever results exist.
+
+### 4. Verify both states in the focused component path
+
+The Session Tree component test will assert the initial off hint, toggle with the existing `Shift+T` input, then assert the on hint, retained timestamp rendering, numeric result count, and absence of `label time` for populated and empty results. This proves the visible label follows interaction state rather than only checking a helper in isolation.
 
 ## Risks / Trade-offs
 

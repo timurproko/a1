@@ -6,8 +6,9 @@ The Session Tree footer labels its timestamp toggle as `label time` but does not
 
 - Rename the Session Tree timestamp shortcut action from `label time` to `time`.
 - Append `(on)` or `(off)` to that footer action according to the current label-timestamp visibility state.
-- Update the hint immediately when `Shift+T` toggles timestamp visibility, while retaining the existing timestamp rendering and result-counter status behavior.
-- Add focused component coverage for both toggle states and the transition between them.
+- Update the hint immediately when `Shift+T` toggles timestamp visibility, while retaining the existing timestamp rendering and numeric result counter.
+- Remove the redundant `label time` status from both populated and empty result areas because the footer now exposes the toggle state.
+- Add focused component coverage for both toggle states, populated results, and empty results.
 
 ## Capabilities
 
@@ -21,4 +22,4 @@ None.
 
 ## Impact
 
-Expected implementation is limited to the bare-A1 tree selector help presentation, focused Session Tree component tests, and copied-source provenance metadata required by repository governance. Keybindings, timestamp formatting, labels, filter behavior, result-counter status, session persistence, dependencies, public APIs, and the explicit `a1 pi` comparison profile remain unchanged.
+Expected implementation is limited to the bare-A1 tree selector help and result-status presentation, focused Session Tree component tests, and copied-source provenance metadata required by repository governance. Keybindings, timestamp formatting, labels, filter behavior, numeric result counts, session persistence, dependencies, public APIs, and the explicit `a1 pi` comparison profile remain unchanged.
