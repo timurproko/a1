@@ -23,7 +23,7 @@ export interface ExactPackagePreparationReceipt {
     durationMs: number;
     phases: { installMs: number; installedIdentityMs: number };
   };
-  consumers: Array<"package-contracts" | "package-startup">;
+  consumers: Array<"package-contracts" | "package-startup" | "update-predecessor">;
   receiptId: string;
 }
 

@@ -30,13 +30,16 @@ describe("lane-scoped exact-package preparation", () => {
         count: 1,
         phases: { installMs: expect.any(Number), installedIdentityMs: expect.any(Number) },
       },
-      consumers: ["package-startup", "package-contracts"],
+      consumers: ["package-startup", "package-contracts", "update-predecessor"],
       receiptId: expect.stringMatching(/^[0-9a-f]{64}$/),
     });
     const phases = fixture.preparation.receipt.preparation.phases;
     expect(phases.installMs + phases.installedIdentityMs).toBeLessThanOrEqual(fixture.preparation.receipt.preparation.durationMs);
     const environment = { ...fixture.environment, [EXACT_PACKAGE_PREPARATION_ENV.consumer]: "package-startup" };
     await expect(verifyExactPackagePreparation({ environment })).resolves.toMatchObject({ prefix: fixture.preparation.prefix });
+    await expect(verifyExactPackagePreparation({
+      environment: { ...fixture.environment, [EXACT_PACKAGE_PREPARATION_ENV.consumer]: "update-predecessor" },
+    })).resolves.toMatchObject({ packageRoot: fixture.preparation.packageRoot });
   });
 
   it("rejects stale bytes, malformed receipts, cross-lane use, unauthorized consumers, and escaping handoffs", async () => {
@@ -110,7 +113,7 @@ async function prepareFixture() {
   const calls: Array<{ command: string; arguments: string[] }> = [];
   const preparation = await prepareExactPackageInstallation({
     candidatePath: candidate,
-    consumers: ["package-startup", "package-contracts"],
+    consumers: ["package-startup", "package-contracts", "update-predecessor"],
     environment: { GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "4", VALIDATION_CANDIDATE_TARBALL: candidate },
     rootParent: root,
     runCommand: async (command, arguments_) => {

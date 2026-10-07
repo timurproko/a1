@@ -273,6 +273,8 @@ jobs:
       release_notes_sha256: ${{ needs.approval.outputs.release_notes_sha256 }}
       validation_run_id: ${{ needs.approval.outputs.validation_run_id }}
       validate_matrix: ${{ steps.lanes.outputs.validate_matrix }}
+      sequential_validate_matrix: ${{ steps.lanes.outputs.sequential_validate_matrix }}
+      windows_shard_matrix: ${{ steps.lanes.outputs.windows_shard_matrix }}
     steps:
       - name: Check out the selected source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -375,7 +377,10 @@ jobs:
         shell: bash
         env:
           MODE: ${{ needs.source.outputs.mode }}
-        run: echo "validate_matrix=$(node scripts/release/publication-validation-matrix.mjs --mode "$MODE")" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "validate_matrix=$(node scripts/release/publication-validation-matrix.mjs --mode "$MODE" --kind complete)" >> "$GITHUB_OUTPUT"
+          echo "sequential_validate_matrix=$(node scripts/release/publication-validation-matrix.mjs --mode "$MODE" --kind sequential)" >> "$GITHUB_OUTPUT"
+          echo "windows_shard_matrix=$(node scripts/release/publication-validation-matrix.mjs --mode "$MODE" --kind windows-shards)" >> "$GITHUB_OUTPUT"
 
       - name: Report the plan
         shell: bash
@@ -701,14 +706,14 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  validate:
-    name: Validate ${{ matrix.platform }}
+  validate_sequential:
+    name: Validate sequential ${{ matrix.platform }}
     needs: [plan, package, documentation]
     # Rationale: the successful candidate run already validated the adopted stable bytes on every lane.
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.mode != 'stable' && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped')
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.plan.outputs.validate_matrix) }}
+      matrix: ${{ fromJson(needs.plan.outputs.sequential_validate_matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
@@ -843,6 +848,243 @@ jobs:
             .artifacts/validation/startup-${{ matrix.platform }}.json
           if-no-files-found: warn
           retention-days: 30
+
+  # Concurrency: complete Windows publication lanes use the same canonical four-way ownership
+  # partition as standalone full regression. No mutable workspace or package prefix crosses jobs.
+  validate_windows_shard:
+    name: Validate ${{ matrix.platform }} / ${{ matrix.shard }}
+    needs: [plan, package, documentation]
+    if: always() && needs.plan.result == 'success' && (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'candidate') && needs.package.result == 'success' && needs.documentation.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.windows_shard_matrix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      FULL_SOURCE: ${{ needs.plan.outputs.source }}
+      FULL_BASE: ${{ needs.plan.outputs.source }}
+      FULL_PR: "0"
+    steps:
+      - name: Preserve repository bytes during checkout
+        shell: bash
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.plan.outputs.source }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Prepare Rust toolchain
+        shell: bash
+        run: bash scripts/development/prepare-ci-rust.sh
+      - run: npm ci
+      - name: Record verified install-time build
+        run: node scripts/release/record-validation-prerequisite.mjs build
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: release-package-${{ needs.plan.outputs.version }}
+          path: .artifacts/release
+      - name: Validate the exact installer package
+        env:
+          VALIDATION_INSTALLER_TARBALL: ${{ github.workspace }}/.artifacts/release/installer.tgz
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: node scripts/release/validate-installer-package.mjs
+      - name: Bind downloaded package to this validation shard
+        run: >-
+          node scripts/release/record-validation-prerequisite.mjs package
+          --candidate .artifacts/release/candidate.tgz
+          --output .artifacts/release/candidate.receipt.json
+          --build-receipt .artifacts/validation/receipts/build.json
+          --source-identity .artifacts/release/candidate-identity.json
+      - name: Prepare the exact package
+        if: matrix.shard == 'package'
+        shell: bash
+        env:
+          VALIDATION_SELECTION_JSON: '["full-release"]'
+          VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
+          VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/release/candidate.tgz
+          VALIDATION_PACKAGE_RECEIPT: ${{ github.workspace }}/.artifacts/release/candidate.receipt.json
+          VALIDATION_PACKAGE_SOURCE_IDENTITY: ${{ github.workspace }}/.artifacts/release/candidate-identity.json
+        run: >-
+          node scripts/release/run-validation-tier.mjs
+          --prepare-exact-package
+          --handoff .artifacts/validation/exact-package-handoff.json
+      - name: Enable Defender real-time protection for startup acceptance
+        if: matrix.shard == 'package'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-MpPreference -DisableRealtimeMonitoring $false
+          $deadline = (Get-Date).AddSeconds(30)
+          do {
+            $enabled = (Get-MpComputerStatus).RealTimeProtectionEnabled
+            if ($enabled) { break }
+            Start-Sleep -Seconds 1
+          } while ((Get-Date) -lt $deadline)
+          if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
+      - name: Run complete publication validation shard
+        shell: bash
+        env:
+          VALIDATION_SELECTION_JSON: '["full-release"]'
+          VALIDATION_BUILD_READY: "1"
+          VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
+          VALIDATION_DOCUMENTATION_FULL_READY: "1"
+          VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/release/candidate.tgz
+          VALIDATION_PACKAGE_RECEIPT: ${{ github.workspace }}/.artifacts/release/candidate.receipt.json
+          VALIDATION_PACKAGE_SOURCE_IDENTITY: ${{ github.workspace }}/.artifacts/release/candidate-identity.json
+          RELEASE_RUNNER_LABEL: github-${{ matrix.platform }}-${{ needs.plan.outputs.mode }}-${{ matrix.shard }}
+          A1_CONFIG_DIR: ${{ runner.temp }}/a1-release-config
+          A1_DATA_DIR: ${{ runner.temp }}/a1-release-data
+          A1_RUNTIME_DIR: ${{ runner.temp }}/a1-release-runtime
+          STARTUP_BUDGET_ENFORCEMENT: ${{ needs.plan.outputs.channel == 'latest' && 'fail' || 'record' }}
+          STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.platform }}.json
+          FULL_SHARD: ${{ matrix.shard }}
+        run: |
+          args=(--full-shard "$FULL_SHARD" --result .artifacts/validation/full-regression.json)
+          if [ "$FULL_SHARD" = package ]; then args+=(--exact-package-handoff .artifacts/validation/exact-package-handoff.json); fi
+          node scripts/release/run-validation-tier.mjs "${args[@]}"
+      - name: Summarize first-attempt startup measurements
+        if: always() && matrix.shard == 'package'
+        shell: bash
+        env:
+          STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-${{ matrix.platform }}.json
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          if [ ! -f "$STARTUP_PERFORMANCE_RESULT" ]; then
+            echo "No first-attempt startup evidence was produced for $PLATFORM." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const evidence = JSON.parse(await readFile(process.env.STARTUP_PERFORMANCE_RESULT, "utf8"));
+          const violated = new Set(evidence.budgetViolations.map(violation => `${violation.profileId}/${violation.launchKind}`));
+          const overrun = evidence.enforcement === "record" ? "recorded overrun" : "failed";
+          console.log(`## First-attempt startup (${process.env.PLATFORM}, ${evidence.enforcement} mode)`);
+          console.log("");
+          console.log("| Profile | Launch kind | Elapsed | Budget | Status |");
+          console.log("| --- | --- | ---: | ---: | --- |");
+          for (const measurement of evidence.measurements) {
+            const status = violated.has(`${measurement.profileId}/${measurement.launchKind}`) ? overrun : "passed";
+            console.log(`| ${measurement.profileId} | ${measurement.launchKind} | ${Math.round(measurement.elapsedMs)}ms | ${measurement.budgetMs}ms | ${status} |`);
+          }
+          NODE
+      - name: Bind publication shard evidence
+        if: always() && hashFiles('.artifacts/validation/full-regression.json') != ''
+        env:
+          FULL_LANE: ${{ matrix.os }}-node${{ matrix.node }}
+          FULL_SHARD: ${{ matrix.shard }}
+        run: node scripts/release/full-regression-evidence.mjs --record-shard
+      - name: Upload publication shard outcomes
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: release-validation-${{ needs.plan.outputs.version }}-${{ matrix.platform }}-shard-${{ matrix.shard }}
+          path: |
+            .artifacts/validation/full-regression.json
+            .artifacts/validation/full-shards/*.json
+            .artifacts/validation/startup-${{ matrix.platform }}.json
+            .artifacts/validation/receipts/*.json
+            .artifacts/validation/phases/*.jsonl
+            .artifacts/release-verdicts/*.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  # Invariant: one familiar platform artifact exists only after all four exact-run shards merge.
+  validate_windows_lane:
+    name: Reconstruct ${{ matrix.platform }}
+    needs: [plan, validate_windows_shard]
+    if: always() && needs.plan.result == 'success' && (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'candidate')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: win32-node24
+            os: windows-2025
+            node: 24
+          - platform: win32-node22
+            os: windows-2025
+            node: 22
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      FULL_SOURCE: ${{ needs.plan.outputs.source }}
+      FULL_BASE: ${{ needs.plan.outputs.source }}
+      FULL_PR: "0"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.plan.outputs.source }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: release-validation-${{ needs.plan.outputs.version }}-${{ matrix.platform }}-shard-*
+          path: .artifacts/release-validation-downloads
+      - name: Collect unique shard evidence
+        shell: bash
+        run: |
+          mkdir -p .artifacts/validation/full-shards
+          while IFS= read -r -d '' path; do
+            target=".artifacts/validation/full-shards/$(basename "$path")"
+            test ! -e "$target"
+            cp "$path" "$target"
+          done < <(find .artifacts/release-validation-downloads -type f -path '*/full-shards/*.json' -print0)
+          while IFS= read -r -d '' path; do
+            target=".artifacts/validation/$(basename "$path")"
+            test ! -e "$target"
+            cp "$path" "$target"
+          done < <(find .artifacts/release-validation-downloads -type f -name 'startup-*.json' -print0)
+      - name: Reconstruct the Windows publication lane
+        env:
+          FULL_LANE: ${{ matrix.os }}-node${{ matrix.node }}
+        run: |
+          node scripts/release/full-regression-evidence.mjs --merge-shards
+          cp .artifacts/validation/full-regression.json .artifacts/validation/${{ matrix.platform }}.json
+      - name: Upload reconstructed platform outcomes
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: release-validation-${{ needs.plan.outputs.version }}-${{ matrix.platform }}
+          path: |
+            .artifacts/validation/${{ matrix.platform }}.json
+            .artifacts/validation/startup-${{ matrix.platform }}.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  validate:
+    name: Validate publication lanes
+    needs: [plan, package, documentation, validate_sequential, validate_windows_shard, validate_windows_lane]
+    # Rationale: stable adopts already validated candidate bytes; every other mode is authorized only
+    # by this aggregate, never by an individual sequential lane or Windows shard.
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.mode != 'stable' && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every planned validation lane
+        shell: bash
+        env:
+          MODE: ${{ needs.plan.outputs.mode }}
+          SEQUENTIAL: ${{ needs.validate_sequential.result }}
+          WINDOWS_SHARDS: ${{ needs.validate_windows_shard.result }}
+          WINDOWS_LANES: ${{ needs.validate_windows_lane.result }}
+        run: |
+          set -euo pipefail
+          test "$SEQUENTIAL" = success
+          if [ "$MODE" = develop ]; then
+            test "$WINDOWS_SHARDS" = skipped
+            test "$WINDOWS_LANES" = skipped
+          else
+            test "$WINDOWS_SHARDS" = success
+            test "$WINDOWS_LANES" = success
+          fi
 
   publish:
     name: Publish ${{ needs.plan.outputs.version }} to npm ${{ needs.plan.outputs.channel }}

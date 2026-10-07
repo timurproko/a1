@@ -26,3 +26,11 @@ None.
 The implementation affects publication matrix planning, `.github/workflows/publish.yml`, existing full-regression shard evidence reuse, validation-tier exact-package consumers, the published-predecessor fixture, and focused workflow/fixture policy tests. It increases Windows runner concurrency and repeated per-shard setup in exchange for lower elapsed release-validation time.
 
 It changes no product runtime, package contents, supported platform/runtime set, update behavior, predecessor count, release authority, startup budget, timeout, retry policy, or final stable publication flow. Development preview validation remains bounded, and final stable publication continues adopting the successful candidate-validated package pair without re-running the suite.
+
+## Acceptance scenarios
+
+- [x] Running the publication matrix planner for candidate mode yields four complete lanes, two sequential non-Windows lanes, and eight Windows runtime/shard entries.
+- [x] Running the publication matrix planner for develop mode yields the unchanged three complete sequential lanes and no Windows shard entries.
+- [ ] A native candidate or nightly run reconstructs both Windows runtimes only after all four current-run shards pass and preserves the existing platform artifact identities.
+- [ ] A native Windows package shard shows one exact-candidate preparation, one installation of each of the three recent predecessors, one separate `0.2.2` bridge installation, and both immediate-predecessor behaviors.
+- [ ] The next native candidate or nightly run records Windows elapsed overlap, runner time, and the remaining package-shard critical path.

@@ -47,7 +47,7 @@ describe("validation tier planning", () => {
       id: "exact-package-preparation",
       count: 1,
       policy: "npm-global-ignore-scripts-prefer-offline-v1",
-      consumers: ["package-startup", "package-contracts"],
+      consumers: ["package-startup", "package-contracts", "update-predecessor"],
     });
     const invocations = plan.vitest!.invocations;
     const ordinary = invocations.find(invocation => invocation.id === "vitest-full-without-isolated");
@@ -279,7 +279,7 @@ describe("validation tier planning", () => {
     });
     expect(result.passed).toBe(true);
     expect(preparations).toBe(1);
-    expect(handedOff).toEqual(["vitest-package-startup", "vitest-package-contracts"]);
+    expect(handedOff).toEqual(["vitest-package-startup", "vitest-package-contracts", "vitest-update-predecessor"]);
   });
 
   it("prepares the shared install once and hands it off without running the plan", async () => {

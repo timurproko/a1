@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { recordBuildReceipt, verifyBuildReceipt, verifyPackageReceipt } from "./validation-receipt.mjs";
+import { FULL_REGRESSION_SHARDS } from "./full-regression-shards.mjs";
+export { FULL_REGRESSION_SHARDS } from "./full-regression-shards.mjs";
 import {
   cleanupExactPackagePreparation,
   exactPackagePreparationEnvironment,
@@ -19,8 +21,6 @@ const maximumPortableCommandCharacters = 6_000;
 export const RESOURCE_SENSITIVE_TIMEOUT_MS = 30_000;
 /** Bounds the complete ordinary partition below hosted-runner process and memory capacity. */
 export const FULL_REGRESSION_MAX_WORKERS = 2;
-/** Stable Windows complete-regression shard identities, in canonical merge order. */
-export const FULL_REGRESSION_SHARDS = Object.freeze(["core", "resource", "rendering", "package"]);
 export const FULL_REGRESSION_SHARD_SCHEMA = "a1-full-regression-shard-v1";
 // Invariant: the build is a per-runner prerequisite every shard authenticates for itself; it is not owned work.
 const FULL_REGRESSION_SHARD_PREREQUISITES = Object.freeze(["candidate-build"]);
@@ -139,9 +139,11 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
   const requestedPackageSmoke = [...packageSmokeTests].filter(path => selectedTestPaths.has(path));
   const requestedPackageContracts = [...packageContractTests].filter(path => selectedTestPaths.has(path));
   const requestedPackageStartup = [...packageStartupTests].filter(path => selectedTestPaths.has(path));
+  const requestedPredecessor = predecessorTests.filter(path => selectedTestPaths.has(path));
   const exactPackageConsumers = [
     ...(requestedPackageStartup.length > 0 ? ["package-startup"] : []),
     ...(requestedPackageContracts.length > 0 ? ["package-contracts"] : []),
+    ...(requestedPredecessor.length > 0 ? ["update-predecessor"] : []),
   ];
   const exactPackagePreparation = exactPackageConsumers.length > 0 ? {
     id: "exact-package-preparation",
@@ -579,14 +581,16 @@ function assertExactPackageHandoff(handoff, plan) {
 
 function assertExactPackagePreparationPlan(plan, vitest) {
   if (!plan || plan.id !== "exact-package-preparation" || plan.count !== 1 || plan.policy !== EXACT_PACKAGE_INSTALL_POLICY
-    || !Array.isArray(plan.consumers) || plan.consumers.length < 1 || plan.consumers.length > 2
+    || !Array.isArray(plan.consumers) || plan.consumers.length < 1 || plan.consumers.length > 3
     || new Set(plan.consumers).size !== plan.consumers.length
-    || plan.consumers.some(consumer => !["package-startup", "package-contracts"].includes(consumer))) {
+    || plan.consumers.some(consumer => !["package-startup", "package-contracts", "update-predecessor"].includes(consumer))) {
     throw new Error("exact-package preparation plan is invalid");
   }
   for (const consumer of plan.consumers) {
-    const expectedId = consumer === "package-startup" ? "vitest-package-startup" : "vitest-package-contracts";
-    const invocations = vitest?.invocations.filter(invocation => invocation.id === expectedId && invocation.scopes.includes(consumer)) ?? [];
+    const matches = consumer === "package-startup" ? id => id === "vitest-package-startup"
+      : consumer === "package-contracts" ? id => id === "vitest-package-contracts"
+        : id => id === "vitest-update-predecessor" || id.startsWith("vitest-explicit-update-predecessor");
+    const invocations = vitest?.invocations.filter(invocation => matches(invocation.id) && invocation.scopes.includes(consumer)) ?? [];
     if (invocations.length !== 1) throw new Error(`exact-package consumer ${consumer} must have one invocation`);
   }
   return plan;
@@ -604,7 +608,8 @@ function assertPreparedPackageMatchesPlan(preparation, plan) {
 function exactPackageConsumer(plan, invocation) {
   if (!plan) return null;
   const consumer = invocation.id === "vitest-package-startup" ? "package-startup"
-    : invocation.id === "vitest-package-contracts" ? "package-contracts" : null;
+    : invocation.id === "vitest-package-contracts" ? "package-contracts"
+      : invocation.id === "vitest-update-predecessor" || invocation.id.startsWith("vitest-explicit-update-predecessor") ? "update-predecessor" : null;
   if (!consumer) return null;
   if (!plan.consumers.includes(consumer) || !invocation.scopes.includes(consumer)) {
     throw new Error("exact-package invocation contradicts its planned consumer");

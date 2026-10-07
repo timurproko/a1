@@ -5,6 +5,7 @@ import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { verifyExactPackagePreparation } from "../../../scripts/release/exact-package-preparation.mjs";
 import { PredecessorFixture } from "../../support/predecessor-fixture.js";
 import { loadValidationCandidate } from "./package-candidate-fixture.js";
 
@@ -17,11 +18,14 @@ import { loadValidationCandidate } from "./package-candidate-fixture.js";
 const PREDECESSOR_COUNT = Number.parseInt(process.env.UPDATE_PREDECESSOR_COUNT ?? "3", 10);
 const fixture = new PredecessorFixture();
 let candidateRoot = "";
+let retainedDirectRoot = "";
 let predecessors: string[] = [];
 
 beforeAll(async () => fixture.phase(900_000, async () => {
   const candidate = await loadValidationCandidate();
-  candidateRoot = await fixture.install(candidate.path);
+  // Performance: the package shard already installed and authenticated these exact candidate bytes. Reusing
+  // that bounded root removes a second npm reification while preserving pre/post owner checks.
+  candidateRoot = (await verifyExactPackagePreparation({ candidatePath: candidate.path, consumer: "update-predecessor" })).packageRoot;
   predecessors = await fixture.publishedVersions(candidate.manifest.version);
   expect(predecessors.length, "no published release is available to update from").toBeGreaterThan(0);
 }), 900_000);
@@ -65,17 +69,25 @@ describe("update from every recent published release", () => {
       // and the warmed child has closed by now, so both are released under this phase's own budget.
       // Holding all of them until the teardown hook instead made removal outgrow that hook's limit.
       await fixture.discard(sandbox);
-      await fixture.discard(priorRoot);
+      if (process.platform === "win32" && version === predecessors[0]) {
+        // Invariant: the direct replacement owner needs this same immutable predecessor tree. Fixture
+        // ownership continues across the sequential test boundary and teardown remains fail-safe.
+        expect(retainedDirectRoot, "immediate predecessor was retained more than once").toBe("");
+        retainedDirectRoot = priorRoot;
+      } else {
+        await fixture.discard(priorRoot);
+      }
     }
     expect(exercised, "no published release carried a usable release store to update from").toBeGreaterThan(0);
   }, signal), 1_800_000);
 
   it.runIf(process.platform === "win32")("replaces and activates the candidate through direct and bridged published updaters", async ({ signal }) => fixture.phase(1_800_000, async phaseSignal => {
     const directVersion = predecessors[0]!;
-    const directRoot = await fixture.install(`@timurproko/a1@${directVersion}`, directVersion);
-    await exerciseProtectedReplacement(directRoot, directVersion, candidateRoot, "direct");
+    expect(retainedDirectRoot, "immediate predecessor compatibility did not retain its installed tree").not.toBe("");
+    await exerciseProtectedReplacement(retainedDirectRoot, directVersion, candidateRoot, "direct");
     phaseSignal.throwIfAborted();
-    await fixture.discard(directRoot);
+    await fixture.discard(retainedDirectRoot);
+    retainedDirectRoot = "";
 
     const bridgeVersion = "0.2.2";
     const bridgeRoot = await fixture.install(`@timurproko/a1@${bridgeVersion}`, bridgeVersion);
