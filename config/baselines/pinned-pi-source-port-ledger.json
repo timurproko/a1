@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-06T17:59:07.879Z",
+  "recordedAt": "2026-10-07T06:50:13.302Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -446,9 +446,9 @@
       "localDestination": "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model selection, Tab tree-filter cycling, tree-local navigation aliases, and cross-platform Alt+Up queued-message restoration.",
+      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model selection, Tab tree-filter cycling, tree-local navigation aliases, cross-platform Alt+Up queued-message restoration, and an implicit Ctrl+C selection-cancel alias omitted from shortcut labels.",
       "upgradeStrategy": "three-way",
-      "localSha256": "d067f4580f454c539b0f887585da49d73dbb0b1cb1c75612c2f8a7d08a89a446",
+      "localSha256": "d2718686b300eca1a9b22e351fa2e9f73491a782ddaf794aaf3e65933c9fed4b",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
@@ -473,6 +473,12 @@
           "reason": "Bare A1 uses Tab for Models-style Session Tree filter cycling instead of the pinned Ctrl+O binding and adds tree-local unmodified-arrow plus Home/End navigation actions.",
           "upstreamBehavior": "The comparison profile retains the pinned Ctrl+O tree-filter cycle shortcut.",
           "acceptanceTest": "test/integrations/pi/components/tree-selector.test.ts"
+        },
+        {
+          "id": "owned-dialog-ctrl-c-cancel",
+          "reason": "Bare A1 treats Ctrl+C as an implicit selection-cancel alias while omitting it from displayed key labels so dialog boundaries can close immediately without advertising a second shortcut.",
+          "upstreamBehavior": "Non-dialog editor, full-screen application, and terminal Ctrl+C behavior remains unchanged because only dialog boundaries consume the alias.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],
       "behaviorCategories": [
@@ -1626,7 +1632,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle; bare A1 uses the shared semantic modal shortcut row and compact padded modal frame.",
       "upgradeStrategy": "three-way",
-      "localSha256": "c91f306df88c9a654c39880ac565c9b7e86bc0608fad878ede9fa0230809d26d",
+      "localSha256": "d13ad879f15fb6ad41d1784080440c1f70b112254a0e6d333f39476c6e46b0a0",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1673,7 +1679,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving input, timeout, focus, submission, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "a947f22a26836565fc120224439be97db3aa54a53a32370a3656c0c5c122cf60",
+      "localSha256": "df8c0cd12fbfa2e58fb577b651204e9730cfc7e87ec5381735d296810c9ca441",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1723,7 +1729,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving options, timeout, navigation, selection, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "ebcc1df32a9c6a83d43d6d377f409605a2110fc8758bc50ea4bb69663bcd021e",
+      "localSha256": "73e6b333810ee847fa9393bb524d4b68764c830d89623cccc5533eec0a57ea36",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2182,14 +2188,20 @@
       "localDestination": "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities, and bare A1 uses the shared semantic modal shortcut row and compact padded modal frame.",
+      "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities, and bare A1 uses the shared semantic modal shortcut row and compact padded modal frame while immediately closing on the implicit Ctrl+C selection-cancel alias without advertising it.",
       "upgradeStrategy": "three-way",
-      "localSha256": "bf45499c4785aaa4e75afe827a9cbfbc3d7bb799c2a688cc5268f0031f3cdae3",
+      "localSha256": "c55de0676b8a88eebec395397e56eaa5f01b08649da3fffc62a804756c3067d5",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
           "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
           "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/scoped-model-platform-hints.test.ts"
+        },
+        {
+          "id": "owned-dialog-ctrl-c-cancel",
+          "reason": "Bare A1 closes the scoped-model dialog immediately through the implicit Ctrl+C selection-cancel alias while continuing to advertise only Escape.",
+          "upstreamBehavior": "The comparison profile retains its pinned component and non-dialog Ctrl+C behavior remains unchanged.",
           "acceptanceTest": "test/integrations/pi/components/scoped-model-platform-hints.test.ts"
         }
       ],
@@ -2270,9 +2282,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal shortcut row and compact padded modal frame. Selected session rows retain their ordinary text weight and semantic foreground roles on the existing selection background.",
+      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal frame with standalone title, standard outer rules, stable filter/status row, progressive result paging, aligned result columns, Session Tree selection roles, and bottom dynamic feedback and shortcut footer. Selected session rows retain their ordinary text weight and semantic foreground roles on the existing selection background.",
       "upgradeStrategy": "three-way",
-      "localSha256": "fd88c58e144f37a67c746aafbb88cb39b064ba50e447e9f282d890d0651c834b",
+      "localSha256": "b1e8aca6bfced771118f017f534323a8a2e896769f905591914bf9ca101712e1",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2281,8 +2293,14 @@
           "acceptanceTest": "test/integrations/pi/components/session-selector.test.ts"
         },
         {
+          "id": "owned-resume-session-dialog",
+          "reason": "Bare A1 aligns Resume Session with its standard modal hierarchy through standard outer-rule colors, a stable accent title, a lower-case current/all filter row without loader progress, progressive result paging, aligned title/path/count/age columns, the Session Tree accent arrow/title, muted metadata, subtle purple full-width selection, and bottom-aligned dynamic feedback and shortcut hints.",
+          "upstreamBehavior": "The comparison profile retains the pinned Resume Session title, status placement, and shortcut geometry.",
+          "acceptanceTest": "test/integrations/pi/components/session-selector.test.ts"
+        },
+        {
           "id": "owned-standard-dialog-selection",
-          "reason": "Bare A1 keeps selected Resume Session entries at their ordinary text weight while preserving semantic foreground colors on the existing blue selection surface.",
+          "reason": "Bare A1 keeps selected Resume Session entries at their ordinary text weight while preserving semantic foreground colors on the established full-width selection surface.",
           "upstreamBehavior": "The comparison profile retains the pinned session selector presentation.",
           "acceptanceTest": "test/integrations/pi/components/session-selector.test.ts"
         }
@@ -2591,9 +2609,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/thinking-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering exclusive radio-style default markers before level names, an item-adjacent active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space, closes only on Escape, and uses the shared compact semantic shortcut row. All list and border colors use the owned theme and its explicit color mode. Selected rows use the shared bare-A1 blue selection surface only around the rendered item span, with the existing accent arrow, normal-text level, and preserved current/default/description roles. The comparison profile retains the public pinned component.",
+      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering exclusive radio-style default markers before level names, an item-adjacent active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space, closes through the implicit Ctrl+C-capable selection-cancel action, and uses the shared compact semantic shortcut row without advertising that alias. All list and border colors use the owned theme and its explicit color mode. Selected rows use the shared bare-A1 blue selection surface only around the rendered item span, with the existing accent arrow, normal-text level, and preserved current/default/description roles. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "3d1bcd23809889d7183197f5180534f0ad5d23df0dbae6c45afbb7ff8542fae9",
+      "localSha256": "d3630e7a76b4ffbb060792d93bd0847f4482c3d890538b120092650ef0bc616a",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2615,8 +2633,14 @@
         },
         {
           "id": "owned-thinking-selector-controls",
-          "reason": "Bare A1 persists the highlighted global default immediately on Space without changing the active session, closes only on Escape, and presents compact semantic hints without redundant save state.",
+          "reason": "Bare A1 persists the highlighted global default immediately on Space without changing the active session and presents compact semantic hints without redundant save state.",
           "upstreamBehavior": "The pinned comparison selector keeps immediate Ctrl+S default selection and its shared Escape/Ctrl+C cancellation behavior.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-dialog-ctrl-c-cancel",
+          "reason": "Bare A1 closes the thinking selector immediately through the implicit Ctrl+C selection-cancel alias while continuing to advertise only Escape.",
+          "upstreamBehavior": "The comparison profile retains its pinned component and non-dialog Ctrl+C behavior remains unchanged.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         },
         {
@@ -2715,7 +2739,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation excluding internal bookkeeping, standard search input, blue item-bounded menu-arrow selection that preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed timestamps, and plain label-time status, semantic role colors with session naming for the system root, standard paging/first-last/containing-branch folding keys, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "9269c0a20be155c401a2cf25c44e61408c8883a0f2d0d36e5ff4831cafb48a13",
+      "localSha256": "19647fee2361b6041b1209a80b1f1230c2378f05bb2c8360df5aad4ddc9694a8",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2768,7 +2792,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options, remapped owned theme imports, the shared bare-A1 modal shortcut row and compact padded modal frame, and standard semantic trust styling with marker-free choice geometry.",
       "upgradeStrategy": "three-way",
-      "localSha256": "237d5fe5a471773bc68708b56a122f69a71a0b2d05b95a1ddafa8883a1659d01",
+      "localSha256": "5365be975f03f18207b6c201d91e16703e41967e9b5029fe8352de00588a083e",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",

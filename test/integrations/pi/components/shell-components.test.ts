@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { OwnedUiDialog, OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
+import { createPiShellShareOperationDialog } from "../../../../src/integrations/pi/components/share-operation-dialog.js";
 import { piTheme } from "../../../../src/integrations/pi/components/theme.js";
 import {
   createPiShellDialog,
@@ -21,6 +22,8 @@ import {
   createPiShellSettingsSelector,
   createPiShellSessionInfo,
   createPiShellSelector,
+  createPiShellShowImagesSelector,
+  createPiShellThemeSelector,
   createPiShellUserMessageSelector,
   createPiShellStatus,
   createPiShellTranscriptComponent,
@@ -68,6 +71,45 @@ function view(): OwnedUiSessionViewModel {
 }
 
 describe("Pi shell public component adapters", () => {
+  it("renders the bare-A1 share operation as a compact standard dialog", () => {
+    const dialog = createPiShellShareOperationDialog({
+      getColumns: () => 80,
+      getRows: () => 24,
+      requestRender() {},
+    }, "Creating gist…");
+    try {
+      const rows = dialog.render(40);
+      const plainRows = rows.map(row => stripTerminalSequences(row).trimEnd());
+      const titleRow = plainRows.findIndex(row => row === " Share");
+      const hintRow = plainRows.findIndex(row => row === " Esc close");
+
+      expect(titleRow).toBe(1);
+      expect(plainRows[0]).toBe("─".repeat(40));
+      expect(plainRows.some(row => row.includes("Creating gist…"))).toBe(true);
+      expect(hintRow).toBeGreaterThan(titleRow);
+      expect(plainRows[hintRow + 1]).toBe("─".repeat(40));
+      expect(rows[titleRow]).toContain(piTheme().fg("accent", piTheme().bold("Share")));
+      expect(rows[hintRow]).toContain(piTheme().fg("dim", "Esc"));
+      expect(rows[hintRow]).toContain(piTheme().fg("muted", "close"));
+      expect(plainRows.join("\n")).not.toContain("Ctrl+C");
+      expect(dialog.render(12).every(row => visibleWidth(row) <= 12)).toBe(true);
+    } finally {
+      dialog.dispose?.();
+    }
+  });
+
+  it.each([["Escape", "\x1b"], ["Ctrl+C", "\x03"]])("cancels the bare-A1 share operation with %s", (_label, input) => {
+    const dialog = createPiShellShareOperationDialog({
+      getColumns: () => 80,
+      getRows: () => 24,
+      requestRender() {},
+    }, "Creating gist…");
+    expect(dialog.signal.aborted).toBe(false);
+    dialog.handleInput?.(input);
+    expect(dialog.signal.aborted).toBe(true);
+    dialog.dispose?.();
+  });
+
   it("matches Pi's queued steering rows and derives the dequeue hint from live bindings", () => {
     let dequeueBinding = "alt+up";
     const queued = createPiQueuedInputStatus(
@@ -894,6 +936,7 @@ describe("Pi shell public component adapters", () => {
     });
     const rows = stripTerminalSequences(settings.render(88).join("\n"));
     expect(rows).toMatch(/Auto-compact\s+true/);
+    expect(stripTerminalSequences(settings.render(12).join("\n"))).toContain("Esc close");
     expect(rows).toMatch(/Auto-resize images\s+true/);
     settings.handleInput?.("\x1b[B");
     expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/32)");
@@ -901,7 +944,12 @@ describe("Pi shell public component adapters", () => {
     expect(cancelled).toHaveBeenCalledOnce();
 
     const selected = vi.fn();
+    const theme = createPiShellThemeSelector("dark", selected, cancelled, vi.fn());
+    expect(stripTerminalSequences(theme.render(80).join("\n"))).toContain("↑↓ navigate  Enter select  Esc close");
+    const images = createPiShellShowImagesSelector(true, selected, cancelled);
+    expect(stripTerminalSequences(images.render(80).join("\n"))).toContain("↑↓ navigate  Enter select  Esc close");
     const messages = createPiShellUserMessageSelector([{ id: "entry-1", label: "first prompt" }], selected, cancelled);
+    expect(stripTerminalSequences(messages.render(80).join("\n"))).toContain("Esc close");
     messages.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("entry-1");
     const auth = createPiShellAuthProviderSelector("login", [{
@@ -914,16 +962,29 @@ describe("Pi shell public component adapters", () => {
     const authRows = auth.render(80).map(stripTerminalSequences);
     expect(authRows[1]?.trimEnd()).toBe(" Select provider to configure:");
     expect(authRows.join("\n")).toContain("OpenAI ✓ stored");
+    expect(authRows.join("\n")).toContain("Esc close");
     auth.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("oauth:openai");
 
+    const loginComplete = vi.fn();
     const login = createPiShellLoginDialog(
       { getColumns: () => 80, getRows: () => 24, requestRender: vi.fn() },
       "openai",
-      vi.fn(),
+      loginComplete,
     );
+    login.showInfo("Continue in your browser", [], true);
     const loginRows = login.render(80).map(stripTerminalSequences);
     expect(loginRows[1]?.trimEnd()).toBe(" Login to openai");
+    expect(loginRows.join("\n")).toContain("Esc close");
+    expect(loginRows.join("\n")).not.toContain("Ctrl+C");
+    login.showWaiting("Waiting for authentication");
+    const waitingRows = stripTerminalSequences(login.render(80).join("\n"));
+    expect(waitingRows).toContain("Waiting for authentication");
+    expect(waitingRows).toContain("Esc close");
+    expect(waitingRows).not.toContain("Ctrl+C");
+    expect(waitingRows).not.toContain("to cancel");
+    login.handleInput?.("\u0003");
+    expect(loginComplete).toHaveBeenCalledExactlyOnceWith(false, "Login cancelled");
 
     const unconfigured = createPiShellAuthProviderSelector("login", [{
       id: "api_key:anthropic",

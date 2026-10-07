@@ -6,6 +6,7 @@ import { ProjectTrustStore, SettingsManager, VERSION, type AgentSessionRuntime }
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPiEngineAdapter } from "../../../../src/integrations/pi/engine/adapter.js";
+import { createPiShellTrustSelector } from "../../../../src/integrations/pi/components/index.js";
 import { piTheme } from "../../../../src/integrations/pi/components/theme.js";
 import { TrustSelectorComponent } from "../../../../src/integrations/pi/components/upstream/components/trust-selector.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
@@ -47,7 +48,7 @@ async function fixture() {
   }
   return { home, target, alias, agentDir, canonical, store, context };
 }
-function rows(selector: TrustSelectorComponent) { return selector.render(600).map(stripTerminalSequences); }
+function rows(selector: { render(width: number): readonly string[] }) { return selector.render(600).map(stripTerminalSequences); }
 
 describe("canonical project trust context", () => {
   it("uses the target parent, not the alias parent, without rewriting the cwd heading", async () => {
@@ -97,7 +98,7 @@ describe("canonical project trust context", () => {
     const savedPath = kind === "parent" ? dirname(f.canonical) : kind === "ancestor" ? dirname(dirname(f.canonical)) : f.canonical;
     f.store.set(savedPath, kind !== "denied");
     const { value } = await f.context();
-    const selector = new TrustSelectorComponent({ ...value, onSelect() {}, onCancel() {} });
+    const selector = createPiShellTrustSelector({ ...value, onSelect() {}, onCancel() {} });
     const raw = selector.render(600);
     const rendered = raw.map(stripTerminalSequences);
     const decision = kind === "denied" ? "untrusted" : "trusted";
@@ -118,8 +119,9 @@ describe("canonical project trust context", () => {
     const rules = raw.filter(row => /^─+$/u.test(stripTerminalSequences(row)));
     expect(rules).toHaveLength(2);
     expect(rules.every(row => row === piTheme().fg("border", "─".repeat(600)))).toBe(true);
-    const hintIndex = rendered.findIndex(row => row.includes("↑↓ navigate  Enter save  Escape/Ctrl+C cancel"));
+    const hintIndex = rendered.findIndex(row => row.includes("↑↓ navigate  Enter save  Esc close"));
     const hint = rendered[hintIndex]!;
+    expect(hint).not.toContain("Ctrl+C");
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
     expect(rendered[hintIndex + 1]).toMatch(/^─+$/u);
   });

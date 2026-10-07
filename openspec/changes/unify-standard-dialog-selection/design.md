@@ -23,9 +23,9 @@ The surfaces have different row content. Models combines scope and active-state 
 
 ### 1. Treat Resume Session as the palette contract
 
-A selected owned row will preserve its existing cursor, ordinary text weight, supporting text, and semantic state colors while applying `selectedBg`. Models, Skills, Thinking Level, Settings, and command autocomplete use an accent `→` with a normal-`text` primary label. Resume Session and Session Tree retain their item-specific foreground roles. Selection will not introduce bold styling. Item-bounded surfaces will not fill unused content width; Resume Session retains its established full-row geometry. Unselected rows keep their current appearance.
+A selected owned row will preserve its existing cursor, ordinary text weight, supporting text, and semantic state colors. Item-bounded surfaces apply `selectedBg`; Resume Session retains its established subtle full-row selection role. Models, Skills, Thinking Level, Settings, and command autocomplete use an accent `→` with a normal-`text` primary label. Resume Session and Session Tree retain their item-specific foreground roles. Selection will not introduce bold styling. Item-bounded surfaces will not fill unused content width; Resume Session retains its established full-row geometry. Unselected rows keep their current appearance.
 
-Adopting Resume Session's `›` icon or full-width geometry was rejected because the request is for its color scheme, while each covered surface's established arrow and the prior item-bounded decision remain authoritative. The lower-intensity purple `customMessageBg` was rejected after visual review in favor of the supplied blue selection reference.
+Adopting Resume Session's cursor icon or full-width geometry elsewhere was rejected because the request is for its visual clarity, while each covered surface's established arrow and the prior item-bounded decision remain authoritative. The lower-intensity `customMessageBg` role was rejected for the item-bounded standard lists after visual review in favor of `selectedBg`; Resume Session retains its separately accepted full-row role and geometry.
 
 ### 2. Centralize width-safe selected-row painting
 

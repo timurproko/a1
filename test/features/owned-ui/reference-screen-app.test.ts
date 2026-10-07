@@ -102,14 +102,15 @@ describe("ReferenceScreenApp frame", () => {
     expect(lines.slice(5, RECT.height - 2).every(line => line.trim() === "")).toBe(true);
     expect(lines.at(-2)).toBe(`<border>${RULE}</border>`);
     expect(REFERENCE_SCREEN_SHORTCUTS.hintEntries("reference-screen")).toEqual([
-      { key: "esc", action: "close" },
       { key: "↑↓", action: "scroll" },
+      { key: "esc", action: "close" },
     ]);
     // Invariant: dialog chrome uses the same one-cell inset as the title.
     const wideFooter = screen(target, { ...HOST, theme: NAMING_THEME }, { width: 100, height: RECT.height }).at(-1) ?? "";
-    expect(wideFooter.startsWith(" <dim>Esc</dim> <muted>close</muted>  <dim>↑↓</dim> <muted>scroll</muted> ")).toBe(true);
+    expect(wideFooter.startsWith(" <dim>↑↓</dim> <muted>scroll</muted>  <dim>Esc</dim> <muted>close</muted> ")).toBe(true);
     expect(wideFooter.indexOf("<dim>")).toBe(lines[1]!.indexOf("<b>"));
     expect(wideFooter).not.toMatch(/[·•]/u);
+    expect(screen(target, HOST, { width: 10, height: RECT.height }).at(-1)).toContain("Esc close");
     // Invariant: a fitting document does not move and reserves the rail columns under auto.
     target.onInput?.(DOWN, HOST);
     target.onInput?.(END, HOST);
@@ -364,7 +365,7 @@ describe("ReferenceScreenApp scrolling", () => {
 });
 
 describe("ReferenceScreenApp in the app host", () => {
-  it("renders through the host, closes on Escape, and exits on the interrupt chord", () => {
+  it("renders through the host and closes on either Ctrl+C or Escape", () => {
     const registry = new UiAppRegistry();
     registry.register({
       id: "reference",
@@ -383,13 +384,12 @@ describe("ReferenceScreenApp in the app host", () => {
     expect(frame![1]?.startsWith(" Hosted")).toBe(true);
     expect(frame![2]?.startsWith("hosted row")).toBe(true);
     expect(frame![RECT.height - 2]).toBe(RULE);
-    expect(host.handleInput(INTERRUPT)).toEqual({ consumed: true, render: true });
-    expect(host.isPresenting).toBe(true);
-    host.render();
-    expect(frame!.at(-1)).toContain("press ctrl+c again to exit a1");
+    expect(frame!.at(-1)).toContain("Esc close");
+    expect(frame!.at(-1)).not.toContain("Ctrl+C");
     expect(host.handleInput(INTERRUPT)).toEqual({ consumed: true, render: true });
     expect(host.isPresenting).toBe(false);
-    expect(exit).toHaveBeenCalledTimes(1);
+    expect(frame).toBeNull();
+    expect(exit).not.toHaveBeenCalled();
 
     host.open("reference");
     expect(host.handleInput(ESC).consumed).toBe(true);

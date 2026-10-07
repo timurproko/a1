@@ -61,11 +61,11 @@ function verify(actual: Capture, expected: Capture): void {
   expect(actual.rows, actual.id).toEqual(expected.exceptionReferenceRows ?? expected.rows);
   expect(actual.progressRows, `${actual.id} before catalog completion`).toEqual(expected.progressRows);
   expect(actual.surfaceOpen, `${actual.id} input ownership`).toBe(expected.surfaceOpen);
-  if (/\/(tree|scoped-models|trust|resume|thinking|model|login)\//u.test(expected.id)) {
+  if (/\/(tree|scoped-models|trust|resume|thinking|model|login|settings)\//u.test(expected.id)) {
     // Compatibility: bare A1 changes modal chrome/padding, hint styling, display casing, separators, and consequent wrapping; pinned text and behavior remain the oracle.
     const surfaceWidth = Number(expected.id.split("/").at(-1));
-    const plainSurfaceText = (rows: readonly string[], options: { readonly reduceContentWidth?: boolean; readonly omitTrustSavedMarker?: boolean } = {}) => {
-      let text = rows.map(row => {
+    const plainSurfaceText = (rows: readonly string[], options: { readonly reduceContentWidth?: boolean; readonly omitTrustSavedMarker?: boolean; readonly omitHintRow?: boolean } = {}) => {
+      let text = rows.filter((_, index) => !options.omitHintRow || index !== rows.length - 2).map(row => {
         const plain = stripTerminalSequences(row);
         const reduced = options.reduceContentWidth && plain.length >= surfaceWidth && !/^─+$/u.test(plain.trim()) ? plain.slice(0, -1) : plain;
         return reduced.replace(/\s*·\s*/gu, " ");
@@ -79,11 +79,31 @@ function verify(actual: Capture, expected: Capture): void {
       text = text.replace(/\s+/gu, "");
       return options.omitTrustSavedMarker ? text.replace("→✓", "→") : text;
     };
-    const actualText = plainSurfaceText(actual.surfaceRows);
-    const expectedText = plainSurfaceText(expected.surfaceRows, {
+    // Compatibility: bare A1 replaces Pi's settings cancellation wording and narrow clipping with the canonical close hint.
+    const settingsHintException = expected.id.includes("/settings/");
+    let actualText = plainSurfaceText(actual.surfaceRows, { omitHintRow: settingsHintException });
+    let expectedText = plainSurfaceText(expected.surfaceRows, {
       reduceContentWidth: expected.id.includes("/tree/"),
       omitTrustSavedMarker: expected.id.includes("/trust/"),
-    });
+      omitHintRow: settingsHintException,
+    }).replace(/(esc(?:ape)?)\/ctrl\+c(?=(?:to)?(?:close|cancel))/gu, "$1");
+    if (expected.id.includes("/login/")) {
+      // Compatibility: bare A1 adds canonical login-selector guidance and replaces Pi's implicit Ctrl+C alias.
+      actualText = actualText.replace("↑↓navigateenterselectescclose", "").replace("escclose", "");
+      expectedText = expectedText
+        .replace("↑↓navigateenterselectescape/ctrl+ccancel", "")
+        .replace("↑↓navigateenterselectescapecancel", "")
+        .replace("(escape/ctrl+ctoclose)", "")
+        .replace("(escapetoclose)", "");
+    } else if (/\/(scoped-models|trust|resume|thinking|model)\//u.test(expected.id) && actualText.includes("escclose")) {
+      // Compatibility: bare A1 adds or replaces these selectors' final guidance with the canonical close hint.
+      actualText = actualText.replace("escclose", "");
+      expectedText = expectedText
+        .replace("escape/ctrl+ccancel", "")
+        .replace("escapecancel", "")
+        .replace("esccancel", "")
+        .replace("escapetocancel", "");
+    }
     if (expected.id.includes("/tree/")) {
       // Compatibility: bare A1 intentionally replaces Pi's tree filter, search, selection, and footer presentation.
       // Keep this cross-runtime gate on the shared entry content and selection counter instead of divergent chrome.

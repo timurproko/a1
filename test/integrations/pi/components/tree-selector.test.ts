@@ -148,6 +148,8 @@ describe("bare-A1 session tree presentation", () => {
     expect(hints.indexOf("type to search")).toBeLessThan(hints.indexOf("↑/↓ navigate"));
     expect(hints.indexOf("↑/↓ navigate")).toBeLessThan(hints.indexOf("Tab filter"));
     expect(hints).not.toContain("Enter select");
+    expect(hints).toContain("Esc close");
+    expect(hints.indexOf("label time")).toBeLessThan(hints.indexOf("Esc close"));
     expect(plain.some(row => row.includes("Tab filter"))).toBe(true);
     expect(plain.join("\n")).toContain("PgUp/PgDn page");
     expect(plain.join("\n")).toContain("Home/End first/last");
@@ -203,11 +205,12 @@ describe("bare-A1 session tree presentation", () => {
     expect(plainLabelRows.join("\n")).not.toContain("Session Tree");
     expect(plainLabelRows.join("\n")).not.toContain("Filter:");
     expect(plainLabelRows.join("\n")).not.toMatch(/\bmove\b/u);
-    const labelHintIndex = plainLabelRows.findIndex(row => row.includes("save") && row.includes("cancel"));
-    expect(plainLabelRows[labelHintIndex]).toContain("Enter save  Escape/Ctrl+C cancel");
+    const labelHintIndex = plainLabelRows.findIndex(row => row.includes("save") && row.includes("close"));
+    expect(plainLabelRows[labelHintIndex]).toContain("Enter save  Esc close");
+    expect(plainLabelRows[labelHintIndex]).not.toContain("Ctrl+C");
     expect(plainLabelRows[labelHintIndex + 1]).toBe("─".repeat(80));
 
-    component.handleInput?.("\x1b");
+    component.handleInput?.("\x03");
     const restored = component.render(80).map(stripTerminalSequences).join("\n");
     expect(restored).toContain("Session Tree");
     expect(restored).toContain("navigate");

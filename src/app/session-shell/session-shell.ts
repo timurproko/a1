@@ -63,7 +63,6 @@ import {
   createPiShellLoginDialog,
   createPiShellModelSelector,
   createPiShellModelsDialog,
-  createPiShellOperationLoader,
   createPiShellReloadBox,
   createPiShellScopedModelsSelector,
   createPiShellSelector,
@@ -1339,6 +1338,17 @@ export class OwnedUiSessionShell {
 
   async runWorkflow(request: PiWorkflowRequest): Promise<AdapterCommandResult> {
     if (request.command === "quit") return this.shutdown();
+    if (this.#customViewport && request.command === "name" && request.argument.trim().length === 0) {
+      void this.#extensionBridge.input("Session Name", "Enter name").then(value => {
+        if (this.#disposed || value === undefined || value.trim().length === 0) return;
+        return this.runWorkflow({ ...request, argument: value });
+      }).catch(error => {
+        if (this.#disposed) return;
+        this.root.appendWorkflowResult({ command: "name", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
+        this.runtime.requestRender();
+      });
+      return { outcome: "completed", diagnostic: null };
+    }
     const copyGeneration = request.command === "copy" ? this.backend.sessionBindingGeneration : undefined;
     if (request.command === "login" && request.selection !== undefined) {
       const setup = this.backend.pinnedAmbientAuthentication(request.selection);
@@ -1412,13 +1422,15 @@ export class OwnedUiSessionShell {
       }
       this.root.resetExtensionUi();
     }
-    const shareSurface = request.command === "share"
-      ? createPiShellOperationLoader({
-          getColumns: () => this.runtime.viewport().columns,
-          getRows: () => this.runtime.viewport().rows,
-          requestRender: () => this.runtime.requestRender(),
-        }, "Creating gist...")
+    const shareDialog = request.command === "share"
+      ? await import("./share-operation.js")
       : undefined;
+    const shareSurface = shareDialog === undefined ? undefined
+      : (this.#customViewport ? shareDialog.createPiShellShareOperationDialog : shareDialog.createPiShellOperationLoader)({
+        getColumns: () => this.runtime.viewport().columns,
+        getRows: () => this.runtime.viewport().rows,
+        requestRender: () => this.runtime.requestRender(),
+      }, "Creating gist…");
     const operationSurface = shareSurface ?? (request.command === "reload" ? createPiShellReloadBox() : undefined);
     const now = this.#reloadPresentation?.now ?? Date.now;
     const shownAt = now();
@@ -1475,7 +1487,11 @@ export class OwnedUiSessionShell {
       if (result.detail && !this.root.editor.getText().trim()) this.root.editor.setText(result.detail);
       this.root.resumeViewportFollowing();
     }
-    this.root.appendWorkflowResult(result);
+    if (shareDialog !== undefined && this.#customViewport && result.outcome === "completed" && result.detail !== undefined) {
+      this.root.appendWorkflowStatus(shareDialog.renderPiShellShareResult(result.message, result.detail));
+    } else {
+      this.root.appendWorkflowResult(result);
+    }
     this.runtime.requestRender();
     return workflowAdapterResult(result);
   }
@@ -1908,6 +1924,19 @@ export class OwnedUiSessionShell {
     let armedAt = 0;
     const removeInterruptWatch = this.runtime.addInputListener(data => {
       if (!data.includes(INTERRUPT)) return undefined;
+      // Protocol: route hosts decide whether one interrupt closes their app. Raw-input forwarding
+      // is required because Pi handles Ctrl+C before the fullscreen overlay receives normal input.
+      const consumedBySurface = surface.handleInput(INTERRUPT);
+      if (surface.isClosed()) {
+        armedAt = 0;
+        closeSurface();
+        return { consume: true };
+      }
+      if (consumedBySurface) {
+        armedAt = 0;
+        this.runtime.requestRender();
+        return { consume: true };
+      }
       const now = Date.now();
       if (armedAt !== 0 && now - armedAt <= INTERRUPT_CHORD_MS) {
         armedAt = 0;

@@ -113,17 +113,34 @@ describe("unified Models dialog", () => {
     });
   });
 
+  it("uses the default-radio accent for filled scope markers independently of row focus", () => {
+    withDialog(dialog => {
+      const lines = dialog.render(200);
+      const unselectedScoped = lines.find(line => stripTerminalSequences(line).includes("● claude"))!;
+      const selectedScoped = lines.find(line => stripTerminalSequences(line).includes("● gpt-5 "))!;
+      const unselectedEmpty = lines.find(line => stripTerminalSequences(line).includes("○ gpt-5-mini"))!;
+
+      const accentMarker = cellStyle(piTheme().fg("accent", "●"), "●");
+      expect(cellStyle(unselectedScoped, "●")).toEqual(accentMarker);
+      expect(cellStyle(selectedScoped, "●")).toEqual(accentMarker);
+      expect(cellStyle(unselectedEmpty, "○")).toEqual(cellStyle(piTheme().fg("dim", "○"), "○"));
+      expect(cellStyle(selectedScoped, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
+    }, { scopeIds: [ids.claude, ids.gpt5], savedScopeIds: [ids.claude, ids.gpt5] });
+  });
+
   it("truncates every row to the width and keeps narrow frames free of wrapped fragments", () => {
     withDialog(dialog => {
       for (const width of [28, 12]) {
-        for (const line of dialog.render(width)) expect(stripTerminalSequences(line).length).toBeLessThanOrEqual(width);
+        const rendered = dialog.render(width);
+        for (const line of rendered) expect(stripTerminalSequences(line).length).toBeLessThanOrEqual(width);
+        expect(stripTerminalSequences(rendered.join("\n"))).toContain("Esc close");
       }
       expect(rows(dialog, 28)).toEqual(["   ○ claude [anthropic]", " → ○ gpt-5 [openai] ✓", "   ○ gpt-5-mini [openai]"]);
     });
   });
 
-  it("filters by search while keeping catalog order and retains the selection where the row survives", () => {
-    withDialog(dialog => {
+  it("filters by search, retains surviving selection, and closes immediately on Ctrl+C", () => {
+    withDialog((dialog, callbacks) => {
       for (const character of "mini") dialog.handleInput(character);
       expect(rows(dialog)).toEqual([" → ○ gpt-5-mini [openai]"]);
       expect(dialog.selectedModelId).toBe(ids.mini);
@@ -132,9 +149,9 @@ describe("unified Models dialog", () => {
       for (const character of "nothing here") dialog.handleInput(character);
       expect(text(dialog)).toContain("  No matching models");
       dialog.handleInput("\u0003");
-      expect(dialog.query).toBe("");
-      expect(rows(dialog)).toHaveLength(3);
-      dialog.handleInput("\u0003");
+      expect(callbacks.onCancel).toHaveBeenCalledOnce();
+      expect(dialog.query).toBe("nothinghere");
+      expect(callbacks.onSelect).not.toHaveBeenCalled();
     }, { initialQuery: "" });
   });
 

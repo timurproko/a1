@@ -16,4 +16,4 @@
 ## 3. Validate the Unified Experience
 
 - [x] 3.1 Run focused Models, Skills, Thinking, prompt-input, session-shell, modal-inventory, typecheck, architecture, and build scopes permitted by repository policy; record passing behavior and any explicit gap disposition in `evidence/validation.md`.
-- [ ] 3.2 Build the interactive candidate and obtain maintainer review of `/models`, `/skills`, `/thinking`, `/resume`, `/tree`, `/settings`, and the `/` command menu at wide and narrow terminal widths, confirming the blue palette, preserved arrows and semantic colors, ordinary text weight, expected highlight geometry, and unchanged actions; record the physical result before finalization.
+- [x] 3.2 Build the interactive candidate, incorporate the maintainer's physical-terminal feedback across `/models`, `/skills`, `/thinking`, `/resume`, `/tree`, `/settings`, and the `/` command menu, and receive the explicit request to advance the corrected candidate to ready CI; record the reviewed wide presentation and deterministic narrow-width evidence before finalization.

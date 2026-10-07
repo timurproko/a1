@@ -5,8 +5,9 @@
  * search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status,
  * cancellation, and focus while remapping theme and public helper imports; local key labels preserve
  * pinned platform formatting before layout without changing binding identities, and bare A1 uses the
- * shared semantic modal shortcut row and compact padded modal frame.
- * Deviations: owned-modal-shortcut-hints.
+ * shared semantic modal shortcut row and compact padded modal frame while immediately closing on the
+ * implicit Ctrl+C selection-cancel alias without advertising it.
+ * Deviations: owned-modal-shortcut-hints, owned-dialog-ctrl-c-cancel.
  */
 interface ScopedModel {
 	readonly provider: string;
@@ -19,15 +20,13 @@ import {
 	fuzzyFilter,
 	getKeybindings,
 	Input,
-	Key,
-	matchesKey,
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { getModelSearchText } from "../model-search.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 // Rationale: upstream's capitalized hint formatter is private to the package; the same mapping lives here.
 function keyDisplayText(keybinding: Parameters<ReturnType<typeof getKeybindings>["getKeys"]>[0]): string {
@@ -241,6 +240,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 			{ key: reorderKeys, action: "reorder" },
 			{ key: keyDisplayText("app.models.save"), action: "save" },
 			{ action: countText },
+			DIALOG_CLOSE_SHORTCUT_HINT,
 		]);
 		return this.isDirty ? `${hint} ${theme.fg("warning", "(unsaved)")}` : hint;
 	}
@@ -409,19 +409,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 			return;
 		}
 
-		// Ctrl+C - clear search or cancel if empty
-		if (matchesKey(data, Key.ctrl("c"))) {
-			if (this.searchInput.getValue()) {
-				this.searchInput.setValue("");
-				this.refresh();
-			} else {
-				this.callbacks.onCancel();
-			}
-			return;
-		}
-
-		// Escape - cancel
-		if (matchesKey(data, Key.escape)) {
+		if (kb.matches(data, "tui.select.cancel")) {
 			this.callbacks.onCancel();
 			return;
 		}

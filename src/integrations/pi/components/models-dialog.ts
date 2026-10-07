@@ -1,17 +1,32 @@
 import {
   Input,
-  Key,
   getKeybindings,
   matchesKey,
   truncateToWidth,
+  visibleWidth,
   type Component,
   type Focusable,
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "../startup-public.js";
 import { PiModalFrame } from "./modal-frame.js";
-import { piTheme, renderPiModalListRow, renderPiModalShortcutHints, type PiModalShortcutHint } from "./theme.js";
+import {
+  DIALOG_CLOSE_SHORTCUT_HINT,
+  piTheme,
+  renderPiModalListRow,
+  renderPiModalShortcutHints,
+  type PiModalShortcutHint,
+} from "./theme.js";
 
 export type ModelsDialogFilter = "all" | "scoped";
+
+function renderHintsWithClose(entries: readonly PiModalShortcutHint[], width: number): string {
+  const body = renderPiModalShortcutHints(entries.slice(0, -1));
+  const close = renderPiModalShortcutHints([DIALOG_CLOSE_SHORTCUT_HINT]);
+  const closeWidth = visibleWidth(close);
+  if (width <= closeWidth) return truncateToWidth(close, width, "");
+  const clippedBody = truncateToWidth(body, Math.max(0, width - closeWidth - 2), "…");
+  return visibleWidth(clippedBody) === 0 ? close : `${clippedBody}  ${close}`;
+}
 
 export interface ModelsDialogModel {
   readonly provider: string;
@@ -277,15 +292,6 @@ export class ModelsDialogComponent implements Component, Focusable {
       this.#setScope(next, selected.fullId);
       return;
     }
-    if (matchesKey(data, Key.ctrl("c"))) {
-      if (this.#input.getValue().length > 0) {
-        this.#input.setValue("");
-        this.#selectedIndex = 0;
-        return;
-      }
-      this.#callbacks.onCancel();
-      return;
-    }
     if (kb.matches(data, "tui.select.cancel")) {
       this.#callbacks.onCancel();
       return;
@@ -360,7 +366,7 @@ export class ModelsDialogComponent implements Component, Focusable {
         const scoped = this.#scopeIds.includes(row.fullId);
         // Invariant: arrow, scope marker, model id, [provider], then the active checkmark, in that order.
         const prefix = selected ? theme.fg("accent", "→ ") : "  ";
-        const marker = scoped ? theme.fg("success", "●") : theme.fg("dim", "○");
+        const marker = scoped ? theme.fg("accent", "●") : theme.fg("dim", "○");
         const label = selected ? theme.fg("text", row.model.id) : row.model.id;
         const provider = theme.fg("muted", `[${row.model.provider}]`);
         const active = row.fullId === this.#activeModelId ? ` ${theme.fg("success", "✓")}` : "";
@@ -376,7 +382,7 @@ export class ModelsDialogComponent implements Component, Focusable {
 
     push();
     if (this.#refreshStatus !== undefined) push(theme.fg(this.#refreshStatus.kind, `  ${this.#refreshStatus.message}`));
-    push(renderPiModalShortcutHints(this.#hints()));
+    push(renderHintsWithClose(this.#hints(), width));
     return lines;
   }
 
@@ -391,7 +397,7 @@ export class ModelsDialogComponent implements Component, Focusable {
       ...(confirm.length === 0 ? [] : [{ key: confirm, action: "switch" }]),
       { key: "space", action: "scope" },
       ...(save.length === 0 ? [] : [{ key: save, action: "save" }]),
-      { key: "esc", action: "close" },
+      DIALOG_CLOSE_SHORTCUT_HINT,
     ];
   }
 

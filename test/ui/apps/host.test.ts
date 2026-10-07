@@ -152,12 +152,27 @@ describe("input reaching a presented app", () => {
     expect(target.handleInput("x").consumed).toBe(false);
   });
 
-  it("lets an app consume the interrupt for its own cancelling", () => {
+  it("closes an opted-in app on the first interrupt before app-local input", () => {
     const state = recorder();
     const seen: string[] = [];
     const target = host(state.surface, [app("settings", {
       onInput: data => { seen.push(data); return { consumed: true }; },
     })]);
+    target.open("settings");
+
+    expect(target.handleInput(INTERRUPT)).toEqual({ consumed: true, render: true });
+    expect(seen).toEqual([]);
+    expect(target.isPresenting).toBe(false);
+    expect(state.frames.at(-1)).toBeNull();
+    expect(state.exits).toBe(0);
+  });
+
+  it("lets a non-opted-in app consume the interrupt for its own cancelling", () => {
+    const state = recorder();
+    const seen: string[] = [];
+    const target = host(state.surface, [app("settings", {
+      onInput: data => { seen.push(data); return { consumed: true }; },
+    })], false);
     target.open("settings");
     target.handleInput(INTERRUPT);
     expect(seen).toEqual([INTERRUPT]);
@@ -165,9 +180,9 @@ describe("input reaching a presented app", () => {
     expect(state.exits).toBe(0);
   });
 
-  it("arms on one idle interrupt and leaves on the second", () => {
+  it("preserves the exit chord for a non-opted-in app", () => {
     const state = recorder();
-    const target = host(state.surface, [app("settings")]);
+    const target = host(state.surface, [app("settings")], false);
     target.open("settings");
 
     expect(target.handleInput(INTERRUPT).consumed).toBe(true);

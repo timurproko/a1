@@ -24,6 +24,66 @@ import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
 import { Session, fixture, nextImmediate } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell dialogs and workflows", () => {
+  it("opens a compact bare-A1 name input while preserving direct and comparison workflows", async () => {
+    const bare = await fixture([], [], true);
+    await bare.shell.submit("/name Direct Name");
+    expect(bare.engine.session.calls).toContain("name:Direct Name");
+    expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(stripTerminalSequences(bare.shell.root.render(100).join("\n"))).toContain("Session name set: direct name");
+
+    await bare.shell.submit("/name");
+    const inputRows = bare.shell.root.render(100);
+    const inputFrame = inputRows.map(stripTerminalSequences).join("\n");
+    const title = inputRows.find(row => stripTerminalSequences(row).includes("Session Name"))!;
+    const hints = inputRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!;
+    expect(inputFrame).toContain("Session Name");
+    expect(inputFrame).toContain("Enter submit  Esc close");
+    expect(inputFrame).not.toContain("Ctrl+C");
+    expect(inputFrame).not.toContain("Usage: /name <name>");
+    expect(firstVisibleTextColumn(hints)).toBe(firstVisibleTextColumn(title));
+    expect(cellStyle(title, "S")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("S")), "S"));
+    expect(inputRows[inputRows.indexOf(title) + 2]?.trimStart()).toMatch(/^>/);
+    expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
+
+    bare.terminal.input(" Renamed ");
+    bare.terminal.input("\r");
+    await nextImmediate();
+    expect(bare.engine.session.calls.filter(call => call.startsWith("name:"))).toEqual(["name:Direct Name", "name:Renamed"]);
+    expect(bare.engine.session.name).toBe("renamed");
+    expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
+    const namedFrame = stripTerminalSequences(bare.shell.root.render(100).join("\n"));
+    expect(namedFrame).toContain("Session name set: renamed");
+
+    const resultCount = bare.engine.session.calls.length;
+    const namedResultCount = namedFrame.match(/Session name set:/g)?.length;
+    await bare.shell.submit("/name");
+    bare.terminal.input("   ");
+    bare.terminal.input("\r");
+    await nextImmediate();
+    expect(bare.engine.session.calls).toHaveLength(resultCount);
+    expect(bare.engine.session.name).toBe("renamed");
+    expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(stripTerminalSequences(bare.shell.root.render(100).join("\n")).match(/Session name set:/g)?.length).toBe(namedResultCount);
+
+    await bare.shell.submit("/name");
+    bare.terminal.input("unsaved name");
+    bare.terminal.input("\x03");
+    await nextImmediate();
+    expect(bare.engine.session.calls).toHaveLength(resultCount);
+    expect(bare.engine.session.name).toBe("renamed");
+    expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
+    const dismissedFrame = stripTerminalSequences(bare.shell.root.render(100).join("\n"));
+    expect(dismissedFrame.match(/Session name set:/g)?.length).toBe(namedResultCount);
+    expect(dismissedFrame).not.toContain("Usage: /name <name>");
+    await bare.shell.dispose();
+
+    const comparison = await fixture();
+    await comparison.shell.submit("/name");
+    expect(comparison.shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(stripTerminalSequences(comparison.shell.root.render(100).join("\n"))).toContain("Warning: Usage: /name <name>");
+    await comparison.shell.dispose();
+  });
+
   it("persists thinking defaults immediately without changing the active level or comparison mode", async () => {
     const bare = await fixture([], [], true);
     await bare.shell.submit("/thinking");
@@ -57,8 +117,6 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(bare.engine.session.calls).not.toContain("thinking:low");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
     bare.shell.root.handleInput("\x03");
-    expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
-    bare.shell.root.handleInput("\x1b");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
 
     await bare.shell.submit("/thinking");
@@ -84,6 +142,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     terminal.input("theme");
     terminal.input("\r");
     expect(frame()).toContain("Select a theme, or choose automatic to follow terminal appearance.");
+    expect(frame()).toContain("Esc close");
+    expect(frame()).not.toContain("Esc to go back");
     terminal.input("\x1b[A");
     terminal.input("\r");
     expect(frame()).toContain("Automatic Theme");
@@ -94,7 +154,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     terminal.input("\x1b");
     expect(frame()).toContain("Automatic Theme");
     terminal.input("\x1b");
-    expect(frame()).toContain("Type to search · Enter/Space to change · Esc to cancel");
+    expect(frame()).toContain("Type to search · Enter/Space to change · Esc close");
     expect(frame()).toContain("> theme");
     terminal.input("\x1b");
 
@@ -213,10 +273,23 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
 
     await shell.submit("/resume");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Resume Session (Current Folder)");
+    const currentRows = shell.root.render(100);
+    const currentFrame = stripTerminalSequences(currentRows.join("\n"));
+    expect(currentFrame).toContain("Resume Session");
+    expect(currentFrame).not.toContain("Resume Session (");
+    expect(currentFrame).toContain("Filter: current | all  Name: all  Sort: threaded");
+    expect(currentRows.find(row => stripTerminalSequences(row).includes("Filter:")))
+      .toContain(piTheme().fg("accent", "current"));
     terminal.input("\t");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Resume Session (All)");
+    const allRows = shell.root.render(100);
+    const allFrame = stripTerminalSequences(allRows.join("\n"));
+    expect(allFrame).toContain("Resume Session");
+    expect(allFrame).not.toContain("Resume Session (");
+    expect(allFrame).toContain("Filter: current | all  Name: all  Sort: threaded");
+    const allFilterRow = allRows.find(row => stripTerminalSequences(row).includes("Filter:"))!;
+    expect(allFilterRow).toContain(piTheme().fg("dim", "current"));
+    expect(allFilterRow).toContain(piTheme().fg("accent", "all"));
     terminal.input("\x1b");
     expect(shell.root.render(100).join("\n")).not.toContain("Resume Session");
     expect(shell.root.render(100).join("\n")).not.toContain("Resume cancelled");
@@ -278,6 +351,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(surfaceChanges).toHaveBeenCalled();
     expect(surfaceChanges.mock.calls.every(([surface]) => surface !== null)).toBe(true);
     const summaryHintIndex = plainSummaryRows.findIndex(row => row.includes("navigate") && row.includes("select"));
+    expect(plainSummaryRows[summaryHintIndex]).toContain("Esc close");
     expect(plainSummaryRows[summaryHintIndex + 1]).toBe("─".repeat(100));
     surfaceChanges.mockClear();
     terminal.input("\x1b");
@@ -300,8 +374,9 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       cellStyle(piTheme().fg("accent", piTheme().bold("C")), "C"),
     );
     expect(plainCustomRows[customTitleIndex + 2]?.trimStart()).toMatch(/^>/);
-    const customHintIndex = plainCustomRows.findIndex(row => row.includes("submit") && row.includes("cancel"));
-    expect(plainCustomRows[customHintIndex]).toContain("Enter submit  Escape/Ctrl+C cancel");
+    const customHintIndex = plainCustomRows.findIndex(row => row.includes("submit") && row.includes("close"));
+    expect(plainCustomRows[customHintIndex]).toContain("Enter submit  Esc close");
+    expect(plainCustomRows[customHintIndex]).not.toContain("Ctrl+C");
     expect(cellStyle(customRows[customHintIndex]!, "E")).toEqual(cellStyle(piTheme().fg("dim", "E"), "E"));
     expect(cellStyle(customRows[customHintIndex]!, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
     expect(plainCustomRows[customHintIndex]).not.toContain("newline");
@@ -309,7 +384,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(plainCustomRows[customHintIndex + 1]).toBe("─".repeat(100));
 
     const customSurfaceChanges = vi.spyOn(shell.root, "setInputSurface");
-    terminal.input("\x1b");
+    terminal.input("\u0003");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Summarize Branch?");
     expect(customSurfaceChanges).toHaveBeenCalled();

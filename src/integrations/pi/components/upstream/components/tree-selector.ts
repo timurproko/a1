@@ -29,7 +29,7 @@ import {
 import { DynamicBorder, type SessionTreeNode } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
 
 const theme = new Proxy({} as ReturnType<typeof piTheme>, {
 	get(_target, property) {
@@ -1229,10 +1229,13 @@ class TreeHelp implements Component {
 	invalidate(): void {}
 
 	render(width: number): string[] {
-		const items = TREE_HELP_ITEMS.map(({ keys, label, labelFirst }) => {
-			const key = formatHelpKeys(keys);
-			return renderPiModalShortcutHints([key ? { key, action: label, ...(labelFirst === undefined ? {} : { actionFirst: labelFirst }) } : { action: label }]);
-		});
+		const items = [
+			...TREE_HELP_ITEMS.map(({ keys, label, labelFirst }) => {
+				const key = formatHelpKeys(keys);
+				return renderPiModalShortcutHints([key ? { key, action: label, ...(labelFirst === undefined ? {} : { actionFirst: labelFirst }) } : { action: label }]);
+			}),
+			renderPiModalShortcutHints([DIALOG_CLOSE_SHORTCUT_HINT]),
+		];
 
 		const availableWidth = Math.max(1, width);
 		// The frame supplies the shared outer cell; help content needs no duplicate chrome inset.
@@ -1344,7 +1347,7 @@ class LabelInput implements Component, Focusable {
 			"",
 			truncateToWidth(renderPiModalShortcutHints([
 				shortcutHint("tui.select.confirm", "save"),
-				shortcutHint("tui.select.cancel", "cancel"),
+				DIALOG_CLOSE_SHORTCUT_HINT,
 			]), width),
 		];
 	}
