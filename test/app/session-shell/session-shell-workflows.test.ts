@@ -19,9 +19,22 @@ vi.mock("node:worker_threads", async importOriginal => {
   } };
 });
 import { piTheme } from "../../../src/integrations/pi/components/index.js";
+import { piShellLazySelectors, type PiShellLazySelectorLoader } from "../../../src/integrations/pi/components/lazy-selectors.js";
 import { cellStyle } from "../../support/ansi-cell-style.js";
 import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
 import { Session, fixture, nextImmediate } from "./session-shell-fixture.js";
+
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((onResolve, onReject) => { resolve = onResolve; reject = onReject; });
+  return { promise, resolve, reject };
+}
+
+function fixtureWithLazySelectors(lazySelectors: PiShellLazySelectorLoader) {
+  return fixture([], [], true, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, lazySelectors);
+}
 
 describe("OwnedUiSessionShell dialogs and workflows", () => {
   it("opens a compact bare-A1 name input while preserving direct and comparison workflows", async () => {
@@ -132,6 +145,129 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(comparisonFrame).toContain("Shift+Tab cycles thinking levels in-session");
     expect(comparison.shell.root.editor.keybindingConfig()["app.thinking.cycle"]).toBe("shift+tab");
     await comparison.shell.dispose();
+  });
+
+  it("presents thinking only after its pending lazy selector is ready", async () => {
+    const gate = deferred();
+    const lazySelectors: PiShellLazySelectorLoader = {
+      prepare: async () => {},
+      createThinking: async options => {
+        await gate.promise;
+        return piShellLazySelectors.createThinking(options);
+      },
+      createTree: options => piShellLazySelectors.createTree(options),
+    };
+    const { shell, terminal } = await fixtureWithLazySelectors(lazySelectors);
+    shell.root.editor.setText("/thinking");
+    shell.runtime.renderNow(true);
+    const writesBeforeSubmit = terminal.writes.length;
+
+    terminal.input("\r");
+    expect(shell.runtime.presentationHeld).toBe(true);
+    shell.runtime.renderNow(true);
+    expect(terminal.writes).toHaveLength(writesBeforeSubmit);
+
+    gate.resolve(undefined);
+    await nextImmediate();
+    await nextImmediate();
+    expect(shell.runtime.presentationHeld).toBe(false);
+    shell.runtime.renderNow(true);
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Thinking Level");
+    expect(terminal.writes.slice(writesBeforeSubmit).join("")).toContain("Thinking Level");
+    await shell.dispose();
+  });
+
+  it("presents the tree atomically from slash and double-Escape entry", async () => {
+    let gate = deferred();
+    const lazySelectors: PiShellLazySelectorLoader = {
+      prepare: async () => {},
+      createThinking: options => piShellLazySelectors.createThinking(options),
+      createTree: async options => {
+        const currentGate = gate;
+        await currentGate.promise;
+        return piShellLazySelectors.createTree(options);
+      },
+    };
+    const { adapter, shell, terminal } = await fixtureWithLazySelectors(lazySelectors);
+    vi.spyOn(adapter, "pinnedTreeSelectorContext").mockReturnValue({
+      tree: [{
+        entry: {
+          type: "message",
+          id: "atomic-tree-entry",
+          parentId: null,
+          timestamp: new Date(0).toISOString(),
+          message: { role: "user", content: [{ type: "text", text: "Atomic tree" }], timestamp: 0 },
+        },
+        children: [],
+      }],
+      currentLeafId: null,
+      filterMode: "default",
+      skipSummaryPrompt: false,
+      appendLabelChange() {},
+    });
+
+    shell.root.editor.setText("/tree");
+    shell.runtime.renderNow(true);
+    let writesBeforeOpen = terminal.writes.length;
+    terminal.input("\r");
+    expect(shell.runtime.presentationHeld).toBe(true);
+    shell.runtime.renderNow(true);
+    expect(terminal.writes).toHaveLength(writesBeforeOpen);
+    gate.resolve(undefined);
+    await nextImmediate();
+    await nextImmediate();
+    shell.runtime.renderNow(true);
+    expect(shell.runtime.presentationHeld).toBe(false);
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session Tree");
+    expect(terminal.writes.slice(writesBeforeOpen).join("")).toContain("Session Tree");
+
+    terminal.input("\x1b");
+    gate = deferred();
+    shell.runtime.renderNow(true);
+    writesBeforeOpen = terminal.writes.length;
+    await shell.interrupt(1_000);
+    const opening = shell.interrupt(1_100);
+    expect(shell.runtime.presentationHeld).toBe(true);
+    shell.runtime.renderNow(true);
+    expect(terminal.writes).toHaveLength(writesBeforeOpen);
+    gate.resolve(undefined);
+    await opening;
+    await nextImmediate();
+    shell.runtime.renderNow(true);
+    expect(shell.runtime.presentationHeld).toBe(false);
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session Tree");
+    expect(terminal.writes.slice(writesBeforeOpen).join("")).toContain("Session Tree");
+    await shell.dispose();
+  });
+
+  it("releases the atomic selector presentation and restores input after a lazy-load failure", async () => {
+    const gate = deferred();
+    const lazySelectors: PiShellLazySelectorLoader = {
+      prepare: async () => {},
+      createThinking: async () => {
+        await gate.promise;
+        throw new Error("thinking selector unavailable");
+      },
+      createTree: options => piShellLazySelectors.createTree(options),
+    };
+    const { shell, terminal } = await fixtureWithLazySelectors(lazySelectors);
+    shell.root.editor.setText("/thinking");
+    shell.runtime.renderNow(true);
+    const writesBeforeSubmit = terminal.writes.length;
+    terminal.input("\r");
+    shell.runtime.renderNow(true);
+    expect(shell.runtime.presentationHeld).toBe(true);
+    expect(terminal.writes).toHaveLength(writesBeforeSubmit);
+
+    gate.resolve(undefined);
+    await nextImmediate();
+    await nextImmediate();
+    shell.runtime.renderNow(true);
+    expect(shell.runtime.presentationHeld).toBe(false);
+    expect(shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(shell.root.editor.getText()).toBe("/thinking");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Submission rejected");
+    await shell.dispose();
   });
 
   it("preserves deep settings submenus, theme mode nesting, and parent restoration", async () => {

@@ -209,6 +209,35 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(afterControl).not.toContain("\r\x1b[2K");
   });
 
+  it("holds asynchronous replacement frames until the final forced repaint", async () => {
+    const terminal = new TestTerminal();
+    const root = new TestComponent(["selector", "before"]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal, mode: "fullscreen", mouse: false });
+    runtime.start();
+    runtime.renderNow(true);
+    const before = terminal.writes.length;
+
+    const releaseOuter = runtime.beginPresentationHold();
+    const releaseInner = runtime.beginPresentationHold();
+    expect(runtime.presentationHeld).toBe(true);
+    root.lines = ["selector", "after"];
+    runtime.renderNow(true);
+    expect(terminal.writes).toHaveLength(before);
+
+    releaseOuter();
+    runtime.renderNow(true);
+    expect(runtime.presentationHeld).toBe(true);
+    expect(terminal.writes).toHaveLength(before);
+
+    releaseInner();
+    releaseInner();
+    expect(runtime.presentationHeld).toBe(false);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(terminal.writes.slice(before).join("")).toContain("after");
+
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+  });
+
   it("leaves the alternate screen with the last document only when the screen is not preserved", async () => {
     const dumped = new TestTerminal();
     const dumping = new PiTuiRuntimeAdapter({ root: new TestComponent(["dump me"]), terminal: dumped, mode: "fullscreen", mouse: false });
