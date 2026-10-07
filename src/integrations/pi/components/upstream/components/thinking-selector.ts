@@ -8,10 +8,11 @@
  * levels, and rendering exclusive radio-style default markers before level names, an item-adjacent
  * active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space,
  * closes through the implicit Ctrl+C-capable selection-cancel action, and uses the shared compact
- * semantic shortcut row without advertising that alias. All list and border colors use the owned theme
- * and its explicit color mode. Selected rows use the shared bare-A1 blue selection surface only around
- * the rendered item span, with the existing accent arrow, normal-text level, and preserved
- * current/default/description roles. The comparison profile retains the public pinned component.
+ * semantic shortcut row with Type/search guidance without advertising that alias. All list and border
+ * colors use the owned theme and its explicit color mode. Selected rows use the shared bare-A1 blue
+ * selection surface only around the rendered item span, with the existing accent arrow, normal-text
+ * level, and preserved current/default/description roles. The comparison profile retains the public
+ * pinned component.
  * Deviations: owned-modal-shortcut-hints, owned-level-cycle-shortcut, owned-thinking-selector-heading,
  * owned-thinking-selector-controls, owned-dialog-ctrl-c-cancel, owned-standard-dialog-selection.
  */
@@ -144,6 +145,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		this.addChild(this.selectListContainer);
 		this.addChild(new Spacer(1));
 		this.addChild(new Text(renderPiModalShortcutHints([
+			{ key: "Type", action: "search" },
 			{ key: this.keyDisplayText("tui.select.confirm"), action: "select" },
 			{ key: "Space", action: "default" },
 			DIALOG_CLOSE_SHORTCUT_HINT,

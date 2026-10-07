@@ -104,7 +104,7 @@ describe("OwnedUiSessionShell skills command", () => {
       expect(shown).toContain("  code-review");
       expect(shown).not.toContain("skill:framer");
       expect(shown).toContain("Design, edit, and publish Framer sites");
-      expect(shown).toContain("↑↓ navigate  Enter select  Esc close");
+      expect(shown).toContain("Type search  ↑↓ navigate  Enter select  Esc close");
       expect(shown).not.toContain("Ctrl+C");
       terminal.input("\u001b");
       await settle();

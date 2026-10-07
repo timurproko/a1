@@ -123,7 +123,7 @@ describe("owned pinned session selector", () => {
     const headingIndex = plainInitialRows.findIndex(row => row.includes("Resume Session"));
     const filterIndex = plainInitialRows.findIndex(row => row.includes("Filter: current | all"));
     const resultIndex = plainInitialRows.findIndex(row => row.includes("Current session"));
-    const firstHintIndex = plainInitialRows.findIndex(row => row.includes("Tab scope"));
+    const firstHintIndex = plainInitialRows.findIndex(row => row.includes("Type search"));
     const finalHintIndex = plainInitialRows.findIndex(row => row.includes("Ctrl+S sort"));
     const heading = initialRows[headingIndex]!;
     const filterRow = initialRows[filterIndex]!;
@@ -144,7 +144,9 @@ describe("owned pinned session selector", () => {
     expect(filterRow).toContain(piTheme().fg("dim", "all"));
     expect(filterRow).toContain(piTheme().fg("accent", "all"));
     expect(filterRow).toContain(piTheme().fg("accent", "threaded"));
-    expect(plainInitialRows[firstHintIndex]).toContain('Tab scope  re:<pattern> regex  "phrase" exact');
+    expect(plainInitialRows[firstHintIndex]).toContain('Type search  Tab scope  re:<pattern> regex  "phrase" exact');
+    expect(cellStyle(initialRows[firstHintIndex]!, "T")).toEqual(cellStyle(piTheme().fg("dim", "T"), "T"));
+    expect(cellStyle(initialRows[firstHintIndex]!, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
     expect(plainInitialRows[finalHintIndex]).toContain("Esc close");
     expect(stripPortableTerminalSequences(component.render(12).join("\n"))).toContain("Esc close");
     expect(initialRows.slice(firstHintIndex, finalHintIndex + 1).join("\n")).not.toMatch(/[·•]/u);
