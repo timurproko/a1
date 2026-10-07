@@ -151,7 +151,9 @@ describe("bare-A1 session tree presentation", () => {
     expect(hints.indexOf("↑/↓ navigate")).toBeLessThan(hints.indexOf("Tab filter"));
     expect(hints).not.toContain("Enter select");
     expect(hints).toContain("Esc close");
-    expect(hints.indexOf("label time")).toBeLessThan(hints.indexOf("Esc close"));
+    expect(hints).toContain("Shift+T time (off)");
+    expect(hints).not.toContain("Shift+T label time");
+    expect(hints.indexOf("time (off)")).toBeLessThan(hints.indexOf("Esc close"));
     expect(plain.some(row => row.includes("Tab filter"))).toBe(true);
     expect(plain.join("\n")).toContain("PgUp/PgDn page");
     expect(plain.join("\n")).toContain("Home/End first/last");
@@ -192,8 +194,9 @@ describe("bare-A1 session tree presentation", () => {
     const timestampedRows = component.render(80);
     const timestampedFrame = timestampedRows.map(stripTerminalSequences).join("\n");
     const timestampedLabel = timestampedRows.find(row => stripTerminalSequences(row).includes("[hello]"))!;
-    expect(timestampedFrame).toMatch(/\(\d\/3\) label time/u);
-    expect(timestampedFrame).not.toContain("[+label time]");
+    expect(timestampedFrame).toMatch(/\(\d\/3\)/u);
+    expect(timestampedFrame).toContain("Shift+T time (on)");
+    expect(timestampedFrame).not.toContain("label time");
     expect(stripTerminalSequences(timestampedLabel)).toContain("[hello] [14:59] user:");
     expect(cellStyle(timestampedLabel, "1")).toEqual(cellStyle(piTheme().fg("accent", "1"), "1"));
 
@@ -469,6 +472,14 @@ describe("bare-A1 session tree presentation", () => {
     expect(plain.some(row => row.includes("No entries found"))).toBe(true);
     expect(plain.join("\n")).not.toContain("(0/0)");
     expect(plain.join("\n")).not.toContain("Type to search:");
+    expect(rows.every(row => visibleWidth(row) <= 24)).toBe(true);
+
+    component.handleInput?.("T");
+    rows = component.render(24);
+    plain = rows.map(row => stripTerminalSequences(row).trimEnd());
+    expect(plain.some(row => row.includes("No entries found"))).toBe(true);
+    expect(plain.join("\n")).toContain("time (on)");
+    expect(plain.join("\n")).not.toContain("label time");
     expect(rows.every(row => visibleWidth(row) <= 24)).toBe(true);
 
     component.handleInput?.("\x7f");
