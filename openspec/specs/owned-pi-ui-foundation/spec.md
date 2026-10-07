@@ -2860,9 +2860,9 @@ The bare-A1 Session Tree SHALL use the same compact framed hierarchy as the Mode
 
 The title SHALL be followed immediately by a Models-style `Filter: all | no tools | user | labeled` row using accent for the active mode and muted styling for inactive modes. The product `all` mode SHALL use the concise former-standard view: it SHALL show resolved entry labels while hiding raw label-change, context-edit, custom bookkeeping, session-info, usage, model-change, and thinking-level-change entries. An unset, upstream `default`, or upstream `all` initial setting SHALL open with product `all` active, while an explicitly configured `no tools`, `user`, or `labeled` mode SHALL remain active. `Tab` SHALL cycle the four product filters forward and replace `Ctrl+O` as the displayed/default cycle shortcut; the footer SHALL show `Tab filter` instead of the individual filter bindings. Hidden bookkeeping entries SHALL NOT contribute to the visible result counter.
 
-The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, the semantics of each filter mode, folding, navigation, copy, label, label-time, and horizontal clipping SHALL remain available. A row clipped at either horizontal edge SHALL show the single-character ellipsis `…` at that edge. On a selected row, every visible clipped fragment and ellipsis SHALL remain inside the selection highlight. A right-clipped bracketed tool row SHALL end with `…]` so its closing delimiter remains visible. `PageUp` and `PageDown` SHALL move by one visible page, and `Home` and `End` SHALL select the first and last visible entries. The persisted top-level session/system root SHALL remain permanently expanded and SHALL NOT be a Left/Right fold target. Unmodified `Left` SHALL collapse the nearest expanded eligible non-root branch containing the cursor, even when a descendant is selected; if no such branch exists, it SHALL leave the tree and selection unchanged. `Right` SHALL expand an eligible branch after the collapsed view selects its branch root and SHALL leave the session root unchanged. Root eligibility SHALL follow persisted ancestry rather than visible ancestry, so filtering out the system row SHALL NOT by itself disable folding for an otherwise eligible non-root branch.
+The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, the semantics of each filter mode, folding, navigation, copy, label, label-time, and horizontal clipping SHALL remain available. A row clipped at either horizontal edge SHALL show the single-character ellipsis `…` at that edge. On a selected row, every visible clipped fragment and ellipsis SHALL remain inside the selection highlight. A right-clipped bracketed tool row SHALL end with `…]` so its closing delimiter remains visible. `PageUp` and `PageDown` SHALL move by one visible page, and `Home` and `End` SHALL select the first and last visible entries. The system message rendered as the top-level `session` row SHALL remain permanently expanded and SHALL NOT be a Left/Right fold target, including when hidden model-change, thinking-level-change, or other bookkeeping entries precede it in the persisted tree and give it a non-null parent. Unmodified `Left` SHALL collapse the nearest expanded eligible non-system branch containing the cursor, even when a descendant is selected; if no such branch exists before the system session entry, it SHALL leave the tree and selection unchanged. `Right` SHALL expand an eligible branch after the collapsed view selects its branch root and SHALL leave the system session entry unchanged. Session-root eligibility SHALL follow semantic system-message identity rather than input-root position, persisted `parentId`, or visible ancestry, so filtering out the system row SHALL NOT by itself disable folding for an otherwise eligible non-system branch.
 
-The selected tree entry SHALL use the ordinary menu arrow `→` in accent foreground and the blue `selectedBg` selection background, without whole-row bold treatment. Selection SHALL preserve the same semantic foreground and text-style roles rendered for that entry while unselected: entry labels and timestamps SHALL remain accent, `user:` SHALL remain green, `assistant:` SHALL remain yellow, system entries SHALL remain muted `session`, and tool, bash, error, description, dim, and italic content SHALL retain their existing roles. Tree entries SHALL NOT render active-path bullets. When label-time display is enabled, its timestamp SHALL be enclosed in square brackets. The result counter SHALL append plain `label time` status text without brackets or a leading plus sign. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
+The selected tree entry SHALL use the ordinary menu arrow `→` with the subtle purple accent-tinted selection background. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted, without whole-row bold treatment. Tree entries SHALL NOT render active-path bullets. Entry labels SHALL use the theme accent color. When label-time display is enabled, its timestamp SHALL be enclosed in square brackets and use the same accent color as the label. The result counter SHALL append plain `label time` status text without brackets or a leading plus sign. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `session`. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
 
 The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule. Their order SHALL follow the Models dialog: `type to search`, vertical navigation, `Tab filter`, extended page/first-last/branch navigation, then copy and label actions. The footer SHALL omit an `Enter select` hint.
 
@@ -2896,9 +2896,10 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 - **AND WHEN** the user then presses `Right`
 - **THEN** that branch SHALL expand without moving selection to another branch
 
-#### Scenario: Keep the session root expanded from the root
-- **WHEN** the top-level `session` entry is selected and the user presses `Left` or `Right`
-- **THEN** the root SHALL remain expanded
+#### Scenario: Keep the session root expanded behind hidden metadata
+- **GIVEN** model-change and thinking-level-change entries precede the system message in the persisted tree and are hidden from product `all`
+- **WHEN** the visible `session` entry is selected and the user presses `Left` or `Right`
+- **THEN** the system session entry SHALL remain expanded despite its non-null persisted parent
 - **AND** the visible rows and selection SHALL remain unchanged
 
 #### Scenario: Do not fall through to the session root
@@ -2908,15 +2909,15 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 - **AND** selection SHALL remain on the selected descendant
 
 #### Scenario: Preserve branch folding when filters hide the system row
-- **WHEN** a filter hides the persisted session root and an eligible non-root branch appears at the visible root
+- **WHEN** a filter hides the system session entry and an eligible non-system branch appears at the visible root
 - **THEN** that branch SHALL retain its existing collapse and expansion behavior
-- **AND** visible-root placement alone SHALL NOT classify it as the persisted session root
+- **AND** visible-root or input-root placement alone SHALL NOT classify it as the system session entry
 
 #### Scenario: Clip a long tree row
 - **WHEN** a tree item extends beyond the left or right edge
 - **THEN** each clipped edge SHALL show the single-character ellipsis `…`
 - **AND** a selected clipped row SHALL keep its complete visible fragment, including ellipses, selected
-- **AND** a right-clipped bracketed tool row SHALL end in `…]`
+- **AND** a right-clipped bracketed tool row SHALL end with `…]`
 
 #### Scenario: Search the tree
 - **WHEN** the Session Tree is open and the user types a search query
@@ -2926,13 +2927,13 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 
 #### Scenario: Highlight an entry
 - **WHEN** a tree entry is selected
-- **THEN** the row SHALL begin with the ordinary menu arrow `→` in accent foreground
-- **AND** every primary and descriptive fragment SHALL retain that entry's existing semantic foreground and text-style role
-- **AND** the selected span SHALL use the blue `selectedBg` background
+- **THEN** the row SHALL begin with the ordinary menu arrow `→`
+- **AND** only its primary label SHALL receive selected emphasis while descriptive message text remains muted
+- **AND** the selected span SHALL use the subtle purple accent-tinted background
 - **AND** no active-path bullet or whole-row bold treatment SHALL be applied
 
 #### Scenario: Distinguish message roles and entry labels
-- **WHEN** labeled user, assistant, and system entries are visible in selected or unselected state
+- **WHEN** labeled, unselected user, assistant, and system entries are visible
 - **THEN** the entry label SHALL use the theme accent color
 - **AND** any enabled label timestamp SHALL use the same accent color and square-bracket form
 - **AND** the result counter SHALL show plain `label time` rather than `[+label time]`
