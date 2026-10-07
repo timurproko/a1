@@ -96,7 +96,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(plain).not.toContain("●");
     expect(plain.match(/Moderate reasoning/g)).toHaveLength(1);
     expect(plain.match(/\bmedium\b/g)).toHaveLength(1);
-    expect(plain).toContain("Enter select  Space default  Esc close");
+    expect(plain).toContain("Type search  Enter select  Space default  Esc close");
     expect(plain).not.toContain("Ctrl+S");
     expect(plain).not.toContain("Escape/Ctrl+C");
     const heading = rows.find(row => stripTerminalSequences(row).includes("Thinking Level"))!;
@@ -348,7 +348,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     const treeStatusIndex = plainTreeRows.findIndex(row => row.includes("Tree dialog spacing"));
     expect(plainTreeRows.slice(treeStatusIndex + 1, treeHeadingIndex)).toEqual(["", "─".repeat(100)]);
     const treeHeading = treeRows[treeHeadingIndex]!;
-    const treeHint = treeRows.find(row => stripTerminalSequences(row).includes("type to search"))!;
+    const treeHint = treeRows.find(row => stripTerminalSequences(row).includes("Type search"))!;
     expect(firstVisibleTextColumn(treeHint)).toBe(firstVisibleTextColumn(treeHeading));
     expect(cellStyle(treeHeading, "S")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("S")), "S"));
 

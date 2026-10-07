@@ -45,8 +45,7 @@ class SkillRow implements Component {
 }
 
 /**
- * The A1-owned searchable Skills dialog. Its composition is the model selector's (border, spacer,
- * search input, spacer, list, spacer, hint footer, border) built from public pi-tui components; its
+ * The A1-owned searchable Skills dialog uses the model selector's public pi-tui composition; its
  * content follows the v2 skills extension: an accent bold title, bare skill-name rows, the selected
  * skill's description cut to one line under the rows, the pinned scroll counter on overflow,
  * and the two empty states. Enter applies the selected skill with no arguments; the query is never appended.
@@ -76,6 +75,7 @@ class SkillsSelectorComponent extends Container {
     this.addChild(new Spacer(1));
     const bindings = getKeybindings();
     this.addChild(new Text(renderPiModalShortcutHints([
+      { key: "Type", action: "search" },
       { key: "↑↓", action: "navigate" },
       { key: bindings.getKeys("tui.select.confirm").join("/"), action: "select" },
       DIALOG_CLOSE_SHORTCUT_HINT,
