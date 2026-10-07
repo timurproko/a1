@@ -2,13 +2,13 @@
 
 ### Requirement: Bare-A1 slash-command completion remains delimiter-ready
 
-When the bare-A1 default editor applies a selected top-level slash-command row, it SHALL replace the search with `/<name>` and place the cursor immediately after the command name without inserting trailing whitespace. Tab SHALL leave that completed command in the editor for further input and immediately reopen autocomplete with the exact matching command row visible and selected, including before an immediately typed `:` or a user-entered space for arguments. Enter SHALL continue through the existing command-submission path after applying the row. This exception SHALL apply only to top-level slash-command application in bare A1; command-argument, path/resource, attachment, and other non-command completions SHALL retain their existing spacing and cursor behavior. The `a1 pi` comparison profile and untouched pinned Pi SHALL retain the pinned trailing-space completion behavior.
+When the bare-A1 default editor applies a selected top-level slash-command row, it SHALL replace the search with `/<name>` and place the cursor immediately after the command name without inserting trailing whitespace. Tab SHALL leave that completed command in the editor for further input while continuously retaining the exact matching command row visible and selected without a transient closed frame, including before an immediately typed `:` or a user-entered space for arguments. Enter SHALL continue through the existing command-submission path after applying the row. This exception SHALL apply only to top-level slash-command application in bare A1; command-argument, path/resource, attachment, and other non-command completions SHALL retain their existing spacing and cursor behavior. The `a1 pi` comparison profile and untouched pinned Pi SHALL retain the pinned trailing-space completion behavior.
 
 #### Scenario: Complete a command with Tab
 
 - **WHEN** the user selects the `settings` row from bare-A1 top-level slash-command autocomplete and presses Tab
 - **THEN** the editor SHALL contain exactly `/settings` with the cursor immediately after `settings`
-- **AND** autocomplete SHALL immediately show the selected `settings` row and its description without submitting the command
+- **AND** autocomplete SHALL continuously retain the selected `settings` row and its description without changing the rendered menu rows or submitting the command
 
 #### Scenario: Continue into a command tunnel
 

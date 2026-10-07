@@ -6,7 +6,7 @@
  * frame, transient contextual-suggestion branch, and explicit body geometry for selection and
  * above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape. Bare
  * A1 also completes a selected or exact completed tunnel command with `:` and reopens the menu on its
- * tunnel rows, and reopens an exact top-level command menu after Tab applies its row.
+ * tunnel rows, and synchronously retains an exact top-level command menu after Tab applies its row.
  * Deviations: owned-shared-input-frame, above-prompt-autocomplete-placement,
  * clear-command-search-on-escape, command-tunnel-colon-completion, keep-command-menu-open-after-tab.
  */
@@ -133,7 +133,7 @@ return class extends Base {
   handleInput(data: string): void {
     if (this.onExtensionShortcut?.(data)) return;
     const tabbedCommand = this.keybindings.matches(data, "tui.input.tab") && this.isTopLevelCommandSearch()
-      ? selectedAutocompleteValue(this)
+      ? retainedAutocomplete(this)
       : undefined;
     if (data === ":" && this.#completeCommandTunnel()) return;
     if (this.#promptSuggestion !== null
@@ -178,14 +178,17 @@ return class extends Base {
       if (action !== "app.interrupt" && action !== "app.exit" && this.keybindings.matches(data, action)) { handler(); return; }
     }
     super.handleInput(data);
-    if (tabbedCommand !== undefined) this.#reopenCompletedCommand(tabbedCommand);
+    if (tabbedCommand !== undefined) this.#retainCompletedCommandMenu(tabbedCommand);
   }
 
-  /** Keep the exact completed command visible in its filtered menu after Tab applies the row. */
-  #reopenCompletedCommand(command: string): void {
+  /** Keep the exact completed command's existing menu visible without a close/reopen frame. */
+  #retainCompletedCommandMenu(completion: RetainedAutocomplete): void {
     const text = this.getText();
     const cursor = this.getCursor();
-    if (text === `/${command}` && cursor.line === 0 && cursor.col === text.length) triggerAutocomplete(this);
+    if (text !== `/${completion.value}` || cursor.line !== 0 || cursor.col !== text.length) return;
+    Reflect.set(this, "autocompleteList", completion.list);
+    Reflect.set(this, "autocompleteState", completion.state);
+    Reflect.set(this, "autocompletePrefix", text);
   }
 
   /**
@@ -262,6 +265,21 @@ return class extends Base {
 }
 
 export class OwnedEditor extends createOwnedEditorClass(Editor) {}
+
+interface RetainedAutocomplete {
+  readonly value: string;
+  readonly list: object;
+  readonly state: "regular" | "force";
+}
+
+/** Capture the active selected command list so exact Tab application can retain it synchronously. */
+function retainedAutocomplete(editor: EditorSurface): RetainedAutocomplete | undefined {
+  const value = selectedAutocompleteValue(editor);
+  const list: unknown = Reflect.get(editor, "autocompleteList");
+  const state: unknown = Reflect.get(editor, "autocompleteState");
+  if (value === undefined || typeof list !== "object" || list === null || (state !== "regular" && state !== "force")) return undefined;
+  return { value, list, state };
+}
 
 /** The value of the row the open autocomplete list highlights, read from either editor's list. */
 function selectedAutocompleteValue(editor: EditorSurface): string | undefined {
