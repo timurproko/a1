@@ -7,8 +7,8 @@
  * keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal
  * frame with standalone title, standard outer rules, stable filter/status row, progressive result
  * paging, aligned result columns, Session Tree selection roles, and bottom dynamic feedback and
- * shortcut footer. Selected session rows retain their ordinary text weight and semantic foreground
- * roles on the existing selection background.
+ * shortcut footer. Selected session rows use the blue selection surface, success-green primary title,
+ * muted metadata, and ordinary text weight.
  * Deviations: owned-modal-shortcut-hints, owned-resume-session-dialog,
  * owned-standard-dialog-selection.
  */
@@ -112,7 +112,7 @@ function fitPathToWidth(value: string, width: number, preserveTail: boolean): st
 
 function renderSelectedRow(value: string): string {
 	const marker = "\u0000";
-	const wrapper = theme.bg("customMessageBg", marker);
+	const wrapper = theme.bg("selectedBg", marker);
 	const markerIndex = wrapper.indexOf(marker);
 	const on = wrapper.slice(0, markerIndex);
 	const off = wrapper.slice(markerIndex + marker.length);
@@ -578,7 +578,13 @@ class SessionList implements Component, Focusable {
 			} else if (hasName) {
 				messageColor = "warning";
 			}
-			const styledMsg = messageColor ? theme.fg(messageColor, truncatedMsg) : truncatedMsg;
+			const styledMsg = isConfirmingDelete
+				? theme.fg("error", truncatedMsg)
+				: isSelected
+					? theme.fg("success", truncatedMsg)
+					: messageColor
+						? theme.fg(messageColor, truncatedMsg)
+						: truncatedMsg;
 
 			const metadataColor = isConfirmingDelete ? "error" : isSelected ? "muted" : "dim";
 			const titleColumn = fitToWidth(cursor + theme.fg("dim", prefix) + styledMsg, titleColumnWidth, "…");

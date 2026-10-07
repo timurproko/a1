@@ -1,6 +1,6 @@
 ## Context
 
-The supplied captures show inconsistent selection treatment across three bare-A1 standard selectors, Resume Session, Session Tree, the Settings screen, and the slash-command menu. Models and Skills assemble rows directly, while Thinking Level and autocomplete delegate row layout to Pi TUI's `SelectList`. Resume Session establishes the desired blue `selectedBg` palette, but its selected title becomes bold; Session Tree's first blue-palette refinement also forced selected entry labels to white and erased role colors. Every surface must keep its existing arrow, ordinary text weight, and meaningful foreground roles.
+The supplied captures show inconsistent selection treatment across three bare-A1 standard selectors, Resume Session, Session Tree, the Settings screen, and the slash-command menu. Models and Skills assemble rows directly, while Thinking Level and autocomplete delegate row layout to Pi TUI's `SelectList`. Resume Session establishes the desired blue `selectedBg` palette, but a later hierarchy alignment left its full-row selection purple; its selected title also needs the checkmark-green success role without becoming bold. Session Tree's first blue-palette refinement forced selected entry labels to white and erased role colors. Every surface must keep its existing arrow, ordinary text weight, and intended foreground roles.
 
 The surfaces have different row content. Models combines scope and active-state markers with an identifier and provider badge. Skills has a command label and a separate selected description below the list. Thinking Level aligns a level, current marker, default marker, and description in one row. Session Tree combines hierarchy, entry labels, role labels, descriptions, and clipped-edge markers. Settings aligns labels, values, optional steppers, and structured sub-dialog rows. The command menu aligns command names and descriptions. Selection styling must not flatten those semantic roles or alter interaction state.
 
@@ -23,9 +23,9 @@ The surfaces have different row content. Models combines scope and active-state 
 
 ### 1. Treat Resume Session as the palette contract
 
-A selected owned row will preserve its existing cursor, ordinary text weight, supporting text, and semantic state colors. Item-bounded surfaces apply `selectedBg`; Resume Session retains its established subtle full-row selection role. Models, Skills, Thinking Level, Settings, and command autocomplete use an accent `→` with a normal-`text` primary label. Resume Session and Session Tree retain their item-specific foreground roles. Selection will not introduce bold styling. Item-bounded surfaces will not fill unused content width; Resume Session retains its established full-row geometry. Unselected rows keep their current appearance.
+A selected owned row will preserve its existing cursor, ordinary text weight, and supporting text while applying `selectedBg`. Models, Skills, Thinking Level, Settings, and command autocomplete use an accent `→` with a normal-`text` primary label. Session Tree retains its item-specific foreground roles; Resume Session uses the success-green role for its selected title and muted metadata. Selection will not introduce bold styling. Item-bounded surfaces will not fill unused content width; Resume Session retains its established full-row geometry. Unselected rows keep their current appearance.
 
-Adopting Resume Session's cursor icon or full-width geometry elsewhere was rejected because the request is for its visual clarity, while each covered surface's established arrow and the prior item-bounded decision remain authoritative. The lower-intensity `customMessageBg` role was rejected for the item-bounded standard lists after visual review in favor of `selectedBg`; Resume Session retains its separately accepted full-row role and geometry.
+Adopting Resume Session's cursor icon or full-width geometry elsewhere was rejected because the request is for its visual clarity, while each covered surface's established arrow and the prior item-bounded decision remain authoritative. The lower-intensity `customMessageBg` role was rejected after visual review in favor of `selectedBg`; Resume Session keeps full-row geometry but now uses that blue role too.
 
 ### 2. Centralize width-safe selected-row painting
 
@@ -53,7 +53,7 @@ Adopting Resume Session's full-width geometry was rejected: the tree keeps its e
 
 ### 6. Remove selection-only bold from Resume Session
 
-Resume Session keeps its existing blue full-row background, `›` cursor, semantic title colors, muted metadata, and geometry. Selection will stop wrapping the title in bold, so moving the cursor changes only the cursor/background state rather than the title's text weight.
+Resume Session uses the blue `selectedBg` full-row background, accent `→` cursor, success-green selected title, muted metadata, and existing geometry. Selection does not wrap the title in bold; delete confirmation retains the error role instead of success green.
 
 Changing Resume Session search, scope, sort, rename/delete, navigation, or row geometry was rejected.
 

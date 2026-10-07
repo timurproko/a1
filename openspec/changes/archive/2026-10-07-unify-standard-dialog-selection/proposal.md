@@ -4,8 +4,8 @@ The Models, Skills, Thinking Level, Resume Session, Session Tree, Settings scree
 
 ## What Changes
 
-- Apply one blue selection treatment across Models, Skills, Thinking Level, Resume Session, Session Tree, Settings, and the bare-A1 slash-command menu while preserving each surface's existing arrow and semantic foreground roles.
-- Keep ordinary selected labels at normal text weight; preserve Session Tree and Resume Session item-specific foreground colors instead of forcing selected entries to white.
+- Apply one blue `selectedBg` treatment across Models, Skills, Thinking Level, Resume Session, Session Tree, Settings, and the bare-A1 slash-command menu while preserving each surface's existing arrow and geometry.
+- Keep ordinary selected labels at normal text weight; preserve Session Tree item-specific foreground colors and render the selected Resume Session title in checkmark green.
 - Limit the selected background to the rendered item span while keeping rows single-line, clipped, and free of whole-row bold styling.
 - Preserve each surface's semantic state markers, values, search, navigation, filtering, model scope/default actions, descriptions, counters, and close/select behavior.
 - Centralize the owned selected-row rendering contract and add focused ANSI-role, span, clipping, and interaction regressions so these selectors cannot drift independently.
@@ -22,4 +22,4 @@ None.
 
 ## Impact
 
-Expected implementation is limited to shared bare-A1 selection presentation helpers, the Models, Skills, Thinking Level, Resume Session, and Session Tree components, the owned Settings list/panel theme, the owned editor's slash-command menu theme, focused component/session-shell tests, and copied-source provenance notes for adapted selectors. Resume Session supplies the accepted color reference; its behavior and specialized full-row geometry are unchanged. Generic extension prompts, session/trust selectors, startup trust, the explicit `a1 pi` comparison profile, dependencies, persisted settings, and workflow outcomes remain unchanged.
+Expected implementation is limited to shared bare-A1 selection presentation helpers, the Models, Skills, Thinking Level, Resume Session, and Session Tree components, the owned Settings list/panel theme, the owned editor's slash-command menu theme, focused component/session-shell tests, and copied-source provenance notes for adapted selectors. Resume Session uses the shared blue surface and success-green selected title while its behavior and specialized full-row geometry remain unchanged. Generic extension prompts, session/trust selectors, startup trust, the explicit `a1 pi` comparison profile, dependencies, persisted settings, and workflow outcomes remain unchanged.

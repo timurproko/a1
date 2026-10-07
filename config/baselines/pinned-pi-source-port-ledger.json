@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-07T06:50:13.302Z",
+  "recordedAt": "2026-10-07T08:31:45.103Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
@@ -2282,9 +2282,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal frame with standalone title, standard outer rules, stable filter/status row, progressive result paging, aligned result columns, Session Tree selection roles, and bottom dynamic feedback and shortcut footer. Selected session rows retain their ordinary text weight and semantic foreground roles on the existing selection background.",
+      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal frame with standalone title, standard outer rules, stable filter/status row, progressive result paging, aligned result columns, Session Tree selection roles, and bottom dynamic feedback and shortcut footer. Selected session rows use the blue selection surface, success-green primary title, muted metadata, and ordinary text weight.",
       "upgradeStrategy": "three-way",
-      "localSha256": "b1e8aca6bfced771118f017f534323a8a2e896769f905591914bf9ca101712e1",
+      "localSha256": "0248241d2a1532c0f5dd576f82a684696101033459fd42524552950cd1ed2747",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2294,13 +2294,13 @@
         },
         {
           "id": "owned-resume-session-dialog",
-          "reason": "Bare A1 aligns Resume Session with its standard modal hierarchy through standard outer-rule colors, a stable accent title, a lower-case current/all filter row without loader progress, progressive result paging, aligned title/path/count/age columns, the Session Tree accent arrow/title, muted metadata, subtle purple full-width selection, and bottom-aligned dynamic feedback and shortcut hints.",
+          "reason": "Bare A1 aligns Resume Session with its standard modal hierarchy through standard outer-rule colors, a stable accent title, a lower-case current/all filter row without loader progress, progressive result paging, aligned title/path/count/age columns, the Session Tree accent arrow, success-green selected title, muted metadata, blue full-width selection, and bottom-aligned dynamic feedback and shortcut hints.",
           "upstreamBehavior": "The comparison profile retains the pinned Resume Session title, status placement, and shortcut geometry.",
           "acceptanceTest": "test/integrations/pi/components/session-selector.test.ts"
         },
         {
           "id": "owned-standard-dialog-selection",
-          "reason": "Bare A1 keeps selected Resume Session entries at their ordinary text weight while preserving semantic foreground colors on the established full-width selection surface.",
+          "reason": "Bare A1 gives selected Resume Session entries the shared blue full-width selection surface and success-green primary title while keeping ordinary text weight, an accent arrow, and muted metadata.",
           "upstreamBehavior": "The comparison profile retains the pinned session selector presentation.",
           "acceptanceTest": "test/integrations/pi/components/session-selector.test.ts"
         }
