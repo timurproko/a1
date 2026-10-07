@@ -158,6 +158,24 @@ describe("owned pinned session selector", () => {
     expect(initialRows[hintIndex]).not.toMatch(/[·•]/u);
     expect(frame()).not.toContain("Shift+Tab");
 
+    const selectedCurrent = initialRows.find(row => stripPortableTerminalSequences(row).includes("Current session"))!;
+    const unselectedOther = initialRows.find(row => stripPortableTerminalSequences(row).includes("Prompt other"))!;
+    const ordinaryTitleStyle = cellStyle(unselectedOther, "P");
+    const ordinaryMetadataStyle = cellStyle(unselectedOther, "2");
+    expect(cellStyle(selectedCurrent, "C")).toEqual(cellStyle(piTheme().fg("success", "C"), "C"));
+    expect(cellStyle(selectedCurrent, "2")).toEqual(cellStyle(piTheme().fg("dim", "2"), "2"));
+    input("\x1b[B");
+    const movedSelectionRows = component.render(180);
+    const unselectedCurrent = movedSelectionRows.find(row => stripPortableTerminalSequences(row).includes("Current session"))!;
+    const selectedOther = movedSelectionRows.find(row => stripPortableTerminalSequences(row).includes("Prompt other"))!;
+    expect(cellStyle(unselectedCurrent, "C")).toEqual(cellStyle(piTheme().fg("success", "C"), "C"));
+    expect(selectedBackgroundCells(unselectedCurrent)).toBe(0);
+    expect(cellStyle(selectedOther, "P")).toEqual(ordinaryTitleStyle);
+    expect(cellStyle(selectedOther, "2")).toEqual(ordinaryMetadataStyle);
+    expect(cellStyle(selectedOther, "2")).toEqual(cellStyle(piTheme().fg("dim", "2"), "2"));
+    expect(selectedBackgroundCells(selectedOther)).toBe(179);
+    input("\x1b[A");
+
     input("Prompt other");
     expect(frame()).toContain("Prompt other");
     expect(frame()).not.toContain('re:<pattern> regex, "phrase" exact');
@@ -204,7 +222,11 @@ describe("owned pinned session selector", () => {
 
     input("\x04");
     expect(frame()).toContain("Delete session?");
-    const confirmRows = component.render(100).map(stripPortableTerminalSequences);
+    const rawConfirmRows = component.render(100);
+    const confirmingSession = rawConfirmRows.find(row => stripPortableTerminalSequences(row).includes("Renamed session"))!;
+    expect(cellStyle(confirmingSession, "R")).toEqual(cellStyle(piTheme().fg("error", "R"), "R"));
+    expect(cellStyle(confirmingSession, "2")).toEqual(cellStyle(piTheme().fg("error", "2"), "2"));
+    const confirmRows = rawConfirmRows.map(stripPortableTerminalSequences);
     const confirmationIndex = confirmRows.findIndex(row => row.includes("Delete session?"));
     expect(confirmationIndex).toBeGreaterThan(confirmRows.findIndex(row => row.includes("Renamed session")));
     expect(confirmRows[confirmationIndex]).toContain("Esc close");
@@ -324,9 +346,9 @@ describe("owned pinned session selector", () => {
     expect(cellStyle(selectedShort, "→"))
       .toEqual(cellStyle(piTheme().bg("selectedBg", piTheme().fg("accent", "→")), "→"));
     expect(cellStyle(selectedShort, "S"))
-      .toEqual(cellStyle(piTheme().bg("selectedBg", piTheme().fg("success", "S")), "S"));
+      .toEqual(cellStyle(piTheme().bg("selectedBg", piTheme().fg("warning", "S")), "S"));
     expect(cellStyle(selectedShort, "D"))
-      .toEqual(cellStyle(piTheme().bg("selectedBg", piTheme().fg("muted", "D")), "D"));
+      .toEqual(cellStyle(piTheme().bg("selectedBg", piTheme().fg("dim", "D")), "D"));
     expect(cellBold(selectedShort, "S")).toBe(false);
     expect(cellBackground(selectedShort, "→"))
       .toBe(cellBackground(piTheme().bg("selectedBg", "→"), "→"));
