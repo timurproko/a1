@@ -3098,7 +3098,7 @@ The row immediately below the title SHALL begin with `Filter: current | all`, fo
 
 When all-session discovery supplies partial results, the result list SHALL update incrementally. Whenever the existing paging indicator is applicable, its `(selection/total)` total SHALL count the currently discovered sessions that match the active query and name filter, and SHALL grow as further matching sessions arrive. It SHALL NOT label that count as loading or substitute loader work-unit progress for the visible matching-result total.
 
-Every selected session result SHALL use the Session Tree's accent `→` arrow, accent primary title without selected-title bolding, muted path/count/age metadata, and subtle purple accent-tinted selection background. That background SHALL form one continuous full-width selection, regardless of the title or path length. When cwd or explicit path metadata is visible, every rendered row SHALL reserve a shared path column followed by separately aligned message-count and age columns. Session titles SHALL truncate before the path column with visible separation, and paths that exceed their bounded column SHALL truncate within that column rather than displacing the title, count, or age columns.
+Every selected ordinary session result SHALL use the Session Tree's accent `→` arrow, success-green primary title without selected-title bolding, muted path/count/age metadata, and blue `selectedBg` selection background. A selected delete-confirmation result SHALL retain its error-colored primary title. The background SHALL form one continuous full-width selection, regardless of the title or path length. When cwd or explicit path metadata is visible, every rendered row SHALL reserve a shared path column followed by separately aligned message-count and age columns. Session titles SHALL truncate before the path column with visible separation, and paths that exceed their bounded column SHALL truncate within that column rather than displacing the title, count, or age columns.
 
 The selector's search-syntax and action shortcut hints SHALL appear below the session results, aligned to the same shared content inset as the title and status row. Every ordinary or state-specific footer SHALL end with the canonical `Esc close` entry, preserving it completely by clipping preceding guidance first when width is constrained. In the ordinary state the bottom rule SHALL immediately follow the final hint row. Delete confirmation, transient mutation status, and load errors SHALL use this bottom feedback area rather than replacing or joining the title/status rows. Existing search, scope switching, sorting, name filtering, path display, rename, deletion, selection, loading, cancellation, and result-list behavior SHALL remain available.
 
@@ -3133,10 +3133,10 @@ The selector's search-syntax and action shortcut hints SHALL appear below the se
 - **AND** long paths SHALL truncate within the path column
 
 #### Scenario: Highlight a complete session result row
-- **WHEN** a session result is selected
+- **WHEN** an ordinary session result is selected
 - **THEN** it SHALL begin with the accent `→` arrow used by Session Tree
-- **AND** its primary title SHALL use accent without selected-title bolding while path, count, and age remain muted
-- **AND** the Session Tree's subtle purple accent-tinted selection background SHALL cover the complete available row width
+- **AND** its primary title SHALL use the same success-green role as a checkmark without selected-title bolding while path, count, and age remain muted
+- **AND** the blue `selectedBg` selection background SHALL cover the complete available row width
 - **AND** moving selection between rows with different title or path lengths SHALL NOT change the highlight width
 
 #### Scenario: Change session name and sort filters
@@ -3153,7 +3153,8 @@ The selector's search-syntax and action shortcut hints SHALL appear below the se
 
 #### Scenario: Confirm session deletion
 - **WHEN** the user starts deletion of a selected session
-- **THEN** the bottom feedback area SHALL replace ordinary shortcut hints with delete-confirm guidance followed by `Esc close`
+- **THEN** the selected title SHALL use the error role on the blue full-width selection surface
+- **AND** the bottom feedback area SHALL replace ordinary shortcut hints with delete-confirm guidance followed by `Esc close`
 - **AND** it SHALL NOT expose a cancel action or implicit Ctrl+C alias
 - **AND** the title and filter/status rows SHALL remain in their standard positions
 
@@ -3203,7 +3204,7 @@ Close shortcut guidance SHALL keep Ctrl+C implicit. A close or cancel hint SHALL
 
 ### Requirement: Standard bare-A1 lists share one selection palette
 
-The bare-A1 Models, Skills, Thinking Level, Resume Session, Session Tree, Settings, and editor autocomplete menus SHALL preserve their existing cursor and meaningful semantic foreground roles when selected. Models, Skills, Thinking Level, Session Tree, Settings, and autocomplete SHALL use the blue `selectedBg` selection background. Models, Skills, Thinking Level, Settings, and autocomplete SHALL retain their ordinary menu arrow `→` in accent foreground, a primary label in normal `text`, and muted descriptive text. Resume Session SHALL retain its established subtle full-row selection surface, and Resume Session and Session Tree SHALL retain each entry's item-specific foreground and text-style roles. Selection SHALL NOT introduce bold styling. On item-bounded surfaces, the selected background SHALL cover only the rendered item span from its arrow through its final visible content cell, SHALL NOT fill otherwise unused cells after the item, and SHALL remain clipped within the available width without causing wrapping. Resume Session SHALL retain its established full-row selection geometry.
+The bare-A1 Models, Skills, Thinking Level, Resume Session, Session Tree, Settings, and editor autocomplete menus SHALL preserve their existing cursor and meaningful semantic foreground roles when selected. Every covered surface SHALL use the blue `selectedBg` selection background. Models, Skills, Thinking Level, Settings, and autocomplete SHALL retain their ordinary menu arrow `→` in accent foreground, a primary label in normal `text`, and muted descriptive text. Resume Session SHALL use an accent arrow, success-green selected title, and muted metadata, while Session Tree SHALL retain each entry's item-specific foreground and text-style roles. Selection SHALL NOT introduce bold styling. On item-bounded surfaces, the selected background SHALL cover only the rendered item span from its arrow through its final visible content cell, SHALL NOT fill otherwise unused cells after the item, and SHALL remain clipped within the available width without causing wrapping. Resume Session SHALL retain its established full-row selection geometry.
 
 The selected-item treatment SHALL preserve domain-specific semantic markers and content. Models SHALL retain its scoped/unscoped marker, provider badge, and active-model checkmark. Skills SHALL retain its `skill:<name>` label and separately presented selected description. Thinking Level SHALL retain aligned level, current, default, and reasoning-description columns. Settings SHALL retain aligned labels and values, steppers, structured-value rows, floating choices, scrolling, search, and pointer affordances. Autocomplete SHALL retain aligned command descriptions and completion behavior. Session Tree SHALL retain its hierarchy, semantic entry roles, horizontal viewport, and clipped-edge markers. Resume Session SHALL retain its specialized arrow, metadata, and full-row geometry.
 
@@ -3233,8 +3234,8 @@ Unselected rows, search and filter behavior, list ordering, counters, descriptio
 #### Scenario: Highlight a Resume Session entry
 
 - **WHEN** a Resume Session entry is selected
-- **THEN** its existing cursor, blue full-row background, semantic title foreground, and muted metadata SHALL remain unchanged
-- **AND** selection SHALL NOT make its title bold or otherwise change its text weight
+- **THEN** its accent cursor and muted metadata SHALL remain unchanged while its full row uses blue `selectedBg`
+- **AND** its primary title SHALL use the same success-green role as a checkmark without becoming bold
 - **AND** search, scope, sort, rename, delete, navigation, and selection behavior SHALL remain unchanged
 
 #### Scenario: Highlight a Session Tree entry
