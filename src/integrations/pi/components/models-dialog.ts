@@ -364,7 +364,7 @@ export class ModelsDialogComponent implements Component, Focusable {
         const row = rows[index]!;
         const selected = index === this.#selectedIndex;
         const scoped = this.#scopeIds.includes(row.fullId);
-        // Invariant: arrow, scope marker, model id, [provider], then the active checkmark, in that order.
+        // Invariant: arrow, scope marker, model id, [provider], then the active checkmark.
         const prefix = selected ? theme.fg("accent", "→ ") : "  ";
         const marker = scoped ? theme.fg("accent", "●") : theme.fg("dim", "○");
         const label = selected ? theme.fg("text", row.model.id) : row.model.id;
@@ -391,7 +391,7 @@ export class ModelsDialogComponent implements Component, Focusable {
     const confirm = keyLabel("tui.select.confirm");
     const save = keyLabel("app.models.save");
     return [
-      { action: "type to search" },
+      { key: "Type", action: "search" },
       { key: "↑↓", action: "navigate" },
       ...(tab.length === 0 ? [] : [{ key: tab, action: "filter" }]),
       ...(confirm.length === 0 ? [] : [{ key: confirm, action: "switch" }]),

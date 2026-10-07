@@ -10,8 +10,8 @@
  * colors with session naming for the system root, standard paging/first-last/non-root
  * containing-branch folding keys with a permanently expanded system session entry even behind hidden
  * metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and
- * selected-fragment highlighting, and Models-ordered semantic shortcut footers without a redundant
- * select hint.
+ * selected-fragment highlighting, and Models-ordered semantic Type/search shortcut footers without a
+ * redundant select hint.
  * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
@@ -1250,8 +1250,8 @@ class TreeHelp implements Component {
 
 	render(width: number): string[] {
 		const items = [
-			...TREE_HELP_ITEMS.map(({ keys, label, labelFirst }) => {
-				const key = formatHelpKeys(keys);
+			...TREE_HELP_ITEMS.map(({ keys, label, labelFirst, displayKey }) => {
+				const key = displayKey ?? formatHelpKeys(keys);
 				const action = keys.includes("app.tree.toggleLabelTimestamp")
 					? `time (${this.treeList.isLabelTimestampVisible() ? "on" : "off"})`
 					: label;
@@ -1290,8 +1290,8 @@ class TreeHelp implements Component {
 	}
 }
 
-const TREE_HELP_ITEMS: Array<{ keys: Keybinding[]; label: string; labelFirst?: boolean }> = [
-	{ keys: [], label: "type to search" },
+const TREE_HELP_ITEMS: Array<{ keys: Keybinding[]; label: string; labelFirst?: boolean; displayKey?: string }> = [
+	{ keys: [], displayKey: "Type", label: "search" },
 	{ keys: ["tui.select.up", "tui.select.down"], label: "navigate" },
 	{ keys: ["app.tree.filter.cycleForward"], label: "filter" },
 	{ keys: ["tui.select.pageUp", "tui.select.pageDown"], label: "page" },

@@ -2272,7 +2272,7 @@ or collapsed startup changelog behavior and acknowledgement unchanged.
 - **THEN** no A1 note or acknowledgement SHALL be used, and Pi's pinned expanded or collapsed startup changelog behavior SHALL remain unchanged
 
 ### Requirement: The bare-A1 thinking selector uses the established selector treatment
-The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Every level row SHALL begin with a fixed-width exclusive-radio marker that differs from the Models dialog's multi-select state: the configured default SHALL use exactly one semantic accent-colored `◉`, and every non-default level SHALL use a semantic dim `○`. One space after that marker, every row SHALL render its unpadded level name. The active session level SHALL have exactly one semantic success-green checkmark one space immediately after the final visible cell of its level name, matching the item-adjacent active treatment used by other dialogs; the checkmark SHALL NOT be delayed to a shared marker column. Width-balancing padding SHALL follow the optional active marker so every description renders inline in semantic muted grey and begins at the same column regardless of active/default placement. The selector SHALL NOT render the textual `[default]` marker. Space SHALL immediately persist the highlighted level as the configured global default, move the single selected radio to that row, and replace the previous row's marker with an unselected radio without closing the selector, changing the active session level, or creating an unsaved state. Enter SHALL continue selecting the highlighted session level, and only Escape SHALL close the selector. Ctrl+C SHALL NOT close the selector or invoke cancellation. The shortcut footer SHALL use semantic hint styling and read `Enter select  Space default  Esc close`. While the selector is open, the shell footer SHALL omit its thinking-level suffix so the active level is not duplicated below the selector, then restore that suffix when the selector closes. The interaction change SHALL preserve the selector's borders, search input, navigation, filtering, focus, restoration behavior, narrow-width bounds, and comparison-profile isolation.
+The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Every level row SHALL begin with a fixed-width exclusive-radio marker that differs from the Models dialog's multi-select state: the configured default SHALL use exactly one semantic accent-colored `◉`, and every non-default level SHALL use a semantic dim `○`. One space after that marker, every row SHALL render its unpadded level name. The active session level SHALL have exactly one semantic success-green checkmark one space immediately after the final visible cell of its level name, matching the item-adjacent active treatment used by other dialogs; the checkmark SHALL NOT be delayed to a shared marker column. Width-balancing padding SHALL follow the optional active marker so every description renders inline in semantic muted grey and begins at the same column regardless of active/default placement. The selector SHALL NOT render the textual `[default]` marker. Space SHALL immediately persist the highlighted level as the configured global default, move the single selected radio to that row, and replace the previous row's marker with an unselected radio without closing the selector, changing the active session level, or creating an unsaved state. Enter SHALL continue selecting the highlighted session level, and only Escape SHALL close the selector. Ctrl+C SHALL NOT close the selector or invoke cancellation. The shortcut footer SHALL use semantic hint styling and read `Type search  Enter select  Space default  Esc close`. While the selector is open, the shell footer SHALL omit its thinking-level suffix so the active level is not duplicated below the selector, then restore that suffix when the selector closes. The interaction change SHALL preserve the selector's borders, search input, navigation, filtering, focus, restoration behavior, narrow-width bounds, and comparison-profile isolation.
 
 #### Scenario: Render the thinking selector heading
 - **WHEN** the user opens the bare-A1 thinking selector
@@ -2317,7 +2317,8 @@ The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic acc
 
 #### Scenario: Render compact controls
 - **WHEN** the bare-A1 thinking selector is open
-- **THEN** its semantic shortcut footer SHALL read `Enter select  Space default  Esc close` in that order
+- **THEN** its semantic shortcut footer SHALL read `Type search  Enter select  Space default  Esc close` in that order
+- **AND** `Type` SHALL use the quiet key role while `search` uses the action-text role
 - **AND** it SHALL NOT advertise Ctrl+S, `Escape/Ctrl+C`, or the verbose `to select`, `to set as default`, or `to cancel` wording
 
 #### Scenario: Preserve comparison behavior
@@ -2869,7 +2870,7 @@ The search control SHALL use the ordinary dialog input presentation, including i
 
 The selected tree entry SHALL use the ordinary menu arrow `→` with the subtle purple accent-tinted selection background. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted, without whole-row bold treatment. Tree entries SHALL NOT render active-path bullets. Entry labels SHALL use the theme accent color. When label-time display is enabled, its timestamp SHALL be enclosed in square brackets and use the same accent color as the label. The result counter SHALL append plain `label time` status text without brackets or a leading plus sign. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `session`. An empty search result SHALL show `No entries found` without a `(0/0)` counter.
 
-The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule. Their order SHALL follow the Models dialog: `type to search`, vertical navigation, `Tab filter`, extended page/first-last/branch navigation, then copy and label actions. The label-timestamp shortcut action SHALL read `time (off)` while label timestamps are hidden and `time (on)` while they are visible, updating with the current state after each toggle. The footer SHALL omit an `Enter select` hint.
+The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule. Their order SHALL follow the Models dialog: `Type search`, vertical navigation, `Tab filter`, extended page/first-last/branch navigation, then copy and label actions. The label-timestamp shortcut action SHALL read `time (off)` while label timestamps are hidden and `time (on)` while they are visible, updating with the current state after each toggle. The footer SHALL omit an `Enter select` hint.
 
 While editing an entry label, the frame title SHALL become accent-bold `Label`, followed immediately by a muted `Empty to remove` subheader. The standard single-line input SHALL follow after one blank row. The tree search control, results, filter/navigation shortcuts, and `Session Tree` title SHALL be hidden. Only the shared save/cancel shortcut footer SHALL remain, immediately followed by the bottom rule.
 
@@ -2947,7 +2948,7 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 
 #### Scenario: Read tree shortcut hints
 - **WHEN** the ordinary Session Tree is visible with label timestamps hidden
-- **THEN** its footer SHALL begin with typing guidance, vertical navigation, and `Tab filter` in that order
+- **THEN** its footer SHALL begin with `Type search`, vertical navigation, and `Tab filter` in that order
 - **AND** its label-timestamp action SHALL read `time (off)` rather than `label time`
 - **AND WHEN** the user toggles label timestamps on
 - **THEN** the same action SHALL read `time (on)`
@@ -3337,3 +3338,17 @@ When the bare-A1 default editor applies a selected top-level slash-command row, 
 
 - **WHEN** the user applies an argument, path/resource, attachment, or other non-command completion, or applies a top-level command through `a1 pi`
 - **THEN** its existing completion text, spacing, cursor placement, and outcome SHALL remain unchanged
+
+### Requirement: Searchable dialog typing guidance uses shortcut roles
+
+Bare A1's Models, Skills, Thinking Level, Resume Session, and Session Tree dialogs SHALL present their typing-based search guidance as the exact visible text `Type search`. `Type` SHALL use the shared quiet key role, and `search` SHALL use the shared action-text role used by neighboring shortcut hints. This presentation change SHALL NOT alter search input, filtering, hint order, spacing, width handling, keybindings, or the pinned `a1 pi` comparison profile.
+
+#### Scenario: Read typing guidance in a searchable dialog
+- **WHEN** the ordinary Models, Skills, Thinking Level, Resume Session, or Session Tree dialog is visible
+- **THEN** its shortcut guidance SHALL begin with `Type search`
+- **AND** `Type` SHALL use the key role while `search` uses the action role
+- **AND** the remaining hints SHALL retain their established order and behavior
+
+#### Scenario: Use the comparison profile
+- **WHEN** a corresponding searchable surface is presented through `a1 pi`
+- **THEN** its pinned wording and presentation SHALL remain unchanged
