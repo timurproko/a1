@@ -19,7 +19,7 @@ The manual merge accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-06-close-dialogs-with-ctrl-c/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-06-close-dialogs-with-ctrl-c/acceptance.md",
   "finalizedDate": "2026-10-06",
-  "specBaseSha": "ff896747fedf55174cdee19e2deaaaf377dfeb90",
+  "specBaseSha": "dd68a357f4f002409ef4e78702a17356c3fc2f1f",
   "acceptanceScenarios": [
     "One Ctrl+C closes an active built-in dialog immediately, including when its search or input is populated.",
     "Ctrl+C in a nested dialog cancels only that active step and restores its expected parent surface.",
@@ -28,8 +28,8 @@ The manual merge accepts these scenarios:
     "One Ctrl+C closes Settings, Changelog, Keyboard Shortcuts, and Session Info without invoking the application exit chord, including while Settings owns nested input.",
     "Ctrl+C outside dismissible-surface ownership retains the active editor, terminal, comparison-profile, or non-opted-in application's established behavior."
   ],
-  "archiveDigest": "e1399f4bcbdb4487c51599ad1214a42b906a976134dfb5c825f6bdcd8f3e768c",
-  "specDigest": "a3e68f28eb95e81f1c7897b33d8cbf08a9443ac51c0717f44974f1141bfec1ca",
+  "archiveDigest": "bd7771c6a50a31dd3416031ec32eca692fb696ff4621f2f1b5bd00d7000b022b",
+  "specDigest": "6863db6cdca5fcc69caf7b214c4ec2fb449a838330568e9fa8601e9cc5fbd390",
   "tasksDigest": "4d9d948fca7e8465b3d42f7e33c97342aad54c4cb88ba571d02d70740e6f3568",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
