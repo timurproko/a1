@@ -69,8 +69,6 @@ import {
   createPiShellExtensionSelector,
   createPiShellLoginDialog,
   createPiShellModelSelector,
-  createPiShellOperationLoader,
-  createPiShellReloadBox,
   createPiShellScopedModelsSelector,
   createPiShellSelector,
   createPiShellSessionSelector,

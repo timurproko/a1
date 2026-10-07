@@ -1,6 +1,5 @@
 import {
   ArminComponent,
-  BorderedLoader,
   DynamicBorder,
   getSelectListTheme,
   LoginDialogComponent,
@@ -373,24 +372,6 @@ export function createPiShellArmin(
 export function createPiShellEarendilAnnouncement(): PiShellComponentPort {
   ensureTheme();
   return componentPort(new EarendilAnnouncementComponent());
-}
-
-export interface PiShellOperationLoaderPort extends PiShellComponentPort {
-  readonly signal: AbortSignal;
-}
-
-export function createPiShellOperationLoader(
-  runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
-  message: string,
-): PiShellOperationLoaderPort {
-  ensureTheme();
-  const loader = new BorderedLoader(createTuiFacade(runtime), piTheme(), message, { cancellable: true });
-  adoptPiModalFrame(loader, {
-    topIndex: 0,
-    bottomIndex: loader.children.length - 1,
-    preInsetContent: loader.children[3] === undefined ? [] : [loader.children[3]],
-  });
-  return { ...componentPort(loader), signal: loader.signal };
 }
 
 export function createPiShellReloadBox(): PiShellComponentPort {
