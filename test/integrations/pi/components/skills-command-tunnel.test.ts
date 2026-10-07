@@ -16,6 +16,7 @@ import {
   skillsTunnelQuery,
 } from "../../../../src/integrations/pi/components/skills-command.js";
 import { piTheme } from "../../../../src/integrations/pi/components/theme.js";
+import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
 
 const settle = async () => { for (let i = 0; i < 4; i++) await new Promise<void>(resolve => setImmediate(resolve)); };
 // Compatibility: the owned input profile binds undo to Ctrl+Z.
@@ -299,20 +300,18 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
       editor.setAutocompleteCommands(COMMANDS);
       editor.handleInput?.("/skills:");
       await settle();
-      // Rationale: the owned menu paints whitespace cells in reverse video; only the color roles matter here.
-      const rows = editor.render(80).map(row => row.replaceAll(/\u001b\[2?7m/gu, ""));
-      const accentStart = piTheme().fg("accent", "MARK").split("MARK")[0]!;
-      const mutedStart = piTheme().fg("muted", "MARK").split("MARK")[0]!;
+      const rows = editor.render(80);
       const selected = rows.find(row => stripTerminalSequences(row).trimStart().startsWith("→ skills:framer"))!;
       expect(selected).toBeDefined();
-      expect(selected).toContain(`${accentStart}→ skills:framer`);
-      // Invariant: the description keeps the muted role: its color start precedes only spacing before the text.
-      const description = selected.slice(selected.indexOf("→ skills:framer"));
-      expect(description).toContain(mutedStart);
-      expect(stripTerminalSequences(description.slice(description.indexOf(mutedStart)))).toMatch(/^\s+Design, edit, and publish Framer sites/u);
-      expect(description.slice(description.indexOf(mutedStart))).not.toContain(accentStart);
+      expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
+      expect(cellStyle(selected, "s")).toEqual(cellStyle(piTheme().fg("text", "s"), "s"));
+      expect(cellStyle(selected, "D")).toEqual(cellStyle(piTheme().fg("muted", "D"), "D"));
+      const selectedText = stripTerminalSequences(selected);
+      const selectionBackground = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
+      expect(cellBackgroundAt(selected, selectedText.indexOf("→"))).toBe(selectionBackground);
+      expect(cellBackgroundAt(selected, selectedText.indexOf("D"))).toBe(selectionBackground);
       const ordinary = rows.find(row => stripTerminalSequences(row).trim().startsWith("skills:code-review"))!;
-      expect(stripTerminalSequences(ordinary.slice(ordinary.indexOf(mutedStart)))).toMatch(/^\s+Review the current diff/u);
+      expect(cellStyle(ordinary, "R")).toEqual(cellStyle(piTheme().fg("muted", "R"), "R"));
       editor.handleInput?.(ESC);
       editor.setText("");
 
