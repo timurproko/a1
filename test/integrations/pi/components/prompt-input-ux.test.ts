@@ -8,7 +8,7 @@ import { hyperlinkTargetAtColumn, LineInput, PromptInput, promptRule, renderInpu
 import { applyPiTheme, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS } from "../../../../src/integrations/pi/components/index.js";
 import { createPiShellThinkingSelector } from "../../../../src/integrations/pi/components/thinking-selector-dialog.js";
 import { KeybindingsManager, useWindowsKeybindings } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
-import { cellStyle } from "../../../support/ansi-cell-style.js";
+import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
 import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
@@ -200,7 +200,8 @@ describe("owned level and model keybindings", () => {
         const rows = selector.render(100);
         const selected = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
         expect(stripTerminalSequences(selected).replace(/\s+/g, " ")).toContain("→ ◉ medium ✓ Moderate reasoning");
-        expect(cellStyle(selected, "m")).toEqual(cellStyle(piTheme().fg("accent", "m"), "m"));
+        expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
+        expect(cellStyle(selected, "m")).toEqual(cellStyle(piTheme().fg("text", "m"), "m"));
         expect(cellStyle(selected, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
         expect(cellStyle(selected, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
         expect(cellStyle(selected, "◉")).toEqual(cellStyle(piTheme().fg("accent", "◉"), "◉"));
@@ -285,9 +286,17 @@ describe("owned level and model keybindings", () => {
         .map(description => candidateRows.find(row => row.includes(description))!.indexOf(description));
       expect(candidateDescriptionColumns).toEqual(descriptionColumns);
     }
-    expect(cellStyle(selectedRow, "m")).toEqual(cellStyle(piTheme().fg("accent", "m"), "m"));
+    expect(cellStyle(selectedRow, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
+    expect(cellStyle(selectedRow, "m")).toEqual(cellStyle(piTheme().fg("text", "m"), "m"));
     expect(cellStyle(selectedRow, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
     expect(cellStyle(unselectedRow, "L")).toEqual(cellStyle(piTheme().fg("muted", "L"), "L"));
+    const selectedText = stripTerminalSequences(selectedRow);
+    expect(selectedText.endsWith("Moderate reasoning (~8k tokens)")).toBe(true);
+    expect(selectedText).toBe(selectedText.trimEnd());
+    const selectionBackground = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
+    expect(cellBackgroundAt(selectedRow, 1)).toBe(selectionBackground);
+    expect(cellBackgroundAt(selectedRow, selectedText.length - 1)).toBe(selectionBackground);
+    expect(selectedRow).not.toContain("\u001b[1m");
     expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
     expect(cellStyle(selectedRow, "◉")).toEqual(cellStyle(piTheme().fg("accent", "◉"), "◉"));
     expect(cellStyle(unselectedRow, "○")).toEqual(cellStyle(piTheme().fg("dim", "○"), "○"));

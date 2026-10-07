@@ -9,7 +9,7 @@ export interface UiTheme {
    * into a dark terminal, which is how the engine leaves its lists too.
    */
   plain(text: string): string;
-  /** Inverted styling for the active row of a floating surface. */
+  /** Selection background for an active list item or floating-surface row. */
   highlight(text: string): string;
   /** A control that is present but cannot act: quieter than quiet text. */
   disabled(text: string): string;

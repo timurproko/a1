@@ -17,6 +17,7 @@ import {
 import {
   PINNED_PI_LAYOUT,
   piTheme,
+  renderPiListSelection,
 } from "./theme.js";
 import {
   createTuiFacade,
@@ -34,8 +35,19 @@ import {
   type PiShellSkillSummary,
 } from "./skills-command.js";
 
-/** A selected autocomplete row: the accent primary column, then the aligned description. */
+/** A selected autocomplete row: its arrow/primary column, then the aligned description. */
 const SELECTED_DESCRIBED_ROW = /^(→ .*?\S)(\s{2,}.*)$/u;
+
+function renderOwnedAutocompleteSelection(text: string): string {
+  const theme = piTheme();
+  const row = SELECTED_DESCRIBED_ROW.exec(text);
+  const primary = row?.[1] ?? text;
+  const hasArrow = primary.startsWith("→ ");
+  const arrow = hasArrow ? theme.fg("accent", "→ ") : "";
+  const label = theme.fg("text", hasArrow ? primary.slice(2) : primary);
+  const description = row === null ? "" : theme.fg("muted", row[2]!);
+  return renderPiListSelection(arrow + label + description);
+}
 const PINNED_THINKING_SLASH_COMMAND = { name: "thinking", description: "Set thinking level", argumentHint: "<level>" } as const;
 const OWNED_THINKING_SLASH_COMMAND = { name: "thinking", description: "Set thinking level" } as const;
 const OWNED_LOGIN_SLASH_COMMAND = { name: "login", description: "Configure provider authentication" } as const;
@@ -102,10 +114,9 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
         return selectListTheme.scrollInfo(text);
       },
       selectedText: text => {
-        // Rationale: the pinned list styles a whole selected row at once. Bare A1 keeps the
-        // actionable primary column accented while every aligned description remains muted.
-        const row = SELECTED_DESCRIBED_ROW.exec(text);
-        return row === null ? selectListTheme.selectedText(text) : selectListTheme.selectedText(row[1]!) + selectListTheme.description(row[2]!);
+        // Rationale: bare A1 keeps the arrow accented, the actionable label readable, and descriptions muted
+        // on the same item-bounded blue surface used by its standard modal selectors.
+        return renderOwnedAutocompleteSelection(text);
       },
     },
   }, keybindings, {
