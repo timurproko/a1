@@ -5,7 +5,7 @@ Selecting a top-level slash command with Tab currently inserts a trailing space,
 ## What Changes
 
 - In bare A1, make Tab acceptance of a top-level slash-command suggestion complete to `/<name>` with the cursor directly after the command and no trailing space.
-- Keep the command and its exact matching suggestion row continuously visible after Tab, without a close/reopen flash, so the next keystroke can be `:`, a manually entered space for arguments, Enter, or another valid suffix.
+- Keep suggestions continuously visible after Tab without a close/reopen flash, then update a broader search menu to only the exact matching command row, so the next keystroke can be `:`, a manually entered space for arguments, Enter, or another valid suffix.
 - Preserve Enter submission, command ordering and filtering, argument/path/resource completion, extension-provider composition, and the pinned `a1 pi` comparison behavior.
 - Add focused coverage for ordinary commands, commands with arguments, and the `/skills:` tunnel in both editor history modes.
 

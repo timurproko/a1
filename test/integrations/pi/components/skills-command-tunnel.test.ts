@@ -161,12 +161,16 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
           argumentOptions: [{ id: "openai", label: "OpenAI" }] },
       ]);
 
-      editor.handleInput?.("/sett");
+      editor.handleInput?.("/s");
       await settle();
       const settingsMenu = menuText(editor);
+      expect(settingsMenu.length).toBeGreaterThan(1);
+      expect(settingsMenu.find(row => row.includes("→"))).toMatch(/→ settings\s+Open settings menu/u);
       editor.handleInput?.(TAB);
       expect(editor.getText()).toBe("/settings");
       expect(menuText(editor)).toEqual(settingsMenu);
+      await settle();
+      expect(menuText(editor)).toHaveLength(1);
       expect(menuText(editor).find(row => row.includes("→"))).toMatch(/→ settings\s+Open settings menu/u);
       editor.handleInput?.(":");
       await settle();

@@ -6,7 +6,8 @@
  * frame, transient contextual-suggestion branch, and explicit body geometry for selection and
  * above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape. Bare
  * A1 also completes a selected or exact completed tunnel command with `:` and reopens the menu on its
- * tunnel rows, and synchronously retains an exact top-level command menu after Tab applies its row.
+ * tunnel rows, and synchronously retains then refreshes an exact top-level command menu after Tab
+ * applies its row.
  * Deviations: owned-shared-input-frame, above-prompt-autocomplete-placement,
  * clear-command-search-on-escape, command-tunnel-colon-completion, keep-command-menu-open-after-tab.
  */
@@ -181,7 +182,7 @@ return class extends Base {
     if (tabbedCommand !== undefined) this.#retainCompletedCommandMenu(tabbedCommand);
   }
 
-  /** Keep the exact completed command's existing menu visible without a close/reopen frame. */
+  /** Keep the current menu visible while refreshing it for the exact completed command. */
   #retainCompletedCommandMenu(completion: RetainedAutocomplete): void {
     const text = this.getText();
     const cursor = this.getCursor();
@@ -189,6 +190,7 @@ return class extends Base {
     Reflect.set(this, "autocompleteList", completion.list);
     Reflect.set(this, "autocompleteState", completion.state);
     Reflect.set(this, "autocompletePrefix", text);
+    triggerAutocomplete(this);
   }
 
   /**

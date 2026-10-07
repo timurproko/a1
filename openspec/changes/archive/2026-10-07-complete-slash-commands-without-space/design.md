@@ -9,7 +9,7 @@ The editor sends both Tab and Enter acceptance through the provider. Tab applies
 **Goals:**
 
 - Leave a Tab-completed top-level command as `/<name>` with the cursor at its end in bare A1.
-- Retain the existing exact-match autocomplete row synchronously so Tab never paints a close/reopen flash.
+- Retain the existing autocomplete rows synchronously while refreshing them to the exact-match row, so Tab never paints a close/reopen flash.
 - Let the next `:` immediately form a tunnel spelling such as `/skills:` and trigger its existing suggestions.
 - Preserve command execution, argument completion after a manually typed space, extension-provider composition, undo/change notifications, and both history modes.
 - Keep the `a1 pi` comparison profile byte-compatible with pinned Pi completion spacing.
@@ -36,11 +36,11 @@ The provider cannot and need not distinguish Tab from Enter. With the generated 
 
 This keeps direct commands such as `/settings` executable and commands such as `/login` editable without inventing a second application path.
 
-### 3. Retain the existing menu only for the exact Tab-completed command
+### 3. Retain the existing menu while refreshing the exact Tab-completed command
 
-Before delegating an active top-level command Tab to the existing editor, capture its selected value, list instance, and regular/forced state. Let normal application update text, cursor, undo, and change notification, then synchronously restore that same list and set its prefix to the completed text only when the resulting single-line editor text is exactly `/<selected>` and the cursor is at its end. Because the menu never enters a closed render state and no asynchronous second provider request is made, its rows remain byte-identical before and after Tab and cannot flash away between frames.
+Before delegating an active top-level command Tab to the existing editor, capture its selected value, list instance, and regular/forced state. Let normal application update text, cursor, undo, and change notification, then synchronously restore that same list and set its prefix to the completed text only when the resulting single-line editor text is exactly `/<selected>` and the cursor is at its end. Immediately request suggestions for the completed prefix while leaving the restored rows rendered. The exact provider result replaces the broader search rows when ready, but the menu never enters a closed render state and therefore cannot flash away between frames.
 
-This bounded owned-editor state bridge extends the existing selected-row and autocomplete-trigger bridge already declared for command tunnels; copied-source provenance and the deviation ledger record it explicitly. Do not retain when completion left a suffix after the cursor, produced argument/path/resource text, or retained pinned trailing whitespace. Enter keeps its submit path and the `a1 pi` comparison profile therefore remains unchanged.
+This bounded owned-editor state bridge extends the existing selected-row and autocomplete-trigger bridge already declared for command tunnels; copied-source provenance and the deviation ledger record it explicitly. Do not retain or refresh when completion left a suffix after the cursor, produced argument/path/resource text, or retained pinned trailing whitespace. Enter keeps its submit path and the `a1 pi` comparison profile therefore remains unchanged.
 
 ### 4. Extend the existing owned tunnel trigger to exact completed commands
 
@@ -50,14 +50,14 @@ The tunnel's candidate labels, filtering, selected-description styling, applicat
 
 ### 5. Verify both owned editor paths and the comparison profile
 
-Focused tests will run with persistent history enabled and disabled. They will assert that Tab produces no trailing space and synchronously retains byte-identical menu rows for ordinary and tunnel commands while showing the exact match for argument-bearing commands; a manually typed space still opens argument completion; and `/skills` followed by `:` opens the existing tunnel. Separate comparison assertions will prove `a1 pi` still appends the pinned trailing space.
+Focused tests will run with persistent history enabled and disabled. They will assert that Tab produces no trailing space, synchronously retains the current rows without a blank frame, and then refreshes a broader search to only the exact command row; a manually typed space still opens argument completion; and `/skills` followed by `:` opens the existing tunnel. Separate comparison assertions will prove `a1 pi` still appends the pinned trailing space.
 
 ## Risks / Trade-offs
 
 - **[Risk] The adapter removes user-authored whitespace.** → Remove only the one provider-generated spacer at the exact returned command boundary; preserve all text after the original cursor.
 - **[Risk] Argument completion no longer starts automatically after Tab.** → This is intentional: Tab leaves the completed command visible and delimiter-ready; typing one space restores the established argument path.
 - **[Risk] Provider wrappers observe unexpected results.** → Keep discovery and application delegation intact and cover an extension wrapper composed over the owned provider.
-- **[Risk] Tab retains a stale or unrelated menu.** → Restore the captured list only when its selected value exactly equals the complete applied editor text and cursor boundary; every non-exact result remains closed.
+- **[Risk] Tab retains stale or unrelated rows.** → Restore the captured list only when its selected value exactly equals the complete applied editor text and cursor boundary, then refresh through the provider for that exact prefix; every non-exact application remains closed.
 - **[Risk] Comparison parity drifts.** → Gate spacer removal on the bare-A1 profile; the comparison's trailing space prevents reopening, and a focused assertion retains pinned behavior.
 
 ## Migration Plan
