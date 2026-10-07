@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { renderShortcutHints } from "../../../src/ui/components/index.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT } from "../../../src/contracts/presentation/index.js";
+import { renderShortcutHints, renderShortcutHintsWithClose } from "../../../src/ui/components/index.js";
 import { displayWidth, stripAnsi, truncateToWidth } from "../../../src/ui/components/text.js";
 
 const theme = {
@@ -7,6 +8,20 @@ const theme = {
 };
 
 describe("modal shortcut hints", () => {
+  it("renders the canonical dialog close entry as Esc close", () => {
+    expect(DIALOG_CLOSE_SHORTCUT_HINT).toEqual({ key: "esc", action: "close" });
+    expect(stripAnsi(renderShortcutHints([DIALOG_CLOSE_SHORTCUT_HINT], theme))).toBe("Esc close");
+  });
+
+  it("clips preceding entries before a final canonical close entry", () => {
+    const rendered = renderShortcutHintsWithClose([
+      { key: "enter", action: "select" },
+      DIALOG_CLOSE_SHORTCUT_HINT,
+    ], theme, 12, 1);
+    expect(stripAnsi(rendered)).toBe("Esc close");
+    expect(displayWidth(rendered)).toBe(9);
+  });
+
   it("uses separate key and action roles with whitespace-only entry gaps", () => {
     const rendered = renderShortcutHints([
       { key: "↑↓", action: "navigate" },

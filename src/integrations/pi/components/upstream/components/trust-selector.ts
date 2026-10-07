@@ -10,7 +10,7 @@
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, getKeybindings, Spacer, Text } from "@earendil-works/pi-tui";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export interface TrustDecision { readonly path: string; readonly decision: boolean }
 export interface TrustUpdate { readonly path: string; readonly decision: boolean | null }
@@ -61,7 +61,7 @@ export class TrustSelectorComponent extends Container {
     this.addChild(new Text(renderPiModalShortcutHints([
       { key: "↑↓", action: "navigate" },
       { key: keybindings.getKeys("tui.select.confirm").join("/"), action: "save" },
-      { key: keybindings.getKeys("tui.select.cancel").join("/"), action: "cancel" },
+      DIALOG_CLOSE_SHORTCUT_HINT,
     ]), 0, 0));
     this.addChild(new DynamicBorder(text => piTheme().fg("border", text)));
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });

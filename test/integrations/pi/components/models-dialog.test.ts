@@ -121,7 +121,9 @@ describe("unified Models dialog", () => {
   it("truncates every row to the width and keeps narrow frames free of wrapped fragments", () => {
     withDialog(dialog => {
       for (const width of [28, 12]) {
-        for (const line of dialog.render(width)) expect(stripTerminalSequences(line).length).toBeLessThanOrEqual(width);
+        const rendered = dialog.render(width);
+        for (const line of rendered) expect(stripTerminalSequences(line).length).toBeLessThanOrEqual(width);
+        expect(stripTerminalSequences(rendered.join("\n"))).toContain("Esc close");
       }
       expect(rows(dialog, 28)).toEqual(["   ○ claude [anthropic]", " → ○ gpt-5 [openai] ✓", "   ○ gpt-5-mini [openai]"]);
     });

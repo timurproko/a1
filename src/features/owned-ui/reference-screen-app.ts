@@ -1,4 +1,5 @@
 import type { OwnedUiViewportSettings } from "../../contracts/owned-ui/index.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT } from "../../contracts/presentation/index.js";
 import type { AppHostServices, UiApp } from "../../ui/apps/index.js";
 import {
   GLOBAL_SCOPE,
@@ -11,7 +12,7 @@ import {
   layoutList,
   padToWidth,
   renderGroupHeader,
-  renderShortcutHints,
+  renderShortcutHintsWithClose,
   scrollForTrackPage,
   scrollbarGeometry,
   scrollbarPresentation,
@@ -40,14 +41,17 @@ const LOADING_NOTICE = "Loading…";
 type Action = "up" | "down" | "page-up" | "page-down" | "first" | "last" | "close";
 
 export const REFERENCE_SCREEN_SHORTCUTS = new ShortcutRegistry<Action>();
-// Compatibility: Ctrl+C stays implicit in this app's hints; an opted-in host closes the screen before dispatch.
-REFERENCE_SCREEN_SHORTCUTS.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen", hint: { keys: "esc", does: "close" } }, "close");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Scroll up", section: "Navigate", hint: { keys: "↑↓", does: "scroll" } }, "up");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Scroll down", section: "Navigate", hint: { keys: "↑↓", does: "scroll" } }, "down");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "pageUp", scope: SCOPE, description: "Up a page", section: "Navigate" }, "page-up");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "pageDown", scope: SCOPE, description: "Down a page", section: "Navigate" }, "page-down");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "home", scope: SCOPE, description: "First row", section: "Navigate" }, "first");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "end", scope: SCOPE, description: "Last row", section: "Navigate" }, "last");
+// Compatibility: Ctrl+C remains the A1 interrupt chord here rather than a visible close key.
+REFERENCE_SCREEN_SHORTCUTS.declare({
+  key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen",
+  hint: { keys: DIALOG_CLOSE_SHORTCUT_HINT.key, does: DIALOG_CLOSE_SHORTCUT_HINT.action },
+}, "close");
 assertNoShortcutConflicts(REFERENCE_SCREEN_SHORTCUTS.assemble());
 
 const KEYS: Readonly<Record<string, string>> = {
@@ -197,7 +201,7 @@ export class ReferenceScreenApp implements UiApp {
     const withRail = withScrollbarRail(body.slice(0, bodyHeight), geometry, contentWidth, theme, { presentation });
     const hint = this.#interruptArmed
       ? theme.fg("dim", " press ctrl+c again to exit a1")
-      : renderShortcutHints(REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme, 1);
+      : renderShortcutHintsWithClose(REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme, rect.width, 1);
     // Compatibility: the v2 reference screen frames its document between two border-coloured rules.
     const rule = theme.fg("border", "─".repeat(rect.width));
     // Invariant: dialog chrome shares the title's one-cell inset; document content keeps its own layout.

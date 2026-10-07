@@ -102,14 +102,15 @@ describe("ReferenceScreenApp frame", () => {
     expect(lines.slice(5, RECT.height - 2).every(line => line.trim() === "")).toBe(true);
     expect(lines.at(-2)).toBe(`<border>${RULE}</border>`);
     expect(REFERENCE_SCREEN_SHORTCUTS.hintEntries("reference-screen")).toEqual([
-      { key: "esc", action: "close" },
       { key: "↑↓", action: "scroll" },
+      { key: "esc", action: "close" },
     ]);
     // Invariant: dialog chrome uses the same one-cell inset as the title.
     const wideFooter = screen(target, { ...HOST, theme: NAMING_THEME }, { width: 100, height: RECT.height }).at(-1) ?? "";
-    expect(wideFooter.startsWith(" <dim>Esc</dim> <muted>close</muted>  <dim>↑↓</dim> <muted>scroll</muted> ")).toBe(true);
+    expect(wideFooter.startsWith(" <dim>↑↓</dim> <muted>scroll</muted>  <dim>Esc</dim> <muted>close</muted> ")).toBe(true);
     expect(wideFooter.indexOf("<dim>")).toBe(lines[1]!.indexOf("<b>"));
     expect(wideFooter).not.toMatch(/[·•]/u);
+    expect(screen(target, HOST, { width: 10, height: RECT.height }).at(-1)).toContain("Esc close");
     // Invariant: a fitting document does not move and reserves the rail columns under auto.
     target.onInput?.(DOWN, HOST);
     target.onInput?.(END, HOST);

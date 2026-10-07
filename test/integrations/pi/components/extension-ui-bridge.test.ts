@@ -60,7 +60,7 @@ describe("pinned extension UI bridge", () => {
     expect(firstVisibleTextColumn(selectorRows.find(row => stripTerminalSequences(row).includes("Choose"))!))
       .toBe(firstVisibleTextColumn(selectorRows.find(row => stripTerminalSequences(row).includes("↑↓ navigate"))!));
     expect(selectorFrame).toContain("alpha");
-    expect(selectorFrame).toContain("↑↓ navigate  Enter select  Escape cancel");
+    expect(selectorFrame).toContain("↑↓ navigate  Enter select  Esc close");
     expect(selectorFrame).not.toContain("Ctrl+C");
     expect(selectorFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("\x1b[B");
@@ -74,7 +74,7 @@ describe("pinned extension UI bridge", () => {
     expect(stripTerminalSequences(inputRows[1]!)).toContain("Name");
     expect(firstVisibleTextColumn(inputRows.find(row => stripTerminalSequences(row).includes("Name"))!))
       .toBe(firstVisibleTextColumn(inputRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!));
-    expect(inputFrame).toContain("Enter submit  Escape cancel");
+    expect(inputFrame).toContain("Enter submit  Esc close");
     expect(inputFrame).not.toContain("Ctrl+C");
     expect(inputFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("Ada");
@@ -87,7 +87,7 @@ describe("pinned extension UI bridge", () => {
     expect(stripTerminalSequences(editorRows[1]!)).toContain("Notes");
     expect(firstVisibleTextColumn(editorRows.find(row => stripTerminalSequences(row).includes("Notes"))!))
       .toBe(firstVisibleTextColumn(editorRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!));
-    expect(editorFrame).toContain("Enter submit  Shift+Enter/Ctrl+J newline  Escape cancel  Ctrl+G external editor");
+    expect(editorFrame).toContain("Enter submit  Shift+Enter/Ctrl+J newline  Ctrl+G external editor  Esc close");
     expect(editorFrame).not.toContain("Ctrl+C");
     expect(editorFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("\u0003");

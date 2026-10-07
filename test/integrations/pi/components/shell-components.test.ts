@@ -22,6 +22,8 @@ import {
   createPiShellSettingsSelector,
   createPiShellSessionInfo,
   createPiShellSelector,
+  createPiShellShowImagesSelector,
+  createPiShellThemeSelector,
   createPiShellUserMessageSelector,
   createPiShellStatus,
   createPiShellTranscriptComponent,
@@ -78,7 +80,7 @@ describe("Pi shell public component adapters", () => {
       const rows = dialog.render(40);
       const plainRows = rows.map(row => stripTerminalSequences(row).trimEnd());
       const titleRow = plainRows.findIndex(row => row === " Share");
-      const hintRow = plainRows.findIndex(row => row === " Escape cancel");
+      const hintRow = plainRows.findIndex(row => row === " Esc close");
 
       expect(titleRow).toBe(1);
       expect(plainRows[0]).toBe("─".repeat(40));
@@ -86,8 +88,8 @@ describe("Pi shell public component adapters", () => {
       expect(hintRow).toBeGreaterThan(titleRow);
       expect(plainRows[hintRow + 1]).toBe("─".repeat(40));
       expect(rows[titleRow]).toContain(piTheme().fg("accent", piTheme().bold("Share")));
-      expect(rows[hintRow]).toContain(piTheme().fg("dim", "Escape"));
-      expect(rows[hintRow]).toContain(piTheme().fg("muted", "cancel"));
+      expect(rows[hintRow]).toContain(piTheme().fg("dim", "Esc"));
+      expect(rows[hintRow]).toContain(piTheme().fg("muted", "close"));
       expect(plainRows.join("\n")).not.toContain("Ctrl+C");
       expect(dialog.render(12).every(row => visibleWidth(row) <= 12)).toBe(true);
     } finally {
@@ -924,6 +926,7 @@ describe("Pi shell public component adapters", () => {
     });
     const rows = stripTerminalSequences(settings.render(88).join("\n"));
     expect(rows).toMatch(/Auto-compact\s+true/);
+    expect(stripTerminalSequences(settings.render(12).join("\n"))).toContain("Esc close");
     expect(rows).toMatch(/Auto-resize images\s+true/);
     settings.handleInput?.("\x1b[B");
     expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/32)");
@@ -931,7 +934,12 @@ describe("Pi shell public component adapters", () => {
     expect(cancelled).toHaveBeenCalledOnce();
 
     const selected = vi.fn();
+    const theme = createPiShellThemeSelector("dark", selected, cancelled, vi.fn());
+    expect(stripTerminalSequences(theme.render(80).join("\n"))).toContain("↑↓ navigate  Enter select  Esc close");
+    const images = createPiShellShowImagesSelector(true, selected, cancelled);
+    expect(stripTerminalSequences(images.render(80).join("\n"))).toContain("↑↓ navigate  Enter select  Esc close");
     const messages = createPiShellUserMessageSelector([{ id: "entry-1", label: "first prompt" }], selected, cancelled);
+    expect(stripTerminalSequences(messages.render(80).join("\n"))).toContain("Esc close");
     messages.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("entry-1");
     const auth = createPiShellAuthProviderSelector("login", [{
@@ -944,6 +952,7 @@ describe("Pi shell public component adapters", () => {
     const authRows = auth.render(80).map(stripTerminalSequences);
     expect(authRows[1]?.trimEnd()).toBe(" Select provider to configure:");
     expect(authRows.join("\n")).toContain("OpenAI ✓ stored");
+    expect(authRows.join("\n")).toContain("Esc close");
     auth.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("oauth:openai");
 
@@ -956,8 +965,14 @@ describe("Pi shell public component adapters", () => {
     login.showInfo("Continue in your browser", [], true);
     const loginRows = login.render(80).map(stripTerminalSequences);
     expect(loginRows[1]?.trimEnd()).toBe(" Login to openai");
-    expect(loginRows.join("\n")).toContain("escape to close");
+    expect(loginRows.join("\n")).toContain("Esc close");
     expect(loginRows.join("\n")).not.toContain("Ctrl+C");
+    login.showWaiting("Waiting for authentication");
+    const waitingRows = stripTerminalSequences(login.render(80).join("\n"));
+    expect(waitingRows).toContain("Waiting for authentication");
+    expect(waitingRows).toContain("Esc close");
+    expect(waitingRows).not.toContain("Ctrl+C");
+    expect(waitingRows).not.toContain("to cancel");
     login.handleInput?.("\u0003");
     expect(loginComplete).toHaveBeenCalledExactlyOnceWith(false, "Login cancelled");
 

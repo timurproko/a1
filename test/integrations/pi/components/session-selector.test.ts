@@ -144,6 +144,8 @@ describe("owned pinned session selector", () => {
     expect(filterRow).toContain(piTheme().fg("accent", "all"));
     expect(filterRow).toContain(piTheme().fg("accent", "threaded"));
     expect(plainInitialRows[firstHintIndex]).toContain('Tab scope  re:<pattern> regex  "phrase" exact');
+    expect(plainInitialRows[finalHintIndex]).toContain("Esc close");
+    expect(stripPortableTerminalSequences(component.render(12).join("\n"))).toContain("Esc close");
     expect(initialRows.slice(firstHintIndex, finalHintIndex + 1).join("\n")).not.toMatch(/[·•]/u);
     expect(frame()).not.toContain("Shift+Tab");
 
@@ -162,6 +164,7 @@ describe("owned pinned session selector", () => {
 
     input("\x04");
     expect(frame()).toContain("Cannot delete the currently active session");
+    expect(frame()).toContain("Esc close");
 
     input("\x1b[B");
     input("\x12");
@@ -171,6 +174,7 @@ describe("owned pinned session selector", () => {
     const renameHint = renameRows.find(row => stripPortableTerminalSequences(row).includes("to save"))!;
     const renameRules = renameRows.filter(row => /^─+$/u.test(stripPortableTerminalSequences(row)));
     expect(renameRules).toEqual([standardRule, standardRule]);
+    expect(stripPortableTerminalSequences(renameHint)).toContain("Enter to save  Esc close");
     expect(firstVisibleTextColumn(renameHint)).toBe(firstVisibleTextColumn(renameHeading));
     expect(stripPortableTerminalSequences(renameHint)).not.toContain("Ctrl+C");
     input("discarded rename");
@@ -191,6 +195,7 @@ describe("owned pinned session selector", () => {
     const confirmRows = component.render(100).map(stripPortableTerminalSequences);
     const confirmationIndex = confirmRows.findIndex(row => row.includes("Delete session?"));
     expect(confirmationIndex).toBeGreaterThan(confirmRows.findIndex(row => row.includes("Renamed session")));
+    expect(confirmRows[confirmationIndex]).toContain("Esc close");
     expect(confirmRows[confirmationIndex + 1]).toMatch(/^─+$/u);
     input("\r");
     await vi.waitFor(() => {
@@ -351,6 +356,7 @@ describe("owned pinned session selector", () => {
     expect(titleIndex).toBeLessThan(filterIndex);
     expect(filterIndex).toBeLessThan(emptyIndex);
     expect(emptyIndex).toBeLessThan(errorIndex);
+    expect(rows[errorIndex]).toContain("Esc close");
     expect(rows[errorIndex + 1]).toMatch(/^─+$/u);
   });
 });

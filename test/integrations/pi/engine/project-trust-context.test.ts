@@ -119,7 +119,7 @@ describe("canonical project trust context", () => {
     const rules = raw.filter(row => /^─+$/u.test(stripTerminalSequences(row)));
     expect(rules).toHaveLength(2);
     expect(rules.every(row => row === piTheme().fg("border", "─".repeat(600)))).toBe(true);
-    const hintIndex = rendered.findIndex(row => row.includes("↑↓ navigate  Enter save  Escape cancel"));
+    const hintIndex = rendered.findIndex(row => row.includes("↑↓ navigate  Enter save  Esc close"));
     const hint = rendered[hintIndex]!;
     expect(hint).not.toContain("Ctrl+C");
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));

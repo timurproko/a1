@@ -3,14 +3,24 @@ import {
   getKeybindings,
   matchesKey,
   truncateToWidth,
+  visibleWidth,
   type Component,
   type Focusable,
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "../startup-public.js";
 import { PiModalFrame } from "./modal-frame.js";
-import { piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "./theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "./theme.js";
 
 export type ModelsDialogFilter = "all" | "scoped";
+
+function renderHintsWithClose(entries: readonly PiModalShortcutHint[], width: number): string {
+  const body = renderPiModalShortcutHints(entries.slice(0, -1));
+  const close = renderPiModalShortcutHints([DIALOG_CLOSE_SHORTCUT_HINT]);
+  const closeWidth = visibleWidth(close);
+  if (width <= closeWidth) return truncateToWidth(close, width, "");
+  const clippedBody = truncateToWidth(body, Math.max(0, width - closeWidth - 2), "…");
+  return visibleWidth(clippedBody) === 0 ? close : `${clippedBody}  ${close}`;
+}
 
 export interface ModelsDialogModel {
   readonly provider: string;
@@ -366,7 +376,7 @@ export class ModelsDialogComponent implements Component, Focusable {
 
     push();
     if (this.#refreshStatus !== undefined) push(theme.fg(this.#refreshStatus.kind, `  ${this.#refreshStatus.message}`));
-    push(renderPiModalShortcutHints(this.#hints()));
+    push(renderHintsWithClose(this.#hints(), width));
     return lines;
   }
 
@@ -381,7 +391,7 @@ export class ModelsDialogComponent implements Component, Focusable {
       ...(confirm.length === 0 ? [] : [{ key: confirm, action: "switch" }]),
       { key: "space", action: "scope" },
       ...(save.length === 0 ? [] : [{ key: save, action: "save" }]),
-      { key: "esc", action: "close" },
+      DIALOG_CLOSE_SHORTCUT_HINT,
     ];
   }
 
