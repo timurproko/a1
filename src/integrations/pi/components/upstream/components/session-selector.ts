@@ -7,8 +7,8 @@
  * keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal
  * frame with standalone title, standard outer rules, stable filter/status row, progressive result
  * paging, aligned result columns, Session Tree selection roles, and bottom dynamic feedback and
- * shortcut footer. Selected session rows use the blue selection surface, success-green primary title,
- * muted metadata, and ordinary text weight.
+ * Type/search shortcut footer. Selected session rows use the blue selection surface, success-green
+ * primary title, muted metadata, and ordinary text weight.
  * Deviations: owned-modal-shortcut-hints, owned-resume-session-dialog,
  * owned-standard-dialog-selection.
  */
@@ -226,6 +226,7 @@ class SessionSelectorHeader implements Component {
 
 		const pathState = this.showPath ? "(on)" : "(off)";
 		const hint1 = renderPiModalShortcutHints([
+			{ key: "Type", action: "search" },
 			shortcutHint("tui.input.tab", "scope", this.keybindings),
 			{ action: "re:<pattern> regex" },
 			{ action: '"phrase" exact' },

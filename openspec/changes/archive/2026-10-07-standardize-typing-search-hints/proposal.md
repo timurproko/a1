@@ -4,7 +4,7 @@ Searchable dialogs currently render `type to search` as one muted action phrase,
 
 ## What Changes
 
-- Replace the searchable Models and Session Tree hint text `type to search` with `Type search`.
+- Present `Type search` in the searchable Models, Skills, Thinking Level, Resume Session, and Session Tree shortcut footers.
 - Render `Type` with the shared quiet key role and `search` with the shared action-text role.
 - Preserve hint ordering, spacing, wrapping/clipping, search behavior, keybindings, and the explicit `a1 pi` comparison profile.
 
@@ -20,4 +20,4 @@ None.
 
 ## Impact
 
-Expected implementation is limited to the Models and Session Tree semantic hint declarations, their focused rendering/workflow tests, and the corresponding owned Pi UI specification. No commands, keybindings, dependencies, persisted data, or comparison-profile behavior change.
+Expected implementation is limited to the Models, Skills, Thinking Level, Resume Session, and Session Tree semantic hint declarations, their focused rendering/workflow tests, copied-source provenance for adapted selectors, and the corresponding owned Pi UI specification. No commands, keybindings, dependencies, persisted data, or comparison-profile behavior change.
