@@ -62,6 +62,7 @@ import {
 } from "../../ui/components/index.js";
 import type {
   OwnedUiSettingValue,
+  OwnedUiSettingsChangeOutcome,
   OwnedUiSettingsEntry,
   OwnedSettingsManager,
 } from "../../ui/settings/index.js";
@@ -88,7 +89,7 @@ const CONFIGURE = "configure";
 
 type Action =
   | "move-up" | "move-down" | "block-up" | "block-down" | "first" | "last"
-  | "page-up" | "page-down" | "previous-value" | "next-value" | "activate" | "open-filter" | "close"
+  | "page-up" | "page-down" | "previous-value" | "next-value" | "activate" | "open-filter" | "close" | "undo"
   | "part-previous" | "part-next" | "part-change";
 
 export const SETTINGS_SHORTCUTS = new ShortcutRegistry<Action>();
@@ -107,12 +108,14 @@ SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Change va
 SETTINGS_SHORTCUTS.declare({ key: "space", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "to change" } }, "activate");
 SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change", hint: { keys: "←→", does: "to adjust" } }, "previous-value");
 SETTINGS_SHORTCUTS.declare({ key: "right", scope: SCOPE, description: "Next value", section: "Change", hint: { keys: "←→", does: "to adjust" } }, "next-value");
+SETTINGS_SHORTCUTS.declare({ key: "ctrl+z", scope: SCOPE, description: "Undo setting change", section: "Change", hint: { keys: "Ctrl+Z", does: "to undo" } }, "undo");
 SETTINGS_SHORTCUTS.declare({ key: "enter", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "to change" } }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "space", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "to change" } }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "left", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts" }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "right", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts" }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "up", scope: DIALOG_SCOPE, description: "Previous part", section: "Parts" }, "part-previous");
 SETTINGS_SHORTCUTS.declare({ key: "down", scope: DIALOG_SCOPE, description: "Next part", section: "Parts" }, "part-next");
+SETTINGS_SHORTCUTS.declare({ key: "ctrl+z", scope: DIALOG_SCOPE, description: "Undo setting change", section: "Parts", hint: { keys: "Ctrl+Z", does: "to undo" } }, "undo");
 SETTINGS_SHORTCUTS.declare({
   key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen",
   hint: { keys: DIALOG_CLOSE_SHORTCUT_HINT.key, does: DIALOG_CLOSE_SHORTCUT_HINT.action },
@@ -138,6 +141,7 @@ const KEYS: Readonly<Record<string, string>> = {
   "\n": "enter",
   " ": "space",
   "/": "/",
+  "\u001a": "ctrl+z",
 };
 
 type Row = ListRow<OwnedUiSettingsEntry>;
@@ -164,6 +168,23 @@ interface ValueMenu {
   index: number;
 }
 
+interface ScalarUndoRecord {
+  readonly kind: "scalar";
+  readonly sequence: number;
+  readonly entry: OwnedUiSettingsEntry;
+  readonly previous: OwnedUiSettingValue;
+}
+
+interface StructuredUndoRecord {
+  readonly kind: "structured";
+  readonly sequence: number;
+  readonly entry: OwnedUiSettingsEntry;
+  readonly previous: Readonly<Record<string, boolean | string>>;
+  readonly forward: Readonly<Record<string, boolean | string>>;
+}
+
+type SettingsUndoRecord = ScalarUndoRecord | StructuredUndoRecord;
+
 /**
  * The settings screen. Rows, sticky headers, scrolling, and the keymap come from
  * the shared component layer; what belongs to settings is which sections exist,
@@ -185,6 +206,11 @@ export class SettingsApp implements UiApp {
   #interruptArmed = false;
   // Invariant: pending values remain visible until the source reflects them.
   readonly #pending = new Map<string, OwnedUiSettingValue>();
+  readonly #undoHistory: SettingsUndoRecord[] = [];
+  #editSequence = 0;
+  #undoRequests = 0;
+  #undoActive = false;
+  #closed = false;
   #dialogValueColumn = 0;
   #bodyTopForFrame = SETTINGS_TOP_RULE_ROWS + SETTINGS_TITLE_ROWS;
   #bodyHeightForFrame = 0;
@@ -208,10 +234,14 @@ export class SettingsApp implements UiApp {
   }
 
   onActivate(host: AppHostServices): void {
+    this.#closed = false;
     void this.#session.load().then(() => host.requestRender());
   }
 
   onClose(_host: AppHostServices): void {
+    this.#closed = true;
+    this.#undoHistory.length = 0;
+    this.#undoRequests = 0;
     this.#clearActivityTimer();
     this.#rails.clear();
   }
@@ -379,6 +409,9 @@ export class SettingsApp implements UiApp {
       case "previous-value":
       case "next-value":
         this.#cycle(rows, selected, action === "next-value" ? 1 : -1);
+        return { consumed: true };
+      case "undo":
+        this.#undo();
         return { consumed: true };
       default:
         return { consumed: false };
@@ -598,6 +631,9 @@ export class SettingsApp implements UiApp {
       case "part-change":
         this.#toggleFlag(open.index);
         return { consumed: true };
+      case "undo":
+        this.#undo();
+        return { consumed: true };
       default:
         return { consumed: true, render: false };
     }
@@ -607,6 +643,7 @@ export class SettingsApp implements UiApp {
     const open = this.#structured;
     const flag = open?.flags[index];
     if (open === null || open === undefined || flag === undefined) return;
+    const previous = { ...open.record };
     const declared = open.entry.flags.find(candidate => candidate.key === flag);
     if (declared?.choices === undefined) open.record[flag] = !(open.record[flag] ?? false);
     else {
@@ -614,13 +651,20 @@ export class SettingsApp implements UiApp {
       const at = declared.choices.indexOf(String(open.record[flag] ?? declared.fallback));
       open.record[flag] = declared.choices[(at + 1) % declared.choices.length] ?? declared.fallback;
     }
-    // Invariant: a choice part at its fallback is unset: it is not written, so the engine's default applies.
-    const next = Object.fromEntries(Object.entries(open.record).filter(([key, value]) => {
-      const part = open.entry.flags.find(candidate => candidate.key === key);
-      return part?.choices === undefined || value !== part.fallback;
-    }));
-    void this.#session.changeStructured(open.entry.backend, open.entry.id, next).then(outcome => {
-      this.#notice = outcome.failure === null ? null : `Could not save ${labelOf(open.entry)}: ${outcome.failure}`;
+    const forward = { ...open.record };
+    const sequence = ++this.#editSequence;
+    void this.#session.changeStructured(open.entry.backend, open.entry.id, structuredValue(open.entry, forward)).then(outcome => {
+      const failure = changeFailure(outcome);
+      if (failure === null) {
+        this.#recordUndo({ kind: "structured", sequence, entry: open.entry, previous, forward });
+        this.#notice = outcome.status === "deferred" && outcome.application !== null
+          ? `${labelOf(open.entry)} is stored and applies ${applicationLabel(outcome.application)}`
+          : null;
+        return;
+      }
+      // Concurrency: only roll back the dialog if no later press has moved the record on.
+      if (this.#structured === open && sameRecord(open.record, forward)) replaceRecord(open.record, previous);
+      this.#notice = `Could not save ${labelOf(open.entry)}: ${failure}`;
     });
   }
 
@@ -628,6 +672,11 @@ export class SettingsApp implements UiApp {
     const menu = this.#menu;
     if (menu === null) return { consumed: false };
     const key = KEYS[data] ?? data;
+    if (SETTINGS_SHORTCUTS.resolve(key, SCOPE) === "undo") {
+      this.#menu = null;
+      this.#undo();
+      return { consumed: true };
+    }
     if (key === "escape") {
       this.#menu = null;
       return { consumed: true };
@@ -651,6 +700,10 @@ export class SettingsApp implements UiApp {
     if (input === null) return { consumed: false };
 
     const key = KEYS[data];
+    if (SETTINGS_SHORTCUTS.resolve(key ?? data, SCOPE) === "undo") {
+      this.#undo();
+      return { consumed: true };
+    }
     // Rationale: the boundary chords jump through the results; plain Home and End stay with
     // the search cursor, which the shared line input moves below.
     if (key === "ctrl+home" || key === "ctrl+end") {
@@ -723,20 +776,19 @@ export class SettingsApp implements UiApp {
 
   #apply(entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): void {
     const key = `${entry.backend}:${entry.id}`;
+    const previous = this.#shownValue(entry);
+    const sequence = ++this.#editSequence;
     // Invariant: shown immediately so the row never lags a keypress, and so the next press
     // steps from here rather than from a value the source has not caught up to.
     this.#pending.set(key, value);
     void this.#session.change(entry.backend, entry.id, value).then(outcome => {
-      if (outcome.failure !== null || outcome.status === "failed") {
-        this.#pending.delete(key);
-        this.#notice = `Could not save ${labelOf(entry)}: ${outcome.failure ?? "the effect failed"}`;
+      const failure = changeFailure(outcome);
+      if (failure !== null) {
+        if (this.#pending.get(key) === value) this.#pending.delete(key);
+        this.#notice = `Could not save ${labelOf(entry)}: ${failure}`;
         return;
       }
-      if (outcome.status === "unavailable" || outcome.limitationReason !== null) {
-        this.#pending.delete(key);
-        this.#notice = outcome.limitationReason ?? `${labelOf(entry)} is unavailable`;
-        return;
-      }
+      if (previous !== null && previous !== value) this.#recordUndo({ kind: "scalar", sequence, entry, previous });
       // Concurrency: a later press may have moved on; only the last request clears itself.
       if (this.#pending.get(key) === value) this.#pending.delete(key);
       this.#notice = outcome.status === "deferred" && outcome.application !== null
@@ -747,6 +799,67 @@ export class SettingsApp implements UiApp {
 
   #shownValue(entry: OwnedUiSettingsEntry): OwnedUiSettingValue | null {
     return this.#pending.get(`${entry.backend}:${entry.id}`) ?? entry.value;
+  }
+
+  #recordUndo(record: SettingsUndoRecord): void {
+    if (this.#closed) return;
+    const after = this.#undoHistory.findIndex(candidate => candidate.sequence > record.sequence);
+    if (after < 0) this.#undoHistory.push(record);
+    else this.#undoHistory.splice(after, 0, record);
+  }
+
+  #undo(): void {
+    this.#undoRequests++;
+    this.#drainUndo();
+  }
+
+  #drainUndo(): void {
+    if (this.#undoActive || this.#undoRequests === 0) return;
+    const record = this.#undoHistory.pop();
+    if (record === undefined) {
+      this.#undoRequests = 0;
+      return;
+    }
+    this.#undoRequests--;
+    this.#undoActive = true;
+
+    if (record.kind === "scalar") {
+      const key = `${record.entry.backend}:${record.entry.id}`;
+      this.#pending.set(key, record.previous);
+      void this.#session.change(record.entry.backend, record.entry.id, record.previous).then(outcome => {
+        if (this.#pending.get(key) === record.previous) this.#pending.delete(key);
+        this.#finishUndo(record, outcome);
+      });
+      return;
+    }
+
+    const open = this.#structured;
+    if (open !== null && sameEntry(open.entry, record.entry)) replaceRecord(open.record, record.previous);
+    void this.#session.changeStructured(
+      record.entry.backend,
+      record.entry.id,
+      structuredValue(record.entry, record.previous),
+    ).then(outcome => {
+      const failure = changeFailure(outcome);
+      if (failure !== null && this.#structured === open && open !== null && sameRecord(open.record, record.previous)) {
+        replaceRecord(open.record, record.forward);
+      }
+      this.#finishUndo(record, outcome);
+    });
+  }
+
+  #finishUndo(record: SettingsUndoRecord, outcome: OwnedUiSettingsChangeOutcome): void {
+    const failure = changeFailure(outcome);
+    if (failure !== null) {
+      this.#recordUndo(record);
+      this.#notice = `Could not restore ${labelOf(record.entry)}: ${failure}`;
+    } else {
+      this.#notice = outcome.status === "deferred" && outcome.application !== null
+        ? `${labelOf(record.entry)} is restored and applies ${applicationLabel(outcome.application)}`
+        : null;
+    }
+    this.#undoActive = false;
+    this.#drainUndo();
   }
 
   #scrollbarSpeed(): ScrollbarSpeed {
@@ -843,15 +956,16 @@ export class SettingsApp implements UiApp {
   }
 
   #viewRow(entry: OwnedUiSettingsEntry): ListViewRow {
+    const key = `${entry.backend}:${entry.id}`;
     const shown = this.#shownValue(entry);
     const value = entry.structured
       ? CONFIGURE
       : shown === null
         ? describeRaw(entry.rawValue)
-        : effectiveDisplay(entry, shown);
+        : this.#pending.has(key) ? displayValue(shown) : effectiveDisplay(entry, shown);
     const range = rangeOf(entry);
     return {
-      key: `${entry.backend}:${entry.id}`,
+      key,
       label: labelOf(entry),
       value,
       ...(typeof shown === "number" && entry.editable ? { stepper: stepperEnds(range, shown) } : {}),
@@ -921,6 +1035,46 @@ export class SettingsApp implements UiApp {
   }
 }
 
+
+function structuredValue(
+  entry: OwnedUiSettingsEntry,
+  record: Readonly<Record<string, boolean | string>>,
+): Record<string, boolean | string> {
+  // Invariant: a choice part at its fallback is unset, so the engine's default applies.
+  return Object.fromEntries(Object.entries(record).filter(([key, value]) => {
+    const part = entry.flags.find(candidate => candidate.key === key);
+    return part?.choices === undefined || value !== part.fallback;
+  }));
+}
+
+function sameEntry(left: OwnedUiSettingsEntry, right: OwnedUiSettingsEntry): boolean {
+  return left.backend === right.backend && left.id === right.id;
+}
+
+function sameRecord(
+  left: Readonly<Record<string, boolean | string>>,
+  right: Readonly<Record<string, boolean | string>>,
+): boolean {
+  const leftEntries = Object.entries(left);
+  const rightEntries = Object.entries(right);
+  return leftEntries.length === rightEntries.length
+    && leftEntries.every(([key, value]) => right[key] === value);
+}
+
+function replaceRecord(
+  target: Record<string, boolean | string>,
+  source: Readonly<Record<string, boolean | string>>,
+): void {
+  for (const key of Object.keys(target)) delete target[key];
+  Object.assign(target, source);
+}
+
+function changeFailure(outcome: OwnedUiSettingsChangeOutcome): string | null {
+  if (outcome.failure !== null) return outcome.failure;
+  if (outcome.status === "failed") return "the effect failed";
+  if (outcome.status === "unavailable") return outcome.limitationReason ?? "the setting is unavailable";
+  return outcome.limitationReason;
+}
 
 /** The source's own wording when it has one, otherwise the id made readable. */
 function labelOf(entry: OwnedUiSettingsEntry): string {

@@ -19,6 +19,7 @@ const RXVT_CTRL_HOME = `${ESC}[7^`;
 const RXVT_CTRL_END = `${ESC}[8^`;
 const ENTER = "\r";
 const SPACE = " ";
+const CTRL_Z = "\u001a";
 const STYLE = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
 
 const WARNING_FLAGS = [
@@ -174,6 +175,10 @@ function selectRow(target: SettingsApp, label: string): void {
     target.onInput?.(DOWN, HOST);
   }
   throw new Error(`never reached ${label}`);
+}
+
+async function settleChanges(): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, 0));
 }
 
 beforeEach(() => {
@@ -414,6 +419,111 @@ describe("the settings screen", () => {
     expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
   });
 
+  it("shows only the optimistic value while a live save is unresolved", async () => {
+    const { app: target, session } = await app(false, "normal", WHEEL_SETTINGS);
+    vi.spyOn(session, "change").mockReturnValue(new Promise(() => {}));
+
+    target.onInput?.(ENTER, HOST);
+    const row = find(target, "Speed");
+    expect(row).toMatch(/Speed\s+fast/u);
+    expect(row).not.toContain("effective normal");
+    expect(row).not.toContain("live");
+  });
+
+  it("undoes successful scalar changes in reverse order through their owning backends", async () => {
+    const { app: target, session, writes } = await app();
+    selectRow(target, "Prompt suggestions");
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(true);
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(true);
+
+    target.onInput?.(CTRL_HOME, HOST);
+    selectRow(target, "Thinking level");
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(writes.slice(-2)).toEqual([
+      { key: "thinkingLevel", value: "high" },
+      { key: "thinkingLevel", value: "low" },
+    ]);
+  });
+
+  it("undoes from a scalar menu and active search without losing the query", async () => {
+    const { app: target, writes } = await app();
+    selectRow(target, "Thinking level");
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+
+    let lines = screen(target);
+    let row = lines.findIndex(line => line.includes("Thinking level"));
+    let valueColumn = (lines[row] ?? "").indexOf("high") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
+    expect(screen(target).some(line => line.includes("✓ high"))).toBe(true);
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(screen(target).some(line => line.includes("✓ high"))).toBe(false);
+    expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "low" });
+
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    target.onInput?.("/", HOST);
+    for (const letter of "think") target.onInput?.(letter, HOST);
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    lines = screen(target);
+    row = lines.findIndex(line => line.includes("Thinking level"));
+    valueColumn = (lines[row] ?? "").indexOf("low");
+    expect(lines.some(line => line.includes("think"))).toBe(true);
+    expect(valueColumn).toBeGreaterThan(0);
+    expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "low" });
+  });
+
+  it("keeps a failed restore retryable without changing the authoritative value", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Prompt suggestions");
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+
+    vi.spyOn(session, "change").mockResolvedValueOnce({
+      status: "failed", applied: false, pendingRestart: false, application: null,
+      storedValue: null, effectiveValue: null, limitationReason: null, failure: "restore refused",
+    });
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+    expect(find(target, "Could not restore")).toContain("restore refused");
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(true);
+  });
+
+  it("discards undo history when the settings screen closes", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Prompt suggestions");
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+    target.onClose?.(HOST);
+
+    const reopened = new SettingsApp(session);
+    reopened.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+  });
+
   it("stops at the end of a range instead of reporting a rejected write", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Editor padding");
@@ -459,18 +569,23 @@ describe("the settings screen", () => {
     const styledHint = rendered.find(line => line.includes("Enter/Space")) ?? "";
     const title = rendered.find(line => line.includes("Settings")) ?? "";
     expect(firstVisibleTextColumn(styledHint)).toBe(firstVisibleTextColumn(title));
-    expect(styledHint).toContain("<dim>Enter/Space</dim> <muted>to change</muted>  <dim>Esc</dim> <muted>close</muted>");
+    expect(styledHint).toContain("<dim>Enter/Space</dim> <muted>to change</muted>  <dim>Ctrl+Z</dim> <muted>to undo</muted>  <dim>Esc</dim> <muted>close</muted>");
     expect(styledHint).not.toMatch(/[·•]/u);
 
     target.onInput?.(SPACE, HOST);
     expect(find(target, "Anthropic extra usage")).toContain("false");
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
+    await settleChanges();
 
-    // Invariant: a second press steps from what the dialog shows, not from the snapshot it
-    // was opened with.
-    target.onInput?.(SPACE, HOST);
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
     expect(find(target, "Anthropic extra usage")).toContain("true");
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: true, unknownTools: false } });
+
+    // Invariant: a further press steps from what the restored dialog shows.
+    target.onInput?.(SPACE, HOST);
+    expect(find(target, "Anthropic extra usage")).toContain("false");
+    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
   });
 
   it("adjusts a flag with the arrows, as the list adjusts a value", async () => {
@@ -816,6 +931,7 @@ describe("the input row and status line behind the screen", () => {
     expect(hint).toContain("Shift+↑↓ to jump");
     expect(hint).toContain("Enter/Space to change");
     expect(hint).toContain("←→ to adjust");
+    expect(hint).toContain("Ctrl+Z to undo");
     expect(hint).toContain("Esc close");
     expect(hint).not.toContain("Type to search");
     expect(hint).not.toMatch(/[·•]/u);
@@ -1001,13 +1117,16 @@ describe("the input row and status line behind the screen", () => {
     expect(paged).toContain("Wheel row 10");
   });
 
-  it("reports a failed write instead of the hint", async () => {
-    const { app: target } = await app(true);
+  it("reports a failed write instead of the hint and does not make it undoable", async () => {
+    const { app: target, writes } = await app(true);
     selectRow(target, "Thinking level");
     target.onInput?.(ENTER, HOST);
     // Invariant: the write is reported once it has been attempted, not on the keypress.
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await settleChanges();
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
     expect(wide.find(line => line.includes("Could not save"))).toContain("Thinking level");
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(writes).toHaveLength(0);
   });
 });
