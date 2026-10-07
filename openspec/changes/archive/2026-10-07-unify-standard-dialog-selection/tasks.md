@@ -12,6 +12,7 @@
 - [x] 2.5 Apply the shared palette to Settings list rows, structured-value rows, and floating choices while preserving item-bounded geometry, values, steppers, search, scrolling, pointer affordances, and persistence.
 - [x] 2.6 Replace Session Tree's purple selected span with the shared blue palette while preserving its arrow and every selected entry's semantic foreground roles, hierarchy, horizontal clipping, and selected ellipsis coverage.
 - [x] 2.7 Give Resume Session the blue `selectedBg` full-row surface and checkmark-green selected title without bold, while preserving its cursor, muted metadata, delete-error role, navigation, and actions.
+- [x] 2.8 Remove Resume Session's redundant leading frame spacer and verify a retained `Resumed session` notice has the same one-row control adjacency with the dialog open or closed.
 
 ## 3. Validate the Unified Experience
 

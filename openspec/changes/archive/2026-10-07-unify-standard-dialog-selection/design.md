@@ -53,9 +53,11 @@ Adopting Resume Session's full-width geometry was rejected: the tree keeps its e
 
 ### 6. Remove selection-only bold from Resume Session
 
-Resume Session uses the blue `selectedBg` full-row background, accent `→` cursor, success-green selected title, muted metadata, and existing geometry. Selection does not wrap the title in bold; delete confirmation retains the error role instead of success green.
+Resume Session uses the blue `selectedBg` full-row background, accent `→` cursor, success-green selected title, muted metadata, and existing result-row geometry. Selection does not wrap the title in bold; delete confirmation retains the error role instead of success green.
 
-Changing Resume Session search, scope, sort, rename/delete, navigation, or row geometry was rejected.
+The owned Resume Session frame also omits its component-level leading spacer. A retained prompt-adjacent command notice is therefore separated from the dialog's top rule by the shell's single empty row, matching the notice-to-editor spacing after the dialog closes instead of adding a second empty row. Internal title, content, footer, and rule spacing remains unchanged.
+
+Changing Resume Session search, scope, sort, rename/delete, navigation, or result-row geometry was rejected.
 
 ### 7. Reuse the owned Settings highlight boundary
 

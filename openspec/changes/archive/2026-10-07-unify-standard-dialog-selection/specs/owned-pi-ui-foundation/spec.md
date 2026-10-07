@@ -2,7 +2,7 @@
 
 ### Requirement: Bare-A1 Resume Session follows the standard dialog hierarchy
 
-The bare-A1 Resume Session selector SHALL use the shared compact modal hierarchy of top rule, title, filter/status row, search and results, bottom shortcut footer, and bottom rule. Its full-width top and bottom rules SHALL use the same standard dialog border role as Session Tree and Models rather than the title accent role, including while rename mode is active. Its title SHALL be the standalone accent-bold text `Resume Session` and SHALL NOT repeat the active scope as `(Current Folder)` or `(All)`.
+The bare-A1 Resume Session selector SHALL use the shared compact modal hierarchy of top rule, title, filter/status row, search and results, bottom shortcut footer, and bottom rule. The owned selector SHALL NOT add a component-level blank row before its top rule, so a retained prompt-adjacent command notice has exactly one empty visual row before the dialog while it is open, matching the spacing after the default editor is restored. Its full-width top and bottom rules SHALL use the same standard dialog border role as Session Tree and Models rather than the title accent role, including while rename mode is active. Its title SHALL be the standalone accent-bold text `Resume Session` and SHALL NOT repeat the active scope as `(Current Folder)` or `(All)`.
 
 The row immediately below the title SHALL begin with `Filter: current | all`, followed by `Name: all` or `Name: named` and `Sort: threaded`, `Sort: recent`, or `Sort: fuzzy`. Labels, separators, and inactive scope values SHALL use the established inactive status styling; the active scope and current name and sort values SHALL use the accent role. Values SHALL use the specified lower-case display text. The row SHALL remain stable during asynchronous scope loading and SHALL NOT append `loading` or loader work-unit counts to either scope value.
 
@@ -17,6 +17,11 @@ The selector's search-syntax and action shortcut hints SHALL appear below the se
 - **THEN** the accent-bold title SHALL read `Resume Session` without a scope suffix
 - **AND** the next row SHALL show `Filter: current | all`, the current lower-case `Name:` value, and the current lower-case `Sort:` value
 - **AND** the active scope and current name and sort values SHALL use the accent role
+
+#### Scenario: Preserve compact spacing after a resume notice
+- **WHEN** the `Resumed session` command notice remains visible and the user opens Resume Session again
+- **THEN** exactly one empty visual row SHALL separate the notice from the dialog's top rule
+- **AND** closing the dialog SHALL restore the editor with the same one-empty-row notice-to-control spacing
 
 #### Scenario: Render standard dialog rules
 - **WHEN** Resume Session or its rename mode is visible

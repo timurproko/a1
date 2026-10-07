@@ -4,7 +4,7 @@ Verdict: accepted only when the containing exact pull-request head is manually m
 
 The manual merge accepts these scenarios:
 - Standard item-bounded lists use the blue selection surface without filling unused row width or introducing bold text.
-- Resume Session uses blue `selectedBg` across its full-row geometry with a non-bold checkmark-green selected title and muted metadata.
+- Resume Session uses blue `selectedBg` across its full-row geometry with a non-bold checkmark-green selected title and muted metadata, while a retained resume notice keeps exactly one empty row before either the open dialog or restored editor.
 - Session Tree preserves user, assistant, system, tool, error, label, timestamp, and description colors while selected.
 - Existing dialog, Settings, autocomplete, and comparison-profile behavior remains unchanged.
 
@@ -20,14 +20,14 @@ The manual merge accepts these scenarios:
   "specBaseSha": "b21a9779baf6ed9e410f57a9f6c40e12403f5f86",
   "acceptanceScenarios": [
     "Standard item-bounded lists use the blue selection surface without filling unused row width or introducing bold text.",
-    "Resume Session uses blue `selectedBg` across its full-row geometry with a non-bold checkmark-green selected title and muted metadata.",
+    "Resume Session uses blue `selectedBg` across its full-row geometry with a non-bold checkmark-green selected title and muted metadata, while a retained resume notice keeps exactly one empty row before either the open dialog or restored editor.",
     "Session Tree preserves user, assistant, system, tool, error, label, timestamp, and description colors while selected.",
     "Existing dialog, Settings, autocomplete, and comparison-profile behavior remains unchanged."
   ],
-  "archiveDigest": "0560421eb3ed892c8a08b884b58b691b59443d06325d48a75441cb776cf82f7f",
-  "specDigest": "182b89cbd0b781d2580831df1fd90282d4186a178c70e584745124394118b0d3",
-  "tasksDigest": "1c7a561a3e4bd823bd885e77ade992b255ca6b96fa960d0819604e4171f4abc7",
-  "evidenceDigest": "c60e9256a152e15c8f87f713e08d3748b580148844da6b8e0cc4a376532bf91a",
+  "archiveDigest": "c2b249a912fe8fb4aba495149afbd1aee73b96a7a07d3f40d4c77eff6b7666f7",
+  "specDigest": "277a4f983dfa846a4ff99bb87e3f967be1af1b32bd335d94db9cf021b37ecc06",
+  "tasksDigest": "0c216069abeb0279a4f51914f8e09c66be279580ca17228927dc165291e76b12",
+  "evidenceDigest": "7c71e38c98ce333ab521f4e4fe35a41a7e958bedff4131761fbb1969504f604e",
   "knownGaps": []
 }
 ```

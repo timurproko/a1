@@ -826,7 +826,6 @@ export class SessionSelectorComponent extends Container implements Focusable {
 
 	private buildBaseLayout(content: Component, options?: { showHeader?: boolean }): void {
 		this.clear();
-		this.addChild(new Spacer(1));
 		const showHeader = options?.showHeader ?? true;
 		const modalHeader = showHeader
 			? addPiModalHeader(this, new DynamicBorder(), this.header)
@@ -837,7 +836,7 @@ export class SessionSelectorComponent extends Container implements Focusable {
 		this.addChild(new Spacer(1));
 		if (showHeader) this.addChild(this.footer);
 		this.addChild(new DynamicBorder());
-		const frame = { topIndex: 1, bottomIndex: this.children.length - 1 } as const;
+		const frame = { topIndex: 0, bottomIndex: this.children.length - 1 } as const;
 		if (modalHeader === undefined) adoptPiModalFrame(this, frame);
 		else adoptPiModalFrame(this, { ...frame, header: modalHeader });
 	}

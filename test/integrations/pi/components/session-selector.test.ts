@@ -129,6 +129,7 @@ describe("owned pinned session selector", () => {
     const filterRow = initialRows[filterIndex]!;
     const standardRule = new DynamicBorder().render(100)[0]!;
     const ruleRows = initialRows.filter(row => /^─+$/u.test(stripPortableTerminalSequences(row)));
+    expect(plainInitialRows[0]).toBe("─".repeat(100));
     expect(ruleRows).toEqual([standardRule, standardRule]);
     expect(cellStyle(ruleRows[0]!, "─")).not.toEqual(cellStyle(heading, "R"));
     expect(headingIndex).toBeLessThan(filterIndex);
