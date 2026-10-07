@@ -35,12 +35,12 @@ describe("modal shortcut hints", () => {
 
   it("keeps keyless prose, omits unbound entries, and preserves content punctuation", () => {
     const rendered = renderShortcutHints([
-      { action: "type to search" },
+      { action: "start typing" },
       { key: "", action: "save" },
       { key: "ctrl+p/alt+up", action: "open (current/default)" },
       { key: "1/2/3", action: "filters", actionFirst: true },
     ], theme);
-    expect(stripAnsi(rendered)).toBe("type to search  Ctrl+P/Alt+Up open (current/default)  filters 1/2/3");
+    expect(stripAnsi(rendered)).toBe("start typing  Ctrl+P/Alt+Up open (current/default)  filters 1/2/3");
     expect(stripAnsi(rendered)).not.toContain("save");
   });
 

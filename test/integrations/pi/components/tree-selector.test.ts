@@ -139,13 +139,15 @@ describe("bare-A1 session tree presentation", () => {
     expect(cellStyle(selectedSession, "s")).toEqual(cellStyle(piTheme().fg("dim", "s"), "s"));
     expect(cellBackgroundAt(selectedSession, stripTerminalSequences(selectedSession).indexOf("s"))).toBe(selectionBackground);
 
-    const hintIndex = plain.findIndex(row => row.includes("type to search"));
+    const hintIndex = plain.findIndex(row => row.includes("Type search"));
     expect(plain.slice(hintIndex, -1).every(row => row.length > 0)).toBe(true);
     expect(plain.at(-1)).toMatch(/^─+$/u);
+    expect(cellStyle(rows[hintIndex]!, "T")).toEqual(cellStyle(piTheme().fg("dim", "T"), "T"));
+    expect(cellStyle(rows[hintIndex]!, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
     expect(cellStyle(rows[hintIndex]!, "↑")).toEqual(cellStyle(piTheme().fg("dim", "↑"), "↑"));
     expect(cellStyle(rows[hintIndex]!, "n")).toEqual(cellStyle(piTheme().fg("muted", "n"), "n"));
     const hints = plain.slice(hintIndex).join("\n");
-    expect(hints.indexOf("type to search")).toBeLessThan(hints.indexOf("↑/↓ navigate"));
+    expect(hints.indexOf("Type search")).toBeLessThan(hints.indexOf("↑/↓ navigate"));
     expect(hints.indexOf("↑/↓ navigate")).toBeLessThan(hints.indexOf("Tab filter"));
     expect(hints).not.toContain("Enter select");
     expect(hints).toContain("Esc close");

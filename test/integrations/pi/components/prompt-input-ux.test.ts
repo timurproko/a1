@@ -302,11 +302,12 @@ describe("owned level and model keybindings", () => {
     expect(cellStyle(unselectedRow, "○")).toEqual(cellStyle(piTheme().fg("dim", "○"), "○"));
     expect(rows.filter(row => stripTerminalSequences(row).includes("Moderate reasoning"))).toHaveLength(1);
     const controls = rows.find(row => stripTerminalSequences(row).includes("Enter select"))!;
-    expect(stripTerminalSequences(controls).trim()).toBe("Enter select  Space default  Esc close");
+    expect(stripTerminalSequences(controls).trim()).toBe("Type search  Enter select  Space default  Esc close");
     expect(stripTerminalSequences(controls)).not.toContain("Ctrl+S");
     expect(stripTerminalSequences(controls)).not.toContain("Escape/Ctrl+C");
     expect(firstVisibleTextColumn(controls)).toBe(firstVisibleTextColumn(heading));
     expect(controls).not.toMatch(/[·•]/u);
+    expect(cellStyle(controls, "T")).toEqual(cellStyle(piTheme().fg("dim", "T"), "T"));
     expect(cellStyle(controls, "E")).toEqual(cellStyle(piTheme().fg("dim", "E"), "E"));
     expect(cellStyle(controls, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
     for (const width of [24, 32, 40]) expect(selector.render(width).every(row => visibleWidth(row) <= width)).toBe(true);
