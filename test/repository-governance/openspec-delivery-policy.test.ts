@@ -27,6 +27,8 @@ describe("single-PR conditional acceptance", () => {
   it("round-trips a conditional manifest without fabricating merge provenance", () => {
     const text = conditionalAcceptanceBytes(manifest());
     expect(text).toContain("accepted only when");
+    expect(text).toContain("personally enables native auto-merge for that unchanged head");
+    expect(text).toContain("The maintainer integration decision accepts these scenarios");
     expect(text).not.toContain("sourceHead");
     expect(text).not.toContain("sourceMerge");
     expect(parseConditionalAcceptance(text)).toEqual(manifest());
