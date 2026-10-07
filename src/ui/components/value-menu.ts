@@ -56,8 +56,8 @@ export function valueMenuFrame(
     ? below
     : Math.max(bodyTop, anchor.screenRow - state.choices.length);
   const width = Math.max(...state.choices.map(choice => displayWidth(choice) + 4), 6);
-  // Each row reserves two cells for its effective-value mark. Place those cells before
-  // the anchor so the visible choice text starts in the source value column.
+  // Invariant: each row reserves two cells for its effective-value mark. Place those
+  // cells before the anchor so visible choice text starts in the source value column.
   const column = Math.min(Math.max(0, anchor.valueColumn - 2), Math.max(0, layout.surfaceWidth - width - layout.reservedRight));
   return { top, column, width, rows: state.choices.length };
 }
