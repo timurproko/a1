@@ -22,6 +22,7 @@ Handoff: --path PATH --change NAME --pr N
   An entry still owned by a low-level register is released when LOCAL_CLEANUP_OWNER_TOKEN matches its owner (same for complete).
 Sweep: one bounded pass that completes every handed-off candidate whose PR is verified merged, reports open ones as
   pending and rejected ones as awaiting-discard, and prunes merged local topic branches by pull-request evidence.
+  Disjoint worktree/ref cleanups may overlap; a command already holding the same resource defers only that candidate.
 Complete: --path PATH --change NAME --pr N [--role implementation|archive|acceptance]
   Runs one exact-candidate post-merge cleanup with repository-owned generated paths: ${COMPLETION_DISPOSABLE_PATHS.join(", ")}.
 Discard: --path PATH --change NAME --pr N --confirm-closed-unmerged
@@ -76,30 +77,40 @@ export async function main(args = process.argv.slice(2)) {
   if (command === "status") { console.log(JSON.stringify({ ...summary(await store.read()), stopped: await store.disabled() }, null, 2)); return; }
   if (command === "forget") {
     if (!values.id || values["confirm-nothing-left"] !== true) fail("forget-arguments");
-    await store.locked(async (state, save) => {
+    const known = await store.locked(state => structuredClone(state.entries.find(item => item.id === values.id)));
+    if (!known) fail("unknown-registration");
+    await store.resourceLocked([`path:${known.path}`, known.ref ? `ref:${known.ref}` : ""], async () => store.session(async (state, save) => {
       const entry = state.entries.find(item => item.id === values.id); if (!entry) fail("unknown-registration");
+      if (entry.path !== known.path || entry.ref !== known.ref) fail("worktree-identity-changed");
       if (entry.state !== "released") fail(entry.state === "done" ? "already-complete" : entry.state === "owned" ? "owned-worktree" : "cleanup-in-progress");
       if (!await nothingLeft(identity, entry)) fail("something-remains");
       await retireRegistration(identity, entry, gitRunner(), {});
       Object.assign(entry, { state: "done", step: "complete", completion: "forgotten", completionReason: null });
       await save(state);
       console.log(JSON.stringify({ id: entry.id, path: entry.path, sourcePr: entry.sourcePr, disposition: "forgotten" }));
-    });
+    }));
     return;
   }
   if (command === "enable" || command === "disable") { await store[command](); console.log(`Local cleanup ${command}d; no worktrees removed.`); return; }
   if (["register", "claim", "release", "recover"].includes(command)) {
     const owner = process.env.LOCAL_CLEANUP_OWNER_TOKEN;
-    await store.locked(async (state, save) => {
+    const known = command === "register" ? null : await store.locked(state => structuredClone(state.entries.find(item => item.id === values.id)));
+    if (command !== "register" && !known) fail("unknown-registration");
+    const initial = command === "register" && values.path ? await captureWorktree(identity, values.path) : null;
+    const resourcePath = known?.path ?? initial?.path ?? values.path;
+    const resourceRef = known?.ref ?? initial?.ref ?? null;
+    await store.resourceLocked([resourcePath ? `path:${resourcePath}` : "", resourceRef ? `ref:${resourceRef}` : ""], async () => store.session(async (state, save) => {
       let entry;
       if (command === "register") {
         if (!values.path) fail("registration-path-required");
         if (!["implementation", "archive", "acceptance"].includes(values.role)) fail("registration-role");
         const snapshot = await captureWorktree(identity, values.path);
+        if (initial && (snapshot.path !== initial.path || snapshot.filesystem !== initial.filesystem || snapshot.ref !== initial.ref)) fail("worktree-identity-changed");
         entry = registerEntry(state, { ...snapshot, change: values.change, sourcePr: Number(values["source-pr"]), candidatePr: Number(values["candidate-pr"]),
           role: values.role, disposable: values.disposable ?? [] }, owner);
       } else {
         entry = state.entries.find(item => item.id === values.id); if (!entry) fail("unknown-registration");
+        if (entry.path !== known.path || entry.ref !== known.ref) fail("worktree-identity-changed");
         if (entry.generation !== values.generation) fail("generation-changed");
         if (command === "recover" && !values["confirm-stopped"]) fail("recovery-confirmation-required");
         const snapshot = await captureWorktree(identity, entry.path);
@@ -113,7 +124,7 @@ export async function main(args = process.argv.slice(2)) {
         transitionEntry(entry, command, owner, values.generation);
       }
       await save(state); console.log(JSON.stringify({ id: entry.id, generation: entry.generation, state: entry.state, path: entry.path }));
-    });
+    }));
     return;
   }
   if (["complete", "discard", "retire-redundant", "sweep", "once", "watch"].includes(command) && inside(identity.root, await canonical(fileURLToPath(import.meta.url)))) fail("worker-code-inside-removable-root");
@@ -198,5 +209,8 @@ export async function main(args = process.argv.slice(2)) {
   } finally { process.removeListener("SIGINT", stop); process.removeListener("SIGTERM", stop); }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main().catch(error => { console.error(JSON.stringify({ disposition: "blocked", reason: error.cleanupCode ?? "local-cleanup-failed" })); process.exitCode = 1; });
+  main().catch(error => {
+    const reason = error.cleanupCode ?? "local-cleanup-failed";
+    console.error(JSON.stringify({ disposition: ["mutation-busy", "resource-busy", "state-conflict"].includes(reason) ? "deferred" : "blocked", reason })); process.exitCode = 1;
+  });
 }

@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdir, open, readFile, rename, unlink, lstat, utimes } from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 /** Local-only ownership authority. Absence of a process never transfers ownership. */
@@ -117,6 +119,7 @@ export function createStateStore(identity, { replace = rename } = {}) {
   validateIdentity(identity);
   const directory = join(identity.common, "local-worktree-cleanup");
   const path = join(directory, "state.json"), lock = join(directory, "mutation.lock"), stop = join(directory, "disabled");
+  const lockContext = new AsyncLocalStorage(); let localTail = Promise.resolve();
   const initial = () => ({ version: 1, identity, enabled: false, cursor: 0, entries: [] });
   async function checkDirectory(create = false) {
     if (create) await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -139,43 +142,113 @@ export function createStateStore(identity, { replace = rename } = {}) {
     } catch (error) { if (error.code === "ENOENT") return initial(); throw error; }
   }
   async function save(state) { validateState(state, identity); await regular(path, true); await atomicJson(path, state, replace); }
-  async function readLock() {
-    try { return JSON.parse(await readFile(lock, "utf8")); } catch { return null; }
+  async function readLock(lockPath) {
+    try { return JSON.parse(await readFile(lockPath, "utf8")); } catch { return null; }
   }
   /**
    * Evict a lock only when its holder is provably gone: no heartbeat for LOCK_STALE_MS and a PID that no longer exists.
    * A reused or foreign PID reads as alive, which keeps the lock; the eviction itself is journaled beside the state.
    */
-  async function evictStaleLock(now) {
+  async function evictStaleLock(lockPath, now) {
     let stat;
-    try { stat = await lstat(lock); } catch (error) { if (error.code === "ENOENT") return false; throw error; }
-    const record = await readLock();
+    try { stat = await lstat(lockPath); } catch (error) { if (error.code === "ENOENT") return false; throw error; }
+    const record = await readLock(lockPath);
     const heartbeat = Number.isFinite(record?.heartbeatAt) ? record.heartbeatAt : stat.mtimeMs;
     if (now - heartbeat < LOCK_STALE_MS || processAlive(record?.pid)) return false;
     await atomicJson(join(directory, `lock-evicted-${now}-${randomUUID()}.json`), { version: 1, evictedAt: now, evictedBy: process.pid, lock: record, mtimeMs: stat.mtimeMs });
-    await unlink(lock).catch(error => { if (error.code !== "ENOENT") throw error; });
+    await unlink(lockPath).catch(error => { if (error.code !== "ENOENT") throw error; });
     return true;
   }
-  async function locked(action, now = Date.now) {
+  async function acquire(lockPath, busyCode, now, waitMs, resource = null, samePidBusy = true) {
     await checkDirectory(true);
+    const expires = Date.now() + waitMs;
     let handle;
     for (let attempt = 0; ; attempt++) {
-      try { handle = await open(lock, "wx", 0o600); break; }
+      try { handle = await open(lockPath, "wx", 0o600); break; }
       catch (error) {
         if (error.code !== "EEXIST") throw error;
-        if (attempt === 0 && await evictStaleLock(now())) continue;
-        fail("mutation-busy");
+        if (attempt === 0 && await evictStaleLock(lockPath, now())) continue;
+        const holder = await readLock(lockPath);
+        if ((samePidBusy && holder?.pid === process.pid) || Date.now() >= expires) fail(busyCode, resource === null ? {} : { resource });
+        await delay(20);
       }
     }
-    const record = { version: 2, pid: process.pid, nonce: randomUUID(), startedAt: now(), heartbeatAt: now() };
+    const record = { version: 2, pid: process.pid, nonce: randomUUID(), startedAt: now(), heartbeatAt: now(), ...(resource === null ? {} : { resource }) };
     const write = async () => { const text = JSON.stringify(record); await handle.truncate(0); await handle.write(text, 0, "utf8"); await handle.sync(); };
-    // Concurrency: the heartbeat lets a later process distinguish a slow holder from one that was killed before its finally ran.
+    // Concurrency: the heartbeat distinguishes a slow holder from one killed before its finally block.
     const timer = setInterval(() => { record.heartbeatAt = now(); write().catch(() => {}); }, LOCK_HEARTBEAT_MS);
     timer.unref();
+    await write();
+    return async () => {
+      clearInterval(timer); await handle.close();
+      await unlink(lockPath).catch(error => { if (error.code !== "ENOENT") throw error; });
+    };
+  }
+  async function locked(action, now = Date.now) {
+    if (lockContext.getStore() === lock) fail("mutation-busy");
+    let releaseLocal;
+    const previous = localTail;
+    localTail = new Promise(resolve => { releaseLocal = resolve; });
+    await previous;
+    let release;
     try {
-      await write();
-      return await action(await read({ migrateTerminal: true }), save);
-    } finally { clearInterval(timer); await handle.close(); await unlink(lock).catch(error => { if (error.code !== "ENOENT") throw error; }); }
+      release = await acquire(lock, "mutation-busy", now, 2000, null, false);
+      return await lockContext.run(lock, async () => action(await read({ migrateTerminal: true }), save));
+    } finally { try { if (release) await release(); } finally { releaseLocal(); } }
+  }
+  async function acquireResources(resources, now = Date.now) {
+    const normalizeResource = value => {
+      if (!value.startsWith("path:")) return value;
+      const path = resolve(value.slice("path:".length)).replaceAll("\\", "/");
+      return `path:${process.platform === "win32" ? path.toLowerCase() : path}`;
+    };
+    const keys = [...new Set(resources.filter(value => typeof value === "string" && value.length).map(normalizeResource))].sort();
+    const releases = [];
+    try {
+      for (const key of keys) {
+        const resource = digest(key), resourceLock = join(directory, `resource-${resource}.lock`);
+        releases.push(await acquire(resourceLock, "resource-busy", now, 0, resource));
+      }
+    } catch (error) {
+      for (const release of releases.reverse()) await release();
+      throw error;
+    }
+    return async () => { for (const release of releases.reverse()) await release(); };
+  }
+  async function resourceLocked(resources, action, now = Date.now) {
+    const release = await acquireResources(resources, now);
+    try { return await action(); } finally { await release(); }
+  }
+  async function session(action) {
+    const state = await locked(current => structuredClone(current));
+    let baseline = structuredClone(state);
+    async function commit(proposed = state) {
+      validateState(proposed, identity);
+      const before = new Map(baseline.entries.map(entry => [entry.id, entry]));
+      const after = new Map(proposed.entries.map(entry => [entry.id, entry]));
+      const changed = [], added = [];
+      for (const [id, previous] of before) {
+        const next = after.get(id);
+        if (!next || JSON.stringify(next) !== JSON.stringify(previous)) changed.push({ id, previous, next });
+      }
+      for (const [id, entry] of after) if (!before.has(id)) added.push({ id, entry });
+      await locked(async (fresh, persist) => {
+        for (const { id, previous, next } of changed) {
+          const index = fresh.entries.findIndex(entry => entry.id === id);
+          if (index === -1 || JSON.stringify(fresh.entries[index]) !== JSON.stringify(previous)) fail("state-conflict");
+          if (next) fresh.entries[index] = structuredClone(next); else fresh.entries.splice(index, 1);
+        }
+        for (const { id, entry } of added) {
+          if (fresh.entries.some(existing => existing.id === id)) fail("state-conflict");
+          fresh.entries.push(structuredClone(entry));
+        }
+        if (proposed.enabled !== baseline.enabled) fresh.enabled = proposed.enabled;
+        if (proposed.cursor !== baseline.cursor) fresh.cursor = Math.max(fresh.cursor, proposed.cursor);
+        await persist(fresh);
+      });
+      baseline = structuredClone(proposed);
+    }
+    return await action(state, commit);
   }
   /** With `since`, only a sentinel written at or after that time counts, so an old stop does not veto an explicit sweep. */
   async function disabled(since = null) {
@@ -191,10 +264,10 @@ export function createStateStore(identity, { replace = rename } = {}) {
   async function enable() {
     return locked(async (state, save) => { state.enabled = true; await save(state); await regular(stop, true); await unlink(stop).catch(error => { if (error.code !== "ENOENT") throw error; }); });
   }
-  return { directory, read, locked, disabled, disable, enable };
+  return { directory, read, locked, session, acquireResources, resourceLocked, disabled, disable, enable };
 }
 
-/** Pure ownership transitions; callers persist only while holding the common lock. */
+/** Pure ownership transitions; callers persist through an atomic state transaction while holding the candidate resource. */
 export function registerEntry(state, input, token) {
   if (typeof token !== "string" || token.length < 32) fail("owner-token");
   const entry = validateEntry({ ...input, id: randomUUID(), generation: randomUUID(), state: "owned", ownerHash: digest(token), step: "none", completion: null, completionReason: null });

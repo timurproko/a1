@@ -10,7 +10,7 @@ import { once } from "node:events";
 import { promisify } from "node:util";
 import { atomicJson, createStateStore, registerEntry, relocateTerminalState, transitionEntry, validateState, digest } from "../../scripts/governance/local-cleanup-state.mjs";
 import { canonical, captureWorktree, discoverRepository, inspectWorktree, exists, gitRunner, purgeDisposable, removeLocalRef, removeRemoteRef, removeWorktree } from "../../scripts/governance/local-cleanup-git.mjs";
-import { reconcileLocalCleanup } from "../../scripts/governance/local-cleanup-reconcile.mjs";
+import { reconcileLocalCleanup, writeLocalCleanupReport } from "../../scripts/governance/local-cleanup-reconcile.mjs";
 import { completeLocalCleanup, handoffLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "../../scripts/governance/local-cleanup-complete.mjs";
 import { pruneMergedBranches } from "../../scripts/governance/local-cleanup-branches.mjs";
 import { sweepLines } from "../../scripts/governance/local-worktree-cleanup.mjs";
@@ -742,6 +742,18 @@ test("report retention is bounded without evicting unresolved state or unrelated
   assert.equal(await readFile(unrelated, "utf8"), "preserve"); assert.equal(await exists(f.path), true);
 });
 
+test("concurrent report writers retain valid independent evidence", async t => {
+  const f = await fixture(t), started = Date.now();
+  await Promise.all(Array.from({ length: 12 }, (_, index) => writeLocalCleanupReport(f.store, {
+    version: 1, preview: false, results: [{ id: String(index), disposition: "pending" }], at: started + index,
+  }, started + index)));
+  const names = (await readdir(f.store.directory)).filter(name => /^report-/.test(name));
+  assert.equal(names.length, 12);
+  const ids = new Set();
+  for (const name of names) ids.add(JSON.parse(await readFile(join(f.store.directory, name), "utf8")).results[0].id);
+  assert.equal(ids.size, 12);
+});
+
 test("completed paths report absence and need fresh registration after reuse", async t => {
   const f = await fixture(t); await f.store.enable(); await f.pass({ preview: false });
   assert.equal((await f.pass()).results[0].disposition, "already-absent");
@@ -777,6 +789,117 @@ test("a dead holder's silent lock is evicted once, journaled, and a live or fres
   ran = false; await f.store.locked(async () => { ran = true; }); assert.equal(ran, true, "a legacy lock is judged by its mtime");
   await writeFile(lock, "not json"); const fresh = new Date(); await utimes(lock, fresh, fresh);
   await assert.rejects(f.store.locked(() => {}), /mutation-busy/, "an unreadable fresh lock is busy");
+});
+
+test("scoped locks permit disjoint resources and exclude the same candidate", async t => {
+  const f = await fixture(t);
+  let releaseHeld, signalHeld;
+  const held = new Promise(resolve => { signalHeld = resolve; });
+  const gate = new Promise(resolve => { releaseHeld = resolve; });
+  const first = f.store.resourceLocked([`path:${f.path}`], async () => { signalHeld(); await gate; });
+  await held;
+  let disjointRan = false;
+  await f.store.resourceLocked([`path:${f.path}-other`], async () => { disjointRan = true; });
+  assert.equal(disjointRan, true);
+  await assert.rejects(f.store.resourceLocked([`path:${f.path}`], async () => {}), /resource-busy/);
+  releaseHeld(); await first;
+});
+
+test("scoped locks coordinate separate cleanup processes", { timeout: 15000 }, async t => {
+  const f = await fixture(t), ready = join(f.temporary, "resource-ready"), release = join(f.temporary, "resource-release");
+  const key = `path:${f.path}`;
+  const stateModule = new URL("../../scripts/governance/local-cleanup-state.mjs", import.meta.url).href;
+  const script = `
+    import { writeFile, access } from "node:fs/promises";
+    import { setTimeout as delay } from "node:timers/promises";
+    const { createStateStore } = await import(process.env.STATE_MODULE);
+    const store = createStateStore(JSON.parse(process.env.CLEANUP_IDENTITY));
+    await store.resourceLocked([process.env.CLEANUP_RESOURCE], async () => {
+      await writeFile(process.env.CLEANUP_READY, "ready");
+      while (true) { try { await access(process.env.CLEANUP_RELEASE); break; } catch { await delay(20); } }
+    });
+  `;
+  const child = spawn(process.execPath, ["--input-type=module", "-e", script], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"], env: {
+    ...process.env, STATE_MODULE: stateModule, CLEANUP_IDENTITY: JSON.stringify(f.identity), CLEANUP_RESOURCE: key,
+    CLEANUP_READY: ready, CLEANUP_RELEASE: release,
+  } });
+  t.after(() => { if (child.exitCode === null) child.kill(); });
+  for (let attempt = 0; attempt < 100 && !await exists(ready); attempt++) await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(await exists(ready), true);
+  await f.store.resourceLocked([`path:${f.path}-other`], async () => {});
+  await assert.rejects(f.store.resourceLocked([key], async () => {}), /resource-busy/);
+  await writeFile(release, "release");
+  const code = child.exitCode ?? (await once(child, "exit"))[0];
+  assert.equal(code, 0);
+});
+
+test("concurrent state sessions preserve disjoint candidate transitions", async t => {
+  const f = await fixture(t), secondPath = join(f.identity.root, "second");
+  await git(f.primary, "worktree", "add", "--detach", secondPath);
+  const secondSnapshot = await captureWorktree(f.identity, secondPath);
+  let second;
+  await f.store.locked(async (state, save) => {
+    second = registerEntry(state, { ...secondSnapshot, change: "second", sourcePr: 21, candidatePr: 21,
+      role: "implementation", disposable: [] }, owner);
+    transitionEntry(second, "release", owner, second.generation); await save(state);
+  });
+  let ready = 0, releaseBoth;
+  const gate = new Promise(resolve => { releaseBoth = resolve; });
+  const update = id => f.store.session(async (state, save) => {
+    const entry = state.entries.find(item => item.id === id); entry.state = "deleting"; entry.step = "remove-intent";
+    ready++; if (ready === 2) releaseBoth(); await gate; await save(state);
+  });
+  await Promise.all([update(f.entry.id), update(second.id)]);
+  const state = await f.store.read();
+  assert.deepEqual(state.entries.filter(entry => [f.entry.id, second.id].includes(entry.id)).map(entry => entry.step), ["remove-intent", "remove-intent"]);
+});
+
+test("a paused candidate does not block disjoint cleanup", { timeout: 30000 }, async t => {
+  const f = await fixture(t, false, true), secondPath = join(f.identity.root, "second"); await f.store.enable();
+  await mkdir(join(f.path, "node_modules")); await writeFile(join(f.path, "node_modules", "generated"), "fixture");
+  await f.store.locked(async (state, save) => { state.entries.find(entry => entry.id === f.entry.id).disposable = ["node_modules"]; await save(state); });
+  await git(f.primary, "worktree", "add", "--detach", secondPath);
+  const secondSnapshot = await captureWorktree(f.identity, secondPath);
+  let second;
+  await f.store.locked(async (state, save) => {
+    second = registerEntry(state, { ...secondSnapshot, change: "second", sourcePr: 21, candidatePr: 21,
+      role: "implementation", disposable: [] }, owner);
+    transitionEntry(second, "release", owner, second.generation); await save(state);
+  });
+  let signalSlow, releaseSlow;
+  const entered = new Promise(resolve => { signalSlow = resolve; });
+  const gate = new Promise(resolve => { releaseSlow = resolve; });
+  t.after(() => releaseSlow());
+  let paused = false;
+  const slowPurge = async (...args) => {
+    if (!paused) { paused = true; signalSlow(); await gate; }
+    return purgeDisposable(...args);
+  };
+  const slow = f.pass({ preview: false, entryIds: [f.entry.id], includeUnmanaged: false, purge: slowPurge });
+  await entered;
+  const fast = await f.pass({ preview: false, entryIds: [second.id], includeUnmanaged: false });
+  assert.equal(fast.results[0].disposition, "removed", JSON.stringify(fast));
+  assert.equal(await exists(secondPath), false); assert.equal(await exists(f.path), true);
+  releaseSlow();
+  const finished = await slow; assert.equal(finished.results[0].disposition, "removed", JSON.stringify(finished));
+  const state = await f.store.read(); assert.ok(state.entries.filter(entry => [f.entry.id, second.id].includes(entry.id)).every(entry => entry.state === "done"));
+});
+
+test("sweep defers a held candidate and continues with disjoint work", async t => {
+  const f = await fixture(t, false, true), secondPath = join(f.identity.root, "second"); await f.store.enable();
+  await git(f.primary, "worktree", "add", "--detach", secondPath);
+  const secondSnapshot = await captureWorktree(f.identity, secondPath);
+  let second;
+  await f.store.locked(async (state, save) => {
+    second = registerEntry(state, { ...secondSnapshot, change: "second", sourcePr: 21, candidatePr: 21,
+      role: "implementation", disposable: [] }, owner);
+    transitionEntry(second, "release", owner, second.generation); await save(state);
+  });
+  const report = await f.store.resourceLocked([`path:${f.path}`], async () => f.pass({ preview: false, includeUnmanaged: false }));
+  const held = report.results.find(row => row.id === f.entry.id), removed = report.results.find(row => row.id === second.id);
+  assert.deepEqual([held.disposition, held.reason], ["deferred", "resource-busy"], JSON.stringify(report));
+  assert.equal(removed.disposition, "removed", JSON.stringify(report));
+  assert.equal(await exists(f.path), true); assert.equal(await exists(secondPath), false);
 });
 
 test("preview and disabled execution preserve local refs, files and state", async t => {
