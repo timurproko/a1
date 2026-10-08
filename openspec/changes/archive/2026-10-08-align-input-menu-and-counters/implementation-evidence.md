@@ -8,7 +8,7 @@
 
 ## Validation
 
-- `npx vitest run test/ui/components/prompt-input.test.ts test/integrations/pi/components/editor-autocomplete-placement.test.ts test/integrations/pi/components/history-editor-core.test.ts test/integrations/pi/components/history-editor-shell.test.ts test/app/session-shell/session-shell-history.test.ts test/app/session-shell/session-shell-selection.test.ts` — 119 tests passed across prompt composition, both history modes, narrow borders, terminal paint, streaming spinner alignment, shell geometry, and comparison isolation.
+- `npx vitest run test/ui/components/prompt-input.test.ts test/integrations/pi/components/editor-autocomplete-placement.test.ts test/integrations/pi/components/history-editor-core.test.ts test/integrations/pi/components/history-editor-shell.test.ts test/app/session-shell/session-shell-history.test.ts test/app/session-shell/session-shell-selection.test.ts` — 53 tests passed across prompt composition, both history modes, narrow borders, terminal paint, streaming spinner alignment, shell geometry, and comparison isolation.
 - `npm run build` — passed and produced the repository-checkout interactive candidate.
 - `npm run typecheck` — passed for source and bin projects after the build completed. The pre-build invocation reported only the expected missing generated `dist` imports in the fresh worktree and was superseded by the successful post-build run.
 - `npm run check:architecture` — passed after synchronizing the reviewed owned-source provenance records and local hashes.
