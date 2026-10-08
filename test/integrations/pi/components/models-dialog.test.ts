@@ -124,9 +124,12 @@ describe("unified Models dialog", () => {
       const selectedScoped = lines.find(line => stripTerminalSequences(line).includes("● gpt-5 "))!;
       const unselectedEmpty = lines.find(line => stripTerminalSequences(line).includes("○ gpt-5-mini"))!;
 
-      const secondaryMarker = cellStyle(piTheme().fg("mdHeading", "●"), "●");
+      const secondaryMarker = cellStyle(piTheme().style("●", { fg: "mdHeading", dim: true }), "●");
       expect(cellStyle(unselectedScoped, "●")).toEqual(secondaryMarker);
       expect(cellStyle(selectedScoped, "●")).toEqual(secondaryMarker);
+      expect(cellStyle(unselectedScoped, "●").foreground).toBe(cellStyle(lines[2]!, "a").foreground);
+      expect(cellStyle(unselectedScoped, "●").faint).toBe(true);
+      expect(cellStyle(lines[2]!, "a").faint).toBe(false);
       expect(cellStyle(unselectedEmpty, "○")).toEqual(cellStyle(piTheme().fg("dim", "○"), "○"));
       expect(cellStyle(selectedScoped, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
     }, { scopeIds: [ids.claude, ids.gpt5], savedScopeIds: [ids.claude, ids.gpt5] });

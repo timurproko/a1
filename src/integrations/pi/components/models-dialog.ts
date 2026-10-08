@@ -369,7 +369,7 @@ export class ModelsDialogComponent implements Component, Focusable {
         const scoped = this.#scopeIds.includes(row.fullId);
         // Invariant: arrow, scope marker, model id, [provider], then the active checkmark.
         const prefix = selected ? theme.fg("accent", "→ ") : "  ";
-        const marker = scoped ? theme.fg("mdHeading", "●") : theme.fg("dim", "○");
+        const marker = scoped ? theme.style("●", { fg: "mdHeading", dim: true }) : theme.fg("dim", "○");
         const label = selected ? theme.fg("text", row.model.id) : row.model.id;
         const provider = theme.fg("muted", `[${row.model.provider}]`);
         const active = row.fullId === this.#activeModelId ? ` ${theme.fg("success", "✓")}` : "";

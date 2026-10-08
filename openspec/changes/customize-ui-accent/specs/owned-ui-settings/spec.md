@@ -28,7 +28,9 @@ Introducing the setting SHALL advance the owned settings version with forward mi
 - **WHEN** the reader selects `purple` or has no stored accent preference
 - **THEN** the active interface SHALL project A1's purple palette across the same semantic family as every other choice
 - **AND** dialog bars SHALL use its darker neighboring-hue border tone rather than the base Pi border
-- **AND** secondary headings, active dialog-filter values, and filled scope/default state markers SHALL use its brighter complementary palette variation, with purple using a stronger hue separation
+- **AND** secondary headings and active dialog-filter values SHALL use its brighter complementary palette variation, with purple using a stronger hue separation
+- **AND** filled scope/default state markers SHALL use that secondary hue with dim styling
+- **AND** selected rows SHALL use a lighter, lower-saturation background tint
 
 #### Scenario: Use the comparison profile
 - **WHEN** the reader starts or configures `a1 pi`

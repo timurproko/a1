@@ -60,11 +60,11 @@ describe("semantic accent-family architecture", () => {
     expect(sessions).toContain('theme.fg("mdHeading", sortLabel)');
     const models = await readFile("src/integrations/pi/components/models-dialog.ts", "utf8");
     expect(models).toContain('? "mdHeading" : "dim", "all"');
-    expect(models).toContain('theme.fg("mdHeading", "●")');
+    expect(models).toContain('theme.style("●", { fg: "mdHeading", dim: true })');
     const tree = await readFile("src/integrations/pi/components/upstream/components/tree-selector.ts", "utf8");
     expect(tree).toContain('mode === active ? "mdHeading" : "muted"');
     const thinking = await readFile("src/integrations/pi/components/upstream/components/thinking-selector.ts", "utf8");
-    expect(thinking).toContain('theme.fg("mdHeading", "◉")');
+    expect(thinking).toContain('theme.style("◉", { fg: "mdHeading", dim: true })');
   });
 
   it("keeps sticky prompts and jump controls neutral until their accent hover", async () => {

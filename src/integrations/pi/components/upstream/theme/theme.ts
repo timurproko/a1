@@ -100,72 +100,72 @@ const ACCENT_PALETTE: Readonly<Record<UiAccentColor, Readonly<Record<PiTerminalT
     dark: Object.freeze({
       accent: Object.freeze({ kind: "rgb", r: 167, g: 152, b: 215 }), border: okhslColor(275, 0.42, 0.50),
       secondaryHeading: okhslColor(350, 0.82, 0.72),
-      selectedBg: okhslColor(295, 0.35, 0.24), userMessageBg: okhslColor(295, 0.28, 0.24),
+      selectedBg: okhslColor(295, 0.30, 0.28), userMessageBg: okhslColor(295, 0.28, 0.24),
     }),
     light: Object.freeze({
       accent: Object.freeze({ kind: "rgb", r: 116, g: 89, b: 180 }), border: okhslColor(275, 0.50, 0.36),
       secondaryHeading: okhslColor(350, 0.78, 0.35),
-      selectedBg: okhslColor(295, 0.22, 0.91), userMessageBg: okhslColor(295, 0.16, 0.91),
+      selectedBg: okhslColor(295, 0.20, 0.93), userMessageBg: okhslColor(295, 0.16, 0.91),
     }),
   }),
   blue: Object.freeze({
     dark: Object.freeze({
       accent: okhslColor(232, 0.54, 0.67), border: okhslColor(252, 0.42, 0.50),
       secondaryHeading: okhslColor(202, 0.60, 0.76),
-      selectedBg: okhslColor(232, 0.35, 0.24), userMessageBg: okhslColor(232, 0.28, 0.24),
+      selectedBg: okhslColor(232, 0.30, 0.28), userMessageBg: okhslColor(232, 0.28, 0.24),
     }),
     light: Object.freeze({
       accent: okhslColor(231, 0.68, 0.47), border: okhslColor(251, 0.50, 0.36),
       secondaryHeading: okhslColor(202, 0.70, 0.38),
-      selectedBg: okhslColor(231, 0.22, 0.91), userMessageBg: okhslColor(231, 0.16, 0.91),
+      selectedBg: okhslColor(231, 0.20, 0.93), userMessageBg: okhslColor(231, 0.16, 0.91),
     }),
   }),
   cyan: Object.freeze({
     dark: Object.freeze({
       accent: okhslColor(202, 0.58, 0.67), border: okhslColor(222, 0.44, 0.50),
       secondaryHeading: okhslColor(170, 0.62, 0.76),
-      selectedBg: okhslColor(202, 0.35, 0.24), userMessageBg: okhslColor(202, 0.28, 0.24),
+      selectedBg: okhslColor(202, 0.30, 0.28), userMessageBg: okhslColor(202, 0.28, 0.24),
     }),
     light: Object.freeze({
       accent: okhslColor(203, 0.73, 0.46), border: okhslColor(223, 0.52, 0.36),
       secondaryHeading: okhslColor(170, 0.72, 0.38),
-      selectedBg: okhslColor(203, 0.22, 0.91), userMessageBg: okhslColor(203, 0.16, 0.91),
+      selectedBg: okhslColor(203, 0.20, 0.93), userMessageBg: okhslColor(203, 0.16, 0.91),
     }),
   }),
   green: Object.freeze({
     dark: Object.freeze({
       accent: okhslColor(159, 0.59, 0.67), border: okhslColor(180, 0.43, 0.50),
       secondaryHeading: okhslColor(120, 0.62, 0.76),
-      selectedBg: okhslColor(159, 0.35, 0.24), userMessageBg: okhslColor(159, 0.28, 0.24),
+      selectedBg: okhslColor(159, 0.30, 0.28), userMessageBg: okhslColor(159, 0.28, 0.24),
     }),
     light: Object.freeze({
       accent: okhslColor(159, 0.75, 0.46), border: okhslColor(180, 0.53, 0.36),
       secondaryHeading: okhslColor(120, 0.72, 0.38),
-      selectedBg: okhslColor(159, 0.22, 0.91), userMessageBg: okhslColor(159, 0.16, 0.91),
+      selectedBg: okhslColor(159, 0.20, 0.93), userMessageBg: okhslColor(159, 0.16, 0.91),
     }),
   }),
   orange: Object.freeze({
     dark: Object.freeze({
       accent: okhslColor(48, 0.75, 0.67), border: okhslColor(28, 0.55, 0.50),
       secondaryHeading: okhslColor(78, 0.76, 0.76),
-      selectedBg: okhslColor(48, 0.40, 0.24), userMessageBg: okhslColor(48, 0.30, 0.24),
+      selectedBg: okhslColor(48, 0.32, 0.28), userMessageBg: okhslColor(48, 0.30, 0.24),
     }),
     light: Object.freeze({
       accent: okhslColor(48, 0.90, 0.47), border: okhslColor(28, 0.64, 0.36),
       secondaryHeading: okhslColor(78, 0.82, 0.38),
-      selectedBg: okhslColor(48, 0.24, 0.91), userMessageBg: okhslColor(48, 0.17, 0.91),
+      selectedBg: okhslColor(48, 0.22, 0.93), userMessageBg: okhslColor(48, 0.17, 0.91),
     }),
   }),
   pink: Object.freeze({
     dark: Object.freeze({
       accent: okhslColor(337, 0.72, 0.67), border: okhslColor(315, 0.52, 0.50),
       secondaryHeading: okhslColor(15, 0.72, 0.76),
-      selectedBg: okhslColor(337, 0.38, 0.24), userMessageBg: okhslColor(337, 0.29, 0.24),
+      selectedBg: okhslColor(337, 0.32, 0.28), userMessageBg: okhslColor(337, 0.29, 0.24),
     }),
     light: Object.freeze({
       accent: okhslColor(337, 0.75, 0.48), border: okhslColor(315, 0.54, 0.36),
       secondaryHeading: okhslColor(15, 0.76, 0.38),
-      selectedBg: okhslColor(337, 0.23, 0.91), userMessageBg: okhslColor(337, 0.16, 0.91),
+      selectedBg: okhslColor(337, 0.21, 0.93), userMessageBg: okhslColor(337, 0.16, 0.91),
     }),
   }),
 });
