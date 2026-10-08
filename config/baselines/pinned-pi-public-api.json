@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "1.0.4",
+      "version": "1.1.0",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -39,7 +39,7 @@
         {
           "name": "AgentSession",
           "kind": "class",
-          "hash": "8a29dc07550378a4d4428247dd04d70698b0d36698ed4823a4660e94b2e7df46",
+          "hash": "ed54d4c4e0bd31af13328f4793bae4892c0e45f1f1383592bdfd960874d61467",
           "consumers": [
             "src/integrations/pi/engine/adapter.ts",
             "src/integrations/pi/engine/compaction-progress.ts",
@@ -59,13 +59,13 @@
         {
           "name": "AgentSessionConfig",
           "kind": "interface",
-          "hash": "55f5410d251dfbbf750e9ee60617c04f609cf9f98d6f83adaa41bbd1ef334349",
+          "hash": "7b9172b639ac05c6ad9f172311ee3bfbc4437d6ca1e9882ca75a2eb38e5aea59",
           "consumers": []
         },
         {
           "name": "AgentSessionEvent",
           "kind": "type",
-          "hash": "1b1c5dfdbc3693506376627d25c72781a3fabcba774f696fd6d93f0dc7093170",
+          "hash": "6851c0ab591026cfbae321aa427faf08a4177654b9349dff61ae528dedcb4881",
           "consumers": [
             "src/integrations/pi/engine/session-integration.ts"
           ]
@@ -111,7 +111,7 @@
         {
           "name": "AgentSettledEvent",
           "kind": "interface",
-          "hash": "3d256dfc55eb175ffd05100f8ac268261fa86c627c027d738e50f5a3f459e500",
+          "hash": "03165165d5ba11718ff8609755d6b06db0f47c4a720f07defcc8de83a0da3da3",
           "consumers": []
         },
         {
@@ -173,7 +173,7 @@
         {
           "name": "BashExecutionComponent",
           "kind": "class",
-          "hash": "eaedd9629934b698a03bfc89c1bba6c176de700c1f478b9e9a5a7e0dc299fe17",
+          "hash": "ebdb3f9dc1ad0694719bd859d9b4f47b4088ecf7cd80e2915e4db9d5ba3e536b",
           "consumers": [
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/startup-public.ts"
@@ -293,7 +293,7 @@
         {
           "name": "BranchSummaryMessageComponent",
           "kind": "class",
-          "hash": "e79c80f0df163d4c7564f836cc3f9c4a33297ffc8cd182c7e72fa4394e8ed042",
+          "hash": "7e994adae89d95ff4f6c8779250138c909b5e40eb257c6c48d66f5bb52a8d415",
           "consumers": []
         },
         {
@@ -431,7 +431,7 @@
         {
           "name": "CompactionSummaryMessageComponent",
           "kind": "class",
-          "hash": "da86c565ce689a5241844e8c6b4098f6f519f5cdbc0295fead68a5131f56d279",
+          "hash": "bbf46218758dd072e2bbf8f958c165f8dd42121ed61df3d2c508335481c6af74",
           "consumers": [
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/startup-public.ts"
@@ -1468,7 +1468,7 @@
         {
           "name": "InteractiveMode",
           "kind": "class",
-          "hash": "efbc7d024b74fe06967c7044829f10e9caad7ed931b6bf88e706ac73f148d5e8",
+          "hash": "708c13f74cb6569cfdf24050389e1ecbfe4f21222ad4d027f2010f6b6ec11ecf",
           "consumers": []
         },
         {
@@ -2590,7 +2590,7 @@
         {
           "name": "SkillInvocationMessageComponent",
           "kind": "class",
-          "hash": "48b528f377970d356c26115498ab6ba3f65b5f6913a5e2301a11ea85383e79dd",
+          "hash": "ddb91f1a9da74191ec2d4e3e195e3482850db9cd2cda084195cf856f2bc5481e",
           "consumers": []
         },
         {
@@ -2728,7 +2728,7 @@
         {
           "name": "ToolExecutionComponent",
           "kind": "class",
-          "hash": "1d399e9709b0de827a6c4645facac90b2adee202d884277af1abc9b82dd51854",
+          "hash": "5cc01372a4c689415f429d850f5b01c95683bc4bc82977d4373f991cbfe25b13",
           "consumers": [
             "src/integrations/pi/components/components.ts",
             "src/integrations/pi/components/conformance.ts",
@@ -2738,7 +2738,7 @@
         {
           "name": "ToolExecutionEndEvent",
           "kind": "interface",
-          "hash": "277d99a85ec09dc4b17a41739adc9fc86897b3732b66c3397734996dd9b9be3d",
+          "hash": "5af48fb88653e695d5056ff40221dd1d0e928f27079cc3b11d6546630560828b",
           "consumers": []
         },
         {
@@ -2750,7 +2750,7 @@
         {
           "name": "ToolExecutionOptions",
           "kind": "interface",
-          "hash": "0dd7365d7fd6af7ad012e09b98765d35b732013b781c6ff0fcb57af0d4ad8bd2",
+          "hash": "a77b8d5ab1d71368cd73748d9b3b1cea6d6e74a6fd248672ddc9931c397d738f",
           "consumers": []
         },
         {
@@ -3044,7 +3044,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "1.0.4",
+      "version": "1.1.0",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -3091,7 +3091,7 @@
         {
           "name": "Box",
           "kind": "class",
-          "hash": "b3759ea28b5777089cd8b1ae59b8d999b6427feef4e24926f4e7bc124d1eba62",
+          "hash": "ea1463f6edcefcbc9e72af3831a1b215618c4bbae1097f2d436183501195b50d",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/components/submitted-prompt-adapter.ts",
@@ -3335,6 +3335,12 @@
           "consumers": [
             "src/integrations/pi/components/upstream/components/pi-logo.ts"
           ]
+        },
+        {
+          "name": "formatProgramStatus",
+          "kind": "function",
+          "hash": "5bdb99ae8c62e28282631500342d5a321cd90d0808f7f0424286449d2774100b",
+          "consumers": []
         },
         {
           "name": "fuzzyFilter",
@@ -3852,10 +3858,16 @@
         {
           "name": "ProcessTerminal",
           "kind": "class",
-          "hash": "a44f460a6015012549c637c0edb75a668864e7b4de97ee7e586f83a4a1df2d8e",
+          "hash": "eb3bb6ad7aae9c17e2ce74dfa83d1ce1e08d397d0158e1d101e155cf2419c059",
           "consumers": [
             "src/integrations/pi/tui-runtime/adapter.ts"
           ]
+        },
+        {
+          "name": "ProgramStatus",
+          "kind": "interface",
+          "hash": "03dab00d02f38af98cfbf13fbe6ee26fd14cfc0b209cc2a278d82b22442139a6",
+          "consumers": []
         },
         {
           "name": "renderImage",
@@ -4143,7 +4155,7 @@
         {
           "name": "Terminal",
           "kind": "interface",
-          "hash": "5f6e89a744bb6f3b64fa2724b62590eb832b76358f2fe0bfcf6230d08959fe47",
+          "hash": "b80c615b069142c403cb0a2f404fdda3711c66aad4fb4a00f72d9bf88be87e6a",
           "consumers": []
         },
         {
@@ -4173,7 +4185,7 @@
         {
           "name": "Text",
           "kind": "class",
-          "hash": "256bdefed48634626a832802b714cf6c35670d2c29eb0fb536f9eb79bd014eb4",
+          "hash": "20b16a193dccf6331affd3d0ce66aa54ba3caf40b7fd9e93b62bcb54c6ab4da3",
           "consumers": [
             "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/share-operation-dialog.ts",
@@ -4279,7 +4291,7 @@
         {
           "name": "TuiAltScreen",
           "kind": "class",
-          "hash": "dbb6cdf68ff4e7eff5f02682a8bd6d5526665af970cedb47d827c423bef0704c",
+          "hash": "bd3209aa786cb15c193e98c12ded8c13772d5a4b4d42548692d450ee09340a54",
           "consumers": [
             "src/integrations/pi/tui-runtime/adapter.ts",
             "src/integrations/pi/tui-runtime/overlay-geometry.ts"

@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.0.4 (MIT), commit 7c10bd4337495ee613f2224843ecdf349b80d1df,
+ * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/coding-agent/src/modes/interactive/components/skill-invocation-message.ts.
  * Modifications: Mechanical port uses A1's public pi-tui instance, owned theme boundary, and
  * root-instance keybinding registry because the public coding-agent component closes over a second
@@ -14,8 +14,24 @@ export interface SkillInvocationBlock {
   readonly content: string;
 }
 
+<<<<<<< a1
 export class SkillInvocationMessageComponent extends Box {
   #expanded = false;
+||||||| pi 1.0.4
+	constructor(skillBlock: ParsedSkillBlock, markdownTheme: MarkdownTheme = getMarkdownTheme()) {
+		super(1, 1, (t) => theme.bg("customMessageBg", t));
+		this.skillBlock = skillBlock;
+		this.markdownTheme = markdownTheme;
+		this.updateDisplay();
+	}
+=======
+	constructor(skillBlock: ParsedSkillBlock, markdownTheme: MarkdownTheme = getMarkdownTheme(), outputPad = 1) {
+		super(outputPad, 1, (t) => theme.bg("customMessageBg", t));
+		this.skillBlock = skillBlock;
+		this.markdownTheme = markdownTheme;
+		this.updateDisplay();
+	}
+>>>>>>> pi 1.1.0
 
   private readonly skillBlock: SkillInvocationBlock;
   private readonly markdownTheme: MarkdownTheme;
@@ -29,10 +45,26 @@ export class SkillInvocationMessageComponent extends Box {
     this.#updateDisplay();
   }
 
+<<<<<<< a1
   setExpanded(expanded: boolean): void {
     this.#expanded = expanded;
     this.#updateDisplay();
   }
+||||||| pi 1.0.4
+	override invalidate(): void {
+		super.invalidate();
+		this.updateDisplay();
+	}
+=======
+	setOutputPad(outputPad: number): void {
+		this.setPaddingX(outputPad);
+	}
+
+	override invalidate(): void {
+		super.invalidate();
+		this.updateDisplay();
+	}
+>>>>>>> pi 1.1.0
 
   override invalidate(): void {
     super.invalidate();
