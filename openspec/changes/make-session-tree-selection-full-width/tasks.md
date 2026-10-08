@@ -10,4 +10,4 @@
 
 ## 3. Confirm the Physical Result
 
-- [ ] 3.1 Build the interactive candidate and hand off `/tree` for physical-terminal review; verify every selected entry has the same full-width blue surface as Resume Session while tree content, clipping, and navigation remain unchanged and no known gap is left undispositioned.
+- [x] 3.1 Build the interactive candidate and hand off `/tree` for physical-terminal review; verify every selected entry has the same full-width blue surface as Resume Session while tree content, clipping, and navigation remain unchanged and no known gap is left undispositioned.

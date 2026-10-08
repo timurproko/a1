@@ -21,8 +21,8 @@
 
 ## Physical review
 
-The built `/tree` candidate is ready for maintainer review. Confirm that selection fills the same complete row width as Resume Session while moving among entries and that tree colors, indentation, and clipping remain unchanged.
+The maintainer approved the built `/tree` candidate after confirming that selection fills the same complete row width as Resume Session while moving among entries and that tree colors, indentation, and clipping remain unchanged.
 
 ## Known gaps
 
-No known implementation gaps. Physical-terminal confirmation is pending maintainer review.
+None.
