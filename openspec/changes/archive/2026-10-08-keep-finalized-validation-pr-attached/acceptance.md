@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-08-keep-finalized-validation-pr-attached/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-08-keep-finalized-validation-pr-attached/acceptance.md",
   "finalizedDate": "2026-10-08",
-  "specBaseSha": "92479020152a1c48a85aec7185200860171b8e2b",
+  "specBaseSha": "40f750e915534a530844d44575fa460f37a7a2bd",
   "acceptanceScenarios": [
     "Automated first finalization and same-path re-finalization bind the exact pushed head and trigger native PR-associated validation whose lane progress is visible on the pull request.",
     "Missing or stale head bindings defer protected validation, while concurrent body or head changes are preserved and retried without stale metadata writes.",
