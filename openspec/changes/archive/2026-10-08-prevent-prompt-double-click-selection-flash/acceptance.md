@@ -17,14 +17,14 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-08-prevent-prompt-double-click-selection-flash/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-08-prevent-prompt-double-click-selection-flash/acceptance.md",
   "finalizedDate": "2026-10-08",
-  "specBaseSha": "9b111cb55360e6ffa84e1e6534c3365c95be46cb",
+  "specBaseSha": "cc647e7b7d69c1d05bc17ef0e825efc32fb31636",
   "acceptanceScenarios": [
     "Held prompt multi-clicks never paint selection through unused input-row cells.",
     "No-drag prompt clicks retain exact editor caret, word, and logical-line selection behavior.",
     "Distinct prompt motion promotes from the original press cell into complete-frame selection.",
     "Transcript selection, controls, modal ownership, and comparison-profile behavior remain unchanged."
   ],
-  "archiveDigest": "cb1bf554cd8d26da94c09526eb441d3a74bd5608bf76b08d7b413b723c75e1fc",
+  "archiveDigest": "464b2bf0084b08e1be693195d6ecdd3ffa49426750c61fb755ac7cb206f010e0",
   "specDigest": "910a9d3bba0df13f8afa4b418d933b71b601c928d3a892d93257f1b1c677550a",
   "tasksDigest": "b42045af26f580f04a1d1e815a751068dfadf8d4c5805d00d529f19f8ebd2732",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
