@@ -1,8 +1,7 @@
-import { getMarkdownTheme } from "../startup-public.js";
 import { Box, Markdown, Text, type Component } from "@earendil-works/pi-tui";
 import type { OwnedUiTranscriptBlock, PromptChipWrapProtection } from "../../../contracts/owned-ui/index.js";
 import { protectPiPromptChipPresentation } from "./prompt-chip-presentation.js";
-import { piTheme } from "./theme.js";
+import { getPiMarkdownTheme, piTheme } from "./theme.js";
 
 export interface PiShellSubmittedPromptComposer {
   readonly layout: (width: number, source?: Date | number | null) => { readonly contentWidth: number };
@@ -45,7 +44,7 @@ export function createPiSubmittedPromptComponent(
     block.text,
     0,
     0,
-    getMarkdownTheme(),
+    getPiMarkdownTheme(),
     { color: content => piTheme().fg("userMessageText", content) },
     {
       preserveOrderedListMarkers: true,

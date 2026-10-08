@@ -1,6 +1,6 @@
 import { CancellableLoader, Container, Spacer, Text, type Component, type TUI } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "../startup-public.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "./theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "./theme.js";
 
 export const PI_MODAL_CONTENT_PADDING_X = 1;
 
@@ -17,14 +17,13 @@ export class PiCancellableOperationFrame extends Container {
   constructor(tui: TUI, message: string) {
     super();
     const theme = piTheme();
-    const border = (text: string) => theme.fg("border", text);
     this.#loader = new CancellableLoader(tui, text => theme.fg("accent", text), text => theme.fg("muted", text), message);
-    this.addChild(new DynamicBorder(border));
+    this.addChild(new DynamicBorder(paintPiBorder));
     this.addChild(this.#loader);
     this.addChild(new Spacer(1));
     this.addChild(new Text(renderPiModalShortcutHints([DIALOG_CLOSE_SHORTCUT_HINT]), 0, 0));
     this.addChild(new Spacer(1));
-    this.addChild(new DynamicBorder(border));
+    this.addChild(new DynamicBorder(paintPiBorder));
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1 });
   }
   get signal(): AbortSignal { return this.#loader.signal; }

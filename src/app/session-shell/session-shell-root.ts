@@ -565,7 +565,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         piTheme().fg("text", withoutTerminalBackground(text)),
       ),
       quietSticky: text => `\u001b[2m${text.replace(/\u001b\[(?:0|22)m/g, "$&\u001b[2m")}\u001b[22m`,
-      bottomControl: (text, hovered) => piTheme().bg(hovered ? "selectedBg" : "toolPendingBg", piTheme().fg("text", text)),
+      bottomControl: (text, hovered) => piTheme().bg(
+        hovered ? "selectedBg" : "toolPendingBg",
+        piTheme().fg("text", text),
+      ),
       selection: (line, from, to) => backgroundSgrSpan(
         line,
         from,
@@ -583,8 +586,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     // Invariant: colours come from the active theme, so rendered rows outlive their revision only
     // until the theme under them changes.
     this.#themeUnsubscribe = onPiThemeChange(() => {
-      this.#renderedRows.clear();
-      this.#documentLayouts.clear();
+      this.invalidate();
+      this.#componentRuntime.requestRender(true);
     });
   }
 

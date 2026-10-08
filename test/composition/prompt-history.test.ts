@@ -15,7 +15,7 @@ const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true
 
 // Rationale: test composition/storage without starting a terminal, provider, or Pi runtime.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({
-  applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [],
+  applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {},
 }));
 vi.mock("../../src/integrations/pi/components/history-editor-loader.js", () => ({ loadHistoryEditor: observed.loadEditor }));
 vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
@@ -23,7 +23,8 @@ vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => (
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
   OwnedSettingsManager: class {
-    value(key: string) { return key === "promptHistoryEnabled" ? observed.enabled : key === "promptHistoryMaxItems" ? 100 : undefined; }
+    value(key: string) { return key === "promptHistoryEnabled" ? observed.enabled : key === "promptHistoryMaxItems" ? 100 : key === "accentColor" ? "purple" : undefined; }
+    onChange() { return () => undefined; }
   },
 }));
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({

@@ -5,7 +5,7 @@ import {
 } from "../startup-public.js";
 import type { OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
 import { createTuiFacade, validatedAssistantMessage } from "./shell-components.js";
-import { ensurePiTheme } from "./theme.js";
+import { ensurePiTheme, getPiMarkdownTheme } from "./theme.js";
 
 export function adaptPiUserMessage(block: OwnedUiTranscriptBlock, width: number): readonly string[] {
   requireBlock(block, "user");
@@ -16,7 +16,7 @@ export function adaptPiUserMessage(block: OwnedUiTranscriptBlock, width: number)
 export function adaptPiAssistantMessage(block: OwnedUiTranscriptBlock, width: number): readonly string[] {
   requireBlock(block, "assistant");
   ensurePiTheme();
-  return new AssistantMessageComponent(validatedAssistantMessage(block), false).render(width);
+  return new AssistantMessageComponent(validatedAssistantMessage(block), false, getPiMarkdownTheme()).render(width);
 }
 
 export function adaptPiToolExecution(
