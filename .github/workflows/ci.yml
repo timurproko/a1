@@ -785,7 +785,7 @@ jobs:
           retention-days: 14
 
   required:
-    name: "${{ needs.readiness.outputs.validate == 'true' && github.event_name == 'pull_request' && 'Development validation required' || needs.readiness.outputs.validate == 'true' && 'Development validation diagnostic' || 'Development validation deferred' }}"
+    name: "${{ github.event_name == 'pull_request' && 'Development validation required' || 'Development validation diagnostic' }}"
     if: always() && needs.readiness.result == 'success' && needs.readiness.outputs.validate == 'true'
     needs: [readiness, changes, acceptance, delivery, docs, naming, documentation, modular, rendering, full-selection, full-regression]
     permissions:

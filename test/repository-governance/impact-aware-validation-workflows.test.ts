@@ -19,10 +19,7 @@ describe("impact-aware validation workflows", () => {
     expect(matrixStep.run).not.toContain("--manual-no-comparison");
     expect(workflow.jobs.required.needs).toEqual(["readiness", "changes", "acceptance", "delivery", "docs", "naming", "documentation", "modular", "rendering", "full-selection", "full-regression"]);
     expect(workflow.on.pull_request.types).toContain("edited");
-    expect(workflow.jobs.required.name).toContain("github.event_name == 'pull_request'");
-    expect(workflow.jobs.required.name).toContain("Development validation required");
-    expect(workflow.jobs.required.name).toContain("Development validation diagnostic");
-    expect(workflow.jobs.required.name).toContain("Development validation deferred");
+    expect(workflow.jobs.required.name).toBe("${{ github.event_name == 'pull_request' && 'Development validation required' || 'Development validation diagnostic' }}");
     expect(workflow.jobs.required.name).not.toContain("Implementation validation complete");
   });
 
@@ -182,7 +179,7 @@ describe("impact-aware validation workflows", () => {
     expect(workflow.jobs["full-selection"].needs).toBe("readiness");
     expect(workflow.jobs["full-selection"].if).toContain("needs.readiness.outputs.validate == 'true'");
     expect(workflow.jobs.required.if).toBe("always() && needs.readiness.result == 'success' && needs.readiness.outputs.validate == 'true'");
-    expect(workflow.jobs.required.name).toBe("${{ needs.readiness.outputs.validate == 'true' && github.event_name == 'pull_request' && 'Development validation required' || needs.readiness.outputs.validate == 'true' && 'Development validation diagnostic' || 'Development validation deferred' }}");
+    expect(workflow.jobs.required.name).toBe("${{ github.event_name == 'pull_request' && 'Development validation required' || 'Development validation diagnostic' }}");
     expect(source).toContain("manual_args=(--manual-no-comparison)");
     expect(source).toContain("implementation_args=(--implementation-bound)");
     expect(workflow.jobs.changes.outputs["implementation-bound"]).toContain("implementation_bound");
