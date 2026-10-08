@@ -186,7 +186,7 @@ function renderWithOutputPad(
   outputPad: 0 | 1,
 ): readonly string[] {
   const rows = component.render(width);
-  if (outputPad !== 0 || (kind !== "tool-call" && kind !== "tool-result" && kind !== "bash")) return rows;
+  if (outputPad !== 0 || kind !== "bash") return rows;
   return rows.map(row => row.startsWith(" ") ? row.slice(1) : row);
 }
 
@@ -238,7 +238,7 @@ function transcriptComponent(
         : { ...block, text: block.userPresentation.visibleText };
       const skill = parseSkillBlock(visibleBlock.text);
       if (!skill) return submittedPrompt ? createPiSubmittedPromptComponent(visibleBlock, submittedPrompt) : new UserMessageComponent(visibleBlock.text);
-      const invocation = new SkillInvocationMessageComponent(skill, getMarkdownTheme());
+      const invocation = new SkillInvocationMessageComponent(skill, getMarkdownTheme(), outputPad);
       invocation.setExpanded(expanded);
       if (!skill.userMessage) return invocation;
       const container = new Container();
@@ -252,7 +252,7 @@ function transcriptComponent(
       return assistantComponent(block, outputPad, hideThinkingBlock, mermaidRenderingMode);
     case "tool-call":
     case "tool-result": {
-      const component = toolComponent(block, cwd, extensions, showImages, imageWidthCells, imageAssets, tui);
+      const component = toolComponent(block, cwd, extensions, outputPad, showImages, imageWidthCells, imageAssets, tui);
       component.setExpanded(expanded);
       return component;
     }
@@ -406,6 +406,7 @@ function toolComponent(
   block: OwnedUiTranscriptBlock,
   cwd: string,
   extensions: PiShellExtensionRendererResolver | undefined,
+  outputPad: 0 | 1,
   showImages: boolean,
   imageWidthCells: number,
   imageAssets?: PiShellImageAssetResolver,
@@ -419,7 +420,7 @@ function toolComponent(
     toolName,
     toolCallId,
     argumentsPayload,
-    { showImages, imageWidthCells },
+    { showImages, imageWidthCells, outputPad },
     validatedToolRenderers(extensions?.getToolRenderers(toolName)),
     tui ?? createTuiFacade({ getColumns: () => 80, getRows: () => 24, requestRender() {} }),
     cwd,

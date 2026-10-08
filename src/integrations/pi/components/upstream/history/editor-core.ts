@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-tui 1.0.4 (MIT), commit 7c10bd4337495ee613f2224843ecdf349b80d1df,
+ * Provenance: @earendil-works/pi-tui 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/tui/src/components/editor.ts.
  * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
  * types, typed persistent-history hooks, semantic border state with the user-approved numeric-only

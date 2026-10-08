@@ -152,6 +152,7 @@ export function assertOwnedUiEvent(event: OwnedUiEvent): void {
       assertNonNegativeInteger(event.assistantMessageCount, "owned-UI settlement assistant message count");
       if (event.model !== null) assertOwnedUiModelInfo(event.model);
       if (typeof event.successful !== "boolean") throw new TypeError("owned-UI settlement success state is invalid");
+      if (typeof event.aborted !== "boolean") throw new TypeError("owned-UI settlement aborted state is invalid");
       return;
     case "editor-state":
       assertOwnedUiEditorState(event.editor);

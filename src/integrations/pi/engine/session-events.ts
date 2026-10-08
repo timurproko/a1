@@ -215,6 +215,7 @@ export class PiSessionEvents {
             model: this.#ports.activeModel(),
             assistantMessageCount: assistants.length,
             successful,
+            aborted: event.aborted === true,
           });
         }
         return;

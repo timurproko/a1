@@ -13,26 +13,26 @@
   },
   "source": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df",
+    "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
     "license": "MIT"
   },
   "a1ParityBaselineCommit": "b854210fd4aa69b9664be1e31f7986930416f4ee",
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "1.0.4",
-      "integrity": "sha512-+956nfMFHr5lDUVY/2Q4k+YzojzBuCaBXFgj0eSlXVGr7QVliVddKdc1Pz6yVg1dOlJQmb67doOVrlMsIcIdaw=="
+      "version": "1.1.0",
+      "integrity": "sha512-SeEi/4hdcHNgA9UWlefZl7ZZpm3dzi2OoxNjDHsBJ9o298LNOtbL4DGKgitlEj6uCTccvtw6f2hlCkTPVJ2RXg=="
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "1.0.4",
-      "integrity": "sha512-TgvDJohtxvG3XWQID5w6bwEyBocywdG0F9yHZtP+Ywvtiq9RgeSMbeB8quUobk7/4ko6IvFOQo45AqIqNVr8Rg=="
+      "version": "1.1.0",
+      "integrity": "sha512-v7wkS0y2ErZvZkSfemqd9RrBZJ5x6p8Ujsv7NdJj01IXJyFM0kNL6rMdcKcvTe7EVTd6ugvDB9VPZSoaBF9QxQ=="
     }
   ],
   "fixtures": [
     {
       "path": "test/features/owned-ui/fixtures/pi-component-parity.json",
-      "sha256": "4df00828abf8c5b8ffd39c5a1e037958dc0a27d97690470f6061221b33f4cf55",
+      "sha256": "f7d5e924f08bee55fe0d2af3d6b004223c3e9fc0ed0c24fcb4fba13216f46034",
       "cases": 4,
       "colorMode": "truecolor",
       "classification": "AddOne-generated regression fixture; no independent upstream producer",
@@ -66,7 +66,7 @@
     },
     {
       "path": "test/features/owned-ui/fixtures/pi-event-frame-parity.json",
-      "sha256": "383debbfdade9cfa9f07938632074763d4d02000cc908bf3ab722d98793c9e29",
+      "sha256": "fa4ae899404e3d7ec0f7d404852ea94329d5dfb4cbdd2f2292f9f351477d2e76",
       "stateTransitions": 12,
       "capturedFrames": 5,
       "colorMode": "truecolor",

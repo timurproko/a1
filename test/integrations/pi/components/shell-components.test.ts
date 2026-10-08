@@ -741,21 +741,27 @@ describe("Pi shell public component adapters", () => {
   });
 
   it("uses extension custom-message and tool renderers with fallback isolation", () => {
+    const toolContexts: Array<{ durationMs?: number; outputPad?: number }> = [];
     const resolver = {
       getMessageRenderer: (customType: string) => customType === "extension-message"
         ? (() => new Text("extension message renderer", 0, 0))
         : undefined,
       getToolRenderers: (toolName: string) => toolName === "extension-tool" ? {
         renderCall: () => new Text("extension tool call", 0, 0),
-        renderResult: () => new Text("extension tool result", 0, 0),
+        renderResult: (...args: any[]) => {
+          toolContexts.push(args[3]);
+          return new Text("extension tool result", 0, 0);
+        },
       } : undefined,
     };
     const custom = createPiShellTranscriptComponent(block("custom", "fallback", { customType: "extension-message" }), process.cwd(), resolver);
     expect(stripTerminalSequences(custom.render(80).join("\n"))).toContain("extension message renderer");
     const tool = createPiShellTranscriptComponent(block("tool-result", "done", {
-      toolCallId: "extension-call", toolName: "extension-tool", arguments: { json: {} }, argsComplete: true,
+      toolCallId: "extension-call", toolName: "extension-tool", arguments: { json: {} }, argsComplete: true, durationMs: 321,
     }), process.cwd(), resolver);
+    tool.setOutputPad(0);
     expect(stripTerminalSequences(tool.render(80).join("\n"))).toContain("extension tool result");
+    expect(toolContexts.at(-1)).toMatchObject({ durationMs: 321, outputPad: 0 });
 
     const broken = createPiShellTranscriptComponent(block("custom", "fallback survives", { customType: "broken" }), process.cwd(), {
       ...resolver,

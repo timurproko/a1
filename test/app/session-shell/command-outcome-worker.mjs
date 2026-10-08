@@ -160,6 +160,7 @@ for (const theme of ["dark", "light"]) {
             session: state.session, sessionManager: state.manager, settingsManager: state.settingsManager,
             runtimeHost: state.runtime, chatContainer: chat, outputPad: padding,
             editor, defaultEditor: {}, editorContainer: new tui.Container(), footer: { invalidate() {} },
+            programStatus: { setBlocked() {} },
             ui: { mode: "regular", terminal: { columns: 80, rows: 24, drainInput: async () => {} }, requestRender() {}, setFocus(component) {
               if (focused && "focused" in focused) focused.focused = false;
               focused = component;

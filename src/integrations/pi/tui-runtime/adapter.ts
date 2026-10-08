@@ -9,6 +9,7 @@ import {
   type Focusable,
   type OverlayHandle,
   type OverlayOptions,
+  type ProgramStatus,
   type TUI,
   type TuiAltScreenOptions,
   type WheelScrollLines,
@@ -36,6 +37,8 @@ import type {
   PiTuiTerminalPort,
   PiTuiViewport,
 } from "./contracts.js";
+
+type PiTuiTerminal = PiTuiTerminalPort & { setProgramStatus(status: ProgramStatus): void };
 
 export type PiTuiRuntimeErrorStage = "construction" | "start" | "input-drain" | "restoration";
 
@@ -149,7 +152,7 @@ class OverlayHandleBridge implements PiTuiOverlayHandle {
 /** Bridges neutral presentation ports to one Pi TUI instance and owns terminal restoration on stop. */
 export class PiTuiRuntimeAdapter {
   readonly #terminal: PiTuiTerminalPort;
-  readonly #tuiTerminal: PiTuiTerminalPort;
+  readonly #tuiTerminal: PiTuiTerminal;
   #tui: TUI;
   readonly #root: PiTuiComponentPort;
   readonly #layoutRoot: PiTuiLayoutNode | undefined;
@@ -480,6 +483,10 @@ export class PiTuiRuntimeAdapter {
     this.#terminalProgress = active;
   }
 
+  setProgramStatus(status: ProgramStatus): void {
+    this.#terminal.setProgramStatus?.(status);
+  }
+
   setTitle(title: string): void {
     this.#terminal.setTitle(title);
   }
@@ -733,7 +740,7 @@ function coordinatedInputTerminal(
   coordinator: InputPresentationCoordinator,
   setSink: (sink: ((data: string) => void) | undefined) => void,
   frameMouse: boolean,
-): PiTuiTerminalPort {
+): PiTuiTerminal {
   const mouse = frameMouse ? new MouseReportInput(data => coordinator.accept(data)) : undefined;
   return {
     get columns() { return terminal.columns; },
@@ -763,13 +770,14 @@ function coordinatedInputTerminal(
     clearScreen: () => terminal.clearScreen(),
     setTitle: title => terminal.setTitle(title),
     setProgress: active => terminal.setProgress(active),
+    setProgramStatus: status => terminal.setProgramStatus?.(status),
   };
 }
 
 function diagnosticTerminal(
   terminal: PiTuiTerminalPort,
   trace: (phase: "write-start" | "write-end") => void,
-): PiTuiTerminalPort {
+): PiTuiTerminal {
   return {
     get columns() { return terminal.columns; },
     get rows() { return terminal.rows; },
@@ -793,10 +801,11 @@ function diagnosticTerminal(
     clearScreen: () => terminal.clearScreen(),
     setTitle: title => terminal.setTitle(title),
     setProgress: active => terminal.setProgress(active),
+    setProgramStatus: status => terminal.setProgramStatus?.(status),
   };
 }
 
-function frozenGateTerminal(terminal: PiTuiTerminalPort, frozen: () => boolean): PiTuiTerminalPort {
+function frozenGateTerminal(terminal: PiTuiTerminalPort, frozen: () => boolean): PiTuiTerminal {
   return {
     get columns() { return terminal.columns; },
     get rows() { return terminal.rows; },
@@ -813,10 +822,11 @@ function frozenGateTerminal(terminal: PiTuiTerminalPort, frozen: () => boolean):
     clearScreen: () => { if (!frozen()) terminal.clearScreen(); },
     setTitle: title => terminal.setTitle(title),
     setProgress: active => terminal.setProgress(active),
+    setProgramStatus: status => terminal.setProgramStatus?.(status),
   };
 }
 
-function preInputTerminal(terminal: PiTuiTerminalPort, route: (data: string) => string, frameMouse: boolean): PiTuiTerminalPort {
+function preInputTerminal(terminal: PiTuiTerminalPort, route: (data: string) => string, frameMouse: boolean): PiTuiTerminal {
   let mouse: MouseReportInput | undefined;
   return {
     get columns() { return terminal.columns; },
@@ -844,6 +854,7 @@ function preInputTerminal(terminal: PiTuiTerminalPort, route: (data: string) => 
     clearScreen: () => terminal.clearScreen(),
     setTitle: title => terminal.setTitle(title),
     setProgress: active => terminal.setProgress(active),
+    setProgramStatus: status => terminal.setProgramStatus?.(status),
   };
 }
 

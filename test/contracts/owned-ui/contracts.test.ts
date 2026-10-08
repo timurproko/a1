@@ -161,6 +161,7 @@ describe("owned UI command, event, and snapshot contracts", () => {
       model: identity.model,
       assistantMessageCount: 2,
       successful: true,
+      aborted: false,
     }))).not.toThrow();
     expect(() => assertOwnedUiPromptSuggestionRequest({ identity, signal: new AbortController().signal })).not.toThrow();
     expect(() => assertOwnedUiPromptSuggestionResult({ identity, outcome: "candidate", text: "run the tests" })).not.toThrow();
