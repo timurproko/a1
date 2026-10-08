@@ -12,12 +12,14 @@ function fixture() {
   const widgets = new Map<string, PiShellComponentPort>();
   const statuses = new Map<string, string>();
   const notifications: string[] = [];
+  const blockedStatuses: Array<{ readonly kind: "permission" | "question" | "auth"; readonly message: string } | undefined> = [];
   const inputListeners = new Set<(data: string) => { readonly consume?: boolean; readonly data?: string } | undefined>();
   let editorText = "";
   let expanded = false;
   const host: PiExtensionUiBridgeHost = {
     runtime: { getColumns: () => 80, getRows: () => 24, requestRender: vi.fn() },
     setInputSurface: component => { inputSurface = component; },
+    setProgramStatusBlocked: status => blockedStatuses.push(status),
     showOverlay: component => {
       inputSurface = component;
       let hidden = false;
@@ -47,7 +49,7 @@ function fixture() {
     setToolsExpanded: value => { expanded = value; },
   };
   const bridge = createPiExtensionUiBridge(host);
-  return { bridge, host, widgets, statuses, notifications, inputListeners, get inputSurface() { return inputSurface; } };
+  return { bridge, host, widgets, statuses, notifications, blockedStatuses, inputListeners, get inputSurface() { return inputSurface; } };
 }
 
 describe("pinned extension UI bridge", () => {
@@ -63,10 +65,17 @@ describe("pinned extension UI bridge", () => {
     expect(selectorFrame).toContain("↑↓ navigate  Enter select  Esc close");
     expect(selectorFrame).not.toContain("Ctrl+C");
     expect(selectorFrame).not.toMatch(/[·•]/u);
+    expect(value.blockedStatuses.at(-1)).toEqual({ kind: "question", message: "Choose" });
     value.inputSurface!.handleInput?.("\x1b[B");
     value.inputSurface!.handleInput?.("\r");
     await expect(selection).resolves.toBe("beta");
     expect(value.inputSurface).toBeNull();
+    expect(value.blockedStatuses.at(-1)).toBeUndefined();
+
+    const confirmation = value.bridge.context.confirm("Permission", "Allow this operation?");
+    expect(value.blockedStatuses.at(-1)).toEqual({ kind: "permission", message: "Permission" });
+    value.inputSurface!.handleInput?.("\r");
+    await expect(confirmation).resolves.toBe(true);
 
     const input = value.bridge.context.input("Name", "placeholder");
     const inputRows = value.inputSurface!.render(60);

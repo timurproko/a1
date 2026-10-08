@@ -151,7 +151,7 @@ function createTui(width: number): TUI {
     terminal: {
       start() {}, stop() {}, async drainInput() {}, write() {}, columns: width, rows: 24,
       kittyProtocolActive: false, moveBy() {}, hideCursor() {}, showCursor() {}, clearLine() {},
-      clearFromCursor() {}, clearScreen() {}, setTitle() {}, setProgress() {},
+      clearFromCursor() {}, clearScreen() {}, setTitle() {}, setProgress() {}, setProgramStatus() {},
     },
     fullRedraws: 0,
     addChild: component => children.push(component),

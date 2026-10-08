@@ -135,6 +135,11 @@ The A1-owned UI SHALL reproduce the complete visible and interactive behavior of
 - **WHEN** the agent or an extension enters, updates, or leaves a working state
 - **THEN** the working indicator SHALL appear at the same prompt-relative location with equivalent icon, text, color, blank rows, replacement behavior, and editor/footer relationship as vanilla Pi
 
+#### Scenario: Report program status to a supporting terminal
+- **WHEN** the session starts or settles work, opens or closes a dialog or authentication flow, fails, is aborted, switches session, or stops
+- **THEN** A1 SHALL report the equivalent pinned idle, working, blocked, done, error, or clear state through Pi TUI's OSC 7501 terminal contract
+- **AND** status messages SHALL be limited to the session name, dialog title, or first error line and SHALL NOT expose prompt or assistant content
+
 #### Scenario: Render a multiline prompt-adjacent status before a modal
 - **WHEN** a status contains multiple visual lines, including the `Share URL` and `Gist` result, and an editor-replacement modal is subsequently opened or closed in regular mode
 - **THEN** every visual line SHALL be a separate tracked component row with pinned one-cell output padding, wrapping, styling, and order

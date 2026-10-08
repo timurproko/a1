@@ -14,57 +14,30 @@ export interface SkillInvocationBlock {
   readonly content: string;
 }
 
-<<<<<<< a1
 export class SkillInvocationMessageComponent extends Box {
   #expanded = false;
-||||||| pi 1.0.4
-	constructor(skillBlock: ParsedSkillBlock, markdownTheme: MarkdownTheme = getMarkdownTheme()) {
-		super(1, 1, (t) => theme.bg("customMessageBg", t));
-		this.skillBlock = skillBlock;
-		this.markdownTheme = markdownTheme;
-		this.updateDisplay();
-	}
-=======
-	constructor(skillBlock: ParsedSkillBlock, markdownTheme: MarkdownTheme = getMarkdownTheme(), outputPad = 1) {
-		super(outputPad, 1, (t) => theme.bg("customMessageBg", t));
-		this.skillBlock = skillBlock;
-		this.markdownTheme = markdownTheme;
-		this.updateDisplay();
-	}
->>>>>>> pi 1.1.0
 
   private readonly skillBlock: SkillInvocationBlock;
   private readonly markdownTheme: MarkdownTheme;
   constructor(
     skillBlock: SkillInvocationBlock,
     markdownTheme: MarkdownTheme,
+    outputPad = 1,
   ) {
-    super(1, 1, text => piTheme().bg("customMessageBg", text));
+    super(outputPad, 1, text => piTheme().bg("customMessageBg", text));
     this.skillBlock = skillBlock;
     this.markdownTheme = markdownTheme;
     this.#updateDisplay();
   }
 
-<<<<<<< a1
   setExpanded(expanded: boolean): void {
     this.#expanded = expanded;
     this.#updateDisplay();
   }
-||||||| pi 1.0.4
-	override invalidate(): void {
-		super.invalidate();
-		this.updateDisplay();
-	}
-=======
-	setOutputPad(outputPad: number): void {
-		this.setPaddingX(outputPad);
-	}
 
-	override invalidate(): void {
-		super.invalidate();
-		this.updateDisplay();
-	}
->>>>>>> pi 1.1.0
+  setOutputPad(outputPad: number): void {
+    this.setPaddingX(outputPad);
+  }
 
   override invalidate(): void {
     super.invalidate();

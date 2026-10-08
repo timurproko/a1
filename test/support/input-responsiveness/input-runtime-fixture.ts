@@ -30,6 +30,7 @@ export class RecordingTerminal implements PiTuiTerminalPort {
   clearScreen(): void { this.write("\u001b[2J\u001b[H"); }
   setTitle(): void {}
   setProgress(): void {}
+  setProgramStatus(): void {}
 }
 
 class Session {

@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-08T07:33:13.155Z",
+  "recordedAt": "2026-10-08T10:01:30.109Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -2456,7 +2456,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port uses A1's public pi-tui instance, owned theme boundary, and root-instance keybinding registry because the public coding-agent component closes over a second nested pi-tui singleton and cannot observe A1's keybindings.",
       "upgradeStrategy": "three-way",
-      "localSha256": "5b562b0893512050e955045c851b023cb6adf072ed6483a1947462caf7ec5210",
+      "localSha256": "36922932e1fde06cf66c3d9fe1bfaf23f64ab124842cd24f80242bcf1ce482e1",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components",
@@ -2695,7 +2695,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain pinned shell and actual public tool-definition renderers. Replace private index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and generic text helpers to public or locally attributed equivalents. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "9eab1c6fd55ac21ea9b12cad0747ac2995117bc9792d9dcc08de3af108df2f30",
+      "localSha256": "f806e6d69d38df29bae29c2dcc33f0492d1ffe6f475a9a17edaf61db9a3cc1c7",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -3162,10 +3162,11 @@
       "sha256": "52bf05641fecb006f40992c9e8bf6b7efc21822401387096dcf2f698ad6d83c4",
       "classification": "owned-presentation",
       "localDestination": "src/integrations/pi/components/upstream/program-status-reporter.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Remap Pi session events to A1's neutral run events, inject the terminal reporter, use A1's application identity, and clear dialog state when the owned session changes.",
       "upgradeStrategy": "three-way",
+      "localSha256": "b22a0f6f33af1f8e26538f91252d6fb0275526a5569e2ea8b1302d84e169a069",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -3177,7 +3178,8 @@
         "7.5"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/program-status-reporter.test.ts",
+        "test/app/session-shell/session-shell-lifecycle.test.ts"
       ]
     },
     {

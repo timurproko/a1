@@ -23,6 +23,7 @@ class WheelTerminal implements PiTuiTerminalPort {
   clearScreen(): void {}
   setTitle(): void {}
   setProgress(): void {}
+  setProgramStatus(): void {}
 }
 
 class WheelComponent implements Component {

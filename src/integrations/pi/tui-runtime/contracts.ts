@@ -1,5 +1,5 @@
 import type { PresentationComponentPort, PresentationPointerSurface } from "../../../contracts/presentation/index.js";
-import type { WheelScrollLines } from "@earendil-works/pi-tui";
+import type { ProgramStatus, WheelScrollLines } from "@earendil-works/pi-tui";
 import type {
   PiTuiInputCoordinationDecision,
   PiTuiInputCoordinationScheduler,
@@ -42,6 +42,8 @@ export interface PiTuiTerminalPort {
   clearScreen(): void;
   setTitle(title: string): void;
   setProgress(active: boolean): void;
+  /** Optional for neutral test/decorator ports; the Pi-facing adapter always supplies it. */
+  setProgramStatus?(status: ProgramStatus): void;
 }
 
 export type PiTuiSizeValue = number | `${number}%`;

@@ -18,7 +18,10 @@ import { piTheme } from "../theme/theme.js";
 import { ToolImagePresentation } from "../../tool-image-presentation.js";
 
 type ToolRenderContext = Parameters<NonNullable<ToolDefinition["renderCall"]>>[2];
-type ToolPresentationResult = Parameters<NonNullable<ToolDefinition["renderResult"]>>[0] & { isError: boolean };
+type ToolPresentationResult = Parameters<NonNullable<ToolDefinition["renderResult"]>>[0] & {
+	isError: boolean;
+	durationMs?: number;
+};
 /** The caller-side merge 0.85.1 performs before handing a definition to the component: built-in renderers fill the gaps. */
 type ToolRendererInput = ToolRenderers | ToolDefinition<any, any, any>;
 
@@ -94,22 +97,7 @@ export class ToolExecutionComponent extends Container {
 	private cwd: string;
 	private executionStarted = false;
 	private argsComplete = false;
-<<<<<<< a1
 	private result: ToolPresentationResult | undefined;
-||||||| pi 1.0.4
-	private result?: {
-		content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
-		isError: boolean;
-		details?: any;
-	};
-=======
-	private result?: {
-		content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
-		isError: boolean;
-		details?: any;
-		durationMs?: number;
-	};
->>>>>>> pi 1.1.0
 	private hideComponent = false;
 
 	constructor(
@@ -246,23 +234,7 @@ export class ToolExecutionComponent extends Container {
 	}
 
 	updateResult(
-<<<<<<< a1
 		result: ToolPresentationResult,
-||||||| pi 1.0.4
-		result: {
-			content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
-			details?: any;
-			isError: boolean;
-		},
-=======
-		result: {
-			content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
-			details?: any;
-			isError: boolean;
-			/** Execution time of a final result. */
-			durationMs?: number;
-		},
->>>>>>> pi 1.1.0
 		isPartial = false,
 	): void {
 		this.result = result;

@@ -3867,7 +3867,11 @@
           "name": "ProgramStatus",
           "kind": "interface",
           "hash": "03dab00d02f38af98cfbf13fbe6ee26fd14cfc0b209cc2a278d82b22442139a6",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/program-status-reporter.ts",
+            "src/integrations/pi/tui-runtime/adapter.ts",
+            "src/integrations/pi/tui-runtime/contracts.ts"
+          ]
         },
         {
           "name": "renderImage",
