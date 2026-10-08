@@ -1224,7 +1224,7 @@ class TreeFilter implements Component {
 	invalidate(): void {}
 	render(width: number): string[] {
 		const active = this.treeList.getFilterMode();
-		const choices = FILTER_MODES.map((mode) => theme.fg(mode === active ? "accent" : "muted", FILTER_LABELS[mode]));
+		const choices = FILTER_MODES.map((mode) => theme.fg(mode === active ? "mdHeading" : "muted", FILTER_LABELS[mode]));
 		return [truncateToWidth(theme.fg("muted", "Filter: ") + choices.join(theme.fg("muted", " | ")), width)];
 	}
 }

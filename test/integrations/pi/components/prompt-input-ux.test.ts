@@ -204,7 +204,7 @@ describe("owned level and model keybindings", () => {
         expect(cellStyle(selected, "m")).toEqual(cellStyle(piTheme().fg("text", "m"), "m"));
         expect(cellStyle(selected, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
         expect(cellStyle(selected, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
-        expect(cellStyle(selected, "◉")).toEqual(cellStyle(piTheme().fg("accent", "◉"), "◉"));
+        expect(cellStyle(selected, "◉")).toEqual(cellStyle(piTheme().fg("mdHeading", "◉"), "◉"));
         expect(cellStyle(rows[0]!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
       };
       assertTheme();
@@ -298,7 +298,7 @@ describe("owned level and model keybindings", () => {
     expect(cellBackgroundAt(selectedRow, selectedText.length - 1)).toBe(selectionBackground);
     expect(selectedRow).not.toContain("\u001b[1m");
     expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
-    expect(cellStyle(selectedRow, "◉")).toEqual(cellStyle(piTheme().fg("accent", "◉"), "◉"));
+    expect(cellStyle(selectedRow, "◉")).toEqual(cellStyle(piTheme().fg("mdHeading", "◉"), "◉"));
     expect(cellStyle(unselectedRow, "○")).toEqual(cellStyle(piTheme().fg("dim", "○"), "○"));
     expect(rows.filter(row => stripTerminalSequences(row).includes("Moderate reasoning"))).toHaveLength(1);
     const controls = rows.find(row => stripTerminalSequences(row).includes("Enter select"))!;

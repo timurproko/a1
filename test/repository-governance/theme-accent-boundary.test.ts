@@ -51,13 +51,20 @@ describe("semantic accent-family architecture", () => {
     }
   });
 
-  it("invalidates retained transcript components and separates active filters from primary titles", async () => {
+  it("invalidates retained transcript components and keeps secondary UI on the H2 tone", async () => {
     const shell = await readFile("src/app/session-shell/session-shell-root.ts", "utf8");
     expect(shell).toContain("this.#themeUnsubscribe = onPiThemeChange(() => {\n      this.invalidate();");
     const sessions = await readFile("src/integrations/pi/components/upstream/components/session-selector.ts", "utf8");
     expect(sessions).toContain('this.scope === "current" ? "mdHeading" : "dim"');
     expect(sessions).toContain('theme.fg("mdHeading", this.nameFilter)');
     expect(sessions).toContain('theme.fg("mdHeading", sortLabel)');
+    const models = await readFile("src/integrations/pi/components/models-dialog.ts", "utf8");
+    expect(models).toContain('? "mdHeading" : "dim", "all"');
+    expect(models).toContain('theme.fg("mdHeading", "●")');
+    const tree = await readFile("src/integrations/pi/components/upstream/components/tree-selector.ts", "utf8");
+    expect(tree).toContain('mode === active ? "mdHeading" : "muted"');
+    const thinking = await readFile("src/integrations/pi/components/upstream/components/thinking-selector.ts", "utf8");
+    expect(thinking).toContain('theme.fg("mdHeading", "◉")');
   });
 
   it("keeps sticky prompts and jump controls neutral until their accent hover", async () => {

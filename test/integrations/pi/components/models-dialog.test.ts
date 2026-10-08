@@ -81,6 +81,8 @@ describe("unified Models dialog", () => {
       const stripped = lines.map(stripTerminalSequences);
       expect(stripped[1]).toBe(" Models");
       expect(stripped[2]).toBe(" Filter: all | scoped");
+      expect(lines[2]).toContain(piTheme().fg("mdHeading", "all"));
+      expect(lines[2]).not.toContain(piTheme().fg("accent", "all"));
       expect(rows(dialog)).toEqual([
         "   ○ claude [anthropic]",
         " → ○ gpt-5 [openai] ✓",
@@ -115,16 +117,16 @@ describe("unified Models dialog", () => {
     });
   });
 
-  it("uses the default-radio accent for filled scope markers independently of row focus", () => {
+  it("uses the secondary accent for filled scope markers independently of row focus", () => {
     withDialog(dialog => {
       const lines = dialog.render(200);
       const unselectedScoped = lines.find(line => stripTerminalSequences(line).includes("● claude"))!;
       const selectedScoped = lines.find(line => stripTerminalSequences(line).includes("● gpt-5 "))!;
       const unselectedEmpty = lines.find(line => stripTerminalSequences(line).includes("○ gpt-5-mini"))!;
 
-      const accentMarker = cellStyle(piTheme().fg("accent", "●"), "●");
-      expect(cellStyle(unselectedScoped, "●")).toEqual(accentMarker);
-      expect(cellStyle(selectedScoped, "●")).toEqual(accentMarker);
+      const secondaryMarker = cellStyle(piTheme().fg("mdHeading", "●"), "●");
+      expect(cellStyle(unselectedScoped, "●")).toEqual(secondaryMarker);
+      expect(cellStyle(selectedScoped, "●")).toEqual(secondaryMarker);
       expect(cellStyle(unselectedEmpty, "○")).toEqual(cellStyle(piTheme().fg("dim", "○"), "○"));
       expect(cellStyle(selectedScoped, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
     }, { scopeIds: [ids.claude, ids.gpt5], savedScopeIds: [ids.claude, ids.gpt5] });
