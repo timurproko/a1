@@ -7,13 +7,13 @@ Defines how A1 predicts a likely next user prompt after an agent run and present
 ## Requirements
 
 ### Requirement: Eligible completing runs may produce one contextual suggestion
-When prompt suggestions are enabled, bare A1 SHALL start at most one current background suggestion request for an eligible run at the earliest trustworthy final assistant-response boundary before that run settles. The boundary SHALL represent a successful completed text response with no indicated tool continuation. The request SHALL use the model selected for that run and enough conversation context including the completed response to predict what the user would naturally type next, rather than merely extracting a phrase from the final assistant text. It SHALL be eligible after at least two completed assistant messages and SHALL be independent of whether the assistant explicitly requested approval.
+When prompt suggestions are enabled, bare A1 SHALL prepare one contextual suggestion lifecycle for a successful eligible final assistant response. A1 SHOULD start the first background request at the earliest trustworthy completed-response boundary before settlement. If the matching successful eligible run settles and no request started, A1 SHALL start that first request from the authoritative settlement boundary instead of silently leaving the lifecycle idle. The boundary SHALL represent completed text with no tool continuation, use the model selected for that run, include the completed response, and remain ineligible before two completed assistant messages exist.
 
-The request SHALL be tool-free in effect, SHALL NOT append messages to or otherwise mutate the user's session, SHALL NOT block settlement or editor input, and SHALL treat no suggestion as a valid result. A1 SHALL NOT start suggestion generation in comparison or non-interactive modes, while the feature is disabled, while a permission or other modal input is active, after a failed or incomplete assistant response, while tool continuation is indicated, or without an active model. If the run continues after an apparently terminal response, A1 SHALL invalidate that request before starting any replacement request.
+The lifecycle SHALL have at most one active request and at most two sequential requests in total. Suggestion work SHALL be tool-free in effect, SHALL NOT append messages to or otherwise mutate the user's session, SHALL NOT block settlement or editor input, and SHALL treat an exhausted no-suggestion result as valid. A1 SHALL NOT start suggestion generation in comparison or non-interactive modes, while the feature is disabled, while a permission or other modal input remains active, after a failed or incomplete assistant response, while tool continuation is indicated, or without an active model. If the run continues after an apparently terminal response, A1 SHALL invalidate that lifecycle before starting any replacement request.
 
 #### Scenario: Predict an explicit approval response before settlement
 - **WHEN** an eligible final assistant response asks the user to approve a clearly stated next action and completes without a tool continuation
-- **THEN** A1 SHALL start a short likely-user-response request through the model selected for that run before final run settlement
+- **THEN** A1 SHOULD start a short likely-user-response request through the model selected for that run before final run settlement
 - **AND** the main session SHALL continue settling without waiting for that request
 
 #### Scenario: Predict a non-approval follow-up
@@ -21,12 +21,12 @@ The request SHALL be tool-free in effect, SHALL NOT append messages to or otherw
 - **THEN** A1 MAY prepare that likely follow-up before settlement under the same generation and filtering rules
 
 #### Scenario: No obvious next input exists
-- **WHEN** the suggestion request produces no text or indicates that no natural next input is obvious
+- **WHEN** both bounded suggestion requests produce no text or indicate that no natural next input is obvious
 - **THEN** A1 SHALL leave the editor without a contextual suggestion
 
 #### Scenario: Conversation is too early
 - **WHEN** a final assistant response completes before two assistant messages exist in the current conversation
-- **THEN** A1 SHALL NOT start a suggestion request
+- **THEN** A1 SHALL NOT start a prefetch, settlement fallback, or retry
 
 #### Scenario: Another interaction owns input
 - **WHEN** a permission request, dialog, overlay, selector, replacement editor, or other modal input owns the session when a candidate response completes or the run settles
@@ -35,10 +35,20 @@ The request SHALL be tool-free in effect, SHALL NOT append messages to or otherw
 #### Scenario: Assistant continues with tools
 - **WHEN** an assistant message completes with a tool-use stop or a later continuation begins before settlement
 - **THEN** A1 SHALL not generate from that incomplete boundary or SHALL invalidate generation already made obsolete by the continuation
+- **AND** settlement SHALL NOT reinterpret it as an eligible final response
 
 #### Scenario: Generation fails
-- **WHEN** the background request is rejected, times out, is aborted, or returns a provider error
+- **WHEN** both bounded background requests are rejected, time out, are aborted, or return provider errors
 - **THEN** the primary session SHALL remain usable and no failed suggestion text or diagnostic SHALL be inserted into the conversation or editor
+
+#### Scenario: Settlement recovers a missing prefetch
+- **WHEN** a successful eligible final response reaches authoritative run settlement without a request having started
+- **THEN** A1 SHALL start the first request for that settled response
+- **AND** a timely valid current result SHALL be eligible for immediate ghost-text presentation
+
+#### Scenario: Settlement does not duplicate active work
+- **WHEN** the matching prefetch request is active or has already produced a candidate at settlement
+- **THEN** settlement SHALL advance that lifecycle without starting another request
 
 ### Requirement: Suggestions are bounded and user-voiced
 A1 SHALL expose only a single-line suggestion that represents one likely next user action in the user's voice. A valid suggestion SHALL contain between 2 and 12 words and fewer than 100 characters, except that an established single-word affirmation, negation, action, or slash command MAY be accepted. A1 SHALL reject multiple sentences, markup, terminal-control characters, model errors, meta-commentary about producing a suggestion, assistant-voiced text, evaluative pleasantries, and empty output.
@@ -63,6 +73,8 @@ A generated suggestion SHALL be data only. It SHALL NOT constitute approval, per
 
 ### Requirement: The latest valid suggestion appears as editor ghost text
 A valid suggestion SHALL appear in the ordinary bare-A1 editor only after its run settles and while that editor is focused, empty, enabled, in prompt mode, and not showing autocomplete. If generation completed before settlement, A1 SHALL reveal the complete suggestion in the same presentation cycle that makes the settled editor available. A1 SHALL not progressively type the suggestion and SHALL not retain or relabel the agent's working indicator or add a generation-status row. If generation remains pending at settlement, A1 SHALL reveal the complete suggestion immediately when it becomes available without adding an artificial animation delay.
+
+If presentation is temporarily blocked only because the ordinary editor is not ready, not focused, showing autocomplete, or in a temporary prompt mode, A1 SHALL retain the current candidate and reevaluate it when that same editor becomes eligible. Deferred presentation SHALL NOT start another provider request, duplicate a terminal request outcome, or insert text into the editor. A user-authored draft SHALL hide but not discard an already prepared or shown candidate under the existing lifecycle. A1 SHALL retire the candidate when replacement input takes ownership, a new run starts, the model/session changes, the user accepts or submits, the feature is disabled, or the shell is disposed.
 
 The ordinary bare-A1 prompt row SHALL use the same `❯` glyph and glyph foreground style as the shared settings search input whether it is empty, showing a suggestion, or containing typed text; the glyph SHALL remain presentation-only and shall not consume a semantic editor-text offset. The suggestion SHALL use that input's quiet placeholder styling. It SHALL preserve the ordinary caret and editor geometry, wrap by terminal display width after reserving the glyph width, and remain absent from semantic editor text, selection, clipboard, history, queued input, and submitted prompts until accepted.
 
@@ -96,10 +108,22 @@ A1 SHALL preserve autocomplete priority: an active slash-command, path, resource
 - **WHEN** contextual suggestion state exists and ordinary autocomplete is visible
 - **THEN** autocomplete SHALL remain visible and SHALL retain ownership of Tab
 - **AND** the contextual suggestion SHALL not be painted or accepted
+- **AND** a valid current candidate SHALL remain eligible for presentation after autocomplete closes
 
 #### Scenario: A replacement input surface opens
 - **WHEN** a dialog, selector, extension editor, or other replacement input surface becomes active
 - **THEN** the contextual suggestion SHALL not appear on that surface
+- **AND** interaction ownership SHALL retire it so it cannot appear later as stale text
+
+#### Scenario: Candidate arrives before editor readiness
+- **WHEN** a valid current candidate is ready after settlement while the ordinary editor is temporarily not ready
+- **THEN** A1 SHALL retain it and present it when the same editor becomes ready
+- **AND** A1 SHALL make no additional suggestion request
+
+#### Scenario: Focus temporarily blocks presentation
+- **WHEN** a valid current candidate cannot be shown because the ordinary editor is not focused
+- **THEN** A1 SHALL defer presentation until focus returns to that same editor
+- **AND** the candidate SHALL remain inert throughout the deferral
 
 ### Requirement: Acceptance and submission remain two deliberate actions
 When a contextual suggestion is visible, the configured `tui.input.tab` action SHALL accept the complete suggestion into the ordinary editor, place the caret at its end, and leave it editable. Acceptance SHALL NOT submit the prompt. The existing submit action SHALL send the accepted text only when the user invokes it afterward. Pressing submit on an otherwise empty editor SHALL remain a no-op.
@@ -224,15 +248,16 @@ The screen SHALL contain only one Agent section, preserving the relative order a
 - **AND** refreshing settings SHALL NOT recreate a duplicate or change the control's identity
 
 ### Requirement: Suggestion behavior is independently observable and bounded
-A1 SHALL provide deterministic test seams for suggestion generation, cancellation, request identity, and time, and SHALL verify the feature with a fake model boundary before using real provider credentials. Acceptance evidence SHALL distinguish the primary agent request from the additional suggestion request and SHALL confirm that suggestion work never invokes tools or changes persisted conversation content.
+A1 SHALL provide deterministic test seams for suggestion generation, cancellation, request identity, attempt trigger, and time, and SHALL verify the feature with a fake model boundary before using real provider credentials. Acceptance evidence SHALL distinguish the primary agent request from up to two sequential suggestion requests and SHALL confirm that suggestion work never invokes tools or changes persisted conversation content.
 
-A1 SHALL provide a documented, opt-in local diagnostic capture and inspection path for suggestion decisions. Diagnostics SHALL distinguish ineligible/disabled decisions, request start, empty model output, candidate rejection, provider failure, timeout, cancellation, stale-result rejection, blocked presentation, and successful display. Eligibility and presentation records SHALL include a bounded reason code rather than only a boolean. Request records SHALL include a process-local correlation identity, selected provider/model identifiers, applied reasoning policy, elapsed time, and the terminal outcome when known. One request SHALL have at most one terminal outcome; late results SHALL NOT overwrite it or count as another request.
+A1 SHALL provide a documented, opt-in local diagnostic capture and inspection path for suggestion decisions. Diagnostics SHALL distinguish ineligible/disabled decisions, prefetch or settlement request start, empty model output, candidate rejection, provider failure, timeout, cancellation, stale-result rejection, deferred or blocked presentation, successful display, retry start, and retry exhaustion. Eligibility and presentation records SHALL include a bounded reason code rather than only a boolean. Request records SHALL include a process-local correlation identity, attempt number and trigger, selected provider/model identifiers, applied reasoning policy, elapsed time, and the terminal outcome when known. One request SHALL have at most one terminal outcome; late results SHALL NOT overwrite it or count as another request.
 
 Capture SHALL be disabled by default, retain at most 128 bounded metadata records, and perform no remote upload. Records SHALL NOT contain prompts, assistant or candidate text, tool arguments/results, credentials, raw provider errors, or session-file/worktree paths. Diagnostic capture or export failure SHALL NOT alter suggestion generation, block input, or appear in the editor, transcript, or normal status rows. Disposal SHALL clear in-memory records; file export SHALL occur only through explicit local opt-in and remain bounded.
 
 #### Scenario: Count model requests
-- **WHEN** one eligible run settles and generation succeeds without cancellation
-- **THEN** evidence SHALL record one primary agent request and at most one additional suggestion request
+- **WHEN** one eligible run settles and its first generation succeeds without cancellation
+- **THEN** evidence SHALL record one primary agent request and exactly one suggestion request
+- **AND** no settlement fallback or retry SHALL start
 
 #### Scenario: Exercise a deterministic race
 - **WHEN** a stale suggestion request resolves after a newer run, model, or session generation becomes current
@@ -243,17 +268,17 @@ Capture SHALL be disabled by default, retain at most 128 bounded metadata record
 - **THEN** the persisted session path and user-visible transcript SHALL contain no suggestion-generation instruction, response, or synthetic tool activity
 
 #### Scenario: Inspect a missing suggestion
-- **WHEN** local capture is enabled and an eligible request ends without a visible suggestion
-- **THEN** inspection SHALL distinguish empty output, invalid candidate, provider failure, timeout, cancellation, stale result, or blocked presentation according to the actual observed outcome
+- **WHEN** local capture is enabled and an eligible response ends without a visible suggestion
+- **THEN** inspection SHALL distinguish missing prefetch, empty output, invalid candidate, provider failure, timeout, cancellation, stale result, deferred/blocked presentation, and exhausted retry according to the actual observed outcome
 - **AND** absence of a suggestion SHALL NOT alone be labeled a timeout or model abstention
 
 #### Scenario: No request was started
-- **WHEN** capture is enabled and a candidate response is ineligible because suggestions are disabled, the conversation is too early, input is owned elsewhere, no model is active, or the response failed or continues with tools
+- **WHEN** capture is enabled and a response is permanently ineligible because suggestions are disabled, the conversation is too early, no model is active, or the response failed or continues with tools
 - **THEN** inspection SHALL show the applicable eligibility reason and SHALL NOT claim a provider request occurred
 
 #### Scenario: Cancellation wins a late-result race
 - **WHEN** cancellation retires a request and the provider subsequently resolves it
-- **THEN** inspection SHALL preserve its cancellation outcome and identify the late result as discarded without another terminal outcome
+- **THEN** inspection SHALL preserve its cancellation outcome and identify the late result as discarded without another terminal outcome or retry
 
 #### Scenario: Diagnostics are private and bounded
 - **WHEN** more than 128 diagnostic records are produced, including failures containing sensitive raw error text
@@ -263,6 +288,18 @@ Capture SHALL be disabled by default, retain at most 128 bounded metadata record
 #### Scenario: Diagnostic sink fails
 - **WHEN** enabled diagnostic capture or local export fails
 - **THEN** the primary session and suggestion lifecycle SHALL continue normally without transcript, editor, or status-row diagnostic output
+
+#### Scenario: Inspect a recovered missing activation
+- **WHEN** settlement starts the first request because prefetch did not start
+- **THEN** diagnostics SHALL identify settlement as the attempt trigger without recording conversation or candidate text
+
+#### Scenario: Inspect bounded retry
+- **WHEN** the first request fails and the retry succeeds or exhausts recovery
+- **THEN** diagnostics SHALL identify both ordered attempts, their terminal outcomes, and the final display or exhaustion
+
+#### Scenario: Inspect deferred presentation
+- **WHEN** a valid candidate waits for a temporary presentation blocker to clear
+- **THEN** diagnostics SHALL distinguish deferred presentation from empty generation or provider failure
 
 ### Requirement: Prediction prioritizes a clear offered next action
 For an otherwise eligible run, A1 SHALL instruct the suggestion model to prefer a clearly offered next action that agrees with the user's recent intent. An optional alternative SHALL NOT by itself be treated as evidence that no natural continuation exists. The instruction SHALL distinguish an optional alternative from genuinely unresolved choices, contradictory user intent, and outstanding required assessment; those conditions SHALL retain the ability to produce no suggestion.
@@ -290,26 +327,57 @@ Prediction SHALL remain contextual rather than a deterministic extraction of ass
 - **AND** A1 SHALL NOT insert an extracted approval as a fallback
 
 ### Requirement: Suggestion requests reuse the primary request shape for prompt-cache continuity
-A1 SHALL build its isolated suggestion request from the same inputs the primary agent loop would use for its next request: the run's selected provider and model, the session's current thinking level and thinking budgets, the session identifier, the configured transport, the primary loop's payload hook, and the conversation produced by the primary loop's context transform and LLM message conversion. The only difference from that primary request SHALL be the appended suggestion instruction. A1 SHALL NOT substitute a different reasoning effort, output limit, tool list, or message filtering for the suggestion request, so a provider that caches the conversation prefix can serve it from cache. This policy SHALL NOT change the primary session's model, thinking setting, persisted settings, or conversation, and SHALL NOT emit provider-response notifications to extensions for the suggestion request.
+A1 SHALL build every initial or retry request from the same inputs the primary agent loop would use for its next request: the run's selected provider and model, the session's current thinking level and thinking budgets, the session identifier, the configured transport, the primary loop's payload hook, and the conversation produced by the primary loop's context transform and LLM message conversion. The only difference from that primary request SHALL be the appended suggestion instruction. A1 SHALL NOT substitute a different reasoning effort, output limit, tool list, or message filtering for recovery, so a provider that caches the conversation prefix can serve it from cache. This policy SHALL NOT change the primary session's model, thinking setting, persisted settings, or conversation, and SHALL NOT emit provider-response notifications to extensions for a suggestion request.
 
-Each request SHALL retain a finite deadline of 15 seconds from generation start, remain cancellable, and start no automatic retry or substitute-model request. A timeout SHALL prevent any later result from publishing even if the provider ignores cancellation. A1 SHALL NOT lengthen the main run's working state or block the editor while waiting for a suggestion. Suggestion diagnostics SHALL record the reasoning level actually sent.
+Each request SHALL retain a finite deadline of 15 seconds from its own generation start, remain cancellable, and start no substitute-model request. One response SHALL have at most two sequential requests and never more than one active request. A timeout of the first current eligible attempt MAY start the one bounded retry; a retry timeout SHALL end recovery. A1 SHALL NOT lengthen the main run's working state or block the editor while waiting for a suggestion. Suggestion diagnostics SHALL record the reasoning level actually sent.
 
 #### Scenario: Main session uses high thinking
 - **WHEN** an eligible run used high thinking on a model with a per-request reasoning control
-- **THEN** the suggestion request SHALL use that same high level with the same provider, model, thinking budgets, and session identifier
+- **THEN** every suggestion attempt SHALL use that same high level with the same provider, model, thinking budgets, and session identifier
 - **AND** subsequent primary requests SHALL retain the user's high-thinking setting
 
 #### Scenario: Conversation contains a compaction summary
 - **WHEN** the session's messages include a compaction summary, branch summary, shell execution, or custom message
-- **THEN** the suggestion request SHALL carry the same converted user messages the primary loop would send in their place
+- **THEN** every suggestion attempt SHALL carry the same converted user messages the primary loop would send in their place
 - **AND** SHALL NOT drop or reorder them relative to the primary request
 
 #### Scenario: Model has no reasoning control
 - **WHEN** the selected model does not support reasoning controls
-- **THEN** the suggestion request SHALL omit reasoning options exactly as the primary loop does and retain the same deadline and isolation guarantees
+- **THEN** every suggestion attempt SHALL omit reasoning options exactly as the primary loop does and retain the same deadline and isolation guarantees
 
 #### Scenario: Deadline expires before a result
 - **WHEN** a suggestion request has not completed within 15 seconds
-- **THEN** A1 SHALL cancel and retire it without retrying, exposing an error in the prompt, or changing the main session
+- **THEN** A1 SHALL cancel and retire that attempt without exposing an error in the prompt or changing the main session
 - **AND** enabled private diagnostics SHALL distinguish timeout from an intentional empty response
-- **AND** a later provider result SHALL NOT revive the suggestion
+- **AND** a later provider result SHALL NOT revive that attempt
+
+#### Scenario: Retry preserves request parity
+- **WHEN** a current response receives its one retry
+- **THEN** inspection SHALL show the same model, reasoning, identity inputs, transformed prefix, tools, and runtime options as the first attempt
+- **AND** the primary session settings and messages SHALL remain unchanged
+
+#### Scenario: Retry timeout is exhausted
+- **WHEN** the retry reaches its finite deadline
+- **THEN** A1 SHALL retire it, record exhaustion, and ignore any later provider result
+
+### Requirement: Missing candidates receive one bounded recovery attempt
+When the first current request for a successful eligible settled response ends with `empty`, `rejected`, `provider-failure`, `unavailable`, or `timeout`, A1 SHALL permit exactly one sequential retry while the response identity and editor lifecycle remain current. A result received before settlement SHALL defer the retry until matching settlement; a result received after settlement MAY start the retry immediately. The retry SHALL use the same request construction and candidate validation as the first attempt.
+
+A1 SHALL NOT overlap attempts, make more than two requests for one response, retry a candidate, retry a cancelled or stale attempt, or retry after user input, submission, a new run, interruption, model/session replacement, feature disablement, or disposal. If the retry also produces no candidate, A1 SHALL leave the editor empty and record bounded exhaustion without extracting fallback text from the assistant response.
+
+#### Scenario: First provider attempt fails transiently
+- **WHEN** the first request returns `provider-failure` for a current eligible response and the retry returns a valid candidate
+- **THEN** A1 SHALL present the retry candidate after settlement
+- **AND** evidence SHALL show exactly two sequential requests
+
+#### Scenario: First attempt returns no candidate before settlement
+- **WHEN** the first request returns `empty` or `rejected` before its run settles
+- **THEN** A1 SHALL wait for matching settlement before starting its one retry
+
+#### Scenario: Recovery is exhausted
+- **WHEN** both bounded requests finish without a valid candidate
+- **THEN** A1 SHALL leave the editor empty, record retry exhaustion, and start no third request
+
+#### Scenario: User action cancels recovery
+- **WHEN** the user types, submits, interrupts, or starts another run before a scheduled or active retry completes
+- **THEN** A1 SHALL retire that recovery and SHALL NOT publish its eventual result
