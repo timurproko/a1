@@ -408,7 +408,7 @@ jobs:
           RESULT_PATH="$result" node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import { readFile } from "node:fs/promises";
           const value = JSON.parse(await readFile(process.env.RESULT_PATH, "utf8"));
-          console.log(`delivery_candidate=${value.disposition === "ready-for-manual-merge"}`);
+          console.log(`delivery_candidate=${value.disposition === "ready-for-maintainer-integration"}`);
           NODE
       - name: Preserve legacy implementation validation route
         id: legacy
