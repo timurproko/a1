@@ -96,7 +96,7 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     id: "promptSuggestions",
     label: "Prompt suggestions",
     section: AGENT_SECTION,
-    description: "Predict likely next prompts with one additional background request using the selected model.",
+    description: "Predict likely next prompts with one background request, plus one bounded recovery request when needed, using the selected model.",
     application: "live",
     defaultValue: true,
     allowedValues: Object.freeze([true, false] as const),

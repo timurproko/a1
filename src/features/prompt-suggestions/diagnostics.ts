@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import {
-  SUGGESTION_DECISION_REASONS, SUGGESTION_DIAGNOSTIC_EVENTS,
+  SUGGESTION_ATTEMPT_TRIGGERS, SUGGESTION_DECISION_REASONS, SUGGESTION_DIAGNOSTIC_EVENTS,
   type SuggestionDiagnosticObserver, type SuggestionDiagnosticRecord,
 } from "../../contracts/owned-ui/index.js";
 
@@ -76,9 +76,12 @@ function sanitize(record: SuggestionDiagnosticRecord): SuggestionDiagnosticRecor
   const reasoning = ["ordinary", "off", "minimal", "low", "medium", "high", "xhigh", "max", "unavailable"].includes(record.reasoning)
     ? record.reasoning : "unavailable";
   const reason = record.reason !== undefined && SUGGESTION_DECISION_REASONS.includes(record.reason) ? record.reason : undefined;
+  const trigger = record.trigger !== undefined && SUGGESTION_ATTEMPT_TRIGGERS.includes(record.trigger) ? record.trigger : undefined;
+  const attempt = record.attempt === undefined ? undefined : boundedNumber(record.attempt);
   // Security: explicit projection prevents arbitrary extra fields, including raw error payloads, from escaping.
   return {
     event: record.event, ...(reason === undefined ? {} : { reason }),
+    ...(attempt === undefined ? {} : { attempt }), ...(trigger === undefined ? {} : { trigger }),
     session: boundedNumber(record.session), run: boundedNumber(record.run), response: boundedNumber(record.response),
     request: boundedNumber(record.request), provider: identifier(record.provider), model: identifier(record.model),
     reasoning, elapsedMs: boundedNumber(record.elapsedMs),

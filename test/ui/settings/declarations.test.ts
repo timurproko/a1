@@ -70,7 +70,7 @@ describe("owned UI setting declarations", () => {
       allowedValues: [true, false],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptSuggestions")?.description)
-      .toContain("additional background request using the selected model");
+      .toContain("one background request, plus one bounded recovery request when needed");
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarAppearance")).toMatchObject({
       label: "Scrollbar mode",
       section: { id: "scroll", title: "Scroll" },

@@ -380,6 +380,8 @@ export type OwnedUiEvent =
     readonly model: OwnedUiModelInfo | null;
     readonly assistantMessageCount: number;
     readonly successful: boolean;
+    readonly stopReason: string | null;
+    readonly toolContinuation: boolean;
     /** Pi 1.1 distinguishes user cancellation from an ordinary or failed settlement. */
     readonly aborted: boolean;
   }
