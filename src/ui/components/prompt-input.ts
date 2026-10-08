@@ -22,6 +22,8 @@ export interface PromptInputBody {
   readonly topRule?: string | undefined;
   readonly bottomRule?: string | undefined;
   readonly after?: readonly string[];
+  /** Outer indentation for after-body rows; defaults to the prompt prefix width. */
+  readonly afterIndent?: number;
 }
 
 export interface PromptInputMetrics {
@@ -60,6 +62,10 @@ export class PromptInput {
     if (width <= 0) return [];
     const { prefixWidth, innerWidth } = this.geometry(width, padding, promptGlyph);
     const body = renderBody(innerWidth);
+    const requestedAfterIndent = body.afterIndent ?? prefixWidth;
+    const afterIndent = Number.isFinite(requestedAfterIndent)
+      ? Math.min(width, Math.max(0, Math.floor(requestedAfterIndent)))
+      : prefixWidth;
     const fit = (row: string): string => {
       const clipped = this.metrics.truncate(row, width);
       return clipped + " ".repeat(Math.max(0, width - this.metrics.measure(clipped)));
@@ -74,7 +80,7 @@ export class PromptInput {
       ...(ruled ? [rule(body.topRule)] : []),
       ...rows,
       ...(ruled ? [rule(body.bottomRule)] : []),
-      ...(body.after ?? []).map(row => fit(`${" ".repeat(prefixWidth)}${row}`)),
+      ...(body.after ?? []).map(row => fit(`${" ".repeat(afterIndent)}${row}`)),
     ];
   }
 }

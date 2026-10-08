@@ -37,6 +37,8 @@ import {
 
 /** A selected autocomplete row: its arrow/primary column, then the aligned description. */
 const SELECTED_DESCRIBED_ROW = /^(→ .*?\S)(\s{2,}.*)$/u;
+const INPUT_COUNTER_INSET = 3;
+const INPUT_COUNTER_PREFIX = "── ";
 
 function renderOwnedAutocompleteSelection(text: string): string {
   const theme = piTheme();
@@ -255,10 +257,10 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       const rowCount = editor.getRenderedBodyRowCount();
       const menu = rows.slice(rowCount, scrollInfo.emitted ? -1 : undefined);
       const label = scrollInfo.counter === undefined ? "" : `${scrollInfo.counter} `;
-      // Compatibility: match the history border's four-cell inset and dim label style.
-      const counterBorder = label.length > 0 && 4 + visibleWidth(label) <= width
-        ? editor.borderColor("─── ") + piTheme().fg("dim", label)
-          + editor.borderColor("─".repeat(width - 4 - visibleWidth(label)))
+      // Compatibility: share the history counter's three-cell inset and dim label style.
+      const counterBorder = label.length > 0 && INPUT_COUNTER_INSET + visibleWidth(label) <= width
+        ? editor.borderColor(INPUT_COUNTER_PREFIX) + piTheme().fg("dim", label)
+          + editor.borderColor("─".repeat(width - INPUT_COUNTER_INSET - visibleWidth(label)))
         : editor.borderColor("─".repeat(width));
       // Rationale: when the menu is open, drop the plain top border above the
       // menu and instead show the counter on the border directly above the input

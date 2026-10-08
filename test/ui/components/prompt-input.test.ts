@@ -43,6 +43,10 @@ describe("shared prompt input presentation", () => {
     expect(rows[2]?.trimEnd()).toBe("  second");
     expect(rows[3]).toContain("↓ 2");
     expect(rows[4]?.trimEnd()).toBe("  menu");
+    const shiftedAfter = input.render(20, () => ({ rows: ["body"], after: ["menu"], afterIndent: 1 })).map(stripAnsi);
+    expect(shiftedAfter[1]?.trimEnd()).toBe("❯ body");
+    expect(shiftedAfter[3]?.trimEnd()).toBe(" menu");
+    expect(shiftedAfter.every(row => displayWidth(row) === 20)).toBe(true);
     expect(input.geometry(10, 2)).toEqual({ prefixWidth: 2, innerWidth: 8, paddingX: 2, contentWidth: 4, layoutWidth: 4 });
     expect(input.geometry(2, 3).contentWidth).toBe(3);
   });

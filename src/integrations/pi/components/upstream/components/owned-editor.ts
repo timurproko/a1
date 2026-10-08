@@ -4,10 +4,10 @@
  * Modifications: A1-owned class name and synchronized A1 keybinding contract replace the nominal
  * private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input
  * frame, transient contextual-suggestion branch, and explicit body geometry for selection and
- * above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape. Bare
- * A1 also completes a selected or exact completed tunnel command with `:` and reopens the menu on its
- * tunnel rows, and synchronously retains then refreshes an exact top-level command menu after Tab
- * applies its row.
+ * above-prompt autocomplete with a one-cell outer gutter. Bare A1 also clears a sole top-level
+ * slash-command search on Escape and completes a selected or exact completed tunnel command with `:`
+ * and reopens the menu on its tunnel rows, and synchronously retains then refreshes an exact top-level
+ * command menu after Tab applies its row.
  * Deviations: owned-shared-input-frame, above-prompt-autocomplete-placement,
  * clear-command-search-on-escape, command-tunnel-colon-completion, keep-command-menu-open-after-tab.
  */
@@ -250,6 +250,9 @@ return class extends Base {
         topRule: rows[0],
         bottomRule: rows[bottomBorder],
         after: rows.slice(bottomBorder + 1),
+        // Align autocomplete's outer marker with the one-cell working-status gutter;
+        // prompt text keeps the complete two-cell `❯ ` prefix.
+        afterIndent: 1,
       };
     }, true, this.getPaddingX());
   }
