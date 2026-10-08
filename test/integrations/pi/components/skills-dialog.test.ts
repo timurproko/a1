@@ -86,6 +86,7 @@ describe("the Skills dialog", () => {
     expect(cellStyle(hint, "T")).toEqual(cellStyle(piTheme().fg("dim", "T"), "T"));
     expect(cellStyle(hint, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
     // Platform: chalk decides whether bold is emitted for this terminal; the accent role is what the theme guarantees.
+    expect(rows[0]).toBe(`<border>${"─".repeat(80)}</>`);
     expect(rows[1]).toMatch(/^ <accent>(?:<b>)?Skills(?:<\/b>)?<\/>$/u);
     expect(rows[5]).toContain("<accent>→ </><text>framer</>");
     expect(rows[6]).toBe("   code-review");
@@ -99,6 +100,7 @@ describe("the Skills dialog", () => {
     expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
     expect(cellStyle(selected, "f")).toEqual(cellStyle(piTheme().fg("text", "f"), "f"));
     expect(selected).not.toContain("\u001b[1m");
+    expect(rows.at(-1)).toBe(`<border>${"─".repeat(80)}</>`);
   });
 
   it("uses the canonical dialog close footer wording", () => {

@@ -1,6 +1,6 @@
 import { CHANGELOG_ROUTE, HOTKEYS_ROUTE, HOTKEYS_TITLE } from "../features/owned-ui/reference-routes.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "../features/owned-ui/settings-route.js";
-import { piTheme } from "../integrations/pi/components/upstream/theme/theme.js";
+import { piTheme, renderPiAccentPreview } from "../integrations/pi/components/upstream/theme/theme.js";
 import type { ReferenceDocumentProvider } from "../features/owned-ui/reference-screen-app.js";
 import type { OwnedSettingsManager } from "../ui/settings/manager.js";
 import type { UiApp, UiRouteHost, UiRouteInput, UiRouteSurface } from "../ui/apps/contracts.js";
@@ -147,6 +147,7 @@ function pinnedTheme(): UiTheme {
     fg: (token: UiThemeToken, text: string) => piTheme().fg(token, text),
     bold: (text: string) => piTheme().bold(text),
     plain: (text: string) => text,
+    accentPreview: (color: string, text: string) => renderPiAccentPreview(color, text),
     disabled: (text: string) => faint(piTheme().fg("dim", text)),
     highlight: (text: string) => piTheme().bg("selectedBg", text),
     panel: (text: string) => `\u001b[48;2;55;55;55m${text}\u001b[49m`,

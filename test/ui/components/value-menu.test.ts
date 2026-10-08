@@ -40,7 +40,7 @@ describe("shared value menu", () => {
       NAMING_THEME,
     );
 
-    expect(rendered[0]).toContain("<panel><accent>✓</accent></panel><panel> auto");
+    expect(rendered[0]).toContain("<panel><text>✓</text></panel><panel> auto");
     expect(rendered[1]).toContain("<active>  always");
     expect(rendered[2]).toContain("<panel>  hidden");
     expect(rendered.join("\n")).not.toContain("→");
@@ -51,7 +51,28 @@ describe("shared value menu", () => {
       { top: 0, column: 2, width: 10, rows: 3 },
       NAMING_THEME,
     );
-    expect(activeCurrent[0]).toContain("<active><accent>✓</accent></active><active> auto");
+    expect(activeCurrent[0]).toContain("<active><text>✓</text></active><active> auto");
+    expect(activeCurrent.join("\n")).not.toContain("<accent>✓</accent>");
+  });
+
+  it("aligns optional colored previews before labels without coloring the current mark", () => {
+    const state = {
+      choices: ["default", "blue"],
+      previews: ["\u001b[35m■\u001b[39m", "\u001b[34m■\u001b[39m"],
+      current: "default",
+      index: 0,
+    } satisfies ValueMenuState;
+    const frame = valueMenuFrame(state, { screenRow: 1, valueColumn: 10 }, {
+      bodyHeight: 8,
+      surfaceWidth: 30,
+      reservedRight: 2,
+    });
+    expect(frame).toEqual({ top: 2, column: 6, width: 13, rows: 2 });
+
+    const rendered = renderValueMenu([" ".repeat(30), " ".repeat(30), " ".repeat(30), " ".repeat(30)], state, frame, NAMING_THEME);
+    expect(rendered[frame.top]).toContain("<active><text>✓</text></active><active> \u001b[35m■\u001b[39m default");
+    expect(rendered[frame.top + 1]).toContain("<panel>  \u001b[34m■\u001b[39m blue");
+    expect(rendered.join("\n")).not.toContain("<accent>✓</accent>");
   });
 
   it("places below when possible and flips above while clipping at the right rail", () => {

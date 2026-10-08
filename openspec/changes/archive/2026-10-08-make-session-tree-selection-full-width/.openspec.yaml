@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-08
+goal: Make Session Tree selection cover the complete available row width like
+  Resume Session while preserving tree content and semantic styling.

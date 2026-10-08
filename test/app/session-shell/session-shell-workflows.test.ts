@@ -116,7 +116,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(cellStyle(heading, "T")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("T")), "T"));
     const selectedRow = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
     expect(cellStyle(selectedRow, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
-    expect(cellStyle(selectedRow, "◉")).toEqual(cellStyle(piTheme().fg("accent", "◉"), "◉"));
+    expect(cellStyle(selectedRow, "◉")).toEqual(cellStyle(piTheme().fg("text", "◉"), "◉"));
     expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
 
     bare.shell.root.handleInput("low");
@@ -415,7 +415,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(currentFrame).not.toContain("Resume Session (");
     expect(currentFrame).toContain("Filter: current | all  Name: all  Sort: threaded");
     expect(currentRows.find(row => stripTerminalSequences(row).includes("Filter:")))
-      .toContain(piTheme().fg("accent", "current"));
+      .toContain(piTheme().fg("mdHeading", "current"));
     terminal.input("\t");
     await new Promise(resolve => setTimeout(resolve, 0));
     const allRows = shell.root.render(100);
@@ -425,7 +425,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(allFrame).toContain("Filter: current | all  Name: all  Sort: threaded");
     const allFilterRow = allRows.find(row => stripTerminalSequences(row).includes("Filter:"))!;
     expect(allFilterRow).toContain(piTheme().fg("dim", "current"));
-    expect(allFilterRow).toContain(piTheme().fg("accent", "all"));
+    expect(allFilterRow).toContain(piTheme().fg("mdHeading", "all"));
     terminal.input("\x1b");
     expect(shell.root.render(100).join("\n")).not.toContain("Resume Session");
     expect(shell.root.render(100).join("\n")).not.toContain("Resume cancelled");

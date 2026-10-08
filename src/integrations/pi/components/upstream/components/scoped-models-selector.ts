@@ -26,7 +26,7 @@ import {
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { getModelSearchText } from "../model-search.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 // Rationale: upstream's capitalized hint formatter is private to the package; the same mapping lives here.
 function keyDisplayText(keybinding: Parameters<ReturnType<typeof getKeybindings>["getKeys"]>[0]): string {
@@ -165,7 +165,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 		this.filteredItems = this.buildItems();
 
 		// Header
-		const header = addPiModalHeader(this, new DynamicBorder(), new Text(theme.fg("accent", theme.bold("Model Configuration")), 0, 0));
+		const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), new Text(theme.fg("accent", theme.bold("Model Configuration")), 0, 0));
 		const saveKey = keyDisplayText("app.models.save");
 		this.addChild(new Text(theme.fg("muted", "Session-only.")
 			+ (saveKey ? ` ${renderPiModalShortcutHints([{ key: saveKey, action: "to save to settings." }])}` : ""), 0, 0));
@@ -189,7 +189,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 		this.footerText = new Text(this.getFooterText(), 0, 0);
 		this.addChild(this.footerText);
 
-		this.addChild(new DynamicBorder());
+		this.addChild(new DynamicBorder(paintPiBorder));
 		adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
 		this.updateList();
 	}

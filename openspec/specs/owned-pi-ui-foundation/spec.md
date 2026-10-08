@@ -3259,9 +3259,9 @@ Close shortcut guidance SHALL keep Ctrl+C implicit. A close or cancel hint SHALL
 
 ### Requirement: Standard bare-A1 lists share one selection palette
 
-The bare-A1 Models, Skills, Thinking Level, Resume Session, Session Tree, Settings, and editor autocomplete menus SHALL preserve their existing cursor and meaningful semantic foreground roles when selected. Every covered surface SHALL use the blue `selectedBg` selection background. Models, Skills, Thinking Level, Settings, and autocomplete SHALL retain their ordinary menu arrow `→` in accent foreground, a primary label in normal `text`, and muted descriptive text. Resume Session SHALL use an accent arrow, preserve each title and metadata foreground role under keyboard selection, and render only its currently active session title in success green, while Session Tree SHALL retain each entry's item-specific foreground and text-style roles. Selection SHALL NOT introduce bold styling. On item-bounded surfaces, the selected background SHALL cover only the rendered item span from its arrow through its final visible content cell, SHALL NOT fill otherwise unused cells after the item, and SHALL remain clipped within the available width without causing wrapping. Resume Session SHALL retain its established full-row selection geometry.
+The bare-A1 Models, Skills, Thinking Level, Resume Session, Session Tree, Settings, and editor autocomplete menus SHALL preserve their existing cursor and meaningful semantic foreground roles when selected. Every covered surface SHALL use the blue `selectedBg` selection background. Models, Skills, Thinking Level, Settings, and autocomplete SHALL retain their ordinary menu arrow `→` in accent foreground, a primary label in normal `text`, and muted descriptive text. Resume Session SHALL use an accent arrow, preserve each title and metadata foreground role under keyboard selection, and render only its currently active session title in success green, while Session Tree SHALL retain each entry's item-specific foreground and text-style roles. Selection SHALL NOT introduce bold styling. On item-bounded surfaces, the selected background SHALL cover only the rendered item span from its arrow through its final visible content cell, SHALL NOT fill otherwise unused cells after the item, and SHALL remain clipped within the available width without causing wrapping. Resume Session and Session Tree SHALL use full-row selection geometry whose background fills every available row cell regardless of rendered content length.
 
-The selected-item treatment SHALL preserve domain-specific semantic markers and content. Models SHALL retain its scoped/unscoped marker, provider badge, and active-model checkmark. Skills SHALL retain its `skill:<name>` label and separately presented selected description. Thinking Level SHALL retain aligned level, current, default, and reasoning-description columns. Settings SHALL retain aligned labels and values, steppers, structured-value rows, floating choices, scrolling, search, and pointer affordances. Autocomplete SHALL retain aligned command descriptions and completion behavior. Session Tree SHALL retain its hierarchy, semantic entry roles, horizontal viewport, and clipped-edge markers. Resume Session SHALL retain its specialized arrow, metadata, active-session identity, and full-row geometry.
+The selected-item treatment SHALL preserve domain-specific semantic markers and content. Models SHALL retain its scoped/unscoped marker, provider badge, and active-model checkmark. Skills SHALL retain its `skill:<name>` label and separately presented selected description. Thinking Level SHALL retain aligned level, current, default, and reasoning-description columns. Settings SHALL retain aligned labels and values, steppers, structured-value rows, floating choices, scrolling, search, and pointer affordances. Autocomplete SHALL retain aligned command descriptions and completion behavior. Session Tree SHALL retain its hierarchy, semantic entry roles, horizontal viewport, clipped-edge markers, and full-row geometry. Resume Session SHALL retain its specialized arrow, metadata, active-session identity, and full-row geometry.
 
 Unselected rows, search and filter behavior, list ordering, counters, descriptions, navigation, selection actions, default and scope persistence, cancellation, and dialog lifecycle SHALL remain unchanged. The explicit `a1 pi` comparison profile SHALL retain pinned Pi presentation.
 
@@ -3297,7 +3297,8 @@ Unselected rows, search and filter behavior, list ordering, counters, descriptio
 
 - **WHEN** a Session Tree entry is selected
 - **THEN** its existing `→` SHALL remain accent-colored and every entry fragment SHALL keep the same semantic foreground and text-style role it has while unselected on `selectedBg`
-- **AND** the background SHALL cover every visible selected fragment and clipped-edge ellipsis without changing tree hierarchy or viewport behavior
+- **AND** the background SHALL cover every available row cell, including trailing cells after short content and every visible clipped-edge ellipsis, without changing tree hierarchy or viewport behavior
+- **AND** moving selection between entries of different rendered lengths SHALL NOT change the highlight width
 
 #### Scenario: Highlight a setting
 
@@ -3319,6 +3320,13 @@ Unselected rows, search and filter behavior, list ordering, counters, descriptio
 - **THEN** the row SHALL remain single-line and ANSI-aware clipped within the available content width
 - **AND** every visible item cell SHALL retain the selection background
 - **AND** cells after the visible item SHALL remain outside the selection background
+- **AND** no rendered row SHALL exceed the frame width
+
+#### Scenario: Render a full-row Session Tree selection at narrow width
+
+- **WHEN** Session Tree renders a selected row with less width than the complete content requires
+- **THEN** the row SHALL remain single-line and ANSI-aware clipped within the available content width
+- **AND** every available row cell SHALL retain the selection background while clipped-edge markers remain visible
 - **AND** no rendered row SHALL exceed the frame width
 
 #### Scenario: Render an unselected row
@@ -3413,3 +3421,48 @@ The same Session Tree behavior SHALL apply to `/tree` and the configured double-
 - **THEN** startup SHALL remain usable
 - **AND** invoking the affected selector SHALL restore ordinary input and report a command failure
 - **AND** no presentation hold, stale replacement surface, or unhandled rejection SHALL remain
+
+### Requirement: Bare A1 projects one selected semantic accent across the active UI
+
+Bare A1 SHALL derive its active presentation from the complete unmodified base Pi theme and, when `accentColor` names an A1 palette color, SHALL replace the semantic `accent` role plus the semantic `border`, `selectedBg`, `userMessageBg`, `mdHeading`, and `mdListBullet` roles used by dialog bars, selected rows, user prompts, secondary headings, active dialog-filter values, and Markdown list markers. The projected border and backgrounds SHALL be A1-owned tonal variations of the selected accent rather than the identical accent color; the border SHALL be a visibly darker neighboring-hue version of the accent, secondary headings, active dialog-filter values, keyboard-shortcut key spans, and Markdown list markers SHALL use a brighter complementary neighboring hue, filled scope/default state markers SHALL retain the neutral `text` role, selected backgrounds SHALL use a half-strength low-saturation tint closer to the terminal background, and list markers SHALL use the same derived secondary tone as active filters. Every owned, retained, shared-component, select-list, and extension-facing surface that requests semantic accent SHALL observe the same selected color for foreground painting, composed styles, ANSI lookup, and concrete color introspection. Every owned and retained package dialog bar SHALL observe the derived border through the live facade, while secondary headings, active dialog-filter values, selected rows, and visible user prompts SHALL observe their matching derived colors and existing relative prominence. A scrolled-out sticky prompt and the jump-to-bottom badge SHALL retain the base neutral `toolPendingBg` while resting and use the derived accent selection tone only when hovered. Every other role SHALL retain the base theme's behavior and bytes.
+
+Every derived family role SHALL be computed from the selected primary accent by one appearance-aware color transform rather than stored as a per-choice role color, and that transform SHALL accept an arbitrary concrete color so future custom accents inherit the same hierarchy. The active projection SHALL be reconstructed from the stored base theme after named-theme load, watched-file reload, terminal-appearance selection, or in-memory theme replacement. Reapplying a previously active projected in-memory theme SHALL unwrap to its original base and restore the same projected object identity for that base/accent pair. It SHALL NOT modify built-in or custom theme resources, write generated theme files, inspect the name `violet`, compare current purple/RGB values, infer related roles from equal colors, or derive repeatedly from an earlier projection. Roles such as general Markdown code outside the hotkeys document, syntax types, custom-message labels, muted borders, custom/tool backgrounds, and thinking-level colors SHALL remain independent unless they explicitly request semantic `accent`, the derived `mdHeading`, `mdListBullet`, dialog `border`, or the subtle derived `selectedBg` and `userMessageBg` surfaces.
+
+A live accent change SHALL invalidate theme-sensitive content and repaint the active frame in the same session. Purple SHALL be the initial explicit A1 palette choice and SHALL receive the same complete family projection as every other choice. `a1 pi` SHALL retain exact Pi theme behavior. If a future Pi release changes the semantic theme-token contract incompatibly, controlled upgrade validation SHALL fail by naming the drift rather than silently retaining a stale accent implementation.
+
+#### Scenario: Apply a selected accent
+- **WHEN** bare A1 has an `accentColor` preference
+- **THEN** titles, cursors, selected markers, working indicators, accent scrollbars, dialogs, settings controls, and extension theme access that request `accent` SHALL use that choice
+- **AND** every owned and retained package dialog bar that requests `border` SHALL use a visibly darker neighboring-hue variation of that choice
+- **AND** secondary section/Markdown headings, active dialog-filter values, keyboard-shortcut key spans, and numbered/unordered Markdown list markers SHALL use a brighter complementary neighboring-hue variation distinct from primary titles, with blue and purple receiving the stronger sector-derived separation needed for a clear hierarchy
+- **AND** filled scope/default state markers SHALL match the neutral model/item text color
+- **AND** selected rows that request `selectedBg` SHALL use a half-strength low-chroma tonal variation closer to the terminal background
+- **AND** visible user prompts SHALL use a quieter low-prominence variation
+- **AND** resting sticky prompts and jump-to-bottom badges SHALL remain neutral grey while their hovered states use the selection variation
+- **AND** every other foreground, background, emphasis, spacing, and geometry SHALL remain unchanged
+
+#### Scenario: Change the preference while content is visible
+- **WHEN** the reader changes `accentColor` from one allowed value to another
+- **THEN** the settings surface and existing shell content SHALL repaint in the same session
+- **AND** no cached row or later-created accent consumer SHALL retain the previous value
+- **AND** ordered and unordered list markers in already-finalized assistant content SHALL repaint to the new secondary/filter tone
+
+#### Scenario: Derive the family from an arbitrary accent
+- **WHEN** the owned transform receives a concrete accent that is not one of the named palette entries
+- **THEN** border, secondary heading/filter, selected-row, and user-message tones SHALL all derive from that input color
+- **AND** no named palette ID or per-role color literal SHALL be required
+
+#### Scenario: Keep the palette stable across an upstream accent change
+- **WHEN** the base Pi theme's semantic accent differs from the value used by an earlier Pi release
+- **THEN** bare A1 SHALL continue to use its selected explicit palette color for the enumerated accent family
+- **AND** every unrelated role SHALL continue to come from the changed base theme
+
+#### Scenario: Retain a selected choice across base-theme replacement
+- **WHEN** a preference is active and the base theme reloads or is replaced
+- **THEN** the selected accent SHALL be projected once over the new base theme
+- **AND** every non-accent role SHALL come from that new base theme
+
+#### Scenario: Preserve comparison parity
+- **WHEN** the same base theme is used by `a1 pi`
+- **THEN** no A1 accent projection SHALL be installed
+- **AND** pinned Pi theme parity SHALL remain exact

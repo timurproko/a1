@@ -9,7 +9,7 @@ import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
 import type { AvailableRelease, StartupReleaseCheckOptions } from "../foundation/release/latest-release.js";
 import type { NativeProcessIdentity } from "../foundation/lifecycle/model.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
-import { applyConfiguredPiTheme, getAvailablePiThemes } from "../integrations/pi/components/upstream/theme/theme.js";
+import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
 import { createPiEngineAdapter } from "../integrations/pi/engine/adapter.js";
 import type { PiEngineAdapter } from "../integrations/pi/engine/adapter.js";
 import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/project-trust-preflight.js";
@@ -155,10 +155,15 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     : await import("../features/owned-ui/release-note-state.js").then(module => module.claimReleaseNote({
       configDir: productPaths.configDir, profileId: options.profileId!, version: currentReleaseNote.version,
     }));
-  // Compatibility: bare A1 intentionally ships one visual target while its UI is being completed:
-  // dark, regardless of terminal detection or a previously stored Pi theme. The
-  // comparison profile keeps Pi's configured theme behavior and settings surface.
+  // Compatibility: bare A1 intentionally ships one base visual target while its UI is being completed:
+  // dark, regardless of terminal detection or a previously stored Pi theme. Its owned accent projects
+  // over that base; comparison keeps Pi's configured theme and unmodified semantic accent.
+  setPiPackageBorderProjectionEnabled(ownedSurfaces);
+  setPiAccentColor(settings !== null && ownedSurfaces ? settings.value("accentColor") : "purple");
   applyConfiguredPiTheme(ownedSurfaces ? "dark" : adapter.configuredTheme());
+  const unsubscribeAccent = settings === null || !ownedSurfaces
+    ? () => {}
+    : settings.onChange(current => setPiAccentColor(current.value("accentColor")));
 
   // Rationale: Routes open only after shell construction.
   const references: OwnedReferenceProviders = {
@@ -254,6 +259,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       } }),
     });
   } catch (error) {
+    unsubscribeAccent();
     await releaseNoteClaim?.release();
     clipboardDiagnostics?.dispose(); suggestionDiagnostics?.dispose();
     throw error;
@@ -294,6 +300,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         (await exitNotice)?.clear();
         await releaseNoteAcknowledgement?.catch(() => undefined);
       } finally {
+        unsubscribeAccent();
         sessionRuntimeDisposed = true;
         if (sessionRuntimeRefreshTimer !== null) clearInterval(sessionRuntimeRefreshTimer);
         sessionRuntimeRefreshTimer = null;

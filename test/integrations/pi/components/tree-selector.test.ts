@@ -94,7 +94,7 @@ describe("bare-A1 session tree presentation", () => {
     expect(plain[2]).toBe(" Filter: all | no tools | user | labeled");
     expect(plain[3]).toBe("");
     expect(plain[4]).toBe(" >");
-    expect(cellStyle(rows[2]!, "a")).toEqual(cellStyle(piTheme().fg("accent", "a"), "a"));
+    expect(cellStyle(rows[2]!, "a")).toEqual(cellStyle(piTheme().fg("mdHeading", "a"), "a"));
     expect(cellStyle(rows[2]!, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
     expect(plain.some(row => row.includes("Type to search:"))).toBe(false);
     expect(plain.filter(row => /^─+$/u.test(row))).toHaveLength(2);
@@ -111,6 +111,8 @@ describe("bare-A1 session tree presentation", () => {
     const selectionBackground = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
     expect(cellBackgroundAt(selected, selectedText.indexOf("→"))).toBe(selectionBackground);
     expect(cellBackgroundAt(selected, selectedText.indexOf("X"))).toBe(selectionBackground);
+    expect(visibleWidth(selected)).toBe(80);
+    expect(cellBackgroundAt(selected, 79)).toBe(selectionBackground);
     expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
     expect(cellStyle(selected, "a")).toEqual(cellStyle(piTheme().fg("warning", "a"), "a"));
     expect(cellStyle(selected, "X")).toEqual(cellStyle(piTheme().fg("muted", "X"), "X"));
@@ -118,6 +120,7 @@ describe("bare-A1 session tree presentation", () => {
     expect(cellStyle(unselected, "h")).toEqual(cellStyle(piTheme().fg("accent", "h"), "h"));
     expect(cellStyle(unselected, "u")).toEqual(cellStyle(piTheme().fg("success", "u"), "u"));
     expect(cellStyle(unselected, "Q")).toEqual(cellStyle(piTheme().fg("muted", "Q"), "Q"));
+    expect(unselected).not.toContain("\u001b[48;");
     const session = rows.find(row => stripTerminalSequences(row).trim() === "session")!;
     expect(session).toBeDefined();
     expect(plain.join("\n")).not.toContain("system");
@@ -131,6 +134,8 @@ describe("bare-A1 session tree presentation", () => {
     const unselectedAssistant = movedRows.find(row => stripTerminalSequences(row).includes("assistant: ResponseXYZ"))!;
     const selectedUser = movedRows.find(row => stripTerminalSequences(row).includes("user: QuestionABC"))!;
     expect(stripTerminalSequences(selectedUser)).toContain("→");
+    expect(visibleWidth(selectedUser)).toBe(80);
+    expect(cellBackgroundAt(selectedUser, 79)).toBe(selectionBackground);
     expect(cellStyle(unselectedAssistant, "a")).toEqual(cellStyle(piTheme().fg("warning", "a"), "a"));
     expect(cellStyle(selectedUser, "u")).toEqual(cellStyle(piTheme().fg("success", "u"), "u"));
 
@@ -138,6 +143,8 @@ describe("bare-A1 session tree presentation", () => {
     const selectedSession = component.render(80).find(row => stripTerminalSequences(row).includes("→ session"))!;
     expect(cellStyle(selectedSession, "s")).toEqual(cellStyle(piTheme().fg("dim", "s"), "s"));
     expect(cellBackgroundAt(selectedSession, stripTerminalSequences(selectedSession).indexOf("s"))).toBe(selectionBackground);
+    expect(visibleWidth(selectedSession)).toBe(80);
+    expect(cellBackgroundAt(selectedSession, 79)).toBe(selectionBackground);
 
     const hintIndex = plain.findIndex(row => row.includes("Type search"));
     expect(plain.slice(hintIndex, -1).every(row => row.length > 0)).toBe(true);
@@ -166,7 +173,7 @@ describe("bare-A1 session tree presentation", () => {
 
     component.handleInput?.("\t");
     const cycledFilter = component.render(80).find(row => stripTerminalSequences(row).includes("Filter:"))!;
-    expect(cellStyle(cycledFilter, "n")).toEqual(cellStyle(piTheme().fg("accent", "n"), "n"));
+    expect(cellStyle(cycledFilter, "n")).toEqual(cellStyle(piTheme().fg("mdHeading", "n"), "n"));
     expect(cellStyle(cycledFilter, "a")).toEqual(cellStyle(piTheme().fg("muted", "a"), "a"));
 
     component.handleInput?.("\x1b[F");
@@ -354,12 +361,12 @@ describe("bare-A1 session tree presentation", () => {
     component.handleInput?.(reverseTab);
     const reversedRows = component.render(80);
     const reversedFilter = reversedRows.find(row => stripTerminalSequences(row).includes("Filter:"))!;
-    expect(cellStyle(reversedFilter, "b")).toEqual(cellStyle(piTheme().fg("accent", "b"), "b"));
+    expect(cellStyle(reversedFilter, "b")).toEqual(cellStyle(piTheme().fg("mdHeading", "b"), "b"));
     expect(stripTerminalSequences(reversedRows.join("\n"))).not.toContain("Shift+Tab");
 
     component.handleInput?.("\t");
     const restoredFilter = component.render(80).find(row => stripTerminalSequences(row).includes("Filter:"))!;
-    expect(cellStyle(restoredFilter, "a")).toEqual(cellStyle(piTheme().fg("accent", "a"), "a"));
+    expect(cellStyle(restoredFilter, "a")).toEqual(cellStyle(piTheme().fg("mdHeading", "a"), "a"));
   });
 
   it("pages the visible result window with PageUp and PageDown", async () => {
@@ -400,6 +407,8 @@ describe("bare-A1 session tree presentation", () => {
     expect(stripTerminalSequences(clippedSelected)).toMatch(/^\s*→ ….*…$/u);
     expect(stripTerminalSequences(clippedSelected)).not.toContain("...");
     expect(clippedSelected).toContain("\u001b[48;");
+    expect(visibleWidth(clippedSelected)).toBe(8);
+    expect(cellBackgroundAt(clippedSelected, 7)).toBe(cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0));
     expect(cellStyle(clippedSelected, "…")).toEqual(
       cellStyle(piTheme().bg("selectedBg", piTheme().fg("muted", "…")), "…"),
     );
@@ -453,6 +462,8 @@ describe("bare-A1 session tree presentation", () => {
     expect(stripTerminalSequences(selected)).toMatch(/…\]$/u);
     expect(stripTerminalSequences(selected)).not.toContain("...");
     expect(selected).toContain("\u001b[48;");
+    expect(visibleWidth(selected)).toBe(24);
+    expect(cellBackgroundAt(selected, 23)).toBe(cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0));
   });
 
   it("mirrors action-aware typing through the standard input and omits the empty counter", async () => {

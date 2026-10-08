@@ -1,7 +1,6 @@
 import {
   ArminComponent,
   DynamicBorder,
-  getSelectListTheme,
   LoginDialogComponent,
   ModelSelectorComponent,
   OAuthSelectorComponent,
@@ -33,6 +32,8 @@ import {
   canonicalizePiSettingsHint,
   DIALOG_CLOSE_SHORTCUT_HINT,
   PINNED_PI_LAYOUT,
+  getPiSelectListTheme,
+  paintPiBorder,
   piTheme,
   renderPiModalShortcutHints,
 } from "./theme.js";
@@ -53,7 +54,7 @@ export { createPiShellSkillsSelector, type PiShellSkillsSelectorOptions } from "
 export function createPiShellSelector(options: PiShellSelectorOptions): PiShellComponentPort {
   ensureTheme();
   const items = options.options.map(toSelectItem);
-  const list = new SelectList(items, options.maxVisible ?? Math.min(PINNED_PI_LAYOUT.selectorMaxVisible, Math.max(1, items.length)), getSelectListTheme());
+  const list = new SelectList(items, options.maxVisible ?? Math.min(PINNED_PI_LAYOUT.selectorMaxVisible, Math.max(1, items.length)), getPiSelectListTheme());
   if (options.onSelect !== undefined) list.onSelect = item => options.onSelect?.(item.value);
   if (options.onCancel !== undefined) list.onCancel = options.onCancel;
   if (!options.title && options.onCancel === undefined) return componentPort(list);
@@ -403,12 +404,11 @@ export function createPiShellEarendilAnnouncement(): PiShellComponentPort {
 export function createPiShellReloadBox(): PiShellComponentPort {
   ensureTheme();
   const container = new Container();
-  const borderColor = (text: string) => piTheme().fg("border", text);
-  container.addChild(new DynamicBorder(borderColor));
+  container.addChild(new DynamicBorder(paintPiBorder));
   container.addChild(new Spacer(1));
   container.addChild(new Text(piTheme().fg("muted", "Reloading keybindings, extensions, skills, prompts, themes, and context files..."), 0, 0));
   container.addChild(new Spacer(1));
-  container.addChild(new DynamicBorder(borderColor));
+  container.addChild(new DynamicBorder(paintPiBorder));
   adoptPiModalFrame(container, { topIndex: 0, bottomIndex: container.children.length - 1 });
   return componentPort(container);
 }
