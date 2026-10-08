@@ -6,7 +6,7 @@ import { SuggestionDiagnosticCapture } from "../../../src/features/prompt-sugges
 import type { SuggestionDiagnosticRecord } from "../../../src/contracts/owned-ui/index.js";
 
 const RECORD: SuggestionDiagnosticRecord = {
-  event: "started", session: 1, request: 1, run: 1, response: 2,
+  event: "started", session: 1, request: 1, run: 1, response: 2, attempt: 1, trigger: "prefetch",
   provider: "github-copilot", model: "claude-opus", reasoning: "low", elapsedMs: 0,
 };
 

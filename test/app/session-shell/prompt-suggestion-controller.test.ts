@@ -5,6 +5,7 @@ import {
   type OwnedUiPromptSuggestionGeneratorPort,
   type OwnedUiPromptSuggestionIdentity,
   type OwnedUiPromptSuggestionResult,
+  type SuggestionDecisionReason,
   type SuggestionDiagnosticRecord,
   SUGGESTION_DECISION_REASONS,
 } from "../../../src/contracts/owned-ui/index.js";
@@ -200,7 +201,7 @@ describe("suggestion lifecycle diagnostics", () => {
     return { controller, records, target };
   }
 
-  it.each(["empty", "rejected", "provider-failure", "unavailable", "cancelled"] as const)("preserves %s rather than mislabeling null", async outcome => {
+  it.each(["empty", "rejected", "provider-failure", "unavailable"] as const)("retries and preserves two %s outcomes before exhaustion", async outcome => {
     const { controller, records, target } = observed({
       suggestionReasoningPolicy: () => "low",
       generate: async request => ({ identity: request.identity, outcome, text: null }),
@@ -208,12 +209,88 @@ describe("suggestion lifecycle diagnostics", () => {
     controller.consider(IDENTITY, null);
     controller.settle(IDENTITY);
     await tick();
-    expect(records.map(record => record.event)).toEqual(["started", outcome]);
+    expect(records.map(record => record.event)).toEqual(["started", outcome, "started", outcome, "retry-exhausted"]);
+    expect(records.filter(record => record.event === "started").map(record => [record.attempt, record.trigger]))
+      .toEqual([[1, "prefetch"], [2, "retry"]]);
     expect(records.every(record => record.reasoning === "low")).toBe(true);
     expect(target.text()).toBeNull();
     expect(JSON.stringify(records)).not.toContain(IDENTITY.sessionId);
     controller.dispose();
-    expect(records).toHaveLength(2);
+    expect(records).toHaveLength(5);
+  });
+
+  it("waits for settlement before starting a retry scheduled by prefetch", async () => {
+    let attempt = 0;
+    const generator: OwnedUiPromptSuggestionGeneratorPort = {
+      generate: vi.fn(async request => ++attempt === 1
+        ? { identity: request.identity, outcome: "empty" as const, text: null }
+        : { identity: request.identity, outcome: "candidate" as const, text: "run the tests" }),
+    };
+    const { controller, records, target } = observed(generator);
+    controller.consider(IDENTITY, null);
+    await tick();
+    expect(generator.generate).toHaveBeenCalledOnce();
+    expect(records.map(record => record.event)).toEqual(["started", "empty"]);
+    controller.settle(IDENTITY);
+    await tick();
+    expect(generator.generate).toHaveBeenCalledTimes(2);
+    expect(records.map(record => record.event)).toEqual(["started", "empty", "started", "displayed"]);
+    expect(target.text()).toBe("run the tests");
+  });
+
+  it("does not restart exhausted recovery for duplicate settlement", async () => {
+    const generator: OwnedUiPromptSuggestionGeneratorPort = {
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "empty" as const, text: null })),
+    };
+    const { controller, records } = observed(generator);
+    controller.consider(IDENTITY, null);
+    controller.settle(IDENTITY);
+    await tick();
+    controller.settle(IDENTITY);
+    await tick();
+    expect(generator.generate).toHaveBeenCalledTimes(2);
+    expect(records.map(record => record.event)).toEqual(["started", "empty", "started", "empty", "retry-exhausted"]);
+  });
+
+  it("does not retry an explicit cancelled result", async () => {
+    const { controller, records } = observed({
+      generate: async request => ({ identity: request.identity, outcome: "cancelled", text: null }),
+    });
+    controller.consider(IDENTITY, null);
+    controller.settle(IDENTITY);
+    await tick();
+    expect(records.map(record => record.event)).toEqual(["started", "cancelled"]);
+  });
+
+  it("starts the first attempt from settlement when prefetch was missed", async () => {
+    const generator: OwnedUiPromptSuggestionGeneratorPort = {
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "candidate" as const, text: "run the tests" })),
+    };
+    const { controller, records, target } = observed(generator);
+    controller.settle(IDENTITY, null);
+    await tick();
+    expect(generator.generate).toHaveBeenCalledOnce();
+    expect(records).toMatchObject([
+      { event: "started", attempt: 1, trigger: "settlement" },
+      { event: "displayed", attempt: 1, trigger: "settlement" },
+    ]);
+    expect(target.text()).toBe("run the tests");
+  });
+
+  it("recovers when the first settled attempt returns no candidate", async () => {
+    let attempt = 0;
+    const generator: OwnedUiPromptSuggestionGeneratorPort = {
+      generate: vi.fn(async request => ++attempt === 1
+        ? { identity: request.identity, outcome: "empty" as const, text: null }
+        : { identity: request.identity, outcome: "candidate" as const, text: "run the tests" }),
+    };
+    const { controller, records, target } = observed(generator);
+    controller.consider(IDENTITY, null);
+    controller.settle(IDENTITY);
+    await tick();
+    expect(generator.generate).toHaveBeenCalledTimes(2);
+    expect(records.map(record => record.event)).toEqual(["started", "empty", "started", "displayed"]);
+    expect(target.text()).toBe("run the tests");
   });
 
   it.each(SUGGESTION_DECISION_REASONS)("records eligibility reason %s without a request", reason => {
@@ -225,26 +302,38 @@ describe("suggestion lifecycle diagnostics", () => {
     expect(records).toMatchObject([{ event: "skipped", reason, request: 0 }]);
   });
 
+  it("does not start settlement fallback for a permanently ineligible response", () => {
+    const generator = { generate: vi.fn() };
+    const { controller, records } = observed(generator);
+    controller.settle(IDENTITY, "tool-continuation");
+    expect(generator.generate).not.toHaveBeenCalled();
+    expect(records).toMatchObject([{ event: "skipped", reason: "tool-continuation", request: 0 }]);
+  });
+
   it("distinguishes disabled from provider abstention", () => {
     const { controller, records } = observed({ generate: vi.fn() }, false);
     controller.consider(IDENTITY, null);
     expect(records).toMatchObject([{ event: "skipped", reason: "disabled" }]);
   });
 
-  it("retires timeout before an ignored abort returns a late result", async () => {
+  it("starts one retry after timeout and rejects the ignored first attempt's late result", async () => {
     vi.useFakeTimers();
     try {
-      const pending = deferredGenerator();
-      const { controller, records, target } = observed(pending.generator);
+      const resolvers: Array<(result: OwnedUiPromptSuggestionResult) => void> = [];
+      const generator: OwnedUiPromptSuggestionGeneratorPort = {
+        generate: vi.fn(request => new Promise<OwnedUiPromptSuggestionResult>(resolve => { resolvers.push(resolve); })),
+      };
+      const { controller, records, target } = observed(generator);
       controller.consider(IDENTITY, null);
       controller.settle(IDENTITY);
       await vi.advanceTimersByTimeAsync(15000);
-      pending.resolve({ identity: IDENTITY, text: "archive it" });
+      resolvers[0]?.({ identity: IDENTITY, outcome: "candidate", text: "archive it" });
       await tick();
-      expect(records.map(record => record.event)).toEqual(["started", "timeout", "late-result-discarded"]);
+      expect(records.map(record => record.event)).toEqual(["started", "timeout", "started", "late-result-discarded"]);
       expect(records[1]?.elapsedMs).toBe(15000);
+      expect(records[2]).toMatchObject({ attempt: 2, trigger: "retry" });
       expect(target.text()).toBeNull();
-      expect(pending.generator.generate).toHaveBeenCalledTimes(1);
+      expect(generator.generate).toHaveBeenCalledTimes(2);
       controller.dispose();
     } finally { vi.useRealTimers(); }
   });
@@ -261,6 +350,21 @@ describe("suggestion lifecycle diagnostics", () => {
       ? ["started", "cancelled"] : ["started", "cancelled", "late-result-discarded"]);
     expect(target.text()).toBeNull();
     controller.dispose();
+  });
+
+  it("abortPending retires a retry scheduled before settlement", async () => {
+    const generator: OwnedUiPromptSuggestionGeneratorPort = {
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "empty" as const, text: null })),
+    };
+    const { controller, records } = observed(generator);
+    controller.consider(IDENTITY, null);
+    await tick();
+    expect(records.map(record => record.event)).toEqual(["started", "empty"]);
+    controller.abortPending();
+    controller.settle(IDENTITY);
+    await tick();
+    expect(generator.generate).toHaveBeenCalledOnce();
+    expect(records.map(record => record.event)).toEqual(["started", "empty"]);
   });
 
   it("abortPending cancels only a generating request and discards its late result", async () => {
@@ -330,19 +434,25 @@ describe("suggestion lifecycle diagnostics", () => {
     visible.controller.dispose();
   });
 
-  it("records blocked presentation rather than empty output", async () => {
+  it("defers a valid candidate until a temporary presentation blocker clears", async () => {
     const records: SuggestionDiagnosticRecord[] = [];
     const target = surface();
+    let reason: SuggestionDecisionReason | null = "autocomplete";
     const controller = new ContextualPromptSuggestionController({
       enabled: true, generator: { generate: async request => ({ identity: request.identity, outcome: "candidate", text: "archive it" }) },
-      surface: { ...target.port, presentationBlockReason: () => "autocomplete" },
+      surface: { ...target.port, presentationBlockReason: () => reason },
       diagnostics: { record: record => records.push(record) },
     });
     controller.consider(IDENTITY, null);
     controller.settle(IDENTITY);
     await tick();
-    expect(records).toMatchObject([{ event: "started" }, { event: "presentation-blocked", reason: "autocomplete" }]);
+    expect(records).toMatchObject([{ event: "started" }, { event: "presentation-deferred", reason: "autocomplete" }]);
+    expect(controller.state.status).toBe("prepared");
     expect(target.text()).toBeNull();
+    reason = null;
+    controller.restoreAvailable();
+    expect(records.map(record => record.event)).toEqual(["started", "presentation-deferred", "displayed"]);
+    expect(target.text()).toBe("archive it");
     controller.dispose();
   });
 

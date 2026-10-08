@@ -318,6 +318,9 @@ export class OwnedUiSessionShell {
         this.root.reconcilePromptImageLimitNotice(text);
       },
       onPromptSuggestionAccepted: () => promptSuggestionController?.accept(),
+      onPromptSuggestionEligibilityChanged: () => {
+        queueMicrotask(() => promptSuggestionController?.restoreAvailable());
+      },
       onInputSurfaceChanged: () => {
         promptSuggestionController?.invalidate();
         this.#promptHistory?.synchronize();
@@ -684,14 +687,21 @@ export class OwnedUiSessionShell {
       if (event.type === "status" && /^(Retrying|Compacting)/.test(event.status.workingMessage ?? "")) {
         this.#promptSuggestions?.invalidate();
       }
-      if (event.type === "agent-run-settled" && event.model !== null) {
-        this.#promptSuggestions?.settle({
+      if (event.type === "agent-run-settled") {
+        const identity = {
           sessionId: event.sessionId,
           sessionGeneration: event.sessionGeneration,
           runSequence: event.runSequence,
           responseSequence: event.responseSequence,
           model: event.model,
-        });
+        };
+        if (event.model === null) this.#promptSuggestions?.skip(identity, "no-model");
+        else this.#promptSuggestions?.settle({ ...identity, model: event.model },
+          !event.successful ? "failed-response"
+            : event.toolContinuation || event.stopReason === "toolUse" ? "tool-continuation"
+            : event.stopReason !== "stop" ? "incomplete-response"
+            : event.assistantMessageCount < 2 ? "early-conversation"
+            : this.root.promptSuggestionPrepareBlockReason());
       }
       if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#settleStoppedLifecycle();
     });

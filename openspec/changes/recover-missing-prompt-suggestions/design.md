@@ -28,7 +28,7 @@ Replace the one-shot `lastConsidered` gate with per-identity state that records 
 
 When `agent-run-settled` arrives for a successful eligible final response and no request started, start the first request from settlement and mark it settled so a timely candidate can publish immediately. If prefetch is active or already produced a candidate, settlement only advances that existing attempt. This guarantees a backstop without duplicating the ordinary request.
 
-A response skipped for a permanent reason remains skipped. A response whose preparation is blocked by transient shell state records that reason and may start only when the same settled identity becomes eligible; any user-authored draft, new run, changed model/session, submission, interruption, or disposal retires the pending activation.
+A response skipped for a permanent reason remains skipped. A response blocked at prefetch may still start at settlement when the authoritative final response and ordinary editor are then eligible. User input, a new run, changed model/session, submission, interruption, or disposal prevents later recovery.
 
 **Alternative rejected:** calling `consider` unconditionally a second time at settlement. The current deduplication suppresses it, and removing deduplication without explicit attempt state can create concurrent duplicate provider requests.
 
@@ -44,7 +44,7 @@ Never retry `cancelled`, `stale-result`, user-driven invalidation, or an ineligi
 
 When a valid candidate cannot be shown solely because the ordinary editor is `not-ready`, `not-focused`, showing `autocomplete`, or in a temporary `prompt-mode`, retain it under the same identity and record deferred presentation. Reevaluate it on existing readiness, focus, autocomplete, and input coordination boundaries. Publish it once when eligible, without another provider request or another terminal result for either request.
 
-Continue to retire candidates on a user-authored draft, replacement input that changes interaction ownership, new run, changed model/session, acceptance/submission, interruption, feature disablement, or disposal. A retained candidate remains semantic ghost text only and never enters editor content until Tab.
+Preserve the existing draft lifecycle: a prepared or shown candidate is hidden while a user-authored draft exists and can reappear when that draft is cleared, while typing still cancels active or scheduled generation. Continue to retire candidates on replacement input that changes interaction ownership, a new run, changed model/session, acceptance/submission, interruption, feature disablement, or disposal. A retained candidate remains semantic ghost text only and never enters editor content until Tab.
 
 **Alternative rejected:** retrying generation after a presentation failure. The candidate already exists; another provider request adds cost and cannot repair UI eligibility.
 
