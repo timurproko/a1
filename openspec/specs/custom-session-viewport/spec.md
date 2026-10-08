@@ -1002,36 +1002,36 @@ Prompt-style compactions SHALL preserve the displayable summary, semantic select
 - **THEN** that surface SHALL retain its existing presentation and behavior rather than acquiring bare-A1 compaction anchors
 
 ### Requirement: Default-editor autocomplete grows above a stable prompt
-Bare A1 SHALL render the default editor's autocomplete list immediately above the editor's upper border, after any above-editor widgets, rather than below the editor. At unchanged terminal dimensions, editor text layout, and other dock content, opening, closing, filtering, paging, or asynchronously updating autocomplete SHALL NOT change the terminal rows occupied by the editor borders, prompt text, caret, below-editor widgets, or footer. The menu SHALL consume space upward from the transcript viewport, not from below the prompt, and SHALL NOT reserve empty menu rows after it closes.
+Bare A1 SHALL render the default editor's autocomplete list immediately above the editor's upper border, after any above-editor widgets, rather than below the editor. At unchanged terminal dimensions, editor text layout, and other dock content, opening, closing, filtering, paging, or asynchronously updating autocomplete SHALL NOT change the terminal rows occupied by the editor borders, prompt text, caret, below-editor widgets, or footer. The menu SHALL consume space upward from the transcript viewport, not from below the prompt, and SHALL NOT reserve empty menu rows after it closes. Its candidate rows SHALL use a one-cell outer gutter so the selection marker aligns with the working indicator, while preserving the list's internal candidate and description alignment.
 
-While the menu has rendered rows, bare A1 SHALL render exactly one horizontal line immediately above it, after above-editor widgets and without a blank spacer. The line SHALL match the input prompt border's horizontal glyph, full rendered width, and current color, including theme or editor-mode color changes. It SHALL contain no copied history or editor-scroll labels. When the existing completion list emits its trailing counter, bare A1 SHALL instead show that counter in the top line as `1/24`, without parentheses, at the history border label's four-cell inset and in its dim color. The original counter row SHALL be removed without a blank replacement. Counter values, updates, and visibility conditions SHALL remain those of the existing list; fitting lists without a counter retain a plain top line. If a complete counter cannot be obtained or fitted at a narrow width, its label SHALL be omitted rather than misrepresented. The existing prompt upper border SHALL remain between the menu and input. The top line SHALL be included in the upward allocation and body offset so its appearance or disappearance does not move the input or footer. The menu SHALL retain its original background and padding; no panel shading SHALL be added.
+While the menu has rendered rows, the existing prompt upper border SHALL remain directly between the menu and input and serve as the menu's horizontal counter line. The border SHALL retain its horizontal glyph, full rendered width, and current color, including theme or editor-mode color changes. When the existing completion list emits its trailing counter, bare A1 SHALL instead show that counter in this border as `1/24`, without parentheses, at a three-cell inset shared with the history border label and in its dim color. The original counter row SHALL be removed without a blank replacement. Counter values, updates, and visibility conditions SHALL remain those of the existing list; fitting lists without a counter retain the plain prompt upper border. If a complete counter cannot be obtained or fitted at a narrow width, its label SHALL be omitted rather than misrepresented. No additional horizontal line SHALL appear above the menu. The menu SHALL retain its original background and internal padding after the one-cell outer gutter; no panel shading SHALL be added.
 
-The list and its top line SHALL remain transient, non-transcript presentation. It SHALL NOT enter scrollback history, transcript selection, copied prompt text, or submitted text. Changes unrelated to autocomplete, including prompt wrapping, terminal resizing, and widget or footer height changes, SHALL retain their existing reflow behavior.
+The list and its counter decoration SHALL remain transient, non-transcript presentation. They SHALL NOT enter scrollback history, transcript selection, copied prompt text, or submitted text. Changes unrelated to autocomplete, including prompt wrapping, terminal resizing, and widget or footer height changes, SHALL retain their existing reflow behavior.
 
 #### Scenario: Open the slash-command list
-- **WHEN** the user types `/` in a single-line bare-A1 prompt
-- **THEN** the completion list SHALL appear above the prompt's upper border
+- **WHEN** the user types `/` in a single-line bare-A1 prompt with zero configured editor padding
+- **THEN** the completion list SHALL appear above the prompt's upper border with its selection marker one cell from the terminal edge
+- **AND** that marker SHALL align with the working indicator's horizontal position
 - **AND** the prompt and footer SHALL occupy the same terminal rows as the equivalent frame without the list
 - **AND** no completion rows SHALL appear between the prompt's lower border and footer
 
 #### Scenario: Match the menu top line to the prompt
 - **WHEN** the default editor displays autocomplete, including after a theme, editor-mode color, or terminal-width change
-- **THEN** exactly one horizontal line SHALL appear directly above the suggestions with the prompt border's current color, glyph, and width
-- **AND** the original prompt upper border SHALL remain below the suggestions
-- **AND** the top line SHALL NOT replace any candidate row
-- **AND** candidate rows SHALL retain their original background and padding without menu-panel shading
+- **THEN** the original prompt upper border SHALL remain directly below the suggestions with its current color, glyph, and width
+- **AND** no additional horizontal line SHALL appear above the suggestions or replace a candidate row
+- **AND** candidate rows SHALL retain their original background and internal padding without menu-panel shading
 
 #### Scenario: Relocate the existing completion counter
 - **WHEN** the existing list would display a trailing counter such as `(1/24)`
-- **THEN** the same value SHALL appear as `1/24` in the top line at the history label inset and in the same dim color
+- **THEN** the same value SHALL appear as `1/24` in the prompt upper border at the shared three-cell history-label inset and in the same dim color
 - **AND** the trailing counter row SHALL be absent, not duplicated or left blank
-- **AND** navigation, filtering, and asynchronous results SHALL update the top counter using the existing list semantics without moving the prompt
+- **AND** navigation, filtering, and asynchronous results SHALL update the border counter using the existing list semantics without moving the prompt
 
 #### Scenario: Filter and dismiss suggestions
 - **WHEN** filtering reduces or grows the visible list without changing prompt wrapping, or Escape or a no-match result closes it
 - **THEN** the menu SHALL grow or shrink upward without moving the prompt or footer
-- **AND** closing the menu SHALL remove its top line in the same frame
-- **AND** vacated menu and top-line rows SHALL be repainted with the current underlying viewport content without stale suggestions, lines, or reserved blank menu space
+- **AND** closing the menu SHALL remove its counter from the prompt upper border in the same frame
+- **AND** vacated menu rows SHALL be repainted with the current underlying viewport content without stale suggestions, lines, or reserved blank menu space
 
 #### Scenario: Receive asynchronous results
 - **WHEN** a current asynchronous completion result opens or resizes the list
@@ -1055,29 +1055,29 @@ The list and its top line SHALL remain transient, non-transcript presentation. I
 - **AND** the prompt and footer SHALL remain stable when their own geometry is unchanged
 
 ### Requirement: History uses a compact numeric border label
-While bare A1 is recalling saved prompt history, the existing history border label SHALL show its position/total without the literal `History` title, for example `1/100`. Its four-cell inset, dim color, count calculation, visibility, clipping, and border width SHALL remain unchanged. When recalled input has hidden lines above the visible editor body, the upper overflow cue SHALL NOT be appended to the history label or separated from it by a dot. Instead, the overflow cue SHALL use the same centered placement, `↑ N more` wording, and current border color as the corresponding lower `↓ N more` cue, while the history position remains independently left-aligned and visible. If centered placement would overlap the history position, the overflow cue SHALL move right only as far as needed when both complete labels fit. If both complete labels cannot fit, the border SHALL preserve the history position and omit the overflow cue rather than replace, merge, interleave, or partially join the labels. This presentation change SHALL NOT alter history navigation, draft restoration, storage, editor scrolling, or input geometry.
+While bare A1 is recalling saved prompt history, the existing history border label SHALL show its position/total without the literal `History` title, for example `1/100`. It SHALL use a three-cell inset; its dim color, count calculation, visibility, clipping, and border width SHALL remain unchanged. When recalled input has hidden lines above the visible editor body, the upper overflow cue SHALL NOT be appended to the history label or separated from it by a dot. Instead, the overflow cue SHALL use the same centered placement, `↑ N more` wording, and current border color as the corresponding lower `↓ N more` cue, while the history position remains independently left-aligned and visible. If centered placement would overlap the history position, the overflow cue SHALL move right only as far as needed when both complete labels fit. If both complete labels cannot fit, the border SHALL preserve the history position and omit the overflow cue rather than replace, merge, interleave, or partially join the labels. This presentation change SHALL NOT alter history navigation, draft restoration, storage, editor scrolling, or input geometry.
 
 #### Scenario: Recall and leave saved history
 - **WHEN** the user navigates saved prompt history
-- **THEN** the border SHALL show the existing position/total without `History`, in the same position and dim color
+- **THEN** the border SHALL show the existing position/total at a three-cell inset without `History`, in the same dim color
 - **AND** the history counter SHALL have no trailing dot or separator
 - **AND** leaving recall SHALL remove the indicator and restore the draft as before
 
 #### Scenario: Scroll within a recalled multiline prompt
 - **WHEN** recalled input has hidden lines above the visible editor body and the border is wide enough for both annotations
-- **THEN** the compact history position SHALL remain at its left inset
+- **THEN** the compact history position SHALL remain at its three-cell left inset
 - **AND** moving or placing the cursor within the recalled multiline text SHALL retain the active history position and counter
 - **AND** `↑ N more` SHALL be centered independently in the top border using the border color, matching the lower overflow cue's placement and wording
 - **AND** neither annotation SHALL be appended to or styled as part of the other
 
 #### Scenario: Render both annotations at a narrow width
 - **WHEN** centered overflow placement would overlap the history position but both complete labels fit on the border
-- **THEN** the history position SHALL remain at its left inset and the complete overflow cue SHALL shift right only far enough to avoid it
+- **THEN** the history position SHALL remain at its three-cell left inset and the complete overflow cue SHALL shift right only far enough to avoid it
 - **AND** the border SHALL remain within the available width without merging, interleaving, or partially joining the labels
 
 #### Scenario: Render a border too narrow for both annotations
 - **WHEN** the complete history position and upper overflow cue cannot both fit on the border
-- **THEN** the history position SHALL remain visible at its left inset
+- **THEN** the history position SHALL remain visible at its three-cell left inset
 - **AND** the overflow cue SHALL be omitted for that frame rather than replacing or partially joining the history position
 
 ### Requirement: Above-prompt autocomplete preserves existing sizing and input geometry

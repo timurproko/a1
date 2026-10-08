@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-08T16:37:17.668Z",
+  "recordedAt": "2026-10-08T17:35:31.074Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -1322,9 +1322,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/owned-editor.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete. Bare A1 also clears a sole top-level slash-command search on Escape. Bare A1 also completes a selected or exact completed tunnel command with `:` and reopens the menu on its tunnel rows, and synchronously retains then refreshes an exact top-level command menu after Tab applies its row.",
+      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete with a one-cell outer gutter. Bare A1 also clears a sole top-level slash-command search on Escape and completes a selected or exact completed tunnel command with `:` and reopens the menu on its tunnel rows, and synchronously retains then refreshes an exact top-level command menu after Tab applies its row.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "2f59cf5674f84fc01b32ce405c50caa7625b24173d9afe636105f8c255ac07ad",
+      "localSha256": "f7fae9b04e49afe8d97353d3a4af829d373c3cc6284baa2def6ba003bdd3c5f9",
       "approvedDeviations": [
         {
           "id": "owned-shared-input-frame",
@@ -1334,8 +1334,8 @@
         },
         {
           "id": "above-prompt-autocomplete-placement",
-          "reason": "The accepted show-autocomplete-above-prompt change moves the existing menu above bare A1's input with a matching top line, without changing either editor implementation or completion semantics.",
-          "upstreamBehavior": "The comparison editor retains pinned below-input row order. Bare A1 moves the complete existing menu after body decoration, adds one line matching the prompt border color/width, and relocates the existing counter into that line at the history-label inset in dim color without parentheses or a duplicate trailing row. The select-list presentation callback supplies counter-row ownership; body offsets include only the resulting rows. Candidate backgrounds, padding, sizing, selection-window semantics, history, and key handling remain unchanged; no panel shading is applied.",
+          "reason": "The accepted show-autocomplete-above-prompt and align-input-menu-and-counters changes move the existing menu above bare A1's input and align its outer gutter with working status, without changing either editor implementation or completion semantics.",
+          "upstreamBehavior": "The comparison editor retains pinned below-input row order. Bare A1 moves the complete existing menu before the editor body with a one-cell outer gutter and relocates the existing counter into the editor's upper border at the three-cell history-label inset in dim color without parentheses or a duplicate trailing row. The select-list presentation callback supplies counter-row ownership; body offsets include only the resulting menu rows. Candidate backgrounds, internal padding, sizing, selection-window semantics, history, and key handling remain unchanged; no panel shading is applied.",
           "acceptanceTest": "test/integrations/pi/components/editor-autocomplete-placement.test.ts"
         },
         {
@@ -3817,14 +3817,14 @@
       "localDestination": "src/integrations/pi/components/upstream/history/editor-core.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, semantic border state with the user-approved numeric-only history label and separate centered history-overflow cue, and history-count retention during cursor placement within recalled multiline text. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
+      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, semantic border state with the user-approved numeric-only history label with a three-cell inset and separate centered history-overflow cue, and history-count retention during cursor placement within recalled multiline text. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "0f73a3c569676b66d9322189a15f566b4ddcf329f3c8883195a978722279f42b",
+      "localSha256": "d55666a26f902d92501e3bf88615ebeb0b5ae3fa1b3001b4ac86578f994711e3",
       "approvedDeviations": [
         {
           "id": "compact-history-counter-label",
-          "reason": "The approved show-autocomplete-above-prompt review refinement removes only the History title from the bare-A1 history border label.",
-          "upstreamBehavior": "Preserve numeric value, inset, dim color, clipping, and recall behavior; pinned comparison rendering remains unchanged.",
+          "reason": "The approved show-autocomplete-above-prompt and align-input-menu-and-counters changes remove the History title and use the shared three-cell counter inset in bare A1.",
+          "upstreamBehavior": "Preserve numeric value, dim color, clipping, overflow separation, and recall behavior while moving the label one cell left; pinned comparison rendering remains unchanged.",
           "acceptanceTest": "test/integrations/pi/components/history-editor-core.test.ts"
         },
         {

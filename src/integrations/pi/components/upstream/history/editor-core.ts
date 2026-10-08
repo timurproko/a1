@@ -3,9 +3,9 @@
  * packages/tui/src/components/editor.ts.
  * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
  * types, typed persistent-history hooks, semantic border state with the user-approved numeric-only
- * history label and separate centered history-overflow cue, and history-count retention during cursor
- * placement within recalled multiline text. Public terminal runtime/exports remain shared and
- * unchanged. See docs/architecture/history-editor-provenance.md.
+ * history label with a three-cell inset and separate centered history-overflow cue, and history-count
+ * retention during cursor placement within recalled multiline text. Public terminal runtime/exports
+ * remain shared and unchanged. See docs/architecture/history-editor-provenance.md.
  * Deviations: compact-history-counter-label, history-overflow-cue-separation,
  * history-recall-cursor-retention, persistent-history-owned-editor-boundary.
  */
@@ -269,6 +269,9 @@ function buildDebouncePattern(triggerCharacters: string[]): RegExp {
 		"u",
 	);
 }
+
+const HISTORY_COUNTER_INSET = 3;
+const HISTORY_COUNTER_PREFIX = "── ";
 
 function createScrollBorder(direction: "↑" | "↓", hiddenLineCount: number, width: number, minimumCueStart = 0): string {
 	const availableWidth = Math.max(0, width);
@@ -600,7 +603,7 @@ export class HistoryEditorCore implements Component, Focusable {
 		if (this.persistentHistory && this.historyIndex >= 0) {
 			const history = `${this.history.length - this.historyIndex}/${this.history.length} `;
 			if (hiddenLineCount > 0) {
-				const historyStart = 4;
+				const historyStart = HISTORY_COUNTER_INSET;
 				const historyEnd = historyStart + visibleWidth(history);
 				const historyAnchorStart = historyStart - 1;
 				if (historyEnd <= width) {
@@ -610,10 +613,12 @@ export class HistoryEditorCore implements Component, Focusable {
 						+ this.borderColor(border.slice(historyEnd));
 				}
 			}
-			const label = `─── ${history}`;
+			const label = `${HISTORY_COUNTER_PREFIX}${history}`;
 			const shown = truncateToWidth(label, width);
 			const remaining = Math.max(0, width - visibleWidth(shown));
-			return this.borderColor(shown.slice(0, 4)) + this.styleHistoryLabel(shown.slice(4)) + this.borderColor("─".repeat(remaining));
+			return this.borderColor(shown.slice(0, HISTORY_COUNTER_INSET))
+				+ this.styleHistoryLabel(shown.slice(HISTORY_COUNTER_INSET))
+				+ this.borderColor("─".repeat(remaining));
 		}
 		const border = hiddenLineCount > 0 ? createScrollBorder("↑", hiddenLineCount, width) : "─".repeat(width);
 		return this.borderColor(border);

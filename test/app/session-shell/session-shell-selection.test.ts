@@ -204,8 +204,14 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
         const before = await capture();
         const detachedTop = shell.root.viewportPresentationEvidence().scrollTop;
         terminal.input("/");
-        await capture();
+        const opened = await capture();
         expect(shell.root.editor.bodyGeometry!().rowOffset).toBeGreaterThan(0);
+        const selectedMenuRow = opened.rows.find(row => row.includes("→ settings"));
+        expect(selectedMenuRow?.indexOf("→")).toBe(1);
+        if (state === "streaming") {
+          const workingRow = opened.rows.find(row => row.includes("Working"));
+          expect(workingRow?.search(/\S/u)).toBe(selectedMenuRow?.indexOf("→"));
+        }
         if (state === "detached") {
           expect(shell.root.viewportFrameDescriptor()?.followingEnd).toBe(false);
           expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(detachedTop);
@@ -261,7 +267,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       // longer a plain top line above the menu; the counter border now sits directly
       // above the input prompt as part of the editor's own body geometry.
       const topLineRow = row - 1;
-      expect(stripTerminalSequences(frame[topLineRow - 1]!)).toMatch(/^(?:─+|─── \d+\/\d+ ─*)$/u);
+      expect(stripTerminalSequences(frame[topLineRow - 1]!)).toMatch(/^(?:─+|── \d+\/\d+ ─*)$/u);
       expect(shell.root.editor.getText()).toBe("/mo");
       terminal.input(`\u001b[<0;3;${row}M`);
       terminal.input(`\u001b[<32;6;${row}M`);

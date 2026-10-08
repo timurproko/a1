@@ -11,6 +11,7 @@ export interface PiShellPromptInputBody {
   readonly topRule?: string | undefined;
   readonly bottomRule?: string | undefined;
   readonly after?: readonly string[];
+  readonly afterIndent?: number;
 }
 
 export interface PiShellPromptInputPresentation {
