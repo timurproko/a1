@@ -444,13 +444,13 @@ function projectPiAccent(base: Theme, color: UiAccentColor): Theme {
     accent: tone.accent,
     border: tone.border,
     mdHeading: tone.secondaryHeading,
-    mdListBullet: tone.accent,
+    mdListBullet: tone.secondaryHeading,
   });
   const foregroundSequences: Readonly<Partial<Record<ThemeColor, string>>> = Object.freeze({
     accent: accentAnsi,
     border: foregroundAnsi(tone.border, base.getColorMode()),
     mdHeading: foregroundAnsi(tone.secondaryHeading, base.getColorMode()),
-    mdListBullet: accentAnsi,
+    mdListBullet: foregroundAnsi(tone.secondaryHeading, base.getColorMode()),
   });
   const backgrounds: Readonly<Partial<Record<PiThemeBackground, Color>>> = Object.freeze({
     selectedBg: tone.selectedBg,

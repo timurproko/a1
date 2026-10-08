@@ -156,7 +156,7 @@ describe("pinned Pi theme and layout parity", () => {
       expect(piTheme().fg("border", "probe")).not.toBe(baseBorder);
       expect(piTheme().fg("mdHeading", "probe")).not.toBe(baseHeading);
       expect(piTheme().fg("mdHeading", "probe")).not.toBe(rendered);
-      expect(piTheme().fg("mdListBullet", "probe")).toBe(rendered);
+      expect(piTheme().fg("mdListBullet", "probe")).toBe(piTheme().fg("mdHeading", "probe"));
       expect(piTheme().colors.selectedBg).not.toEqual(base.colors.selectedBg);
       expect(piTheme().colors.userMessageBg).not.toEqual(base.colors.userMessageBg);
       if (mode === "truecolor") {
@@ -177,8 +177,8 @@ describe("pinned Pi theme and layout parity", () => {
     expect(piTheme().colors.selectedBg).not.toEqual(base.colors.selectedBg);
     if (mode === "truecolor") expect(piTheme().bg("selectedBg", "probe")).not.toBe(baseSelection);
     expect(piTheme().fg("muted", "probe")).toBe(baseMuted);
-    expect(piTheme().fg("mdListBullet", "probe")).toBe(piTheme().fg("accent", "probe"));
-    expect(piTheme().colors.mdListBullet).toEqual(piTheme().colors.accent);
+    expect(piTheme().fg("mdListBullet", "probe")).toBe(piTheme().fg("mdHeading", "probe"));
+    expect(piTheme().colors.mdListBullet).toEqual(piTheme().colors.mdHeading);
     expect(adaptPiAssistantMessage(block("assistant", "# Secondary"), 40).join("\n"))
       .toContain(piTheme().fg("mdHeading", "Secondary"));
     expect(adaptPiAssistantMessage(block("assistant", "1. one\n2. two"), 40).join("\n"))
@@ -202,7 +202,7 @@ describe("pinned Pi theme and layout parity", () => {
     expect(piTheme().fg("accent", "probe")).toBe(baseAccent);
     expect(piTheme().fg("border", "probe")).not.toBe(baseBorder);
     expect(piTheme().fg("mdHeading", "probe")).not.toBe(baseHeading);
-    expect(piTheme().fg("mdListBullet", "probe")).toBe(piTheme().fg("accent", "probe"));
+    expect(piTheme().fg("mdListBullet", "probe")).toBe(piTheme().fg("mdHeading", "probe"));
     expect(piTheme().bg("selectedBg", "probe")).not.toBe(baseSelection);
     expect(piTheme().bg("userMessageBg", "probe")).not.toBe(baseMessageBackground);
     expect(piTheme().colors.accent).toEqual(base.colors.accent);

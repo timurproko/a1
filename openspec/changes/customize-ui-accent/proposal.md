@@ -6,7 +6,7 @@ Bare A1 currently fixes the interactive shell to Pi's dark theme, whose semantic
 
 - Add a profile-local live `accentColor` setting in a new `Appearance` section with `purple`, `blue`, `cyan`, `green`, `orange`, and `pink` choices; show an effective-color square for every choice and keep the current-value mark neutral.
 - Move the existing `Quit animation` control from `Generic` to `Appearance` after the accent control.
-- Use `purple` as the initial choice and derive Markdown list markers, complementary secondary headings and active-filter values, dialog borders, half-strength selection tints, and quieter user prompts from each choice's primary accent through one reusable color transform; keep state markers text-colored and preserve every unrelated role.
+- Use `purple` as the initial choice and derive one complementary secondary tone shared by Markdown list markers, keyboard shortcuts, secondary headings, and active-filter values, dialog borders, half-strength selection tints, and quieter user prompts from each choice's primary accent through one reusable color transform; keep state markers text-colored and preserve every unrelated role.
 - Keep scrolled-out sticky prompts and jump-to-bottom badges neutral grey at rest, applying the selected accent surface only on hover.
 - Apply the preference through the central owned Pi-theme boundary and a border-only bridge for retained package dialogs so titles, secondary headings, keyboard-shortcut key spans, bars, cursors, selected markers, spinners, accent scrollbars, settings, and extension theme access update together in the running bare-A1 session.
 - Reapply the preference whenever the base theme is loaded, reloaded, or replaced, without mutating built-in resources or matching the current purple color.

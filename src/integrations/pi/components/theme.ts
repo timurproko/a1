@@ -27,11 +27,11 @@ export function getPiMarkdownTheme(): MarkdownTheme {
   };
 }
 
-/** Hotkey key spans use the live primary accent without changing general Markdown code. */
+/** Hotkey key spans share the live secondary/filter tone without changing general Markdown code. */
 export function getPiHotkeysMarkdownTheme(): MarkdownTheme {
   return {
     ...getPiMarkdownTheme(),
-    code: text => piTheme().fg("accent", text),
+    code: text => piTheme().fg("mdHeading", text),
   };
 }
 

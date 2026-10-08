@@ -53,7 +53,7 @@ describe("semantic accent-family architecture", () => {
     const presenter = await readFile("src/integrations/pi/components/shell-presenters-info.ts", "utf8");
     expect(presenter).toContain("getPiHotkeysMarkdownTheme");
     const theme = await readFile("src/integrations/pi/components/theme.ts", "utf8");
-    expect(theme).toContain('code: text => piTheme().fg("accent", text)');
+    expect(theme).toContain('code: text => piTheme().fg("mdHeading", text)');
   });
 
   it("invalidates retained transcript components and keeps filters secondary while state markers match text", async () => {
@@ -82,7 +82,7 @@ describe("semantic accent-family architecture", () => {
     expect(source).toContain("accent: tone.accent");
     expect(source).toContain("border: tone.border");
     expect(source).toContain("mdHeading: tone.secondaryHeading");
-    expect(source).toContain("mdListBullet: tone.accent");
+    expect(source).toContain("mdListBullet: tone.secondaryHeading");
     expect(source).toContain("selectedBg: tone.selectedBg");
     expect(source).toContain("userMessageBg: tone.userMessageBg");
     expect(source).toContain("purple: Object.freeze");

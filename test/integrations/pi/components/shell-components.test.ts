@@ -855,17 +855,17 @@ describe("Pi shell public component adapters", () => {
     expect(rows).toContain("Ctrl+O");
   });
 
-  it("paints hotkey spans with every live primary accent", () => {
+  it("paints hotkey spans with every live active-filter tone", () => {
     try {
       for (const color of ["purple", "blue", "cyan", "green", "orange", "pink"] as const) {
         setPiAccentColor(color);
         const rows = createPiShellHotkeys(undefined, undefined, "a1").render(120);
         const navigation = rows.find(row => stripTerminalSequences(row).includes("Move cursor / browse history"))!;
-        expect(cellStyle(navigation, "U")).toEqual(cellStyle(piTheme().fg("accent", "U"), "U"));
+        expect(cellStyle(navigation, "U")).toEqual(cellStyle(piTheme().fg("mdHeading", "U"), "U"));
         const sections = renderPiShellHotkeySections({ profile: "a1" }, 120);
         const sectionRow = sections.flatMap(section => section.rows)
           .find(row => stripTerminalSequences(row).includes("Move cursor / browse history"))!;
-        expect(cellStyle(sectionRow, "U")).toEqual(cellStyle(piTheme().fg("accent", "U"), "U"));
+        expect(cellStyle(sectionRow, "U")).toEqual(cellStyle(piTheme().fg("mdHeading", "U"), "U"));
       }
     } finally {
       setPiAccentColor("purple");
