@@ -112,7 +112,7 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
               expect(selectionRole).toBeDefined();
               expect(backgrounds.length).toBeGreaterThan(0);
               expect(backgrounds.length).toBeLessThan(width);
-              // Terminal paint coordinates are one-based; column 2 is visual index 1.
+              // Invariant: terminal paint coordinates are one-based; column 2 is visual index 1.
               expect(Math.min(...backgrounds.map(cell => cell.column))).toBe(2);
               expect(new Set(backgrounds.map(cell => cell.row)).size).toBe(1);
               expect(backgrounds.every(cell => cell.row < frame.geometry.rowOffset)).toBe(true);
