@@ -261,7 +261,12 @@ export class TranscriptViewport {
   /** True when the active gesture began on transcript rows rather than the dock. */
   get selectionFromContent(): boolean { return this.#selectionAnchors !== undefined && this.#selectionAnchors.anchor.kind !== "dock"; }
 
-  pressSelection(column: number, frameRow: number, now = Date.now()): boolean {
+  pressSelection(
+    column: number,
+    frameRow: number,
+    now = Date.now(),
+    options: { readonly continueMultiClick?: boolean } = {},
+  ): boolean {
     const frameHeight = this.#frame?.rows.length ?? 0;
     const selectionWidth = frameRow <= (this.#frame?.hits.viewportHeight ?? 0)
       ? this.#contentWidth
@@ -274,7 +279,7 @@ export class TranscriptViewport {
       contentWidth: selectionWidth,
       lineText: this.#selectionRows[line] ?? "",
       lineContent: usefulTextLineContent(this.#selectionRows[line] ?? ""),
-      ...(this.#selectionClick === undefined ? {} : { previousClick: this.#selectionClick }),
+      ...(options.continueMultiClick !== false && this.#selectionClick !== undefined ? { previousClick: this.#selectionClick } : {}),
       now,
     });
     this.#selection = pressed.selection;

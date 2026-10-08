@@ -900,7 +900,15 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     terminal.input("\u0003");
     await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha").toString("base64")}\u0007`));
 
-    click();
+    terminal.input(`\u001b[<0;${column};${row}M`);
+    shell.runtime.renderNow();
+    const heldLineCells = (await replayTerminalBackgroundCells(
+      terminal.writes.map((data, atMs) => ({ data, atMs })),
+      { columns: 60, rows: 12 },
+    )).filter(cell => cell.mode === "rgb" && cell.color === 0x264f78 && cell.row === row);
+    const promptEnd = (frame[row - 1]?.indexOf("mouse alpha beta") ?? -1) + "mouse alpha beta".length;
+    expect(heldLineCells.every(cell => cell.column <= promptEnd)).toBe(true);
+    terminal.input(`\u001b[<0;${column};${row}m`);
     terminal.input("\u0003");
     await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("mouse alpha beta").toString("base64")}\u0007`));
 

@@ -899,6 +899,41 @@ describe("session viewport interaction controller", () => {
     }
   });
 
+  it("keeps no-drag prompt clicks out of provisional frame selection", () => {
+    const events: PiShellEditorPointerEvent[] = [];
+    const selectionPaint = vi.fn((line: string) => line);
+    const target = new SessionViewportController({
+      enabled: true,
+      editor: editor({ handlePointer: event => { events.push(event); return true; } }),
+      requestRender() {},
+    });
+    target.setEditorPointerFrame({ rowStart: 4, rowEnd: 5 });
+    const input = {
+      documentRows: ["row-0", "row-1", "row-2", "prompt alpha", "footer"],
+      dockRows: [] as string[], promptAnchors: [], width: 20, height: 5,
+      theme: {
+        track: (text: string) => text,
+        thumb: (text: string) => text,
+        sticky: (text: string) => text,
+        quietSticky: (text: string) => text,
+        bottomControl: (text: string) => text,
+        selection: selectionPaint,
+      },
+    };
+    target.compose(input);
+
+    for (const now of [1_000, 1_100, 1_200]) {
+      expect(target.handlePreInput("\u001b[<0;8;4M", true, now).consumed).toBe(true);
+      expect(target.hasSelection).toBe(false);
+      target.compose(input);
+      expect(selectionPaint).not.toHaveBeenCalled();
+      expect(target.handlePreInput("\u001b[<0;8;4m", true, now + 1).consumed).toBe(true);
+    }
+    expect(events.map(event => event.kind)).toEqual([
+      "press", "release", "press", "release", "press", "release",
+    ]);
+  });
+
   it("routes editor pointer input only through the declared editor frame", () => {
     const events: PiShellEditorPointerEvent[] = [];
     let ownsPointer = false;
@@ -923,6 +958,13 @@ describe("session viewport interaction controller", () => {
     const dragRelease = target.handlePreInput("\u001b[<0;4;5m");
     expect(dragRelease.consumed).toBe(true);
     expect(copiedText(dragRelease)).toBeTruthy();
+    expect(events).toEqual([]);
+
+    target.handlePreInput("\u0003");
+    target.handlePreInput("\u001b[<0;3;4M");
+    target.handlePreInput("\u001b[<32;4;4M");
+    const sameRowRelease = target.handlePreInput("\u001b[<0;4;4m");
+    expect(copiedText(sameRowRelease)).toBe("w-");
     expect(events).toEqual([]);
 
     target.handlePreInput("\u0003");
