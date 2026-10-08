@@ -1,4 +1,4 @@
-import { getMarkdownTheme } from "../startup-public.js";
+import { getPiMarkdownTheme } from "./theme.js";
 import { Markdown } from "@earendil-works/pi-tui";
 import { ensureTheme, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";
 import { hotkeysMarkdown, type PiShellHotkeysPresentation } from "./shell-presenters-info.js";
@@ -21,7 +21,7 @@ export function renderPiShellHotkeySections(presentation: PiShellHotkeysPresenta
   }
   for (const section of sections) while (section.lines.at(-1) === "") section.lines.pop();
   return sections.map(section => {
-    const rows = [...new Markdown(section.lines.join("\n"), 1, 1, getMarkdownTheme()).render(width)];
+    const rows = [...new Markdown(section.lines.join("\n"), 1, 1, getPiMarkdownTheme()).render(width)];
     while (rows[0]?.trim().length === 0) rows.shift();
     while (rows.at(-1)?.trim().length === 0) rows.pop();
     return { title: section.title, rows };

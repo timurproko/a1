@@ -101,7 +101,7 @@ import {
   renderPiShellTranscriptBlock,
   type PiShellSubmittedPromptComposer,
 } from "../../integrations/pi/components/shell-presenters-transcript.js";
-import { currentPiAccentColor, onPiThemeChange, PINNED_PI_LAYOUT, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
+import { onPiThemeChange, PINNED_PI_LAYOUT, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
 import {
   piShellHyperlink,
   piShellTruncateToWidth,
@@ -561,12 +561,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       track: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("dim", text)}`,
       thumb: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("accent", text)}`,
       sticky: (text, hovered) => piTheme().bg(
-        hovered ? "selectedBg" : "userMessageBg",
+        hovered ? "selectedBg" : "toolPendingBg",
         piTheme().fg("text", withoutTerminalBackground(text)),
       ),
       quietSticky: text => `\u001b[2m${text.replace(/\u001b\[(?:0|22)m/g, "$&\u001b[2m")}\u001b[22m`,
       bottomControl: (text, hovered) => piTheme().bg(
-        hovered ? "selectedBg" : currentPiAccentColor() === "default" ? "toolPendingBg" : "userMessageBg",
+        hovered ? "selectedBg" : "toolPendingBg",
         piTheme().fg("text", text),
       ),
       selection: (line, from, to) => backgroundSgrSpan(

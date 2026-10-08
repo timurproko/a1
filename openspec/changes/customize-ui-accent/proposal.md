@@ -6,7 +6,8 @@ Bare A1 currently fixes the interactive shell to Pi's dark theme, whose semantic
 
 - Add a profile-local live `accentColor` setting in a new `Appearance` section with `default`, `blue`, `cyan`, `green`, `orange`, and `pink` choices; show an effective-color square for every choice and keep the current-value mark neutral.
 - Move the existing `Quit animation` control from `Generic` to `Appearance` after the accent control.
-- Keep `default` byte-identical to the active Pi theme. Named choices replace the semantic accent plus deliberate same-hue variations for dialog borders, selections, user prompts, and the jump-to-bottom badge while preserving every unrelated role.
+- Keep `default` byte-identical to the active Pi theme. Named choices replace the semantic accent and Markdown list markers plus deliberate same-hue variations for dialog borders, selections, and visible user prompts while preserving every unrelated role.
+- Keep scrolled-out sticky prompts and jump-to-bottom badges neutral grey at rest, applying the selected accent surface only on hover.
 - Apply the preference through the central owned Pi-theme boundary so titles, cursors, selected markers, spinners, accent scrollbars, dialogs, settings, and extension theme access update together in the running bare-A1 session.
 - Reapply the preference whenever the base theme is loaded, reloaded, or replaced, without mutating built-in resources or matching the current purple color.
 - Preserve exact upstream theme behavior in `a1 pi`, preserve Pi parity for the default preference, and fail governed compatibility checks if a future Pi release changes the semantic theme contract incompatibly.
@@ -26,4 +27,4 @@ None.
 
 ## Impact
 
-Implementation affects the owned settings declaration and grouping, shared value-menu presentation, Pi theme adapter, bare-A1 composition and theme invalidation, semantic select-list theme creation, jump-control styling, and focused settings/theme/frame tests. It does not change Pi settings storage, built-in theme resources, syntax and Markdown roles that merely happen to be purple today, installed custom theme files, or the `a1 pi` comparison profile.
+Implementation affects the owned settings declaration and grouping, shared value-menu presentation, Pi theme adapter, bare-A1 composition and theme invalidation, semantic select-list theme creation, Markdown list-marker styling, sticky/jump hover styling, and focused settings/theme/frame tests. It does not change Pi settings storage, built-in theme resources, syntax or unrelated Markdown roles that merely happen to be purple today, installed custom theme files, or the `a1 pi` comparison profile.

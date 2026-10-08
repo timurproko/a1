@@ -1330,10 +1330,7 @@
           "kind": "function",
           "hash": "24a181cf61600283625f75434a2590009e53f8a165718654ceb1beaa7182b0b8",
           "consumers": [
-            "src/integrations/pi/components/shell-hotkey-sections.ts",
-            "src/integrations/pi/components/shell-presenters-info.ts",
-            "src/integrations/pi/components/shell-presenters-transcript.ts",
-            "src/integrations/pi/components/submitted-prompt-adapter.ts",
+            "src/integrations/pi/components/theme.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -3698,6 +3695,7 @@
           "kind": "interface",
           "hash": "3ddb10d5382b2fa679439c5c9e19a52d55cc45e1a631b150f3e12b840257290c",
           "consumers": [
+            "src/integrations/pi/components/theme.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts"
           ]
         },

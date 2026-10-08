@@ -393,13 +393,16 @@ function isNamedAccentColor(value: string): value is Exclude<UiAccentColor, "def
 function projectPiAccent(base: Theme, color: UiAccentColor): Theme {
   if (color === "default") return base;
   const tone = ACCENT_PALETTE[color][base.appearance];
+  const accentAnsi = foregroundAnsi(tone.accent, base.getColorMode());
   const foregrounds: Readonly<Partial<Record<ThemeColor, Color>>> = Object.freeze({
     accent: tone.accent,
     border: tone.border,
+    mdListBullet: tone.accent,
   });
   const foregroundSequences: Readonly<Partial<Record<ThemeColor, string>>> = Object.freeze({
-    accent: foregroundAnsi(tone.accent, base.getColorMode()),
+    accent: accentAnsi,
     border: foregroundAnsi(tone.border, base.getColorMode()),
+    mdListBullet: accentAnsi,
   });
   const backgrounds: Readonly<Partial<Record<PiThemeBackground, Color>>> = Object.freeze({
     selectedBg: tone.selectedBg,

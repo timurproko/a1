@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";
-import { applyPiTheme, currentPiAccentColor, piTheme, setPiAccentColor } from "../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, piTheme, setPiAccentColor } from "../../../src/integrations/pi/components/index.js";
 import { OwnedUiSessionShellRoot } from "../../../src/app/session-shell/session-shell-root.js";
 import { stripAnsi } from "../../../src/ui/components/index.js";
 import { BottomHoverEvidence, classifyBottomHoverFinding } from "../../support/rendering/bottom-hover-evidence.js";
@@ -35,15 +35,14 @@ function fixture(length = 20) {
   const hover = (rows: readonly string[], expected: boolean) => {
     const control = rows.find(line => /Jump to bottom|new messages?/.test(stripAnsi(line)));
     expect(control).toBeDefined();
-    const resting = currentPiAccentColor() === "default" ? "toolPendingBg" : "userMessageBg";
-    const color = piTheme().bg(expected ? "selectedBg" : resting, " ").split(" ")[0];
+    const color = piTheme().bg(expected ? "selectedBg" : "toolPendingBg", " ").split(" ")[0];
     expect(control).toContain(color);
   };
   return { root, view, renders, geometry, render, mouse, hover, row, onFrame: (value: (() => void) | undefined) => { onFrame = value; } };
 }
 
 describe("bottom-control composition provenance", () => {
-  it("uses the configured accent's quiet surface at rest and selection surface on hover", () => {
+  it("keeps the resting control neutral and uses the configured accent on hover", () => {
     const f = fixture();
     try {
       setPiAccentColor("pink");

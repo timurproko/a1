@@ -1,8 +1,8 @@
-import { DynamicBorder, getMarkdownTheme } from "../startup-public.js";
+import { DynamicBorder } from "../startup-public.js";
 import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleWidth, type KeybindingsConfig } from "@earendil-works/pi-tui";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
-import { PINNED_PI_LAYOUT, piTheme } from "./theme.js";
+import { getPiMarkdownTheme, PINNED_PI_LAYOUT, piTheme } from "./theme.js";
 import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";
 
 export interface PiShellSessionInfoPresentation {
@@ -172,7 +172,7 @@ export function renderPiShellChangelogLines(markdown: string, width: number): re
 }
 
 function changelogMarkdown(markdown: string): Markdown {
-  return new Markdown(markdown.trim() || "No changelog entries found.", 1, 1, getMarkdownTheme());
+  return new Markdown(markdown.trim() || "No changelog entries found.", 1, 1, getPiMarkdownTheme());
 }
 
 function shortcutDisplay(key: string): string {
@@ -208,7 +208,7 @@ export function renderPiShellHotkeysLines(presentation: PiShellHotkeysPresentati
 }
 
 function hotkeysMarkdownComponent(markdown: string): Markdown {
-  return new Markdown(markdown, 1, 1, getMarkdownTheme());
+  return new Markdown(markdown, 1, 1, getPiMarkdownTheme());
 }
 
 export function hotkeysMarkdown(

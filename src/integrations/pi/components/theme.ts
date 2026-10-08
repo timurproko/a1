@@ -4,13 +4,22 @@ import {
   renderSemanticShortcutHints,
   type SemanticShortcutHint,
 } from "../../../contracts/presentation/index.js";
-import { stripTerminalSequences, truncateToWidth, type SelectListTheme } from "@earendil-works/pi-tui";
+import { stripTerminalSequences, truncateToWidth, type MarkdownTheme, type SelectListTheme } from "@earendil-works/pi-tui";
+import { getMarkdownTheme } from "../startup-public.js";
 import { piTheme } from "./upstream/theme/theme.js";
 
 export * from "./upstream/theme/theme.js";
 
 export type PiModalShortcutHint = SemanticShortcutHint;
 export { DIALOG_CLOSE_SHORTCUT_HINT, displayShortcutKeyLabel };
+
+/** Markdown keeps Pi's complete base treatment while resolving list markers through A1's accent. */
+export function getPiMarkdownTheme(): MarkdownTheme {
+  return {
+    ...getMarkdownTheme(),
+    listBullet: text => piTheme().fg("mdListBullet", text),
+  };
+}
 
 /** Select-list roles resolved through A1's active theme rather than Pi's package-global base theme. */
 export function getPiSelectListTheme(): SelectListTheme {
