@@ -120,6 +120,9 @@ describe("repository-owned atomic delivery guidance", () => {
 
   it("documents the exact generated-artifact cleanup boundary", async () => {
     const cleanup = await readFile("docs/local-worktree-cleanup.md", "utf8");
+    const ignore = await readFile(".gitignore", "utf8");
+    for (const path of ["/.artifacts", "/.builds", "/node_modules", "/native/process-guardian/target", "/native/terminal-host/target"])
+      expect(ignore.split(/\r?\n/)).toContain(path);
     expect(cleanup).toContain("`.artifacts`, `native/process-guardian/target`");
     expect(cleanup).toContain("widened to the current policy on the next `complete`");
     expect(cleanup).toContain("near matches such as `.artifacts-user`, `artifacts`, or `pi-settings-metadata-user.json`");
@@ -131,6 +134,10 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(cleanup).toContain("arbitrary `target` directories");
     expect(cleanup).toContain("bounded to 20,000 ordinary entries plus 100,000 entries beneath exact approved generated roots");
     expect(cleanup).toContain("exhausting either allowance never grants deletion authority");
+    expect(cleanup).toContain("An exact-root link may target an external generated-content directory");
+    expect(cleanup).toContain("removes only the link entry through a non-recursive primitive");
+    expect(cleanup).toContain("It never traverses, removes, or mutates the external target");
+    expect(cleanup).toContain("Agents do not manually remove generated content");
     expect(cleanup).toContain("## Explicit closed-unmerged discard");
     expect(cleanup).toContain("--confirm-closed-unmerged");
     expect(cleanup).toContain("expected-SHA lease");

@@ -24,7 +24,7 @@ The cleanup boundary must remain stricter than ordinary generated-file deletion:
 
 ### 1. Represent exact-root links as inspected disposable links
 
-Inspection will admit a link only when its lexical path exactly equals an existing central-policy disposable root. It will record the link path, declared root, filesystem fingerprint, canonical resolved target, and an explicit root-link classification. Resolution failure and cycles remain blockers.
+Inspection will admit a link only when its lexical path exactly equals an existing central-policy disposable root. Exact root `.gitignore` entries will match either a directory or link so POSIX symlinks and Windows junctions both pass the unchanged ignored-path gate. Inspection will record the link path, declared root, filesystem fingerprint, canonical resolved target, and an explicit root-link classification. Resolution failure and cycles remain blockers.
 
 This reuses the existing inspected-link handoff rather than adding a separate repair command. A repair command was rejected because cleanup already has candidate authority and a separate mutation path would duplicate ownership and evidence gates.
 

@@ -22,4 +22,4 @@ None.
 
 ## Impact
 
-The change affects local cleanup filesystem inspection and purge policy, cleanup tests, and `docs/local-worktree-cleanup.md`. It changes no remote-ref authority, merge/archive verification, worktree ownership, accepted-head checks, disposable path allowlist, or Git non-force removal behavior.
+The change affects exact generated-root entries in `.gitignore`, local cleanup filesystem inspection and purge policy, cleanup tests, and `docs/local-worktree-cleanup.md`. Exact root ignore patterns will cover either a directory or link entry so the existing ignored-path gate remains enforceable cross-platform. It changes no remote-ref authority, merge/archive verification, worktree ownership, accepted-head checks, disposable path allowlist, or Git non-force removal behavior.
