@@ -253,14 +253,23 @@ describe("pinned Pi theme and layout parity", () => {
     }
   });
 
-  it("projects package-owned dialog rules only for bare A1", () => {
+  it("removes the complete A1 projection for comparison mode", () => {
     const base = loadPiTheme("dark", "truecolor");
     applyPiTheme("dark", false, "truecolor");
     setPiAccentColor("green");
     expect(new DynamicBorder().render(8)[0]).toBe(piTheme().fg("border", "─".repeat(8)));
 
     setPiPackageBorderProjectionEnabled(false);
+    for (const token of ["accent", "border", "mdHeading", "mdListBullet"] as const) {
+      expect(piTheme().fg(token, "probe"), token).toBe(base.fg(token, "probe"));
+    }
+    for (const token of ["selectedBg", "userMessageBg"] as const) {
+      expect(piTheme().bg(token, "probe"), token).toBe(base.bg(token, "probe"));
+    }
     expect(new DynamicBorder().render(8)[0]).toBe(base.fg("border", "─".repeat(8)));
+    const markdown = adaptPiAssistantMessage(block("assistant", "# Heading\n\n- item"), 40).join("\n");
+    expect(markdown).toContain(base.fg("mdHeading", "Heading"));
+    expect(markdown).toContain(base.fg("mdListBullet", "- "));
   });
 
   it("restores exact projected identity when a scoped in-memory theme is reverted", () => {

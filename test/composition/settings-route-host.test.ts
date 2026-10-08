@@ -77,11 +77,12 @@ describe("owned settings route theme", () => {
       await new Promise(resolve => setTimeout(resolve, 10));
       initial = surface!.render(48, 12);
     }
-    expect(initial[0]).toContain(`${ESC}[38;2;95;168;204m`);
+    expect(initial[0]).toBe(piTheme().fg("border", "─".repeat(48)));
     expect(initial[0]?.replace(STYLE, "")).toBe("─".repeat(48));
-    expect(initial[1]).toContain(`${ESC}[38;2;167;152;215mSettings`);
+    expect(initial[1]).toContain(piTheme().fg("accent", "Settings"));
     expect(initial[1]?.replace(STYLE, "").trimEnd()).toBe(" Settings");
-    expect(initial.some(line => line.includes(`${ESC}[38;2;205;154;34m`))).toBe(true);
+    const headingSequence = piTheme().fg("mdHeading", "MARK").split("MARK")[0]!;
+    expect(initial.some(line => line.includes(headingSequence))).toBe(true);
 
     const selected = initial.find(line => line.replace(STYLE, "").includes("Mode"))!;
     const selectedText = selected.replace(STYLE, "");

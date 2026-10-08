@@ -184,11 +184,13 @@ export function renderPiAccentPreview(color: string, text: string): string | nul
   return `${foregroundAnsi(accent, base.getColorMode())}${text}\u001b[39m`;
 }
 
-/** Keeps package-owned comparison UI unmodified while bare A1 projects package dialog rules. */
+/** Keeps the complete comparison theme unmodified while bare A1 projects its semantic accent family. */
 export function setPiPackageBorderProjectionEnabled(enabled: boolean): void {
   if (packageBorderProjectionEnabled === enabled) return;
   packageBorderProjectionEnabled = enabled;
+  if (activeBaseTheme !== undefined) activeTheme = resolvePiAccentTheme(activeBaseTheme);
   syncPiPackageBorderProjection();
+  notifyThemeChanged();
 }
 
 /** Reprojects the active base theme; repeated changes never derive from an earlier projection. */
@@ -196,7 +198,7 @@ export function setPiAccentColor(color: UiAccentColor): void {
   if (activeAccentColor === color) return;
   activeAccentColor = color;
   if (activeBaseTheme === undefined) return;
-  activeTheme = projectPiAccent(activeBaseTheme, color);
+  activeTheme = resolvePiAccentTheme(activeBaseTheme);
   syncPiPackageBorderProjection();
   notifyThemeChanged();
 }
@@ -206,7 +208,7 @@ export function applyPiTheme(name: string, enableWatcher = false, mode?: PiColor
     const loaded = loadPiTheme(name, mode);
     initTheme(name, false);
     activeBaseTheme = loaded;
-    activeTheme = projectPiAccent(loaded, activeAccentColor);
+    activeTheme = resolvePiAccentTheme(loaded);
     activeThemeName = name;
     activeThemeMode = mode;
     syncPiPackageBorderProjection();
@@ -216,7 +218,7 @@ export function applyPiTheme(name: string, enableWatcher = false, mode?: PiColor
   } catch (error) {
     initTheme("dark", false);
     activeBaseTheme = loadPiTheme("dark", mode);
-    activeTheme = projectPiAccent(activeBaseTheme, activeAccentColor);
+    activeTheme = resolvePiAccentTheme(activeBaseTheme);
     activeThemeName = "dark";
     activeThemeMode = mode;
     syncPiPackageBorderProjection();
@@ -229,7 +231,7 @@ export function applyPiThemeInstance(theme: Theme): PiThemeResult {
   stopPiThemeWatcher();
   const base = accentProjectionBases.get(theme) ?? theme;
   activeBaseTheme = base;
-  activeTheme = projectPiAccent(base, activeAccentColor);
+  activeTheme = resolvePiAccentTheme(base);
   activeThemeName = base.name ?? "<in-memory>";
   activeThemeMode = base.getColorMode();
   syncPiPackageBorderProjection();
@@ -384,7 +386,7 @@ function startPiThemeWatcher(name: string): void {
       if (activeThemeName !== name || !existsSync(path)) return;
       try {
         activeBaseTheme = loadPiTheme(name, activeThemeMode);
-        activeTheme = projectPiAccent(activeBaseTheme, activeAccentColor);
+        activeTheme = resolvePiAccentTheme(activeBaseTheme);
         syncPiPackageBorderProjection();
         notifyThemeChanged();
       } catch {}
@@ -395,6 +397,11 @@ function startPiThemeWatcher(name: string): void {
 
 function notifyThemeChanged(): void {
   for (const listener of themeChangeListeners) listener();
+}
+
+function resolvePiAccentTheme(base: Theme): Theme {
+  const rootBase = accentProjectionBases.get(base) ?? base;
+  return packageBorderProjectionEnabled ? projectPiAccent(rootBase, activeAccentColor) : rootBase;
 }
 
 function syncPiPackageBorderProjection(): void {
