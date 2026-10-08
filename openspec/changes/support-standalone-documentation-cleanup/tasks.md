@@ -16,7 +16,7 @@
 
 Implementation evidence:
 
-- Cleanup evidence fixtures: 18 passed; complete-path cleanup fixtures: 80 passed.
+- Cleanup evidence fixtures: 18 passed; complete-path cleanup fixtures: 84 passed after integration with current `develop`.
 - Documentation governance and changed code-documentation checks passed.
 - Source typechecking with `tsgo -p tsconfig.json --noEmit` passed. The broader `npm run typecheck` bin phase requires generated `dist/` modules that are intentionally absent before a build; full build-dependent validation remains assigned to CI.
 - Strict OpenSpec validation: 35 passed, 0 failed; `git diff --check` passed.
