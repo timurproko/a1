@@ -22,10 +22,10 @@ The maintainer integration decision accepts these scenarios:
     "Autocomplete and history counters use the shared three-cell inset with full-width, narrow, and overflow border behavior preserved.",
     "Completion content, styling, navigation, pagination, prompt stability, and comparison-profile presentation remain unchanged."
   ],
-  "archiveDigest": "182db554a86ecec0a2543816d0038a7f675b68abf54c92b88ca4b45ab733bf20",
+  "archiveDigest": "951d03f3d01f7da81bab4fbdfb49ba5177f710aace6d59fe4455000a4d416b07",
   "specDigest": "f9671586a11d0aa109542f6ec65246751f6a9496d4807b414a0cd460dcd9d472",
   "tasksDigest": "9007047072991ec9d340582981686101c98281def67e77f6bbcf4b1a698c7801",
-  "evidenceDigest": "2bbb4ae397bdb8b10d029168e7f6e56033f22c34a30c2b661320b714a38a4251",
+  "evidenceDigest": "9e0e83c7c1b261d57c5517900eb4e157aca82a9e8985b158f626042573307848",
   "knownGaps": []
 }
 ```
