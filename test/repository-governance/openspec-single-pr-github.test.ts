@@ -32,7 +32,7 @@ function fixture(merged: boolean, provenance: "manual" | "human-auto-merge" | "b
     specDigest: deliveryContentDigest([["openspec/specs/example/spec.md", specFiles["openspec/specs/example/spec.md"]!]]),
     tasksDigest: createHash("sha256").update(archiveFiles[`${archive}tasks.md`]!).digest("hex"),
     evidenceDigest: deliveryContentDigest(evidenceEntries), knownGaps: [] };
-  const metadata = { version: 3, change: "example", archive, acceptanceManifest: `${archive}acceptance.md` };
+  const metadata = { version: 3, change: "example", archive, acceptanceManifest: `${archive}acceptance.md`, finalizedHead: head };
   const body = `## Proposal\n\nDeliver the example behavior through one atomic OpenSpec pull request.\n\n## Implementation\n\n- Implement the example behavior and its governance evidence.\n\n## Acceptance\n\n- ${scenarios[0]}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify(metadata)}\n\`\`\`\n\n</details>\n`;
   const allFiles: Record<string, string> = { ...specFiles, ...archiveFiles, [`${archive}acceptance.md`]: conditionalAcceptanceBytes(manifest) };
   const blobs = new Map<string, Buffer>();
@@ -130,6 +130,8 @@ describe("version-3 GitHub delivery authority", () => {
   it("fails closed on stale base, body drift, content drift, and unrelated OpenSpec paths", async () => {
     let f = fixture(false); f.pull.base.sha = "d".repeat(40);
     await expect(validateVersion3Candidate(f.reader, 42)).rejects.toThrow("delivery-target-stale");
+    f = fixture(false); f.pull.body = f.pull.body.replace(`"finalizedHead":"${head}"`, `"finalizedHead":"${"d".repeat(40)}"`);
+    await expect(validateVersion3Candidate(f.reader, 42)).rejects.toThrow("delivery-head-stale");
     f = fixture(false); f.pull.body = f.pull.body.replace(scenarios[0]!, "A different valid scenario changes what manual merge would accept.");
     await expect(validateVersion3Candidate(f.reader, 42)).rejects.toThrow("delivery-acceptance-drift");
     f = fixture(false); f.allFiles[`${archive}proposal.md`] = "changed after finalization\n";
@@ -156,6 +158,8 @@ describe("version-3 GitHub delivery authority", () => {
     let f = fixture(false); f.pull.draft = true;
     await expect(loadArchiveEvidence(f.reader, 42, { allowMissing: true })).resolves.toMatchObject({ disposition: "draft" });
     f = fixture(false); f.pull.body = `\`\`\`openspec-implementation\n{"version":3,"change":"example"}\n\`\`\``;
+    await expect(loadArchiveEvidence(f.reader, 42, { allowMissing: true })).resolves.toMatchObject({ disposition: "needs-finalization" });
+    f = fixture(false); f.pull.body = f.pull.body.replace(`,"finalizedHead":"${head}"`, "");
     await expect(loadArchiveEvidence(f.reader, 42, { allowMissing: true })).resolves.toMatchObject({ disposition: "needs-finalization" });
     f = fixture(false);
     await expect(loadArchiveEvidence(f.reader, 42, { allowMissing: true })).resolves.toMatchObject({ disposition: "ready-for-maintainer-integration" });

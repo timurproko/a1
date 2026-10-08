@@ -2,6 +2,7 @@ export interface DevelopmentValidationReadinessInput {
   eventName: string;
   draft?: boolean;
   body?: string;
+  headSha?: string;
 }
 
 export interface DevelopmentValidationReadinessDecision {

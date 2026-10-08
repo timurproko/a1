@@ -170,7 +170,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(examples.map(value => value?.version)).toEqual([3, 3]);
     expect(examples[0]).not.toHaveProperty("archive");
     expect(examples[1]).toMatchObject({ archive: "openspec/changes/archive/2026-09-15-example-change/",
-      acceptanceManifest: "openspec/changes/archive/2026-09-15-example-change/acceptance.md" });
+      acceptanceManifest: "openspec/changes/archive/2026-09-15-example-change/acceptance.md",
+      finalizedHead: "0123456789abcdef0123456789abcdef01234567" });
     expect(docs).toContain("## Draft PR body");
     expect(docs).toContain("The first screen should separate purpose from delivery detail, not foreground CI mechanics");
     expect(docs).toContain("## Proposal");
