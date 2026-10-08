@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-08T16:16:27.924Z",
+  "recordedAt": "2026-10-08T16:37:17.668Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -1638,7 +1638,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle; bare A1 uses the shared semantic modal shortcut row and compact padded modal frame.",
       "upgradeStrategy": "three-way",
-      "localSha256": "1a7510d846a5b28cab98548248663bb10d0ceb9f359274c6054f99e6bcc8e1fa",
+      "localSha256": "4b64633c3e6d5d96f0661d16f65757c6be70feefa3746fca936b7ee602338cdb",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1685,7 +1685,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving input, timeout, focus, submission, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "966c73531e84f13445edb77aa95262edf10937079e5c4d3a46451d583cb3c37b",
+      "localSha256": "735bd2bcbd684d8cebfa053b9436365e1e919514584de5358927867b59427dee",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1735,7 +1735,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving options, timeout, navigation, selection, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "00785c1b70ada47860080f45900f2d08f9ed91824859cde0f492bddef49ec927",
+      "localSha256": "e5a9f0167b7a7423e2276b069fc7eb4aa67ab6851fd0cc573ad0e3b88cab864a",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2196,7 +2196,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities, and bare A1 uses the shared semantic modal shortcut row and compact padded modal frame while immediately closing on the implicit Ctrl+C selection-cancel alias without advertising it.",
       "upgradeStrategy": "three-way",
-      "localSha256": "928f2c7a304e253596c538f719e3abdfcecf4f019c645a3193cb80a4d06b799e",
+      "localSha256": "3ba7cfc321ef48d6e5981694d159d9269039f1d18f601f335f6b29b35d2869b2",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2290,7 +2290,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal frame with standalone title, standard outer rules, stable filter/status row, progressive result paging, aligned result columns, Session Tree selection roles, quiet in-field query syntax guidance, and one-line bottom dynamic feedback and searchable-dialog shortcut footer. Selected session rows use the blue selection surface while preserving title and metadata foregrounds; the active session title uses success green independently of keyboard selection, with ordinary text weight.",
       "upgradeStrategy": "three-way",
-      "localSha256": "f1d91b02864b71b8ed426bf03abf6f5cbb621782f86ca4885fc36eb1ac1cb5d1",
+      "localSha256": "b0c9b1b3e045b606c0643f2cbfcfe8d7f3e3dea6a275c7af930f7d3c9071e36f",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2617,7 +2617,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering exclusive radio-style default markers before level names, an item-adjacent active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space, closes through the implicit Ctrl+C-capable selection-cancel action, and uses the shared compact semantic shortcut row with Type/search guidance without advertising that alias. All list and border colors use the owned theme and its explicit color mode. Selected rows use the shared bare-A1 blue selection surface only around the rendered item span, with the existing accent arrow, normal-text level, and preserved current/default/description roles. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "7a41b35e458ef8489c50c1dbbefab70d538859dc3bf4320b4ea3da5f8376f054",
+      "localSha256": "d05f14fbd95bba30d9b8ede485d23713134442ae2eaa4d2cd31415dc5c828c0c",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2745,7 +2745,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation excluding internal bookkeeping, standard search input, blue full-row menu-arrow selection that preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed timestamps, numeric result counters without duplicate label-time status, and a stateful time on/off shortcut, semantic role colors with session naming for the system root, standard paging/first-last/non-root containing-branch folding keys with a permanently expanded system session entry even behind hidden metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic Type/search shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "c619d5d8460c3c6fcb14e5b2a2062c04c90e86b5240ca4e67a4d4e4108d9a0e0",
+      "localSha256": "e6fdf7ae2f422eecefbfdd766e6cc9bdc2c7cc555eb6c31dc6967028880674eb",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -3474,9 +3474,9 @@
       "localDestination": "src/integrations/pi/components/upstream/theme/theme.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class.",
+      "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class and projecting A1's optional semantic accent.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "6813d163f901f07d6a837e3b25f670e442603fbce56ead8714b4c268c30fa5f5",
+      "localSha256": "ce9b6dfdd5cd543070ce871212000012822f0c3813f8495ebcefc28d00acb9d0",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",
@@ -3488,6 +3488,12 @@
           "id": "theme-owned-watcher-boundary",
           "reason": "Mirror custom-theme reload with an A1-owned file watcher because the public API exposes no theme-change callback and private watcher imports are forbidden.",
           "upstreamBehavior": "Debounced valid changes replace the active custom theme and notify rendering; invalid or temporarily missing files retain the last valid theme.",
+          "acceptanceTest": "test/integrations/pi/components/pinned-theme-parity.test.ts"
+        },
+        {
+          "id": "semantic-accent-projection",
+          "reason": "Bare A1 can project a profile-selected color over only the active Theme's semantic accent token without coupling to Pi's current variable name or RGB value.",
+          "upstreamBehavior": "The default choice and comparison profile retain the active Pi theme's exact accent; base replacement and custom-theme reload reapply any explicit A1 selection.",
           "acceptanceTest": "test/integrations/pi/components/pinned-theme-parity.test.ts"
         }
       ],

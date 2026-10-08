@@ -94,7 +94,7 @@ describe("bare-A1 session tree presentation", () => {
     expect(plain[2]).toBe(" Filter: all | no tools | user | labeled");
     expect(plain[3]).toBe("");
     expect(plain[4]).toBe(" >");
-    expect(cellStyle(rows[2]!, "a")).toEqual(cellStyle(piTheme().fg("accent", "a"), "a"));
+    expect(cellStyle(rows[2]!, "a")).toEqual(cellStyle(piTheme().fg("mdHeading", "a"), "a"));
     expect(cellStyle(rows[2]!, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
     expect(plain.some(row => row.includes("Type to search:"))).toBe(false);
     expect(plain.filter(row => /^─+$/u.test(row))).toHaveLength(2);
@@ -173,7 +173,7 @@ describe("bare-A1 session tree presentation", () => {
 
     component.handleInput?.("\t");
     const cycledFilter = component.render(80).find(row => stripTerminalSequences(row).includes("Filter:"))!;
-    expect(cellStyle(cycledFilter, "n")).toEqual(cellStyle(piTheme().fg("accent", "n"), "n"));
+    expect(cellStyle(cycledFilter, "n")).toEqual(cellStyle(piTheme().fg("mdHeading", "n"), "n"));
     expect(cellStyle(cycledFilter, "a")).toEqual(cellStyle(piTheme().fg("muted", "a"), "a"));
 
     component.handleInput?.("\x1b[F");
@@ -361,12 +361,12 @@ describe("bare-A1 session tree presentation", () => {
     component.handleInput?.(reverseTab);
     const reversedRows = component.render(80);
     const reversedFilter = reversedRows.find(row => stripTerminalSequences(row).includes("Filter:"))!;
-    expect(cellStyle(reversedFilter, "b")).toEqual(cellStyle(piTheme().fg("accent", "b"), "b"));
+    expect(cellStyle(reversedFilter, "b")).toEqual(cellStyle(piTheme().fg("mdHeading", "b"), "b"));
     expect(stripTerminalSequences(reversedRows.join("\n"))).not.toContain("Shift+Tab");
 
     component.handleInput?.("\t");
     const restoredFilter = component.render(80).find(row => stripTerminalSequences(row).includes("Filter:"))!;
-    expect(cellStyle(restoredFilter, "a")).toEqual(cellStyle(piTheme().fg("accent", "a"), "a"));
+    expect(cellStyle(restoredFilter, "a")).toEqual(cellStyle(piTheme().fg("mdHeading", "a"), "a"));
   });
 
   it("pages the visible result window with PageUp and PageDown", async () => {
