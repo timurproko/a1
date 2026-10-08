@@ -46,15 +46,20 @@ describe("repository-owned atomic delivery guidance", () => {
     const structure = await readFile("docs/architecture/project-structure.md", "utf8");
     for (const guidance of [config, skill, structure]) {
       expect(guidance).toContain("`a1 session link-worktree <absolute-worktree>`");
+      expect(guidance).toContain("`a1 session worktrees`");
       expect(guidance).toMatch(/before (?:changing |any )?(?:planning|planning or implementation)/i);
       expect(guidance).toMatch(/stop (?:feature |task )?edits? and report the blocker|report the blocker and stop feature edits/);
       expect(guidance).toMatch(/not tool cwd|does not change process or tool cwd/);
       expect(guidance).toMatch(/resuming or switching streams|resuming an existing delivery or switching streams/);
+      expect(guidance).toMatch(/busy.*unverifiable|unverifiable.*busy/i);
+      expect(guidance).toMatch(/separate|fresh/);
     }
     expect(config).toContain("Continue only when the command confirms that exact canonical worktree");
-    expect(skill).toContain("continue only after it confirms the exact path");
+    expect(config).toContain("similarity, recency, cleanliness, or ancestry grants nothing");
+    expect(skill).toContain("continue only after link confirms the exact path");
     expect(structure).toContain("A successful link response confirming the exact canonical worktree is required");
     expect(structure).toContain("git worktree add -b <type>/<short-description>");
+    expect(structure).toContain("Inventory is read-only and advisory");
     expect(structure).toContain("Repository commands therefore keep an explicit worktree path");
   });
 

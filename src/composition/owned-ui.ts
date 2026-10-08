@@ -7,7 +7,7 @@ import { resolvePromptHistoryPath } from "../features/prompt-history/paths.js";
 import { resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
 import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
 import type { AvailableRelease, StartupReleaseCheckOptions } from "../foundation/release/latest-release.js";
-import { readSessionRepositoryContext } from "../foundation/lifecycle/session-repository-context.js";
+import type { NativeProcessIdentity } from "../foundation/lifecycle/model.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
 import { createPiEngineAdapter } from "../integrations/pi/engine/adapter.js";
@@ -53,6 +53,8 @@ export interface OwnedUiCompositionOptions {
   readonly releaseNotes?: ReleaseNoteCatalog;
   /** Startup release-availability seam; defaults to the throttled registry check. */
   readonly checkForNewerRelease?: (options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>;
+  /** Exact native process inspection injected by the shipped entry; absent SDK seams do not publish claims. */
+  readonly inspectProcess?: (pid: number) => Promise<NativeProcessIdentity | null>;
 }
 
 export interface OwnedUiComposition {
@@ -61,6 +63,8 @@ export interface OwnedUiComposition {
   readonly settings: OwnedSettingsManager | null;
 }
 
+const SESSION_RUNTIME_REFRESH_MS = 30_000;
+
 export async function composeOwnedUiApplication(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiApplicationPort> {
   return (await composeOwnedUi(options)).application;
 }
@@ -68,6 +72,34 @@ export async function composeOwnedUiApplication(options: OwnedUiCompositionOptio
 export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiComposition> {
   const cwd = options.cwd ?? process.cwd();
   const ownedSurfaces = options.ownedSurfaces !== "off";
+  const sessionRuntimeId = ownedSurfaces ? process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] : undefined;
+  const inspectSessionProcess = options.inspectProcess;
+  let sessionRuntimeIdentity: Promise<NativeProcessIdentity | null> | null = null;
+  let activeSessionIdentity: { readonly sessionId: string; readonly sessionFile: string } | null = null;
+  let sessionRuntimeRefreshTimer: NodeJS.Timeout | null = null;
+  let sessionRuntimeRefresh = Promise.resolve();
+  let sessionRuntimeDisposed = false;
+  const runtimeIdentity = async (): Promise<NativeProcessIdentity | null> => {
+    if (sessionRuntimeId === undefined || inspectSessionProcess === undefined) return null;
+    sessionRuntimeIdentity ??= inspectSessionProcess(process.pid).catch(() => null);
+    return await sessionRuntimeIdentity;
+  };
+  const queueSessionRuntimeRefresh = (): void => {
+    if (sessionRuntimeDisposed || activeSessionIdentity === null || sessionRuntimeId === undefined || inspectSessionProcess === undefined) return;
+    sessionRuntimeRefresh = sessionRuntimeRefresh.then(async () => {
+      const identity = activeSessionIdentity;
+      if (sessionRuntimeDisposed || identity === null) return;
+      const owner = await runtimeIdentity();
+      if (owner === null) return;
+      const { registerSessionRepositoryRuntime } = await import("../foundation/lifecycle/session-repository-context.js");
+      await registerSessionRepositoryRuntime(identity, sessionRuntimeId, owner, { inspectProcess: inspectSessionProcess });
+    }).catch(() => undefined);
+  };
+  const armSessionRuntimeRefresh = (): void => {
+    if (sessionRuntimeRefreshTimer !== null) return;
+    sessionRuntimeRefreshTimer = setInterval(queueSessionRuntimeRefresh, SESSION_RUNTIME_REFRESH_MS);
+    sessionRuntimeRefreshTimer.unref();
+  };
   const adapter = options.createPiAdapter
     ? await options.createPiAdapter()
     : await createPiEngineAdapter({
@@ -76,8 +108,20 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       settingsProductMode: ownedSurfaces ? "bare" : "comparison",
       announceStartupChangelog: !ownedSurfaces,
       ...(ownedSurfaces ? {
-        repositoryContextReader: async (sessionId: string, sessionFile: string, signal: AbortSignal) =>
-          await readSessionRepositoryContext({ sessionId, sessionFile }, { signal }),
+        repositoryContextReader: async (sessionId: string, sessionFile: string, signal: AbortSignal) => {
+          const owner = await runtimeIdentity();
+          if (owner === null || sessionRuntimeId === undefined || inspectSessionProcess === undefined) return null;
+          activeSessionIdentity = { sessionId, sessionFile };
+          const { activateSessionRepositoryContext } = await import("../foundation/lifecycle/session-repository-context.js");
+          const context = await activateSessionRepositoryContext(
+            activeSessionIdentity,
+            sessionRuntimeId,
+            owner,
+            { signal, inspectProcess: inspectSessionProcess },
+          );
+          armSessionRuntimeRefresh();
+          return context;
+        },
       } : {}),
       ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
       ...(options.sessionSelection === undefined ? {} : { sessionSelection: options.sessionSelection }),
@@ -257,6 +301,16 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         await releaseNoteAcknowledgement?.catch(() => undefined);
       } finally {
         unsubscribeAccent();
+        sessionRuntimeDisposed = true;
+        if (sessionRuntimeRefreshTimer !== null) clearInterval(sessionRuntimeRefreshTimer);
+        sessionRuntimeRefreshTimer = null;
+        await sessionRuntimeRefresh;
+        const owner = await runtimeIdentity();
+        if (sessionRuntimeId !== undefined && owner !== null) {
+          await import("../foundation/lifecycle/session-repository-context.js")
+            .then(module => module.releaseSessionRepositoryRuntime(sessionRuntimeId, owner))
+            .catch(() => undefined);
+        }
         await releaseNoteClaim?.release();
         suggestionDiagnostics?.dispose(); clipboardDiagnostics?.dispose();
       }
