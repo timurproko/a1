@@ -26,9 +26,9 @@ The maintainer integration decision accepts these scenarios:
     "A live remote topic ref prevents standalone documentation cleanup from becoming eligible.",
     "Eligible evidence still uses clean-content, journaled non-force removal, and compare-and-delete safeguards."
   ],
-  "archiveDigest": "50ee66ea1e8c36f5a392def271bf8ff9762b56a4961209331ef56be5f79ee519",
+  "archiveDigest": "a5b988d670bd0fd29e2f893fc85412f264a680c89d5fe5b37bd9422da0ad612e",
   "specDigest": "1c8670139d77b0c3ec2e6183260a18ecc46de6e10a23b1c0d7d93973979f6be8",
-  "tasksDigest": "93d91f23fd4e26529e3c3421022261b50fb46dda4ab5f57a304e3fc83712261d",
+  "tasksDigest": "fda4b3e275bc3f44e70ad933d8b82498b2cdcb854904e8e4c5c5c9453945197d",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
