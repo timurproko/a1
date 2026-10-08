@@ -29,14 +29,23 @@ describe("development validation readiness", () => {
       .toEqual({ validate: false, reason: "awaiting-finalization" });
   });
 
-  it("permits a finalized version-3 exact head", () => {
+  it("permits only a finalized version-3 body bound to the exact event head", () => {
     const archive = "openspec/changes/archive/2026-09-23-example-change/";
-    expect(classifyDevelopmentValidationReadiness({ eventName: "pull_request", body: implementation({
+    const head = "a".repeat(40);
+    const metadata = {
       version: 3,
       change: "example-change",
       archive,
       acceptanceManifest: `${archive}acceptance.md`,
-    }) })).toEqual({ validate: true, reason: "finalized-version-3" });
+    };
+    expect(classifyDevelopmentValidationReadiness({
+      eventName: "pull_request", headSha: head, body: implementation({ ...metadata, finalizedHead: head }),
+    })).toEqual({ validate: true, reason: "finalized-version-3" });
+    expect(classifyDevelopmentValidationReadiness({ eventName: "pull_request", headSha: head, body: implementation(metadata) }))
+      .toEqual({ validate: false, reason: "awaiting-finalization" });
+    expect(classifyDevelopmentValidationReadiness({
+      eventName: "pull_request", headSha: head, body: implementation({ ...metadata, finalizedHead: "b".repeat(40) }),
+    })).toEqual({ validate: false, reason: "awaiting-finalization" });
   });
 
   it("fails closed with a bounded reason for malformed lifecycle metadata", () => {
@@ -54,7 +63,7 @@ describe("development validation readiness", () => {
     const pull = {
       number: 581,
       draft: false,
-      body: implementation({ version: 3, change: "example-change", archive, acceptanceManifest: `${archive}acceptance.md` }),
+      body: implementation({ version: 3, change: "example-change", archive, acceptanceManifest: `${archive}acceptance.md`, finalizedHead: head }),
       head: { sha: head },
       base: { sha: base },
     };

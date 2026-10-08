@@ -103,6 +103,6 @@ Documentation examples, TypeScript declarations, local inspection/finalization o
 2. Update finalization publication to compute the post-commit fence, verify fresh body and head, and issue the bounded body patch.
 3. Update readiness and aggregate policy so only matching PR-event head metadata can authorize implementation validation.
 4. Add policy, publication, workflow, and PR-presentation regression tests, then update delivery documentation/examples.
-5. Exercise a disposable ready version-3 PR through first finalization and same-path re-finalization; verify each exact final head receives visible PR checks without manual dispatch.
+5. Exercise deterministic publication fixtures through first finalization, same-path re-finalization, race outcomes, and the terminating no-op; verify each mutation publishes the exact pushed SHA that drives the native PR `edited` route. The first ordinary delivery after deployment provides operational observation without becoming a pre-merge evidence dependency for this workflow change.
 
 Rollback restores the prior parser/finalizer only before any candidate relies on the new field. After deployment, retaining the field is backward-safe; a corrective workflow change should preserve it rather than removing exact-head evidence from open candidates.
