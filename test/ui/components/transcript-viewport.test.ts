@@ -287,7 +287,7 @@ describe("transcript viewport", () => {
     expect(mixed.rows[3]).toContain("\u001b[47m");
     expect(mixed.rows[4]).toContain("\u001b[47m");
     expect(mixed.rows[5]).toContain("\u001b[47m");
-    expect(viewport.selectedText()).toContain("editor\nfoot");
+    expect(viewport.selectedText()).toBe("row 8\nrow 9\nrow 10");
   });
 
   it.each(["up", "down"] as const)("keeps a document-only selection inside the transcript while scrolling %s", direction => {
@@ -358,7 +358,7 @@ describe("transcript viewport", () => {
     expect(selected.rows[3]).toContain("\u001b[45m");
     expect(selected.rows[4]).toContain("\u001b[45m");
     expect(selected.rows[5]).not.toContain("\u001b[45m");
-    expect(viewport.selectedText()).toContain("ed");
+    expect(viewport.selectedText()).not.toMatch(/editor|footer/u);
   });
 
   it("clips a retained document selection after its source scrolls off screen", () => {
@@ -423,7 +423,7 @@ describe("transcript viewport", () => {
       viewport.extendSelection(20, 1, 1_001, false);
       viewport.releaseSelection();
       expect(paintedRows(viewport.compose(input))).toEqual([0]);
-      expect(viewport.selectedText()).toBe("❯ prompt");
+      expect(viewport.selectedText()).toBe("prompt");
     });
 
     it.each(["above", "below"] as const)("lets a selection shrink and disappear as its source scrolls %s", direction => {
@@ -487,13 +487,21 @@ describe("transcript viewport", () => {
   it("paints transient frame feedback without changing allocation, controls, or copy source", () => {
     const viewport = new TranscriptViewport();
     const input = { documentRows: rows(10), dockRows: ["editor", "footer"], promptAnchors: [], width: 40, height: 7, now: 100 };
+    viewport.compose(input);
+    viewport.pressSelection(1, 5, 101);
+    viewport.extendSelection(40, 5, 102, false);
+    viewport.releaseSelection();
     const before = viewport.compose(input);
+    const copied = viewport.selectedText();
     const overlaid = viewport.compose({
       ...input,
       frameOverlay: { row: 5, text: "\u001b[36mcopied 5 chars to clipboard\u001b[39m" },
     });
     expect(overlaid.rows).toHaveLength(before.rows.length);
     expect(overlaid.rows[4]).toContain("copied 5 chars to clipboard");
+    expect(overlaid.rows[4]!.indexOf("\u001b[47m")).toBeLessThan(overlaid.rows[4]!.indexOf("copied 5 chars to clipboard"));
+    expect(overlaid.rows[4]).not.toContain("\u001b[0m\u001b[36m");
+    expect(viewport.selectedText()).toBe(copied);
     expect(overlaid).toMatchObject({
       scrollTop: before.scrollTop,
       maxScroll: before.maxScroll,
@@ -914,7 +922,7 @@ describe("transcript viewport", () => {
     viewport.pressSelection(3, 1, 1_000);
     viewport.extendSelection(40, 1, 1_001, false);
     viewport.releaseSelection();
-    expect(viewport.selectedText()).toBe("prompt                     11:45");
+    expect(viewport.selectedText()).toBe("prompt");
   });
 
   it.each([false, true])("captures one symmetric immutable literal range (dockOrigin=%s)", dockOrigin => {
@@ -933,7 +941,7 @@ describe("transcript viewport", () => {
     viewport.extendSelection(dockOrigin ? 2 : 7, dockOrigin ? 1 : 4, 102, false);
     viewport.releaseSelection();
 
-    const expected = "ranscript\n⠋ Working...\n❯ prompt\nbranch";
+    const expected = "ranscript";
     const snapshot = viewport.captureSelectedText();
     expect(viewport.selectedText()).toBe(expected);
     expect(snapshot).toMatchObject({ literal: true, sourceUnits: expected.length });
@@ -1083,7 +1091,7 @@ describe("transcript viewport", () => {
     expect(viewport.scrollTop).toBe(before - 1);
   });
 
-  it("includes transient status rows in complete-frame selection and copying", () => {
+  it("paints transient status rows without adding them to clipboard text", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);
     const input = {
@@ -1104,7 +1112,7 @@ describe("transcript viewport", () => {
     expect(viewport.pressSelection(1, 1, 102)).toBe(true);
     expect(viewport.extendSelection(20, 2, 103)).toBe(true);
     viewport.releaseSelection();
-    expect(viewport.selectedText()).toBe("Selectable transcript\n⠋ Working...");
+    expect(viewport.selectedText()).toBe("Selectable transcript");
 
     const selected = viewport.compose({
       ...input,
@@ -1120,6 +1128,48 @@ describe("transcript viewport", () => {
     });
     expect(selected.rows[0]).toContain("\u001b[45m");
     expect(selected.rows[1]).toContain("\u001b[45m");
+  });
+
+  it("copies one prompt semantically but preserves its chrome inside a larger transcript range", () => {
+    const viewport = new TranscriptViewport();
+    const input = {
+      documentRows: ["❯ ask me                    19:59", "answer one", "answer two", "⠋ Working..."],
+      selectableDocumentRowCount: 3,
+      dockRows: ["suggestion one", "❯ draft", "footer status"],
+      promptAnchors: [{ id: "prompt", firstRow: 0, lastRow: 0, sourceRow: "❯ ask me                    19:59" }],
+      width: 40,
+      height: 7,
+      now: 100,
+    };
+    viewport.compose(input);
+
+    viewport.pressSelection(1, 1, 101);
+    viewport.extendSelection(40, 1, 102, false);
+    viewport.releaseSelection();
+    expect(viewport.selectedText()).toBe("ask me");
+
+    viewport.clearSelection();
+    viewport.pressSelection(1, 1, 103);
+    viewport.extendSelection(40, 2, 104, false);
+    viewport.releaseSelection();
+    expect(viewport.selectedText()).toBe("❯ ask me                    19:59\nanswer one");
+
+    viewport.clearSelection();
+    viewport.pressSelection(1, 4, 105);
+    viewport.extendSelection(20, 7, 106, false);
+    viewport.releaseSelection();
+    const selected = viewport.compose({ ...input, now: 107 });
+    expect(selected.rows.slice(3).every(row => row.includes("\u001b[47m"))).toBe(true);
+    expect(viewport.selectedText()).toBeNull();
+    expect(viewport.captureSelectedText()).toBeNull();
+
+    viewport.clearSelection();
+    const blank = { ...input, documentRows: ["   "], selectableDocumentRowCount: 1, dockRows: [], promptAnchors: [], height: 1 };
+    viewport.compose(blank);
+    viewport.pressSelection(1, 1, 108);
+    viewport.extendSelection(3, 1, 109, false);
+    viewport.releaseSelection();
+    expect(viewport.captureSelectedText()).toBeNull();
   });
 
   it("keeps the scrollbar thumb visible through a multi-row text selection", () => {

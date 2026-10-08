@@ -251,7 +251,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       } finally { await shell.dispose(); }
     });
 
-  it.each([false, true])("routes autocomplete body pointers and restores extension editors (history=%s)", async persistent => {
+  it.each([false, true])("selects autocomplete input without copying it and restores extension editors (history=%s)", async persistent => {
     const history = memoryHistory();
     const copied: string[] = [];
     const readText = vi.fn(async () => "clipboard text");
@@ -274,7 +274,9 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input(`\u001b[<0;6;${row}m`);
       expect(shell.root.hasActiveSelection()).toBe(true);
       terminal.input("\u0003");
-      await vi.waitFor(() => expect(copied).toEqual(["/mo"]));
+      await nextImmediate();
+      expect(copied).toEqual([]);
+      expect(shell.root.hasActiveSelection()).toBe(false);
       const ui = (engine.session.extensionBindings as { uiContext: ExtensionUIContext }).uiContext;
       ui.setEditorComponent(tui => new Editor(tui, {
         borderColor: text => text,
@@ -323,7 +325,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     expect(terminal.writes).toHaveLength(count);
   });
 
-  it("paints blank rows and copies their normalized empty payload", async () => {
+  it("paints blank rows without submitting an empty clipboard payload", async () => {
     const { shell, terminal } = await fixture([], [], true);
     try {
       const start = terminal.writes.length;
@@ -331,9 +333,10 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input("\u001b[<32;20;5M");
       shell.runtime.renderNow();
       terminal.input("\u001b[<0;20;5m");
-      await vi.waitFor(() => expect(terminal.writes.slice(start).join("")).toContain("\u001b]52;c;\u0007"));
+      await nextImmediate();
       shell.runtime.renderNow();
       const output = terminal.writes.slice(start).join("");
+      expect(output).not.toContain("\u001b]52;c;");
       expect(output).not.toContain("chars to clipboard");
       expect(output).toContain("\u001b[48;2;38;79;120m");
       terminal.input("still usable");
@@ -523,6 +526,49 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     })).toEqual(["assistant", "Selectable assistant words"]));
     await vi.waitFor(() => expect(shell.root.render(60).map(stripTerminalSequences).join("\n"))
       .toContain(`copied ${"Selectable assistant words".length} chars to clipboard`));
+  });
+
+  it("copies one submitted prompt semantically, preserves it in bulk text, and skips dock-only ranges", async () => {
+    const copied: string[] = [];
+    const messages = [
+      { role: "user", content: [{ type: "text", text: "ask me" }], timestamp: Date.now() - 1_000 },
+      { role: "assistant", content: [{ type: "text", text: "answer body" }], timestamp: Date.now() },
+    ];
+    const { terminal, shell } = await fixture(messages, [], true, undefined, {
+      readText: async () => null,
+      writeText: async text => { copied.push(text); },
+    });
+    try {
+      terminal.resize(60, 14);
+      shell.root.setFullscreenCopyOnSelect(false);
+      shell.runtime.renderNow();
+      const rows = shell.root.render(60).map(stripTerminalSequences);
+      const promptRow = rows.findIndex(row => row.startsWith("❯ ask me")) + 1;
+      const answerRow = rows.findIndex(row => row.includes("answer body")) + 1;
+      const dock = shell.root.viewportFrameDescriptor()!.dock!;
+      const inputRow = rows.findIndex((row, index) => index + 1 >= dock.rowStart && row.startsWith("❯ ")) + 1;
+      expect(promptRow).toBeGreaterThan(0);
+      expect(answerRow).toBeGreaterThan(promptRow);
+      expect(inputRow).toBeGreaterThanOrEqual(dock.rowStart);
+
+      terminal.input(`\u001b[<0;1;${promptRow}M\u001b[<32;59;${promptRow}M\u001b[<0;59;${promptRow}m`);
+      terminal.input("\u0003");
+      await vi.waitFor(() => expect(copied).toEqual(["ask me"]));
+
+      terminal.input(`\u001b[<0;1;${promptRow}M\u001b[<32;59;${answerRow}M\u001b[<0;59;${answerRow}m`);
+      terminal.input("\u0003");
+      await vi.waitFor(() => expect(copied).toHaveLength(2));
+      expect(copied[1]).toMatch(/^❯ ask me\s+\d{2}:\d{2}\n\n answer body$/u);
+
+      terminal.input(`\u001b[<0;2;${inputRow}M\u001b[<32;20;${dock.rowEnd}M\u001b[<0;20;${dock.rowEnd}m`);
+      shell.runtime.renderNow();
+      const selected = shell.root.render(60);
+      expect(selected[inputRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[dock.rowEnd - 1]).toContain("\u001b[48;2;38;79;120m");
+      terminal.input("\u0003");
+      await nextImmediate();
+      expect(copied).toHaveLength(2);
+    } finally { await shell.dispose(); }
   });
 
   it("moves retained agent-stream selection with followed output while footer selection stays pinned", async () => {
@@ -1054,7 +1100,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     }
   });
 
-  it.each(["working-origin", "downward", "upward"] as const)(
+  it.each(["working-origin", "downward", "input-origin", "status-origin"] as const)(
     "routes terminal selection through the Working row (%s)",
     async direction => {
       const messages = [{ role: "assistant", content: [{ type: "text", text: "content boundary" }], timestamp: Date.now() }];
@@ -1068,18 +1114,32 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
         const plain = shell.root.render(60).map(stripTerminalSequences);
         const contentRow = plain.findIndex(row => row.includes("content boundary")) + 1;
         const workingRow = plain.findIndex(row => row.includes("Working")) + 1;
-        const dockRow = shell.root.viewportFrameDescriptor()!.dock!.rowStart;
+        const dock = shell.root.viewportFrameDescriptor()!.dock!;
+        const inputRow = plain.findIndex(row => row.startsWith("❯ ")) + 1;
+        const statusRow = dock.rowEnd;
         const column = plain[workingRow - 1]!.indexOf("Working") + 1;
         expect(contentRow).toBeGreaterThan(0);
         expect(workingRow).toBeGreaterThan(contentRow);
-        expect(dockRow).toBe(workingRow + 1);
+        expect(dock.rowStart).toBe(workingRow + 1);
+        expect(inputRow).toBeGreaterThanOrEqual(dock.rowStart);
+        expect(statusRow).toBeGreaterThanOrEqual(inputRow);
         expect(column).toBeGreaterThan(0);
 
-        const [startRow, endRow] = direction === "working-origin"
+        const path = direction === "working-origin"
           ? [workingRow, contentRow]
-          : direction === "downward" ? [contentRow, dockRow] : [dockRow, contentRow];
+          : direction === "downward"
+            ? [contentRow, workingRow, inputRow]
+            : direction === "input-origin"
+              ? [inputRow, workingRow, contentRow]
+              : [statusRow, inputRow, workingRow, contentRow];
+        const startRow = path[0]!;
+        const endRow = path.at(-1)!;
         terminal.input(`\u001b[<0;${column};${startRow}M`);
-        terminal.input(`\u001b[<35;${column};${endRow}M`);
+        for (const [index, row] of path.slice(1).entries()) {
+          const last = index === path.length - 2;
+          terminal.input(`\u001b[<${last ? 35 : 32};${column};${row}M`);
+          shell.runtime.renderNow();
+        }
         terminal.input(`\u001b[<0;${column};${endRow}m`);
         shell.runtime.renderNow();
 

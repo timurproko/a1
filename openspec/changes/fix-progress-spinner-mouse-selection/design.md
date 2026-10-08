@@ -9,7 +9,8 @@ The current shell coverage double-clicks `Working` by invoking `handleViewportPr
 **Goals:**
 
 - Make ordinary progress-spinner cells transparent to primary-button gesture handling until complete-frame selection owns the sequence.
-- Let a drag start on the spinner row and cross it upward or downward with the same endpoints, paint, and copied text as adjacent frame rows.
+- Let a drag start on the spinner, input, autocomplete, or status rows and cross upward or downward with symmetric endpoint and paint behavior.
+- Keep status, input, suggestion, footer, and whitespace-only ranges out of clipboard submission while preserving current bulk transcript copy and semantic single-prompt copy.
 - Cover both component dispatch and the real fullscreen terminal-input path, including no-button motion reports used during an active drag.
 - Preserve one owner for each complete gesture and keep explicit controls and modal surfaces authoritative.
 
@@ -18,7 +19,7 @@ The current shell coverage double-clicks `Working` by invoking `handleViewportPr
 - Changing spinner text, animation cadence, colors, spacing, lifecycle, or viewport placement.
 - Making the spinner a clickable control or giving it keyboard focus.
 - Changing wheel scrolling, scrollbar/sticky/jump controls, release-notice controls, overlays, right-click paste, or editor click semantics.
-- Changing regular-mode terminal-owned selection, `a1 pi`, clipboard transport, or automatic-copy policy.
+- Changing regular-mode terminal-owned selection, `a1 pi`, clipboard transport, or keyboard-selected editor copy.
 
 ## Decisions
 
@@ -34,22 +35,32 @@ The viewport will stop choosing its visible selection row count from the anchor 
 
 The progress status remains passive: it introduces no handler, focus request, capture, or status-sized control region. Globally disabling component mouse routing was rejected because it would break explicit viewport controls, overlays, dialogs, editor behavior, links, and comparison profiles. Converting endpoints to screen coordinates was rejected because it would regress retained selection during followed output.
 
-### 3. Distinguish passive status text from explicit controls
+### 3. Separate complete-frame paint from semantic clipboard output
+
+The ordered visual range continues across persistent transcript, transient status, input, autocomplete, footer, and blank cells. Clipboard extraction independently admits only persistent transcript rows. A status/input/suggestion/whitespace-only range therefore remains highlighted but causes no automatic or `Ctrl+C` clipboard submission; `Ctrl+C` consumes and clears that visual selection rather than forwarding an interrupt.
+
+A submitted prompt selected by itself uses existing prompt metadata to omit `❯`, padding, and timestamp. If surrounding transcript rows also participate, extraction preserves the current visible bulk text, including the prompt's visible chrome. This context-sensitive rule matches the maintainer's manual examples without changing semantic editor copy/cut.
+
+The copied acknowledgement no longer resets the row background before painting accent text. Its overlay preserves an active selection background, improving contrast without allocating a panel or changing geometry.
+
+### 4. Distinguish passive status text from explicit controls
 
 Only ordinary progress-spinner cells receive pass-through behavior. Existing controls retain their declared hit regions and complete-gesture ownership, and a frame-selection gesture that began elsewhere may cross those visual rows without activating a control according to the existing frame-selection contract. Wheel events continue through their current scroll owner rather than being reclassified as text selection.
 
 No new status-sized hit region will be introduced. Spinner animation invalidation remains presentation-only and cannot acquire or cancel a pointer gesture.
 
-### 4. Validate starts and crossings in both directions
+### 5. Validate starts and crossings in both directions
 
 Shell integration coverage will locate the rendered `Working…` row from the current frame and send SGR reports through the terminal fixture. Separate cases will:
 
 - press on the status text, move into transcript content, and release;
 - press above the status, move through it, and release below it;
-- perform the reverse crossing from below to above; and
-- retain selection while spinner ticks request renders.
+- perform reverse crossings beginning on the input and footer/status rows below `Working…`;
+- retain selection while spinner ticks request renders;
+- verify input/status/suggestion/whitespace-only ranges do not write the clipboard; and
+- distinguish semantic single-prompt copy from exact bulk transcript copy.
 
-Assertions will cover ownership, dark-blue selection paint, normalized copied text, absence of truncation at the status row, and absence of component capture or control activation. Component-level coverage will keep the cause local; terminal-paint/shell coverage will prove the user-visible path.
+Assertions will cover ownership, dark-blue selection paint, semantic clipboard payloads, acknowledgement contrast over selection, absence of truncation at the status row, and absence of component capture or control activation. Component-level coverage will keep the cause local; terminal-paint/shell coverage will prove the user-visible path.
 
 ## Risks / Trade-offs
 

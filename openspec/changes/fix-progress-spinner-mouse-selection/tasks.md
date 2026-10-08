@@ -13,3 +13,10 @@
 - [x] 3.1 Cover a selection starting on the spinner and selections crossing it downward and upward, including no-button motion and exact paint/copy endpoints.
 - [x] 3.2 Verify spinner rendering does not capture, truncate, clear, or overwrite an active valid selection, and retain focused comparison-profile isolation coverage.
 - [x] 3.3 Run focused progress-status, viewport-controller, session-shell selection, and terminal-paint tests plus typechecking and strict OpenSpec validation; record implementation evidence and dispose any known gap before finalization.
+
+## 4. Incorporate manual acceptance feedback
+
+- [x] 4.1 Exercise held-button and no-button terminal motion from ordinary input and footer/status rows through `Working…`; retain one complete visual frame range.
+- [x] 4.2 Exclude transient status, input, autocomplete, dock/status, and whitespace-only ranges from automatic and Ctrl+C clipboard submission while consuming visual-only Ctrl+C safely.
+- [x] 4.3 Copy one submitted prompt as semantic prompt text without `❯`, padding, or timestamp, while preserving its visible chrome when it participates in a larger transcript range.
+- [x] 4.4 Preserve the selected row background beneath the copied acknowledgement and add focused paint/clipboard regressions.

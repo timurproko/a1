@@ -348,14 +348,14 @@ export class SessionViewportController {
     if (data === "\u0003") {
       if (editorActive && this.#editor.hasSelection()) {
         if (this.#viewport.clearSelection()) this.#requestRender();
-      } else {
+      } else if (this.#viewport.hasSelection) {
         const copySelection = this.#viewport.captureSelectedText();
-        if (copySelection !== null) {
-          this.#viewport.clearSelection();
-          this.#stopSelectionAutoScroll();
-          this.#requestRender();
-          return { data: "", consumed: true, copySelection };
-        }
+        this.#viewport.clearSelection();
+        this.#stopSelectionAutoScroll();
+        this.#requestRender();
+        return copySelection === null
+          ? { data: "", consumed: true }
+          : { data: "", consumed: true, copySelection };
       }
     }
     const previousPrompt = SHIFT_UP_INPUTS.has(data) || this.#editor.matchesTerminalKey(data, "alt+home");

@@ -1,4 +1,4 @@
-import { MAX_COPY_SOURCE_UNITS, type SelectionCopySnapshot } from "./selection-copy.js";
+import { MAX_COPY_SOURCE_UNITS, selectionCopyLineContent, type SelectionCopySnapshot } from "./selection-copy.js";
 import {
   isThumbRow,
   scrollbarGeometry,
@@ -347,7 +347,36 @@ export class TranscriptViewport {
   selectedText(): string | null {
     const selection = this.#visibleSelection();
     if (selection === undefined) return null;
-    const text = textSelectionText(selection, this.#selectionRows, line => usefulTextLineContent(this.#selectionRows[line] ?? ""));
+    // Invariant: the blue range spans the complete frame, but automatic and Ctrl+C frame copy
+    // admit only persistent transcript rows. Transient status, suggestions, input, and footer
+    // chrome remain visually selectable without becoming clipboard payload.
+    const copiedLines = Array.from(
+      { length: Math.max(0, selection.end.line - selection.start.line + 1) },
+      (_value, index) => selection.start.line + index,
+    ).filter(line => {
+      const anchor = this.#selectionRowAnchors[line];
+      return anchor?.kind === "document" && anchor.row < this.#selectableDocumentRowCount;
+    });
+    if (copiedLines.length === 0) return null;
+    // Rationale: a prompt selected by itself uses semantic prompt text. Once surrounding transcript text
+    // participates, preserve the prompt's visible prefix, alignment, and timestamp in the bulk range.
+    const prompt = this.#promptAnchors.find(candidate => copiedLines.every(line => {
+      const anchor = this.#selectionRowAnchors[line];
+      return anchor?.kind === "document" && anchor.row >= candidate.firstRow && anchor.row <= candidate.lastRow;
+    }));
+    const included = new Set(copiedLines);
+    const text = textSelectionText(
+      selection,
+      this.#selectionRows,
+      line => {
+        const row = this.#selectionRows[line] ?? "";
+        const anchor = this.#selectionRowAnchors[line];
+        return prompt !== undefined && anchor?.kind === "document"
+          ? selectionCopyLineContent(row, anchor.row === prompt.firstRow ? "first" : "continuation")
+          : usefulTextLineContent(row);
+      },
+      line => included.has(line),
+    );
     return text.length === 0 ? null : text;
   }
 
@@ -358,6 +387,7 @@ export class TranscriptViewport {
     let text = this.selectedText();
     if (text === null) return null;
     text = text.trim();
+    if (text.length === 0) return null;
     const normalized = {
       start: { line: 0, column: 0 },
       end: { line: 0, column: Number.MAX_SAFE_INTEGER },
@@ -705,7 +735,8 @@ export class TranscriptViewport {
             padRowPreservingBackground(withControl, width),
             overlayLimit - overlayWidth,
             overlayLimit,
-            `${CONTROL_STYLE_RESET}${overlayText}`,
+            `${GUTTER_DECORATION_RESET}${overlayText}`,
+            { inheritStartStyle: true },
           );
         },
       );

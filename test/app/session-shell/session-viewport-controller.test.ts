@@ -367,14 +367,14 @@ describe("session viewport interaction controller", () => {
       const crossedDown = target.compose(input);
       expect(crossedDown.rows[3]).toContain("\u001b[45m");
       expect(crossedDown.rows[4]).toContain("\u001b[45m");
-      expect(copiedText(target.handlePreInput("\u0003"))).toContain("ed");
+      expect(copiedText(target.handlePreInput("\u0003"))).not.toMatch(/editor|footer/u);
 
       target.compose(input);
       target.handlePreInput("\u001b[<0;2;5M\u001b[<32;4;4M\u001b[<0;4;4m", true, 300);
       const dockOriginated = target.compose(input);
       expect(dockOriginated.rows[3]).toContain("\u001b[45m");
       expect(dockOriginated.rows[4]).toContain("\u001b[45m");
-      expect(copiedText(target.handlePreInput("\u0003"))).toContain("ed");
+      expect(copiedText(target.handlePreInput("\u0003"))).not.toMatch(/editor|footer/u);
     } finally {
       target.clearPointerState();
       vi.useRealTimers();
@@ -444,7 +444,9 @@ describe("session viewport interaction controller", () => {
       target.reset();
       frame(target, 0);
       expect(target.handlePreInput("\u001b[<0;4;2M\u001b[<32;15;3M\u001b[<0;15;3m").consumed).toBe(true);
-      expect(copiedText(target.handlePreInput("\u0003"))).toBe("");
+      const emptyCopy = target.handlePreInput("\u0003");
+      expect(emptyCopy).toMatchObject({ data: "", consumed: true });
+      expect(emptyCopy.copySelection).toBeUndefined();
     } finally { target.clearPointerState(); }
   });
 
@@ -506,7 +508,7 @@ describe("session viewport interaction controller", () => {
     }
   });
 
-  it("selects across a drag begun on transient tail chrome", () => {
+  it("selects across transient tail chrome without copying it", () => {
     const { target, input, compose } = hoverFixture();
     try {
       const tailed = {
@@ -521,7 +523,7 @@ describe("session viewport interaction controller", () => {
       expect(target.handlePreInput("\u001b[<32;5;3M").consumed).toBe(true);
       const release = target.handlePreInput("\u001b[<0;5;3m");
       expect(release.consumed).toBe(true);
-      expect(copiedText(release)).toContain("Stee");
+      expect(copiedText(release)).not.toContain("Steering");
       const selected = target.compose(tailed);
       expect(target.hasSelection).toBe(true);
       expect(selected.rows[4]).toContain("Steering: later");
@@ -531,7 +533,7 @@ describe("session viewport interaction controller", () => {
     }
   });
 
-  it("keeps wheel scrolling over the transient tail while allowing selection", () => {
+  it("keeps wheel scrolling over the transient tail while allowing visual selection", () => {
     const { target, input, compose } = hoverFixture();
     try {
       const tailed = { ...input, documentRows: [...input.documentRows, "", " Working..."], selectableDocumentRowCount: 30 };
@@ -548,7 +550,7 @@ describe("session viewport interaction controller", () => {
       target.handlePreInput("\u001b[<32;5;4M");
       const release = target.handlePreInput("\u001b[<0;5;4m");
       expect(target.hasSelection).toBe(true);
-      expect(copiedText(release)).toContain("Work");
+      expect(copiedText(release)).not.toContain("Working");
     } finally {
       target.clearPointerState();
     }
