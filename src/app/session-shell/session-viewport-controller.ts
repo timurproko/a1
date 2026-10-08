@@ -449,12 +449,18 @@ export class SessionViewportController {
           return true;
         }
         if (this.#dockPointerSuppressed || this.#tailPointerSuppressed) return true;
+        const pendingEditorClick = this.#pendingEditorClick;
+        if (pendingEditorClick !== undefined) {
+          if (event.column === pendingEditorClick.column && event.row === pendingEditorClick.row) return true;
+          this.#pendingEditorClick = undefined;
+          this.#viewport.pressSelection(pendingEditorClick.column, pendingEditorClick.row, now, { continueMultiClick: false });
+          this.#viewport.extendSelection(event.column, event.row, now, false);
+          this.#updateSelectionAutoScroll(event.column, event.row, hits.viewportHeight, frame.rows.length);
+          activity = true;
+          return true;
+        }
         if (this.#viewport.selectionActive) {
           this.#viewport.extendSelection(event.column, event.row, now, false);
-          if (this.#pendingEditorClick !== undefined
-            && (event.column !== this.#pendingEditorClick.column || event.row !== this.#pendingEditorClick.row)) {
-            this.#pendingEditorClick = undefined;
-          }
           this.#updateSelectionAutoScroll(event.column, event.row, hits.viewportHeight, frame.rows.length);
           activity = true;
           return true;
@@ -531,11 +537,12 @@ export class SessionViewportController {
         }
         if (event.row >= 1 && event.row <= frame.rows.length && event.column <= frame.descriptor.width) {
           if (editorFrame !== undefined && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
+            // Invariant: no-drag prompt clicks remain visually editor-owned. Distinct
+            // motion promotes from this exact origin into complete-frame selection.
             this.#pendingEditorClick = { column: event.column, row: event.row };
+          } else {
+            this.#viewport.pressSelection(event.column, event.row, now);
           }
-          // Invariant: frame selection includes transient and dock rows without changing
-          // semantic ownership; no-drag editor presses replay on release.
-          this.#viewport.pressSelection(event.column, event.row, now);
           repaint = true;
           return true;
         }
@@ -556,18 +563,21 @@ export class SessionViewportController {
           repaint = true;
           return true;
         }
-        if (this.#viewport.releaseSelection()) {
-          this.#stopSelectionAutoScroll();
-          const pendingEditorClick = this.#pendingEditorClick;
+        const pendingEditorClick = this.#pendingEditorClick;
+        if (pendingEditorClick !== undefined) {
           this.#pendingEditorClick = undefined;
-          if (pendingEditorClick !== undefined && this.#editorPointerFrame !== undefined) {
-            this.#viewport.clearSelection();
+          if (this.#editorPointerFrame !== undefined) {
             const editorRow = pendingEditorClick.row - this.#editorPointerFrame.rowStart + 1;
             this.#editor.handlePointer({ kind: "press", button: 0, column: pendingEditorClick.column, row: editorRow });
             this.#editor.handlePointer({ kind: "release", button: 0, column: pendingEditorClick.column, row: editorRow });
-          } else if (this.#copyOnSelect) {
-            completedCopy = this.#viewport.captureSelectedText() ?? undefined;
           }
+          forceRepaint = true;
+          repaint = true;
+          return true;
+        }
+        if (this.#viewport.releaseSelection()) {
+          this.#stopSelectionAutoScroll();
+          if (this.#copyOnSelect) completedCopy = this.#viewport.captureSelectedText() ?? undefined;
           // Platform: restore OSC 8 links only after the held-button selection paint has
           // ended, then overwrite any terminal-cached hover cells immediately.
           forceRepaint = true;
