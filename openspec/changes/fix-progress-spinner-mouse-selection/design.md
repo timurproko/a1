@@ -31,7 +31,7 @@ This supplements rather than replaces direct viewport-controller coverage. A con
 
 ### 2. Project document-originated ranges across the complete visible frame
 
-The viewport will stop choosing its visible selection row count from the anchor alone. Any mixed range with one dock endpoint will project against the complete visible base-frame row set regardless of which endpoint supplied the origin, while document-only ranges remain clipped to the scrollable viewport. Each endpoint retains its existing document, dock, or screen-qualified anchor: a document endpoint that scrolls still follows its source row, a dock endpoint remains pinned, and unsafe source identity still clears the selection.
+The viewport will stop choosing its visible selection row count from the anchor alone. Any mixed range with one dock endpoint will project against the complete visible base-frame row set regardless of which endpoint supplied the origin, while document-only ranges remain clipped to the scrollable viewport. Persistent document endpoints continue following source identity and dock endpoints remain pinned. Transient viewport-tail endpoints use a suffix-relative positional anchor, so an 80 ms spinner-glyph replacement cannot invalidate a drag paused on `Working…`; removal or remapping outside the transient suffix still clears the uncertain endpoint.
 
 The progress status remains passive: it introduces no handler, focus request, capture, or status-sized control region. Globally disabling component mouse routing was rejected because it would break explicit viewport controls, overlays, dialogs, editor behavior, links, and comparison profiles. Converting endpoints to screen coordinates was rejected because it would regress retained selection during followed output.
 

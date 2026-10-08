@@ -1153,6 +1153,44 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     },
   );
 
+  it.each(["above", "below"] as const)("keeps a terminal drag active on Working while its animation ticks from %s", async origin => {
+    const messages = [{ role: "assistant", content: [{ type: "text", text: "animated boundary" }], timestamp: Date.now() }];
+    const { terminal, shell, engine } = await fixture(messages, [], true);
+    try {
+      terminal.resize(60, 12);
+      shell.root.setFullscreenCopyOnSelect(false);
+      engine.session.emit({ type: "agent_start" });
+      await shell.backend.flushEvents();
+      shell.runtime.renderNow();
+      const before = shell.root.render(60).map(stripTerminalSequences);
+      const contentRow = before.findIndex(row => row.includes("animated boundary")) + 1;
+      const workingRow = before.findIndex(row => row.includes("Working")) + 1;
+      const inputRow = before.findIndex(row => row.startsWith("❯ ")) + 1;
+      const column = before[workingRow - 1]!.indexOf("Working") + 1;
+      const startRow = origin === "above" ? contentRow : inputRow;
+      const endRow = origin === "above" ? inputRow : contentRow;
+
+      terminal.input(`\u001b[<0;${column};${startRow}M`);
+      terminal.input(`\u001b[<32;${column};${workingRow}M`);
+      shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(true);
+      await new Promise(resolve => setTimeout(resolve, 240));
+      shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(true);
+      expect(shell.root.render(60)[workingRow - 1]).toContain("\u001b[48;2;38;79;120m");
+
+      terminal.input(`\u001b[<35;${column};${endRow}M`);
+      terminal.input(`\u001b[<0;${column};${endRow}m`);
+      shell.runtime.renderNow();
+      const selected = shell.root.render(60);
+      expect(selected[startRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[workingRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[endRow - 1]).toContain("\u001b[48;2;38;79;120m");
+    } finally {
+      await shell.dispose();
+    }
+  });
+
   it("continues an active drag through no-button motion reports", async () => {
     const messages = [
       { role: "assistant", content: [{ type: "text", text: "Selectable assistant words" }], timestamp: Date.now() },

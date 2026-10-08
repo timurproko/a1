@@ -20,3 +20,4 @@
 - [x] 4.2 Exclude transient status, input, autocomplete, dock/status, and whitespace-only ranges from automatic and Ctrl+C clipboard submission while consuming visual-only Ctrl+C safely.
 - [x] 4.3 Copy one submitted prompt as semantic prompt text without `❯`, padding, or timestamp, while preserving its visible chrome when it participates in a larger transcript range.
 - [x] 4.4 Preserve the selected row background beneath the copied acknowledgement and add focused paint/clipboard regressions.
+- [x] 4.5 Anchor transient viewport-tail endpoints independently of the animated spinner glyph and prove above- and below-origin terminal drags survive real animation ticks while paused on `Working…`.

@@ -1172,6 +1172,41 @@ describe("transcript viewport", () => {
     expect(viewport.captureSelectedText()).toBeNull();
   });
 
+  it.each(["status-to-content", "content-to-status"] as const)(
+    "keeps an active %s drag anchored while the spinner glyph advances",
+    direction => {
+      const viewport = new TranscriptViewport();
+      const input = {
+        documentRows: ["Selectable transcript", "⠋ Working..."],
+        selectableDocumentRowCount: 1,
+        dockRows: ["❯ input", "footer status"],
+        promptAnchors: [],
+        width: 30,
+        height: 4,
+        now: 100,
+      };
+      viewport.compose(input);
+      const startRow = direction === "status-to-content" ? 4 : 1;
+      const endRow = direction === "status-to-content" ? 1 : 4;
+      viewport.pressSelection(2, startRow, 101);
+      viewport.extendSelection(8, 2, 102, false);
+      expect(viewport.selectionActive).toBe(true);
+
+      const animated = viewport.compose({ ...input, documentRows: ["Selectable transcript", "⠙ Working..."], now: 103 });
+      expect(viewport.selectionActive).toBe(true);
+      expect(animated.rows[1]).toContain("\u001b[47m");
+
+      viewport.extendSelection(12, endRow, 104, false);
+      viewport.releaseSelection();
+      const selected = viewport.compose({ ...input, documentRows: ["Selectable transcript", "⠹ Working..."], now: 105 });
+      expect(viewport.hasSelection).toBe(true);
+      expect(selected.rows[startRow - 1]).toContain("\u001b[47m");
+      expect(selected.rows[1]).toContain("\u001b[47m");
+      expect(selected.rows[endRow - 1]).toContain("\u001b[47m");
+      expect(viewport.selectedText()).toContain("transcript");
+    },
+  );
+
   it("keeps the scrollbar thumb visible through a multi-row text selection", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);

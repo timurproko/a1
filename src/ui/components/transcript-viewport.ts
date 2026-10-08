@@ -162,11 +162,23 @@ type DocumentSelectionRowAnchor = {
 };
 type SelectionRowAnchor =
   | DocumentSelectionRowAnchor
+  | { readonly kind: "transient"; readonly fromBottom: number }
   | { readonly kind: "dock"; readonly fromBottom: number }
   | { readonly kind: "screen"; readonly row: number; readonly source: string };
 
 function documentSelectionAnchor(row: number, source: string): DocumentSelectionRowAnchor {
   return { kind: "document", row, source, identity: stripAnsi(source).trimEnd() };
+}
+
+function viewportSelectionAnchor(
+  row: number,
+  source: string,
+  selectableDocumentRowCount: number,
+  documentRowCount: number,
+): SelectionRowAnchor {
+  return row < selectableDocumentRowCount
+    ? documentSelectionAnchor(row, source)
+    : { kind: "transient", fromBottom: documentRowCount - row - 1 };
 }
 
 interface SelectionAnchors {
@@ -599,7 +611,12 @@ export class TranscriptViewport {
     const visibleAnchors: SelectionRowAnchor[] = Array.from({ length: viewportHeight }, (_value, row) => {
       const documentRow = this.#scrollTop + row;
       return documentRow < documentRows.length
-        ? documentSelectionAnchor(documentRow, documentRows[documentRow] ?? "")
+        ? viewportSelectionAnchor(
+            documentRow,
+            documentRows[documentRow] ?? "",
+            this.#selectableDocumentRowCount,
+            documentRows.length,
+          )
         : { kind: "screen", row, source: this.#selectionRows[row] ?? "" };
     });
     // Invariant: a pinned prompt is chrome over its hidden source row, which clips like off-screen rows.
@@ -910,7 +927,12 @@ export class TranscriptViewport {
       // composed. Resolve ordinary viewport rows from that latest position instead of stale paint.
       const documentRow = this.#scrollTop + line;
       if (documentRow >= 0 && documentRow < this.#documentRows.length) {
-        return documentSelectionAnchor(documentRow, this.#documentRows[documentRow] ?? "");
+        return viewportSelectionAnchor(
+          documentRow,
+          this.#documentRows[documentRow] ?? "",
+          this.#selectableDocumentRowCount,
+          this.#documentRows.length,
+        );
       }
     }
     return this.#selectionRowAnchors[line];
@@ -932,6 +954,13 @@ export class TranscriptViewport {
           || this.#selectionRows[anchor.row] !== anchor.source
           ? undefined
           : { line: anchor.row, anchor };
+      }
+      if (anchor.kind === "transient") {
+        const documentRow = documentRows.length - anchor.fromBottom - 1;
+        if (documentRow < this.#selectableDocumentRowCount || documentRow >= documentRows.length) return undefined;
+        const visible = this.#selectionRowAnchors.findIndex(candidate =>
+          candidate?.kind === "transient" && candidate.fromBottom === anchor.fromBottom);
+        return visible < 0 ? undefined : { line: visible, anchor };
       }
       if (anchor.row >= 0 && anchor.row < documentRows.length
         && stripAnsi(documentRows[anchor.row] ?? "").trimEnd() === anchor.identity) {
