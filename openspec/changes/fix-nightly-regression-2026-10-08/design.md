@@ -4,9 +4,16 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- The failure is a Unix-only fixture mismatch introduced by `8e09390e`: the `/.artifacts-user/` ignore rule matches a directory/junction but not a Unix symlink, so dirty-content detection returns before the test can exercise the intended unapproved disposable-root link rejection.
+- Ignore the fixture path regardless of file type with `/.artifacts-user`. Keep the production checks and the `content-link` assertion unchanged so Linux, macOS, and Windows all exercise the same fail-closed behavior.
 
 ## Evidence
+
+- Failed-run inspection identified the same assertion owner on both Unix lanes: `disposable-root links fail closed on resolution, cycles, identity drift, and replacement` fulfilled instead of rejecting at line 421. Every Windows lane passed, and the aggregate failure was downstream orchestration.
+- `8e09390e` introduced both the cross-platform disposable-root test and its `/.artifacts-user/` fixture rule. Git's trailing-slash pattern matches directories (and Windows junctions presented as directories) but not Unix symbolic links, so Linux and macOS classified the link as ordinary untracked content before reaching the unchanged `content-link` assertion.
+- Focused implementation evidence on Windows Node 24.21.0: `node --test --test-name-pattern="disposable-root links fail closed" test/repository-governance/local-cleanup.node.mjs` passed. The test still covers target identity drift, replacement by a directory, cycles, a missing target, and rejection of an unapproved disposable-root link without weakening assertions or bounds.
+- Pre-finalization observation: the implementation changes only the fixture ignore rule from `/.artifacts-user/` to `/.artifacts-user`, making files and links eligible for the intended inspection on every platform; production cleanup behavior is unchanged. Selected exact-head PR Full regression remains deferred while the PR is draft and will provide Linux and macOS evidence after finalization.
+- Known gaps: none.
 
 - Run [Full regression #56](https://github.com/timurproko/a1/actions/runs/37756869404) (attempt 1, schedule) on `9bc003b` at 2026-10-08T09:28:16Z:
   - `vitest-fast-resource-sensitive` (`fast-resource-sensitive`) failed on macos-15-node24, ubuntu-24.04-node24 with exit 1.
