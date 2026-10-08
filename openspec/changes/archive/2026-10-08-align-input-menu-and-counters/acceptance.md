@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-08-align-input-menu-and-counters/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-08-align-input-menu-and-counters/acceptance.md",
   "finalizedDate": "2026-10-08",
-  "specBaseSha": "3b2c0f1dc8c8878f1f3c9e31b0e4387ec5d412c2",
+  "specBaseSha": "51a30d4bc66eea9be61960cca2a2706268c39790",
   "acceptanceScenarios": [
     "Autocomplete selection markers use the working indicator's one-cell gutter while prompt text retains its two-cell prefix.",
     "Autocomplete and history counters use the shared three-cell inset with full-width, narrow, and overflow border behavior preserved.",
