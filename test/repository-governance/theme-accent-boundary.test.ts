@@ -20,7 +20,6 @@ const OWNED_DIALOG_BORDER_CONSUMERS = [
 ] as const;
 const OWNED_MARKDOWN_CONSUMERS = [
   "src/integrations/pi/components/components.ts",
-  "src/integrations/pi/components/shell-hotkey-sections.ts",
   "src/integrations/pi/components/shell-presenters-info.ts",
   "src/integrations/pi/components/shell-presenters-transcript.ts",
   "src/integrations/pi/components/submitted-prompt-adapter.ts",
@@ -43,12 +42,18 @@ describe("semantic accent-family architecture", () => {
     }
   });
 
-  it("keeps owned Markdown headings and list markers on the active A1 theme facade", async () => {
+  it("keeps owned Markdown and accent-painted hotkeys on active A1 theme facades", async () => {
     for (const path of OWNED_MARKDOWN_CONSUMERS) {
       const source = await readFile(path, "utf8");
       expect(source, path).toContain("getPiMarkdownTheme");
       expect(source, path).not.toMatch(/\bgetMarkdownTheme\b/u);
     }
+    const sections = await readFile("src/integrations/pi/components/shell-hotkey-sections.ts", "utf8");
+    expect(sections).toContain("getPiHotkeysMarkdownTheme");
+    const presenter = await readFile("src/integrations/pi/components/shell-presenters-info.ts", "utf8");
+    expect(presenter).toContain("getPiHotkeysMarkdownTheme");
+    const theme = await readFile("src/integrations/pi/components/theme.ts", "utf8");
+    expect(theme).toContain('code: text => piTheme().fg("accent", text)');
   });
 
   it("invalidates retained transcript components and keeps filters secondary while state markers match text", async () => {

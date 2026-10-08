@@ -22,6 +22,7 @@ Introducing the setting SHALL advance the owned settings version with forward mi
 - **WHEN** the reader selects another accent color
 - **THEN** the A1 profile SHALL persist that value
 - **AND** the active bare-A1 interface SHALL repaint with the selected semantic accent before the change reports success
+- **AND** keyboard-shortcut key spans SHALL use the selected primary accent
 - **AND** no Pi settings document SHALL change
 
 #### Scenario: Select the initial purple palette

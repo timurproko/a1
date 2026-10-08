@@ -27,6 +27,14 @@ export function getPiMarkdownTheme(): MarkdownTheme {
   };
 }
 
+/** Hotkey key spans use the live primary accent without changing general Markdown code. */
+export function getPiHotkeysMarkdownTheme(): MarkdownTheme {
+  return {
+    ...getPiMarkdownTheme(),
+    code: text => piTheme().fg("accent", text),
+  };
+}
+
 /** Select-list roles resolved through A1's active theme rather than Pi's package-global base theme. */
 export function getPiSelectListTheme(): SelectListTheme {
   return {

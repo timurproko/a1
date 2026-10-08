@@ -2,7 +2,7 @@ import { DynamicBorder } from "../startup-public.js";
 import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleWidth, type KeybindingsConfig } from "@earendil-works/pi-tui";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
-import { getPiMarkdownTheme, paintPiBorder, PINNED_PI_LAYOUT, piTheme } from "./theme.js";
+import { getPiHotkeysMarkdownTheme, getPiMarkdownTheme, paintPiBorder, PINNED_PI_LAYOUT, piTheme } from "./theme.js";
 import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";
 
 export interface PiShellSessionInfoPresentation {
@@ -208,7 +208,7 @@ export function renderPiShellHotkeysLines(presentation: PiShellHotkeysPresentati
 }
 
 function hotkeysMarkdownComponent(markdown: string): Markdown {
-  return new Markdown(markdown, 1, 1, getPiMarkdownTheme());
+  return new Markdown(markdown, 1, 1, getPiHotkeysMarkdownTheme());
 }
 
 export function hotkeysMarkdown(
