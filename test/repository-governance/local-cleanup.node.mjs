@@ -229,6 +229,28 @@ test("complete registers one exact candidate, applies central disposables, and i
   assert.equal(repeated.results.length, 1); assert.equal(repeated.results[0].disposition, "already-absent");
 });
 
+test("standalone documentation evidence uses the ordinary completed-candidate cleanup path", async t => {
+  const f = await fixture(t, true, false);
+  const verify = async () => ({ disposition: "eligible", kind: "standalone-documentation",
+    documentationReason: "standalone-documentation", sourcePr: 20, sourceHead: f.snapshot.head,
+    sourceMerge: f.snapshot.head, archivePr: null, archiveHead: f.snapshot.head,
+    archiveMerge: f.snapshot.head, targetSha: f.snapshot.head, refs: [] });
+  const report = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify, git: f.boundedGit } });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.equal(await exists(f.path), false);
+  assert.equal(await git(f.primary, "show-ref", "--verify", "--quiet", "refs/heads/feature/example").then(() => true, () => false), false);
+  const entry = (await f.store.read()).entries.find(item => item.change === "example");
+  assert.equal(entry.state, "done"); assert.equal(entry.step, "complete");
+
+  const dirty = await fixture(t, true, false); await writeFile(join(dirty.path, "tracked.txt"), "dirty\n");
+  const dirtyVerify = async () => ({ ...await verify(), sourceHead: dirty.snapshot.head,
+    sourceMerge: dirty.snapshot.head, archiveHead: dirty.snapshot.head, archiveMerge: dirty.snapshot.head, targetSha: dirty.snapshot.head });
+  const blocked = await completeLocalCleanup({ identity: dirty.identity, store: dirty.store, reader: {}, path: dirty.path,
+    change: "example", sourcePr: 20, cwd: dirty.primary, reconcileOptions: { verify: dirtyVerify, git: dirty.boundedGit } });
+  assert.equal(blocked.results[0].reason, "worktree-content"); assert.equal(await exists(dirty.path), true);
+});
+
 test("complete blocks unknown ignored content and conflicting ownership", async t => {
   let f = await fixture(t, false, false); await writeFile(join(f.path, "secret.txt"), "preserve");
   await mkdir(join(f.path, "node_modules-user")); await writeFile(join(f.path, "node_modules-user", "data"), "preserve-near-match");
