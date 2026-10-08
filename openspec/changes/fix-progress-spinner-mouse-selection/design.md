@@ -1,0 +1,64 @@
+## Context
+
+See `proposal.md` for motivation. Bare A1 renders live status through `createPiShellStatus`: the owned `Working…` indicator is a `StatusIndicator`/Pi TUI `Loader`, and the shell flattens its rendered rows into the bottom-aligned transient viewport tail. The complete-frame selector is supposed to treat visible working-status rows as base-session text. Pi TUI's public mouse contract likewise leaves unhandled primary-button drags available for transcript selection.
+
+The current shell coverage double-clicks `Working` by invoking `handleViewportPreInput` directly. That proves the selection model can paint the row, but it bypasses fullscreen component dispatch and therefore does not prove that terminal-delivered press, motion, and release reports remain unhandled before frame selection receives them. The implementation must close that ownership gap without broad mouse suppression or a second selection system.
+
+## Goals / Non-Goals
+
+**Goals:**
+
+- Make ordinary progress-spinner cells transparent to primary-button gesture handling until complete-frame selection owns the sequence.
+- Let a drag start on the spinner row and cross it upward or downward with the same endpoints, paint, and copied text as adjacent frame rows.
+- Cover both component dispatch and the real fullscreen terminal-input path, including no-button motion reports used during an active drag.
+- Preserve one owner for each complete gesture and keep explicit controls and modal surfaces authoritative.
+
+**Non-Goals:**
+
+- Changing spinner text, animation cadence, colors, spacing, lifecycle, or viewport placement.
+- Making the spinner a clickable control or giving it keyboard focus.
+- Changing wheel scrolling, scrollbar/sticky/jump controls, release-notice controls, overlays, right-click paste, or editor click semantics.
+- Changing regular-mode terminal-owned selection, `a1 pi`, clipboard transport, or automatic-copy policy.
+
+## Decisions
+
+### 1. Prove ownership at the dispatch boundary
+
+Focused tests will first route normalized primary press, drag/move, and release events through the progress-status component and through the fullscreen terminal adapter. They will assert that ordinary spinner cells do not return a handled or captured component result and that the same reports reach the one complete-frame selection owner.
+
+This supplements rather than replaces direct viewport-controller coverage. A controller-only test was rejected as the regression gate because it can pass while an enclosing component or hit region consumes the terminal report first.
+
+### 2. Keep the progress row passive for primary selection gestures
+
+The narrow status/component or hit-routing seam identified by the failing dispatch test will leave ordinary primary-button press, drag/motion, and release events unhandled. It will not request focus or capture. Once frame selection owns a gesture, motion across the progress row remains selection motion regardless of which side supplied the anchor.
+
+Globally disabling component mouse routing was rejected because it would break explicit viewport controls, overlays, dialogs, editor behavior, links, and comparison profiles. Forwarding a handled result to the selector was also rejected because it creates two owners and makes capture/release ordering fragile.
+
+### 3. Distinguish passive status text from explicit controls
+
+Only ordinary progress-spinner cells receive pass-through behavior. Existing controls retain their declared hit regions and complete-gesture ownership, and a frame-selection gesture that began elsewhere may cross those visual rows without activating a control according to the existing frame-selection contract. Wheel events continue through their current scroll owner rather than being reclassified as text selection.
+
+No new status-sized hit region will be introduced. Spinner animation invalidation remains presentation-only and cannot acquire or cancel a pointer gesture.
+
+### 4. Validate starts and crossings in both directions
+
+Shell integration coverage will locate the rendered `Working…` row from the current frame and send SGR reports through the terminal fixture. Separate cases will:
+
+- press on the status text, move into transcript content, and release;
+- press above the status, move through it, and release below it;
+- perform the reverse crossing from below to above; and
+- retain selection while spinner ticks request renders.
+
+Assertions will cover ownership, dark-blue selection paint, normalized copied text, absence of truncation at the status row, and absence of component capture or control activation. Component-level coverage will keep the cause local; terminal-paint/shell coverage will prove the user-visible path.
+
+## Risks / Trade-offs
+
+- **[The fix makes real controls passive]** → Scope pass-through to ordinary status cells and retain existing control hit tests before selection admission.
+- **[The direct controller path masks another interception layer]** → Require terminal-adapter and component-dispatch tests, not only `handleViewportPreInput` calls.
+- **[Animation replaces selection paint]** → Compose each timer-driven frame from current selection state and assert the highlighted range survives spinner renders.
+- **[Release reaches a different owner]** → Keep one latched frame-selection owner for the complete press/motion/release sequence and verify both crossing directions.
+- **[Comparison behavior changes]** → Keep the change behind bare A1's complete-frame selection route and retain focused `a1 pi` isolation coverage.
+
+## Migration Plan
+
+No persisted-data migration is required. After explicit approval, add the failing dispatch and shell regressions, make the narrow ownership correction, and validate the focused status/selection suites before broader CI. Rollback restores the previous event-routing behavior without changing sessions, settings, or dependency bytes.
