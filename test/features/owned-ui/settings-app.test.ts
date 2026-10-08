@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
-import { OWNED_UI_SETTING_DECLARATIONS, OwnedSettingsManager, type OwnedUiSettingDeclaration } from "../../../src/ui/settings/index.js";
+import {
+  OWNED_UI_SETTING_DECLARATIONS,
+  OwnedSettingsManager,
+  type OwnedUiSettingDeclaration,
+  type OwnedUiSettingValue,
+} from "../../../src/ui/settings/index.js";
 import { SettingsApp } from "../../../src/features/owned-ui/index.js";
 import type { AppHostServices } from "../../../src/ui/apps/index.js";
 import { finalizeFrame, type UiTheme, type UiThemeToken } from "../../../src/ui/components/index.js";
@@ -187,7 +192,7 @@ async function app(
   failWrites = false,
   scrollbarSpeed?: "normal" | "fast" | "high",
   declarations: readonly OwnedUiSettingDeclaration[] = OWNED_UI_SETTING_DECLARATIONS,
-  stored: Readonly<Record<string, string>> = {},
+  stored: Readonly<Record<string, OwnedUiSettingValue>> = {},
 ): Promise<{ app: SettingsApp; session: OwnedSettingsManager; writes: { key: string; value: AgentJsonValue }[] }> {
   const backing = port(failWrites);
   const seed = new OwnedSettingsManager({ configDir: root, profileId: "profile", declarations, migrations: [] });
@@ -487,6 +492,37 @@ describe("the settings screen", () => {
     expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
   });
 
+  it("shows only the selected value through a deferred save and keeps shortcut guidance", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Update check");
+
+    target.onInput?.(ENTER, HOST);
+    let row = find(target, "Update check");
+    expect(row).toMatch(/Update check\s+no/u);
+    expect(row).not.toContain("effective");
+    expect(row).not.toContain("next start");
+
+    await settleChanges();
+    row = find(target, "Update check");
+    expect(row).toMatch(/Update check\s+no/u);
+    expect(row).not.toContain("effective");
+    expect(row).not.toContain("next start");
+    expect(find(target, "/ search")).not.toBe("");
+    expect(screen(target).join("\n")).not.toContain("stored and applies");
+
+    const reopened = new SettingsApp(session);
+    selectRow(reopened, "Update check");
+    row = find(reopened, "Update check");
+    expect(row).toMatch(/Update check\s+no/u);
+    expect(row).not.toContain("effective");
+    expect(row).not.toContain("next start");
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(find(target, "/ search")).not.toBe("");
+    expect(screen(target).join("\n")).not.toContain("restored and applies");
+  });
+
   it("shows only the optimistic value while a live save is unresolved", async () => {
     const { app: target, session } = await app(false, "normal", WHEEL_SETTINGS);
     vi.spyOn(session, "change").mockReturnValue(new Promise(() => {}));
@@ -665,6 +701,23 @@ describe("the settings screen", () => {
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
   });
 
+  it("keeps shortcut guidance after a successful deferred structured change", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Warnings");
+    target.onInput?.(ENTER, HOST);
+    vi.spyOn(session, "changeStructured").mockResolvedValue({
+      status: "deferred", applied: false, pendingRestart: true, application: "next-start",
+      storedValue: {}, effectiveValue: {}, limitationReason: null, failure: null,
+    });
+
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    target.onInput?.(ESC, HOST);
+
+    expect(find(target, "/ search")).not.toBe("");
+    expect(screen(target).join("\n")).not.toContain("stored and applies");
+  });
+
   it("uses the structured dialog's top rule as the sole list boundary", async () => {
     const { app: target } = await app();
     selectRow(target, "Warnings");
@@ -766,7 +819,7 @@ describe("the settings screen", () => {
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: true, unknownTools: false } });
   });
 
-  it("consumes pointer input throughout a structured dialog without changing it", async () => {
+  it("consumes pointer editing and dialog-area wheel input without changing a structured dialog", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Warnings");
     target.onInput?.(ENTER, HOST);
@@ -777,11 +830,29 @@ describe("the settings screen", () => {
     for (const event of [
       { kind: "motion" as const, button: 0, row: row + 1, column: valueColumn },
       { kind: "press" as const, button: 0, row: row + 1, column: valueColumn },
-      { kind: "wheel-down" as const, button: 0, row: 2, column: 70 },
+      { kind: "wheel-down" as const, button: 0, row: row + 1, column: valueColumn },
     ]) {
       expect(target.onMouse?.(event, HOST)).toEqual({ consumed: true, render: false });
     }
     expect(screen(target)).toEqual(before);
+    expect(writes).toHaveLength(0);
+  });
+
+  it("scrolls settings content behind an unchanged structured dialog", async () => {
+    const { app: target, writes } = await app(false, undefined, WHEEL_SETTINGS);
+    selectRow(target, "Warnings");
+    target.onInput?.(ENTER, HOST);
+
+    const before = screen(target);
+    const beforeTitle = before.findIndex(line => line.trim() === "Warnings");
+    expect(beforeTitle).toBeGreaterThan(1);
+    expect(target.onMouse?.({ kind: "wheel-up", button: 0, row: 2, column: 70 }, HOST))
+      .toEqual({ consumed: true });
+
+    const after = screen(target);
+    const afterTitle = after.findIndex(line => line.trim() === "Warnings");
+    expect(after.slice(0, afterTitle - 1)).not.toEqual(before.slice(0, beforeTitle - 1));
+    expect(after.slice(afterTitle - 1)).toEqual(before.slice(beforeTitle - 1));
     expect(writes).toHaveLength(0);
   });
 

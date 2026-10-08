@@ -475,24 +475,26 @@ export class SettingsApp implements UiApp {
       return { consumed: true };
     }
 
-    if (this.#structured !== null) {
-      // Invariant: the structured surface is keyboard-only. It owns every pointer report so
-      // neither its selection nor the Settings list behind it can react.
-      return { consumed: true, render: false };
-    }
-
     if (event.kind === "wheel-up" || event.kind === "wheel-down") {
       // Invariant: the whole list pane owns wheel scrolling, including blank space beside
-      // short labels. It must not depend on finding an item under the pointer.
+      // short labels. A fixed structured dialog keeps that content interaction available.
       const screenRow = event.row - 1;
       const wheelBottom = this.#filter === null
         ? this.#bodyTopForFrame + this.#bodyHeightForFrame
         : this.#panelTopForFrame + SETTINGS_SEARCH_INPUT_ROWS + SETTINGS_STATUS_ROWS;
-      if (screenRow < 0 || screenRow >= wheelBottom) return { consumed: false };
-      const distance = scrollbarWheelRows(this.#scrollbarSpeed());
-      if (this.#filter !== null) this.#scrollBeforeFilter = null;
-      this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? distance : -distance));
-      return { consumed: true };
+      if (screenRow >= 0 && screenRow < wheelBottom) {
+        const distance = scrollbarWheelRows(this.#scrollbarSpeed());
+        if (this.#filter !== null) this.#scrollBeforeFilter = null;
+        this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? distance : -distance));
+        return { consumed: true };
+      }
+      if (this.#structured === null) return { consumed: false };
+    }
+
+    if (this.#structured !== null) {
+      // Invariant: the structured surface is keyboard-only. Non-content-wheel pointer reports
+      // cannot change its selection or act on the Settings list behind it.
+      return { consumed: true, render: false };
     }
 
     const rail = this.#railPointer(event);
@@ -767,9 +769,7 @@ export class SettingsApp implements UiApp {
       const failure = changeFailure(outcome);
       if (failure === null) {
         this.#recordUndo({ kind: "structured", sequence, entry: open.entry, previous, forward });
-        this.#notice = outcome.status === "deferred" && outcome.application !== null
-          ? `${labelOf(open.entry)} is stored and applies ${applicationLabel(outcome.application)}`
-          : null;
+        this.#notice = null;
         return;
       }
       // Concurrency: only roll back the dialog if no later press has moved the record on.
@@ -901,9 +901,7 @@ export class SettingsApp implements UiApp {
       if (previous !== null && previous !== value) this.#recordUndo({ kind: "scalar", sequence, entry, previous });
       // Concurrency: a later press may have moved on; only the last request clears itself.
       if (this.#pending.get(key) === value) this.#pending.delete(key);
-      this.#notice = outcome.status === "deferred" && outcome.application !== null
-        ? `${labelOf(entry)} is stored and applies ${applicationLabel(outcome.application)}`
-        : null;
+      this.#notice = null;
     });
   }
 
@@ -964,9 +962,7 @@ export class SettingsApp implements UiApp {
       this.#recordUndo(record);
       this.#notice = `Could not restore ${labelOf(record.entry)}: ${failure}`;
     } else {
-      this.#notice = outcome.status === "deferred" && outcome.application !== null
-        ? `${labelOf(record.entry)} is restored and applies ${applicationLabel(outcome.application)}`
-        : null;
+      this.#notice = null;
     }
     this.#undoActive = false;
     this.#drainUndo();
@@ -1072,7 +1068,7 @@ export class SettingsApp implements UiApp {
       ? CONFIGURE
       : shown === null
         ? describeRaw(entry.rawValue)
-        : this.#pending.has(key) ? displayValue(shown) : effectiveDisplay(entry, shown);
+        : displayValue(shown);
     const range = rangeOf(entry);
     return {
       key,
@@ -1279,24 +1275,6 @@ function rangeOf(entry: OwnedUiSettingsEntry): NumericRange {
 function displayValue(value: OwnedUiSettingValue): string {
   if (typeof value === "boolean") return value ? "yes" : "no";
   return String(value);
-}
-
-function effectiveDisplay(entry: OwnedUiSettingsEntry, stored: OwnedUiSettingValue): string {
-  const effective = entry.effectiveValue;
-  if (effective === stored) return displayValue(stored);
-  const shownEffective = typeof effective === "string" || typeof effective === "number" || typeof effective === "boolean"
-    ? displayValue(effective)
-    : describeRaw(effective);
-  return `${displayValue(stored)} (effective ${shownEffective}; ${applicationLabel(entry.application)})`;
-}
-
-function applicationLabel(application: OwnedUiSettingsEntry["application"]): string {
-  switch (application) {
-    case "live": return "live";
-    case "next-session": return "in the next session";
-    case "next-start": return "on the next start";
-    case "current-exit": return "when the current session exits";
-  }
 }
 
 function describeRaw(value: unknown): string {
