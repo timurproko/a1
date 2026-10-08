@@ -22,7 +22,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-08-customize-ui-accent/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-08-customize-ui-accent/acceptance.md",
   "finalizedDate": "2026-10-08",
-  "specBaseSha": "2badef9be9b34ed42f3498bfb53cbce8189e33b2",
+  "specBaseSha": "92479020152a1c48a85aec7185200860171b8e2b",
   "acceptanceScenarios": [
     "Every named choice stores only its primary accent; one reusable transform derives secondary headings, active filters, Markdown list markers, all dialog bars, and low-prominence surfaces in truecolor and 256-color terminals, and accepts future custom colors.",
     "Filled scope/default markers use neutral item text color rather than an accent-family color.",
@@ -35,7 +35,7 @@ The maintainer integration decision accepts these scenarios:
     "Scrolled-out sticky prompts and jump-to-bottom controls remain neutral grey until hover applies the configured accent."
   ],
   "archiveDigest": "f2920a3d8684eb012c7ed288e4196bb2bce5da24118352cd4041066051b1475e",
-  "specDigest": "abf3517c093e1139e658f55e935ff1e08d6a863da56ebcc5a99f8108c21c2c67",
+  "specDigest": "afa5d782a08eee224af2b0aad92e689dfd48797fb1355909770a09f259a10d57",
   "tasksDigest": "1c6ee5c5c28f0bc4856af78d5342a74f73b1b5257515c736131fe1c2e9d19003",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
