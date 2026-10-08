@@ -4,7 +4,7 @@
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
  * preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode
  * Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation
- * excluding internal bookkeeping, standard search input, blue item-bounded menu-arrow selection that
+ * excluding internal bookkeeping, standard search input, blue full-row menu-arrow selection that
  * preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed
  * timestamps, numeric result counters without duplicate label-time status, and a stateful time on/off
  * shortcut, semantic role colors with session naming for the system root, standard
@@ -90,6 +90,20 @@ const MAX_VISIBLE_ANCHOR_CONTENT_WIDTH = 20;
 const MIN_ANCHOR_CONTEXT_WIDTH = 2;
 const MAX_ANCHOR_CONTEXT_WIDTH = 12;
 
+/** Fit and paint a selected viewport row without letting nested SGR changes clear its background. */
+function renderSelectedViewportRow(value: string, width: number): string {
+	const availableWidth = Math.max(0, width);
+	const clipped = truncateToWidth(value, availableWidth, "");
+	const fitted = `${clipped}${" ".repeat(Math.max(0, availableWidth - visibleWidth(clipped)))}`;
+	const marker = "\u0000";
+	const wrapper = theme.bg("selectedBg", marker);
+	const markerIndex = wrapper.indexOf(marker);
+	const on = wrapper.slice(0, markerIndex);
+	const off = wrapper.slice(markerIndex + marker.length);
+	const reasserted = fitted.replace(/\u001b\[[0-?]*[ -/]*m/gu, sequence => `${sequence}${on}`);
+	return `${on}${reasserted}${off}`;
+}
+
 /**
  * Render tree rows into a horizontally clipped viewport.
  *
@@ -121,19 +135,20 @@ function renderHorizontalViewport(rows: HorizontalViewportRow[], width: number):
 
 	// Clip only the body; the fixed-width gutter remains visible as navigation context.
 	return rows.map((row) => {
-		if (viewportWidth === 0) return truncateToWidth(row.gutter, width, "");
+		if (viewportWidth === 0) {
+			const gutter = truncateToWidth(row.gutter, width, "");
+			return row.isSelected ? renderSelectedViewportRow(gutter, width) : gutter;
+		}
 		const leftClipped = horizontalScroll > 0;
 		const widthAfterLeftMarker = Math.max(0, viewportWidth - (leftClipped ? 1 : 0));
 		const rightClipped = row.bodyWidth - horizontalScroll > widthAfterLeftMarker;
 		const rightMarkerText = `…${row.rightClipSuffix}`;
 		const rightMarkerWidth = rightClipped ? visibleWidth(rightMarkerText) : 0;
 		const bodyWidth = Math.max(0, widthAfterLeftMarker - rightMarkerWidth);
-		const marker = (text: string) => row.isSelected
-			? theme.bg("selectedBg", theme.fg("muted", text))
-			: theme.fg("muted", text);
+		const marker = (text: string) => theme.fg("muted", text);
 		const body = sliceByColumn(row.body, horizontalScroll, bodyWidth, true);
 		const line = `${row.gutter}${leftClipped ? marker("…") : ""}${body}${rightClipped ? marker(rightMarkerText) : ""}\x1b[0m`;
-		return truncateToWidth(line, width, "");
+		return row.isSelected ? renderSelectedViewportRow(line, width) : truncateToWidth(line, width, "");
 	});
 }
 
@@ -768,12 +783,8 @@ class TreeList implements Component {
 			const content = this.getEntryDisplayText(flatNode.node);
 			const prefixPart = theme.fg("dim", prefix) + foldMarker;
 			const anchorCol = visibleWidth(prefixPart);
-			let gutter = cursor;
-			let body = prefixPart + label + labelTimestamp + content;
-			if (isSelected) {
-				gutter = theme.bg("selectedBg", gutter);
-				body = theme.bg("selectedBg", body);
-			}
+			const gutter = cursor;
+			const body = prefixPart + label + labelTimestamp + content;
 			const rightClipSuffix = entry.type === "message" && entry.message.role === "toolResult" ? "]" : "";
 			renderedRows.push({ gutter, body, anchorCol, bodyWidth: visibleWidth(body), rightClipSuffix, isSelected });
 		}
