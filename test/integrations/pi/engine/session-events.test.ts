@@ -46,7 +46,10 @@ describe("PiSessionEvents", () => {
     expect(emitted.some(event => event.type === "transcript-block")).toBe(true);
     const completed = emitted.find(event => event.type === "assistant-message-completed");
     expect(completed).toMatchObject({ runSequence: 1, responseSequence: 1, successful: true, toolContinuation: false, model: { modelId: "gpt-5" } });
-    expect(emitted.at(-1)).toMatchObject({ type: "agent-run-settled", successful: true, aborted: false, assistantMessageCount: 1 });
+    expect(emitted.at(-1)).toMatchObject({
+      type: "agent-run-settled", successful: true, aborted: false, assistantMessageCount: 1,
+      stopReason: "stop", toolContinuation: false,
+    });
     expect(calls).toEqual(["usage", "work:Working", "usage", "usage", "usage", "transcript:1", "idle", "view"]);
   });
 
@@ -55,7 +58,9 @@ describe("PiSessionEvents", () => {
     events.handle({ type: "agent_start" });
     state.messages = [assistant("cancelled", { stopReason: "aborted" })];
     events.handle({ type: "agent_settled", aborted: true });
-    expect(emitted.at(-1)).toMatchObject({ type: "agent-run-settled", successful: false, aborted: true });
+    expect(emitted.at(-1)).toMatchObject({
+      type: "agent-run-settled", successful: false, aborted: true, stopReason: "aborted", toolContinuation: false,
+    });
   });
 
   it("returns to the working state after a retry inside a run and ends every state at settlement", () => {

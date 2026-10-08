@@ -40,22 +40,68 @@ describe("OwnedUiSessionShell prompt suggestions", () => {
     } finally { await target.shell.dispose(); }
   });
 
-  it.each(["empty", "error"])("does not extract an archive fallback after %s", async outcome => {
+  it.each(["empty", "error"])("recovers an archive candidate after a first %s result", async outcome => {
     let backend!: OwnedUiPromptSuggestionGeneratorPort;
+    let attempt = 0;
     const diagnostics = new SuggestionDiagnosticCapture({ enabled: true });
     const target = await fixture(SUGGESTION_CONVERSATIONS.archive.messages, [], true, undefined, undefined, undefined, undefined, {
       generator: { generate: request => backend.generate(request) }, enabled: () => true, onChange: () => () => {}, diagnostics,
     });
     backend = target.adapter;
-    target.engine.completeSuggestion = async () => ({ stopReason: outcome === "error" ? "error" : "stop", content: [] });
+    target.engine.completeSuggestion = async () => ++attempt === 1
+      ? { stopReason: outcome === "error" ? "error" : "stop", content: [] }
+      : { stopReason: "stop", content: [{ type: "text", text: "archive it" }] };
     try {
       target.engine.session.emit({ type: "agent_start" });
       target.engine.session.emit({ type: "message_end", message: SUGGESTION_CONVERSATIONS.archive.messages.at(-1) });
       target.engine.session.emit({ type: "agent_settled" });
       await target.adapter.flushEvents();
       await nextImmediate();
-      expect(stripTerminalSequences(target.shell.root.editor.render(60).join("\n"))).not.toContain("archive it");
-      expect(diagnostics.snapshot().map(record => record.event)).toEqual(["started", outcome === "error" ? "provider-failure" : "empty"]);
+      expect(stripTerminalSequences(target.shell.root.editor.render(60).join("\n"))).toContain("archive it");
+      expect(diagnostics.snapshot().map(record => record.event)).toEqual([
+        "started", outcome === "error" ? "provider-failure" : "empty", "started", "displayed",
+      ]);
+      expect(diagnostics.snapshot().filter(record => record.event === "started").map(record => record.trigger))
+        .toEqual(["prefetch", "retry"]);
+      const calls = target.engine.services.modelRuntime.completeSimple.mock.calls;
+      expect(calls).toHaveLength(2);
+      const normalizeContext = (value: unknown) => {
+        const context = structuredClone(value) as { messages: Array<Record<string, unknown>> };
+        context.messages = context.messages.map((message, index) => index === context.messages.length - 1
+          ? { ...message, timestamp: 0 } : message);
+        return context;
+      };
+      expect(calls[1]?.[0]).toEqual(calls[0]?.[0]);
+      expect(normalizeContext(calls[1]?.[1])).toEqual(normalizeContext(calls[0]?.[1]));
+      const { signal: _firstSignal, ...firstOptions } = calls[0]?.[2] as Record<string, unknown>;
+      const { signal: _retrySignal, ...retryOptions } = calls[1]?.[2] as Record<string, unknown>;
+      expect(retryOptions).toEqual(firstOptions);
+    } finally { await target.shell.dispose(); diagnostics.dispose(); }
+  });
+
+  it("starts generation from settlement when no completion-time prefetch was delivered", async () => {
+    const messages = [
+      { role: "assistant", content: [{ type: "text", text: "First" }], stopReason: "stop" },
+      { role: "assistant", content: [{ type: "text", text: "Second" }], stopReason: "stop" },
+    ];
+    const diagnostics = new SuggestionDiagnosticCapture({ enabled: true });
+    const generator: OwnedUiPromptSuggestionGeneratorPort = {
+      generate: vi.fn(async request => ({ identity: request.identity, outcome: "candidate" as const, text: "run the tests" })),
+    };
+    const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
+      generator, enabled: () => true, onChange: () => () => {}, diagnostics,
+    });
+    try {
+      target.engine.session.emit({ type: "agent_start" });
+      target.engine.session.emit({ type: "agent_settled" });
+      await target.adapter.flushEvents();
+      await nextImmediate();
+      expect(generator.generate).toHaveBeenCalledOnce();
+      expect(diagnostics.snapshot()).toMatchObject([
+        { event: "started", attempt: 1, trigger: "settlement" },
+        { event: "displayed", attempt: 1, trigger: "settlement" },
+      ]);
+      expect(stripTerminalSequences(target.shell.root.editor.render(60).join("\n"))).toContain("run the tests");
     } finally { await target.shell.dispose(); diagnostics.dispose(); }
   });
 
@@ -125,6 +171,37 @@ describe("OwnedUiSessionShell prompt suggestions", () => {
     await nextImmediate();
     expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).toContain("❯ run the tests");
     await target.shell.dispose();
+  });
+
+  it("retains a settled candidate until focus returns to the ordinary editor", async () => {
+    const messages = [
+      { role: "assistant", content: [{ type: "text", text: "First" }], stopReason: "stop" },
+      { role: "assistant", content: [{ type: "text", text: "Second" }], stopReason: "stop" },
+    ];
+    let finish: ((text: string) => void) | undefined;
+    const diagnostics = new SuggestionDiagnosticCapture({ enabled: true });
+    const generator: OwnedUiPromptSuggestionGeneratorPort = {
+      generate: request => new Promise(resolve => { finish = text => resolve({ identity: request.identity, outcome: "candidate", text }); }),
+    };
+    const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
+      generator, enabled: () => true, onChange: () => () => {}, diagnostics,
+    });
+    try {
+      target.shell.root.setFocused(false);
+      target.engine.session.emit({ type: "agent_start" });
+      target.engine.session.emit({ type: "message_end", message: messages.at(-1) });
+      target.engine.session.emit({ type: "agent_settled" });
+      await target.adapter.flushEvents();
+      finish?.("run the tests");
+      await nextImmediate();
+      expect(diagnostics.snapshot().map(record => record.event)).toEqual(["started", "presentation-deferred"]);
+      expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).not.toContain("run the tests");
+
+      target.shell.root.setFocused(true);
+      await nextImmediate();
+      expect(diagnostics.snapshot().map(record => record.event)).toEqual(["started", "presentation-deferred", "displayed"]);
+      expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).toContain("run the tests");
+    } finally { await target.shell.dispose(); diagnostics.dispose(); }
   });
 
   it.each(["backspace", "clear-shortcut"])("hides a shown suggestion behind a coordinated draft and repaints it after %s empties the editor", async clearing => {

@@ -10,14 +10,20 @@ export type SuggestionDecision = SuggestionDecisionReason | null;
 
 export const SUGGESTION_DIAGNOSTIC_EVENTS = [
   "skipped", "started", "displayed", "empty", "rejected", "provider-failure", "unavailable",
-  "timeout", "cancelled", "stale-result", "presentation-blocked", "late-result-discarded",
+  "timeout", "cancelled", "stale-result", "presentation-blocked", "presentation-deferred",
+  "retry-exhausted", "late-result-discarded",
 ] as const;
 export type SuggestionDiagnosticEvent = typeof SUGGESTION_DIAGNOSTIC_EVENTS[number];
+
+export const SUGGESTION_ATTEMPT_TRIGGERS = ["prefetch", "settlement", "retry"] as const;
+export type SuggestionAttemptTrigger = typeof SUGGESTION_ATTEMPT_TRIGGERS[number];
 
 /** Metadata only: never carry a session path, prompt, candidate, or raw error. */
 export interface SuggestionDiagnosticRecord {
   readonly event: SuggestionDiagnosticEvent;
   readonly reason?: SuggestionDecisionReason;
+  readonly attempt?: number;
+  readonly trigger?: SuggestionAttemptTrigger;
   readonly session: number;
   readonly run: number;
   readonly response: number;

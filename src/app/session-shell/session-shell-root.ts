@@ -304,6 +304,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #viewportTheme: TranscriptViewportTheme;
   readonly #onViewportFrame: ((frame: TranscriptViewportFrame) => void) | undefined;
   readonly #onInputSurfaceChanged: (() => void) | undefined;
+  readonly #onPromptSuggestionEligibilityChanged: (() => void) | undefined;
   readonly #componentRuntime: {
     readonly getColumns: () => number;
     readonly getRows: () => number;
@@ -387,6 +388,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly onEditorChange?: (text: string) => void;
       readonly onPromptSuggestionAccepted?: (text: string) => void;
       readonly onInputSurfaceChanged?: () => void;
+      readonly onPromptSuggestionEligibilityChanged?: () => void;
       readonly onCopyText?: (text: string) => void;
       readonly readClipboardContent?: (signal?: AbortSignal) => Promise<PiShellClipboardContent | null>;
       readonly captureClipboardPaste?: () => PasteSource;
@@ -423,6 +425,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#componentRuntime = handlers;
     this.#onViewportFrame = handlers.onViewportFrame;
     this.#onInputSurfaceChanged = handlers.onInputSurfaceChanged;
+    this.#onPromptSuggestionEligibilityChanged = handlers.onPromptSuggestionEligibilityChanged;
     this.#dockInputReuseEnabled = handlers.enableDockInputReuse ?? true;
     this.header = createPiShellHeader({
       ...startup,
@@ -693,6 +696,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   update(view: OwnedUiSessionViewModel): void {
+    const becameReady = this.#view.lifecycle !== "ready" && view.lifecycle === "ready";
     if (view.diagnostics.length !== this.#view.diagnostics.length
       || view.diagnostics.some((diagnostic, index) => diagnostic.sequence !== this.#view.diagnostics[index]?.sequence)) {
       this.#documentLayouts.clear();
@@ -714,6 +718,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.editor.setThinkingLevel(view.thinkingLevel);
     // Performance: semantic updates already invalidate affected transcript blocks. Chrome is a separate authority.
     this.#invalidateChrome();
+    if (becameReady) this.#onPromptSuggestionEligibilityChanged?.();
   }
 
   /**
@@ -1584,6 +1589,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   setFocused(focused: boolean): void {
     this.#inputSurface.setFocused?.(focused);
+    if (focused) this.#onPromptSuggestionEligibilityChanged?.();
   }
 
   dispose(): void {
