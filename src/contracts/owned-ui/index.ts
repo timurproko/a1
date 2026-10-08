@@ -1,5 +1,5 @@
 /** Stable stored choices for bare A1's semantic UI accent. */
-export type UiAccentColor = "default" | "blue" | "cyan" | "green" | "orange" | "pink";
+export type UiAccentColor = "purple" | "blue" | "cyan" | "green" | "orange" | "pink";
 
 export {
   OWNED_UI_EXTENSION_CONTRACT_VERSION,

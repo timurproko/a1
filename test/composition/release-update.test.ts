@@ -4,7 +4,7 @@ import type { AvailableRelease, StartupReleaseCheckOptions } from "../../src/fou
 
 const observed = vi.hoisted(() => ({
   updateCheck: true as unknown,
-  accentColor: "default",
+  accentColor: "purple",
   accentCalls: [] as string[],
   settingsListeners: [] as Array<() => void>,
   settingsUnsubscribed: 0,
@@ -57,7 +57,7 @@ vi.mock("../../src/app/session-shell/session-shell.js", () => ({
 
 afterEach(() => {
   observed.updateCheck = true;
-  observed.accentColor = "default";
+  observed.accentColor = "purple";
   observed.accentCalls.length = 0;
   observed.settingsListeners.length = 0;
   observed.settingsUnsubscribed = 0;
@@ -126,10 +126,10 @@ describe("owned accent composition", () => {
     expect(observed.settingsListeners).toHaveLength(0);
   });
 
-  it("resets comparison composition to the unmodified default accent", async () => {
+  it("keeps the A1 facade on purple while comparison uses Pi's unmodified theme path", async () => {
     observed.accentColor = "pink";
     const { composed } = await compose({ profileId: "a1", ownedSurfaces: "off", release: null });
-    expect(observed.accentCalls).toEqual(["default"]);
+    expect(observed.accentCalls).toEqual(["purple"]);
     await composed.application.dispose();
   });
 });

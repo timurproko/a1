@@ -114,7 +114,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // Compatibility: bare A1 intentionally ships one base visual target while its UI is being completed:
   // dark, regardless of terminal detection or a previously stored Pi theme. Its owned accent projects
   // over that base; comparison keeps Pi's configured theme and unmodified semantic accent.
-  setPiAccentColor(settings !== null && ownedSurfaces ? settings.value("accentColor") : "default");
+  setPiAccentColor(settings !== null && ownedSurfaces ? settings.value("accentColor") : "purple");
   applyConfiguredPiTheme(ownedSurfaces ? "dark" : adapter.configuredTheme());
   const unsubscribeAccent = settings === null || !ownedSurfaces
     ? () => {}

@@ -13,7 +13,7 @@ vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => (
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
   OwnedSettingsManager: class {
-    value(key: string) { return key === "promptHistoryEnabled" ? false : key === "accentColor" ? "default" : undefined; }
+    value(key: string) { return key === "promptHistoryEnabled" ? false : key === "accentColor" ? "purple" : undefined; }
     onChange() { return () => undefined; }
   },
 }));

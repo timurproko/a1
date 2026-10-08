@@ -70,7 +70,7 @@ describe("owned UI settings sections", () => {
   it("places owned agent controls once after engine entries in a single Agent group", () => {
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
-      document: { version: 11, values: { promptSuggestions: false } },
+      document: { version: 12, values: { promptSuggestions: false } },
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: AGENT });
     expect(sections.map(section => [section.id, section.title])).toEqual([
@@ -87,8 +87,8 @@ describe("owned UI settings sections", () => {
     });
     expect(findOwnedUiSettingsEntry(sections, "quitEffect", "a1")).toBeNull();
     expect(findOwnedUiSettingsEntry(sections, "accentColor", "a1")).toMatchObject({
-      label: "Accent color", value: "default", origin: "default", application: "live",
-      choices: ["default", "blue", "cyan", "green", "orange", "pink"],
+      label: "Accent color", value: "purple", origin: "default", application: "live",
+      choices: ["purple", "blue", "cyan", "green", "orange", "pink"],
     });
     expect(sections.find(section => section.id === "agent")?.entries.map(entry => [entry.backend, entry.id])).toEqual([
       ["agent", "autoCompact"], ["agent", "thinkingLevel"], ["agent", "providerProfile"],

@@ -714,7 +714,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       await new Promise(resolve => setTimeout(resolve, 25));
       expect(terminal.writes.length).toBeGreaterThan(0);
     } finally {
-      setPiAccentColor("default");
+      setPiAccentColor("purple");
       await shell.dispose();
     }
   });

@@ -44,7 +44,8 @@ describe("semantic accent-family architecture", () => {
     expect(source).toContain("mdListBullet: tone.accent");
     expect(source).toContain("selectedBg: tone.selectedBg");
     expect(source).toContain("userMessageBg: tone.userMessageBg");
-    expect(source).toContain('if (color === "default") return base');
+    expect(source).toContain("purple: Object.freeze");
+    expect(source).not.toContain('if (color === "default") return base');
     expect(source).toContain("projectPiAccent(activeBaseTheme, color)");
     expect(source).not.toContain('"violet"');
     expect(source).not.toContain("167;152;215");

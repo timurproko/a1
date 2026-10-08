@@ -95,6 +95,15 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
       return { ...values };
     },
   }),
+  Object.freeze({
+    to: 12,
+    description: "Rename the inherited default accent choice to explicit purple.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      return values.accentColor === "default"
+        ? { ...values, accentColor: "purple" }
+        : { ...values };
+    },
+  }),
 ]);
 
 export function assertOwnedUiSettingsMigrations(

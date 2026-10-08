@@ -1,8 +1,8 @@
 import type { UiAccentColor } from "../../contracts/owned-ui/index.js";
 
-export const OWNED_UI_SETTINGS_VERSION = 11;
+export const OWNED_UI_SETTINGS_VERSION = 12;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
-  "default", "blue", "cyan", "green", "orange", "pink",
+  "purple", "blue", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);
 
 export type OwnedUiSettingValue = string | number | boolean;
@@ -48,9 +48,9 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     id: "accentColor",
     label: "Accent color",
     section: APPEARANCE_SECTION,
-    description: "Color used by highlighted interface controls. Default follows the active Pi theme's semantic accent.",
+    description: "Color used by highlighted interface controls, list markers, and tonal interface surfaces.",
     application: "live",
-    defaultValue: "default",
+    defaultValue: "purple",
     allowedValues: UI_ACCENT_COLOR_CHOICES,
   }),
   quitAnimation: Object.freeze({

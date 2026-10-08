@@ -6,7 +6,7 @@ import { stripAnsi } from "../../../src/ui/components/index.js";
 import { BottomHoverEvidence, classifyBottomHoverFinding } from "../../support/rendering/bottom-hover-evidence.js";
 
 function fixture(length = 20) {
-  setPiAccentColor("default");
+  setPiAccentColor("purple");
   applyPiTheme("dark", false, "truecolor");
   const view: OwnedUiSessionViewModel = {
     contractVersion: 1, sessionId: "hover", revision: 1, lifecycle: "ready",
@@ -51,7 +51,7 @@ describe("bottom-control composition provenance", () => {
       f.mouse(35, 30);
       f.hover(f.render(), true);
     } finally {
-      setPiAccentColor("default");
+      setPiAccentColor("purple");
       f.root.dispose();
     }
   });

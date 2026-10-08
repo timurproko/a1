@@ -4,12 +4,12 @@
 
 A1 customization of a vendor-backed accent SHALL be expressed at the owned theme boundary in terms of an explicitly enumerated semantic family: the vendor's declared `accent`, `border`, `selectedBg`, `userMessageBg`, and `mdListBullet` roles. Components SHALL continue to request those roles rather than reading a user preference, naming a palette variable, embedding a literal color, or deciding whether a resolved color looks like the previous accent. Resting sticky prompts and jump-to-bottom controls SHALL continue to request the unprojected neutral `toolPendingBg`, switching to the projected `selectedBg` only while hovered. No role SHALL join the family merely because it shares a value in one theme version.
 
-The default preference SHALL delegate every role to the current vendor theme value. Named A1 choices MAY provide owned appearance-aware color values for the enumerated family, but SHALL preserve all unrelated vendor theme roles. Vendor synchronization SHALL verify the semantic token inventory and the owned rendering paths that can consume the family so an incompatible addition, removal, rename, or bypass fails before release.
+Every A1 palette choice, including the initial `purple` choice, SHALL provide owned appearance-aware values for the enumerated family while preserving all unrelated vendor theme roles. The projected `border` SHALL be a darker same-hue variation that remains visibly distinct from the main accent. Vendor synchronization SHALL verify the semantic token inventory and the owned rendering paths that can consume the family so an incompatible addition, removal, rename, or bypass fails before release.
 
 #### Scenario: The vendor changes its accent implementation
 - **WHEN** a vendor update changes the accent's value, variable name, or resource representation while retaining the semantic `accent` role
-- **THEN** the default A1 preference SHALL follow the new value without an implementation edit
-- **AND** named A1 preferences SHALL continue to replace the declared semantic family without value matching
+- **THEN** A1 palette preferences SHALL continue to replace the declared semantic family without value matching
+- **AND** unrelated roles SHALL continue to follow the changed vendor theme
 
 #### Scenario: Another role happens to share the accent color
 - **WHEN** a syntax, Markdown role other than `mdListBullet`, status, background, or message role resolves to the same color as `accent`

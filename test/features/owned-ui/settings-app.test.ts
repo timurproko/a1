@@ -123,7 +123,7 @@ const NAMING_THEME: UiTheme = Object.freeze({
   bold: (text: string) => text,
   plain: (text: string) => text,
   accentPreview: (color: string, text: string) => {
-    const ansi = { default: 35, blue: 34, cyan: 36, green: 32, orange: 33, pink: 31 }[color];
+    const ansi = { purple: 35, blue: 34, cyan: 36, green: 32, orange: 33, pink: 31 }[color];
     return ansi === undefined ? null : `\u001b[${ansi}m${text}\u001b[39m`;
   },
   highlight: (text: string) => `<highlight>${text}</highlight>`,
@@ -289,7 +289,7 @@ describe("the settings screen", () => {
     expect(lines.findIndex(line => line.trim() === "Appearance")).toBeLessThan(lines.findIndex(line => line.trim() === "Scroll"));
     expect(lines.some(line => line.includes("Quit animation") && line.includes("yes"))).toBe(true);
     expect(lines.some(line => line.trim() === "Appearance")).toBe(true);
-    expect(lines.some(line => line.includes("Accent color") && line.includes("default"))).toBe(true);
+    expect(lines.some(line => line.includes("Accent color") && line.includes("purple"))).toBe(true);
     expect(lines.some(line => line.trim() === "Scroll")).toBe(true);
     expect(lines.some(line => line.includes("Scrollbar mode") && line.includes("auto"))).toBe(true);
     expect(lines.some(line => line.includes("Fullscreen scrollbar"))).toBe(false);
@@ -314,7 +314,7 @@ describe("the settings screen", () => {
     const { app: target, session, writes } = await app();
     screen(target);
     target.onInput?.(`${ESC}[1;2B`, HOST);
-    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*default/);
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*purple/);
     target.onInput?.(ENTER, HOST);
     await settleChanges();
     expect(session.value("accentColor")).toBe("blue");
@@ -323,8 +323,8 @@ describe("the settings screen", () => {
 
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
-    expect(session.value("accentColor")).toBe("default");
-    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*default/);
+    expect(session.value("accentColor")).toBe("purple");
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*purple/);
   });
 
   // Rationale: the selected value keeps its semantic foreground while the item gains a surface.
@@ -1028,11 +1028,11 @@ describe("the value dropdown behind the screen", () => {
     const { app: target } = await app();
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Accent color"));
-    const valueColumn = (lines[row] ?? "").indexOf("default") + 1;
+    const valueColumn = (lines[row] ?? "").indexOf("purple") + 1;
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
 
     const opened = target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n");
-    expect(opened).toContain("<panel><text>✓</text></panel><panel> \u001b[35m■\u001b[39m default");
+    expect(opened).toContain("<panel><text>✓</text></panel><panel> \u001b[35m■\u001b[39m purple");
     for (const ansi of [34, 36, 32, 33, 31]) expect(opened).toContain(`\u001b[${ansi}m■\u001b[39m`);
     expect(opened).not.toContain("<accent>✓</accent>");
   });

@@ -8,7 +8,7 @@ Pi's dark resource currently maps `accent` to a variable named `violet`, and tes
 
 **Goals:**
 - Offer a small accessible accent palette in bare A1 and apply it live.
-- Preserve exact active-theme behavior when the preference is `default`.
+- Use an explicit purple palette entry as the initial accent so every displayed choice has the same projection behavior.
 - Ensure one semantic accent choice reaches every bare-A1 consumer, with matching low-emphasis border, selection, and visible user-prompt tones plus accent list markers and hover-only sticky/jump surfaces.
 - Survive ordinary Pi accent value, variable, and theme-resource changes without stale copied palettes.
 - Detect an incompatible future Pi semantic-theme change during the controlled upgrade process.
@@ -23,19 +23,19 @@ Pi's dark resource currently maps `accent` to a variable named `violet`, and tes
 
 ### 1. Persist one A1-owned semantic preference
 
-Add `accentColor` to the owned setting declarations in a new `Appearance` section after `Generic`, then move the existing `quitAnimation` declaration into that section after the accent. `Generic` remains first with `updateCheck` as its sole entry. The accent's ordered choices are `default`, `blue`, `cyan`, `green`, `orange`, and `pink`; its default is `default`; and its application is live. Advance the settings document version with a no-op forward migration so existing and unknown values remain intact. Existing validation makes unknown stored values fall back safely to `default`.
+Add `accentColor` to the owned setting declarations in a new `Appearance` section after `Generic`, then move the existing `quitAnimation` declaration into that section after the accent. `Generic` remains first with `updateCheck` as its sole entry. The accent's ordered choices are `purple`, `blue`, `cyan`, `green`, `orange`, and `pink`; its default is `purple`; and its application is live. Advance the settings document version with a forward migration, and migrate the earlier implementation's stored `default` value to `purple`; existing and unknown values otherwise remain intact. Existing validation makes unknown stored values fall back safely to `purple`.
 
 The setting remains A1-owned because bare A1 deliberately hides Pi's full-theme setting and the preference changes the owned presentation policy rather than Pi's theme selection grammar. It is not exposed by `a1 pi` and never writes Pi's settings document.
 
 ### 2. Project the accent at the central theme boundary
 
-Keep an unmodified base `Theme`, a separately stored accent preference, and a derived active theme. `default` returns the base object unchanged. A named preference returns a transparent `Theme` projection that delegates all behavior to the base except:
+Keep an unmodified base `Theme`, a separately stored accent preference, and a derived active theme. Every palette choice returns a transparent `Theme` projection that delegates all behavior to the base except:
 
 - `fg("accent", text)` and `getFgAnsi("accent")` use the selected color;
 - `style(..., { fg: "accent" })` uses the selected concrete color;
 - `colors.accent` reports the selected concrete color for extension and color-math consumers.
 
-The same named projection also replaces `mdListBullet` with the exact accent, `border` with a quieter same-hue tone, `selectedBg` with a low-lightness or high-lightness tint that retains the current selection surface's low prominence, and `userMessageBg` with a still quieter tint. Resting scrolled-out sticky prompts and jump-to-bottom badges retain neutral `toolPendingBg`; their hovered states use the projected selection tone. `fg`/`getFgAnsi`/`style` cover accent, list markers, and the derived border, while `bg`/`getBgAnsi`/`style` cover both derived surfaces. All other properties, methods, token bytes, mode, appearance, source identity, and background behavior delegate to the base. This avoids serializing a complete theme, preserves terminal-default and indexed colors for every untouched role, and also composes with an in-memory theme instance.
+The same projection also replaces `mdListBullet` with the exact accent, `border` with a darker, lower-saturation same-hue tone that is visibly distinct from titles, `selectedBg` with a low-lightness or high-lightness tint that retains the current selection surface's low prominence, and `userMessageBg` with a still quieter tint. Resting scrolled-out sticky prompts and jump-to-bottom badges retain neutral `toolPendingBg`; their hovered states use the projected selection tone. `fg`/`getFgAnsi`/`style` cover accent, list markers, and the derived border, while `bg`/`getBgAnsi`/`style` cover both derived surfaces. All other properties, methods, token bytes, mode, appearance, source identity, and background behavior delegate to the base. This avoids serializing a complete theme, preserves terminal-default and indexed colors for every untouched role, and also composes with an in-memory theme instance.
 
 Palette entries are A1-owned appearance-aware OKHSL values: each named choice has dark and light accent, border, selected-background, and user-message-background variants. The current bare product uses dark, but appearance-aware entries keep the projection valid if base-theme selection is enabled later. The palette is keyed by stable preference IDs, not Pi variable names or current RGB bytes.
 
@@ -51,15 +51,15 @@ The package-global base theme remains initialized for public Pi components that 
 
 ### 4. Apply and repaint live only in bare A1
 
-Bare composition sets the preference from the already resolved profile settings immediately after installing the base dark theme and before constructing visible shell content. It subscribes to settings changes and updates the theme projection only when the effective accent value changes. Comparison/settings-free composition explicitly keeps `default` and retains existing Pi behavior.
+Bare composition sets the preference from the already resolved profile settings immediately after installing the base dark theme and before constructing visible shell content. It subscribes to settings changes and updates the theme projection only when the effective accent value changes. Comparison mode continues to use Pi's unmodified theme path and retains existing Pi behavior.
 
 A theme change invalidates transcript/layout caches and requests a forced render so existing and newly constructed components repaint in the same session. The settings screen itself reads the live facade, so its accent row, title, markers, and menus update without closing the screen. Disposal removes both settings and theme subscriptions.
 
-### 5. Preserve default parity and add future-change evidence
+### 5. Preserve unrelated-role and comparison parity
 
-Existing pinned-theme parity remains authoritative under `default`; expected Pi bytes are not rewritten to the new palette. Separate customization tests verify named choices in truecolor and 256-color modes, foreground/background/style/ANSI/color introspection, accent-family projection including list markers, all-other-role byte preservation, subtle selection contrast, neutral resting and accent-hover sticky/jump controls, live replacement, watcher/instance reapplication, settings persistence/migration, neutral checkmarks, palette previews, section placement, and comparison isolation.
+Pinned-theme parity remains authoritative for every role outside the explicit accent family, while `a1 pi` remains fully byte-identical to Pi. Customization tests verify all six choices in truecolor and 256-color modes, foreground/background/style/ANSI/color introspection, accent-family projection including list markers, darker border separation, all-other-role byte preservation, subtle selection contrast, neutral resting and accent-hover sticky/jump controls, live replacement, watcher/instance reapplication, settings persistence/migration, neutral checkmarks, palette previews, section placement, and comparison isolation.
 
-A synthetic base theme with a deliberately different accent proves that `default` inherits the new value while a named preference still projects its declared color. The pinned token inventory remains exact and fails if Pi removes, renames, or adds a theme role without review. This is the desired response to an incompatible upstream contract change: fail during upgrade, not silently preserve stale purple assumptions.
+Synthetic base-theme replacement proves that a selected palette entry remains stable while unrelated roles follow the replacement. The pinned token inventory remains exact and fails if Pi removes, renames, or adds a theme role without review. This is the desired response to an incompatible upstream contract change: fail during upgrade, not silently preserve stale assumptions.
 
 ## Risks / Trade-offs
 
@@ -71,7 +71,7 @@ A synthetic base theme with a deliberately different accent proves that `default
 
 ## Migration Plan
 
-1. Add the versioned setting and tests with `default` preserving current behavior.
+1. Add the versioned setting and tests with `purple` as the initial explicit palette choice.
 2. Add the central base-theme projection and accent-aware select-list facade.
 3. Wire bare composition, live invalidation, disposal, and comparison isolation.
 4. Run focused settings, theme parity, shell-frame, extension, architecture, typecheck, and build validation before interactive review.
