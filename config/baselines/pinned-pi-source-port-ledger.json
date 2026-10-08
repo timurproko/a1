@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-08T16:37:17.668Z",
+  "recordedAt": "2026-10-08T16:51:52.438Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -1823,13 +1823,13 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; preserves the latest physical route for virtual models; an explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and reserves its linked pull-request badge before path truncation while preserving the remaining footer layout and formatting; replacement surfaces may suppress a thinking level they already present.",
+      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; preserves the latest physical route for virtual models; an explicit bare-A1 profile colors the thinking-level name on a fixed semantic dim-to-accent intensity scale, renders its repository-context path, and reserves its linked pull-request badge before path truncation while preserving the remaining footer layout and formatting; replacement surfaces may suppress a thinking level they already present.",
       "upgradeStrategy": "three-way",
-      "localSha256": "589774d8aa47357deb697d6d306c0612e592d5eb135a11e99c2f8bcf1b13e916",
+      "localSha256": "b6e4208ec682cbfa28e3df99642a6c77847ba3209ed1c26dd00174108e466e35",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
-          "reason": "Accepted unify-prompt-input-ux moves the existing thinking-level border color to the bare-A1 footer level-name span, including a visible off label for a selected model; a thinking selector suppresses that duplicate span until close.",
+          "reason": "Accepted accent-thinking-level-gradient replaces the earlier thinking-border colors in the bare-A1 footer level-name span with fixed, evenly spaced semantic dim-to-accent positions, including exact dim `off` and accent `xhigh` endpoints; a thinking selector suppresses that duplicate span until close.",
           "upstreamBehavior": "The comparison footer presentation is unchanged outside the same temporary selector suppression. Owned provider omission, width fitting, usage, and extension rows preserve existing behavior; a missing model has no fabricated level.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         },

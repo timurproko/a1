@@ -3,15 +3,16 @@
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
  * Modifications: Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession;
  * preserves the latest physical route for virtual models; an explicit bare-A1 profile colors the
- * thinking-level name, renders its repository-context path, and reserves its linked pull-request badge
- * before path truncation while preserving the remaining footer layout and formatting; replacement
- * surfaces may suppress a thinking level they already present.
+ * thinking-level name on a fixed semantic dim-to-accent intensity scale, renders its
+ * repository-context path, and reserves its linked pull-request badge before path truncation while
+ * preserving the remaining footer layout and formatting; replacement surfaces may suppress a thinking
+ * level they already present.
  * Deviations: owned-status-level-color, owned-pull-request-badge.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { hyperlink, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import type { OwnedUiSessionViewModel } from "../../../../../contracts/owned-ui/index.js";
-import { piTheme } from "../../theme.js";
+import { piTheme, renderPiStatusLevel } from "../../theme.js";
 
 export class SessionFooter implements Component {
   private readonly getView: () => OwnedUiSessionViewModel;
@@ -83,7 +84,7 @@ export class SessionFooter implements Component {
     const modelName = view.activeModel?.modelId ?? "no-model";
     let rightWithoutProvider = this.profile === "a1"
       ? view.activeModel === null || !this.show() ? theme.fg("dim", modelName)
-        : theme.fg("dim", `${modelName} • `) + theme.getThinkingBorderColor(view.thinkingLevel)(view.thinkingLevel)
+        : theme.fg("dim", `${modelName} • `) + renderPiStatusLevel(view.thinkingLevel, view.thinkingLevel)
       : view.activeModel === null || view.thinkingLevel === "off" || !this.show() ? modelName : `${modelName} • ${view.thinkingLevel}`;
     const routed = view.routedModel;
     if (routed) {

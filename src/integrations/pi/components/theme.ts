@@ -4,14 +4,34 @@ import {
   renderSemanticShortcutHints,
   type SemanticShortcutHint,
 } from "../../../contracts/presentation/index.js";
-import { stripTerminalSequences, truncateToWidth, type MarkdownTheme, type SelectListTheme } from "@earendil-works/pi-tui";
+import { foregroundAnsi, mixColors, stripTerminalSequences, truncateToWidth, type MarkdownTheme, type SelectListTheme } from "@earendil-works/pi-tui";
+import type { OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js";
 import { getMarkdownTheme } from "../startup-public.js";
 import { piTheme } from "./upstream/theme/theme.js";
+
+const STATUS_LEVEL_POSITIONS: Readonly<Record<OwnedUiThinkingLevel, number>> = Object.freeze({
+  off: 0,
+  minimal: 1 / 5,
+  low: 2 / 5,
+  medium: 3 / 5,
+  high: 4 / 5,
+  xhigh: 1,
+});
 
 export * from "./upstream/theme/theme.js";
 
 export type PiModalShortcutHint = SemanticShortcutHint;
 export { DIALOG_CLOSE_SHORTCUT_HINT, displayShortcutKeyLabel };
+
+/** Paints the owned footer level on its fixed perceptual dim-to-accent scale. */
+export function renderPiStatusLevel(level: OwnedUiThinkingLevel, text: string): string {
+  const theme = piTheme();
+  const position = STATUS_LEVEL_POSITIONS[level];
+  if (position === 0) return theme.fg("dim", text);
+  if (position === 1) return theme.fg("accent", text);
+  const color = mixColors(theme.colors.dim, theme.colors.accent, position);
+  return `${foregroundAnsi(color, theme.getColorMode())}${text}\u001b[39m`;
+}
 
 /** Resolves dialog rules through the live A1 projection instead of Pi's package-global theme. */
 export function paintPiBorder(text: string): string {

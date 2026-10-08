@@ -5,17 +5,20 @@ import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-w
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel, OwnedUiThinkingLevel } from "../../../../src/contracts/owned-ui/index.js";
 import { hyperlinkTargetAtColumn, LineInput, PromptInput, promptRule, renderInputRow } from "../../../../src/ui/components/index.js";
-import { applyPiTheme, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS } from "../../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS, renderPiStatusLevel, setPiAccentColor } from "../../../../src/integrations/pi/components/index.js";
 import { createPiShellThinkingSelector } from "../../../../src/integrations/pi/components/thinking-selector-dialog.js";
 import { KeybindingsManager, useWindowsKeybindings } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
-import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
+import { PI_PARITY_COLOR_MODES, withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
 
 const LEVELS: readonly OwnedUiThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh"];
 const directories: string[] = [];
-afterEach(async () => { for (const path of directories.splice(0)) await rm(path, { recursive: true, force: true }); });
+afterEach(async () => {
+  setPiAccentColor("purple");
+  for (const path of directories.splice(0)) await rm(path, { recursive: true, force: true });
+});
 
 async function agentDir(bindings: Record<string, string | string[]> = {}): Promise<string> {
   const path = await mkdtemp(join(tmpdir(), "a1-input-ux-"));
@@ -160,31 +163,41 @@ describe("owned shared input and status presentation", () => {
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink + 3)).toBe("https://github.com/timurproko/a1/pull/540");
   });
 
-  it.each(["dark", "light"] as const)("colors only the effective level span in the %s footer", themeName => {
-    applyPiTheme(themeName, false, "truecolor");
-    const state = view();
-    const footer = createPiShellFooter(state, "/WORK", "a1");
-    for (const level of LEVELS) {
-      footer.update({ ...state, thinkingLevel: level });
-      const row = footer.render(100)[1]!;
-      expect(stripTerminalSequences(row)).toContain(`(PROVIDER) MODEL • ${level}`);
-      expect(cellStyle(row, level[0]!)).toEqual(cellStyle(piTheme().getThinkingBorderColor(level)(level), level[0]!));
-      for (const character of ["P", "M", "•"]) expect(cellStyle(row, character)).toEqual(cellStyle(piTheme().fg("dim", character), character));
+  it.each(PI_PARITY_COLOR_MODES.flatMap(mode => (["dark", "light"] as const).map(theme => [mode, theme] as const)))(
+    "colors only the effective level span from every active %s %s accent",
+    (mode, themeName) => {
+      applyPiTheme(themeName, false, mode);
+      const state = view();
+      const footer = createPiShellFooter(state, "/WORK", "a1");
+      for (const accent of ["purple", "blue", "cyan", "green", "orange", "pink"] as const) {
+        setPiAccentColor(accent);
+        for (const level of LEVELS) {
+          footer.update({ ...state, thinkingLevel: level });
+          const row = footer.render(100)[1]!;
+          expect(stripTerminalSequences(row)).toContain(`(PROVIDER) MODEL • ${level}`);
+          expect(row).toContain(renderPiStatusLevel(level, level));
+          for (const character of ["P", "M", "•"]) expect(cellStyle(row, character)).toEqual(cellStyle(piTheme().fg("dim", character), character));
+        }
+      }
       for (const width of [1, 12, 20, 30, 80]) expect(footer.render(width).every(line => visibleWidth(line) <= width)).toBe(true);
-    }
-    footer.update({ ...state, activeModel: null, thinkingLevel: "off" });
-    expect(stripTerminalSequences(footer.render(100)[1]!)).toContain("no-model");
-    expect(stripTerminalSequences(footer.render(100)[1]!)).not.toContain(" • ");
-    footer.update({ ...state, thinkingLevel: "low", activeModel: { ...state.activeModel!, modelId: "RESTORED" } });
-    expect(stripTerminalSequences(footer.render(100)[1]!)).toContain("RESTORED • low");
-    const pinned = createPiShellFooter({ ...state, thinkingLevel: "off" }, "/WORK");
-    expect(stripTerminalSequences(pinned.render(100)[1]!)).not.toContain(" • off");
-    pinned.update({ ...state, thinkingLevel: "high" });
-    expect(cellStyle(pinned.render(100)[1]!, "h")).toEqual(cellStyle(piTheme().fg("dim", "h"), "h"));
-    const levelHidden = createPiShellFooter(state, "/WORK", "a1", () => false);
-    expect(stripTerminalSequences(levelHidden.render(100)[1]!)).toContain("(PROVIDER) MODEL");
-    expect(stripTerminalSequences(levelHidden.render(100)[1]!)).not.toContain(" • medium");
-  });
+      footer.update({ ...state, activeModel: null, thinkingLevel: "off" });
+      expect(stripTerminalSequences(footer.render(100)[1]!)).toContain("no-model");
+      expect(stripTerminalSequences(footer.render(100)[1]!)).not.toContain(" • ");
+      footer.update({ ...state, thinkingLevel: "low", activeModel: { ...state.activeModel!, modelId: "RESTORED" } });
+      expect(stripTerminalSequences(footer.render(100)[1]!)).toContain("RESTORED • low");
+      footer.update({ ...state, thinkingLevel: "xhigh", routedModel: {
+        model: { providerId: "ROUTE", modelId: "ROUTED", displayName: "Routed" }, thinkingLevel: "high",
+      } });
+      expect(footer.render(100)[1]).toContain(piTheme().fg("dim", " → ROUTED • high"));
+      const pinned = createPiShellFooter({ ...state, thinkingLevel: "off" }, "/WORK");
+      expect(stripTerminalSequences(pinned.render(100)[1]!)).not.toContain(" • off");
+      pinned.update({ ...state, thinkingLevel: "high" });
+      expect(cellStyle(pinned.render(100)[1]!, "h")).toEqual(cellStyle(piTheme().fg("dim", "h"), "h"));
+      const levelHidden = createPiShellFooter(state, "/WORK", "a1", () => false);
+      expect(stripTerminalSequences(levelHidden.render(100)[1]!)).toContain("(PROVIDER) MODEL");
+      expect(stripTerminalSequences(levelHidden.render(100)[1]!)).not.toContain(" • medium");
+    },
+  );
 });
 
 describe("owned level and model keybindings", () => {

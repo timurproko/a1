@@ -1,9 +1,9 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { colorToOkhsl, okhslColor } from "@earendil-works/pi-tui";
+import { colorToOkhsl, foregroundAnsi, mixColors, okhslColor } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
+import type { OwnedUiThinkingLevel, OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import {
   PINNED_PI_LAYOUT,
   OwnedPiThemeController,
@@ -20,6 +20,7 @@ import {
   loadPiTheme,
   onPiThemeChange,
   piTheme,
+  renderPiStatusLevel,
   setPiAccentColor,
   setPiPackageBorderProjectionEnabled,
   stopPiThemeWatcher,
@@ -42,6 +43,7 @@ const FOREGROUNDS = [
   "thinkingOff", "thinkingMinimal", "thinkingLow", "thinkingMedium", "thinkingHigh", "thinkingXhigh", "thinkingMax", "bashMode",
 ] as const;
 const BACKGROUNDS = ["selectedBg", "userMessageBg", "customMessageBg", "toolPendingBg", "toolSuccessBg", "toolErrorBg"] as const;
+const STATUS_LEVELS: readonly OwnedUiThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh"];
 
 function block(kind: "user" | "assistant", text: string): OwnedUiTranscriptBlock {
   return { id: `${kind}-theme`, kind, status: "finalized", revision: 1, title: null, text, payload: {} };
@@ -207,6 +209,26 @@ describe("pinned Pi theme and layout parity", () => {
     expect(piTheme().bg("userMessageBg", "probe")).not.toBe(baseMessageBackground);
     expect(piTheme().colors.accent).toEqual(base.colors.accent);
   });
+
+  it.each(PI_PARITY_COLOR_MODES.flatMap(mode => (["dark", "light"] as const).map(theme => [mode, theme] as const)))(
+    "derives the fixed status-level scale from every %s %s accent",
+    (mode, themeName) => {
+      applyPiTheme(themeName, false, mode);
+      for (const accent of ["purple", "blue", "cyan", "green", "orange", "pink"] as const) {
+        setPiAccentColor(accent);
+        const theme = piTheme();
+        const rendered = STATUS_LEVELS.map((level, index) => renderPiStatusLevel(level, level));
+        expect(rendered[0]).toBe(theme.fg("dim", "off"));
+        expect(rendered.at(-1)).toBe(theme.fg("accent", "xhigh"));
+        for (let index = 1; index < STATUS_LEVELS.length - 1; index += 1) {
+          const level = STATUS_LEVELS[index]!;
+          const expected = `${foregroundAnsi(mixColors(theme.colors.dim, theme.colors.accent, index / 5), mode)}${level}\u001b[39m`;
+          expect(rendered[index]).toBe(expected);
+        }
+        if (mode === "truecolor") expect(new Set(rendered.map(value => value.match(/^\u001b\[[^m]+m/u)?.[0])).size).toBe(6);
+      }
+    },
+  );
 
   it.each(["dark", "light"] as const)("derives the full %s semantic family from an arbitrary custom accent", appearance => {
     const accent = okhslColor(123, 0.64, appearance === "dark" ? 0.67 : 0.47);

@@ -125,6 +125,7 @@ export {
   onPiThemeChange,
   parsePiAutoThemeSetting,
   piTheme,
+  renderPiStatusLevel,
   resolvePiThemeSetting,
   setPiAccentColor,
   setPiPackageBorderProjectionEnabled,
