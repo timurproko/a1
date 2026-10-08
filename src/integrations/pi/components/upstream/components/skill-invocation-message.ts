@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.0.4 (MIT), commit 7c10bd4337495ee613f2224843ecdf349b80d1df,
+ * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/coding-agent/src/modes/interactive/components/skill-invocation-message.ts.
  * Modifications: Mechanical port uses A1's public pi-tui instance, owned theme boundary, and
  * root-instance keybinding registry because the public coding-agent component closes over a second
@@ -22,8 +22,9 @@ export class SkillInvocationMessageComponent extends Box {
   constructor(
     skillBlock: SkillInvocationBlock,
     markdownTheme: MarkdownTheme,
+    outputPad = 1,
   ) {
-    super(1, 1, text => piTheme().bg("customMessageBg", text));
+    super(outputPad, 1, text => piTheme().bg("customMessageBg", text));
     this.skillBlock = skillBlock;
     this.markdownTheme = markdownTheme;
     this.#updateDisplay();
@@ -32,6 +33,10 @@ export class SkillInvocationMessageComponent extends Box {
   setExpanded(expanded: boolean): void {
     this.#expanded = expanded;
     this.#updateDisplay();
+  }
+
+  setOutputPad(outputPad: number): void {
+    this.setPaddingX(outputPad);
   }
 
   override invalidate(): void {

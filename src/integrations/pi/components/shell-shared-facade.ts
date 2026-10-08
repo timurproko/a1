@@ -274,7 +274,7 @@ export function createTuiFacade(options: Pick<PiShellEditorOptions, "getColumns"
     get columns() { return Math.max(1, options.getColumns()); },
     get rows() { return Math.max(1, options.getRows()); },
     get kittyProtocolActive() { return false; },
-    moveBy() {}, hideCursor() {}, showCursor() {}, clearLine() {}, clearFromCursor() {}, clearScreen() {}, setTitle() {}, setProgress() {},
+    moveBy() {}, hideCursor() {}, showCursor() {}, clearLine() {}, clearFromCursor() {}, clearScreen() {}, setTitle() {}, setProgress() {}, setProgramStatus() {},
   };
   return {
     mode: "regular",

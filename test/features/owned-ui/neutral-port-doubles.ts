@@ -9,6 +9,7 @@ import {
   type AgentSessionPort,
   type AgentSnapshot,
 } from "../../../src/contracts/agent-engine/index.js";
+import type { ProgramStatus } from "@earendil-works/pi-tui";
 import type {
   OwnedUiApplicationPort,
   PresentationComponentPort,
@@ -57,6 +58,7 @@ export class TestPresentationTerminal implements PresentationTerminalPort {
   readonly enhancedKeyboard = false;
   readonly kittyProtocolActive = false;
   readonly writes: string[] = [];
+  readonly programStatuses: ProgramStatus[] = [];
   active = false;
   #input: ((data: string) => void) | undefined;
   #resize: (() => void) | undefined;
@@ -74,6 +76,7 @@ export class TestPresentationTerminal implements PresentationTerminalPort {
   clearScreen(): void { this.write("\x1b[2J\x1b[H"); }
   setTitle(): void {}
   setProgress(): void {}
+  setProgramStatus(status: ProgramStatus): void { this.programStatuses.push(status); }
 }
 
 export class TestOwnedUiApplication implements OwnedUiApplicationPort {

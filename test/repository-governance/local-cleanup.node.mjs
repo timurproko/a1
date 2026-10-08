@@ -28,7 +28,7 @@ async function fixture(t, branch = false, registered = true, beforeDiscovery = a
   await writeFile(join(primary, "tracked.txt"), "base\n");
   await mkdir(join(primary, "vendor")); await writeFile(join(primary, "vendor", ".gitmodules"), "");
   await mkdir(join(primary, "node_modules-cache")); await writeFile(join(primary, "node_modules-cache", "tracked.txt"), "ordinary content\n");
-  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n/.artifacts/\n/.artifacts-user/\n/artifacts/\n.builds/\ndist/\n/native/process-guardian/target/\n/native/terminal-host/target/\n/src/integrations/pi/engine/pi-settings-metadata.json\n/src/integrations/pi/engine/pi-settings-metadata-user.json\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
+  await writeFile(join(primary, ".gitignore"), "/node_modules\nnode_modules/\nsecret.txt\n/.artifacts\n/.artifacts-user\n/artifacts/\n.builds\ndist/\n/native/process-guardian/target\n/native/terminal-host/target\n/src/integrations/pi/engine/pi-settings-metadata.json\n/src/integrations/pi/engine/pi-settings-metadata-user.json\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
   await git(primary, "add", "."); await git(primary, "commit", "-m", "fixture"); await git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
   await beforeDiscovery(primary);
   const path = join(primary, ".worktrees", "example");
@@ -229,6 +229,28 @@ test("complete registers one exact candidate, applies central disposables, and i
   assert.equal(repeated.results.length, 1); assert.equal(repeated.results[0].disposition, "already-absent");
 });
 
+test("standalone documentation evidence uses the ordinary completed-candidate cleanup path", async t => {
+  const f = await fixture(t, true, false);
+  const verify = async () => ({ disposition: "eligible", kind: "standalone-documentation",
+    documentationReason: "standalone-documentation", sourcePr: 20, sourceHead: f.snapshot.head,
+    sourceMerge: f.snapshot.head, archivePr: null, archiveHead: f.snapshot.head,
+    archiveMerge: f.snapshot.head, targetSha: f.snapshot.head, refs: [] });
+  const report = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify, git: f.boundedGit } });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.equal(await exists(f.path), false);
+  assert.equal(await git(f.primary, "show-ref", "--verify", "--quiet", "refs/heads/feature/example").then(() => true, () => false), false);
+  const entry = (await f.store.read()).entries.find(item => item.change === "example");
+  assert.equal(entry.state, "done"); assert.equal(entry.step, "complete");
+
+  const dirty = await fixture(t, true, false); await writeFile(join(dirty.path, "tracked.txt"), "dirty\n");
+  const dirtyVerify = async () => ({ ...await verify(), sourceHead: dirty.snapshot.head,
+    sourceMerge: dirty.snapshot.head, archiveHead: dirty.snapshot.head, archiveMerge: dirty.snapshot.head, targetSha: dirty.snapshot.head });
+  const blocked = await completeLocalCleanup({ identity: dirty.identity, store: dirty.store, reader: {}, path: dirty.path,
+    change: "example", sourcePr: 20, cwd: dirty.primary, reconcileOptions: { verify: dirtyVerify, git: dirty.boundedGit } });
+  assert.equal(blocked.results[0].reason, "worktree-content"); assert.equal(await exists(dirty.path), true);
+});
+
 test("complete blocks unknown ignored content and conflicting ownership", async t => {
   let f = await fixture(t, false, false); await writeFile(join(f.path, "secret.txt"), "preserve");
   await mkdir(join(f.path, "node_modules-user")); await writeFile(join(f.path, "node_modules-user", "data"), "preserve-near-match");
@@ -338,6 +360,81 @@ test("complete removes generated links contained by the same artifact root witho
   await mkdir(join(linkedTarget, ".git"), { recursive: true });
   await symlink(linkedTarget, join(i.path, ".artifacts", "alias"), process.platform === "win32" ? "junction" : "dir");
   await assert.rejects(inspectWorktree(i.identity, { ...i.snapshot, disposable: [".artifacts"] }, { cwd: i.primary }), /nested-repository/);
+});
+
+test("complete removes an exact disposable-root link without traversing its external target", async t => {
+  const f = await fixture(t, false, false), target = join(f.temporary, "shared-dependencies");
+  const link = join(f.path, "node_modules"), sentinel = join(target, "sentinel.txt");
+  await mkdir(target); await writeFile(sentinel, "preserve external dependency bytes\n");
+  await symlink(target, link, process.platform === "win32" ? "junction" : "dir");
+
+  const report = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.equal(await exists(f.path), false);
+  assert.equal(await readFile(sentinel, "utf8"), "preserve external dependency bytes\n");
+});
+
+test("Windows cleanup removes a disposable-root junction while preserving its target", { skip: process.platform !== "win32" }, async t => {
+  const f = await fixture(t, false, false), target = join(f.temporary, "external-artifacts");
+  const link = join(f.path, ".artifacts"), sentinel = join(target, "sentinel.json");
+  await mkdir(target); await writeFile(sentinel, "{\"preserved\":true}\n");
+  await symlink(target, link, "junction");
+
+  const report = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.equal(await exists(f.path), false);
+  assert.equal(await readFile(sentinel, "utf8"), "{\"preserved\":true}\n");
+});
+
+test("disposable-root links fail closed on resolution, cycles, identity drift, and replacement", async t => {
+  const f = await fixture(t, false, false), first = join(f.temporary, "first-target"), second = join(f.temporary, "second-target");
+  const link = join(f.path, "node_modules"), entry = { ...f.snapshot, disposable: ["node_modules"] };
+  await mkdir(first); await mkdir(second); await writeFile(join(first, "sentinel"), "first\n"); await writeFile(join(second, "sentinel"), "second\n");
+  await symlink(first, link, process.platform === "win32" ? "junction" : "dir");
+  const inspected = await inspectWorktree(f.identity, entry, { cwd: f.primary });
+  assert.deepEqual(inspected.containedLinks.map(item => [item.path, item.root, item.kind]), [["node_modules", "node_modules", "root"]]);
+
+  await rm(link, { recursive: true, force: true });
+  await symlink(second, link, process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(purgeDisposable(entry, { containedLinks: inspected.containedLinks }), /content-link-drift/);
+  assert.equal(await readFile(join(first, "sentinel"), "utf8"), "first\n");
+  assert.equal(await readFile(join(second, "sentinel"), "utf8"), "second\n");
+
+  await rm(link, { recursive: true, force: true }); await mkdir(link);
+  await assert.rejects(purgeDisposable(entry, { containedLinks: inspected.containedLinks }), /content-link-drift/);
+  await rm(link, { recursive: true, force: true });
+  await symlink(f.path, link, process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(inspectWorktree(f.identity, entry, { cwd: f.primary }), /content-link-cycle/);
+
+  await rm(link, { recursive: true, force: true });
+  const missing = join(f.temporary, "missing-target");
+  await symlink(missing, link, process.platform === "win32" ? "junction" : "dir").catch(async () => {
+    await mkdir(missing); await symlink(missing, link, "junction"); await rm(missing, { recursive: true, force: true });
+  });
+  await assert.rejects(inspectWorktree(f.identity, entry, { cwd: f.primary }), /content-link/);
+
+  const g = await fixture(t, false, false), unapprovedTarget = join(g.temporary, "unapproved-target");
+  await mkdir(unapprovedTarget); await writeFile(join(unapprovedTarget, "sentinel"), "keep\n");
+  await symlink(unapprovedTarget, join(g.path, ".artifacts-user"), process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(inspectWorktree(g.identity, { ...g.snapshot, disposable: [".artifacts-user"] }, { cwd: g.primary }), /content-link/);
+  assert.equal(await readFile(join(unapprovedTarget, "sentinel"), "utf8"), "keep\n");
+});
+
+test("a disposable-root link removal failure preserves the link, target, and pre-journal state", async t => {
+  const f = await fixture(t, false, false), target = join(f.temporary, "locked-link-target"), link = join(f.path, "node_modules");
+  const sentinel = join(target, "sentinel.txt"); await mkdir(target); await writeFile(sentinel, "preserve\n");
+  await symlink(target, link, process.platform === "win32" ? "junction" : "dir");
+  const blocked = Object.assign(new Error("disposable-link-locked"), { cleanupCode: "disposable-link-locked", paths: ["node_modules"] });
+  const report = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit,
+      purge: (entry, timing) => purgeDisposable(entry, timing, { removeLink: async () => { throw blocked; } }) } });
+  assert.equal(report.results[0].disposition, "blocked", JSON.stringify(report));
+  assert.equal(report.results[0].reason, "disposable-link-locked", JSON.stringify(report));
+  assert.equal(await exists(link), true); assert.equal(await readFile(sentinel, "utf8"), "preserve\n");
+  const state = await f.store.read(), registered = state.entries.find(item => item.sourcePr === 20);
+  assert.equal(registered.state, "released"); assert.equal(registered.step, "none");
 });
 
 test("legacy artifact subroot registrations are widened to the artifact root", async t => {

@@ -1,7 +1,7 @@
 # silent-installer Specification
 
 ## Purpose
-TBD - created by archiving change add-silent-a1-installer. Update Purpose after archive.
+Defines the dependency-free `@timurproko/a1-install` bootstrap that installs or safely updates one exact A1 release while controlling package-manager output, reporting bounded progress and truthful failures, and verifying activation and launcher ownership before success.
 
 ## Requirements
 

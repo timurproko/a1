@@ -10,7 +10,7 @@ const base = "a".repeat(40), head = "b".repeat(40), merge = "c".repeat(40);
 const archive = "openspec/changes/archive/2026-09-15-example/";
 const scenarios = ["Manual integration preserves the implemented example behavior and synchronized specification."];
 
-function fixture(merged: boolean, provenance: "manual" | "automatic" = "manual", associationRepair: object | null = null) {
+function fixture(merged: boolean, provenance: "manual" | "human-auto-merge" | "bot-auto-merge" | "disabled-manual" | "stale-auto-merge" | "queued" = "manual", associationRepair: object | null = null) {
   const archiveFiles: Record<string, string> = {
     [`${archive}.openspec.yaml`]: "schema: spec-driven\ncreated: 2026-09-15\n",
     [`${archive}proposal.md`]: "proposal\n",
@@ -42,12 +42,15 @@ function fixture(merged: boolean, provenance: "manual" | "automatic" = "manual",
   }) });
   const changed = [...Object.keys(archiveFiles), `${archive}acceptance.md`, "openspec/specs/example/spec.md", "scripts/example.mjs"]
     .map(filename => ({ filename, status: "added" }));
+  const reviewer = { login: "reviewer", type: "User" };
+  const bot = { login: "github-actions[bot]", type: "Bot" };
+  const automatic = ["human-auto-merge", "bot-auto-merge", "stale-auto-merge"].includes(provenance);
   const pull = { number: 42, state: merged ? "closed" : "open", merged, draft: false, changed_files: changed.length,
-    body, title: "feature(example): deliver atomically", auto_merge: provenance === "automatic" ? {} : null,
+    body, title: "feature(example): deliver atomically", auto_merge: automatic ? { enabled_by: provenance === "bot-auto-merge" ? bot : reviewer } : null,
     base: { ref: "develop", sha: base, repo: { full_name: repository } },
     head: { ref: "feature/example", sha: head, repo: { full_name: repository } },
     merge_commit_sha: merge, merged_at: merged ? "2026-09-15T12:00:00Z" : null,
-    merged_by: merged ? { login: "reviewer", type: "User" } : null };
+    merged_by: merged ? reviewer : null };
   const target = merged ? merge : base;
   const get = async (path: string): Promise<any> => {
     if (path === `/repos/${repository}/pulls/42`) return pull;
@@ -61,9 +64,19 @@ function fixture(merged: boolean, provenance: "manual" | "automatic" = "manual",
       return { status: left === right ? "identical" : "ahead", merge_base_commit: { sha: left } };
     }
     if (path === `/repos/${repository}/collaborators/reviewer/permission`) return { permission: "write" };
-    if (path.startsWith(`/repos/${repository}/issues/42/timeline?`)) return [{ event: "merged", actor: { login: "reviewer", type: "User" },
-      performed_via_github_app: null, commit_id: merge, created_at: "2026-09-15T12:00:00Z" },
-      ...(provenance === "automatic" ? [{ event: "auto_merge_enabled" }] : [])];
+    if (path.startsWith(`/repos/${repository}/issues/42/timeline?`)) return [
+      ...(["human-auto-merge", "bot-auto-merge", "disabled-manual", "stale-auto-merge"].includes(provenance)
+        ? provenance === "stale-auto-merge"
+          ? [{ event: "auto_merge_enabled", actor: reviewer, performed_via_github_app: null, created_at: "2026-09-15T11:58:00Z" },
+              { event: "committed", sha: head }]
+          : [{ event: "committed", sha: head },
+              { event: "auto_merge_enabled", actor: provenance === "bot-auto-merge" ? bot : reviewer,
+                performed_via_github_app: null, created_at: "2026-09-15T11:59:00Z" },
+              ...(provenance === "disabled-manual" ? [{ event: "auto_merge_disabled", actor: bot, created_at: "2026-09-15T11:59:10Z" }] : [])]
+        : []),
+      ...(provenance === "queued" ? [{ event: "added_to_merge_queue", actor: reviewer }] : []),
+      { event: "merged", actor: reviewer, performed_via_github_app: null, commit_id: merge, created_at: "2026-09-15T12:00:00Z" },
+    ];
     if (path.startsWith(`/repos/${repository}/actions/workflows/ci.yml/runs?`)) return { total_count: 1, workflow_runs: [{
       id: 99, run_number: 10, run_attempt: 1, head_sha: head, head_branch: "feature/example", event: "pull_request",
       path: ".github/workflows/ci.yml", status: "completed", conclusion: "success", head_repository: { full_name: repository },
@@ -81,7 +94,7 @@ function fixture(merged: boolean, provenance: "manual" | "automatic" = "manual",
 describe("version-3 GitHub delivery authority", () => {
   it("validates an open finalized candidate without claiming acceptance", async () => {
     await expect(validateVersion3Candidate(fixture(false).reader, 42)).resolves.toMatchObject({
-      disposition: "ready-for-manual-merge", implementation: { version: 3 }, scenarios,
+      disposition: "ready-for-maintainer-integration", implementation: { version: 3 }, scenarios,
     });
   });
 
@@ -90,14 +103,14 @@ describe("version-3 GitHub delivery authority", () => {
     const renamed = f.changed.find(file => file.filename === `${archive}proposal.md`) as { filename: string; status: string; previous_filename?: string };
     renamed.status = "renamed";
     renamed.previous_filename = "openspec/changes/example/proposal.md";
-    await expect(validateVersion3Candidate(f.reader, 42)).resolves.toMatchObject({ disposition: "ready-for-manual-merge" });
+    await expect(validateVersion3Candidate(f.reader, 42)).resolves.toMatchObject({ disposition: "ready-for-maintainer-integration" });
   });
 
   it("accepts an exact active deletion plus archive addition when GitHub does not detect the move", async () => {
     const f = fixture(false);
     f.changed.push({ filename: "openspec/changes/example/implementation-evidence.md", status: "removed" });
     f.pull.changed_files = f.changed.length;
-    await expect(validateVersion3Candidate(f.reader, 42)).resolves.toMatchObject({ disposition: "ready-for-manual-merge" });
+    await expect(validateVersion3Candidate(f.reader, 42)).resolves.toMatchObject({ disposition: "ready-for-maintainer-integration" });
   });
 
   it("rejects the superseded phase-prefixed layout for an open candidate", async () => {
@@ -126,10 +139,16 @@ describe("version-3 GitHub delivery authority", () => {
     await expect(validateVersion3Candidate(f.reader, 42)).rejects.toThrow("delivery-unexpected-openspec-path");
   });
 
-  it("derives acceptance and archival from the authorized manual implementation merge", async () => {
+  it("derives acceptance and archival from either authorized maintainer integration route", async () => {
     await expect(loadArchiveEvidence(fixture(true).reader, 42)).resolves.toMatchObject({
       disposition: "eligible", implementation: { version: 3 }, acceptance: { kind: "single-pr", author: "reviewer", checks: scenarios },
-      validation: { runId: 99, headSha: head },
+      integration: { kind: "manual", actor: "reviewer" }, validation: { runId: 99, headSha: head },
+    });
+    await expect(loadArchiveEvidence(fixture(true, "human-auto-merge").reader, 42)).resolves.toMatchObject({
+      disposition: "eligible", acceptance: { author: "reviewer" }, integration: { kind: "human-auto-merge", actor: "reviewer" },
+    });
+    await expect(loadArchiveEvidence(fixture(true, "disabled-manual").reader, 42)).resolves.toMatchObject({
+      disposition: "eligible", integration: { kind: "manual", actor: "reviewer" },
     });
   });
 
@@ -139,9 +158,15 @@ describe("version-3 GitHub delivery authority", () => {
     f = fixture(false); f.pull.body = `\`\`\`openspec-implementation\n{"version":3,"change":"example"}\n\`\`\``;
     await expect(loadArchiveEvidence(f.reader, 42, { allowMissing: true })).resolves.toMatchObject({ disposition: "needs-finalization" });
     f = fixture(false);
-    await expect(loadArchiveEvidence(f.reader, 42, { allowMissing: true })).resolves.toMatchObject({ disposition: "ready-for-manual-merge" });
+    await expect(loadArchiveEvidence(f.reader, 42, { allowMissing: true })).resolves.toMatchObject({ disposition: "ready-for-maintainer-integration" });
     f = fixture(false); f.pull.state = "closed";
     await expect(loadArchiveEvidence(f.reader, 42, { allowMissing: true })).resolves.toMatchObject({ disposition: "closed" });
+  });
+
+  it("rejects integration into an unauthorized target branch", async () => {
+    const f = fixture(true);
+    f.pull.base.ref = "main";
+    await expect(loadArchiveEvidence(f.reader, 42)).rejects.toThrow("implementation-merge");
   });
 
   it("reports integrated version 3 without obtaining publication authority", async () => {
@@ -171,7 +196,7 @@ describe("version-3 GitHub delivery authority", () => {
       sourceHead: originalHead, sourceMerge: originalMerge, validationRunId: 98,
       failureReason: "missing-openspec-implementation-metadata", correctivePr: 42 };
     const f = fixture(true, "manual", repair);
-    const original = { number: 573, state: "closed", merged: true, draft: false, auto_merge: null, merged_at: "2026-09-15T11:00:00Z",
+    const original = { number: 573, state: "closed", merged: true, draft: false, changed_files: 1, auto_merge: null, merged_at: "2026-09-15T11:00:00Z",
       merge_commit_sha: originalMerge, merged_by: { login: "reviewer", type: "User" }, body: "ordinary body",
       base: { ref: "develop", sha: base, repo: { full_name: repository } },
       head: { ref: "fix/original", sha: originalHead, repo: { full_name: repository } } };
@@ -190,6 +215,7 @@ describe("version-3 GitHub delivery authority", () => {
         return await f.reader.get(path);
       },
       async pages(path: string, limit?: number, field?: string) {
+        if (path === "/pulls/573/files") return [{ filename: "src/example.ts", status: "modified" }];
         if (path === "/issues/573/timeline") return [{ event: "merged", actor: { login: "reviewer", type: "User" },
           performed_via_github_app: null, commit_id: originalMerge, created_at: original.merged_at }];
         if (path.startsWith("/actions/workflows/ci.yml/runs?") && path.includes(originalHead)) return [{
@@ -221,7 +247,7 @@ describe("version-3 GitHub delivery authority", () => {
       reason: "acceptance-manual-authority", change: "example" })]);
   });
 
-  it("rejects automatic merge provenance", async () => {
-    await expect(loadArchiveEvidence(fixture(true, "automatic").reader, 42)).rejects.toThrow("acceptance-manual-authority");
+  it.each(["bot-auto-merge", "stale-auto-merge", "queued"] as const)("rejects unsafe %s provenance", async provenance => {
+    await expect(loadArchiveEvidence(fixture(true, provenance).reader, 42)).rejects.toThrow(/acceptance-(?:merge-provenance|auto-merge-authority)/);
   });
 });

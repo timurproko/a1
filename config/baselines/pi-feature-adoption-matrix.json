@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "1.0.4"
+    "version": "1.1.0"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -2602,6 +2602,57 @@
       "since": "1.0.4",
       "disposition": "declined",
       "reason": "A1 owns its command-line grammar and hosted-session tool loadout rather than forwarding Pi CLI filters; ordinary MCP tools remain available through the pinned built-in extension."
+    },
+    {
+      "id": "changelog:1.1.0:adjust-default-tools-with-name-name",
+      "kind": "changelog",
+      "feature": "Adjust default tools with `+name`/`-name`",
+      "version": "1.1.0",
+      "summary": "`--tools` entries like `pi -t +codemode,-write` change the default selection instead of replacing it.",
+      "since": "1.1.0",
+      "disposition": "declined",
+      "reason": "A1 owns its command-line grammar and hosted-session tool loadout rather than forwarding Pi CLI tool-selection modifiers; codemode and the ordinary built-in tools remain available through the pinned service factory."
+    },
+    {
+      "id": "changelog:1.1.0:claude-haiku-5-5",
+      "kind": "changelog",
+      "feature": "Claude Haiku 5.5",
+      "version": "1.1.0",
+      "summary": "`anthropic/claude-haiku-5-5`, with adaptive thinking up to `xhigh`/`max` effort.",
+      "since": "1.1.0",
+      "disposition": "pinned",
+      "note": "The Anthropic catalog, adaptive-thinking metadata, and Bedrock prompt-caching behavior come from the pinned model runtime; A1's model selectors consume that public registry without a separate catalog."
+    },
+    {
+      "id": "changelog:1.1.0:gpt-6-luna-and-image-classification",
+      "kind": "changelog",
+      "feature": "GPT-6 Luna and image classification",
+      "version": "1.1.0",
+      "summary": "OpenAI's GPT-6 Luna is available as a classifier model through the Decisions API, and codemode's `models.classify()` accepts images for classifiers that support them.",
+      "since": "1.1.0",
+      "disposition": "pinned",
+      "note": "Classifier discovery, Decisions API execution, and image-bearing classify calls stay inside the pinned model runtime and built-in codemode extension loaded by A1's public session factory."
+    },
+    {
+      "id": "changelog:1.1.0:native-llama-cpp-decision-models",
+      "kind": "changelog",
+      "feature": "Native llama.cpp decision models",
+      "version": "1.1.0",
+      "summary": "Julia-1, Laya, Kev, lev, and OpenJev served by llama.cpp 0.6.0 or later run natively as classifiers through `/v1/systemone`.",
+      "since": "1.1.0",
+      "disposition": "pinned",
+      "note": "llama.cpp classifier discovery and `/v1/systemone` execution are supplied by the pinned model runtime and built-in codemode extension loaded through A1's public session factory."
+    },
+    {
+      "id": "changelog:1.1.0:program-status-reporting",
+      "kind": "changelog",
+      "feature": "Program status reporting",
+      "version": "1.1.0",
+      "summary": "terminals and agent dashboards that support OSC 7501 see whether Pi is working, blocked on a dialog or login, done, or failed.",
+      "since": "1.1.0",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/app/session-shell/session-shell-lifecycle.test.ts"
     }
   ]
 }

@@ -28,7 +28,14 @@ export function acceptanceBlockers(record: AcceptanceRecord): string[];
 export function verifyRecordBindings(record: AcceptanceRecord, source: any, snapshot: { entries: Map<string, string> }, text: string, repository: string): void;
 export function reconcileAcceptanceTasks(text: string, receipt: any, mapping: ImplementationMetadata["archivePreparationTasks"]): string;
 export function assertAcceptanceDiff(pull: any, files: any[], path: string, repository: string): void;
-export function assertManualAcceptanceMerge(pull: any, permission: string, events: any[]): void;
+export interface AcceptanceMergeDecision {
+  kind: "manual" | "human-auto-merge";
+  actor: string;
+  enabledAt?: string;
+}
+export function assertManualAcceptanceMerge(pull: any, permission: string, events: any[]): AcceptanceMergeDecision;
+export function assertVersion3AcceptanceMerge(pull: any, permission: string, events: any[]): AcceptanceMergeDecision;
+export function assertHumanAutoMergeArm(pull: any, permission: string, events: any[]): AcceptanceMergeDecision;
 export function receiptIdentity(receipt: any): any;
 export function receiptIdentityMatches(value: any, receipt: any): boolean;
 export function acceptanceUrl(repository: string, sourcePr: number, receipt: any): string;

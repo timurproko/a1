@@ -4,11 +4,11 @@
 ### Node ###
 # Logs and generated release/test verdicts
 logs
-/.artifacts/
+/.artifacts
 
 # Agent worktrees and local build/package outputs
 /.worktrees/
-/.builds/
+/.builds
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -48,6 +48,7 @@ bower_components
 build/Release
 
 # Dependency directories
+/node_modules
 node_modules/
 jspm_packages/
 
@@ -172,8 +173,8 @@ $RECYCLE.BIN/
 *.lnk
 
 # A1 native build outputs
-/native/process-guardian/target/
-/native/terminal-host/target/
+/native/process-guardian/target
+/native/terminal-host/target
 /native/terminal-host/target-check/
 /native/terminal-host/vendor/**/.zig-cache/
 /native/terminal-host/vendor/**/zig-out/

@@ -19,9 +19,10 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).toContain("Omit routine validation-command listings");
     expect(config).toContain("explicit plan approval and an implementation request");
     expect(config).toContain("same worktree, branch, history, and draft PR");
-    expect(config).toContain("Never arm or invoke auto-merge");
+    expect(config).toContain("Agents, Apps, bots, merge queue, and repository automation never arm or invoke auto-merge");
+    expect(config).toContain("personally arms native auto-merge");
     expect(config).toContain("A new head, changed body list, changed manifest, or advanced target baseline requires renewed validation");
-    expect(config).toContain("manual merge of the exact validated head means the listed scenarios are accepted");
+    expect(config).toContain("manual merge of the exact validated head or personal native auto-merge arm");
     expect(config).toContain("one to ten concise implementation-specific behavior-and-result bullets");
     expect(config).toContain("no acceptance, spec-only, or archive-only follow-up PR");
     expect(config).toContain("Standalone existing-spec/OpenSpec revisions and ordinary docs retain this route");
@@ -119,6 +120,9 @@ describe("repository-owned atomic delivery guidance", () => {
 
   it("documents the exact generated-artifact cleanup boundary", async () => {
     const cleanup = await readFile("docs/local-worktree-cleanup.md", "utf8");
+    const ignore = await readFile(".gitignore", "utf8");
+    for (const path of ["/.artifacts", "/.builds", "/node_modules", "/native/process-guardian/target", "/native/terminal-host/target"])
+      expect(ignore.split(/\r?\n/)).toContain(path);
     expect(cleanup).toContain("`.artifacts`, `native/process-guardian/target`");
     expect(cleanup).toContain("widened to the current policy on the next `complete`");
     expect(cleanup).toContain("near matches such as `.artifacts-user`, `artifacts`, or `pi-settings-metadata-user.json`");
@@ -130,6 +134,10 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(cleanup).toContain("arbitrary `target` directories");
     expect(cleanup).toContain("bounded to 20,000 ordinary entries plus 100,000 entries beneath exact approved generated roots");
     expect(cleanup).toContain("exhausting either allowance never grants deletion authority");
+    expect(cleanup).toContain("An exact-root link may target an external generated-content directory");
+    expect(cleanup).toContain("removes only the link entry through a non-recursive primitive");
+    expect(cleanup).toContain("It never traverses, removes, or mutates the external target");
+    expect(cleanup).toContain("Agents do not manually remove generated content");
     expect(cleanup).toContain("## Explicit closed-unmerged discard");
     expect(cleanup).toContain("--confirm-closed-unmerged");
     expect(cleanup).toContain("expected-SHA lease");
@@ -184,7 +192,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(docs).toContain("## Automation");
     expect(docs).toContain("## Acceptance");
     expect(docs).toContain("plain bullets");
-    expect(docs).toContain("Manual merge is the acceptance decision");
+    expect(docs).toContain("manual merge or personal native auto-merge arm");
+    expect(docs).toContain("never creates or exercises that arm");
     expect(docs).toContain("acceptance PR, archive PR");
     expect(docs).toContain("standalone spec/docs PR retaining auto-merge");
     expect(docs).toContain("## Legacy delivery");

@@ -51,6 +51,131 @@ function fixture(version = 2) {
   return { reader, entry, routes, source, archive, marker, comment, calls, diverged, prefix, head, merge, target, spec, archiveHead, archiveMerge, fetchImpl };
 }
 
+function documentationFixture() {
+  const repository = "owner/repo", prefix = `/repos/${repository}`, head = "1".repeat(40), merge = "2".repeat(40);
+  const target = "3".repeat(40), base = "4".repeat(40), ref = "docs/example";
+  const pull = { number: 30, state: "closed", merged: true, draft: false, changed_files: 1,
+    merged_at: "2026-10-08T07:00:00Z", merge_commit_sha: merge, body: "Standalone documentation.",
+    head: { sha: head, ref, repo: { full_name: repository } },
+    base: { sha: base, ref: "develop", repo: { full_name: repository } } };
+  const files = [{ filename: "openspec/specs/example/spec.md", status: "modified" }];
+  const run = { id: 30, head_sha: head, head_branch: ref, head_repository: { full_name: repository },
+    path: ".github/workflows/ci.yml", event: "pull_request", status: "completed", conclusion: "success",
+    run_number: 1, run_attempt: 1, pull_requests: [{ number: pull.number, head: { sha: head }, base: { sha: base } }] };
+  const routes = {
+    [`${prefix}/pulls/30`]: pull,
+    [`${prefix}/pulls/30/files`]: files,
+    [`${prefix}/git/ref/heads/develop`]: { object: { sha: target } },
+    [`${prefix}/actions/runs/30/jobs`]: { total_count: 1, jobs: [
+      { name: "Development validation required", status: "completed", conclusion: "success", head_sha: head },
+    ] },
+    [`${prefix}/git/trees/${base}`]: { truncated: false, tree: [] },
+    [`${prefix}/git/trees/${head}`]: { truncated: false, tree: [] },
+    [`${prefix}/git/trees/${target}`]: { truncated: false, tree: [] },
+  };
+  const calls = [], diverged = new Set();
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, method: init.method });
+    const parsed = new URL(url), path = parsed.pathname;
+    const comparison = /\/compare\/([a-f0-9]{40})\.\.\.([a-f0-9]{40})/.exec(path);
+    let result = routes[path];
+    if (path.endsWith("/actions/workflows/ci.yml/runs")) result = { total_count: 1, workflow_runs: [run] };
+    if (comparison) result = diverged.has(comparison[1])
+      ? { status: "diverged", merge_base_commit: { sha: base } }
+      : { status: "ahead", merge_base_commit: { sha: comparison[1] } };
+    return new Response(JSON.stringify(result ?? null), { status: result === undefined ? 404 : 200 });
+  };
+  const reader = cleanupReader({ repository, token: "private-fixture-token", deadline: Date.now() + 60000, fetchImpl });
+  const entry = { sourcePr: 30, candidatePr: 30, change: "documentation-example", head,
+    ref: `refs/heads/${ref}`, role: "implementation" };
+  return { repository, prefix, head, merge, target, base, ref, pull, files, run, routes, calls, diverged, reader, entry };
+}
+
+test("verifies canonical, ordinary, root, archived and existing-change documentation integration", async () => {
+  for (const path of [
+    "openspec/specs/example/spec.md",
+    "docs/example.md",
+    "README.md",
+    "openspec/changes/archive/2026-10-08-example/proposal.md",
+  ]) {
+    const f = documentationFixture(); f.files[0].filename = path;
+    const result = await verifyCleanupEvidence(f.reader, f.entry);
+    assert.equal(result.disposition, "eligible");
+    assert.equal(result.kind, "standalone-documentation");
+    assert.equal(result.documentationReason, "standalone-documentation");
+    assert.equal(result.sourceHead, f.head);
+    assert.equal(result.targetSha, f.target);
+    assert.deepEqual(result.refs, [f.ref]);
+    assert.ok(f.calls.every(call => call.method === "GET"));
+  }
+
+  const existing = documentationFixture(), active = "openspec/changes/existing-change/proposal.md";
+  existing.files[0].filename = active;
+  existing.routes[`${existing.prefix}/git/trees/${existing.base}`].tree = [
+    { path: active, sha: "5".repeat(40), mode: "100644", type: "blob" },
+  ];
+  existing.routes[`${existing.prefix}/git/trees/${existing.head}`].tree = [
+    { path: active, sha: "6".repeat(40), mode: "100644", type: "blob" },
+  ];
+  const result = await verifyCleanupEvidence(existing.reader, existing.entry);
+  assert.equal(result.disposition, "eligible");
+  assert.equal(result.documentationReason, "existing-change-revision-or-archive");
+});
+
+test("open and closed-unmerged standalone documentation never authorize cleanup", async () => {
+  let f = documentationFixture(); Object.assign(f.pull, { state: "open", merged: false, merge_commit_sha: null });
+  let result = await verifyCleanupEvidence(f.reader, f.entry);
+  assert.equal(result.disposition, "pending"); assert.equal(result.reason, "pr-open");
+
+  f = documentationFixture(); Object.assign(f.pull, { merged: false, merge_commit_sha: null });
+  result = await verifyCleanupEvidence(f.reader, f.entry);
+  assert.equal(result.disposition, "awaiting-discard"); assert.equal(result.reason, "pr-closed-unmerged");
+});
+
+test("standalone documentation cleanup requires exact validation, ancestry, head and absent ref", async () => {
+  let f = documentationFixture(); f.run.conclusion = "failure";
+  await assert.rejects(verifyCleanupEvidence(f.reader, f.entry), /implementation-validation/);
+
+  f = documentationFixture(); f.diverged.add(f.merge);
+  await assert.rejects(verifyCleanupEvidence(f.reader, f.entry), /commit-ancestry/);
+
+  f = documentationFixture(); f.entry.head = "5".repeat(40); f.diverged.add(f.entry.head);
+  await assert.rejects(verifyCleanupEvidence(f.reader, f.entry), /candidate-head-association/);
+
+  f = documentationFixture(); f.entry.ref = "refs/heads/docs/other";
+  await assert.rejects(verifyCleanupEvidence(f.reader, f.entry), /candidate-head-association/);
+
+  f = documentationFixture(); f.routes[`${f.prefix}/git/ref/heads/docs%2Fexample`] = { object: { sha: f.head } };
+  const pending = await verifyCleanupEvidence(f.reader, f.entry);
+  assert.equal(pending.disposition, "pending"); assert.equal(pending.reason, "remote-ref-present");
+});
+
+test("non-documentation and lifecycle-held unassociated PRs still require corrective association", async () => {
+  for (const mutate of [
+    f => { f.files[0] = { filename: "src/example.ts", status: "modified" }; },
+    f => { f.files.push({ filename: "src/example.ts", status: "modified" }); f.pull.changed_files = 2; },
+    f => { f.files[0] = { filename: "docs/releases/1.0.0.md", status: "added" }; },
+    f => { f.files[0] = { filename: "openspec/acceptance/example.md", status: "added" }; },
+    f => { f.files[0] = { filename: "docs/renamed.md", status: "renamed" }; },
+    f => { f.pull.changed_files = 2; },
+  ]) {
+    const f = documentationFixture(); mutate(f);
+    await assert.rejects(verifyCleanupEvidence(f.reader, f.entry), /association-repair/);
+  }
+
+  const introduced = documentationFixture();
+  const active = "openspec/changes/new-change/proposal.md";
+  introduced.files[0] = { filename: active, status: "added" };
+  introduced.routes[`${introduced.prefix}/git/trees/${introduced.head}`].tree = [
+    { path: active, sha: "6".repeat(40), mode: "100644", type: "blob" },
+  ];
+  await assert.rejects(verifyCleanupEvidence(introduced.reader, introduced.entry), /association-repair/);
+
+  const malformed = documentationFixture();
+  malformed.pull.body = "```openspec-implementation\n{bad}\n```";
+  await assert.rejects(verifyCleanupEvidence(malformed.reader, malformed.entry), /metadata-json/);
+});
+
 for (const version of [1, 2]) test(`verifies version-${version} implementation, accepted automatic archive, CI and absent refs using GET only`, async () => {
   const f = fixture(version), result = await verifyCleanupEvidence(f.reader, f.entry);
   assert.equal(result.disposition, "eligible"); assert.equal(result.archivePr, 21);

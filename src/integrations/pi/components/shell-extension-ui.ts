@@ -5,6 +5,7 @@ import {
 import { ExtensionEditorComponent } from "./upstream/components/extension-editor.js";
 import { ExtensionInputComponent } from "./upstream/components/extension-input.js";
 import { ExtensionSelectorComponent } from "./upstream/components/extension-selector.js";
+import type { ProgramStatusBlocked } from "./upstream/program-status-reporter.js";
 import {
   setKeybindings,
   Text,
@@ -42,6 +43,7 @@ export interface PiExtensionUiBridgeHost {
   readonly runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">;
   readonly agentDir?: string;
   setInputSurface(component: PiShellComponentPort | null): void;
+  setProgramStatusBlocked(status: ProgramStatusBlocked | undefined): void;
   showOverlay(component: PiShellComponentPort, options?: OwnedUiExtensionOverlayOptions): OwnedUiExtensionOverlayHandle;
   listenInput(handler: (data: string) => { readonly consume?: boolean; readonly data?: string } | undefined): () => void;
   replaceWidget(key: string, component: PiShellComponentPort | null, placement: "aboveEditor" | "belowEditor"): void;
@@ -108,6 +110,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
     create: (resolve: (value: T) => void, cancel: () => void) => PiShellComponentPort,
     options?: { signal?: AbortSignal },
     retainSurfaceOnSettle = false,
+    blocked?: ProgramStatusBlocked,
   ) =>
     new Promise<T>(resolve => {
       let settled = false;
@@ -118,8 +121,10 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
         settled = true;
         if (activeCancel === cancel) activeCancel = undefined;
         untrack();
-        if (retainSurfaceOnSettle && activeSurface === surface) activeSurface = undefined;
+        const ownedSurface = activeSurface === surface;
+        if (retainSurfaceOnSettle && ownedSurface) activeSurface = undefined;
         else closeSurface(surface);
+        if (ownedSurface) host.setProgramStatusBlocked(undefined);
         resolve(value);
       };
       const cancel = () => finish(undefined as T);
@@ -128,6 +133,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
       if (!settled) {
         activeCancel = cancel;
         mountSurface(surface);
+        host.setProgramStatusBlocked(blocked);
       }
     });
   const createFactoryComponent = (factory: unknown, ...arguments_: unknown[]): PiShellComponentPort => {
@@ -144,16 +150,23 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
         ...(opts?.timeout === undefined ? {} : { timeout: opts.timeout }),
         onToggleToolsExpanded: () => host.setToolsExpanded(!host.getToolsExpanded()),
       }),
-    ), opts),
+    ), opts, false, { kind: "question", message: title }),
     async confirm(title, message, opts) {
-      return (await context.select(`${title}\n${message}`, ["Yes", "No"], opts)) === "Yes";
+      const selected = await showInput<string | undefined>((resolve, cancel) => componentPort(
+        new ExtensionSelectorComponent(`${title}\n${message}`, ["Yes", "No"], resolve, cancel, {
+          tui,
+          ...(opts?.timeout === undefined ? {} : { timeout: opts.timeout }),
+          onToggleToolsExpanded: () => host.setToolsExpanded(!host.getToolsExpanded()),
+        }),
+      ), opts, false, { kind: "permission", message: title });
+      return selected === "Yes";
     },
     input: (title, placeholder, opts) => showInput<string | undefined>((resolve, cancel) => componentPort(
       new ExtensionInputComponent(title, placeholder, resolve, cancel, {
         tui,
         ...(opts?.timeout === undefined ? {} : { timeout: opts.timeout }),
       }),
-    ), opts),
+    ), opts, false, { kind: "question", message: title }),
     notify: (message, type = "info") => host.notify(message, type),
     onTerminalInput: handler => host.listenInput(handler),
     setStatus: (key, text) => host.setStatus(key, text),
@@ -243,7 +256,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
     getEditorText: () => host.getEditorText(),
     editor: (title, prefill) => showInput<string | undefined>((resolve, cancel) => componentPort(
       new ExtensionEditorComponent(tui, keybindings, title, prefill, resolve, cancel),
-    )),
+    ), undefined, false, { kind: "question", message: title }),
     addAutocompleteProvider: factory => host.addAutocompleteProvider(factory),
     setEditorComponent(factory) {
       customEditorFactory = factory;
@@ -287,12 +300,13 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
     activeSurface?.dispose?.();
     activeSurface = undefined;
     host.setInputSurface(null);
+    host.setProgramStatusBlocked(undefined);
   };
   return {
     context,
     input: (title, placeholder, options) => showInput<string | undefined>((resolve, cancel) => componentPort(
       new ExtensionInputComponent(title, placeholder, resolve, cancel, { tui }),
-    ), undefined, options?.retainSurfaceOnSettle === true),
+    ), undefined, options?.retainSurfaceOnSettle === true, { kind: "question", message: title }),
     reset,
     dispose() {
       reset();

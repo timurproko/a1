@@ -790,7 +790,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     } finally { await shell.dispose(); }
   });
 
-  it("uses Pi 1.0.4 Home/End editor bindings in the comparison profile", async () => {
+  it("uses Pi 1.1.0 Home/End editor bindings in the comparison profile", async () => {
     const { terminal, shell } = await fixture();
     try {
       shell.root.editor.setText("draft");

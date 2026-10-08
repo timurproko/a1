@@ -56,8 +56,10 @@ describe("impact-aware validation workflows", () => {
       .toHaveLength(1);
     expect(workflow.jobs.delivery.outputs["delivery-candidate"])
       .toBe("${{ steps.validation.outputs.delivery_candidate || steps.legacy.outputs.delivery_candidate || 'false' }}");
-    expect(workflow.jobs.delivery.steps.find((step: { name: string }) => step.name === "Validate finalized version-3 delivery record").if)
-      .toBe("steps.version.outputs.version == '3'");
+    const deliveryValidation = workflow.jobs.delivery.steps.find((step: { name: string }) => step.name === "Validate finalized version-3 delivery record");
+    expect(deliveryValidation.if).toBe("steps.version.outputs.version == '3'");
+    expect(deliveryValidation.run).toContain('value.disposition === "ready-for-maintainer-integration"');
+    expect(deliveryValidation.run).not.toContain("ready-for-manual-merge");
     expect(workflow.jobs.delivery.steps.find((step: { name: string }) => step.name === "Preserve legacy implementation validation route").if)
       .toContain("version == '2'");
     const deliveryGate = workflow.jobs.required.steps.find((step: { name: string }) => step.name === "Require finalized delivery policy for implementation candidates");

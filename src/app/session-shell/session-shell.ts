@@ -39,6 +39,7 @@ import type {
 } from "../../integrations/pi/engine/workflows.js";
 import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../../integrations/pi/components/shell-extension-ui.js";
 import type { PiShellLazySelectorLoader } from "../../integrations/pi/components/lazy-selectors.js";
+import { ProgramStatusReporter } from "../../integrations/pi/components/upstream/program-status-reporter.js";
 import { createPiShellEditor } from "../../integrations/pi/components/shell-editor-autocomplete.js";
 import {
   SKILLS_COMMAND_NAME,
@@ -202,6 +203,7 @@ export class OwnedUiSessionShell {
   readonly #unbindTerminalSettings: () => void;
   readonly #unbindShutdownSettings: () => void;
   #terminalProgressEnabled = false;
+  readonly #programStatus: ProgramStatusReporter;
   #showImages = true;
   #imageWidthCells = 80;
   #fullscreenExitOutput: "transcript" | "resume-hint" = "transcript";
@@ -406,6 +408,10 @@ export class OwnedUiSessionShell {
     };
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.runtime = runtime;
+    this.#programStatus = new ProgramStatusReporter(
+      status => { if (this.runtime.active) this.runtime.setProgramStatus(status); },
+      () => this.view().status.footer?.sessionName ?? undefined,
+    );
     this.#damageTerminal = damageTerminal ?? null;
     this.#quitOutro = quitOutro;
     this.#reloadPresentation = reloadPresentation;
@@ -604,6 +610,7 @@ export class OwnedUiSessionShell {
       },
       agentDir: this.backend.agentDir,
       setInputSurface: component => this.root.setInputSurface(component, true, "opaque"),
+      setProgramStatusBlocked: status => this.#programStatus.setBlocked("extension-dialog", status),
       showOverlay: (component, overlayOptions) => this.runtime.showOverlay(component, overlayOptions),
       listenInput: handler => this.runtime.addInputListener(handler),
       replaceWidget: (key, component, placement) => this.root.setExtensionWidget(key, component, placement),
@@ -640,6 +647,12 @@ export class OwnedUiSessionShell {
       if (event.type === "agent-run-started") {
         this.#promptSuggestions?.invalidate();
         this.root.resumeViewportFollowing();
+      }
+      if (event.type === "assistant-message-completed" && !event.successful) {
+        this.#programStatus.setErrorMessage(this.view().status.diagnostics.at(-1));
+      }
+      if (event.type === "agent-run-started" || event.type === "assistant-message-completed" || event.type === "agent-run-settled") {
+        this.#programStatus.handleEvent(event);
       }
       if (event.type === "assistant-message-completed") {
         this.root.noteCompletedAssistantMessage();
@@ -1782,6 +1795,7 @@ export class OwnedUiSessionShell {
     attempt(() => this.#unsubscribe());
     attempt(() => this.#dialogHandle?.hide());
     attempt(() => this.#extensionBridge.dispose());
+    attempt(() => this.#programStatus.clear());
     // Invariant: from here to the leave nothing but the outro paints. A throttled frame the
     // renderer still has queued would otherwise land during the stop-time input drain and
     // flash the prompt and footer, whether or not an effect plays.
@@ -1871,6 +1885,16 @@ export class OwnedUiSessionShell {
   #syncTerminalProgress(view: OwnedUiSessionViewModel): void {
     if (!this.runtime.active) return;
     this.runtime.setTerminalProgress(this.#terminalProgressEnabled && view.lifecycle === "busy");
+    if (view.lifecycle === "stopped" || view.lifecycle === "stopping") {
+      this.#programStatus.clear();
+      return;
+    }
+    this.#programStatus.setBlocked("dialog", view.dialog === null ? undefined : {
+      kind: "question",
+      message: view.dialog.title,
+    });
+    if (view.lifecycle === "failed") this.#programStatus.setErrorMessage(view.status.diagnostics.at(-1));
+    this.#programStatus.report();
   }
 
   #syncView(): OwnedUiSessionViewModel {
@@ -1883,6 +1907,7 @@ export class OwnedUiSessionShell {
       this.root.resetPendingPastes();
       this.#promptSuggestions?.invalidate();
       this.#sessionGeneration = this.backend.sessionGeneration;
+      this.#programStatus.reset();
       // Invariant: delivery recovery invalidates callbacks, not same-session local recall or its draft.
       if (this.#sessionBindingGeneration !== this.backend.sessionBindingGeneration) {
         this.#sessionBindingGeneration = this.backend.sessionBindingGeneration;
@@ -2212,6 +2237,11 @@ export class OwnedUiSessionShell {
     }, request.providerName);
     this.#activeLoginDialog = dialog;
     this.root.setInputSurface(dialog);
+    this.#programStatus.setBlocked("authentication", {
+      kind: "auth",
+      message: `Log in to ${request.providerName}`,
+    });
+    this.#syncTerminalProgress(this.view());
     this.runtime.requestRender();
   }
 
@@ -2262,6 +2292,8 @@ export class OwnedUiSessionShell {
     if (!this.#activeLoginDialog) return;
     this.#activeLoginDialog = undefined;
     this.root.setInputSurface(null);
+    this.#programStatus.setBlocked("authentication", undefined);
+    this.#syncTerminalProgress(this.view());
     this.runtime.requestRender();
   }
 

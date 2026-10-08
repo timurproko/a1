@@ -138,19 +138,82 @@ const sameMergeTime = (event, merged) => {
   return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= MERGE_EVENT_SKEW_MS;
 };
 
-/** REST retains auto_merge after automatic integration; missing provenance is not null. */
-export function assertManualAcceptanceMerge(pull, permission, events) {
+/** GitHub retains auto_merge after automatic integration; null means no authority remained active at merge time. */
+const authorizedPermission = permission => ["write", "maintain", "admin"].includes(permission);
+const human = actor => actor?.type === "User" && /^[a-zA-Z0-9-]{1,39}$/.test(actor.login ?? "");
+
+function assertMergeEvent(pull, permission, events) {
   const actor = pull.merged_by;
   requireAcceptance(pull.merged === true && pull.state === "closed" && pull.draft === false
     && SHA.test(pull.merge_commit_sha ?? "") && Number.isFinite(Date.parse(pull.merged_at)), "acceptance-not-merged");
-  requireAcceptance(pull.auto_merge === null && actor?.type === "User" && /^[a-zA-Z0-9-]{1,39}$/.test(actor.login ?? "")
-    && ["write", "maintain", "admin"].includes(permission), "acceptance-manual-authority");
+  requireAcceptance(human(actor) && authorizedPermission(permission), "acceptance-manual-authority");
   requireAcceptance(Array.isArray(events) && events.length <= 1000
-    && !events.some(event => ["auto_merge_enabled", "added_to_merge_queue"].includes(event.event)), "acceptance-merge-provenance");
-  const merges = events.filter(event => event.event === "merged");
-  requireAcceptance(merges.length === 1 && merges[0].actor?.login === actor.login && merges[0].actor?.type === "User"
-    && merges[0].performed_via_github_app === null && merges[0].commit_id === pull.merge_commit_sha
-    && sameMergeTime(merges[0].created_at, pull.merged_at), "acceptance-merge-provenance");
+    && !events.some(event => event.event === "added_to_merge_queue"), "acceptance-merge-provenance");
+  const mergeIndexes = events.flatMap((event, index) => event.event === "merged" ? [index] : []);
+  requireAcceptance(mergeIndexes.length === 1, "acceptance-merge-provenance");
+  const mergeIndex = mergeIndexes[0], merge = events[mergeIndex];
+  requireAcceptance(merge.actor?.login === actor.login && merge.actor?.type === "User"
+    && merge.performed_via_github_app === null && merge.commit_id === pull.merge_commit_sha
+    && sameMergeTime(merge.created_at, pull.merged_at), "acceptance-merge-provenance");
+  return { actor: actor.login, mergeIndex };
+}
+
+function activeAutoMergeEvent(pull, events, mergeIndex = events.length) {
+  let active = null;
+  for (let index = 0; index < mergeIndex; index += 1) {
+    const event = events[index];
+    if (event.event === "auto_merge_enabled") {
+      requireAcceptance(active === null && human(event.actor) && event.performed_via_github_app === null
+        && Number.isFinite(Date.parse(event.created_at)), "acceptance-merge-provenance");
+      active = { event, index };
+    } else if (event.event === "auto_merge_disabled") {
+      requireAcceptance(active !== null, "acceptance-merge-provenance");
+      active = null;
+    }
+  }
+  if (!active) return null;
+  const commits = events.flatMap((event, index) => event.event === "committed" && index < mergeIndex
+    ? [{ index, sha: event.sha }] : []);
+  const finalCommit = commits.at(-1);
+  requireAcceptance(finalCommit?.sha === pull.head?.sha && finalCommit.index < active.index
+    && !commits.some(commit => commit.index > active.index), "acceptance-merge-provenance");
+  return active;
+}
+
+/** Legacy acceptance PRs remain manual-only under their original policy. */
+export function assertManualAcceptanceMerge(pull, permission, events) {
+  const decision = assertMergeEvent(pull, permission, events);
+  requireAcceptance(pull.auto_merge === null, "acceptance-manual-authority");
+  requireAcceptance(!events.some(event => event.event === "auto_merge_enabled"), "acceptance-merge-provenance");
+  return { kind: "manual", actor: decision.actor };
+}
+
+/** Version 3 accepts either direct manual integration or native auto-merge personally armed for the final head. */
+export function assertVersion3AcceptanceMerge(pull, permission, events) {
+  const decision = assertMergeEvent(pull, permission, events);
+  const active = activeAutoMergeEvent(pull, events, decision.mergeIndex);
+  if (pull.auto_merge === null) {
+    requireAcceptance(active === null, "acceptance-merge-provenance");
+    const enables = events.slice(0, decision.mergeIndex).filter(event => event.event === "auto_merge_enabled");
+    requireAcceptance(enables.every(event => event.actor?.login === decision.actor), "acceptance-merge-provenance");
+    return { kind: "manual", actor: decision.actor };
+  }
+  const enabledBy = pull.auto_merge?.enabled_by;
+  requireAcceptance(human(enabledBy) && enabledBy.login === decision.actor && active?.event.actor?.login === decision.actor
+    && Date.parse(active.event.created_at) <= Date.parse(pull.merged_at), "acceptance-auto-merge-authority");
+  return { kind: "human-auto-merge", actor: decision.actor, enabledAt: active.event.created_at };
+}
+
+/** Open-candidate guard used only to preserve, never create or exercise, a human implementation arm. */
+export function assertHumanAutoMergeArm(pull, permission, events) {
+  const enabledBy = pull.auto_merge?.enabled_by;
+  requireAcceptance(pull.state === "open" && pull.merged !== true && pull.draft === false && human(enabledBy)
+    && authorizedPermission(permission), "acceptance-auto-merge-authority");
+  requireAcceptance(Array.isArray(events) && events.length <= 1000
+    && !events.some(event => ["added_to_merge_queue", "merged"].includes(event.event)), "acceptance-merge-provenance");
+  const active = activeAutoMergeEvent(pull, events);
+  requireAcceptance(active?.event.actor?.login === enabledBy.login, "acceptance-auto-merge-authority");
+  return { kind: "human-auto-merge", actor: enabledBy.login, enabledAt: active.event.created_at };
 }
 
 function legacyReceiptIdentity(receipt) {

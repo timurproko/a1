@@ -64,7 +64,7 @@ export async function reconcileArchives({ reader, tool, publisherFactory, dryRun
         }
         if (evidence.disposition === "unlinked") {
           row.disposition = "unlinked";
-        } else if (["closed", "draft", "needs-finalization", "ready-for-manual-merge"].includes(evidence.disposition)) {
+        } else if (["closed", "draft", "needs-finalization", "ready-for-maintainer-integration"].includes(evidence.disposition)) {
           row.deliveryVersion = 3;
           row.change = evidence.implementation.change;
           row.disposition = evidence.disposition;

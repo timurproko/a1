@@ -29,6 +29,27 @@ import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-d
 import { Runtime, fixture, InputImmediateScheduler, nextImmediate } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
+  it("reports working, completed, and aborted runs through the terminal program-status protocol", async () => {
+    const messages = [{ role: "assistant", content: [{ type: "text", text: "Done" }], stopReason: "stop" }];
+    const value = await fixture(messages);
+    expect(value.terminal.programStatuses.at(-1)).toMatchObject({ state: "idle", app: "a1" });
+
+    value.engine.session.emit({ type: "agent_start" });
+    await value.adapter.flushEvents();
+    expect(value.terminal.programStatuses.at(-1)).toMatchObject({ state: "working", app: "a1" });
+
+    value.engine.session.emit({ type: "agent_settled", aborted: false });
+    await value.adapter.flushEvents();
+    expect(value.terminal.programStatuses.at(-1)).toMatchObject({ state: "done", app: "a1" });
+
+    value.engine.session.emit({ type: "agent_start" });
+    value.engine.session.emit({ type: "agent_settled", aborted: true });
+    await value.adapter.flushEvents();
+    expect(value.terminal.programStatuses.at(-1)).toMatchObject({ state: "idle", app: "a1" });
+    await value.shell.dispose();
+    expect(value.terminal.programStatuses.at(-1)).toMatchObject({ state: "clear", app: "a1" });
+  });
+
   it("coordinates rapid bare-A1 editor input into one latest-state dock frame while pinned input stays synchronous", async () => {
     const scheduler = new InputImmediateScheduler();
     const phases: Array<{ phase: string; revision: number }> = [];

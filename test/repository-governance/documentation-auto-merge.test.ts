@@ -282,6 +282,17 @@ describe("acceptance manual-only integration", () => {
 
 describe("single-PR implementation holds", () => {
   const link = '```openspec-implementation\n{"version":2,"change":"example"}\n```';
+  const finalizedLink = '```openspec-implementation\n{"version":3,"change":"example","archive":"openspec/changes/archive/2026-09-15-example/","acceptanceManifest":"openspec/changes/archive/2026-09-15-example/acceptance.md"}\n```';
+  const reviewer = { login: "reviewer", type: "User" };
+  const enabled = { event: "auto_merge_enabled", actor: reviewer, performed_via_github_app: null, created_at: "2026-09-15T11:59:00Z" };
+  const humanArmResponse = (request: RecordedRequest, stale = false): FakeResponse | undefined => {
+    if (request.url.includes("/files?")) return { body: [{ filename: "src/example.ts", status: "modified" }] };
+    if (request.url.endsWith("/collaborators/reviewer/permission")) return { body: { permission: "write" } };
+    if (request.url.includes("/issues/42/timeline?")) return { body: stale
+      ? [enabled, { event: "committed", sha: headSha }]
+      : [{ event: "committed", sha: headSha }, enabled] };
+    return undefined;
+  };
   it.each([link, '```openspec-implementation\n{"version":99,"change":"example"}\n```', '```openspec-implementation\n{'])
     ("disables an armed PR on association edits, including malformed metadata %#", async body => {
       const result = await runManager({ action: "edited", pull_request: { number: 42, body: "stale event body" } },
@@ -290,6 +301,30 @@ describe("single-PR implementation holds", () => {
       expect(result.requests.some(request => request.body.includes("enablePullRequestAutoMerge") || request.method === "PUT")).toBe(false);
       expect(result.stdout).toContain("manual implementation hold");
     });
+
+  it("preserves only an authorized human arm for the exact finalized implementation head", async () => {
+    const result = await runManager({ action: "auto_merge_enabled", pull_request: { number: 42 } }, pullFixture({
+      body: finalizedLink, head: { ref: "feature/example", sha: headSha, repo: { full_name: "owner/repository" } },
+      auto_merge: { merge_method: "squash", enabled_by: reviewer },
+    }), { respond: request => humanArmResponse(request) });
+    expectNoMutation(result.requests);
+    expect(result.stdout).toContain("preserved authorized human auto-merge for the exact finalized implementation head");
+  });
+
+  it("disables stale, body-edited, and bot-authored implementation arms", async () => {
+    const stale = await runManager(validationEvent(), pullFixture({ body: finalizedLink,
+      auto_merge: { merge_method: "squash", enabled_by: reviewer } }), { respond: request => humanArmResponse(request, true) });
+    expect(stale.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+
+    const edited = await runManager({ action: "edited", pull_request: { number: 42 } }, pullFixture({ body: finalizedLink,
+      auto_merge: { merge_method: "squash", enabled_by: reviewer } }), { respond: request => humanArmResponse(request) });
+    expect(edited.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+
+    const bot = await runManager({ action: "auto_merge_enabled", pull_request: { number: 42 } }, pullFixture({ body: finalizedLink,
+      auto_merge: { merge_method: "squash", enabled_by: { login: "github-actions[bot]", type: "Bot" } },
+    }), { respond: request => humanArmResponse(request) });
+    expect(bot.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+  });
 
   it.each([false, true])("holds an introduced active plan after marker removal (renamed=%s)", async renamed => {
     const result = await runManager({ action: "edited", pull_request: { number: 42, body: link } },

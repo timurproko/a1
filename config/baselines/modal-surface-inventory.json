@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {
-    "version": "1.0.4",
-    "commit": "7c10bd4337495ee613f2224843ecdf349b80d1df"
+    "version": "1.1.0",
+    "commit": "abe508e1b89912adde45528136c3221eb69acdd7"
   },
   "policy": {
     "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",
@@ -989,7 +989,7 @@
       "source": "interactive",
       "sourceAnchors": [
         "showApiKeyLoginDialog(providerId, providerName, onBack)",
-        "this.loginProvider(dialog, providerId, \"api_key\")"
+        "this.loginProvider(dialog, providerId, providerName, \"api_key\")"
       ],
       "heading": "Login to provider name",
       "body": "optional provider details then API-key prompt",

@@ -56,7 +56,7 @@ export function parseConditionalAcceptance(text) {
 export function conditionalAcceptanceBytes(manifest) {
   const json = JSON.stringify(manifest, null, 2);
   parseConditionalAcceptance(`\`\`\`openspec-delivery\n${json}\n\`\`\``);
-  return `# Conditional implementation acceptance\n\nVerdict: accepted only when the containing exact pull-request head is manually merged by an authorized human after required current-head validation.\n\nThe manual merge accepts these scenarios:\n${manifest.acceptanceScenarios.map(item => `- ${item}`).join("\n")}\n\n\`\`\`openspec-delivery\n${json}\n\`\`\`\n`;
+  return `# Conditional implementation acceptance\n\nVerdict: accepted only when an authorized human manually merges the containing exact pull-request head after required current-head validation, or personally enables native auto-merge for that unchanged head and GitHub integrates it after the validation succeeds.\n\nThe maintainer integration decision accepts these scenarios:\n${manifest.acceptanceScenarios.map(item => `- ${item}`).join("\n")}\n\n\`\`\`openspec-delivery\n${json}\n\`\`\`\n`;
 }
 
 export function verifyConditionalAcceptance(manifest, { implementation, repository, sourcePr, archiveEntries, specEntries,
