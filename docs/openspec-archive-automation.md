@@ -118,14 +118,15 @@ After finalization, replace it with the exact emitted paths:
   "version": 3,
   "change": "example-change",
   "archive": "openspec/changes/archive/2026-09-15-example-change/",
-  "acceptanceManifest": "openspec/changes/archive/2026-09-15-example-change/acceptance.md"
+  "acceptanceManifest": "openspec/changes/archive/2026-09-15-example-change/acceptance.md",
+  "finalizedHead": "0123456789abcdef0123456789abcdef01234567"
 }
 ```
 
 </details>
 ````
 
-Version 3 forbids `specificationPr` and `archivePreparationTasks`. Both final paths must be absent for a draft or present and mutually consistent for a finalized candidate. Unknown fields, duplicate fences/JSON keys, unsafe paths, mismatched dates/change identities, and partial finalization fail closed.
+Version 3 forbids `specificationPr` and `archivePreparationTasks`. The archive path, acceptance-manifest path, and exact `finalizedHead` binding must be absent for a draft or mutually consistent for a finalized candidate. Existing finalized records without the head binding are readable only for trusted normalization and cannot satisfy current-head validation. Unknown fields, duplicate fences/JSON keys, unsafe paths, mismatched dates/change identities, malformed SHAs, and partial finalization fail closed.
 
 ## Acceptance list
 
@@ -152,7 +153,7 @@ The `OpenSpec finalization` workflow (`.github/workflows/openspec-finalization.y
 - **Finalized but drifted:** a later commit edited the archived tasks, evidence, design, or deltas, or the acceptance list changed. Finalization reruns from the archived form under the same archive date; one `docs(openspec): refinalize <change>` commit replaces the manifest and resynchronized specs.
 - **Behind `develop`:** a restore commit returns the archive to its active form with the merge-base's spec bytes, a merge of `develop` follows, and finalization runs against the new tip. A merge conflict outside `openspec/` stops the run with `finalization-merge-conflict`; rebase or merge `develop` yourself and push.
 
-The commit is pushed with a lease on the head the run read, so a developer push in between makes the run report `retry` and the next event finishes the work. Only after the push does the workflow `PATCH` the body fence, and only when the body is unchanged since it was read. The workflow's own push and body edit trigger further runs that report `already-finalized`. Every pushed commit is either a merge of the exact `develop` tip or confined to the change's active path, its archive path, and its declared canonical specs.
+The commit is pushed with a lease on the head the run read, so a developer push in between makes the run report `retry` and the next event finishes the work. Only after the push does the workflow `PATCH` the body fence with `finalizedHead` equal to that exact commit, and only when both the body and PR head still match the operation's expected values. The guaranteed head-binding change triggers native `pull_request: edited` validation even when a re-finalization reuses the same archive paths. The workflow's own body edit triggers further runs that report `already-finalized`; an intermediate run with a missing or stale binding defers before product suites and emits no protected aggregate. Every pushed commit is either a merge of the exact `develop` tip or confined to the change's active path, its archive path, and its declared canonical specs.
 
 Because the branch gains commits from the archive App, pull before pushing. A rebase that drops them is harmless: the next push is reconciled from whatever the head contains. Do not revert a finalization commit to make a fix; push the fix and let the workflow re-finalize. When the workflow fails, its summary names the finalization code (`tasks-incomplete`, `acceptance-*`, `delivery-known-gaps`, `openspec-operation`, `finalization-merge-conflict`, ...), nothing is pushed, and `Finalized delivery validation` on the unfinalized head reports that automated finalization is pending.
 
@@ -194,7 +195,7 @@ gh pr edit <pr> --body-file .artifacts/agent/openspec-pr-body.md
 
 Use repeated `--known-gap "exact disposition"` only for an actually reviewed explicit gap. Gaps remain visible in the committed manifest and do not become test results. Missing or ambiguous disposition blocks finalization.
 
-The operation validates the active change strictly, requires complete substantive tasks, runs the pinned OpenSpec archive/synchronization engine in isolation, verifies the resulting canonical specs, retains every archive artifact, computes deterministic content digests, writes `acceptance.md`, and applies only the allowed OpenSpec diff. Repeating it against identical finalized inputs is verification-only and byte-stable.
+The operation validates the active change strictly, requires complete substantive tasks, runs the pinned OpenSpec archive/synchronization engine in isolation, verifies the resulting canonical specs, retains every archive artifact, computes deterministic content digests, writes `acceptance.md`, and applies only the allowed OpenSpec diff. Local preparation cannot know the eventual commit SHA, so trusted finalization normalizes the body with `finalizedHead` after the commit is present on the branch. Repeating the trusted operation against identical finalized inputs and a matching head binding is verification-only and byte-stable.
 
 Before a first finalization, canonical specs must still equal the selected target. On an already finalized head the command re-finalizes from the archived form: it resets the synchronized specs to the target's bytes, reapplies the deltas, and rewrites the manifest under the same archive path, reporting `refinalized` (or `would-refinalize` without `--write`). If `develop` advances, merge or rebase onto it and rerun; the archive engine, not a hand edit, must produce the synchronized spec and archive copy.
 
@@ -217,7 +218,7 @@ Unavailable, stale, automatic, unauthorized, conflicting, or contradictory prove
 
 Normal Development CI remains complete for the implementation once its reviewable candidate exists. An archive-shaped final diff does not select documentation-only validation because the authoritative version-3 association remains implementation-bound. Base-controlled readiness defers a ready head that still holds the active change without running test suites or emitting `Development validation required`. The finalization workflow pushes the finalized head and updates its implementation fence; that update starts one complete selected validation, while PR-level concurrency cancels any superseded eligible run.
 
-`pull_request` body edits rerun required CI. The ordinary finalized phase-free run exposes the stable protected aggregate directly; it does not wait for a lifecycle body edit. Documentation auto-merge's trusted owner also reevaluates lifecycle association. It preserves only an authorized human arm for the exact finalized version-3 head, never creates or exercises that arm, and disables stale, automated, malformed, draft, edited, or otherwise ineligible arms. Every publication entry point explicitly refuses version 3.
+The trusted post-push `finalizedHead` body edit reruns required CI as a native pull-request event. The ordinary finalized phase-free run exposes every selected lane and the stable protected aggregate on the PR checks page. Manual `workflow_dispatch` remains branch diagnostic evidence: it lacks authoritative PR payload and cannot replace finalized-delivery, acceptance, selection, visibility, or protected aggregate evidence. Documentation auto-merge's trusted owner also reevaluates lifecycle association. It preserves only an authorized human arm for the exact finalized version-3 head, never creates or exercises that arm, and disables stale, automated, malformed, draft, edited, or otherwise ineligible arms. Every publication entry point explicitly refuses version 3.
 
 The OpenSpec archive workflow remains default-branch trusted. For version 3 it uses read-only contents, PR, and Actions access to report the integrated result; App credentials are unnecessary and are not minted for post-merge verification. For legacy candidates it retains its existing scoped App publication behavior. The OpenSpec finalization workflow is the one version-3 user of the archive App: it mints a short-lived installation token with `contents: write` and `pull_requests: write`, pushes only to the candidate's own branch under a lease, edits only the body fence, and revokes the token when the run ends.
 

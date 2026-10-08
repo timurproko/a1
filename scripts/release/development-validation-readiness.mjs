@@ -13,7 +13,7 @@ const MAX_REOPENING_FILE_BYTES = 1024 * 1024;
  * Decide whether Development validation may execute for the current event.
  * Pull-request lifecycle metadata is parsed by the exact-base copy of this file in CI.
  */
-export function classifyDevelopmentValidationReadiness({ eventName, draft = false, body = "" }) {
+export function classifyDevelopmentValidationReadiness({ eventName, draft = false, body = "", headSha = "" }) {
   if (eventName !== PULL_REQUEST_EVENT) return { validate: true, reason: "non-pull-request" };
   if (draft) return { validate: false, reason: "draft" };
 
@@ -28,7 +28,8 @@ export function classifyDevelopmentValidationReadiness({ eventName, draft = fals
     };
   }
 
-  if (implementation?.version === 3 && !implementation.archive) {
+  if (implementation?.version === 3
+    && (!implementation.archive || implementation.finalizedHead !== headSha || !SHA.test(headSha))) {
     return { validate: false, reason: "awaiting-finalization" };
   }
   return {
@@ -39,7 +40,12 @@ export function classifyDevelopmentValidationReadiness({ eventName, draft = fals
 
 /** Apply immutable path/tree policy to an otherwise ordinary unassociated ready pull request. */
 export async function classifyDevelopmentValidationReadinessFromRepository({ eventName, pull, reader }) {
-  const decision = classifyDevelopmentValidationReadiness({ eventName, draft: pull?.draft, body: pull?.body ?? "" });
+  const decision = classifyDevelopmentValidationReadiness({
+    eventName,
+    draft: pull?.draft,
+    body: pull?.body ?? "",
+    headSha: pull?.head?.sha ?? "",
+  });
   if (!decision.validate || decision.reason !== "ready") return decision;
   const association = await inspectUnassociatedPull(reader, pull);
   if (!association.blocked) return decision;
@@ -121,6 +127,7 @@ async function main() {
     eventName,
     draft: process.env.PULL_DRAFT === "true",
     body: process.env.PULL_BODY ?? "",
+    headSha: process.env.EXPECTED_HEAD ?? "",
   });
   let reopening = { selected: false, reason: "not-evaluated" };
   if (eventName === PULL_REQUEST_EVENT && decision.reason !== "draft") {

@@ -14,6 +14,10 @@ const toolRoot = resolve("node_modules/@fission-ai/openspec");
 const requirement = (name: string, text: string) => `### Requirement: ${name}\nThe system SHALL ${text}.\n\n#### Scenario: ${name}\n- **WHEN** ${name.toLowerCase()} is evaluated\n- **THEN** it SHALL ${text}\n`;
 const spec = (body: string) => `# example Specification\n\n## Purpose\n\nDefine an example capability with enough detail for finalization tests.\n\n## Requirements\n\n${body}`;
 const proposal = `## Why\n\nImprove example behavior.\n\n## What Changes\n\n- Improve it.\n\n## Capabilities\n\n### New Capabilities\n\nNone.\n\n### Modified Capabilities\n\n- \`example\`: Improve behavior.\n\n## Impact\n\nFixture only.\n`;
+const finalizedHeadFromBody = (text: string) => {
+  const implementation = parseImplementation(text);
+  return implementation?.version === 3 ? implementation.finalizedHead : undefined;
+};
 const body = (metadata: unknown = { version: 3, change: "example" }) => `## Proposal\n\nDeliver the example behavior.\n\n## Implementation\n\n- Implement it.\n\n## Acceptance\n\n- Using the example preserves the updated observable behavior.\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify(metadata, null, 2)}\n\`\`\`\n\n</details>\n`;
 
 async function git(cwd: string, args: string[]) {
@@ -97,13 +101,27 @@ describe("trusted finalization publication", () => {
     expect((await git(f.root, ["--git-dir", f.remote, "diff", "--name-only", before, result.pushedHead!])).split("\n").every(path => path.startsWith("openspec/"))).toBe(true);
     expect(await f.remoteFile("openspec/specs/example/spec.md")).toContain("preserve updated behavior");
     expect(f.mutations).toHaveLength(1);
-    expect(parseImplementation(f.mutations[0]!.body.body)).toMatchObject({ archive, acceptanceManifest: `${archive}acceptance.md` });
+    expect(parseImplementation(f.mutations[0]!.body.body)).toMatchObject({
+      archive,
+      acceptanceManifest: `${archive}acceptance.md`,
+      finalizedHead: result.pushedHead,
+    });
     expect(parseConditionalAcceptance(await f.remoteFile(`${archive}acceptance.md`)).sourcePr).toBe(7);
 
     const repeated = await f.reconcile();
     expect(repeated).toMatchObject({ disposition: "already-finalized", commits: [], bodyUpdated: false });
     expect(await f.remoteHead()).toBe(result.pushedHead);
     expect(f.mutations).toHaveLength(1);
+  }, 90_000);
+
+  it("normalizes an existing unbound finalized body without changing the branch", async () => {
+    const f = await fixture();
+    const first = await f.reconcile();
+    f.state.body = f.state.body.replace(`,\n  "finalizedHead": "${first.pushedHead}"`, "");
+    const result = await f.reconcile();
+    expect(result).toMatchObject({ disposition: "body-updated", pushedHead: first.pushedHead, commits: [], bodyUpdated: true });
+    expect(await f.remoteHead()).toBe(first.pushedHead);
+    expect(finalizedHeadFromBody(f.mutations.at(-1)!.body.body)).toBe(first.pushedHead);
   }, 90_000);
 
   it("re-finalizes in place after a developer edits the archived tasks", async () => {
@@ -117,8 +135,9 @@ describe("trusted finalization publication", () => {
     const result = await f.reconcile();
     expect(result.disposition).toBe("refinalized");
     expect(result.commits.map(commit => commit.kind)).toEqual(["refinalize"]);
-    expect(result.bodyUpdated).toBe(false);
+    expect(result.bodyUpdated).toBe(true);
     expect(result.archive).toBe(archive);
+    expect(finalizedHeadFromBody(f.mutations.at(-1)!.body.body)).toBe(result.pushedHead);
     expect(await f.remoteFile(`${archive}tasks.md`)).toContain("1.2");
     expect(parseConditionalAcceptance(await f.remoteFile(`${archive}acceptance.md`)).tasksDigest)
       .not.toBe(parseConditionalAcceptance(await f.remoteFile(`${archive}acceptance.md`, first.pushedHead)).tasksDigest);
@@ -185,6 +204,20 @@ describe("trusted finalization publication", () => {
     expect(raceResult).toMatchObject({ disposition: "retry", reason: "body-changed-before-update", bodyUpdated: false });
     expect(raceResult.commits.map(commit => commit.kind)).toEqual(["finalize"]);
     expect(edited.mutations).toHaveLength(0);
+
+    const advanced = await fixture();
+    const readerWithHeadAdvance = { ...advanced.reader, async get(path: string) {
+      if (path.endsWith("/pulls/7") && advanced.state.bodyReads.length === 1) {
+        await git(advanced.seed, ["pull", "--quiet", "origin", "feature/example"]);
+        await commit(advanced.seed, "fix: advance after finalization", { "src/app.txt": "advanced\n" });
+        await git(advanced.seed, ["push", "--quiet", "origin", "feature/example"]);
+      }
+      return await advanced.reader.get(path);
+    } };
+    const headRace = await reconcileFinalization({ reader: readerWithHeadAdvance, publisher: advanced.publisher, number: 7,
+      toolRoot, remoteUrl: advanced.remote, date: "2026-09-16" });
+    expect(headRace).toMatchObject({ disposition: "retry", reason: "head-changed-before-body-update", bodyUpdated: false });
+    expect(advanced.mutations).toHaveLength(0);
   }, 120_000);
 
   it("skips drafts, closed, legacy, and unassociated PRs and refuses foreign heads", () => {

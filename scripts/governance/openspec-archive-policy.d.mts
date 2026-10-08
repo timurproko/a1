@@ -15,6 +15,7 @@ export type ImplementationMetadata = LegacyImplementationMetadata | {
   archivePreparationTasks?: never;
   archive?: string;
   acceptanceManifest?: string;
+  finalizedHead?: string;
 };
 export interface AcceptanceMetadata {
   version: 1;

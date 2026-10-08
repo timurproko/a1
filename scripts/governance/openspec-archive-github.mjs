@@ -129,6 +129,7 @@ export async function validateVersion3Candidate(reader, number) {
   const pull = await reader.get(`${reader.prefix}/pulls/${number}`);
   const implementation = parseImplementation(pull.body ?? "");
   requireAcceptance(implementation?.version === 3, "delivery-version");
+  requireAcceptance(implementation.finalizedHead === pull.head?.sha, "delivery-head-stale");
   const files = await reader.pages(`/pulls/${number}/files`, 3000);
   requireAcceptance(pull.number === number && pull.state === "open" && pull.draft === false && pull.base?.ref === "develop"
     && pull.base?.repo?.full_name === reader.repository && pull.head?.repo?.full_name === reader.repository
@@ -170,7 +171,9 @@ export async function loadImplementationEvidence(reader, number) {
   if (implementation.version === 3 && pull.merged !== true) {
     if (pull.state === "closed") return { disposition: "closed", pull, implementation };
     if (pull.draft !== false) return { disposition: "draft", pull, implementation };
-    if (!implementation.archive || !implementation.acceptanceManifest) return { disposition: "needs-finalization", pull, implementation };
+    if (!implementation.archive || !implementation.acceptanceManifest || implementation.finalizedHead !== pull.head?.sha) {
+      return { disposition: "needs-finalization", pull, implementation };
+    }
     return await validateVersion3Candidate(reader, number);
   }
   try {
