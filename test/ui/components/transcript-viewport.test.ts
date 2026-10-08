@@ -285,8 +285,9 @@ describe("transcript viewport", () => {
     expect(stripAnsi(mixed.rows[1] ?? "").trimEnd()).toBe("row 8");
     expect(mixed.rows[1]).toContain("\u001b[47m");
     expect(mixed.rows[3]).toContain("\u001b[47m");
-    expect(mixed.rows.slice(mixed.hits.viewportHeight).every(row => !row.includes("\u001b[47m"))).toBe(true);
-    expect(viewport.selectedText()).not.toMatch(/editor|footer/u);
+    expect(mixed.rows[4]).toContain("\u001b[47m");
+    expect(mixed.rows[5]).toContain("\u001b[47m");
+    expect(viewport.selectedText()).toContain("editor\nfoot");
   });
 
   it.each(["up", "down"] as const)("keeps a document-only selection inside the transcript while scrolling %s", direction => {
@@ -331,7 +332,7 @@ describe("transcript viewport", () => {
     expect(viewport.selectedText()).not.toMatch(/notice|editor|footer/u);
   });
 
-  it.each([false, true])("keeps boundary crossing owned by its gesture origin (dockOrigin=%s)", dockOrigin => {
+  it.each([false, true])("projects boundary crossing symmetrically (dockOrigin=%s)", dockOrigin => {
     const viewport = new TranscriptViewport();
     const input = {
       documentRows: rows(12),
@@ -355,10 +356,9 @@ describe("transcript viewport", () => {
 
     const selected = viewport.compose(input);
     expect(selected.rows[3]).toContain("\u001b[45m");
-    expect((selected.rows[4] ?? "").includes("\u001b[45m")).toBe(dockOrigin);
+    expect(selected.rows[4]).toContain("\u001b[45m");
     expect(selected.rows[5]).not.toContain("\u001b[45m");
-    if (dockOrigin) expect(viewport.selectedText()).toContain("ed");
-    else expect(viewport.selectedText()).not.toMatch(/editor|footer/u);
+    expect(viewport.selectedText()).toContain("ed");
   });
 
   it("clips a retained document selection after its source scrolls off screen", () => {
@@ -917,7 +917,7 @@ describe("transcript viewport", () => {
     expect(viewport.selectedText()).toBe("prompt                     11:45");
   });
 
-  it.each([false, true])("captures one immutable literal range according to gesture origin (dockOrigin=%s)", dockOrigin => {
+  it.each([false, true])("captures one symmetric immutable literal range (dockOrigin=%s)", dockOrigin => {
     const viewport = new TranscriptViewport();
     const input = {
       documentRows: ["transcript", "⠋ Working..."],
@@ -933,7 +933,7 @@ describe("transcript viewport", () => {
     viewport.extendSelection(dockOrigin ? 2 : 7, dockOrigin ? 1 : 4, 102, false);
     viewport.releaseSelection();
 
-    const expected = dockOrigin ? "ranscript\n⠋ Working...\n❯ prompt\nbranch" : "ranscript\n⠋ Working...";
+    const expected = "ranscript\n⠋ Working...\n❯ prompt\nbranch";
     const snapshot = viewport.captureSelectedText();
     expect(viewport.selectedText()).toBe(expected);
     expect(snapshot).toMatchObject({ literal: true, sourceUnits: expected.length });

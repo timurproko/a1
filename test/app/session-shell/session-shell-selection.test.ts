@@ -1054,35 +1054,44 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     }
   });
 
-  it("keeps transcript-originated selection above the dock while preserving dock-origin crossing", async () => {
-    const messages = [{ role: "assistant", content: [{ type: "text", text: "content boundary" }], timestamp: Date.now() }];
-    const { terminal, shell } = await fixture(messages, [], true);
-    terminal.resize(60, 12);
-    shell.root.setFullscreenCopyOnSelect(false);
-    const plain = shell.root.render(60).map(stripTerminalSequences);
-    const contentRow = plain.findIndex(row => row.includes("content boundary")) + 1;
-    const descriptor = shell.root.viewportFrameDescriptor()!;
-    const dock = descriptor.dock!;
+  it.each(["working-origin", "downward", "upward"] as const)(
+    "routes terminal selection through the Working row (%s)",
+    async direction => {
+      const messages = [{ role: "assistant", content: [{ type: "text", text: "content boundary" }], timestamp: Date.now() }];
+      const { terminal, shell, engine } = await fixture(messages, [], true);
+      try {
+        terminal.resize(60, 12);
+        shell.root.setFullscreenCopyOnSelect(false);
+        engine.session.emit({ type: "agent_start" });
+        await shell.backend.flushEvents();
+        shell.runtime.renderNow();
+        const plain = shell.root.render(60).map(stripTerminalSequences);
+        const contentRow = plain.findIndex(row => row.includes("content boundary")) + 1;
+        const workingRow = plain.findIndex(row => row.includes("Working")) + 1;
+        const dockRow = shell.root.viewportFrameDescriptor()!.dock!.rowStart;
+        const column = plain[workingRow - 1]!.indexOf("Working") + 1;
+        expect(contentRow).toBeGreaterThan(0);
+        expect(workingRow).toBeGreaterThan(contentRow);
+        expect(dockRow).toBe(workingRow + 1);
+        expect(column).toBeGreaterThan(0);
 
-    expect(shell.root.handleViewportPreInput(`\u001b[<0;2;${contentRow}M`)).toMatchObject({ data: "", consumed: true });
-    expect(shell.root.handleViewportPreInput(`\u001b[<35;20;${dock.rowEnd}M`)).toMatchObject({ data: "", consumed: true });
-    expect(shell.root.handleViewportPreInput(`\u001b[<0;20;${dock.rowEnd}m`)).toMatchObject({ data: "", consumed: true });
-    const bounded = shell.root.render(60);
-    expect(bounded.slice(descriptor.transcript!.rowStart - 1, descriptor.transcript!.rowEnd)
-      .some(row => row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
-    expect(bounded.slice(dock.rowStart - 1, dock.rowEnd)
-      .every(row => !row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
-    expect(shell.root.handleViewportPreInput("\u0003")).toMatchObject({ data: "", consumed: true });
+        const [startRow, endRow] = direction === "working-origin"
+          ? [workingRow, contentRow]
+          : direction === "downward" ? [contentRow, dockRow] : [dockRow, contentRow];
+        terminal.input(`\u001b[<0;${column};${startRow}M`);
+        terminal.input(`\u001b[<35;${column};${endRow}M`);
+        terminal.input(`\u001b[<0;${column};${endRow}m`);
+        shell.runtime.renderNow();
 
-    shell.root.handleViewportPreInput(`\u001b[<0;20;${dock.rowEnd}M`);
-    shell.root.handleViewportPreInput(`\u001b[<35;20;${contentRow}M`);
-    shell.root.handleViewportPreInput(`\u001b[<0;20;${contentRow}m`);
-    const dockOriginated = shell.root.render(60);
-    expect(dockOriginated[contentRow - 1]).toContain("\u001b[48;2;38;79;120m");
-    expect(dockOriginated.slice(dock.rowStart - 1, dock.rowEnd)
-      .some(row => row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
-    await shell.dispose();
-  });
+        const selected = shell.root.render(60);
+        expect(selected[startRow - 1]).toContain("\u001b[48;2;38;79;120m");
+        expect(selected[workingRow - 1]).toContain("\u001b[48;2;38;79;120m");
+        expect(selected[endRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      } finally {
+        await shell.dispose();
+      }
+    },
+  );
 
   it("continues an active drag through no-button motion reports", async () => {
     const messages = [

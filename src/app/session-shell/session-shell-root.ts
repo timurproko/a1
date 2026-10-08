@@ -836,13 +836,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     if (frame === null) {
       frame = this.#viewportController.compose({
         // Performance: do not copy the complete document on unchanged dock-only input.
-        // Steering and Working retain their one non-selectable viewport-tail ownership.
+        // Steering and Working retain their one non-persistent viewport-tail ownership.
         documentRows: [...document.rows, ...steeringRows, ...statusRows],
         ...(this.#viewportController.transcriptPointerSelecting
           ? { paintDocumentRow: heldNativeHyperlinkStyle }
           : {}),
-        // Invariant: selection and copying stop at the real document tail; Steering,
-        // fitting alignment, and live Working remain transient presentation chrome.
+        // Invariant: this boundary tracks persistent transcript rows for streaming and
+        // geometry; transient Steering and Working rows remain complete-frame selectable.
         selectableDocumentRowCount,
         ...(document.liveTailStartRow === undefined ? {} : { liveTailStartRow: document.liveTailStartRow }),
         bottomAlignedTailRowCount: steeringRows.length + statusRows.length,
@@ -906,7 +906,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     };
   }
 
-  /** Visible non-selectable Steering, alignment, and Working rows, for rendering evidence. */
+  /** Visible non-persistent Steering, alignment, and Working rows, for rendering evidence. */
   viewportTransientTailRowCount(): number {
     return this.#viewportController.frame?.hits.transientTail.length ?? 0;
   }

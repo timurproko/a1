@@ -2,7 +2,7 @@
 
 See `proposal.md` for motivation. Bare A1 renders live status through `createPiShellStatus`: the owned `Working…` indicator is a `StatusIndicator`/Pi TUI `Loader`, and the shell flattens its rendered rows into the bottom-aligned transient viewport tail. The complete-frame selector is supposed to treat visible working-status rows as base-session text. Pi TUI's public mouse contract likewise leaves unhandled primary-button drags available for transcript selection.
 
-The current shell coverage double-clicks `Working` by invoking `handleViewportPreInput` directly. That proves the selection model can paint the row, but it bypasses fullscreen component dispatch and therefore does not prove that terminal-delivered press, motion, and release reports remain unhandled before frame selection receives them. The implementation must close that ownership gap without broad mouse suppression or a second selection system.
+The current shell coverage double-clicks `Working` by invoking `handleViewportPreInput` directly. A terminal-routed drag regression confirms that the status component is already passive and the reports reach complete-frame selection: a drag can start on `Working`, and a dock-originated drag crosses it upward. The failure is directional. When a drag originates in scrollable document content and crosses `Working` into the dock, `TranscriptViewport.#visibleSelection` clips the range to `viewportHeight` solely because the anchor is document-qualified, so the dock endpoint is discarded. The implementation must remove that origin-dependent projection boundary without broad mouse suppression or a second selection system.
 
 ## Goals / Non-Goals
 
@@ -22,17 +22,17 @@ The current shell coverage double-clicks `Working` by invoking `handleViewportPr
 
 ## Decisions
 
-### 1. Prove ownership at the dispatch boundary
+### 1. Prove ownership and projection through the terminal route
 
-Focused tests will first route normalized primary press, drag/move, and release events through the progress-status component and through the fullscreen terminal adapter. They will assert that ordinary spinner cells do not return a handled or captured component result and that the same reports reach the one complete-frame selection owner.
+Focused tests will route primary press, no-button motion, and release reports through the fullscreen terminal fixture. They will assert that ordinary spinner cells do not acquire component ownership, that the reports reach the one complete-frame selection owner, and that the selected range projects through the viewport/dock boundary in both directions.
 
-This supplements rather than replaces direct viewport-controller coverage. A controller-only test was rejected as the regression gate because it can pass while an enclosing component or hit region consumes the terminal report first.
+This supplements rather than replaces direct viewport-controller coverage. A controller-only double-click test was rejected as the regression gate because it proves neither terminal dispatch nor cross-region range projection.
 
-### 2. Keep the progress row passive for primary selection gestures
+### 2. Project document-originated ranges across the complete visible frame
 
-The narrow status/component or hit-routing seam identified by the failing dispatch test will leave ordinary primary-button press, drag/motion, and release events unhandled. It will not request focus or capture. Once frame selection owns a gesture, motion across the progress row remains selection motion regardless of which side supplied the anchor.
+The viewport will stop choosing its visible selection row count from the anchor alone. Any mixed range with one dock endpoint will project against the complete visible base-frame row set regardless of which endpoint supplied the origin, while document-only ranges remain clipped to the scrollable viewport. Each endpoint retains its existing document, dock, or screen-qualified anchor: a document endpoint that scrolls still follows its source row, a dock endpoint remains pinned, and unsafe source identity still clears the selection.
 
-Globally disabling component mouse routing was rejected because it would break explicit viewport controls, overlays, dialogs, editor behavior, links, and comparison profiles. Forwarding a handled result to the selector was also rejected because it creates two owners and makes capture/release ordering fragile.
+The progress status remains passive: it introduces no handler, focus request, capture, or status-sized control region. Globally disabling component mouse routing was rejected because it would break explicit viewport controls, overlays, dialogs, editor behavior, links, and comparison profiles. Converting endpoints to screen coordinates was rejected because it would regress retained selection during followed output.
 
 ### 3. Distinguish passive status text from explicit controls
 

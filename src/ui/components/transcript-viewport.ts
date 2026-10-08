@@ -51,7 +51,7 @@ export interface TranscriptViewportFrameInput {
   readonly documentRows: readonly string[];
   /** Optional paint-only transform; semantic selection and copying keep documentRows exact. */
   readonly paintDocumentRow?: (row: string) => string;
-  /** Leading document rows that participate in pointer selection and copying. */
+  /** Leading persistent document rows; later transient rows remain selectable visible-frame content. */
   readonly selectableDocumentRowCount?: number;
   /**
    * First document row owned by the block that is currently streaming, if any. Rows from
@@ -100,7 +100,7 @@ export interface TranscriptViewportHitRegions {
   } | null;
   readonly sticky: { readonly row: number; readonly target: number; readonly width: number } | null;
   readonly bottom: { readonly row: number; readonly columnStart: number; readonly columnEnd: number } | null;
-  /** Transient non-selectable document-tail rows currently visible in the viewport. */
+  /** Transient non-persistent document-tail rows currently visible in the viewport. */
   readonly transientTail: readonly number[];
 }
 
@@ -114,7 +114,7 @@ export interface TranscriptViewportFrameDescriptor {
   readonly nextDocumentRange: { readonly start: number; readonly end: number };
   readonly previousFollowingEnd: boolean | null;
   readonly followingEnd: boolean;
-  /** Complete non-selectable suffix, including pending steering, alignment, and status rows. */
+  /** Complete non-persistent suffix, including pending steering, alignment, and status rows. */
   readonly transientRowCount: number;
   /** Flexible rows inserted before the bottom-aligned live status while content fits. */
   readonly transientAlignmentGapRows: number;
@@ -935,7 +935,11 @@ export class TranscriptViewport {
   }
 
   #visibleSelection() {
-    const rows = this.#selectionAnchors?.anchor.kind === "document" ? this.#viewportHeight : this.#selectionRows.length;
+    const anchors = this.#selectionAnchors;
+    const crossesDock = anchors?.anchor.kind === "dock" || anchors?.head.kind === "dock";
+    // Invariant: mixed viewport/dock ranges project across the same complete frame regardless
+    // of origin. Document-only ranges remain clipped to the scrollable viewport when off-screen.
+    const rows = crossesDock ? this.#selectionRows.length : this.#viewportHeight;
     return visibleTextSelection(orderedTextSelection(this.#selection), rows, this.#firstSelectableRow);
   }
 

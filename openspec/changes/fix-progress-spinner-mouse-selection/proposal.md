@@ -21,4 +21,4 @@ None.
 
 ## Impact
 
-Implementation is expected to affect the narrow progress-status mouse contract or the fullscreen hit-routing seam that currently claims its row, plus focused status and session-shell selection tests. It adds no dependency, setting, persisted state, or installed Pi modification and leaves regular-mode terminal selection and `a1 pi` behavior unchanged.
+Implementation will remove the fullscreen viewport's anchor-origin-dependent range clipping while keeping the progress status passive, plus add focused session-shell selection regressions. It adds no dependency, setting, persisted state, or installed Pi modification and leaves regular-mode terminal selection and `a1 pi` behavior unchanged.

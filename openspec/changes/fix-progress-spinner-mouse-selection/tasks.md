@@ -1,15 +1,15 @@
 ## 1. Establish the failing ownership path
 
-- [ ] 1.1 Add focused component-dispatch coverage for primary press, drag/move, and release on the progress status; verify ordinary spinner cells return no handled, capture, or focus result while wheel and explicit-control behavior remain unchanged.
-- [ ] 1.2 Add a fullscreen shell regression that sends SGR reports through the terminal fixture and reproduces a selection failing to begin on the rendered `Working…` row before the fix.
+- [x] 1.1 Add a fullscreen shell regression that sends primary press, no-button motion, and release SGR reports through the terminal fixture; verify the passive spinner reaches complete-frame selection and reproduce document-originated selection clipping at the dock side of `Working…`.
+- [x] 1.2 Cover spinner-originated and dock-originated drags alongside the failing document-originated direction so component pass-through and directional symmetry are independently visible.
 
 ## 2. Restore complete-frame selection across the spinner
 
-- [ ] 2.1 Change only the status-component or hit-routing seam identified by the failing tests so ordinary spinner cells leave primary drag events unhandled and complete-frame selection owns the full sequence.
-- [ ] 2.2 Preserve explicit control, overlay/modal, wheel, right-click paste, editor click, animation, copy-on-select, regular-mode, and `a1 pi` ownership behavior.
+- [x] 2.1 Remove the anchor-origin-dependent visible-row clipping so document-, spinner-, and dock-originated ranges project across the complete visible base frame while retaining surface-qualified endpoint anchors.
+- [x] 2.2 Keep ordinary spinner cells free of a mouse handler, capture, focus, or control hit region and preserve explicit control, overlay/modal, wheel, right-click paste, editor click, animation, copy-on-select, regular-mode, and `a1 pi` ownership behavior.
 
 ## 3. Prove starts, crossings, and animated rendering
 
-- [ ] 3.1 Cover a selection starting on the spinner and selections crossing it downward and upward, including no-button motion and exact paint/copy endpoints.
-- [ ] 3.2 Verify spinner ticks and status replacement do not capture, truncate, clear, or overwrite an active valid selection, and retain focused comparison-profile isolation coverage.
-- [ ] 3.3 Run focused progress-status, viewport-controller, session-shell selection, and terminal-paint tests plus typechecking and strict OpenSpec validation; record implementation evidence and dispose any known gap before finalization.
+- [x] 3.1 Cover a selection starting on the spinner and selections crossing it downward and upward, including no-button motion and exact paint/copy endpoints.
+- [x] 3.2 Verify spinner rendering does not capture, truncate, clear, or overwrite an active valid selection, and retain focused comparison-profile isolation coverage.
+- [x] 3.3 Run focused progress-status, viewport-controller, session-shell selection, and terminal-paint tests plus typechecking and strict OpenSpec validation; record implementation evidence and dispose any known gap before finalization.

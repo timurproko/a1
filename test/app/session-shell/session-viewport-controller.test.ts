@@ -331,7 +331,7 @@ describe("session viewport interaction controller", () => {
     } finally { target.clearPointerState(); vi.useRealTimers(); }
   });
 
-  it("keeps a transcript-originated selection out of dock rows after direct and edge-held crossing", () => {
+  it("keeps document-only edge selection in the viewport and crosses the dock symmetrically", () => {
     vi.useFakeTimers();
     const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
     target.setCopyOnSelect(false);
@@ -364,10 +364,10 @@ describe("session viewport interaction controller", () => {
 
       target.compose(input);
       target.handlePreInput("\u001b[<0;2;4M\u001b[<32;4;5M\u001b[<0;4;5m", true, 200);
-      const bounded = target.compose(input);
-      expect(bounded.rows[3]).toContain("\u001b[45m");
-      expect(bounded.rows.slice(bounded.hits.viewportHeight).every(row => !row.includes("\u001b[45m"))).toBe(true);
-      expect(copiedText(target.handlePreInput("\u0003"))).not.toMatch(/editor|footer/u);
+      const crossedDown = target.compose(input);
+      expect(crossedDown.rows[3]).toContain("\u001b[45m");
+      expect(crossedDown.rows[4]).toContain("\u001b[45m");
+      expect(copiedText(target.handlePreInput("\u0003"))).toContain("ed");
 
       target.compose(input);
       target.handlePreInput("\u001b[<0;2;5M\u001b[<32;4;4M\u001b[<0;4;4m", true, 300);
