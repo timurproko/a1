@@ -5,7 +5,9 @@ The standing rules for how A1 builds what a reader sees: A1 owns the experience,
 the data behind it, and neither one is allowed to be copied by hand into the other. These rules apply
 to every screen and every vendor-backed surface, so they are stated once here rather than restated for
 each feature.
+
 ## Requirements
+
 ### Requirement: A1 owns the experience and derives the vendor's data
 A1 SHALL own how a surface looks and behaves. Where a surface presents data that belongs to a vendor
 engine — its wording, its ordering, the values it offers, the limits it accepts, or which of its
@@ -142,3 +144,28 @@ A render root that composes owned UI surfaces SHALL assemble semantic content, c
 - **WHEN** a session is replaced or the shell is disposed
 - **THEN** the viewport controller SHALL clear its timers, selections, hover, drag, and editor-pointer ownership
 - **AND** no transient viewport state SHALL remain in the render root
+
+### Requirement: Accent customization targets semantic roles rather than current colors
+
+A1 customization of a vendor-backed accent SHALL be expressed at the owned theme boundary in terms of an explicitly enumerated semantic family: the vendor's declared `accent`, `border`, `selectedBg`, `userMessageBg`, `mdHeading`, and `mdListBullet` roles. Components SHALL continue to request those roles rather than reading a user preference, naming a palette variable, embedding a literal color, or deciding whether a resolved color looks like the previous accent. Resting sticky prompts and jump-to-bottom controls SHALL continue to request the unprojected neutral `toolPendingBg`, switching to the projected `selectedBg` only while hovered. No role SHALL join the family merely because it shares a value in one theme version.
+
+Every A1 palette choice, including the initial `purple` choice, SHALL provide owned appearance-aware values for the enumerated family while preserving all unrelated vendor theme roles. The projected `border` SHALL be a darker neighboring-hue variation that remains visibly distinct from the main accent, and `mdHeading` SHALL provide a brighter complementary secondary-title variation. Vendor synchronization SHALL verify the semantic token inventory and the owned rendering paths that can consume the family so an incompatible addition, removal, rename, or bypass fails before release.
+
+#### Scenario: The vendor changes its accent implementation
+- **WHEN** a vendor update changes the accent's value, variable name, or resource representation while retaining the semantic `accent` role
+- **THEN** A1 palette preferences SHALL continue to replace the declared semantic family without value matching
+- **AND** unrelated roles SHALL continue to follow the changed vendor theme
+
+#### Scenario: Another role happens to share the accent color
+- **WHEN** a syntax, Markdown role other than `mdHeading` or `mdListBullet`, status, background, or message role resolves to the same color as `accent`
+- **THEN** selecting an A1 accent SHALL NOT recolor that role solely because the values match
+- **AND** only an explicitly enumerated role MAY receive an accent replacement or derived same-hue variation
+
+#### Scenario: A rendering path bypasses the owned theme boundary
+- **WHEN** governed source or synchronization discovers a bare-A1 accent consumer that reads another theme singleton or embeds an accent value
+- **THEN** validation SHALL fail and identify the bypass before the change can be released
+
+#### Scenario: A retained package dialog renders its frame
+- **WHEN** bare A1 opens a retained package dialog whose border factory reads Pi's shared theme slot
+- **THEN** the slot SHALL expose only A1's projected `border` over the package base theme
+- **AND** comparison mode SHALL restore the complete unmodified package base theme
