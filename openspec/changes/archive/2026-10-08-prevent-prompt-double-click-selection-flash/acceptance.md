@@ -24,7 +24,7 @@ The maintainer integration decision accepts these scenarios:
     "Distinct prompt motion promotes from the original press cell into complete-frame selection.",
     "Transcript selection, controls, modal ownership, and comparison-profile behavior remain unchanged."
   ],
-  "archiveDigest": "b5348631d8614cc6008210d51166503c945eea318cb1803860898e1875ed3629",
+  "archiveDigest": "cb1bf554cd8d26da94c09526eb441d3a74bd5608bf76b08d7b413b723c75e1fc",
   "specDigest": "910a9d3bba0df13f8afa4b418d933b71b601c928d3a892d93257f1b1c677550a",
   "tasksDigest": "b42045af26f580f04a1d1e815a751068dfadf8d4c5805d00d529f19f8ebd2732",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
