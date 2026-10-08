@@ -28,7 +28,7 @@ async function fixture(t, branch = false, registered = true, beforeDiscovery = a
   await writeFile(join(primary, "tracked.txt"), "base\n");
   await mkdir(join(primary, "vendor")); await writeFile(join(primary, "vendor", ".gitmodules"), "");
   await mkdir(join(primary, "node_modules-cache")); await writeFile(join(primary, "node_modules-cache", "tracked.txt"), "ordinary content\n");
-  await writeFile(join(primary, ".gitignore"), "/node_modules\nnode_modules/\nsecret.txt\n/.artifacts\n/.artifacts-user/\n/artifacts/\n.builds\ndist/\n/native/process-guardian/target\n/native/terminal-host/target\n/src/integrations/pi/engine/pi-settings-metadata.json\n/src/integrations/pi/engine/pi-settings-metadata-user.json\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
+  await writeFile(join(primary, ".gitignore"), "/node_modules\nnode_modules/\nsecret.txt\n/.artifacts\n/.artifacts-user\n/artifacts/\n.builds\ndist/\n/native/process-guardian/target\n/native/terminal-host/target\n/src/integrations/pi/engine/pi-settings-metadata.json\n/src/integrations/pi/engine/pi-settings-metadata-user.json\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
   await git(primary, "add", "."); await git(primary, "commit", "-m", "fixture"); await git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
   await beforeDiscovery(primary);
   const path = join(primary, ".worktrees", "example");
