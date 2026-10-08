@@ -91,7 +91,8 @@ describe("semantic accent-family architecture", () => {
     const palette = source.slice(source.indexOf("const ACCENT_PALETTE"), source.indexOf("function clamp"));
     expect(palette).not.toMatch(/(?:border|secondaryHeading|selectedBg|userMessageBg):/u);
     expect(source).not.toContain('if (color === "default") return base');
-    expect(source).toContain("projectPiAccent(activeBaseTheme, color)");
+    expect(source).toContain("activeTheme = resolvePiAccentTheme(activeBaseTheme)");
+    expect(source).toContain("packageBorderProjectionEnabled ? projectPiAccent(rootBase, activeAccentColor) : rootBase");
     expect(source).not.toContain('"violet"');
     expect(source).not.toContain("167;152;215");
   });
