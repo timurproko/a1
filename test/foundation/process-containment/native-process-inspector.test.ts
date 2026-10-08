@@ -4,12 +4,12 @@ import {
   LinuxNativeProcessInspector,
   WindowsNativeProcessInspector,
 } from "../../../src/foundation/process-containment/index.js";
-
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 describe("native process inspector selection", () => {
   it("loads only the selected platform inspector", async () => {
     await expect(createNativeProcessInspector({}, "linux")).resolves.toBeInstanceOf(LinuxNativeProcessInspector);
-    await expect(createNativeProcessInspector({ A1_PROCESS_GUARDIAN_PATH: "guardian.exe" }, "win32"))
+    await expect(createNativeProcessInspector({ [PRODUCT_IDENTITY.environment.processGuardianPath]: "guardian.exe" }, "win32"))
       .resolves.toBeInstanceOf(WindowsNativeProcessInspector);
   });
 
