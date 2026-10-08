@@ -1,4 +1,4 @@
-import { MAX_COPY_SOURCE_UNITS, type SelectionCopySnapshot } from "./selection-copy.js";
+import { MAX_COPY_SOURCE_UNITS, selectionCopyLineContent, type SelectionCopySnapshot } from "./selection-copy.js";
 import {
   isThumbRow,
   scrollbarGeometry,
@@ -51,7 +51,7 @@ export interface TranscriptViewportFrameInput {
   readonly documentRows: readonly string[];
   /** Optional paint-only transform; semantic selection and copying keep documentRows exact. */
   readonly paintDocumentRow?: (row: string) => string;
-  /** Leading document rows that participate in pointer selection and copying. */
+  /** Leading persistent document rows; later transient rows remain selectable visible-frame content. */
   readonly selectableDocumentRowCount?: number;
   /**
    * First document row owned by the block that is currently streaming, if any. Rows from
@@ -100,7 +100,7 @@ export interface TranscriptViewportHitRegions {
   } | null;
   readonly sticky: { readonly row: number; readonly target: number; readonly width: number } | null;
   readonly bottom: { readonly row: number; readonly columnStart: number; readonly columnEnd: number } | null;
-  /** Transient non-selectable document-tail rows currently visible in the viewport. */
+  /** Transient non-persistent document-tail rows currently visible in the viewport. */
   readonly transientTail: readonly number[];
 }
 
@@ -114,7 +114,7 @@ export interface TranscriptViewportFrameDescriptor {
   readonly nextDocumentRange: { readonly start: number; readonly end: number };
   readonly previousFollowingEnd: boolean | null;
   readonly followingEnd: boolean;
-  /** Complete non-selectable suffix, including pending steering, alignment, and status rows. */
+  /** Complete non-persistent suffix, including pending steering, alignment, and status rows. */
   readonly transientRowCount: number;
   /** Flexible rows inserted before the bottom-aligned live status while content fits. */
   readonly transientAlignmentGapRows: number;
@@ -159,14 +159,27 @@ type DocumentSelectionRowAnchor = {
   readonly row: number;
   readonly source: string;
   readonly identity: string;
+  readonly liveFromBottom: number | undefined;
 };
 type SelectionRowAnchor =
   | DocumentSelectionRowAnchor
+  | { readonly kind: "transient"; readonly fromBottom: number }
   | { readonly kind: "dock"; readonly fromBottom: number }
   | { readonly kind: "screen"; readonly row: number; readonly source: string };
 
-function documentSelectionAnchor(row: number, source: string): DocumentSelectionRowAnchor {
-  return { kind: "document", row, source, identity: stripAnsi(source).trimEnd() };
+function documentSelectionAnchor(row: number, source: string, liveFromBottom?: number): DocumentSelectionRowAnchor {
+  return { kind: "document", row, source, identity: stripAnsi(source).trimEnd(), liveFromBottom };
+}
+
+function viewportSelectionAnchor(
+  row: number,
+  source: string,
+  selectableDocumentRowCount: number,
+  documentRowCount: number,
+): SelectionRowAnchor {
+  return row < selectableDocumentRowCount
+    ? documentSelectionAnchor(row, source)
+    : { kind: "transient", fromBottom: documentRowCount - row - 1 };
 }
 
 interface SelectionAnchors {
@@ -217,6 +230,7 @@ export class TranscriptViewport {
   #previousVisibleStates: readonly string[] = [];
   #documentRows: readonly string[] = [];
   #selectableDocumentRowCount = 0;
+  #liveTailStartRow: number | undefined;
   #promptAnchors: readonly TranscriptPromptAnchor[] = [];
   #contentWidth = 0;
   #selectionWidth = 0;
@@ -347,7 +361,36 @@ export class TranscriptViewport {
   selectedText(): string | null {
     const selection = this.#visibleSelection();
     if (selection === undefined) return null;
-    const text = textSelectionText(selection, this.#selectionRows, line => usefulTextLineContent(this.#selectionRows[line] ?? ""));
+    // Invariant: the blue range spans the complete frame, but automatic and Ctrl+C frame copy
+    // admit only persistent transcript rows. Transient status, suggestions, input, and footer
+    // chrome remain visually selectable without becoming clipboard payload.
+    const copiedLines = Array.from(
+      { length: Math.max(0, selection.end.line - selection.start.line + 1) },
+      (_value, index) => selection.start.line + index,
+    ).filter(line => {
+      const anchor = this.#selectionRowAnchors[line];
+      return anchor?.kind === "document" && anchor.row < this.#selectableDocumentRowCount;
+    });
+    if (copiedLines.length === 0) return null;
+    // Rationale: a prompt selected by itself uses semantic prompt text. Once surrounding transcript text
+    // participates, preserve the prompt's visible prefix, alignment, and timestamp in the bulk range.
+    const prompt = this.#promptAnchors.find(candidate => copiedLines.every(line => {
+      const anchor = this.#selectionRowAnchors[line];
+      return anchor?.kind === "document" && anchor.row >= candidate.firstRow && anchor.row <= candidate.lastRow;
+    }));
+    const included = new Set(copiedLines);
+    const text = textSelectionText(
+      selection,
+      this.#selectionRows,
+      line => {
+        const row = this.#selectionRows[line] ?? "";
+        const anchor = this.#selectionRowAnchors[line];
+        return prompt !== undefined && anchor?.kind === "document"
+          ? selectionCopyLineContent(row, anchor.row === prompt.firstRow ? "first" : "continuation")
+          : usefulTextLineContent(row);
+      },
+      line => included.has(line),
+    );
     return text.length === 0 ? null : text;
   }
 
@@ -358,6 +401,7 @@ export class TranscriptViewport {
     let text = this.selectedText();
     if (text === null) return null;
     text = text.trim();
+    if (text.length === 0) return null;
     const normalized = {
       start: { line: 0, column: 0 },
       end: { line: 0, column: Number.MAX_SAFE_INTEGER },
@@ -449,6 +493,7 @@ export class TranscriptViewport {
     this.#previousVisibleStates = [];
     this.#documentRows = [];
     this.#selectableDocumentRowCount = 0;
+    this.#liveTailStartRow = undefined;
     this.#promptAnchors = [];
     this.#contentWidth = 0;
     this.#selectionWidth = 0;
@@ -516,6 +561,9 @@ export class TranscriptViewport {
       0,
       input.documentRows.length,
     );
+    this.#liveTailStartRow = input.liveTailStartRow === undefined || !Number.isSafeInteger(input.liveTailStartRow)
+      ? undefined
+      : clamp(input.liveTailStartRow, 0, this.#selectableDocumentRowCount);
     this.#promptAnchors = input.promptAnchors;
     this.#contentWidth = contentWidth;
     // Invariant: dock rows remain selectable at full width; scrollable source rows
@@ -569,7 +617,12 @@ export class TranscriptViewport {
     const visibleAnchors: SelectionRowAnchor[] = Array.from({ length: viewportHeight }, (_value, row) => {
       const documentRow = this.#scrollTop + row;
       return documentRow < documentRows.length
-        ? documentSelectionAnchor(documentRow, documentRows[documentRow] ?? "")
+        ? viewportSelectionAnchor(
+            documentRow,
+            documentRows[documentRow] ?? "",
+            this.#selectableDocumentRowCount,
+            documentRows.length,
+          )
         : { kind: "screen", row, source: this.#selectionRows[row] ?? "" };
     });
     // Invariant: a pinned prompt is chrome over its hidden source row, which clips like off-screen rows.
@@ -705,7 +758,8 @@ export class TranscriptViewport {
             padRowPreservingBackground(withControl, width),
             overlayLimit - overlayWidth,
             overlayLimit,
-            `${CONTROL_STYLE_RESET}${overlayText}`,
+            `${GUTTER_DECORATION_RESET}${overlayText}`,
+            { inheritStartStyle: true },
           );
         },
       );
@@ -874,15 +928,35 @@ export class TranscriptViewport {
     if (line < 0 || line >= this.#selectionRows.length) return undefined;
     if (line < this.#viewportHeight) {
       const existing = this.#selectionRowAnchors[line];
-      if (this.#frame?.scrollTop === this.#scrollTop) return existing;
+      if (this.#frame?.scrollTop === this.#scrollTop) {
+        return existing?.kind === "document"
+          ? this.#interactionDocumentAnchor(existing.row, existing.source)
+          : existing;
+      }
       // Concurrency: selection edge auto-scroll updates scrollTop before the next frame is
       // composed. Resolve ordinary viewport rows from that latest position instead of stale paint.
       const documentRow = this.#scrollTop + line;
       if (documentRow >= 0 && documentRow < this.#documentRows.length) {
-        return documentSelectionAnchor(documentRow, this.#documentRows[documentRow] ?? "");
+        return documentRow < this.#selectableDocumentRowCount
+          ? this.#interactionDocumentAnchor(documentRow, this.#documentRows[documentRow] ?? "")
+          : viewportSelectionAnchor(
+              documentRow,
+              this.#documentRows[documentRow] ?? "",
+              this.#selectableDocumentRowCount,
+              this.#documentRows.length,
+            );
       }
     }
     return this.#selectionRowAnchors[line];
+  }
+
+  #interactionDocumentAnchor(row: number, source: string): DocumentSelectionRowAnchor {
+    const liveFromBottom = this.#liveTailStartRow !== undefined
+      && row >= this.#liveTailStartRow
+      && row < this.#selectableDocumentRowCount
+      ? this.#selectableDocumentRowCount - row - 1
+      : undefined;
+    return documentSelectionAnchor(row, source, liveFromBottom);
   }
 
   #projectSelection(documentRows: readonly string[], dockRows: readonly string[], height: number): void {
@@ -902,9 +976,16 @@ export class TranscriptViewport {
           ? undefined
           : { line: anchor.row, anchor };
       }
+      if (anchor.kind === "transient") {
+        const documentRow = documentRows.length - anchor.fromBottom - 1;
+        if (documentRow < this.#selectableDocumentRowCount || documentRow >= documentRows.length) return undefined;
+        const visible = this.#selectionRowAnchors.findIndex(candidate =>
+          candidate?.kind === "transient" && candidate.fromBottom === anchor.fromBottom);
+        return visible < 0 ? undefined : { line: visible, anchor };
+      }
       if (anchor.row >= 0 && anchor.row < documentRows.length
         && stripAnsi(documentRows[anchor.row] ?? "").trimEnd() === anchor.identity) {
-        const current = documentSelectionAnchor(anchor.row, documentRows[anchor.row] ?? "");
+        const current = documentSelectionAnchor(anchor.row, documentRows[anchor.row] ?? "", anchor.liveFromBottom);
         const visible = this.#selectionRowAnchors.findIndex(candidate => candidate?.kind === "document"
           && candidate.row === current.row && candidate.identity === current.identity);
         return { line: visible >= 0 ? visible : current.row - this.#scrollTop, anchor: current };
@@ -915,9 +996,30 @@ export class TranscriptViewport {
         .map((candidate, line) => ({ candidate, line }))
         .filter((entry): entry is { candidate: DocumentSelectionRowAnchor; line: number } =>
           entry.candidate?.kind === "document" && entry.candidate.identity === anchor.identity);
-      return visibleMatches.length === 1
-        ? { line: visibleMatches[0]!.line, anchor: visibleMatches[0]!.candidate }
-        : undefined;
+      if (visibleMatches.length === 1) {
+        const match = visibleMatches[0]!;
+        return {
+          line: match.line,
+          anchor: documentSelectionAnchor(match.candidate.row, match.candidate.source, anchor.liveFromBottom),
+        };
+      }
+      // Concurrency: a streaming chunk may replace or reflow the pointer's current live-tail
+      // row before the next motion report. During the held gesture only, retain its distance
+      // from the persistent tail; release restores identity-only projection.
+      if (selection.selecting && anchor.liveFromBottom !== undefined && this.#liveTailStartRow !== undefined) {
+        const documentRow = this.#selectableDocumentRowCount - anchor.liveFromBottom - 1;
+        if (documentRow >= this.#liveTailStartRow && documentRow < this.#selectableDocumentRowCount) {
+          const visible = this.#selectionRowAnchors.findIndex(candidate =>
+            candidate?.kind === "document" && candidate.row === documentRow);
+          if (visible >= 0) {
+            return {
+              line: visible,
+              anchor: documentSelectionAnchor(documentRow, documentRows[documentRow] ?? "", anchor.liveFromBottom),
+            };
+          }
+        }
+      }
+      return undefined;
     };
     const projectedAnchor = project(anchors.anchor);
     const projectedHead = project(anchors.head);
@@ -935,7 +1037,11 @@ export class TranscriptViewport {
   }
 
   #visibleSelection() {
-    const rows = this.#selectionAnchors?.anchor.kind === "document" ? this.#viewportHeight : this.#selectionRows.length;
+    const anchors = this.#selectionAnchors;
+    const crossesDock = anchors?.anchor.kind === "dock" || anchors?.head.kind === "dock";
+    // Invariant: mixed viewport/dock ranges project across the same complete frame regardless
+    // of origin. Document-only ranges remain clipped to the scrollable viewport when off-screen.
+    const rows = crossesDock ? this.#selectionRows.length : this.#viewportHeight;
     return visibleTextSelection(orderedTextSelection(this.#selection), rows, this.#firstSelectableRow);
   }
 

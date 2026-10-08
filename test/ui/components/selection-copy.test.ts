@@ -55,14 +55,15 @@ describe("selected visible-frame snapshots", () => {
     expect(snapshot.sourceUnits).toBe("alpha\n   beta\n\n  gamma".length);
   });
 
-  it("captures a multirow whitespace selection as an empty clipboard payload", () => {
+  it("keeps a multirow whitespace selection visual-only", () => {
     const viewport = new TranscriptViewport();
     viewport.compose({ documentRows: ["", "   ", ""], dockRows: [], promptAnchors: [], width: 20, height: 3 });
     viewport.pressSelection(1, 1, 0);
     viewport.extendSelection(1, 3, 1, false);
     viewport.releaseSelection();
     expect(viewport.selectedText()).toBe("\n\n");
-    expect(viewport.captureSelectedText()).toMatchObject({ literal: true, rows: [{ text: "" }], sourceUnits: 0 });
+    expect(viewport.hasSelection).toBe(true);
+    expect(viewport.captureSelectedText()).toBeNull();
   });
 
   it("does not turn empty clicks or whitespace-only single-row ranges into copy actions", () => {

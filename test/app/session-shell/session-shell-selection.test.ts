@@ -251,7 +251,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       } finally { await shell.dispose(); }
     });
 
-  it.each([false, true])("routes autocomplete body pointers and restores extension editors (history=%s)", async persistent => {
+  it.each([false, true])("selects autocomplete input without copying it and restores extension editors (history=%s)", async persistent => {
     const history = memoryHistory();
     const copied: string[] = [];
     const readText = vi.fn(async () => "clipboard text");
@@ -274,7 +274,9 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input(`\u001b[<0;6;${row}m`);
       expect(shell.root.hasActiveSelection()).toBe(true);
       terminal.input("\u0003");
-      await vi.waitFor(() => expect(copied).toEqual(["/mo"]));
+      await nextImmediate();
+      expect(copied).toEqual([]);
+      expect(shell.root.hasActiveSelection()).toBe(false);
       const ui = (engine.session.extensionBindings as { uiContext: ExtensionUIContext }).uiContext;
       ui.setEditorComponent(tui => new Editor(tui, {
         borderColor: text => text,
@@ -323,7 +325,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     expect(terminal.writes).toHaveLength(count);
   });
 
-  it("paints blank rows and copies their normalized empty payload", async () => {
+  it("paints blank rows without submitting an empty clipboard payload", async () => {
     const { shell, terminal } = await fixture([], [], true);
     try {
       const start = terminal.writes.length;
@@ -331,9 +333,10 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input("\u001b[<32;20;5M");
       shell.runtime.renderNow();
       terminal.input("\u001b[<0;20;5m");
-      await vi.waitFor(() => expect(terminal.writes.slice(start).join("")).toContain("\u001b]52;c;\u0007"));
+      await nextImmediate();
       shell.runtime.renderNow();
       const output = terminal.writes.slice(start).join("");
+      expect(output).not.toContain("\u001b]52;c;");
       expect(output).not.toContain("chars to clipboard");
       expect(output).toContain("\u001b[48;2;38;79;120m");
       terminal.input("still usable");
@@ -523,6 +526,49 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     })).toEqual(["assistant", "Selectable assistant words"]));
     await vi.waitFor(() => expect(shell.root.render(60).map(stripTerminalSequences).join("\n"))
       .toContain(`copied ${"Selectable assistant words".length} chars to clipboard`));
+  });
+
+  it("copies one submitted prompt semantically, preserves it in bulk text, and skips dock-only ranges", async () => {
+    const copied: string[] = [];
+    const messages = [
+      { role: "user", content: [{ type: "text", text: "ask me" }], timestamp: Date.now() - 1_000 },
+      { role: "assistant", content: [{ type: "text", text: "answer body" }], timestamp: Date.now() },
+    ];
+    const { terminal, shell } = await fixture(messages, [], true, undefined, {
+      readText: async () => null,
+      writeText: async text => { copied.push(text); },
+    });
+    try {
+      terminal.resize(60, 14);
+      shell.root.setFullscreenCopyOnSelect(false);
+      shell.runtime.renderNow();
+      const rows = shell.root.render(60).map(stripTerminalSequences);
+      const promptRow = rows.findIndex(row => row.startsWith("❯ ask me")) + 1;
+      const answerRow = rows.findIndex(row => row.includes("answer body")) + 1;
+      const dock = shell.root.viewportFrameDescriptor()!.dock!;
+      const inputRow = rows.findIndex((row, index) => index + 1 >= dock.rowStart && row.startsWith("❯ ")) + 1;
+      expect(promptRow).toBeGreaterThan(0);
+      expect(answerRow).toBeGreaterThan(promptRow);
+      expect(inputRow).toBeGreaterThanOrEqual(dock.rowStart);
+
+      terminal.input(`\u001b[<0;1;${promptRow}M\u001b[<32;59;${promptRow}M\u001b[<0;59;${promptRow}m`);
+      terminal.input("\u0003");
+      await vi.waitFor(() => expect(copied).toEqual(["ask me"]));
+
+      terminal.input(`\u001b[<0;1;${promptRow}M\u001b[<32;59;${answerRow}M\u001b[<0;59;${answerRow}m`);
+      terminal.input("\u0003");
+      await vi.waitFor(() => expect(copied).toHaveLength(2));
+      expect(copied[1]).toMatch(/^❯ ask me\s+\d{2}:\d{2}\n\n answer body$/u);
+
+      terminal.input(`\u001b[<0;2;${inputRow}M\u001b[<32;20;${dock.rowEnd}M\u001b[<0;20;${dock.rowEnd}m`);
+      shell.runtime.renderNow();
+      const selected = shell.root.render(60);
+      expect(selected[inputRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[dock.rowEnd - 1]).toContain("\u001b[48;2;38;79;120m");
+      terminal.input("\u0003");
+      await nextImmediate();
+      expect(copied).toHaveLength(2);
+    } finally { await shell.dispose(); }
   });
 
   it("moves retained agent-stream selection with followed output while footer selection stays pinned", async () => {
@@ -1054,34 +1100,153 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     }
   });
 
-  it("keeps transcript-originated selection above the dock while preserving dock-origin crossing", async () => {
-    const messages = [{ role: "assistant", content: [{ type: "text", text: "content boundary" }], timestamp: Date.now() }];
-    const { terminal, shell } = await fixture(messages, [], true);
-    terminal.resize(60, 12);
-    shell.root.setFullscreenCopyOnSelect(false);
-    const plain = shell.root.render(60).map(stripTerminalSequences);
-    const contentRow = plain.findIndex(row => row.includes("content boundary")) + 1;
-    const descriptor = shell.root.viewportFrameDescriptor()!;
-    const dock = descriptor.dock!;
+  it.each(["working-origin", "downward", "input-origin", "status-origin"] as const)(
+    "routes terminal selection through the Working row (%s)",
+    async direction => {
+      const messages = [{ role: "assistant", content: [{ type: "text", text: "content boundary" }], timestamp: Date.now() }];
+      const { terminal, shell, engine } = await fixture(messages, [], true);
+      try {
+        terminal.resize(60, 12);
+        shell.root.setFullscreenCopyOnSelect(false);
+        engine.session.emit({ type: "agent_start" });
+        await shell.backend.flushEvents();
+        shell.runtime.renderNow();
+        const plain = shell.root.render(60).map(stripTerminalSequences);
+        const contentRow = plain.findIndex(row => row.includes("content boundary")) + 1;
+        const workingRow = plain.findIndex(row => row.includes("Working")) + 1;
+        const dock = shell.root.viewportFrameDescriptor()!.dock!;
+        const inputRow = plain.findIndex(row => row.startsWith("❯ ")) + 1;
+        const statusRow = dock.rowEnd;
+        const column = plain[workingRow - 1]!.indexOf("Working") + 1;
+        expect(contentRow).toBeGreaterThan(0);
+        expect(workingRow).toBeGreaterThan(contentRow);
+        expect(dock.rowStart).toBe(workingRow + 1);
+        expect(inputRow).toBeGreaterThanOrEqual(dock.rowStart);
+        expect(statusRow).toBeGreaterThanOrEqual(inputRow);
+        expect(column).toBeGreaterThan(0);
 
-    expect(shell.root.handleViewportPreInput(`\u001b[<0;2;${contentRow}M`)).toMatchObject({ data: "", consumed: true });
-    expect(shell.root.handleViewportPreInput(`\u001b[<35;20;${dock.rowEnd}M`)).toMatchObject({ data: "", consumed: true });
-    expect(shell.root.handleViewportPreInput(`\u001b[<0;20;${dock.rowEnd}m`)).toMatchObject({ data: "", consumed: true });
-    const bounded = shell.root.render(60);
-    expect(bounded.slice(descriptor.transcript!.rowStart - 1, descriptor.transcript!.rowEnd)
-      .some(row => row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
-    expect(bounded.slice(dock.rowStart - 1, dock.rowEnd)
-      .every(row => !row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
-    expect(shell.root.handleViewportPreInput("\u0003")).toMatchObject({ data: "", consumed: true });
+        const path = direction === "working-origin"
+          ? [workingRow, contentRow]
+          : direction === "downward"
+            ? [contentRow, workingRow, inputRow]
+            : direction === "input-origin"
+              ? [inputRow, workingRow, contentRow]
+              : [statusRow, inputRow, workingRow, contentRow];
+        const startRow = path[0]!;
+        const endRow = path.at(-1)!;
+        terminal.input(`\u001b[<0;${column};${startRow}M`);
+        for (const [index, row] of path.slice(1).entries()) {
+          const last = index === path.length - 2;
+          terminal.input(`\u001b[<${last ? 35 : 32};${column};${row}M`);
+          shell.runtime.renderNow();
+        }
+        terminal.input(`\u001b[<0;${column};${endRow}m`);
+        shell.runtime.renderNow();
 
-    shell.root.handleViewportPreInput(`\u001b[<0;20;${dock.rowEnd}M`);
-    shell.root.handleViewportPreInput(`\u001b[<35;20;${contentRow}M`);
-    shell.root.handleViewportPreInput(`\u001b[<0;20;${contentRow}m`);
-    const dockOriginated = shell.root.render(60);
-    expect(dockOriginated[contentRow - 1]).toContain("\u001b[48;2;38;79;120m");
-    expect(dockOriginated.slice(dock.rowStart - 1, dock.rowEnd)
-      .some(row => row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
-    await shell.dispose();
+        const selected = shell.root.render(60);
+        expect(selected[startRow - 1]).toContain("\u001b[48;2;38;79;120m");
+        expect(selected[workingRow - 1]).toContain("\u001b[48;2;38;79;120m");
+        expect(selected[endRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      } finally {
+        await shell.dispose();
+      }
+    },
+  );
+
+  it.each(["above", "below"] as const)("keeps a terminal drag active on Working while its animation ticks from %s", async origin => {
+    const messages = [{ role: "assistant", content: [{ type: "text", text: "animated boundary" }], timestamp: Date.now() }];
+    const { terminal, shell, engine } = await fixture(messages, [], true);
+    try {
+      terminal.resize(60, 12);
+      shell.root.setFullscreenCopyOnSelect(false);
+      engine.session.emit({ type: "agent_start" });
+      await shell.backend.flushEvents();
+      shell.runtime.renderNow();
+      const before = shell.root.render(60).map(stripTerminalSequences);
+      const contentRow = before.findIndex(row => row.includes("animated boundary")) + 1;
+      const workingRow = before.findIndex(row => row.includes("Working")) + 1;
+      const inputRow = before.findIndex(row => row.startsWith("❯ ")) + 1;
+      const column = before[workingRow - 1]!.indexOf("Working") + 1;
+      const startRow = origin === "above" ? contentRow : inputRow;
+      const endRow = origin === "above" ? inputRow : contentRow;
+
+      terminal.input(`\u001b[<0;${column};${startRow}M`);
+      terminal.input(`\u001b[<32;${column};${workingRow}M`);
+      shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(true);
+      await new Promise(resolve => setTimeout(resolve, 240));
+      shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(true);
+      expect(shell.root.render(60)[workingRow - 1]).toContain("\u001b[48;2;38;79;120m");
+
+      terminal.input(`\u001b[<35;${column};${endRow}M`);
+      terminal.input(`\u001b[<0;${column};${endRow}m`);
+      shell.runtime.renderNow();
+      const selected = shell.root.render(60);
+      expect(selected[startRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[workingRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[endRow - 1]).toContain("\u001b[48;2;38;79;120m");
+    } finally {
+      await shell.dispose();
+    }
+  });
+
+  it("keeps a downward terminal drag active while the live tail reflows into Working", async () => {
+    const messages = [{ role: "assistant", content: [{ type: "text", text: "selection origin" }], timestamp: Date.now() - 1_000 }];
+    const { terminal, shell, engine } = await fixture(messages, [], true);
+    try {
+      terminal.resize(60, 14);
+      shell.root.setFullscreenCopyOnSelect(false);
+      engine.session.emit({ type: "agent_start" });
+      engine.session.emit({
+        type: "message_start",
+        message: { id: "live-selection", role: "assistant", content: [{ type: "text", text: "partial tail" }], timestamp: Date.now() },
+      });
+      await shell.backend.flushEvents();
+      shell.runtime.renderNow();
+      let rows = shell.root.render(60).map(stripTerminalSequences);
+      const originRow = rows.findIndex(row => row.includes("selection origin")) + 1;
+      const partialRow = rows.findIndex(row => row.includes("partial tail")) + 1;
+      expect(originRow).toBeGreaterThan(0);
+      expect(partialRow).toBeGreaterThan(originRow);
+
+      terminal.input(`\u001b[<0;2;${originRow}M`);
+      terminal.input(`\u001b[<32;8;${partialRow}M`);
+      engine.session.emit({
+        type: "message_update",
+        message: { id: "live-selection", role: "assistant", content: [{ type: "text", text: "partial tail extended\nnew live row" }], timestamp: Date.now() },
+        assistantMessageEvent: { type: "text_delta", delta: " extended\nnew live row" },
+      });
+      await shell.backend.flushEvents();
+      shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(true);
+
+      rows = shell.root.render(60).map(stripTerminalSequences);
+      const workingRow = rows.findIndex(row => row.includes("Working")) + 1;
+      terminal.input(`\u001b[<32;8;${workingRow}M`);
+      await new Promise(resolve => setTimeout(resolve, 160));
+      engine.session.emit({
+        type: "message_update",
+        message: { id: "live-selection", role: "assistant", content: [{ type: "text", text: "partial tail extended again\nnew live row growing" }], timestamp: Date.now() },
+        assistantMessageEvent: { type: "text_delta", delta: " growing" },
+      });
+      await shell.backend.flushEvents();
+      shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(true);
+
+      rows = shell.root.render(60).map(stripTerminalSequences);
+      const currentWorkingRow = rows.findIndex(row => row.includes("Working")) + 1;
+      const inputRow = rows.findIndex(row => row.startsWith("❯ ")) + 1;
+      terminal.input(`\u001b[<35;8;${inputRow}M`);
+      terminal.input(`\u001b[<0;8;${inputRow}m`);
+      shell.runtime.renderNow();
+      const selected = shell.root.render(60);
+      expect(selected[originRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[currentWorkingRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[inputRow - 1]).toContain("\u001b[48;2;38;79;120m");
+    } finally {
+      await shell.dispose();
+    }
   });
 
   it("continues an active drag through no-button motion reports", async () => {

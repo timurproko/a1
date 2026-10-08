@@ -1150,7 +1150,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     expect(trace.snapshot().totals.dispose!.count).toBe(1);
   });
 
-  it("extends an uninterrupted LMB drag through adjacent URL chips and their ellipses", async () => {
+  it("keeps an uninterrupted LMB drag through adjacent URL chips visual-only", async () => {
     const url = "https://example.com/a/very/useful/resource";
     let clipboardText = url;
     const { terminal, shell } = await fixture([], [], true, undefined, {
@@ -1184,9 +1184,15 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     expect(shell.root.render(120).join("\n")).toContain("\u001b[48;2;38;79;120m");
 
     terminal.input(`\u001b[<0;${secondBracketColumn};${promptRow + 1}m`);
-    await vi.waitFor(() => expect(clipboardText).not.toBe(url));
-    expect(clipboardText.match(/https:\/\/example\.com/gu)).toHaveLength(2);
-    expect(clipboardText).toContain("…");
+    await nextImmediate();
+    expect(clipboardText).toBe(url);
+    expect(shell.root.hasActiveSelection()).toBe(true);
+    expect(shell.root.render(120).join("\n")).toContain("\u001b[48;2;38;79;120m");
+
+    terminal.input("\u0003");
+    await nextImmediate();
+    expect(clipboardText).toBe(url);
+    expect(shell.root.hasActiveSelection()).toBe(false);
     await shell.dispose();
   });
 

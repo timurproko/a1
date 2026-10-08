@@ -173,9 +173,11 @@ export function textSelectionText(
   selection: OrderedTextSelection,
   rows: readonly string[],
   lineContent?: (line: number) => TextSelectionLineContent | undefined,
+  includeLine: (line: number) => boolean = () => true,
 ): string {
   const parts: string[] = [];
   for (let line = selection.start.line; line <= selection.end.line && line < rows.length; line += 1) {
+    if (!includeLine(line)) continue;
     const plain = stripAnsi(rows[line] ?? "");
     const content = lineContent?.(line);
     if (content?.selectable === false) {
