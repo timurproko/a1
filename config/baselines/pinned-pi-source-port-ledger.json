@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-08T13:37:04.762Z",
+  "recordedAt": "2026-10-08T13:47:32.812Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -2290,7 +2290,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal frame with standalone title, standard outer rules, stable filter/status row, progressive result paging, aligned result columns, Session Tree selection roles, quiet in-field query syntax guidance, and one-line bottom dynamic feedback and searchable-dialog shortcut footer. Selected session rows use the blue selection surface while preserving title and metadata foregrounds; the active session title uses success green independently of keyboard selection, with ordinary text weight.",
       "upgradeStrategy": "three-way",
-      "localSha256": "2edef8e52a02b2f52bf6799248f8aac84bd9f7d544b20656e271b798aff6a629",
+      "localSha256": "b0c9b1b3e045b606c0643f2cbfcfe8d7f3e3dea6a275c7af930f7d3c9071e36f",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -3476,7 +3476,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class and projecting A1's optional semantic accent.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "e1454c16555e95f1802bdda029dfbc253c2b3f4256981f9d3b7727861fb38b8e",
+      "localSha256": "f3558cb4e11842ae07e551a55eb6623152c1ed1c7c2f750f39f609c6d440b0ef",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",

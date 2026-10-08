@@ -141,10 +141,10 @@ describe("owned pinned session selector", () => {
     expect(firstVisibleTextColumn(initialRows[hintIndex]!)).toBe(firstVisibleTextColumn(heading));
     expect(firstVisibleTextColumn(filterRow)).toBe(firstVisibleTextColumn(heading));
     expect(cellStyle(heading, "R")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("R")), "R"));
-    expect(filterRow).toContain(piTheme().fg("accent", "current"));
+    expect(filterRow).toContain(piTheme().fg("mdHeading", "current"));
     expect(filterRow).toContain(piTheme().fg("dim", "all"));
-    expect(filterRow).toContain(piTheme().fg("accent", "all"));
-    expect(filterRow).toContain(piTheme().fg("accent", "threaded"));
+    expect(filterRow).toContain(piTheme().fg("mdHeading", "all"));
+    expect(filterRow).toContain(piTheme().fg("mdHeading", "threaded"));
     expect(plainInitialRows[searchIndex]).toContain('> re:<pattern> regex, "phrase" exact');
     expect(searchRow).toContain("\u001b[7mr\u001b[27m");
     expect(cellStyle(searchRow, "r").faint).toBe(false);
@@ -248,14 +248,14 @@ describe("owned pinned session selector", () => {
       input(reverseTab);
       await new Promise(resolve => setTimeout(resolve, 0));
       const scopeRow = component.render(100).find(row => stripPortableTerminalSequences(row).includes("Filter: current | all"))!;
-      expect(scopeRow).toContain(piTheme().fg("accent", scope));
+      expect(scopeRow).toContain(piTheme().fg("mdHeading", scope));
       expect(frame()).toContain("Resume Session");
       expect(frame()).not.toContain("Resume Session (");
     }
     input("\t");
     await new Promise(resolve => setTimeout(resolve, 0));
     const currentScopeRow = component.render(100).find(row => stripPortableTerminalSequences(row).includes("Filter: current | all"))!;
-    expect(currentScopeRow).toContain(piTheme().fg("accent", "current"));
+    expect(currentScopeRow).toContain(piTheme().fg("mdHeading", "current"));
     expect(frame()).toContain("Resume Session");
     expect(frame()).not.toContain("Resume Session (");
     input("\x1b");
@@ -293,7 +293,7 @@ describe("owned pinned session selector", () => {
     expect(plain.find(row => row.includes("Filter:"))).not.toContain("loading");
     expect(plain.some(row => row.trim() === "(1/12)")).toBe(true);
     expect(rows.find(row => stripPortableTerminalSequences(row).includes("Filter:")))
-      .toContain(piTheme().fg("accent", "all"));
+      .toContain(piTheme().fg("mdHeading", "all"));
 
     reportAll(15, 100, values);
     plain = component.render(100).map(stripPortableTerminalSequences);

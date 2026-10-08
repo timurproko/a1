@@ -99,12 +99,12 @@ const ACCENT_PALETTE: Readonly<Record<UiAccentColor, Readonly<Record<PiTerminalT
   purple: Object.freeze({
     dark: Object.freeze({
       accent: Object.freeze({ kind: "rgb", r: 167, g: 152, b: 215 }), border: okhslColor(275, 0.42, 0.50),
-      secondaryHeading: okhslColor(320, 0.60, 0.76),
+      secondaryHeading: okhslColor(350, 0.82, 0.72),
       selectedBg: okhslColor(295, 0.35, 0.24), userMessageBg: okhslColor(295, 0.28, 0.24),
     }),
     light: Object.freeze({
       accent: Object.freeze({ kind: "rgb", r: 116, g: 89, b: 180 }), border: okhslColor(275, 0.50, 0.36),
-      secondaryHeading: okhslColor(320, 0.66, 0.38),
+      secondaryHeading: okhslColor(350, 0.78, 0.35),
       selectedBg: okhslColor(295, 0.22, 0.91), userMessageBg: okhslColor(295, 0.16, 0.91),
     }),
   }),

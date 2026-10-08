@@ -51,6 +51,15 @@ describe("semantic accent-family architecture", () => {
     }
   });
 
+  it("invalidates retained transcript components and separates active filters from primary titles", async () => {
+    const shell = await readFile("src/app/session-shell/session-shell-root.ts", "utf8");
+    expect(shell).toContain("this.#themeUnsubscribe = onPiThemeChange(() => {\n      this.invalidate();");
+    const sessions = await readFile("src/integrations/pi/components/upstream/components/session-selector.ts", "utf8");
+    expect(sessions).toContain('this.scope === "current" ? "mdHeading" : "dim"');
+    expect(sessions).toContain('theme.fg("mdHeading", this.nameFilter)');
+    expect(sessions).toContain('theme.fg("mdHeading", sortLabel)');
+  });
+
   it("keeps sticky prompts and jump controls neutral until their accent hover", async () => {
     const source = await readFile("src/app/session-shell/session-shell-root.ts", "utf8");
     expect(source.match(/hovered \? "selectedBg" : "toolPendingBg"/gu)).toHaveLength(2);

@@ -28,7 +28,7 @@ vi.mock("node:worker_threads", async importOriginal => {
   } };
 });
 import { screenshotPng } from "../../fixtures/image-sources.js";
-import { applyPiTheme, setPiAccentColor } from "../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, piTheme, setPiAccentColor } from "../../../src/integrations/pi/components/index.js";
 import { Session, fixture, nextImmediate } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell viewport and streaming", () => {
@@ -706,13 +706,25 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     await shell.dispose();
   }, 15_000);
 
-  it("repaints the active terminal when the semantic accent changes", async () => {
-    const { shell, terminal } = await fixture();
+  it("repaints retained ordered-list markers when the semantic accent changes", async () => {
+    const { shell, terminal, engine, adapter } = await fixture();
+    const assistant = (text: string, stopReason = "pending") => ({
+      role: "assistant", content: [{ type: "text", text }], stopReason, timestamp: 5,
+    });
     terminal.writes.length = 0;
     try {
-      setPiAccentColor("blue");
+      setPiAccentColor("pink");
+      engine.session.emit({ type: "message_end", message: assistant("1. one\n2. two", "stop") });
+      await adapter.flushEvents();
+      const pinkMarker = piTheme().fg("mdListBullet", "1. ");
+      expect(shell.root.render(80).join("\n")).toContain(pinkMarker);
+
+      setPiAccentColor("green");
       await new Promise(resolve => setTimeout(resolve, 25));
+      const repainted = shell.root.render(80).join("\n");
       expect(terminal.writes.length).toBeGreaterThan(0);
+      expect(repainted).toContain(piTheme().fg("mdListBullet", "1. "));
+      expect(repainted).not.toContain(pinkMarker);
     } finally {
       setPiAccentColor("purple");
       await shell.dispose();

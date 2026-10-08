@@ -154,6 +154,7 @@ describe("pinned Pi theme and layout parity", () => {
       else expect(rendered).not.toBe(baseAccent);
       expect(piTheme().fg("border", "probe")).not.toBe(baseBorder);
       expect(piTheme().fg("mdHeading", "probe")).not.toBe(baseHeading);
+      expect(piTheme().fg("mdHeading", "probe")).not.toBe(rendered);
       expect(piTheme().fg("mdListBullet", "probe")).toBe(rendered);
       expect(piTheme().colors.selectedBg).not.toEqual(base.colors.selectedBg);
       expect(piTheme().colors.userMessageBg).not.toEqual(base.colors.userMessageBg);
@@ -219,8 +220,8 @@ describe("pinned Pi theme and layout parity", () => {
       const headingHueDistance = Math.min(Math.abs(accent.h - heading.h), 360 - Math.abs(accent.h - heading.h));
       expect(borderHueDistance).toBeGreaterThan(15);
       expect(borderHueDistance).toBeLessThan(25);
-      expect(headingHueDistance).toBeGreaterThan(20);
-      expect(headingHueDistance).toBeLessThan(45);
+      expect(headingHueDistance).toBeGreaterThan(color === "purple" ? 45 : 20);
+      expect(headingHueDistance).toBeLessThan(60);
       expect(Math.abs(accent.h - selection.h)).toBeLessThan(5);
       expect(Math.abs(accent.h - message.h)).toBeLessThan(8);
       expect(border.s).toBeLessThan(accent.s);
