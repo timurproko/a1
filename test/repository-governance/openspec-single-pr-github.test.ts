@@ -196,7 +196,7 @@ describe("version-3 GitHub delivery authority", () => {
       sourceHead: originalHead, sourceMerge: originalMerge, validationRunId: 98,
       failureReason: "missing-openspec-implementation-metadata", correctivePr: 42 };
     const f = fixture(true, "manual", repair);
-    const original = { number: 573, state: "closed", merged: true, draft: false, auto_merge: null, merged_at: "2026-09-15T11:00:00Z",
+    const original = { number: 573, state: "closed", merged: true, draft: false, changed_files: 1, auto_merge: null, merged_at: "2026-09-15T11:00:00Z",
       merge_commit_sha: originalMerge, merged_by: { login: "reviewer", type: "User" }, body: "ordinary body",
       base: { ref: "develop", sha: base, repo: { full_name: repository } },
       head: { ref: "fix/original", sha: originalHead, repo: { full_name: repository } } };
@@ -215,6 +215,7 @@ describe("version-3 GitHub delivery authority", () => {
         return await f.reader.get(path);
       },
       async pages(path: string, limit?: number, field?: string) {
+        if (path === "/pulls/573/files") return [{ filename: "src/example.ts", status: "modified" }];
         if (path === "/issues/573/timeline") return [{ event: "merged", actor: { login: "reviewer", type: "User" },
           performed_via_github_app: null, commit_id: originalMerge, created_at: original.merged_at }];
         if (path.startsWith("/actions/workflows/ci.yml/runs?") && path.includes(originalHead)) return [{

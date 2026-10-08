@@ -1,18 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
-import { captureWorktree, exists, gitRunner, statusBlockers } from "./local-cleanup-git.mjs";
+import { captureWorktree, exists, gitRunner, statusBlockers, REPOSITORY_DISPOSABLE_PATHS } from "./local-cleanup-git.mjs";
 import { digest, fail, registerEntry, transitionEntry } from "./local-cleanup-state.mjs";
 import { reconcileLocalCleanup } from "./local-cleanup-reconcile.mjs";
 
-export const COMPLETION_DISPOSABLE_PATHS = Object.freeze([
-  "node_modules",
-  "dist",
-  ".builds",
-  ".artifacts",
-  "native/process-guardian/target",
-  "native/terminal-host/target",
-  "src/integrations/pi/engine/pi-settings-metadata.json",
-]);
+export const COMPLETION_DISPOSABLE_PATHS = REPOSITORY_DISPOSABLE_PATHS;
 
 // Protocol: the head may have moved to an accepted ancestor of the merged PR head; the reconciler judges that, not the binder.
 const sameIdentity = (entry, snapshot) => ["path", "filesystem", "ref"].every(key => entry[key] === snapshot[key]);
