@@ -12,7 +12,7 @@ A live accent change SHALL invalidate theme-sensitive content and repaint the ac
 - **WHEN** bare A1 has an `accentColor` preference
 - **THEN** titles, cursors, selected markers, working indicators, accent scrollbars, dialogs, settings controls, and extension theme access that request `accent` SHALL use that choice
 - **AND** every owned and retained package dialog bar that requests `border` SHALL use a visibly darker neighboring-hue variation of that choice
-- **AND** secondary section/Markdown headings and active dialog-filter values SHALL use a brighter complementary neighboring-hue variation distinct from primary titles
+- **AND** secondary section/Markdown headings and active dialog-filter values SHALL use a brighter complementary neighboring-hue variation distinct from primary titles, with blue and purple receiving the stronger sector-derived separation needed for a clear hierarchy
 - **AND** filled scope/default state markers SHALL match the neutral model/item text color
 - **AND** selected rows that request `selectedBg` SHALL use a half-strength low-chroma tonal variation closer to the terminal background
 - **AND** visible user prompts SHALL use a quieter low-prominence variation

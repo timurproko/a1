@@ -237,7 +237,7 @@ describe("pinned Pi theme and layout parity", () => {
       const headingHueDistance = Math.min(Math.abs(accent.h - heading.h), 360 - Math.abs(accent.h - heading.h));
       expect(borderHueDistance).toBeGreaterThan(15);
       expect(borderHueDistance).toBeLessThan(25);
-      expect(headingHueDistance).toBeGreaterThan(color === "purple" ? 45 : 20);
+      expect(headingHueDistance).toBeGreaterThan(color === "purple" || color === "blue" ? 45 : 20);
       expect(headingHueDistance).toBeLessThan(60);
       expect(Math.min(Math.abs(accent.h - selection.h), 360 - Math.abs(accent.h - selection.h))).toBeLessThan(20);
       expect(border.s).toBeLessThan(accent.s);

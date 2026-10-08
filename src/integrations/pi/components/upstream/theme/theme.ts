@@ -121,8 +121,9 @@ export function derivePiAccentProjection(accent: Color, appearance: PiTerminalTh
   const { h, s, l } = colorToOkhsl(accent);
   const warm = h < 90 || h >= 270;
   const magenta = h >= 270 && h < 325;
+  const blue = h >= 210 && h < 270;
   const borderHue = wrapHue(h + (warm ? -20 : 20));
-  const secondaryHue = wrapHue(h + (magenta ? 55 : warm ? 35 : -35));
+  const secondaryHue = wrapHue(h + (magenta ? 55 : blue ? -50 : warm ? 35 : -35));
   const dark = appearance === "dark";
   const selectedSaturation = clamp(s * (dark ? 0.25 : 0.16), dark ? 0.10 : 0.08, dark ? 0.16 : 0.11);
   const selectedLightness = dark ? l * 0.37 : 1 - (1 - l) * 0.075;

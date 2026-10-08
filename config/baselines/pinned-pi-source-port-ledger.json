@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-08T14:15:46.757Z",
+  "recordedAt": "2026-10-08T15:12:45.221Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -3476,7 +3476,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class and projecting A1's optional semantic accent.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "431b24b5cb87687149da94ea45440466a5c00ff486af9fb3481252031f739575",
+      "localSha256": "a9e03ac48825af1820f2e835643606f7ffa91d6f83e91aa47ed9d4a15d544aab",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",
