@@ -22,7 +22,13 @@ Every delivery session then starts, before it creates a worktree, with one bound
 node scripts/governance/local-worktree-cleanup.mjs sweep --repo D:/Git/a1
 ```
 
-`sweep` evaluates every released registration in one pass under the queue limits (100 registrations, 500 remote requests, a durable round-robin cursor) with a 180-second elapsed budget, since each merged candidate costs three evidence loads, and completes each candidate whose PR is verified merged using exactly the `complete` safeguards. It needs no `enable` and starts no process: its authority is each candidate's release. A candidate whose PR is open, draft, or not yet finalized reports `pending`; a candidate whose PR closed without merge reports `awaiting-discard` and is never touched; blockers report their exact reason. An old stop sentinel does not prevent a sweep, but `disable` run while a sweep is executing stops it before its next destructive step. If another session holds the mutation lock the sweep reports `mutation-busy` and the agent relays it as deferred rather than waiting. The JSON report carries a `lines` array with one relayable line per candidate and pruned branch, for example `#458 close-absent-and-skewed-cleanup: removed [worktree-removed, local-ref-removed]`. Pending or blocked results never delay the new delivery.
+`sweep` evaluates every released registration in one pass under the queue limits (100 registrations, 500 remote requests, a durable round-robin cursor) with a 180-second elapsed budget, since each merged candidate costs three evidence loads, and completes each candidate whose PR is verified merged using exactly the `complete` safeguards. It needs no `enable` and starts no process: its authority is each candidate's release. A candidate whose PR is open, draft, or not yet finalized reports `pending`; a candidate whose PR closed without merge reports `awaiting-discard` and is never touched; blockers report their exact reason. An old stop sentinel does not prevent a sweep, but `disable` run while a sweep is executing stops it before its next destructive step. If another session is cleaning the same path or ref, sweep reports that candidate `deferred (resource-busy)` and continues with disjoint registrations. The JSON report carries a `lines` array with one relayable line per candidate and pruned branch, for example `#458 close-absent-and-skewed-cleanup: removed [worktree-removed, local-ref-removed]`. Pending, deferred, or blocked results never delay another candidate or the new delivery.
+
+### Concurrent cleanup scopes
+
+Independent `complete`, `discard`, `retire-redundant`, sweep, and enabled queue operations may run at the same time when their canonical worktree paths and topic refs are disjoint. Long remote evidence reads, content traversal, Windows retry waits, generated-content purge, and non-force removal hold only the exact path/ref resource locks. The same candidate remains exclusive across ownership, hand-off, cleanup, empty-directory recovery, and branch pruning; a competing command receives `resource-busy` rather than racing the journal.
+
+The existing `mutation.lock` now protects only brief atomic `state.json` transactions and remains at the same path so an older cleanup process already running during an upgrade is still honored. State-lock overlap is retried for a bounded interval. Fetches that update `refs/remotes/origin/develop` and exact local-ref changes coordinate only that shared ref operation; they do not serialize the surrounding candidate work. Every destructive boundary still repeats its existing evidence, identity, content, and compare-and-delete checks.
 
 ### Standalone documentation evidence
 
@@ -104,7 +110,7 @@ node scripts/governance/local-worktree-cleanup.mjs retire-redundant \
   --confirm-redundant
 ```
 
-The command requires an exact canonical, unlocked, non-current Git worktree on a normal topic branch; no cleanup registration; no pull request in any state for that branch; no remote topic ref; no unique commit beyond freshly fetched `origin/develop`; and no staged, unstaged, untracked, hidden-index, unknown ignored, nested-repository, submodule, or other protected content. Central-policy generated content is inspected and purged normally. Under the mutation lock the command revalidates every gate, journals the captured filesystem/HEAD/ref identity, removes the checkout non-forcibly, and compare-and-deletes only the unchanged local ref. It never removes a remote ref or enables broad cleanup authority.
+The command requires an exact canonical, unlocked, non-current Git worktree on a normal topic branch; no cleanup registration; no pull request in any state for that branch; no remote topic ref; no unique commit beyond freshly fetched `origin/develop`; and no staged, unstaged, untracked, hidden-index, unknown ignored, nested-repository, submodule, or other protected content. Central-policy generated content is inspected and purged normally. Under its exact path/ref resource locks, with brief atomic state transactions, the command revalidates every gate, journals the captured filesystem/HEAD/ref identity, removes the checkout non-forcibly, and compare-and-deletes only the unchanged local ref. It never removes a remote ref or enables broad cleanup authority.
 
 A repeated exact confirmed invocation resumes a partial journal or reports `already-retired`. A branch with any pull request remains owned by `complete`/sweep or explicit closed-unmerged `discard`; an open, dirty, remote-backed, locally advanced, registered, locked, detached, protected, replaced, or ambiguous checkout remains retained. Agents never substitute manual deletion when this command blocks.
 
@@ -184,7 +190,7 @@ Before resuming a released worktree, acquire it:
 node scripts/governance/local-worktree-cleanup.mjs claim --repo D:/Git/a1 --id REGISTRATION_ID --generation CURRENT_GENERATION
 ```
 
-Use a private token for the new session. Claim, release, and cleanup share a per-repository lock. A successful claim prevents deletion until the new owner releases it. A deleting or completed candidate cannot be claimed. A path reused after completed cleanup requires a new explicit `register` operation.
+Use a private token for the new session. Claim, release, hand-off, and cleanup share the candidate's exact path/ref resource locks and commit their state changes through brief repository-state transactions. A successful claim prevents deletion until the new owner releases it. A deleting or completed candidate cannot be claimed. A path reused after completed cleanup requires a new explicit `register` operation.
 
 A session crash does not release ownership. After separately confirming that the owner and all related processes have stopped, an explicit recovery claims it for review:
 
@@ -192,7 +198,7 @@ A session crash does not release ownership. After separately confirming that the
 node scripts/governance/local-worktree-cleanup.mjs recover --repo D:/Git/a1 --id REGISTRATION_ID --generation CURRENT_GENERATION --confirm-stopped
 ```
 
-Recovery never releases or deletes. The generation must still match. A Git worktree lock remains a veto. A leftover `mutation.lock` from a killed cleanup process is evicted only on proof: the holder writes its PID and refreshes a heartbeat in the lock every five seconds, and a later `handoff`, `sweep`, `complete`, `discard`, claim, or queue pass evicts the lock only when that heartbeat (or, for an old lock without one, the file's modification time) is more than two minutes old and the PID no longer exists. A live, unprobeable, or own PID keeps the lock, as does a fresh or unreadable-but-fresh file, and the operation reports `mutation-busy`. Each eviction is journaled as `lock-evicted-<time>-<id>.json` beside `state.json` with the evicted record; it releases no ownership and advances no journal step. A lock that stays `mutation-busy` therefore has a live holder: wait for it or stop that process first.
+Recovery never releases or deletes. The generation must still match. A Git worktree lock remains a veto. A leftover repository-state or scoped resource lock from a killed cleanup process is evicted only on proof: the holder writes its PID and refreshes a heartbeat in the lock every five seconds, and a later operation needing that scope evicts the lock only when that heartbeat (or, for an old lock without one, the file's modification time) is more than two minutes old and the PID no longer exists. A live, unprobeable, or own PID keeps the lock, as does a fresh or unreadable-but-fresh file, and the affected operation reports `mutation-busy` for legacy/state contention or `resource-busy` for a candidate/ref scope. Each eviction is journaled as `lock-evicted-<time>-<id>.json` beside `state.json` with the evicted record; it releases no ownership and advances no journal step. A live scoped holder delays only commands needing that same path or ref.
 
 ## Outcomes and interruption handling
 
@@ -230,7 +236,7 @@ Stop watch with Ctrl+C, or request immediate stop authority from another termina
 node scripts/governance/local-worktree-cleanup.mjs disable --repo D:/Git/a1
 ```
 
-Disable writes a stop sentinel without waiting for a busy mutation lock. The worker checks it before each destructive step; an already executing Git operation cannot be undone. No later deletion starts while disabled. State and partial journals remain available for review and future explicit enablement.
+Disable writes a stop sentinel without waiting for a busy state or resource lock. The worker checks it before each destructive step; an already executing Git operation cannot be undone. No later deletion starts while disabled. State and partial journals remain available for review and future explicit enablement.
 
 Dependency-free focused fixtures (temporary repositories only, no live PR mutation or watcher activation):
 

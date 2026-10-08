@@ -112,3 +112,72 @@ Every repository-state or scoped cleanup lock that may survive process terminati
 #### Scenario: Legacy repository lock is already held during upgrade
 - **WHEN** a cleanup process from the prior repository-wide protocol still holds `mutation.lock`
 - **THEN** new state transactions SHALL honor that lock until it is released or provably stale rather than starting a conflicting mutation protocol
+
+### Requirement: Forgetting a dead registration is explicit and non-destructive
+The repository SHALL provide one explicit `forget` operation that accepts a registration identity and a nothing-left confirmation flag. Under the candidate's exact path/ref resource authority it SHALL require a released entry whose path is absent, whose Git registration is absent or only its own dangling row, and whose local topic ref is absent, and SHALL then mark the journal complete with `forgotten` through a brief atomic state transaction. It SHALL read nothing from GitHub, SHALL delete nothing, SHALL refuse without the flag, and SHALL refuse an owned or deleting entry or any entry with a present path, live Git row, or ref.
+
+#### Scenario: Maintainer forgets a rejected candidate removed by hand
+- **WHEN** the maintainer invokes `forget` with the confirmation for a released entry whose worktree, Git row, and local ref are all absent
+- **THEN** the entry SHALL be recorded `forgotten` and SHALL NOT appear in later sweeps
+
+#### Scenario: Something still exists
+- **WHEN** the entry's path, a live Git row, or its local ref still exists, or the entry is owned or deleting
+- **THEN** `forget` SHALL refuse with a named reason and change nothing
+
+### Requirement: Redundant unmanaged worktree retirement is exact and explicitly confirmed
+
+The repository SHALL provide one explicit `retire-redundant` operation accepting the primary repository, one exact worktree path, and an explicit redundant-retirement confirmation. It SHALL act only on an unregistered, unlocked, non-current Git worktree beneath the canonical approved worktree root whose attached branch is a normal unprotected topic ref, has no same-repository pull request in any state, has no live remote ref, and points to a commit equal to or ancestral to freshly fetched `origin/develop`. It SHALL reject detached, primary, current, nested, registered, owned, locked, reserved, replaced, ambiguous, dirty, hidden-index, submodule, nested-repository, remote-backed, pull-request-backed, and locally unique candidates.
+
+The operation SHALL capture, revalidate, and mutate under exact path/ref resource authority, journal each state change through a brief atomic repository-state transaction, apply the central generated-content policy, and revalidate identity, cleanliness, pull-request absence, remote-ref absence, and target ancestry immediately before mutation. It SHALL coordinate only the shared `origin/develop` remote-tracking ref while fetching it. It SHALL purge approved generated content through the bounded cleanup path, remove the worktree using non-force Git worktree removal, and compare-and-delete only the unchanged local ref. A partial operation SHALL remain journaled for exact confirmed retry; a repeated completed invocation SHALL report already retired. The operation SHALL never delete a remote ref, enable queue/watch, authorize sweep adoption, or evaluate another worktree.
+
+#### Scenario: Maintainer retires one redundant no-PR checkout
+- **WHEN** the exact confirmed worktree is clean and unregistered, its normal topic branch has no pull request or remote ref, and its tip is contained by fresh `origin/develop`
+- **THEN** cleanup SHALL journal and non-forcibly remove that worktree and compare-and-delete its unchanged local ref
+- **AND** SHALL report the exact completed steps without granting authority over any other unmanaged path
+
+#### Scenario: Candidate carries unique or unpublished work
+- **WHEN** the branch tip is not contained by fresh `origin/develop`, the remote ref exists, any pull request names the branch, or local content is not clean and approved
+- **THEN** cleanup SHALL retain the worktree and ref with a named blocker
+- **AND** SHALL NOT reinterpret age, naming, or maintainer cleanup intent as evidence that the work is redundant
+
+#### Scenario: Candidate is active or already governed
+- **WHEN** the path is current, locked, registered, owned, deleting, primary, detached, reserved, replaced, or otherwise identity-ambiguous
+- **THEN** cleanup SHALL retain it and require its existing ownership or delivery procedure
+
+#### Scenario: Retirement is interrupted
+- **WHEN** an exact confirmed retirement stops after a journaled destructive step
+- **THEN** a repeated exact confirmed invocation SHALL revalidate the journal and current identities before completing only the remaining safe steps
+
+#### Scenario: Sweep observes an otherwise redundant unmanaged checkout
+- **WHEN** preview, sweep, queue, or watch encounters a non-empty unregistered checkout without an exact `retire-redundant` invocation
+- **THEN** it SHALL remain unmanaged and untouched
+
+### Requirement: Terminal cleanup state safely follows repository relocation
+
+Local cleanup SHALL recognize when its state journal moved with the same repository to a different canonical primary path or Windows drive. A mutating cleanup operation MAY rebind that journal to the currently discovered repository paths only within a brief atomic repository-state transaction, only after the prior journal validates against its own recorded identity, only when the old and current identities name the same canonical GitHub repository and named remote, and only when every persisted registration is terminal `done` history with no partial deletion step.
+
+The migration SHALL require every terminal entry path to resolve by an exact relative suffix beneath the recorded old worktree root, rebase that suffix beneath the current canonical worktree root, preserve all non-path state and audit fields, validate the complete transformed journal against the current identity, and replace the state atomically. Migration SHALL NOT remove or inspect a worktree, alter Git metadata or refs, grant authority to an old entry, or bypass fresh registration and ordinary cleanup gates for a current candidate.
+
+A journal containing any owned, released, deleting, malformed, out-of-root, duplicated-after-rebase, repository-mismatched, or remote-mismatched state SHALL remain blocked. Read-only access SHALL NOT silently migrate state.
+
+#### Scenario: Terminal journal moved from another drive
+- **WHEN** the primary repository and its Git common directory move from one canonical drive/path to another, the carried journal validates under its old identity, and every entry is completed terminal history beneath the old worktree root
+- **THEN** the next mutating cleanup operation SHALL atomically rebase the journal identity and terminal paths to the current canonical repository root within its state transaction
+- **AND** SHALL continue only after the migrated journal passes the ordinary state validator
+
+#### Scenario: Exact completion follows safe journal migration
+- **WHEN** terminal history is migrated and the requested current worktree has no live registration
+- **THEN** completion SHALL capture and register that current worktree afresh
+- **AND** SHALL still require every ordinary remote, lifecycle, ancestry, ownership, content, filesystem, and non-force removal safeguard
+
+#### Scenario: Relocated journal retains active authority
+- **WHEN** any carried entry is owned, released, deleting, or records a partial destructive step
+- **THEN** cleanup SHALL refuse relocation migration and preserve the journal and every local resource unchanged
+
+#### Scenario: Relocation identity or path topology is ambiguous
+- **WHEN** repository/remote identity differs, either identity is malformed, an entry is not beneath the old root, rebasing duplicates a path, or the transformed state is invalid
+- **THEN** cleanup SHALL preserve the original journal and report a named relocation or state blocker
+
+#### Scenario: Read-only inspection encounters relocated state
+- **WHEN** preview or status reads a journal whose absolute repository identity no longer matches
+- **THEN** it SHALL report the relocation blocker without rewriting state or evaluating deletion candidates
