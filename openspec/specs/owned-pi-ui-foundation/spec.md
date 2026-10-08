@@ -7,7 +7,7 @@ Defines A1's independently owned Pi shell with vanilla-default regular main-scre
 ## Requirements
 
 ### Requirement: The owned shell presents the complete pinned Pi interactive UI
-The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `1.0.4` at commit `7c10bd4337495ee613f2224843ecdf349b80d1df`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
+The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `1.1.0` at commit `abe508e1b89912adde45528136c3221eb69acdd7`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
 
 #### Scenario: Start an owned Pi session
 - **WHEN** the user starts the owned UI in an equivalent terminal and session state
@@ -140,6 +140,11 @@ The A1-owned UI SHALL reproduce the complete visible and interactive behavior of
 #### Scenario: Position the working indicator
 - **WHEN** the agent or an extension enters, updates, or leaves a working state
 - **THEN** the working indicator SHALL appear at the same prompt-relative location with equivalent icon, text, color, blank rows, replacement behavior, and editor/footer relationship as vanilla Pi
+
+#### Scenario: Report program status to a supporting terminal
+- **WHEN** the session starts or settles work, opens or closes a dialog or authentication flow, fails, is aborted, switches session, or stops
+- **THEN** A1 SHALL report the equivalent pinned idle, working, blocked, done, error, or clear state through Pi TUI's OSC 7501 terminal contract
+- **AND** status messages SHALL be limited to the session name, dialog title, or first error line and SHALL NOT expose prompt or assistant content
 
 #### Scenario: Render a multiline prompt-adjacent status before a modal
 - **WHEN** a status contains multiple visual lines, including the `Share URL` and `Gist` result, and an editor-replacement modal is subsequently opened or closed in regular mode
