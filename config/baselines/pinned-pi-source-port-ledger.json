@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-08T10:01:30.109Z",
+  "recordedAt": "2026-10-08T10:27:42.936Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -902,7 +902,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Unchanged image bytes are losslessly encoded in an attributed owned JSON resource by scripts/pi/update-command-resources.mjs. Source bytes and digest are verified against this pinned asset authority; runtime reads only the owned resource, never the dependency directory.",
       "upgradeStrategy": "three-way",
-      "localSha256": "59de78ffa731dbfa635511c3588d04618525062d844d4427321ba983d798d2a6",
+      "localSha256": "7b1fe91362ed4e2657bf8506221862c07d57dae7d2aa52f898a38b1d6ba9e408",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -4889,8 +4889,8 @@
         "7.21"
       ],
       "tests": [
-        "test/features/owned-ui/pinned-input-parity.test.ts",
-        "test/integrations/pi/tui-runtime/pinned-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/program-status-reporter.test.ts",
+        "test/app/session-shell/session-shell-lifecycle.test.ts"
       ]
     },
     {
