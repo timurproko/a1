@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import {
   PINNED_PI_LAYOUT,
@@ -9,12 +9,16 @@ import {
   adaptPiAssistantMessage,
   adaptPiUserMessage,
   applyPiTheme,
+  applyPiThemeInstance,
   createPiShellSelector,
+  currentPiAccentColor,
   detectPiTerminalBackgroundFromEnv,
   getAvailablePiThemes,
+  getPiSelectListTheme,
   loadPiTheme,
   onPiThemeChange,
   piTheme,
+  setPiAccentColor,
   stopPiThemeWatcher,
   type PiTerminalTheme,
 } from "../../../../src/integrations/pi/components/index.js";
@@ -59,6 +63,11 @@ class ThemeSettings {
   readonly flush = vi.fn(async () => {});
   getThemeSetting() { return this.setting; }
 }
+
+afterEach(() => {
+  setPiAccentColor("default");
+  stopPiThemeWatcher();
+});
 
 describe("pinned Pi theme and layout parity", () => {
   it.each(PI_PARITY_COLOR_MODES.flatMap(mode => (["dark", "light"] as const).map(theme => [mode, theme] as const)))(
@@ -112,6 +121,48 @@ describe("pinned Pi theme and layout parity", () => {
     });
   });
 
+  it.each(PI_PARITY_COLOR_MODES)("projects named semantic accents in %s without changing another role", mode => {
+    const base = loadPiTheme("dark", mode);
+    applyPiTheme("dark", false, mode);
+    const baseAccent = base.fg("accent", "probe");
+    const baseBorder = base.fg("border", "probe");
+
+    const projectedAccents = new Set<string>();
+    for (const color of ["blue", "cyan", "green", "orange", "pink"] as const) {
+      setPiAccentColor(color);
+      const rendered = piTheme().fg("accent", "probe");
+      expect(rendered).not.toBe(baseAccent);
+      projectedAccents.add(rendered);
+    }
+    expect(projectedAccents.size).toBe(5);
+    setPiAccentColor("cyan");
+
+    expect(currentPiAccentColor()).toBe("cyan");
+    expect(piTheme().fg("accent", "probe")).not.toBe(baseAccent);
+    expect(piTheme().fg("border", "probe")).toBe(baseBorder);
+    expect(piTheme().colors.accent).not.toEqual(base.colors.accent);
+    expect(piTheme().style("probe", { fg: "accent", bold: true })).toContain(piTheme().getFgAnsi("accent"));
+    expect(getPiSelectListTheme().selectedText("probe")).toBe(piTheme().fg("accent", "probe"));
+
+    setPiAccentColor("default");
+    expect(piTheme().fg("accent", "probe")).toBe(baseAccent);
+    expect(piTheme().colors.accent).toEqual(base.colors.accent);
+  });
+
+  it("reapplies the selected accent when an in-memory base theme is replaced", () => {
+    const replacement = loadPiTheme("light", "truecolor");
+    const baseAccent = replacement.fg("accent", "probe");
+    const baseBorder = replacement.fg("border", "probe");
+    setPiAccentColor("orange");
+
+    expect(applyPiThemeInstance(replacement)).toEqual({ success: true, name: "light" });
+    expect(piTheme().fg("accent", "probe")).not.toBe(baseAccent);
+    expect(piTheme().fg("border", "probe")).toBe(baseBorder);
+    setPiAccentColor("default");
+    expect(piTheme()).toBe(replacement);
+    expect(piTheme().fg("accent", "probe")).toBe(baseAccent);
+  });
+
   it("loads built-in themes from owned attributed resources", () => {
     const themes = getAvailablePiThemes();
     expect(themes.find(theme => theme.name === "dark")?.path).toBe("owned:builtin-theme/dark");
@@ -145,12 +196,17 @@ describe("pinned Pi theme and layout parity", () => {
       const reloaded = new Promise<void>(resolve => { resolveReload = resolve; });
       const unsubscribe = onPiThemeChange(() => {
         notifications += 1;
-        if (notifications === 2) resolveReload();
+        if (notifications === 3) resolveReload();
       });
       expect(applyPiTheme("ocean", true, "truecolor").success).toBe(true);
+      setPiAccentColor("pink");
+      const projected = piTheme().fg("accent", "x");
+      expect(projected).not.toBe("\u001b[38;2;1;2;3mx\u001b[39m");
       source.vars.brand = "#040506";
       await writeFile(join(themes, "ocean.json"), JSON.stringify(source));
       await reloaded;
+      expect(piTheme().fg("accent", "x")).toBe(projected);
+      setPiAccentColor("default");
       expect(piTheme().fg("accent", "x")).toBe("\u001b[38;2;4;5;6mx\u001b[39m");
       unsubscribe();
       stopPiThemeWatcher();

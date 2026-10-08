@@ -7,12 +7,15 @@ import type { OwnedUiSessionShellOptions } from "../../src/app/session-shell/ind
 const observed = vi.hoisted(() => ({ options: undefined as OwnedUiSessionShellOptions | undefined,
   captures: [] as ClipboardDiagnosticCapture[], writes: [] as { file: string; data: string }[], failure: "" }));
 // Rationale: exercise real diagnostic capture and launch wiring without provider, terminal, or user-file effects.
-vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [] }));
+vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {} }));
 vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
-  OwnedSettingsManager: class { value(key: string) { return key === "promptHistoryEnabled" ? false : undefined; } },
+  OwnedSettingsManager: class {
+    value(key: string) { return key === "promptHistoryEnabled" ? false : key === "accentColor" ? "default" : undefined; }
+    onChange() { return () => undefined; }
+  },
 }));
 vi.mock("../../src/app/session-shell/clipboard-diagnostics.js", async importOriginal => {
   const { ClipboardDiagnosticCapture: Capture } = await importOriginal<typeof import("../../src/app/session-shell/clipboard-diagnostics.js")>();

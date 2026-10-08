@@ -4,13 +4,24 @@ import {
   renderSemanticShortcutHints,
   type SemanticShortcutHint,
 } from "../../../contracts/presentation/index.js";
-import { stripTerminalSequences, truncateToWidth } from "@earendil-works/pi-tui";
+import { stripTerminalSequences, truncateToWidth, type SelectListTheme } from "@earendil-works/pi-tui";
 import { piTheme } from "./upstream/theme/theme.js";
 
 export * from "./upstream/theme/theme.js";
 
 export type PiModalShortcutHint = SemanticShortcutHint;
 export { DIALOG_CLOSE_SHORTCUT_HINT, displayShortcutKeyLabel };
+
+/** Select-list roles resolved through A1's active theme rather than Pi's package-global base theme. */
+export function getPiSelectListTheme(): SelectListTheme {
+  return {
+    selectedPrefix: text => piTheme().fg("accent", text),
+    selectedText: text => piTheme().fg("accent", text),
+    description: text => piTheme().fg("muted", text),
+    scrollInfo: text => piTheme().fg("muted", text),
+    noMatch: text => piTheme().fg("muted", text),
+  };
+}
 
 /** Paint one selected bare-A1 list item with the standard blue selection surface. */
 export function renderPiListSelection(content: string): string {

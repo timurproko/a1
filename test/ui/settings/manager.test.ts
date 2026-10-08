@@ -99,7 +99,7 @@ describe("owned settings manager", () => {
       const target = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await target.load();
       expect(readFileSync(seed.file, "utf8")).toBe(before);
-      expect(target.resolution).toMatchObject({ version: 10, migrated: false, notices: [] });
+      expect(target.resolution).toMatchObject({ version: 11, migrated: false, notices: [] });
       const group = target.sections().find(section => section.id === "agent");
       const entry = group?.entries.find(candidate => candidate.id === "promptSuggestions");
       expect(group).toMatchObject({ unavailableReason: null, readOnlyReason: null });
@@ -108,6 +108,8 @@ describe("owned settings manager", () => {
       expect(skills).toMatchObject({ backend: "a1", value: "collapse", effectiveValue: "collapse", editable: true, application: "live", choices: ["collapse", "expand"] });
       const imageLimit = group?.entries.find(candidate => candidate.id === "promptImageLimit");
       expect(imageLimit).toMatchObject({ backend: "a1", value: 8, effectiveValue: 8, editable: true, application: "live" });
+      const accent = target.sections().find(section => section.id === "appearance")?.entries[0];
+      expect(accent).toMatchObject({ id: "accentColor", backend: "a1", value: "default", effectiveValue: "default", editable: true, application: "live" });
       expect(group?.entries.slice(-3).map(candidate => candidate.id)).toEqual(["promptSuggestions", "skillsPresentation", "promptImageLimit"]);
 
       const liveValues: unknown[] = [];
@@ -129,12 +131,16 @@ describe("owned settings manager", () => {
       expect(await target.change(imageLimit!.backend, imageLimit!.id, 12)).toMatchObject({
         status: "applied", application: "live", storedValue: 12, effectiveValue: 12,
       });
+      expect(await target.change(accent!.backend, accent!.id, "orange")).toMatchObject({
+        status: "applied", application: "live", storedValue: "orange", effectiveValue: "orange",
+      });
       expect(target.value("skillsPresentation")).toBe("expand");
       expect(target.value("promptImageLimit")).toBe(12);
+      expect(target.value("accentColor")).toBe("orange");
       expect(port.writes).toEqual([]);
       expect(port.flushed()).toBe(0);
       expect(JSON.parse(readFileSync(seed.file, "utf8"))).toEqual({
-        version: 10, values: { promptSuggestions: false, skillsPresentation: "expand", promptImageLimit: 12 },
+        version: 11, values: { promptSuggestions: false, skillsPresentation: "expand", promptImageLimit: 12, accentColor: "orange" },
       });
       const restarted = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await restarted.load();
@@ -143,12 +149,15 @@ describe("owned settings manager", () => {
         { id: "skillsPresentation", backend: "a1", value: "expand", effectiveValue: "expand" },
         { id: "promptImageLimit", backend: "a1", value: 12, effectiveValue: 12 },
       ]);
+      expect(restarted.sections().find(section => section.id === "appearance")?.entries[0])
+        .toMatchObject({ id: "accentColor", backend: "a1", value: "orange", effectiveValue: "orange" });
       expect((await restarted.change("agent", "promptSuggestions", true)).status).toBe("failed");
       expect((await restarted.change("agent", "skillsPresentation", "collapse")).status).toBe("failed");
       expect((await restarted.change("agent", "promptImageLimit", 8)).status).toBe("failed");
       expect(restarted.value("promptSuggestions")).toBe(false);
       expect(restarted.value("skillsPresentation")).toBe("expand");
       expect(restarted.value("promptImageLimit")).toBe(12);
+      expect(restarted.value("accentColor")).toBe("orange");
       expect(port.writes).toEqual([]);
     },
   );
@@ -175,7 +184,8 @@ describe("owned settings manager", () => {
     const speed: "normal" | "fast" | "high" = target.value("scrollbarSpeed");
     const limit: number = target.value("promptHistoryMaxItems");
     const animate: boolean = target.value("quitAnimation");
-    expect([speed, limit, animate]).toEqual(["normal", 100, true]);
+    const accent: "default" | "blue" | "cyan" | "green" | "orange" | "pink" = target.value("accentColor");
+    expect([speed, limit, animate, accent]).toEqual(["normal", 100, true, "default"]);
     await target.change("a1", "scrollbarSpeed", "fast");
     expect(target.value("scrollbarSpeed")).toBe("fast");
     // Invariant: an injected declaration set that omits a setting still answers with the table default.

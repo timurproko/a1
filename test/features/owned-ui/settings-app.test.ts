@@ -280,9 +280,12 @@ describe("the settings screen", () => {
 
   it("groups concise scrollbar controls with defaults but no default wording", async () => {
     const { app: target } = await app();
-    const lines = screen(target);
-    expect(lines.findIndex(line => line.trim() === "Generic")).toBeLessThan(lines.findIndex(line => line.trim() === "Scroll"));
+    const lines = target.render({ width: 80, height: 32 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    expect(lines.findIndex(line => line.trim() === "Generic")).toBeLessThan(lines.findIndex(line => line.trim() === "Appearance"));
+    expect(lines.findIndex(line => line.trim() === "Appearance")).toBeLessThan(lines.findIndex(line => line.trim() === "Scroll"));
     expect(lines.some(line => line.includes("Quit animation") && line.includes("yes"))).toBe(true);
+    expect(lines.some(line => line.trim() === "Appearance")).toBe(true);
+    expect(lines.some(line => line.includes("Accent color") && line.includes("default"))).toBe(true);
     expect(lines.some(line => line.trim() === "Scroll")).toBe(true);
     expect(lines.some(line => line.includes("Scrollbar mode") && line.includes("auto"))).toBe(true);
     expect(lines.some(line => line.includes("Fullscreen scrollbar"))).toBe(false);
@@ -301,6 +304,23 @@ describe("the settings screen", () => {
     expect(lines.findIndex(line => line.includes("Prompt suggestions"))).toBeGreaterThan(lines.findIndex(line => line.includes("Output padding")));
     expect(lines.join("\n")).not.toContain("(default)");
     expect(lines.join("\n")).not.toContain("When the session transcript scrollbar is visible.");
+  });
+
+  it("changes and undoes the profile accent without writing Pi settings", async () => {
+    const { app: target, session, writes } = await app();
+    screen(target);
+    target.onInput?.(`${ESC}[1;2B`, HOST);
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*default/);
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(session.value("accentColor")).toBe("blue");
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*blue/);
+    expect(writes).toEqual([]);
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("accentColor")).toBe("default");
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*default/);
   });
 
   // Rationale: the selected value keeps its semantic foreground while the item gains a surface.
@@ -335,6 +355,7 @@ describe("the settings screen", () => {
     expect(find(target, "Quit animation").trimStart()).toMatch(/^→/);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
+    target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "Persistent history").trimStart()).toMatch(/^→/);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "Warnings").trimStart()).toMatch(/^→/);
@@ -342,7 +363,7 @@ describe("the settings screen", () => {
     target.onInput?.(ENTER, HOST);
     await session.load();
     expect(session.value("promptSuggestions")).toBe(false);
-    // Rationale: the owned Agent rows overflow the 24-row frame, so the rail follows each row.
+    // Rationale: the owned Agent rows overflow the test frame, so the rail follows each row.
     expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*no\s*│?$/);
     expect(find(target, "Skills").trimStart()).toMatch(/^\s*Skills\s+collapse\s*│?$/);
     expect(writes).toEqual([]);
@@ -368,28 +389,34 @@ describe("the settings screen", () => {
     expect(session.value("promptSuggestions")).toBe(true);
     expect(writes).toEqual([]);
     target.onInput?.(ESC, HOST);
-    expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*yes\s*│?$/);
-    expect(screen(target).filter(line => line.includes("Prompt suggestions"))).toHaveLength(1);
+    target.onInput?.("/", HOST);
+    for (const letter of "Prompt suggestions") target.onInput?.(letter, HOST);
+    expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*yes/);
+    expect(screen(target).filter(line => line.includes("Prompt suggestions") && !line.includes("❯"))).toHaveLength(1);
+    target.onInput?.(ESC, HOST);
 
     // Invariant: the Skills row is the same kind of owned Agent control: search finds it, Enter cycles it, nothing reaches the engine.
     target.onInput?.("/", HOST);
     for (const letter of "Skills") target.onInput?.(letter, HOST);
     expect(screen(target).filter(line => line.trim() === "Agent")).toHaveLength(1);
     expect(find(target, "Skills").trimStart()).toMatch(/^→.*collapse/);
-    target.onInput?.(ESC, HOST);
-    selectRow(target, "Skills");
-    expect(find(target, "Skills").trimStart()).toMatch(/^→.*collapse/);
-    target.onInput?.(ENTER, HOST);
+    const skills = screen(target);
+    const skillsRow = skills.findIndex(line => line.includes("Skills") && !line.includes("❯"));
+    target.onMouse?.({ kind: "press", button: 0, row: skillsRow + 1, column: skills[skillsRow]!.indexOf("collapse") + 1 }, HOST);
+    const skillsMenu = screen(target);
+    const expandRow = skillsMenu.findIndex(line => /\bexpand\b/.test(line));
+    target.onMouse?.({ kind: "press", button: 0, row: expandRow + 1, column: skillsMenu[expandRow]!.indexOf("expand") + 1 }, HOST);
     await session.load();
     expect(session.value("skillsPresentation")).toBe("expand");
     expect(find(target, "Skills").trimStart()).toMatch(/^→.*expand/);
-    expect(screen(target).filter(line => line.includes("Skills"))).toHaveLength(1);
+    expect(screen(target).filter(line => line.includes("Skills") && !line.includes("❯"))).toHaveLength(1);
+    target.onInput?.(ESC, HOST);
 
     target.onInput?.("/", HOST);
     for (const letter of "Prompt image limit") target.onInput?.(letter, HOST);
     expect(find(target, "Prompt image limit").trimStart()).toMatch(/^→.*8/);
     target.onInput?.(ESC, HOST);
-    target.onInput?.(DOWN, HOST);
+    target.onInput?.(CTRL_END, HOST);
     target.onInput?.(ENTER, HOST);
     await session.load();
     expect(session.value("promptImageLimit")).toBe(9);
@@ -970,6 +997,7 @@ describe("the list view behind the screen", () => {
 
   it("raises working minus/plus controls over a number, and only over its value", async () => {
     const { app: target, writes } = await app();
+    selectRow(target, "Editor padding");
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Editor padding"));
     const valueColumn = (lines[row] ?? "").indexOf("3") + 1;

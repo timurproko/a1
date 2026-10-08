@@ -3,8 +3,8 @@
  * packages/coding-agent/src/modes/interactive/theme/theme.ts.
  * Modifications: Source-synchronized theme port: retain pinned theme schema, variable/color
  * resolution, built-in and custom loading, terminal detection, and layout defaults while constructing
- * the public package-root Theme class.
- * Deviations: theme-public-api-boundary, theme-owned-watcher-boundary.
+ * the public package-root Theme class and projecting A1's optional semantic accent.
+ * Deviations: theme-public-api-boundary, theme-owned-watcher-boundary, semantic-accent-projection.
  */
 import { existsSync, readFileSync, readdirSync, watch, type FSWatcher } from "node:fs";
 import { join } from "node:path";
@@ -15,7 +15,14 @@ import {
   type ThemeColor,
 } from "@earendil-works/pi-coding-agent";
 export type { ThemeColor } from "@earendil-works/pi-coding-agent";
-import { getCapabilities, type RgbColor } from "@earendil-works/pi-tui";
+import {
+  foregroundAnsi,
+  getCapabilities,
+  okhslColor,
+  type Color,
+  type RgbColor,
+} from "@earendil-works/pi-tui";
+import type { UiAccentColor } from "../../../../../contracts/owned-ui/index.js";
 import { BUILTIN_THEME_RESOURCES, isBuiltinThemeName } from "../../resources/builtin-themes.js";
 
 export const PINNED_PI_LAYOUT = Object.freeze({
@@ -79,9 +86,18 @@ const FOREGROUND_COLORS: readonly ThemeColor[] = [
 const BACKGROUND_COLORS: readonly PiThemeBackground[] = [
   "selectedBg", "searchMatchBg", "userMessageBg", "customMessageBg", "toolPendingBg", "toolSuccessBg", "toolErrorBg",
 ];
+const ACCENT_PALETTE: Readonly<Record<Exclude<UiAccentColor, "default">, Readonly<Record<PiTerminalTheme, Color>>>> = Object.freeze({
+  blue: Object.freeze({ dark: okhslColor(232, 0.54, 0.67), light: okhslColor(231, 0.68, 0.47) }),
+  cyan: Object.freeze({ dark: okhslColor(202, 0.58, 0.67), light: okhslColor(203, 0.73, 0.46) }),
+  green: Object.freeze({ dark: okhslColor(159, 0.59, 0.67), light: okhslColor(159, 0.75, 0.46) }),
+  orange: Object.freeze({ dark: okhslColor(48, 0.75, 0.67), light: okhslColor(48, 0.90, 0.47) }),
+  pink: Object.freeze({ dark: okhslColor(337, 0.72, 0.67), light: okhslColor(337, 0.75, 0.48) }),
+});
+let activeBaseTheme: Theme | undefined;
 let activeTheme: Theme | undefined;
 let activeThemeName: string | undefined;
 let activeThemeMode: PiColorMode | undefined;
+let activeAccentColor: UiAccentColor = "default";
 let themeWatcher: FSWatcher | undefined;
 let themeReloadTimer: NodeJS.Timeout | undefined;
 const themeChangeListeners = new Set<() => void>();
@@ -102,11 +118,25 @@ export function currentPiThemeName(): string {
   return activeThemeName!;
 }
 
+export function currentPiAccentColor(): UiAccentColor {
+  return activeAccentColor;
+}
+
+/** Reprojects the active base theme; repeated changes never derive from an earlier projection. */
+export function setPiAccentColor(color: UiAccentColor): void {
+  if (activeAccentColor === color) return;
+  activeAccentColor = color;
+  if (activeBaseTheme === undefined) return;
+  activeTheme = projectPiAccent(activeBaseTheme, color);
+  notifyThemeChanged();
+}
+
 export function applyPiTheme(name: string, enableWatcher = false, mode?: PiColorMode): PiThemeResult {
   try {
     const loaded = loadPiTheme(name, mode);
     initTheme(name, false);
-    activeTheme = loaded;
+    activeBaseTheme = loaded;
+    activeTheme = projectPiAccent(loaded, activeAccentColor);
     activeThemeName = name;
     activeThemeMode = mode;
     if (enableWatcher) startPiThemeWatcher(name);
@@ -114,7 +144,8 @@ export function applyPiTheme(name: string, enableWatcher = false, mode?: PiColor
     return { success: true, name };
   } catch (error) {
     initTheme("dark", false);
-    activeTheme = loadPiTheme("dark", mode);
+    activeBaseTheme = loadPiTheme("dark", mode);
+    activeTheme = projectPiAccent(activeBaseTheme, activeAccentColor);
     activeThemeName = "dark";
     activeThemeMode = mode;
     notifyThemeChanged();
@@ -124,7 +155,8 @@ export function applyPiTheme(name: string, enableWatcher = false, mode?: PiColor
 
 export function applyPiThemeInstance(theme: Theme): PiThemeResult {
   stopPiThemeWatcher();
-  activeTheme = theme;
+  activeBaseTheme = theme;
+  activeTheme = projectPiAccent(theme, activeAccentColor);
   activeThemeName = theme.name ?? "<in-memory>";
   activeThemeMode = theme.getColorMode();
   notifyThemeChanged();
@@ -277,7 +309,8 @@ function startPiThemeWatcher(name: string): void {
       themeReloadTimer = undefined;
       if (activeThemeName !== name || !existsSync(path)) return;
       try {
-        activeTheme = loadPiTheme(name, activeThemeMode);
+        activeBaseTheme = loadPiTheme(name, activeThemeMode);
+        activeTheme = projectPiAccent(activeBaseTheme, activeAccentColor);
         notifyThemeChanged();
       } catch {}
     }, 100);
@@ -287,6 +320,34 @@ function startPiThemeWatcher(name: string): void {
 
 function notifyThemeChanged(): void {
   for (const listener of themeChangeListeners) listener();
+}
+
+/** A transparent Theme projection keeps every non-accent operation on the exact base instance. */
+function projectPiAccent(base: Theme, color: UiAccentColor): Theme {
+  if (color === "default") return base;
+  const accent = ACCENT_PALETTE[color][base.appearance];
+  const accentAnsi = foregroundAnsi(accent, base.getColorMode());
+  return new Proxy(base, {
+    get(target, property) {
+      if (property === "colors") return Object.freeze({ ...target.colors, accent });
+      if (property === "fg") {
+        return (token: ThemeColor, text: string) => token === "accent"
+          ? `${accentAnsi}${text}\u001b[39m`
+          : target.fg(token, text);
+      }
+      if (property === "getFgAnsi") {
+        return (token: ThemeColor) => token === "accent" ? accentAnsi : target.getFgAnsi(token);
+      }
+      if (property === "style") {
+        return (text: string, options: Parameters<Theme["style"]>[1]) => target.style(
+          text,
+          options.fg === "accent" ? { ...options, fg: accent } : options,
+        );
+      }
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
 }
 
 function customThemePath(name: string): string {

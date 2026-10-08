@@ -1360,10 +1360,6 @@
           "kind": "function",
           "hash": "92c5389cec6b29dfe0da57c5dec49364a5f1926dd77df64998692c2ee54f66bf",
           "consumers": [
-            "src/integrations/pi/components/shell-editor-autocomplete.ts",
-            "src/integrations/pi/components/shell-extension-ui.ts",
-            "src/integrations/pi/components/shell-selectors-dialogs.ts",
-            "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -3124,7 +3120,9 @@
           "name": "Color",
           "kind": "type",
           "hash": "687485ee7a8fd71c1965cddf1100c256f8ec8b2537738e6f69a0344e354b6cda",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/theme/theme.ts"
+          ]
         },
         {
           "name": "ColorMixSpace",
@@ -3333,7 +3331,8 @@
           "kind": "function",
           "hash": "a893102b8e4044cfd16f7254dea8bdbb17be1f563f7b1e688cf7452cb2bff26c",
           "consumers": [
-            "src/integrations/pi/components/upstream/components/pi-logo.ts"
+            "src/integrations/pi/components/upstream/components/pi-logo.ts",
+            "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
         },
         {
@@ -3763,7 +3762,8 @@
           "kind": "function",
           "hash": "8f48b835e317de4e155421dd0bff642057205f8fe0225a7ac529cc8a7109d82c",
           "consumers": [
-            "src/integrations/pi/components/upstream/theme/system-theme.ts"
+            "src/integrations/pi/components/upstream/theme/system-theme.ts",
+            "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
         },
         {
@@ -3980,6 +3980,7 @@
           "kind": "interface",
           "hash": "06c8143d81c57c02f8536c1e90ffc6d7d09fa46e1dde999a97ab6ca6d61ed6e5",
           "consumers": [
+            "src/integrations/pi/components/theme.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
         },

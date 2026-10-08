@@ -4,6 +4,10 @@ import type { AvailableRelease, StartupReleaseCheckOptions } from "../../src/fou
 
 const observed = vi.hoisted(() => ({
   updateCheck: true as unknown,
+  accentColor: "default",
+  accentCalls: [] as string[],
+  settingsListeners: [] as Array<() => void>,
+  settingsUnsubscribed: 0,
   started: 0,
   sessionCalls: 0,
   sessionResult: null as null | Record<string, unknown>,
@@ -20,6 +24,7 @@ vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async im
   ...await importOriginal<typeof import("../../src/integrations/pi/components/upstream/theme/theme.js")>(),
   applyConfiguredPiTheme() {},
   getAvailablePiThemes: () => [],
+  setPiAccentColor(color: string) { observed.accentCalls.push(color); },
 }));
 vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
@@ -31,8 +36,16 @@ vi.mock("../../src/composition/settings-route-host.js", () => ({
 }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
   OwnedSettingsManager: class {
-    value(key: string) { return key === "updateCheck" ? observed.updateCheck : key === "promptHistoryEnabled" ? false : undefined; }
-    onChange() { return () => undefined; }
+    value(key: string) { return key === "updateCheck" ? observed.updateCheck : key === "promptHistoryEnabled" ? false : key === "accentColor" ? observed.accentColor : undefined; }
+    onChange(listener: (manager: this) => void) {
+      const notify = () => listener(this);
+      observed.settingsListeners.push(notify);
+      return () => {
+        const index = observed.settingsListeners.indexOf(notify);
+        if (index >= 0) observed.settingsListeners.splice(index, 1);
+        observed.settingsUnsubscribed += 1;
+      };
+    }
   },
 }));
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({
@@ -44,6 +57,10 @@ vi.mock("../../src/app/session-shell/session-shell.js", () => ({
 
 afterEach(() => {
   observed.updateCheck = true;
+  observed.accentColor = "default";
+  observed.accentCalls.length = 0;
+  observed.settingsListeners.length = 0;
+  observed.settingsUnsubscribed = 0;
   observed.started = 0;
   observed.sessionCalls = 0;
   observed.sessionResult = null;
@@ -92,6 +109,30 @@ async function compose(options: {
   });
   return { composed, announced, checks };
 }
+
+describe("owned accent composition", () => {
+  it("applies the profile accent live and releases its subscription", async () => {
+    observed.accentColor = "blue";
+    const { composed } = await compose({ profileId: "a1", release: null });
+    expect(observed.accentCalls).toEqual(["blue"]);
+
+    observed.accentColor = "green";
+    for (const listener of [...observed.settingsListeners]) listener();
+    expect(observed.accentCalls).toEqual(["blue", "green"]);
+
+    const subscriptions = observed.settingsListeners.length;
+    await composed.application.dispose();
+    expect(observed.settingsUnsubscribed).toBe(subscriptions);
+    expect(observed.settingsListeners).toHaveLength(0);
+  });
+
+  it("resets comparison composition to the unmodified default accent", async () => {
+    observed.accentColor = "pink";
+    const { composed } = await compose({ profileId: "a1", ownedSurfaces: "off", release: null });
+    expect(observed.accentCalls).toEqual(["default"]);
+    await composed.application.dispose();
+  });
+});
 
 describe("owned changelog composition", () => {
   it("uses terminal-native link decoration for complete and supplied release notes", async () => {

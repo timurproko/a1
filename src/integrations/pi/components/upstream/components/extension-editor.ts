@@ -14,11 +14,11 @@ import {
   Text,
   type TUI,
 } from "@earendil-works/pi-tui";
-import { DynamicBorder, getSelectListTheme } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import type { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { editInExternalEditor } from "../external-editor.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, getPiSelectListTheme, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export class ExtensionEditorComponent extends Container {
   readonly #editor: Editor;
@@ -64,7 +64,7 @@ export class ExtensionEditorComponent extends Container {
     this.addChild(new Spacer(1));
     this.#editor = new Editor(tui, {
       borderColor: text => piTheme().fg("borderMuted", text),
-      selectList: getSelectListTheme(),
+      selectList: getPiSelectListTheme(),
     }, editorOptions);
     if (prefill) this.#editor.setText(prefill);
     this.#editor.onSubmit = onSubmit;

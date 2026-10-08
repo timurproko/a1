@@ -1,4 +1,3 @@
-import { getSelectListTheme } from "../startup-public.js";
 import {
   CombinedAutocompleteProvider,
   matchesKey,
@@ -16,6 +15,7 @@ import {
 } from "./owned-editor-ux.js";
 import {
   PINNED_PI_LAYOUT,
+  getPiSelectListTheme,
   piTheme,
   renderPiListSelection,
 } from "./theme.js";
@@ -100,7 +100,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     throw new Error("Persistent history requires the loaded owned editor");
   }
   const scrollInfo: { emitted: boolean; counter: string | undefined } = { emitted: false, counter: undefined };
-  const selectListTheme = getSelectListTheme();
+  const selectListTheme = getPiSelectListTheme();
   let tunnelSkills: readonly PiShellSkillSummary[] = [];
   const EditorClass = options.keybindingProfile === "a1" && options.persistentHistory === true ? options.historyEditor! : OwnedEditor;
   const editor: ShellEditorInstance = new EditorClass(tui, {

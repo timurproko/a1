@@ -28,7 +28,7 @@ vi.mock("node:worker_threads", async importOriginal => {
   } };
 });
 import { screenshotPng } from "../../fixtures/image-sources.js";
-import { applyPiTheme } from "../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, setPiAccentColor } from "../../../src/integrations/pi/components/index.js";
 import { Session, fixture, nextImmediate } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell viewport and streaming", () => {
@@ -705,6 +705,19 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     expect(shell.root.render(80).join("\n")).toContain("final");
     await shell.dispose();
   }, 15_000);
+
+  it("repaints the active terminal when the semantic accent changes", async () => {
+    const { shell, terminal } = await fixture();
+    terminal.writes.length = 0;
+    try {
+      setPiAccentColor("blue");
+      await new Promise(resolve => setTimeout(resolve, 25));
+      expect(terminal.writes.length).toBeGreaterThan(0);
+    } finally {
+      setPiAccentColor("default");
+      await shell.dispose();
+    }
+  });
 
   it("reuses a finalized block's rows until its revision, the width, the theme, or expansion changes", async () => {
     const { engine, adapter, shell } = await fixture();

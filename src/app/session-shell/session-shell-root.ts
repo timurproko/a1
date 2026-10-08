@@ -585,6 +585,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#themeUnsubscribe = onPiThemeChange(() => {
       this.#renderedRows.clear();
       this.#documentLayouts.clear();
+      this.#componentRuntime.requestRender(true);
     });
   }
 

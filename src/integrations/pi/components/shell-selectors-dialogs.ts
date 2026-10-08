@@ -1,7 +1,6 @@
 import {
   ArminComponent,
   DynamicBorder,
-  getSelectListTheme,
   LoginDialogComponent,
   ModelSelectorComponent,
   OAuthSelectorComponent,
@@ -33,6 +32,7 @@ import {
   canonicalizePiSettingsHint,
   DIALOG_CLOSE_SHORTCUT_HINT,
   PINNED_PI_LAYOUT,
+  getPiSelectListTheme,
   piTheme,
   renderPiModalShortcutHints,
 } from "./theme.js";
@@ -53,7 +53,7 @@ export { createPiShellSkillsSelector, type PiShellSkillsSelectorOptions } from "
 export function createPiShellSelector(options: PiShellSelectorOptions): PiShellComponentPort {
   ensureTheme();
   const items = options.options.map(toSelectItem);
-  const list = new SelectList(items, options.maxVisible ?? Math.min(PINNED_PI_LAYOUT.selectorMaxVisible, Math.max(1, items.length)), getSelectListTheme());
+  const list = new SelectList(items, options.maxVisible ?? Math.min(PINNED_PI_LAYOUT.selectorMaxVisible, Math.max(1, items.length)), getPiSelectListTheme());
   if (options.onSelect !== undefined) list.onSelect = item => options.onSelect?.(item.value);
   if (options.onCancel !== undefined) list.onCancel = options.onCancel;
   if (!options.title && options.onCancel === undefined) return componentPort(list);
