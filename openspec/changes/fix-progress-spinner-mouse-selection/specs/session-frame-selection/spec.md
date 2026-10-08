@@ -118,6 +118,11 @@ The live progress-spinner row SHALL be ordinary exposed base-frame content for p
 - **THEN** the selection SHALL continue as one range with the same endpoint semantics in both directions
 - **AND** spinner animation or status repaint SHALL NOT interrupt or overwrite the selected range
 
+#### Scenario: Stream while approaching the progress spinner
+- **WHEN** a held frame-selection endpoint is in the live assistant tail and a streaming update replaces or reflows that tail before the pointer crosses `Working…`
+- **THEN** the active gesture SHALL remain continuous through the latest live tail and progress row
+- **AND** release SHALL restore ordinary identity-qualified retained-selection behavior
+
 #### Scenario: Begin below the progress spinner
 - **WHEN** a primary drag begins on an ordinary input, autocomplete, or footer/status cell below `Working…` and crosses into transcript content
 - **THEN** one frame selection SHALL paint the complete range through every crossed row

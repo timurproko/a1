@@ -1207,6 +1207,49 @@ describe("transcript viewport", () => {
     },
   );
 
+  it("keeps a downward drag active while the live assistant tail reflows beside Working", () => {
+    const viewport = new TranscriptViewport();
+    const stable = Array.from({ length: 8 }, (_value, index) => `stable ${index}`);
+    const input = {
+      documentRows: [...stable, "partial", "", "⠋ Working..."],
+      selectableDocumentRowCount: 9,
+      liveTailStartRow: 0,
+      bottomAlignedTailRowCount: 2,
+      dockRows: ["❯ input", "footer status"],
+      promptAnchors: [],
+      width: 30,
+      height: 14,
+      now: 100,
+    };
+    viewport.compose(input);
+    viewport.pressSelection(2, 3, 101);
+    viewport.extendSelection(8, 9, 102, false);
+    expect(viewport.selectionActive).toBe(true);
+
+    const streamed = {
+      ...input,
+      documentRows: [...stable, "partial extended", "new tail", "", "⠙ Working..."],
+      selectableDocumentRowCount: 10,
+      now: 103,
+    };
+    const reflowed = viewport.compose(streamed);
+    expect(viewport.selectionActive).toBe(true);
+    expect(reflowed.rows[2]).toContain("\u001b[47m");
+    expect(reflowed.rows[9]).toContain("\u001b[47m");
+
+    viewport.extendSelection(12, 12, 104, false);
+    const animated = viewport.compose({ ...streamed, documentRows: [...stable, "partial extended again", "new tail growing", "", "⠹ Working..."], now: 105 });
+    expect(viewport.selectionActive).toBe(true);
+    expect(animated.rows[11]).toContain("\u001b[47m");
+
+    viewport.extendSelection(12, 14, 106, false);
+    viewport.releaseSelection();
+    const selected = viewport.compose({ ...streamed, now: 107 });
+    expect(viewport.hasSelection).toBe(true);
+    expect(selected.rows[13]).toContain("\u001b[47m");
+    expect(viewport.selectedText()).toContain("table 2");
+  });
+
   it("keeps the scrollbar thumb visible through a multi-row text selection", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);

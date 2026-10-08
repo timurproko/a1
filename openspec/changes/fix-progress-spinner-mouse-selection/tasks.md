@@ -21,3 +21,4 @@
 - [x] 4.3 Copy one submitted prompt as semantic prompt text without `❯`, padding, or timestamp, while preserving its visible chrome when it participates in a larger transcript range.
 - [x] 4.4 Preserve the selected row background beneath the copied acknowledgement and add focused paint/clipboard regressions.
 - [x] 4.5 Anchor transient viewport-tail endpoints independently of the animated spinner glyph and prove above- and below-origin terminal drags survive real animation ticks while paused on `Working…`.
+- [x] 4.6 Keep a held endpoint stable when the adjacent declared live assistant tail reflows before the next mouse report, then restore source-identity-only behavior on release; cover a downward terminal drag through concurrent stream and spinner updates.

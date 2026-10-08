@@ -159,6 +159,7 @@ type DocumentSelectionRowAnchor = {
   readonly row: number;
   readonly source: string;
   readonly identity: string;
+  readonly liveFromBottom: number | undefined;
 };
 type SelectionRowAnchor =
   | DocumentSelectionRowAnchor
@@ -166,8 +167,8 @@ type SelectionRowAnchor =
   | { readonly kind: "dock"; readonly fromBottom: number }
   | { readonly kind: "screen"; readonly row: number; readonly source: string };
 
-function documentSelectionAnchor(row: number, source: string): DocumentSelectionRowAnchor {
-  return { kind: "document", row, source, identity: stripAnsi(source).trimEnd() };
+function documentSelectionAnchor(row: number, source: string, liveFromBottom?: number): DocumentSelectionRowAnchor {
+  return { kind: "document", row, source, identity: stripAnsi(source).trimEnd(), liveFromBottom };
 }
 
 function viewportSelectionAnchor(
@@ -229,6 +230,7 @@ export class TranscriptViewport {
   #previousVisibleStates: readonly string[] = [];
   #documentRows: readonly string[] = [];
   #selectableDocumentRowCount = 0;
+  #liveTailStartRow: number | undefined;
   #promptAnchors: readonly TranscriptPromptAnchor[] = [];
   #contentWidth = 0;
   #selectionWidth = 0;
@@ -491,6 +493,7 @@ export class TranscriptViewport {
     this.#previousVisibleStates = [];
     this.#documentRows = [];
     this.#selectableDocumentRowCount = 0;
+    this.#liveTailStartRow = undefined;
     this.#promptAnchors = [];
     this.#contentWidth = 0;
     this.#selectionWidth = 0;
@@ -558,6 +561,9 @@ export class TranscriptViewport {
       0,
       input.documentRows.length,
     );
+    this.#liveTailStartRow = input.liveTailStartRow === undefined || !Number.isSafeInteger(input.liveTailStartRow)
+      ? undefined
+      : clamp(input.liveTailStartRow, 0, this.#selectableDocumentRowCount);
     this.#promptAnchors = input.promptAnchors;
     this.#contentWidth = contentWidth;
     // Invariant: dock rows remain selectable at full width; scrollable source rows
@@ -922,20 +928,35 @@ export class TranscriptViewport {
     if (line < 0 || line >= this.#selectionRows.length) return undefined;
     if (line < this.#viewportHeight) {
       const existing = this.#selectionRowAnchors[line];
-      if (this.#frame?.scrollTop === this.#scrollTop) return existing;
+      if (this.#frame?.scrollTop === this.#scrollTop) {
+        return existing?.kind === "document"
+          ? this.#interactionDocumentAnchor(existing.row, existing.source)
+          : existing;
+      }
       // Concurrency: selection edge auto-scroll updates scrollTop before the next frame is
       // composed. Resolve ordinary viewport rows from that latest position instead of stale paint.
       const documentRow = this.#scrollTop + line;
       if (documentRow >= 0 && documentRow < this.#documentRows.length) {
-        return viewportSelectionAnchor(
-          documentRow,
-          this.#documentRows[documentRow] ?? "",
-          this.#selectableDocumentRowCount,
-          this.#documentRows.length,
-        );
+        return documentRow < this.#selectableDocumentRowCount
+          ? this.#interactionDocumentAnchor(documentRow, this.#documentRows[documentRow] ?? "")
+          : viewportSelectionAnchor(
+              documentRow,
+              this.#documentRows[documentRow] ?? "",
+              this.#selectableDocumentRowCount,
+              this.#documentRows.length,
+            );
       }
     }
     return this.#selectionRowAnchors[line];
+  }
+
+  #interactionDocumentAnchor(row: number, source: string): DocumentSelectionRowAnchor {
+    const liveFromBottom = this.#liveTailStartRow !== undefined
+      && row >= this.#liveTailStartRow
+      && row < this.#selectableDocumentRowCount
+      ? this.#selectableDocumentRowCount - row - 1
+      : undefined;
+    return documentSelectionAnchor(row, source, liveFromBottom);
   }
 
   #projectSelection(documentRows: readonly string[], dockRows: readonly string[], height: number): void {
@@ -964,7 +985,7 @@ export class TranscriptViewport {
       }
       if (anchor.row >= 0 && anchor.row < documentRows.length
         && stripAnsi(documentRows[anchor.row] ?? "").trimEnd() === anchor.identity) {
-        const current = documentSelectionAnchor(anchor.row, documentRows[anchor.row] ?? "");
+        const current = documentSelectionAnchor(anchor.row, documentRows[anchor.row] ?? "", anchor.liveFromBottom);
         const visible = this.#selectionRowAnchors.findIndex(candidate => candidate?.kind === "document"
           && candidate.row === current.row && candidate.identity === current.identity);
         return { line: visible >= 0 ? visible : current.row - this.#scrollTop, anchor: current };
@@ -975,9 +996,30 @@ export class TranscriptViewport {
         .map((candidate, line) => ({ candidate, line }))
         .filter((entry): entry is { candidate: DocumentSelectionRowAnchor; line: number } =>
           entry.candidate?.kind === "document" && entry.candidate.identity === anchor.identity);
-      return visibleMatches.length === 1
-        ? { line: visibleMatches[0]!.line, anchor: visibleMatches[0]!.candidate }
-        : undefined;
+      if (visibleMatches.length === 1) {
+        const match = visibleMatches[0]!;
+        return {
+          line: match.line,
+          anchor: documentSelectionAnchor(match.candidate.row, match.candidate.source, anchor.liveFromBottom),
+        };
+      }
+      // Concurrency: a streaming chunk may replace or reflow the pointer's current live-tail
+      // row before the next motion report. During the held gesture only, retain its distance
+      // from the persistent tail; release restores identity-only projection.
+      if (selection.selecting && anchor.liveFromBottom !== undefined && this.#liveTailStartRow !== undefined) {
+        const documentRow = this.#selectableDocumentRowCount - anchor.liveFromBottom - 1;
+        if (documentRow >= this.#liveTailStartRow && documentRow < this.#selectableDocumentRowCount) {
+          const visible = this.#selectionRowAnchors.findIndex(candidate =>
+            candidate?.kind === "document" && candidate.row === documentRow);
+          if (visible >= 0) {
+            return {
+              line: visible,
+              anchor: documentSelectionAnchor(documentRow, documentRows[documentRow] ?? "", anchor.liveFromBottom),
+            };
+          }
+        }
+      }
+      return undefined;
     };
     const projectedAnchor = project(anchors.anchor);
     const projectedHead = project(anchors.head);

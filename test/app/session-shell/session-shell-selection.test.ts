@@ -1191,6 +1191,64 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     }
   });
 
+  it("keeps a downward terminal drag active while the live tail reflows into Working", async () => {
+    const messages = [{ role: "assistant", content: [{ type: "text", text: "selection origin" }], timestamp: Date.now() - 1_000 }];
+    const { terminal, shell, engine } = await fixture(messages, [], true);
+    try {
+      terminal.resize(60, 14);
+      shell.root.setFullscreenCopyOnSelect(false);
+      engine.session.emit({ type: "agent_start" });
+      engine.session.emit({
+        type: "message_start",
+        message: { id: "live-selection", role: "assistant", content: [{ type: "text", text: "partial tail" }], timestamp: Date.now() },
+      });
+      await shell.backend.flushEvents();
+      shell.runtime.renderNow();
+      let rows = shell.root.render(60).map(stripTerminalSequences);
+      const originRow = rows.findIndex(row => row.includes("selection origin")) + 1;
+      const partialRow = rows.findIndex(row => row.includes("partial tail")) + 1;
+      expect(originRow).toBeGreaterThan(0);
+      expect(partialRow).toBeGreaterThan(originRow);
+
+      terminal.input(`\u001b[<0;2;${originRow}M`);
+      terminal.input(`\u001b[<32;8;${partialRow}M`);
+      engine.session.emit({
+        type: "message_update",
+        message: { id: "live-selection", role: "assistant", content: [{ type: "text", text: "partial tail extended\nnew live row" }], timestamp: Date.now() },
+        assistantMessageEvent: { type: "text_delta", delta: " extended\nnew live row" },
+      });
+      await shell.backend.flushEvents();
+      shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(true);
+
+      rows = shell.root.render(60).map(stripTerminalSequences);
+      const workingRow = rows.findIndex(row => row.includes("Working")) + 1;
+      terminal.input(`\u001b[<32;8;${workingRow}M`);
+      await new Promise(resolve => setTimeout(resolve, 160));
+      engine.session.emit({
+        type: "message_update",
+        message: { id: "live-selection", role: "assistant", content: [{ type: "text", text: "partial tail extended again\nnew live row growing" }], timestamp: Date.now() },
+        assistantMessageEvent: { type: "text_delta", delta: " growing" },
+      });
+      await shell.backend.flushEvents();
+      shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(true);
+
+      rows = shell.root.render(60).map(stripTerminalSequences);
+      const currentWorkingRow = rows.findIndex(row => row.includes("Working")) + 1;
+      const inputRow = rows.findIndex(row => row.startsWith("❯ ")) + 1;
+      terminal.input(`\u001b[<35;8;${inputRow}M`);
+      terminal.input(`\u001b[<0;8;${inputRow}m`);
+      shell.runtime.renderNow();
+      const selected = shell.root.render(60);
+      expect(selected[originRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[currentWorkingRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[inputRow - 1]).toContain("\u001b[48;2;38;79;120m");
+    } finally {
+      await shell.dispose();
+    }
+  });
+
   it("continues an active drag through no-button motion reports", async () => {
     const messages = [
       { role: "assistant", content: [{ type: "text", text: "Selectable assistant words" }], timestamp: Date.now() },
