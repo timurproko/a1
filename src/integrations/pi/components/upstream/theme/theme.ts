@@ -152,6 +152,8 @@ let packageBorderProjectionEnabled = true;
 let themeWatcher: FSWatcher | undefined;
 let themeReloadTimer: NodeJS.Timeout | undefined;
 const themeChangeListeners = new Set<() => void>();
+const accentProjectionBases = new WeakMap<Theme, Theme>();
+const accentProjectionCache = new WeakMap<Theme, Map<UiAccentColor, Theme>>();
 
 export function ensurePiTheme(): Theme {
   if (activeTheme) return activeTheme;
@@ -225,10 +227,11 @@ export function applyPiTheme(name: string, enableWatcher = false, mode?: PiColor
 
 export function applyPiThemeInstance(theme: Theme): PiThemeResult {
   stopPiThemeWatcher();
-  activeBaseTheme = theme;
-  activeTheme = projectPiAccent(theme, activeAccentColor);
-  activeThemeName = theme.name ?? "<in-memory>";
-  activeThemeMode = theme.getColorMode();
+  const base = accentProjectionBases.get(theme) ?? theme;
+  activeBaseTheme = base;
+  activeTheme = projectPiAccent(base, activeAccentColor);
+  activeThemeName = base.name ?? "<in-memory>";
+  activeThemeMode = base.getColorMode();
   syncPiPackageBorderProjection();
   notifyThemeChanged();
   return { success: true, name: activeThemeName };
@@ -438,8 +441,11 @@ function isAccentColor(value: string): value is UiAccentColor {
 
 /** A transparent Theme projection keeps every role outside the selected accent family on the base. */
 function projectPiAccent(base: Theme, color: UiAccentColor): Theme {
-  const tone = derivePiAccentProjection(ACCENT_PALETTE[color][base.appearance], base.appearance);
-  const accentAnsi = foregroundAnsi(tone.accent, base.getColorMode());
+  const rootBase = accentProjectionBases.get(base) ?? base;
+  const cached = accentProjectionCache.get(rootBase)?.get(color);
+  if (cached !== undefined) return cached;
+  const tone = derivePiAccentProjection(ACCENT_PALETTE[color][rootBase.appearance], rootBase.appearance);
+  const accentAnsi = foregroundAnsi(tone.accent, rootBase.getColorMode());
   const foregrounds: Readonly<Partial<Record<ThemeColor, Color>>> = Object.freeze({
     accent: tone.accent,
     border: tone.border,
@@ -448,19 +454,19 @@ function projectPiAccent(base: Theme, color: UiAccentColor): Theme {
   });
   const foregroundSequences: Readonly<Partial<Record<ThemeColor, string>>> = Object.freeze({
     accent: accentAnsi,
-    border: foregroundAnsi(tone.border, base.getColorMode()),
-    mdHeading: foregroundAnsi(tone.secondaryHeading, base.getColorMode()),
-    mdListBullet: foregroundAnsi(tone.secondaryHeading, base.getColorMode()),
+    border: foregroundAnsi(tone.border, rootBase.getColorMode()),
+    mdHeading: foregroundAnsi(tone.secondaryHeading, rootBase.getColorMode()),
+    mdListBullet: foregroundAnsi(tone.secondaryHeading, rootBase.getColorMode()),
   });
   const backgrounds: Readonly<Partial<Record<PiThemeBackground, Color>>> = Object.freeze({
     selectedBg: tone.selectedBg,
     userMessageBg: tone.userMessageBg,
   });
   const backgroundSequences: Readonly<Partial<Record<PiThemeBackground, string>>> = Object.freeze({
-    selectedBg: backgroundAnsi(tone.selectedBg, base.getColorMode()),
-    userMessageBg: backgroundAnsi(tone.userMessageBg, base.getColorMode()),
+    selectedBg: backgroundAnsi(tone.selectedBg, rootBase.getColorMode()),
+    userMessageBg: backgroundAnsi(tone.userMessageBg, rootBase.getColorMode()),
   });
-  return new Proxy(base, {
+  const projection = new Proxy(rootBase, {
     get(target, property) {
       if (property === "colors") return Object.freeze({
         ...target.colors,
@@ -494,6 +500,11 @@ function projectPiAccent(base: Theme, color: UiAccentColor): Theme {
       return typeof value === "function" ? value.bind(target) : value;
     },
   });
+  accentProjectionBases.set(projection, rootBase);
+  const projections = accentProjectionCache.get(rootBase) ?? new Map<UiAccentColor, Theme>();
+  projections.set(color, projection);
+  accentProjectionCache.set(rootBase, projections);
+  return projection;
 }
 
 function customThemePath(name: string): string {

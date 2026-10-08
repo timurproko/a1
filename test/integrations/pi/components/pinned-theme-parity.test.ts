@@ -263,6 +263,20 @@ describe("pinned Pi theme and layout parity", () => {
     expect(new DynamicBorder().render(8)[0]).toBe(base.fg("border", "─".repeat(8)));
   });
 
+  it("restores exact projected identity when a scoped in-memory theme is reverted", () => {
+    applyPiTheme("dark", false, "truecolor");
+    setPiAccentColor("cyan");
+    const original = piTheme();
+    try {
+      applyPiThemeInstance(loadPiTheme("light", "truecolor"));
+      expect(piTheme()).not.toBe(original);
+      applyPiThemeInstance(original);
+      expect(piTheme()).toBe(original);
+    } finally {
+      applyPiThemeInstance(original);
+    }
+  });
+
   it("reapplies the selected accent when an in-memory base theme is replaced", () => {
     const replacement = loadPiTheme("light", "truecolor");
     const baseAccent = replacement.fg("accent", "probe");

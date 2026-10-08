@@ -87,7 +87,7 @@ describe("semantic accent-family architecture", () => {
     expect(source).toContain("userMessageBg: tone.userMessageBg");
     expect(source).toContain("purple: Object.freeze");
     expect(source).toContain("export function derivePiAccentProjection(accent: Color");
-    expect(source).toContain("derivePiAccentProjection(ACCENT_PALETTE[color][base.appearance]");
+    expect(source).toContain("derivePiAccentProjection(ACCENT_PALETTE[color][rootBase.appearance]");
     const palette = source.slice(source.indexOf("const ACCENT_PALETTE"), source.indexOf("function clamp"));
     expect(palette).not.toMatch(/(?:border|secondaryHeading|selectedBg|userMessageBg):/u);
     expect(source).not.toContain('if (color === "default") return base');

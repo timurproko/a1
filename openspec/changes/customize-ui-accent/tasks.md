@@ -20,6 +20,7 @@
 - [x] 2.12 Increase the derived secondary shift for the blue hue sector so blue H1/H2 hierarchy matches the other palettes.
 - [x] 2.13 Paint keyboard-shortcut key spans with the live primary accent for all six palettes without changing general Markdown code.
 - [x] 2.14 Align ordered/unordered Markdown markers and hotkey spans with the derived active-filter tone for every palette.
+- [x] 2.15 Cache accent projections by base identity and unwrap projected instances so scoped diagnostics restore exact theme identity.
 
 ## 3. Apply the setting live
 
