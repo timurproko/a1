@@ -162,6 +162,14 @@
       "semantics": "Session identity exported to launched programs"
     },
     {
+      "role": "sessionRuntimeId",
+      "key": "A1_SESSION_RUNTIME_ID",
+      "exposure": "integration",
+      "owner": "bin/ui.js",
+      "evidence": "test/foundation/lifecycle/session-repository-context.test.ts",
+      "semantics": "Runtime-generation identity exported to session tools for cooperative worktree claims"
+    },
+    {
       "role": "releaseRoot",
       "key": "LAUNCH_CONTEXT_RELEASE_ROOT",
       "exposure": "private",

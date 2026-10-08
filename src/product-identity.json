@@ -24,6 +24,7 @@
     "prFooterPreview": "A1_PR_FOOTER_PREVIEW",
     "profileHome": "A1_PROFILE_HOME",
     "runtimeDir": "A1_RUNTIME_DIR",
+    "sessionRuntimeId": "A1_SESSION_RUNTIME_ID",
     "skipVersionCheck": "A1_SKIP_VERSION_CHECK",
     "startupTrace": "A1_STARTUP_TRACE",
     "suggestionDiagnostics": "A1_SUGGESTION_DIAGNOSTICS",
@@ -35,7 +36,8 @@
     "developmentDirectory": "a1-development",
     "piAgentProfile": ".a1/agent",
     "piVanillaProfile": ".pi/agent",
-    "sessionRepositoryDirectory": "session-repositories"
+    "sessionRepositoryDirectory": "session-repositories",
+    "sessionWorktreeClaimDirectory": "session-worktree-claims"
   },
   "endpoint": {
     "windowsPipeStem": "a1",
