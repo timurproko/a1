@@ -3139,7 +3139,8 @@
           "kind": "function",
           "hash": "c91ff69b08837570d236ef1973dce4258b7d4ab5f9b42ac0811d26d5b8f50dfd",
           "consumers": [
-            "src/integrations/pi/components/upstream/theme/system-theme.ts"
+            "src/integrations/pi/components/upstream/theme/system-theme.ts",
+            "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
         },
         {

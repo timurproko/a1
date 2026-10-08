@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { colorToOkhsl } from "@earendil-works/pi-tui";
+import { colorToOkhsl, okhslColor } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import {
@@ -13,6 +13,7 @@ import {
   applyPiThemeInstance,
   createPiShellSelector,
   currentPiAccentColor,
+  derivePiAccentProjection,
   detectPiTerminalBackgroundFromEnv,
   getAvailablePiThemes,
   getPiSelectListTheme,
@@ -207,7 +208,23 @@ describe("pinned Pi theme and layout parity", () => {
     expect(piTheme().colors.accent).toEqual(base.colors.accent);
   });
 
-  it.each(["dark", "light"] as const)("keeps %s hierarchy distinct with softer selected rows", appearance => {
+  it.each(["dark", "light"] as const)("derives the full %s semantic family from an arbitrary custom accent", appearance => {
+    const accent = okhslColor(123, 0.64, appearance === "dark" ? 0.67 : 0.47);
+    const projection = derivePiAccentProjection(accent, appearance);
+    const border = colorToOkhsl(projection.border);
+    const heading = colorToOkhsl(projection.secondaryHeading);
+    const selection = colorToOkhsl(projection.selectedBg);
+    const message = colorToOkhsl(projection.userMessageBg);
+    expect(projection.accent).toBe(accent);
+    expect(Math.abs(border.h - 143)).toBeLessThan(2);
+    expect(Math.abs(heading.h - 88)).toBeLessThan(2);
+    expect(Math.abs(selection.h - 123)).toBeLessThan(20);
+    expect(selection.s).toBeLessThan(0.18);
+    expect(message.s).toBeLessThan(selection.s);
+    expect(appearance === "dark" ? message.l < selection.l : message.l > selection.l).toBe(true);
+  });
+
+  it.each(["dark", "light"] as const)("keeps %s hierarchy distinct with half-strength selected rows", appearance => {
     applyPiTheme(appearance, false, "truecolor");
     for (const color of ["purple", "blue", "cyan", "green", "orange", "pink"] as const) {
       setPiAccentColor(color);
@@ -222,17 +239,16 @@ describe("pinned Pi theme and layout parity", () => {
       expect(borderHueDistance).toBeLessThan(25);
       expect(headingHueDistance).toBeGreaterThan(color === "purple" ? 45 : 20);
       expect(headingHueDistance).toBeLessThan(60);
-      expect(Math.min(Math.abs(accent.h - selection.h), 360 - Math.abs(accent.h - selection.h))).toBeLessThan(8);
-      expect(Math.abs(accent.h - message.h)).toBeLessThan(8);
+      expect(Math.min(Math.abs(accent.h - selection.h), 360 - Math.abs(accent.h - selection.h))).toBeLessThan(20);
       expect(border.s).toBeLessThan(accent.s);
       expect(border.l).toBeLessThan(accent.l);
       expect(accent.l - border.l).toBeGreaterThan(appearance === "dark" ? 0.14 : 0.08);
       expect(appearance === "dark" ? heading.l : 1 - heading.l).toBeGreaterThan(appearance === "dark" ? accent.l : 1 - accent.l);
       expect(selection.s).toBeLessThan(accent.s);
-      expect(selection.s).toBeLessThan(0.34);
+      expect(selection.s).toBeLessThan(0.18);
       expect(message.s).toBeLessThan(selection.s);
-      expect(selection.l).toBeGreaterThan(appearance === "dark" ? 0.26 : 0.91);
-      expect(appearance === "dark" ? selection.l : 1 - selection.l).toBeLessThan(0.3);
+      expect(selection.l).toBeGreaterThan(appearance === "dark" ? 0.23 : 0.95);
+      expect(appearance === "dark" ? selection.l : 1 - selection.l).toBeLessThan(appearance === "dark" ? 0.27 : 0.06);
       expect(appearance === "dark" ? message.l : 1 - message.l).toBeLessThan(0.3);
     }
   });

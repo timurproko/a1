@@ -117,19 +117,17 @@ describe("unified Models dialog", () => {
     });
   });
 
-  it("uses the secondary accent for filled scope markers independently of row focus", () => {
+  it("uses the model text color for filled scope markers independently of row focus", () => {
     withDialog(dialog => {
       const lines = dialog.render(200);
       const unselectedScoped = lines.find(line => stripTerminalSequences(line).includes("● claude"))!;
       const selectedScoped = lines.find(line => stripTerminalSequences(line).includes("● gpt-5 "))!;
       const unselectedEmpty = lines.find(line => stripTerminalSequences(line).includes("○ gpt-5-mini"))!;
 
-      const secondaryMarker = cellStyle(piTheme().style("●", { fg: "mdHeading", dim: true }), "●");
-      expect(cellStyle(unselectedScoped, "●")).toEqual(secondaryMarker);
-      expect(cellStyle(selectedScoped, "●")).toEqual(secondaryMarker);
-      expect(cellStyle(unselectedScoped, "●").foreground).toBe(cellStyle(lines[2]!, "a").foreground);
-      expect(cellStyle(unselectedScoped, "●").faint).toBe(true);
-      expect(cellStyle(lines[2]!, "a").faint).toBe(false);
+      const textMarker = cellStyle(piTheme().fg("text", "●"), "●");
+      expect(cellStyle(unselectedScoped, "●")).toEqual(textMarker);
+      expect(cellStyle(selectedScoped, "●")).toEqual(textMarker);
+      expect(cellStyle(selectedScoped, "●")).toEqual(cellStyle(selectedScoped, "g"));
       expect(cellStyle(unselectedEmpty, "○")).toEqual(cellStyle(piTheme().fg("dim", "○"), "○"));
       expect(cellStyle(selectedScoped, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
     }, { scopeIds: [ids.claude, ids.gpt5], savedScopeIds: [ids.claude, ids.gpt5] });

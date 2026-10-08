@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-08T14:07:29.076Z",
+  "recordedAt": "2026-10-08T14:15:46.757Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -2617,7 +2617,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering exclusive radio-style default markers before level names, an item-adjacent active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space, closes through the implicit Ctrl+C-capable selection-cancel action, and uses the shared compact semantic shortcut row with Type/search guidance without advertising that alias. All list and border colors use the owned theme and its explicit color mode. Selected rows use the shared bare-A1 blue selection surface only around the rendered item span, with the existing accent arrow, normal-text level, and preserved current/default/description roles. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "3d899b489401e8b494fa6f3d8af8ca9b55659dbad924ae3745380827aa18e866",
+      "localSha256": "d05f14fbd95bba30d9b8ede485d23713134442ae2eaa4d2cd31415dc5c828c0c",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -3476,7 +3476,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class and projecting A1's optional semantic accent.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "001aa36701f1e9caf6e315e89717f3b6f38b7b344305525fc20bbd63148fa38b",
+      "localSha256": "431b24b5cb87687149da94ea45440466a5c00ff486af9fb3481252031f739575",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",

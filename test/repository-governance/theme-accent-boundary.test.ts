@@ -51,7 +51,7 @@ describe("semantic accent-family architecture", () => {
     }
   });
 
-  it("invalidates retained transcript components and keeps secondary UI on the H2 tone", async () => {
+  it("invalidates retained transcript components and keeps filters secondary while state markers match text", async () => {
     const shell = await readFile("src/app/session-shell/session-shell-root.ts", "utf8");
     expect(shell).toContain("this.#themeUnsubscribe = onPiThemeChange(() => {\n      this.invalidate();");
     const sessions = await readFile("src/integrations/pi/components/upstream/components/session-selector.ts", "utf8");
@@ -60,11 +60,11 @@ describe("semantic accent-family architecture", () => {
     expect(sessions).toContain('theme.fg("mdHeading", sortLabel)');
     const models = await readFile("src/integrations/pi/components/models-dialog.ts", "utf8");
     expect(models).toContain('? "mdHeading" : "dim", "all"');
-    expect(models).toContain('theme.style("●", { fg: "mdHeading", dim: true })');
+    expect(models).toContain('theme.fg("text", "●")');
     const tree = await readFile("src/integrations/pi/components/upstream/components/tree-selector.ts", "utf8");
     expect(tree).toContain('mode === active ? "mdHeading" : "muted"');
     const thinking = await readFile("src/integrations/pi/components/upstream/components/thinking-selector.ts", "utf8");
-    expect(thinking).toContain('theme.style("◉", { fg: "mdHeading", dim: true })');
+    expect(thinking).toContain('theme.fg("text", "◉")');
   });
 
   it("keeps sticky prompts and jump controls neutral until their accent hover", async () => {
@@ -81,6 +81,10 @@ describe("semantic accent-family architecture", () => {
     expect(source).toContain("selectedBg: tone.selectedBg");
     expect(source).toContain("userMessageBg: tone.userMessageBg");
     expect(source).toContain("purple: Object.freeze");
+    expect(source).toContain("export function derivePiAccentProjection(accent: Color");
+    expect(source).toContain("derivePiAccentProjection(ACCENT_PALETTE[color][base.appearance]");
+    const palette = source.slice(source.indexOf("const ACCENT_PALETTE"), source.indexOf("function clamp"));
+    expect(palette).not.toMatch(/(?:border|secondaryHeading|selectedBg|userMessageBg):/u);
     expect(source).not.toContain('if (color === "default") return base');
     expect(source).toContain("projectPiAccent(activeBaseTheme, color)");
     expect(source).not.toContain('"violet"');

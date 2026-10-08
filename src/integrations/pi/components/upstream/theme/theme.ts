@@ -17,6 +17,7 @@ import {
 export type { ThemeColor } from "@earendil-works/pi-coding-agent";
 import {
   backgroundAnsi,
+  colorToOkhsl,
   foregroundAnsi,
   getCapabilities,
   okhslColor,
@@ -87,7 +88,7 @@ const FOREGROUND_COLORS: readonly ThemeColor[] = [
 const BACKGROUND_COLORS: readonly PiThemeBackground[] = [
   "selectedBg", "searchMatchBg", "userMessageBg", "customMessageBg", "toolPendingBg", "toolSuccessBg", "toolErrorBg",
 ];
-interface AccentPaletteTone {
+export interface PiAccentProjection {
   readonly accent: Color;
   readonly border: Color;
   readonly secondaryHeading: Color;
@@ -95,80 +96,52 @@ interface AccentPaletteTone {
   readonly userMessageBg: Color;
 }
 
-const ACCENT_PALETTE: Readonly<Record<UiAccentColor, Readonly<Record<PiTerminalTheme, AccentPaletteTone>>>> = Object.freeze({
+const ACCENT_PALETTE: Readonly<Record<UiAccentColor, Readonly<Record<PiTerminalTheme, Color>>>> = Object.freeze({
   purple: Object.freeze({
-    dark: Object.freeze({
-      accent: Object.freeze({ kind: "rgb", r: 167, g: 152, b: 215 }), border: okhslColor(275, 0.42, 0.50),
-      secondaryHeading: okhslColor(350, 0.82, 0.72),
-      selectedBg: okhslColor(295, 0.30, 0.28), userMessageBg: okhslColor(295, 0.28, 0.24),
-    }),
-    light: Object.freeze({
-      accent: Object.freeze({ kind: "rgb", r: 116, g: 89, b: 180 }), border: okhslColor(275, 0.50, 0.36),
-      secondaryHeading: okhslColor(350, 0.78, 0.35),
-      selectedBg: okhslColor(295, 0.20, 0.93), userMessageBg: okhslColor(295, 0.16, 0.91),
-    }),
+    dark: Object.freeze({ kind: "rgb", r: 167, g: 152, b: 215 }),
+    light: Object.freeze({ kind: "rgb", r: 116, g: 89, b: 180 }),
   }),
-  blue: Object.freeze({
-    dark: Object.freeze({
-      accent: okhslColor(232, 0.54, 0.67), border: okhslColor(252, 0.42, 0.50),
-      secondaryHeading: okhslColor(202, 0.60, 0.76),
-      selectedBg: okhslColor(232, 0.30, 0.28), userMessageBg: okhslColor(232, 0.28, 0.24),
-    }),
-    light: Object.freeze({
-      accent: okhslColor(231, 0.68, 0.47), border: okhslColor(251, 0.50, 0.36),
-      secondaryHeading: okhslColor(202, 0.70, 0.38),
-      selectedBg: okhslColor(231, 0.20, 0.93), userMessageBg: okhslColor(231, 0.16, 0.91),
-    }),
-  }),
-  cyan: Object.freeze({
-    dark: Object.freeze({
-      accent: okhslColor(202, 0.58, 0.67), border: okhslColor(222, 0.44, 0.50),
-      secondaryHeading: okhslColor(170, 0.62, 0.76),
-      selectedBg: okhslColor(202, 0.30, 0.28), userMessageBg: okhslColor(202, 0.28, 0.24),
-    }),
-    light: Object.freeze({
-      accent: okhslColor(203, 0.73, 0.46), border: okhslColor(223, 0.52, 0.36),
-      secondaryHeading: okhslColor(170, 0.72, 0.38),
-      selectedBg: okhslColor(203, 0.20, 0.93), userMessageBg: okhslColor(203, 0.16, 0.91),
-    }),
-  }),
-  green: Object.freeze({
-    dark: Object.freeze({
-      accent: okhslColor(159, 0.59, 0.67), border: okhslColor(180, 0.43, 0.50),
-      secondaryHeading: okhslColor(120, 0.62, 0.76),
-      selectedBg: okhslColor(159, 0.30, 0.28), userMessageBg: okhslColor(159, 0.28, 0.24),
-    }),
-    light: Object.freeze({
-      accent: okhslColor(159, 0.75, 0.46), border: okhslColor(180, 0.53, 0.36),
-      secondaryHeading: okhslColor(120, 0.72, 0.38),
-      selectedBg: okhslColor(159, 0.20, 0.93), userMessageBg: okhslColor(159, 0.16, 0.91),
-    }),
-  }),
-  orange: Object.freeze({
-    dark: Object.freeze({
-      accent: okhslColor(48, 0.75, 0.67), border: okhslColor(28, 0.55, 0.50),
-      secondaryHeading: okhslColor(78, 0.76, 0.76),
-      selectedBg: okhslColor(48, 0.32, 0.28), userMessageBg: okhslColor(48, 0.30, 0.24),
-    }),
-    light: Object.freeze({
-      accent: okhslColor(48, 0.90, 0.47), border: okhslColor(28, 0.64, 0.36),
-      secondaryHeading: okhslColor(78, 0.82, 0.38),
-      selectedBg: okhslColor(48, 0.22, 0.93), userMessageBg: okhslColor(48, 0.17, 0.91),
-    }),
-  }),
-  pink: Object.freeze({
-    dark: Object.freeze({
-      accent: okhslColor(337, 0.72, 0.67), border: okhslColor(315, 0.52, 0.50),
-      secondaryHeading: okhslColor(15, 0.72, 0.76),
-      selectedBg: okhslColor(337, 0.32, 0.28), userMessageBg: okhslColor(337, 0.29, 0.24),
-    }),
-    light: Object.freeze({
-      accent: okhslColor(337, 0.75, 0.48), border: okhslColor(315, 0.54, 0.36),
-      secondaryHeading: okhslColor(15, 0.76, 0.38),
-      selectedBg: okhslColor(337, 0.21, 0.93), userMessageBg: okhslColor(337, 0.16, 0.91),
-    }),
-  }),
+  blue: Object.freeze({ dark: okhslColor(232, 0.54, 0.67), light: okhslColor(231, 0.68, 0.47) }),
+  cyan: Object.freeze({ dark: okhslColor(202, 0.58, 0.67), light: okhslColor(203, 0.73, 0.46) }),
+  green: Object.freeze({ dark: okhslColor(159, 0.59, 0.67), light: okhslColor(159, 0.75, 0.46) }),
+  orange: Object.freeze({ dark: okhslColor(48, 0.75, 0.67), light: okhslColor(48, 0.90, 0.47) }),
+  pink: Object.freeze({ dark: okhslColor(337, 0.72, 0.67), light: okhslColor(337, 0.75, 0.48) }),
 });
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+function wrapHue(hue: number): number {
+  return ((hue % 360) + 360) % 360;
+}
+
+/** Derive the complete semantic family from any primary accent, including future custom colors. */
+export function derivePiAccentProjection(accent: Color, appearance: PiTerminalTheme): PiAccentProjection {
+  const { h, s, l } = colorToOkhsl(accent);
+  const warm = h < 90 || h >= 270;
+  const magenta = h >= 270 && h < 325;
+  const borderHue = wrapHue(h + (warm ? -20 : 20));
+  const secondaryHue = wrapHue(h + (magenta ? 55 : warm ? 35 : -35));
+  const dark = appearance === "dark";
+  const selectedSaturation = clamp(s * (dark ? 0.25 : 0.16), dark ? 0.10 : 0.08, dark ? 0.16 : 0.11);
+  const selectedLightness = dark ? l * 0.37 : 1 - (1 - l) * 0.075;
+  return Object.freeze({
+    accent,
+    border: okhslColor(borderHue, clamp(s * 0.78, 0.30, 0.64), clamp(l - (dark ? 0.17 : 0.11), 0, 1)),
+    secondaryHeading: okhslColor(
+      secondaryHue,
+      clamp(s + 0.20, 0.62, 0.82),
+      clamp(l + (dark ? 0.09 : -0.09), 0, 1),
+    ),
+    selectedBg: okhslColor(h, selectedSaturation, selectedLightness),
+    userMessageBg: okhslColor(
+      h,
+      selectedSaturation * 2 / 3,
+      dark ? l * 0.34 : 1 - (1 - l) * 0.055,
+    ),
+  });
+}
 let activeBaseTheme: Theme | undefined;
 let activeTheme: Theme | undefined;
 let activeThemeName: string | undefined;
@@ -204,7 +177,7 @@ export function renderPiAccentPreview(color: string, text: string): string | nul
   ensurePiTheme();
   const base = activeBaseTheme!;
   if (!isAccentColor(color)) return null;
-  const accent = ACCENT_PALETTE[color][base.appearance].accent;
+  const accent = ACCENT_PALETTE[color][base.appearance];
   return `${foregroundAnsi(accent, base.getColorMode())}${text}\u001b[39m`;
 }
 
@@ -464,7 +437,7 @@ function isAccentColor(value: string): value is UiAccentColor {
 
 /** A transparent Theme projection keeps every role outside the selected accent family on the base. */
 function projectPiAccent(base: Theme, color: UiAccentColor): Theme {
-  const tone = ACCENT_PALETTE[color][base.appearance];
+  const tone = derivePiAccentProjection(ACCENT_PALETTE[color][base.appearance], base.appearance);
   const accentAnsi = foregroundAnsi(tone.accent, base.getColorMode());
   const foregrounds: Readonly<Partial<Record<ThemeColor, Color>>> = Object.freeze({
     accent: tone.accent,
