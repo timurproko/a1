@@ -6,6 +6,7 @@ const observed = vi.hoisted(() => ({
   updateCheck: true as unknown,
   accentColor: "purple",
   accentCalls: [] as string[],
+  packageBorderProjectionCalls: [] as boolean[],
   settingsListeners: [] as Array<() => void>,
   settingsUnsubscribed: 0,
   started: 0,
@@ -25,6 +26,7 @@ vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async im
   applyConfiguredPiTheme() {},
   getAvailablePiThemes: () => [],
   setPiAccentColor(color: string) { observed.accentCalls.push(color); },
+  setPiPackageBorderProjectionEnabled(enabled: boolean) { observed.packageBorderProjectionCalls.push(enabled); },
 }));
 vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
@@ -59,6 +61,7 @@ afterEach(() => {
   observed.updateCheck = true;
   observed.accentColor = "purple";
   observed.accentCalls.length = 0;
+  observed.packageBorderProjectionCalls.length = 0;
   observed.settingsListeners.length = 0;
   observed.settingsUnsubscribed = 0;
   observed.started = 0;
@@ -115,6 +118,7 @@ describe("owned accent composition", () => {
     observed.accentColor = "blue";
     const { composed } = await compose({ profileId: "a1", release: null });
     expect(observed.accentCalls).toEqual(["blue"]);
+    expect(observed.packageBorderProjectionCalls).toEqual([true]);
 
     observed.accentColor = "green";
     for (const listener of [...observed.settingsListeners]) listener();
@@ -130,6 +134,7 @@ describe("owned accent composition", () => {
     observed.accentColor = "pink";
     const { composed } = await compose({ profileId: "a1", ownedSurfaces: "off", release: null });
     expect(observed.accentCalls).toEqual(["purple"]);
+    expect(observed.packageBorderProjectionCalls).toEqual([false]);
     await composed.application.dispose();
   });
 });

@@ -33,7 +33,7 @@ import {
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { DynamicBorder, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
 
 type SessionListProgress = (
 	loaded: number,
@@ -822,14 +822,14 @@ export class SessionSelectorComponent extends Container implements Focusable {
 		this.clear();
 		const showHeader = options?.showHeader ?? true;
 		const modalHeader = showHeader
-			? addPiModalHeader(this, new DynamicBorder(), this.header)
+			? addPiModalHeader(this, new DynamicBorder(paintPiBorder), this.header)
 			: undefined;
-		if (!showHeader) this.addChild(new DynamicBorder());
+		if (!showHeader) this.addChild(new DynamicBorder(paintPiBorder));
 		this.addChild(new Spacer(1));
 		this.addChild(content);
 		this.addChild(new Spacer(1));
 		if (showHeader) this.addChild(this.footer);
-		this.addChild(new DynamicBorder());
+		this.addChild(new DynamicBorder(paintPiBorder));
 		const frame = { topIndex: 0, bottomIndex: this.children.length - 1 } as const;
 		if (modalHeader === undefined) adoptPiModalFrame(this, frame);
 		else adoptPiModalFrame(this, { ...frame, header: modalHeader });

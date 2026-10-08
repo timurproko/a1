@@ -2,7 +2,7 @@ import { DynamicBorder } from "../startup-public.js";
 import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleWidth, type KeybindingsConfig } from "@earendil-works/pi-tui";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
-import { getPiMarkdownTheme, PINNED_PI_LAYOUT, piTheme } from "./theme.js";
+import { getPiMarkdownTheme, paintPiBorder, PINNED_PI_LAYOUT, piTheme } from "./theme.js";
 import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";
 
 export interface PiShellSessionInfoPresentation {
@@ -152,16 +152,16 @@ export function createPiShellSessionInfo(presentation: PiShellSessionInfoPresent
 
 export function createPiShellCollapsedChangelog(): PiShellComponentPort {
   ensureTheme();
-  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder());
+  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder(paintPiBorder));
   container.addChild(new Text(`${piTheme().bold(piTheme().fg("accent", "What's New"))}\n${piTheme().fg("muted", "Run /changelog to view the full release notes.")}`, 1, 0));
-  container.addChild(new DynamicBorder()); return componentPort(container);
+  container.addChild(new DynamicBorder(paintPiBorder)); return componentPort(container);
 }
 
 export function createPiShellChangelog(markdown: string): PiShellComponentPort {
   ensureTheme();
-  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder());
+  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder(paintPiBorder));
   container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "What's New")), 1, 0)); container.addChild(new Spacer(1));
-  container.addChild(changelogMarkdown(markdown)); container.addChild(new DynamicBorder());
+  container.addChild(changelogMarkdown(markdown)); container.addChild(new DynamicBorder(paintPiBorder));
   return componentPort(container);
 }
 
@@ -197,7 +197,7 @@ export function createPiShellHotkeys(
 ): PiShellComponentPort {
   ensureTheme();
   const markdown = hotkeysMarkdown(bindings, getShortcuts, profile);
-  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder()); container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "Keyboard Shortcuts")), 1, 0)); container.addChild(new Spacer(1)); container.addChild(hotkeysMarkdownComponent(markdown)); container.addChild(new DynamicBorder());
+  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder(paintPiBorder)); container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "Keyboard Shortcuts")), 1, 0)); container.addChild(new Spacer(1)); container.addChild(hotkeysMarkdownComponent(markdown)); container.addChild(new DynamicBorder(paintPiBorder));
   return componentPort(container);
 }
 

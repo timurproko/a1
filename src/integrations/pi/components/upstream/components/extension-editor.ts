@@ -18,7 +18,7 @@ import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import type { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { editInExternalEditor } from "../external-editor.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, getPiSelectListTheme, piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, getPiSelectListTheme, paintPiBorder, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export class ExtensionEditorComponent extends Container {
   readonly #editor: Editor;
@@ -56,7 +56,7 @@ export class ExtensionEditorComponent extends Container {
       || process.env.EDITOR
       || (process.platform === "win32" ? "notepad" : "nano");
     const { description, ...editorOptions } = options ?? {};
-    const header = addPiModalHeader(this, new DynamicBorder(), new Text(piTheme().fg("accent", title), 0, 0));
+    const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), new Text(piTheme().fg("accent", title), 0, 0));
     if (description) {
       this.addChild(new Spacer(1));
       this.addChild(new Text(piTheme().fg("text", description), 0, 0));
@@ -78,7 +78,7 @@ export class ExtensionEditorComponent extends Container {
     ]);
     this.addChild(new Text(hint, 0, 0));
     this.addChild(new Spacer(1));
-    this.addChild(new DynamicBorder());
+    this.addChild(new DynamicBorder(paintPiBorder));
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
   }
 

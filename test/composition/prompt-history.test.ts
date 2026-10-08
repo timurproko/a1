@@ -15,7 +15,7 @@ const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true
 
 // Rationale: test composition/storage without starting a terminal, provider, or Pi runtime.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({
-  applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {},
+  applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {},
 }));
 vi.mock("../../src/integrations/pi/components/history-editor-loader.js", () => ({ loadHistoryEditor: observed.loadEditor }));
 vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));

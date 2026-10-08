@@ -11,6 +11,7 @@ import { DynamicBorder } from "../startup-public.js";
 import { PiModalFrame } from "./modal-frame.js";
 import {
   DIALOG_CLOSE_SHORTCUT_HINT,
+  paintPiBorder,
   piTheme,
   renderPiModalListRow,
   renderPiModalShortcutHints,
@@ -110,7 +111,9 @@ export class ModelsDialogComponent implements Component, Focusable {
     invalidate: () => this.#input.invalidate(),
     render: width => this.#renderBody(width),
   };
-  readonly #frame = new PiModalFrame(new DynamicBorder(), [this.#title, this.#body], new DynamicBorder());
+  readonly #frame = new PiModalFrame(
+    new DynamicBorder(paintPiBorder), [this.#title, this.#body], new DynamicBorder(paintPiBorder),
+  );
   readonly #callbacks: ModelsDialogCallbacks;
   #models: ModelsDialogModel[] = [];
   #activeModelId: string | null;

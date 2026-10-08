@@ -126,6 +126,7 @@ export {
   piTheme,
   resolvePiThemeSetting,
   setPiAccentColor,
+  setPiPackageBorderProjectionEnabled,
   stopPiThemeWatcher,
 } from "./theme.js";
 export type { PiColorMode, PiTerminalTheme, PiTerminalThemeDetection, PiTerminalThemeDetector, PiThemeBackground, PiThemeResult } from "./theme.js";

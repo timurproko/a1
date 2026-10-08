@@ -6,7 +6,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { BorderedLoader, DynamicBorder } from "../startup-public.js";
 import { adoptPiModalFrame, PiModalFrame } from "./modal-frame.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "./theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "./theme.js";
 import {
   componentPort,
   createTuiFacade,
@@ -36,14 +36,14 @@ class ShareOperationDialog implements Component {
       message,
     );
     this.#frame = new PiModalFrame(
-      new DynamicBorder(text => theme.fg("border", text)),
+      new DynamicBorder(paintPiBorder),
       [
         new Text(theme.fg("accent", theme.bold("Share")), 0, 0),
         this.#loader,
         new Spacer(1),
         new Text(renderPiModalShortcutHints([DIALOG_CLOSE_SHORTCUT_HINT]), 0, 0),
       ],
-      new DynamicBorder(text => theme.fg("border", text)),
+      new DynamicBorder(paintPiBorder),
     );
   }
 

@@ -9,7 +9,7 @@ import type { OwnedUiSessionShellOptions } from "../../src/app/session-shell/ind
 
 const observed = vi.hoisted(() => ({ options: undefined as OwnedUiSessionShellOptions | undefined }));
 // Rationale: isolate launch composition from provider discovery and terminal ownership.
-vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {} }));
+vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {} }));
 vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));

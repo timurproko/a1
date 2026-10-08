@@ -13,10 +13,16 @@ export * from "./upstream/theme/theme.js";
 export type PiModalShortcutHint = SemanticShortcutHint;
 export { DIALOG_CLOSE_SHORTCUT_HINT, displayShortcutKeyLabel };
 
+/** Resolves dialog rules through the live A1 projection instead of Pi's package-global theme. */
+export function paintPiBorder(text: string): string {
+  return piTheme().fg("border", text);
+}
+
 /** Markdown keeps Pi's complete base treatment while resolving list markers through A1's accent. */
 export function getPiMarkdownTheme(): MarkdownTheme {
   return {
     ...getMarkdownTheme(),
+    heading: text => piTheme().fg("mdHeading", text),
     listBullet: text => piTheme().fg("mdListBullet", text),
   };
 }

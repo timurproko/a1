@@ -7,6 +7,17 @@ const OWNED_SELECT_LIST_CONSUMERS = [
   "src/integrations/pi/components/shell-selectors-dialogs.ts",
   "src/integrations/pi/components/upstream/components/extension-editor.ts",
 ] as const;
+const OWNED_DIALOG_BORDER_CONSUMERS = [
+  "src/integrations/pi/components/models-dialog.ts",
+  "src/integrations/pi/components/shell-presenters-info.ts",
+  "src/integrations/pi/components/skills-dialog.ts",
+  "src/integrations/pi/components/upstream/components/extension-editor.ts",
+  "src/integrations/pi/components/upstream/components/extension-input.ts",
+  "src/integrations/pi/components/upstream/components/extension-selector.ts",
+  "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
+  "src/integrations/pi/components/upstream/components/session-selector.ts",
+  "src/integrations/pi/components/upstream/components/tree-selector.ts",
+] as const;
 const OWNED_MARKDOWN_CONSUMERS = [
   "src/integrations/pi/components/components.ts",
   "src/integrations/pi/components/shell-hotkey-sections.ts",
@@ -24,7 +35,15 @@ describe("semantic accent-family architecture", () => {
     }
   });
 
-  it("keeps owned Markdown list markers on the active A1 theme facade", async () => {
+  it("keeps owned dialog rules on the active A1 theme facade", async () => {
+    for (const path of OWNED_DIALOG_BORDER_CONSUMERS) {
+      const source = await readFile(path, "utf8");
+      expect(source, path).toContain("paintPiBorder");
+      expect(source, path).not.toContain("new DynamicBorder()");
+    }
+  });
+
+  it("keeps owned Markdown headings and list markers on the active A1 theme facade", async () => {
     for (const path of OWNED_MARKDOWN_CONSUMERS) {
       const source = await readFile(path, "utf8");
       expect(source, path).toContain("getPiMarkdownTheme");
@@ -41,6 +60,7 @@ describe("semantic accent-family architecture", () => {
     const source = await readFile("src/integrations/pi/components/upstream/theme/theme.ts", "utf8");
     expect(source).toContain("accent: tone.accent");
     expect(source).toContain("border: tone.border");
+    expect(source).toContain("mdHeading: tone.secondaryHeading");
     expect(source).toContain("mdListBullet: tone.accent");
     expect(source).toContain("selectedBg: tone.selectedBg");
     expect(source).toContain("userMessageBg: tone.userMessageBg");

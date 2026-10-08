@@ -10,7 +10,8 @@
 - [x] 2.2 Reapply the projection after named, watched, and in-memory base-theme replacement without mutating theme resources, matching literal colors, or accumulating transformations.
 - [x] 2.3 Route owned select-list and extension theme access through the active facade and add governance against package-global accent bypasses.
 - [x] 2.4 Project Markdown list markers onto the exact accent while keeping resting sticky prompts and jump-to-bottom controls neutral until their accent hover.
-- [x] 2.5 Replace the inheritance option with explicit purple and increase the darker same-hue separation between titles and border bars for every choice.
+- [x] 2.5 Replace the inheritance option with explicit purple and increase the darker tonal separation between titles and border bars for every choice.
+- [x] 2.6 Route owned and retained package dialog bars through the live projected border, shift bars to a darker neighboring hue, and derive complementary secondary headings for every choice.
 
 ## 3. Apply the setting live
 
@@ -24,4 +25,4 @@
 - [x] 4.1 Preserve exact pinned Pi parity for unrelated roles and comparison mode, and add changed-base fixtures proving selected-choice stability.
 - [x] 4.2 Run focused tests, typecheck, architecture checks, build, strict OpenSpec validation, and interactive build-first review; record evidence and any known gap without weakening assertions.
 
-Validation note: the complete test command reached 4,305 passing tests and only two unrelated five-second timeout failures under parallel load; both timed-out files passed immediately in isolated reruns. Build, typecheck, architecture checks, strict OpenSpec validation, and a PTY smoke showing six swatches, Appearance ordering, and persisted live blue selection passed. The final list-marker and hover refinement passed 423 component/shell tests, including truecolor/256-color projection and neutral resting-state coverage. The explicit-purple and darker-border refinement passed 539 focused component, settings, composition, and governance tests.
+Validation note: the complete test command reached 4,305 passing tests and only two unrelated five-second timeout failures under parallel load; both timed-out files passed immediately in isolated reruns. Build, typecheck, architecture checks, strict OpenSpec validation, and a PTY smoke showing six swatches, Appearance ordering, and persisted live blue selection passed. The final list-marker and hover refinement passed 423 component/shell tests, including truecolor/256-color projection and neutral resting-state coverage. The explicit-purple and darker-border refinement passed 539 focused component, settings, composition, and governance tests. The dialog-bar and complementary-heading refinement passed 446 focused component, settings, composition, and governance tests.

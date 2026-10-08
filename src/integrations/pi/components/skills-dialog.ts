@@ -3,6 +3,7 @@ import { Container, getKeybindings, Input, Spacer, Text, type Component } from "
 import { addPiModalHeader, adoptPiModalFrame } from "./modal-frame.js";
 import {
   DIALOG_CLOSE_SHORTCUT_HINT,
+  paintPiBorder,
   PINNED_PI_LAYOUT,
   piTheme,
   renderPiModalListRow,
@@ -67,7 +68,7 @@ class SkillsSelectorComponent extends Container {
     this.#onSelect = options.onSelect;
     this.#onCancel = options.onCancel;
     this.#searchInput.onSubmit = () => this.#selectCurrent();
-    const header = addPiModalHeader(this, new DynamicBorder(), new Text(piTheme().fg("accent", piTheme().bold("Skills")), 0, 0));
+    const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), new Text(piTheme().fg("accent", piTheme().bold("Skills")), 0, 0));
     this.addChild(new Spacer(1));
     this.addChild(this.#searchInput);
     this.addChild(new Spacer(1));
@@ -80,7 +81,7 @@ class SkillsSelectorComponent extends Container {
       { key: bindings.getKeys("tui.select.confirm").join("/"), action: "select" },
       DIALOG_CLOSE_SHORTCUT_HINT,
     ]), 0, 0));
-    this.addChild(new DynamicBorder());
+    this.addChild(new DynamicBorder(paintPiBorder));
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
     this.#updateList();
   }

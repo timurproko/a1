@@ -33,6 +33,7 @@ import {
   DIALOG_CLOSE_SHORTCUT_HINT,
   PINNED_PI_LAYOUT,
   getPiSelectListTheme,
+  paintPiBorder,
   piTheme,
   renderPiModalShortcutHints,
 } from "./theme.js";
@@ -403,12 +404,11 @@ export function createPiShellEarendilAnnouncement(): PiShellComponentPort {
 export function createPiShellReloadBox(): PiShellComponentPort {
   ensureTheme();
   const container = new Container();
-  const borderColor = (text: string) => piTheme().fg("border", text);
-  container.addChild(new DynamicBorder(borderColor));
+  container.addChild(new DynamicBorder(paintPiBorder));
   container.addChild(new Spacer(1));
   container.addChild(new Text(piTheme().fg("muted", "Reloading keybindings, extensions, skills, prompts, themes, and context files..."), 0, 0));
   container.addChild(new Spacer(1));
-  container.addChild(new DynamicBorder(borderColor));
+  container.addChild(new DynamicBorder(paintPiBorder));
   adoptPiModalFrame(container, { topIndex: 0, bottomIndex: container.children.length - 1 });
   return componentPort(container);
 }

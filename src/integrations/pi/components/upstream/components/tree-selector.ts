@@ -31,7 +31,7 @@ import {
 import { DynamicBorder, type SessionTreeNode } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
 
 const theme = new Proxy({} as ReturnType<typeof piTheme>, {
 	get(_target, property) {
@@ -1433,12 +1433,12 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		this.titleText = new Text(theme.fg("accent", theme.bold("Session Tree")), 0, 0);
 		this.restoreTreeContent();
 
-		const header = addPiModalHeader(this, new DynamicBorder(), this.titleText);
+		const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), this.titleText);
 		this.addChild(this.searchInputContainer);
 		this.addChild(this.treeContainer);
 		this.addChild(this.labelInputContainer);
 		this.addChild(this.footerContainer);
-		this.addChild(new DynamicBorder());
+		this.addChild(new DynamicBorder(paintPiBorder));
 		adoptPiModalFrame(this, {
 			topIndex: 0,
 			bottomIndex: this.children.length - 1,
