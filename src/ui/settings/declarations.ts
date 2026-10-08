@@ -1,4 +1,9 @@
-export const OWNED_UI_SETTINGS_VERSION = 10;
+import type { UiAccentColor } from "../../contracts/owned-ui/index.js";
+
+export const OWNED_UI_SETTINGS_VERSION = 12;
+const UI_ACCENT_COLOR_CHOICES = Object.freeze([
+  "purple", "blue", "cyan", "green", "orange", "pink",
+] as const satisfies readonly UiAccentColor[]);
 
 export type OwnedUiSettingValue = string | number | boolean;
 
@@ -21,6 +26,7 @@ const ID_PATTERN = /^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)*$/;
 
 /** Declared first so the settings screen opens on it; sections follow first-declaration order. */
 const GENERIC_SECTION = Object.freeze({ id: "generic", title: "Generic" });
+const APPEARANCE_SECTION = Object.freeze({ id: "appearance", title: "Appearance" });
 const SCROLL_SECTION = Object.freeze({ id: "scroll", title: "Scroll" });
 const AGENT_SECTION = Object.freeze({ id: "agent", title: "Agent" });
 
@@ -29,21 +35,30 @@ const AGENT_SECTION = Object.freeze({ id: "agent", title: "Agent" });
  * values are read from it, and `OwnedSettingValueOf` derives each getter's type from it.
  */
 export const OWNED_SETTING_DECLARATIONS = Object.freeze({
-  quitAnimation: Object.freeze({
-    id: "quitAnimation",
-    label: "Quit animation",
-    section: GENERIC_SECTION,
-    description: "Play the fall effect over the last screen when the session quits. Off returns to the terminal immediately.",
-    application: "live",
-    defaultValue: true,
-    allowedValues: Object.freeze([true, false] as const),
-  }),
   updateCheck: Object.freeze({
     id: "updateCheck",
     label: "Update check",
     section: GENERIC_SECTION,
     description: "Check once a day at startup whether a newer A1 release exists on this channel and show a notice. Uses the public npm registry; applies on next start.",
     application: "restart",
+    defaultValue: true,
+    allowedValues: Object.freeze([true, false] as const),
+  }),
+  accentColor: Object.freeze({
+    id: "accentColor",
+    label: "Accent color",
+    section: APPEARANCE_SECTION,
+    description: "Color used by highlighted interface controls, list markers, and tonal interface surfaces.",
+    application: "live",
+    defaultValue: "purple",
+    allowedValues: UI_ACCENT_COLOR_CHOICES,
+  }),
+  quitAnimation: Object.freeze({
+    id: "quitAnimation",
+    label: "Quit animation",
+    section: APPEARANCE_SECTION,
+    description: "Play the fall effect over the last screen when the session quits. Off returns to the terminal immediately.",
+    application: "live",
     defaultValue: true,
     allowedValues: Object.freeze([true, false] as const),
   }),

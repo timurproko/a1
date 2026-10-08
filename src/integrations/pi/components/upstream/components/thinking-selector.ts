@@ -166,7 +166,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 	private buildSelectList(items: SelectItem[], preselect?: ThinkingSelectorLevel): ThinkingSelectList {
 		const theme = piTheme();
 		const levelWidth = this.allItems.reduce((widest, item) => Math.max(widest, (item.label ?? item.value).length), 0);
-		const selectedDefaultMarker = theme.fg("accent", "◉");
+		const selectedDefaultMarker = theme.fg("text", "◉");
 		const unselectedDefaultMarker = theme.fg("dim", "○");
 		const themedItems = items.map((item) => {
 			const level = item.label ?? item.value;

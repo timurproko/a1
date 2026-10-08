@@ -1,7 +1,4 @@
-import {
-  type ExtensionUIContext,
-  getSelectListTheme,
-} from "../startup-public.js";
+import { type ExtensionUIContext } from "../startup-public.js";
 import { ExtensionEditorComponent } from "./upstream/components/extension-editor.js";
 import { ExtensionInputComponent } from "./upstream/components/extension-input.js";
 import { ExtensionSelectorComponent } from "./upstream/components/extension-selector.js";
@@ -24,6 +21,7 @@ import {
   applyPiTheme,
   applyPiThemeInstance,
   getAvailablePiThemes,
+  getPiSelectListTheme,
   loadPiTheme,
   piTheme,
 } from "./theme.js";
@@ -267,7 +265,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
       try {
         const editor: unknown = Reflect.apply(factory, undefined, [tui, {
           borderColor: (text: string) => piTheme().fg("borderMuted", text),
-          selectList: getSelectListTheme(),
+          selectList: getPiSelectListTheme(),
         }, keybindings]);
         if (!isComponent(editor)) throw new TypeError("extension editor factory returned a malformed editor");
         host.setCustomEditor(componentPort(editor));

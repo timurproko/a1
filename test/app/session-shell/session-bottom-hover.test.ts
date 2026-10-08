@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";
-import { applyPiTheme, piTheme } from "../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, piTheme, setPiAccentColor } from "../../../src/integrations/pi/components/index.js";
 import { OwnedUiSessionShellRoot } from "../../../src/app/session-shell/session-shell-root.js";
 import { stripAnsi } from "../../../src/ui/components/index.js";
 import { BottomHoverEvidence, classifyBottomHoverFinding } from "../../support/rendering/bottom-hover-evidence.js";
 
 function fixture(length = 20) {
+  setPiAccentColor("purple");
   applyPiTheme("dark", false, "truecolor");
   const view: OwnedUiSessionViewModel = {
     contractVersion: 1, sessionId: "hover", revision: 1, lifecycle: "ready",
@@ -41,6 +42,20 @@ function fixture(length = 20) {
 }
 
 describe("bottom-control composition provenance", () => {
+  it("keeps the resting control neutral and uses the configured accent on hover", () => {
+    const f = fixture();
+    try {
+      setPiAccentColor("pink");
+      f.mouse(64, 1);
+      f.hover(f.render(), false);
+      f.mouse(35, 30);
+      f.hover(f.render(), true);
+    } finally {
+      setPiAccentColor("purple");
+      f.root.dispose();
+    }
+  });
+
   it.each([true, false])("uses current hover on the first composed frame, then safe reuse (enter=%s)", entering => {
     const f = fixture();
     try {

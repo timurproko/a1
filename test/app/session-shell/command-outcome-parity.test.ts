@@ -46,6 +46,16 @@ async function capture(producer: "pinned" | "owned", directory: string, mode: st
   expect(new Set(frames.map(frame => frame.id)).size).toBe(frames.length);
   return frames;
 }
+function hasSemanticAccentException(frame: Capture): boolean {
+  return /\/(?:hotkeys|changelog)\//u.test(frame.id);
+}
+
+function rowsMatch(actual: Capture, expected: Capture): boolean {
+  const reference = expected.exceptionReferenceRows ?? expected.rows;
+  if (!hasSemanticAccentException(expected)) return JSON.stringify(actual.rows) === JSON.stringify(reference);
+  return JSON.stringify(actual.rows.map(stripTerminalSequences)) === JSON.stringify(reference.map(stripTerminalSequences));
+}
+
 function verify(actual: Capture, expected: Capture): void {
   expect(actual.id).toBe(expected.id);
   expect(actual.activeBindings, `${actual.id} active editor bindings`).toEqual(expected.activeBindings);
@@ -58,7 +68,14 @@ function verify(actual: Capture, expected: Capture): void {
       expect(actual.trust?.after).toEqual(actual.trust?.before);
     }
   }
-  expect(actual.rows, actual.id).toEqual(expected.exceptionReferenceRows ?? expected.rows);
+  const referenceRows = expected.exceptionReferenceRows ?? expected.rows;
+  if (hasSemanticAccentException(expected)) {
+    // Compatibility: bare A1 recolors hotkey key spans plus changelog headings/list markers while preserving Pi's text and layout.
+    expect(actual.rows, `${actual.id} semantic accent exception`).not.toEqual(referenceRows);
+    expect(actual.rows.map(stripTerminalSequences), actual.id).toEqual(referenceRows.map(stripTerminalSequences));
+  } else {
+    expect(actual.rows, actual.id).toEqual(referenceRows);
+  }
   expect(actual.progressRows, `${actual.id} before catalog completion`).toEqual(expected.progressRows);
   expect(actual.surfaceOpen, `${actual.id} input ownership`).toBe(expected.surfaceOpen);
   if (/\/(tree|scoped-models|trust|resume|thinking|model|login|settings)\//u.test(expected.id)) {
@@ -133,7 +150,7 @@ describe("independent command outcome parity", () => {
     const directory = await home();
     const expected = await capture("pinned", directory, mode, COMMAND_OUTCOME_CASES);
     const actual = await capture("owned", directory, mode, COMMAND_OUTCOME_CASES);
-    const mismatches = expected.filter((frame, index) => JSON.stringify(actual[index]?.rows) !== JSON.stringify(frame.exceptionReferenceRows ?? frame.rows)).map(frame => frame.id);
+    const mismatches = expected.filter((frame, index) => !rowsMatch(actual[index]!, frame)).map(frame => frame.id);
     expect(mismatches, "command message differences").toEqual([]);
     for (const [index, frame] of expected.entries()) verify(actual[index]!, frame);
     const compactFailures = [...expected.entries()].filter(([, frame]) => frame.id.includes("/compact/failure/"));

@@ -35,8 +35,9 @@ describe("owned UI setting declarations", () => {
 
   it("declares the grouped live viewport appearance, style, and speed controls", () => {
     expect(OWNED_UI_SETTING_DECLARATIONS.map(setting => setting.id)).toEqual([
-      "quitAnimation",
       "updateCheck",
+      "accentColor",
+      "quitAnimation",
       "scrollbarAppearance",
       "scrollbarStyle",
       "scrollbarSpeed",
@@ -46,6 +47,15 @@ describe("owned UI setting declarations", () => {
       "skillsPresentation",
       "promptImageLimit",
     ]);
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "accentColor")).toMatchObject({
+      label: "Accent color",
+      section: { id: "appearance", title: "Appearance" },
+      application: "live",
+      defaultValue: "purple",
+      allowedValues: ["purple", "blue", "cyan", "green", "orange", "pink"],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "accentColor")?.description)
+      .toMatch(/list markers.*tonal interface surfaces/i);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "skillsPresentation")).toMatchObject({
       label: "Skills",
       section: { id: "agent", title: "Agent" },
@@ -103,13 +113,17 @@ describe("owned UI setting declarations", () => {
     });
   });
 
-  it("declares the leading Generic quit-animation toggle as the only quit control", () => {
-    expect(OWNED_UI_SETTING_DECLARATIONS[0]).toMatchObject({
-      id: "quitAnimation", label: "Quit animation", section: { id: "generic", title: "Generic" },
+  it("declares the Appearance quit-animation toggle after the accent as the only quit control", () => {
+    expect(OWNED_UI_SETTING_DECLARATIONS.slice(0, 3).map(setting => setting.id)).toEqual([
+      "updateCheck", "accentColor", "quitAnimation",
+    ]);
+    const declaration = findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitAnimation");
+    expect(declaration).toMatchObject({
+      id: "quitAnimation", label: "Quit animation", section: { id: "appearance", title: "Appearance" },
       application: "live", defaultValue: true, allowedValues: [true, false],
     });
-    expect(OWNED_UI_SETTING_DECLARATIONS[0]?.description).toContain("fall effect");
-    expect(OWNED_UI_SETTING_DECLARATIONS[0]?.description).toContain("Off returns to the terminal immediately");
+    expect(declaration?.description).toContain("fall effect");
+    expect(declaration?.description).toContain("Off returns to the terminal immediately");
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffect")).toBeNull();
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffectDurationMs")).toBeNull();
     expect(OWNED_UI_SETTING_DECLARATIONS.some(setting => setting.section?.id === "quit")).toBe(false);
@@ -170,7 +184,7 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(9);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(11);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))
@@ -194,7 +208,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 5, values: { quitEffect: "off" } },
     });
-    expect(resolved).toMatchObject({ version: 10, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 12, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
     expect(resolved.settings.some(setting => setting.declaration.id === "quitEffect")).toBe(false);
   });
@@ -208,7 +222,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 6, values: { quitEffect: "dissolve", quitEffectDurationMs: 1200 } },
     });
-    expect(resolved).toMatchObject({ version: 10, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 12, migrated: true, notices: [] });
     expect(resolved.preserved).toEqual({});
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: true, source: "default" });
   });
@@ -221,7 +235,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 7, values: { promptSuggestions: false, quitAnimation: false } },
     });
-    expect(resolved).toMatchObject({ version: 10, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 12, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "skillsPresentation")).toMatchObject({ value: "collapse", source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "promptSuggestions")).toMatchObject({ value: false, source: "stored" });
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
@@ -241,7 +255,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 8, values: { skillsPresentation: "expand", future: true } },
     });
-    expect(resolved).toMatchObject({ version: 10, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 12, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "promptImageLimit")).toMatchObject({ value: 8, source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "skillsPresentation")).toMatchObject({ value: "expand", source: "stored" });
     expect(resolved.preserved).toEqual({ future: true });
@@ -269,7 +283,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 9, values: { quitAnimation: false, future: true } },
     });
-    expect(resolved).toMatchObject({ version: 10, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 12, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "updateCheck")).toMatchObject({ value: true, source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
     expect(resolved.preserved).toEqual({ future: true });
@@ -280,6 +294,41 @@ describe("owned UI settings migrations", () => {
     });
     expect(invalid.settings.find(setting => setting.declaration.id === "updateCheck")).toMatchObject({ value: true, source: "default" });
     expect(invalid.notices.length).toBeGreaterThan(0);
+  });
+
+  it("introduces semantic accent selection and renames its inherited choice to purple", () => {
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[9]).toMatchObject({ to: 11 });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[9]?.migrate({ updateCheck: false, future: true }))
+      .toEqual({ updateCheck: false, future: true });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[10]).toMatchObject({ to: 12 });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[10]?.migrate({ accentColor: "default", future: true }))
+      .toEqual({ accentColor: "purple", future: true });
+    const resolved = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+      document: { version: 10, values: { updateCheck: false, future: true } },
+    });
+    expect(resolved).toMatchObject({ version: 12, migrated: true, notices: [] });
+    expect(resolved.settings.find(setting => setting.declaration.id === "accentColor"))
+      .toMatchObject({ value: "purple", source: "default" });
+    expect(resolved.settings.find(setting => setting.declaration.id === "updateCheck"))
+      .toMatchObject({ value: false, source: "stored" });
+    expect(resolved.preserved).toEqual({ future: true });
+
+    const renamed = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+      document: { version: 11, values: { accentColor: "default" } },
+    });
+    expect(renamed).toMatchObject({ version: 12, migrated: true, notices: [] });
+    expect(renamed.settings.find(setting => setting.declaration.id === "accentColor"))
+      .toMatchObject({ value: "purple", source: "stored" });
+
+    const invalid = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+      document: { version: 12, values: { accentColor: "violet" } },
+    });
+    expect(invalid.settings.find(setting => setting.declaration.id === "accentColor"))
+      .toMatchObject({ value: "purple", source: "default" });
+    expect(invalid.notices).toEqual([expect.objectContaining({ code: "value-rejected", settingId: "accentColor" })]);
   });
 
   it("rejects a list with a gap or a wrong end version", () => {

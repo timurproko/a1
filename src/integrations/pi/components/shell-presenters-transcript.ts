@@ -4,7 +4,6 @@ import {
   CompactionSummaryMessageComponent,
   CustomMessageComponent,
   DynamicBorder,
-  getMarkdownTheme,
   parseSkillBlock,
   UserMessageComponent,
 } from "../startup-public.js";
@@ -28,6 +27,7 @@ import {
 } from "./submitted-prompt-adapter.js";
 export { isPiPromptStyleCompaction, paintPiSubmittedPromptTimestamp, type PiShellSubmittedPromptComposer } from "./submitted-prompt-adapter.js";
 import {
+  getPiMarkdownTheme,
   PINNED_PI_LAYOUT,
   piTheme,
 } from "./theme.js";
@@ -238,7 +238,7 @@ function transcriptComponent(
         : { ...block, text: block.userPresentation.visibleText };
       const skill = parseSkillBlock(visibleBlock.text);
       if (!skill) return submittedPrompt ? createPiSubmittedPromptComponent(visibleBlock, submittedPrompt) : new UserMessageComponent(visibleBlock.text);
-      const invocation = new SkillInvocationMessageComponent(skill, getMarkdownTheme(), outputPad);
+      const invocation = new SkillInvocationMessageComponent(skill, getPiMarkdownTheme(), outputPad);
       invocation.setExpanded(expanded);
       if (!skill.userMessage) return invocation;
       const container = new Container();
@@ -266,7 +266,7 @@ function transcriptComponent(
         summary: block.text,
         tokensBefore: numericPayload(block, "tokensBefore"),
         timestamp: numericPayload(block, "timestamp") || 0,
-      }, getMarkdownTheme());
+      }, getPiMarkdownTheme());
       component.setExpanded(expanded);
       return component;
     }
@@ -326,7 +326,7 @@ function assistantComponent(
 ): AssistantMessageComponent {
   const transformer = createMermaidMarkdownTransformer({ getMode: () => mermaidRenderingMode, theme: piTheme() });
   const component = new AssistantMessageComponent(
-    undefined, hideThinkingBlock, getMarkdownTheme(), undefined, outputPad, [transformer],
+    undefined, hideThinkingBlock, getPiMarkdownTheme(), undefined, outputPad, [transformer],
   );
   component.updateContent(validatedAssistantMessage(block), block.status === "live");
   return component;
@@ -456,7 +456,7 @@ function customMessageComponent(
     timestamp: numericPayload(block, "timestamp") || 0,
   };
   const renderer = validatedMessageRenderer(extensions?.getMessageRenderer(message.customType));
-  const component = new CustomMessageComponent(message, renderer, getMarkdownTheme(), outputPad);
+  const component = new CustomMessageComponent(message, renderer, getPiMarkdownTheme(), outputPad);
   component.setExpanded(expanded);
   return component;
 }

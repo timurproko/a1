@@ -9,6 +9,8 @@ export interface UiTheme {
    * into a dark terminal, which is how the engine leaves its lists too.
    */
   plain(text: string): string;
+  /** Optional palette preview used by controls that choose the active accent. */
+  accentPreview?(color: string, text: string): string | null;
   /** Selection background for an active list item or floating-surface row. */
   highlight(text: string): string;
   /** A control that is present but cannot act: quieter than quiet text. */

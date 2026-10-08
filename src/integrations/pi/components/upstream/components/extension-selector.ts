@@ -10,7 +10,7 @@
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, getKeybindings, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 import { CountdownTimer } from "./countdown-timer.js";
 
 interface ExtensionSelectorOptions {
@@ -41,7 +41,7 @@ export class ExtensionSelectorComponent extends Container {
     this.#onToggleToolsExpanded = opts?.onToggleToolsExpanded;
     const theme = piTheme();
     this.#titleText = new Text(theme.fg("accent", theme.bold(title)), 0, 0);
-    const header = addPiModalHeader(this, new DynamicBorder(), this.#titleText);
+    const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), this.#titleText);
     if (opts?.description) {
       this.addChild(new Spacer(1));
       this.addChild(new Text(theme.fg("text", opts.description), 0, 0));
@@ -61,7 +61,7 @@ export class ExtensionSelectorComponent extends Container {
       { key: keys.getKeys("tui.select.confirm").join("/"), action: "select" },
       DIALOG_CLOSE_SHORTCUT_HINT,
     ]), 0, 0));
-    this.addChild(new DynamicBorder());
+    this.addChild(new DynamicBorder(paintPiBorder));
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
     this.#updateList();
   }

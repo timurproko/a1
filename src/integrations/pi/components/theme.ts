@@ -4,13 +4,47 @@ import {
   renderSemanticShortcutHints,
   type SemanticShortcutHint,
 } from "../../../contracts/presentation/index.js";
-import { stripTerminalSequences, truncateToWidth } from "@earendil-works/pi-tui";
+import { stripTerminalSequences, truncateToWidth, type MarkdownTheme, type SelectListTheme } from "@earendil-works/pi-tui";
+import { getMarkdownTheme } from "../startup-public.js";
 import { piTheme } from "./upstream/theme/theme.js";
 
 export * from "./upstream/theme/theme.js";
 
 export type PiModalShortcutHint = SemanticShortcutHint;
 export { DIALOG_CLOSE_SHORTCUT_HINT, displayShortcutKeyLabel };
+
+/** Resolves dialog rules through the live A1 projection instead of Pi's package-global theme. */
+export function paintPiBorder(text: string): string {
+  return piTheme().fg("border", text);
+}
+
+/** Markdown keeps Pi's complete base treatment while resolving list markers through A1's accent. */
+export function getPiMarkdownTheme(): MarkdownTheme {
+  return {
+    ...getMarkdownTheme(),
+    heading: text => piTheme().fg("mdHeading", text),
+    listBullet: text => piTheme().fg("mdListBullet", text),
+  };
+}
+
+/** Hotkey key spans share the live secondary/filter tone without changing general Markdown code. */
+export function getPiHotkeysMarkdownTheme(): MarkdownTheme {
+  return {
+    ...getPiMarkdownTheme(),
+    code: text => piTheme().fg("mdHeading", text),
+  };
+}
+
+/** Select-list roles resolved through A1's active theme rather than Pi's package-global base theme. */
+export function getPiSelectListTheme(): SelectListTheme {
+  return {
+    selectedPrefix: text => piTheme().fg("accent", text),
+    selectedText: text => piTheme().fg("accent", text),
+    description: text => piTheme().fg("muted", text),
+    scrollInfo: text => piTheme().fg("muted", text),
+    noMatch: text => piTheme().fg("muted", text),
+  };
+}
 
 /** Paint one selected bare-A1 list item with the standard blue selection surface. */
 export function renderPiListSelection(content: string): string {
