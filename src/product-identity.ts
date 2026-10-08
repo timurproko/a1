@@ -2,10 +2,10 @@ import rawIdentity from "./product-identity.json" with { type: "json" };
 
 const ENVIRONMENT_KEYS = [
   "clipboardDiagnostics", "configDir", "dataDir", "databasePath", "developmentInstanceId", "developmentRoot", "endpoint", "exitNoticePath",
-  "paneId", "probeTrace", "processGuardianPath", "prFooterPreview", "profileHome", "runtimeDir", "skipVersionCheck", "startupTrace", "suggestionDiagnostics", "terminalSessionId",
+  "paneId", "probeTrace", "processGuardianPath", "prFooterPreview", "profileHome", "runtimeDir", "sessionRuntimeId", "skipVersionCheck", "startupTrace", "suggestionDiagnostics", "terminalSessionId",
 ] as const;
 const FILESYSTEM_KEYS = ["slug", "windowsDirectory", "unixDirectory", "temporaryPrefix"] as const;
-const STATE_KEYS = ["windowsControlDirectory", "unixControlDirectory", "developmentDirectory", "piAgentProfile", "piVanillaProfile", "sessionRepositoryDirectory"] as const;
+const STATE_KEYS = ["windowsControlDirectory", "unixControlDirectory", "developmentDirectory", "piAgentProfile", "piVanillaProfile", "sessionRepositoryDirectory", "sessionWorktreeClaimDirectory"] as const;
 const ENDPOINT_KEYS = ["windowsPipeStem", "unixSocketFilename", "metadataFilename", "supervisorLogFilename", "databaseFilename"] as const;
 const MANIFEST_KEYS = ["releaseFilename", "packageFilename"] as const;
 const PROTOCOL_KEYS = ["namespace", "controlEnvelope", "supervisorSchema", "nativeHostSchema", "structuredAgentSchema", "controlStoreSchema", "promptHistorySchema", "releaseCohortSchema", "updateJournalSchema"] as const;

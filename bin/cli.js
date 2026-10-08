@@ -55,8 +55,19 @@ process.exitCode = await dispatchCli(process.argv.slice(2), {
     return await runPackageCommand(request, { createPort: createPiPackagesPort });
   },
   sessionContext: async request => {
-    const { runSessionContextCommand } = await import("../dist/cli/session-context.js");
-    return await runSessionContextCommand(request);
+    const [{ runSessionContextCommand }, { createNativeProcessInspector }, { readLaunchContext }] = await Promise.all([
+      import("../dist/cli/session-context.js"),
+      import("../dist/foundation/process-containment/native-process-inspector.js"),
+      import("../dist/foundation/launch-context/index.js"),
+    ]);
+    const launch = readLaunchContext(process.env);
+    let inspector;
+    return await runSessionContextCommand(request, {
+      inspectProcess: async pid => {
+        inspector ??= createNativeProcessInspector(process.env, process.platform, launch.releaseRoot);
+        return (await inspector).observe(pid);
+      },
+    });
   },
 }, {
   stdout: message => process.stdout.write(message),

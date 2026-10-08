@@ -47,6 +47,7 @@ describe("A1 CLI dispatch", () => {
     [["pi", "update", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "update", source: "npm:pi-mcp-adapter" } }],
     [["update", "--models"], { kind: "packages", request: { verb: "refresh-models", source: null } }],
     [["pi", "update", "--models"], { kind: "packages", request: { verb: "refresh-models", source: null } }],
+    [["session", "worktrees"], { kind: "session-context", request: { action: "worktrees" } }],
     [["session", "link-worktree", "D:/worktree"], { kind: "session-context", request: { action: "link-worktree", path: "D:/worktree" } }],
     [["session", "unlink-worktree"], { kind: "session-context", request: { action: "unlink-worktree" } }],
   ] as const)("parses %j", (arguments_, expected) => {
@@ -59,6 +60,7 @@ describe("A1 CLI dispatch", () => {
     await expect(dispatchCli(["session", "link-worktree", "D:/delivery"], commands, transcript, PRERELEASE)).resolves.toBe(0);
     expect(commands.sessionContext).toHaveBeenCalledExactlyOnceWith({ action: "link-worktree", path: "D:/delivery" });
     expect(commands.launch).not.toHaveBeenCalled();
+    expect(cliHelp(PRERELEASE)).toContain("session worktrees");
     expect(cliHelp(PRERELEASE)).toContain("session unlink-worktree");
   });
 

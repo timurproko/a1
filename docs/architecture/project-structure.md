@@ -92,18 +92,19 @@ Build output mirrors the production namespaces directly under ignored `dist/`, w
 
 Every task worktree must be created at `{working-dir}/.worktrees/<task-id>`, where `{working-dir}` is the agent session's initial working directory. The `.worktrees` directory is inside that working directory, not beside it. For working directory `D:/Git/a1`, `D:/Git/a1/.worktrees/<task-id>` is correct and `D:/Git/a1-<task-id>` is forbidden.
 
-From the initial working directory, create the task branch and worktree, run `a1 session link-worktree <absolute-worktree>` from the owning A1 session, and continue to address it explicitly:
+From the initial working directory, run `a1 session worktrees` to inspect cooperative live ownership before selecting an existing checkout. A `busy` or `unverifiable` worktree is unavailable. An `available` checkout may be reused only when its exact branch, OpenSpec change, and pull request match the requested stream and atomic `a1 session link-worktree <absolute-worktree>` succeeds; names, similar files, recency, cleanliness, and ancestry are not ownership evidence. Otherwise create a fresh task branch/worktree, link it from the owning A1 session, and continue to address it explicitly:
 
 ```sh
+a1 session worktrees
 git fetch origin develop
 git worktree add -b <type>/<short-description> .worktrees/<task-id> origin/develop
 a1 session link-worktree <absolute-worktree>
 git -C .worktrees/<task-id> status
 ```
 
-A successful link response confirming the exact canonical worktree is required before planning, implementation, test, or delivery-documentation edits. If linking fails or confirms another path, stop task edits and report the blocker instead of continuing with primary-checkout footer metadata. A session resuming an existing delivery or switching streams links the exact owned worktree before editing it.
+Inventory is read-only and advisory because another runtime may win a later race. A successful link response confirming the exact canonical worktree is required before planning, implementation, test, or delivery-documentation edits. If inventory or linking fails, reports a live/unverifiable owner, loses a race, or confirms another path, stop task edits and report the blocker; use a separate fresh worktree rather than overriding, unlinking, or recovering that owner. A session resuming an existing delivery or switching streams atomically claims and links the exact worktree before editing it.
 
-The association switches bare A1's footer repository context and pull-request discovery; it does not change process or tool cwd and does not register, claim, release, or authorize cleanup of the worktree. Repository commands therefore keep an explicit worktree path. The primary worktree stays on `develop` for integration and must not be used for task edits. Do not edit, adopt, move, or remove another session's worktree.
+The link acquires a cooperative live-session editing claim and switches bare A1's footer repository context and pull-request discovery. It does not change process or tool cwd, create a Git worktree lock, or register, release, or authorize cleanup. Clean unlink/disposal releases live editing authority; a crashed owner becomes reusable only after exact process death is verified. Repository commands therefore keep an explicit worktree path. The primary worktree stays on `develop` for integration and must not be used for task edits. Do not edit, adopt, move, or remove another session's worktree.
 
 An agent that directly chooses a transient file path for a PR/comment body, command payload, captured output, temporary patch/diff, or ad hoc log must place it beneath the linked worktree's exact `.artifacts/` root, never the primary checkout, another worktree, OS temp, home/desktop, or a sibling path. Such scratch remains ignored, unstaged, uncommitted, disposable, non-authoritative, and secret-free. This repository path rule does not relocate storage internally selected by tools, product runtime code, or hermetic tests.
 

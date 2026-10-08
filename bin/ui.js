@@ -9,6 +9,13 @@ const { readLaunchContext } = await import("../dist/foundation/launch-context/in
 const launchContext = readLaunchContext(process.env, "profile");
 const profile = launchContext.launchProfile;
 if (profile === undefined) throw new Error("A1 launch profile is missing");
+if (profile === "a1") {
+  const [{ randomUUID }, { PRODUCT_IDENTITY }] = await Promise.all([
+    import("node:crypto"),
+    import("../dist/product-identity.js"),
+  ]);
+  process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] = randomUUID();
+}
 const { installFatalExit } = await import("../dist/foundation/terminal-cleanup/fatal-exit.js");
 const { resolveProductPaths } = await import("../dist/foundation/lifecycle/paths.js");
 const { join } = await import("node:path");
@@ -49,10 +56,16 @@ Promise.resolve().then(() => {
   if (sessionSelection && profile !== "a1") throw new Error("session selection requires the normal A1 profile");
   return runSelectedInteractiveRuntime(profile, {
     ownedUi: async (profileId, ownedSurfaces) => {
+      const processInspector = ownedSurfaces
+        ? await import("../dist/foundation/process-containment/native-process-inspector.js")
+          .then(module => module.createNativeProcessInspector(process.env, process.platform, launchContext.releaseRoot))
+          .catch(() => null)
+        : null;
       const { application, settings } = await composeOwnedUi({
         cwd: process.cwd(),
         profileId,
         ownedSurfaces,
+        ...(processInspector === null ? {} : { inspectProcess: pid => processInspector.observe(pid) }),
         projectTrustPrompt: createConsoleProjectTrustPrompt({ presentation: profile === "a1" ? "bare" : "comparison" }),
         sessionForkPrompt: createConsoleSessionForkPrompt(),
         ...(sessionSelection === undefined ? {} : { sessionSelection }),
