@@ -59,6 +59,16 @@ const topDisposableRoots = disposable => disposable.filter(root => !disposable.s
 const disposableRootFor = (path, disposable) => topDisposableRoots(disposable).find(root => path === root || path.startsWith(`${root}/`)) ?? null;
 const ORDINARY_CONTENT_ENTRY_LIMIT = 20_000;
 const GENERATED_CONTENT_ENTRY_LIMIT = 100_000;
+export const REPOSITORY_DISPOSABLE_PATHS = Object.freeze([
+  "node_modules",
+  "dist",
+  ".builds",
+  ".artifacts",
+  "native/process-guardian/target",
+  "native/terminal-host/target",
+  "src/integrations/pi/engine/pi-settings-metadata.json",
+]);
+const repositoryDisposablePaths = new Set(REPOSITORY_DISPOSABLE_PATHS);
 /**
  * True only when the path is a non-link directory whose whole subtree holds nothing but non-link directories, so removing it
  * loses no file, link, special entry, or Git metadata. The walk shares the ordinary entry allowance and deadline.
@@ -210,13 +220,14 @@ export async function inspectWorktree(identity, entry, {
       if (item.name === ".git") fail("nested-repository");
       if (item.isSymbolicLink()) {
         const root = disposableRootFor(path, entry.disposable);
-        if (root === null || path === root) fail("content-link", { paths: [path] });
-        const linkPath = join(entry.path, path), rootPath = join(entry.path, root);
+        if (root === null) fail("content-link", { paths: [path] });
+        const linkPath = join(entry.path, path), rootPath = join(entry.path, root), kind = path === root ? "root" : "descendant";
+        if (kind === "root" && !repositoryDisposablePaths.has(root)) fail("content-link", { paths: [path] });
         let target;
         try { target = await canonical(linkPath); } catch { fail("content-link", { paths: [path] }); }
-        if (!inside(await canonical(rootPath), target)) fail("content-link", { paths: [path] });
+        if (kind === "descendant" && !inside(await canonical(rootPath), target)) fail("content-link", { paths: [path] });
         if (inside(target, linkPath)) fail("content-link-cycle", { paths: [path] });
-        containedLinks.push({ path, root, filesystem: fingerprint(await lstat(linkPath)), target });
+        containedLinks.push({ path, root, kind, filesystem: fingerprint(await lstat(linkPath)), target });
         continue;
       }
       if (item.isDirectory()) await walk(join(directory, item.name), `${path}/`);
@@ -228,22 +239,29 @@ export async function inspectWorktree(identity, entry, {
 }
 
 /** Remove only the entry's declared disposable roots or files, after inspection has bounded them, so Git deletes tracked content alone. */
-export async function purgeDisposable(entry, timing = {}) {
+export async function purgeDisposable(entry, timing = {}, { removeLink = removeLinkEntry } = {}) {
   const links = timing.containedLinks ?? [];
   if (!Array.isArray(links)) fail("content-link-drift");
   const seen = new Set();
   for (const link of [...links].sort((a, b) => b.path.length - a.path.length)) {
-    if (!link || typeof link.path !== "string" || typeof link.root !== "string" || typeof link.filesystem !== "string"
+    if (!link || typeof link.path !== "string" || typeof link.root !== "string"
+      || !["root", "descendant"].includes(link.kind) || typeof link.filesystem !== "string"
       || typeof link.target !== "string" || seen.has(link.path) || disposableRootFor(link.path, entry.disposable) !== link.root
-      || link.path === link.root) fail("content-link-drift");
+      || (link.kind === "root") !== (link.path === link.root)
+      || link.kind === "root" && !repositoryDisposablePaths.has(link.root)) fail("content-link-drift");
     seen.add(link.path);
     const linkPath = join(entry.path, link.path), rootPath = join(entry.path, link.root);
-    let stat, target, root;
-    try { stat = await lstat(linkPath); target = await canonical(linkPath); root = await canonical(rootPath); }
+    let stat, target;
+    try { stat = await lstat(linkPath); target = await canonical(linkPath); }
     catch { fail("content-link-drift", { paths: [link.path] }); }
     if (!stat.isSymbolicLink() || fingerprint(stat) !== link.filesystem || target !== link.target
-      || !inside(root, target) || inside(target, linkPath)) fail("content-link-drift", { paths: [link.path] });
-    await removeLinkEntry(linkPath, link.path, timing);
+      || inside(target, linkPath)) fail("content-link-drift", { paths: [link.path] });
+    if (link.kind === "descendant") {
+      let root;
+      try { root = await canonical(rootPath); } catch { fail("content-link-drift", { paths: [link.path] }); }
+      if (!inside(root, target)) fail("content-link-drift", { paths: [link.path] });
+    }
+    await removeLink(linkPath, link.path, timing);
   }
   let verifiedEntries = 0;
   async function requireNoUnrecordedLinks(directory, prefix) {
