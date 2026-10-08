@@ -101,7 +101,8 @@ describe("owned settings route theme", () => {
     surface!.handleInput(DOWN);
 
     const menu = surface!.render(48, 12).join("\n");
-    expect(menu).toContain(`${ESC}[48;2;55;55;55m${ESC}[38;2;167;152;215m✓`);
+    expect(menu).toContain(`${ESC}[48;2;55;55;55m${ESC}[38;2;222;224;225m✓`);
+    expect(menu).not.toContain(`${ESC}[38;2;167;152;215m✓`);
     const selectionStart = piTheme().bg("selectedBg", "MARK").split("MARK")[0]!;
     expect(menu).toContain(`${selectionStart}  always `);
     expect(menu).toContain(`${ESC}[39m${ESC}[49m`);

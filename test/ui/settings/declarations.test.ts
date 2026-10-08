@@ -35,9 +35,9 @@ describe("owned UI setting declarations", () => {
 
   it("declares the grouped live viewport appearance, style, and speed controls", () => {
     expect(OWNED_UI_SETTING_DECLARATIONS.map(setting => setting.id)).toEqual([
-      "quitAnimation",
       "updateCheck",
       "accentColor",
+      "quitAnimation",
       "scrollbarAppearance",
       "scrollbarStyle",
       "scrollbarSpeed",
@@ -113,13 +113,17 @@ describe("owned UI setting declarations", () => {
     });
   });
 
-  it("declares the leading Generic quit-animation toggle as the only quit control", () => {
-    expect(OWNED_UI_SETTING_DECLARATIONS[0]).toMatchObject({
-      id: "quitAnimation", label: "Quit animation", section: { id: "generic", title: "Generic" },
+  it("declares the Appearance quit-animation toggle after the accent as the only quit control", () => {
+    expect(OWNED_UI_SETTING_DECLARATIONS.slice(0, 3).map(setting => setting.id)).toEqual([
+      "updateCheck", "accentColor", "quitAnimation",
+    ]);
+    const declaration = findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitAnimation");
+    expect(declaration).toMatchObject({
+      id: "quitAnimation", label: "Quit animation", section: { id: "appearance", title: "Appearance" },
       application: "live", defaultValue: true, allowedValues: [true, false],
     });
-    expect(OWNED_UI_SETTING_DECLARATIONS[0]?.description).toContain("fall effect");
-    expect(OWNED_UI_SETTING_DECLARATIONS[0]?.description).toContain("Off returns to the terminal immediately");
+    expect(declaration?.description).toContain("fall effect");
+    expect(declaration?.description).toContain("Off returns to the terminal immediately");
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffect")).toBeNull();
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitEffectDurationMs")).toBeNull();
     expect(OWNED_UI_SETTING_DECLARATIONS.some(setting => setting.section?.id === "quit")).toBe(false);

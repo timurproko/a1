@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";
-import { applyPiTheme, piTheme } from "../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, currentPiAccentColor, piTheme, setPiAccentColor } from "../../../src/integrations/pi/components/index.js";
 import { OwnedUiSessionShellRoot } from "../../../src/app/session-shell/session-shell-root.js";
 import { stripAnsi } from "../../../src/ui/components/index.js";
 import { BottomHoverEvidence, classifyBottomHoverFinding } from "../../support/rendering/bottom-hover-evidence.js";
 
 function fixture(length = 20) {
+  setPiAccentColor("default");
   applyPiTheme("dark", false, "truecolor");
   const view: OwnedUiSessionViewModel = {
     contractVersion: 1, sessionId: "hover", revision: 1, lifecycle: "ready",
@@ -34,13 +35,28 @@ function fixture(length = 20) {
   const hover = (rows: readonly string[], expected: boolean) => {
     const control = rows.find(line => /Jump to bottom|new messages?/.test(stripAnsi(line)));
     expect(control).toBeDefined();
-    const color = piTheme().bg(expected ? "selectedBg" : "toolPendingBg", " ").split(" ")[0];
+    const resting = currentPiAccentColor() === "default" ? "toolPendingBg" : "userMessageBg";
+    const color = piTheme().bg(expected ? "selectedBg" : resting, " ").split(" ")[0];
     expect(control).toContain(color);
   };
   return { root, view, renders, geometry, render, mouse, hover, row, onFrame: (value: (() => void) | undefined) => { onFrame = value; } };
 }
 
 describe("bottom-control composition provenance", () => {
+  it("uses the configured accent's quiet surface at rest and selection surface on hover", () => {
+    const f = fixture();
+    try {
+      setPiAccentColor("pink");
+      f.mouse(64, 1);
+      f.hover(f.render(), false);
+      f.mouse(35, 30);
+      f.hover(f.render(), true);
+    } finally {
+      setPiAccentColor("default");
+      f.root.dispose();
+    }
+  });
+
   it.each([true, false])("uses current hover on the first composed frame, then safe reuse (enter=%s)", entering => {
     const f = fixture();
     try {

@@ -32,7 +32,9 @@ describe("owned settings interaction boundary", () => {
     expect(host).toContain("48;2;55;55;55");
     expect(host).toContain('bg("selectedBg", text)');
     expect(host).not.toContain("48;2;82;82;82");
-    expect(menu).toContain('paint(theme.fg("accent", "✓"))');
+    expect(menu).toContain('paint(theme.fg("text", "✓"))');
+    expect(menu).not.toContain('theme.fg("accent", "✓")');
+    expect(app).toContain('theme.accentPreview?.(String(choice), "■")');
     expect(app).not.toContain("48;2;");
   });
 

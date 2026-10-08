@@ -35,15 +35,6 @@ const AGENT_SECTION = Object.freeze({ id: "agent", title: "Agent" });
  * values are read from it, and `OwnedSettingValueOf` derives each getter's type from it.
  */
 export const OWNED_SETTING_DECLARATIONS = Object.freeze({
-  quitAnimation: Object.freeze({
-    id: "quitAnimation",
-    label: "Quit animation",
-    section: GENERIC_SECTION,
-    description: "Play the fall effect over the last screen when the session quits. Off returns to the terminal immediately.",
-    application: "live",
-    defaultValue: true,
-    allowedValues: Object.freeze([true, false] as const),
-  }),
   updateCheck: Object.freeze({
     id: "updateCheck",
     label: "Update check",
@@ -61,6 +52,15 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     application: "live",
     defaultValue: "default",
     allowedValues: UI_ACCENT_COLOR_CHOICES,
+  }),
+  quitAnimation: Object.freeze({
+    id: "quitAnimation",
+    label: "Quit animation",
+    section: APPEARANCE_SECTION,
+    description: "Play the fall effect over the last screen when the session quits. Off returns to the terminal immediately.",
+    application: "live",
+    defaultValue: true,
+    allowedValues: Object.freeze([true, false] as const),
   }),
   scrollbarAppearance: Object.freeze({
     id: "scrollbarAppearance",

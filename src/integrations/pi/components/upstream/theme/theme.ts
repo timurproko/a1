@@ -16,6 +16,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 export type { ThemeColor } from "@earendil-works/pi-coding-agent";
 import {
+  backgroundAnsi,
   foregroundAnsi,
   getCapabilities,
   okhslColor,
@@ -86,12 +87,64 @@ const FOREGROUND_COLORS: readonly ThemeColor[] = [
 const BACKGROUND_COLORS: readonly PiThemeBackground[] = [
   "selectedBg", "searchMatchBg", "userMessageBg", "customMessageBg", "toolPendingBg", "toolSuccessBg", "toolErrorBg",
 ];
-const ACCENT_PALETTE: Readonly<Record<Exclude<UiAccentColor, "default">, Readonly<Record<PiTerminalTheme, Color>>>> = Object.freeze({
-  blue: Object.freeze({ dark: okhslColor(232, 0.54, 0.67), light: okhslColor(231, 0.68, 0.47) }),
-  cyan: Object.freeze({ dark: okhslColor(202, 0.58, 0.67), light: okhslColor(203, 0.73, 0.46) }),
-  green: Object.freeze({ dark: okhslColor(159, 0.59, 0.67), light: okhslColor(159, 0.75, 0.46) }),
-  orange: Object.freeze({ dark: okhslColor(48, 0.75, 0.67), light: okhslColor(48, 0.90, 0.47) }),
-  pink: Object.freeze({ dark: okhslColor(337, 0.72, 0.67), light: okhslColor(337, 0.75, 0.48) }),
+interface AccentPaletteTone {
+  readonly accent: Color;
+  readonly border: Color;
+  readonly selectedBg: Color;
+  readonly userMessageBg: Color;
+}
+
+const ACCENT_PALETTE: Readonly<Record<Exclude<UiAccentColor, "default">, Readonly<Record<PiTerminalTheme, AccentPaletteTone>>>> = Object.freeze({
+  blue: Object.freeze({
+    dark: Object.freeze({
+      accent: okhslColor(232, 0.54, 0.67), border: okhslColor(232, 0.42, 0.58),
+      selectedBg: okhslColor(232, 0.35, 0.24), userMessageBg: okhslColor(232, 0.28, 0.24),
+    }),
+    light: Object.freeze({
+      accent: okhslColor(231, 0.68, 0.47), border: okhslColor(231, 0.50, 0.56),
+      selectedBg: okhslColor(231, 0.22, 0.91), userMessageBg: okhslColor(231, 0.16, 0.91),
+    }),
+  }),
+  cyan: Object.freeze({
+    dark: Object.freeze({
+      accent: okhslColor(202, 0.58, 0.67), border: okhslColor(202, 0.44, 0.58),
+      selectedBg: okhslColor(202, 0.35, 0.24), userMessageBg: okhslColor(202, 0.28, 0.24),
+    }),
+    light: Object.freeze({
+      accent: okhslColor(203, 0.73, 0.46), border: okhslColor(203, 0.52, 0.56),
+      selectedBg: okhslColor(203, 0.22, 0.91), userMessageBg: okhslColor(203, 0.16, 0.91),
+    }),
+  }),
+  green: Object.freeze({
+    dark: Object.freeze({
+      accent: okhslColor(159, 0.59, 0.67), border: okhslColor(159, 0.43, 0.58),
+      selectedBg: okhslColor(159, 0.35, 0.24), userMessageBg: okhslColor(159, 0.28, 0.24),
+    }),
+    light: Object.freeze({
+      accent: okhslColor(159, 0.75, 0.46), border: okhslColor(159, 0.53, 0.56),
+      selectedBg: okhslColor(159, 0.22, 0.91), userMessageBg: okhslColor(159, 0.16, 0.91),
+    }),
+  }),
+  orange: Object.freeze({
+    dark: Object.freeze({
+      accent: okhslColor(48, 0.75, 0.67), border: okhslColor(48, 0.55, 0.58),
+      selectedBg: okhslColor(48, 0.40, 0.24), userMessageBg: okhslColor(48, 0.30, 0.24),
+    }),
+    light: Object.freeze({
+      accent: okhslColor(48, 0.90, 0.47), border: okhslColor(48, 0.64, 0.56),
+      selectedBg: okhslColor(48, 0.24, 0.91), userMessageBg: okhslColor(48, 0.17, 0.91),
+    }),
+  }),
+  pink: Object.freeze({
+    dark: Object.freeze({
+      accent: okhslColor(337, 0.72, 0.67), border: okhslColor(337, 0.52, 0.58),
+      selectedBg: okhslColor(337, 0.38, 0.24), userMessageBg: okhslColor(337, 0.29, 0.24),
+    }),
+    light: Object.freeze({
+      accent: okhslColor(337, 0.75, 0.48), border: okhslColor(337, 0.54, 0.56),
+      selectedBg: okhslColor(337, 0.23, 0.91), userMessageBg: okhslColor(337, 0.16, 0.91),
+    }),
+  }),
 });
 let activeBaseTheme: Theme | undefined;
 let activeTheme: Theme | undefined;
@@ -120,6 +173,16 @@ export function currentPiThemeName(): string {
 
 export function currentPiAccentColor(): UiAccentColor {
   return activeAccentColor;
+}
+
+/** Paints one menu swatch from the base default or a named A1 palette entry. */
+export function renderPiAccentPreview(color: string, text: string): string | null {
+  ensurePiTheme();
+  const base = activeBaseTheme!;
+  if (color === "default") return base.fg("accent", text);
+  if (!isNamedAccentColor(color)) return null;
+  const accent = ACCENT_PALETTE[color][base.appearance].accent;
+  return `${foregroundAnsi(accent, base.getColorMode())}${text}\u001b[39m`;
 }
 
 /** Reprojects the active base theme; repeated changes never derive from an earlier projection. */
@@ -322,27 +385,59 @@ function notifyThemeChanged(): void {
   for (const listener of themeChangeListeners) listener();
 }
 
-/** A transparent Theme projection keeps every non-accent operation on the exact base instance. */
+function isNamedAccentColor(value: string): value is Exclude<UiAccentColor, "default"> {
+  return Object.hasOwn(ACCENT_PALETTE, value);
+}
+
+/** A transparent Theme projection keeps every role outside the named accent family on the base. */
 function projectPiAccent(base: Theme, color: UiAccentColor): Theme {
   if (color === "default") return base;
-  const accent = ACCENT_PALETTE[color][base.appearance];
-  const accentAnsi = foregroundAnsi(accent, base.getColorMode());
+  const tone = ACCENT_PALETTE[color][base.appearance];
+  const foregrounds: Readonly<Partial<Record<ThemeColor, Color>>> = Object.freeze({
+    accent: tone.accent,
+    border: tone.border,
+  });
+  const foregroundSequences: Readonly<Partial<Record<ThemeColor, string>>> = Object.freeze({
+    accent: foregroundAnsi(tone.accent, base.getColorMode()),
+    border: foregroundAnsi(tone.border, base.getColorMode()),
+  });
+  const backgrounds: Readonly<Partial<Record<PiThemeBackground, Color>>> = Object.freeze({
+    selectedBg: tone.selectedBg,
+    userMessageBg: tone.userMessageBg,
+  });
+  const backgroundSequences: Readonly<Partial<Record<PiThemeBackground, string>>> = Object.freeze({
+    selectedBg: backgroundAnsi(tone.selectedBg, base.getColorMode()),
+    userMessageBg: backgroundAnsi(tone.userMessageBg, base.getColorMode()),
+  });
   return new Proxy(base, {
     get(target, property) {
-      if (property === "colors") return Object.freeze({ ...target.colors, accent });
+      if (property === "colors") return Object.freeze({
+        ...target.colors,
+        ...foregrounds,
+        ...backgrounds,
+      });
       if (property === "fg") {
-        return (token: ThemeColor, text: string) => token === "accent"
-          ? `${accentAnsi}${text}\u001b[39m`
-          : target.fg(token, text);
+        return (token: ThemeColor, text: string) => foregroundSequences[token] === undefined
+          ? target.fg(token, text)
+          : `${foregroundSequences[token]}${text}\u001b[39m`;
+      }
+      if (property === "bg") {
+        return (token: PiThemeBackground, text: string) => backgroundSequences[token] === undefined
+          ? target.bg(token, text)
+          : `${backgroundSequences[token]}${text}\u001b[49m`;
       }
       if (property === "getFgAnsi") {
-        return (token: ThemeColor) => token === "accent" ? accentAnsi : target.getFgAnsi(token);
+        return (token: ThemeColor) => foregroundSequences[token] ?? target.getFgAnsi(token);
+      }
+      if (property === "getBgAnsi") {
+        return (token: PiThemeBackground) => backgroundSequences[token] ?? target.getBgAnsi(token);
       }
       if (property === "style") {
-        return (text: string, options: Parameters<Theme["style"]>[1]) => target.style(
-          text,
-          options.fg === "accent" ? { ...options, fg: accent } : options,
-        );
+        return (text: string, options: Parameters<Theme["style"]>[1]) => target.style(text, {
+          ...options,
+          ...(typeof options.fg === "string" && foregrounds[options.fg] !== undefined ? { fg: foregrounds[options.fg] } : {}),
+          ...(typeof options.bg === "string" && backgrounds[options.bg] !== undefined ? { bg: backgrounds[options.bg] } : {}),
+        });
       }
       const value: unknown = Reflect.get(target, property, target);
       return typeof value === "function" ? value.bind(target) : value;

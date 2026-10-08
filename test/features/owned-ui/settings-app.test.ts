@@ -122,6 +122,10 @@ const NAMING_THEME: UiTheme = Object.freeze({
   fg: (token: UiThemeToken, text: string) => `<${token}>${text}</${token}>`,
   bold: (text: string) => text,
   plain: (text: string) => text,
+  accentPreview: (color: string, text: string) => {
+    const ansi = { default: 35, blue: 34, cyan: 36, green: 32, orange: 33, pink: 31 }[color];
+    return ansi === undefined ? null : `\u001b[${ansi}m${text}\u001b[39m`;
+  },
   highlight: (text: string) => `<highlight>${text}</highlight>`,
   disabled: (text: string) => `<disabled>${text}</disabled>`,
   panel: (text: string) => `<panel>${text}</panel>`,
@@ -234,10 +238,10 @@ describe("the settings screen", () => {
     expect(lines[1]?.trimEnd()).toBe(" <b><accent>Settings</accent></b>");
     expect(lines[2]?.trimEnd()).toBe("");
     expect(lines[3]).toContain("Generic");
-    expect(lines[4]).toContain("Quit animation");
+    expect(lines[4]).toContain("Update check");
     expect(lines.find(line => line.includes("Generic"))?.startsWith(" ")).toBe(true);
     expect(lines.find(line => line.includes("Generic"))).toContain("<mdHeading><b>Generic</b></mdHeading>");
-    expect(lines.find(line => line.includes("Quit animation"))?.startsWith(" <highlight><accent>→ ")).toBe(true);
+    expect(lines.find(line => line.includes("Update check"))?.startsWith(" <highlight><accent>→ ")).toBe(true);
     expect(lines.at(-2)).toBe(`<border>${rule}</border>`);
     expect(lines.at(-1)?.startsWith(" <dim>")).toBe(true);
 
@@ -332,7 +336,7 @@ describe("the settings screen", () => {
     expect(selectedRow).toBeGreaterThanOrEqual(0);
     const selected = lines[selectedRow]!;
     expect(selected).toMatch(/^ <highlight>.*<\/highlight>$/u);
-    expect(selected).toContain("<text>Quit animation");
+    expect(selected).toContain("<text>Update check");
     expect(selected).toContain("<muted>yes</muted>");
     expect(selected).not.toContain("<accent>yes");
     const unselected = lines.find(line => line.includes("Scrollbar style"))!;
@@ -342,7 +346,7 @@ describe("the settings screen", () => {
     const valueColumn = screen(target)[selectedRow]!.indexOf("yes") + 1;
     target.onMouse?.({ kind: "motion", button: 0, row: selectedRow + 1, column: valueColumn }, NAMING_HOST);
     const pointed = named()[selectedRow]!;
-    expect(pointed).toContain("<text>Quit animation");
+    expect(pointed).toContain("<text>Update check");
     expect(pointed).toMatch(/^ <highlight>.*<\/highlight>$/u);
     expect(pointed).toMatch(/\s+yes<\/highlight>$/u);
     expect(pointed).not.toContain("<muted>yes");
@@ -352,7 +356,7 @@ describe("the settings screen", () => {
   it("keeps the moved control stable through section jumps, search, refresh, keyboard, and pointer changes", async () => {
     const { app: target, session, writes } = await app();
     screen(target);
-    expect(find(target, "Quit animation").trimStart()).toMatch(/^→/);
+    expect(find(target, "Update check").trimStart()).toMatch(/^→/);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
@@ -849,7 +853,7 @@ describe("the settings screen", () => {
     expect(lines[1]).toContain(" Settings");
     expect(lines[2]?.replace(/[│┃]$/u, "").trimEnd()).toBe("");
     expect(lines[3]).toContain("Generic");
-    expect(lines[4]?.trimStart()).toMatch(/^→\s+Quit animation/);
+    expect(lines[4]?.trimStart()).toMatch(/^→\s+Update check/);
   });
 
   it("moves the last result onto the final body row when Ctrl+End is used during search", async () => {
@@ -1020,6 +1024,19 @@ describe("the list view behind the screen", () => {
 });
 
 describe("the value dropdown behind the screen", () => {
+  it("shows every accent choice with its effective-color square and a neutral current mark", async () => {
+    const { app: target } = await app();
+    const lines = screen(target);
+    const row = lines.findIndex(line => line.includes("Accent color"));
+    const valueColumn = (lines[row] ?? "").indexOf("default") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
+
+    const opened = target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n");
+    expect(opened).toContain("<panel><text>✓</text></panel><panel> \u001b[35m■\u001b[39m default");
+    for (const ansi of [34, 36, 32, 33, 31]) expect(opened).toContain(`\u001b[${ansi}m■\u001b[39m`);
+    expect(opened).not.toContain("<accent>✓</accent>");
+  });
+
   it("opens without an active row and keeps keyboard navigation based on the effective value", async () => {
     const { app: target, writes } = await app();
     const lines = screen(target);
@@ -1029,10 +1046,10 @@ describe("the value dropdown behind the screen", () => {
 
     const opened = target.render({ width: 80, height: 24 }, NAMING_HOST);
     expect(opened.filter(line => line.includes("<panel>")).join("\n")).not.toContain("<highlight>");
-    expect(opened.join("\n")).toContain("<panel><accent>✓</accent></panel><panel> low");
+    expect(opened.join("\n")).toContain("<panel><text>✓</text></panel><panel> low");
 
     target.onInput?.(DOWN, HOST);
-    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).toContain("<highlight><accent>✓</accent></highlight><highlight> low");
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).toContain("<highlight><text>✓</text></highlight><highlight> low");
     target.onInput?.(DOWN, HOST);
     target.onInput?.(ENTER, HOST);
     expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "high" });

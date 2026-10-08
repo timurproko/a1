@@ -77,8 +77,8 @@ describe("owned UI settings sections", () => {
       ["generic", "Generic"], ["appearance", "Appearance"], ["scroll", "Scroll"], ["history", "History"], ["agent", "Agent"],
     ]);
     const entries = (id: string) => sections.find(section => section.id === id)?.entries.map(entry => entry.id);
-    expect(entries("generic")).toEqual(["quitAnimation", "updateCheck"]);
-    expect(entries("appearance")).toEqual(["accentColor"]);
+    expect(entries("generic")).toEqual(["updateCheck"]);
+    expect(entries("appearance")).toEqual(["accentColor", "quitAnimation"]);
     expect(entries("scroll")).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
     expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryMaxItems"]);
     expect(entries("quit")).toBeUndefined();

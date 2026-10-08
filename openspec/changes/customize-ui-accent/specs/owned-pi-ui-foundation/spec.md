@@ -2,16 +2,19 @@
 
 ### Requirement: Bare A1 projects one selected semantic accent across the active UI
 
-Bare A1 SHALL derive its active presentation from the complete unmodified base Pi theme and SHALL replace only the semantic `accent` role when `accentColor` names an A1 palette color. Every owned, retained, shared-component, select-list, and extension-facing surface that requests semantic accent SHALL observe the same selected color for foreground painting, composed styles, ANSI lookup, and concrete color introspection. Every non-accent role SHALL retain the base theme's behavior and bytes.
+Bare A1 SHALL derive its active presentation from the complete unmodified base Pi theme and, when `accentColor` names an A1 palette color, SHALL replace the semantic `accent` role plus the semantic `border`, `selectedBg`, and `userMessageBg` roles used by dialog bars, selected rows, and user prompts. The projected border and backgrounds SHALL be A1-owned tonal variations of the selected accent rather than the identical accent color. Every owned, retained, shared-component, select-list, and extension-facing surface that requests semantic accent SHALL observe the same selected color for foreground painting, composed styles, ANSI lookup, and concrete color introspection. Dialog bars, selected rows, user prompts, and the jump-to-bottom badge SHALL observe matching derived colors while retaining their existing relative prominence; the badge SHALL use the user-message tone normally and the selection tone when hovered. Every other role SHALL retain the base theme's behavior and bytes.
 
-The active projection SHALL be reconstructed from the stored base theme after named-theme load, watched-file reload, terminal-appearance selection, or in-memory theme replacement. It SHALL NOT modify built-in or custom theme resources, write generated theme files, inspect the name `violet`, compare current purple/RGB values, infer related roles from equal colors, or derive repeatedly from an earlier projection. Roles such as Markdown code, syntax types, custom-message labels, selection backgrounds, and thinking-level colors SHALL remain independent unless they explicitly request semantic `accent`.
+The active projection SHALL be reconstructed from the stored base theme after named-theme load, watched-file reload, terminal-appearance selection, or in-memory theme replacement. It SHALL NOT modify built-in or custom theme resources, write generated theme files, inspect the name `violet`, compare current purple/RGB values, infer related roles from equal colors, or derive repeatedly from an earlier projection. Roles such as Markdown code, syntax types, custom-message labels, muted borders, custom/tool backgrounds, and thinking-level colors SHALL remain independent unless they explicitly request semantic `accent`, the derived dialog `border`, or the subtle derived `selectedBg` and `userMessageBg` surfaces.
 
 A live accent change SHALL invalidate theme-sensitive content and repaint the active frame in the same session. The default projection SHALL remain byte-identical to the base Pi theme and `a1 pi` SHALL retain exact Pi theme behavior. If a future Pi release changes the semantic theme-token contract incompatibly, controlled upgrade validation SHALL fail by naming the drift rather than silently retaining a stale accent implementation.
 
 #### Scenario: Apply a named accent
 - **WHEN** bare A1 has a named `accentColor` preference
 - **THEN** titles, cursors, selected markers, working indicators, accent scrollbars, dialogs, settings controls, and extension theme access that request `accent` SHALL use that choice
-- **AND** non-accent foregrounds, backgrounds, emphasis, spacing, and geometry SHALL remain unchanged
+- **AND** dialog bars that request `border` SHALL use a matching tonal variation of that choice
+- **AND** selected rows that request `selectedBg` SHALL use a low-prominence tonal variation of that choice
+- **AND** user prompts and the resting jump-to-bottom badge SHALL use a quieter low-prominence variation, with the hovered badge using the selection variation
+- **AND** every other foreground, background, emphasis, spacing, and geometry SHALL remain unchanged
 
 #### Scenario: Change the preference while content is visible
 - **WHEN** the reader changes `accentColor` from one allowed value to another

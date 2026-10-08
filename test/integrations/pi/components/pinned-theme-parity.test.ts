@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { colorToOkhsl } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import {
@@ -22,6 +23,7 @@ import {
   stopPiThemeWatcher,
   type PiTerminalTheme,
 } from "../../../../src/integrations/pi/components/index.js";
+import { renderPiAccentPreview } from "../../../../src/integrations/pi/components/upstream/theme/theme.js";
 import { capturePinnedTheme } from "./pinned-theme-upstream-fixture.js";
 import {
   PI_PARITY_COLOR_MODES,
@@ -121,17 +123,28 @@ describe("pinned Pi theme and layout parity", () => {
     });
   });
 
-  it.each(PI_PARITY_COLOR_MODES)("projects named semantic accents in %s without changing another role", mode => {
+  it.each(PI_PARITY_COLOR_MODES)("projects the named accent family in %s without changing another role", mode => {
     const base = loadPiTheme("dark", mode);
     applyPiTheme("dark", false, mode);
     const baseAccent = base.fg("accent", "probe");
     const baseBorder = base.fg("border", "probe");
+    const baseSelection = base.bg("selectedBg", "probe");
+    const baseMuted = base.fg("muted", "probe");
+    const baseMessageBackground = base.bg("userMessageBg", "probe");
+    const baseCustomBackground = base.bg("customMessageBg", "probe");
 
     const projectedAccents = new Set<string>();
     for (const color of ["blue", "cyan", "green", "orange", "pink"] as const) {
       setPiAccentColor(color);
       const rendered = piTheme().fg("accent", "probe");
       expect(rendered).not.toBe(baseAccent);
+      expect(piTheme().fg("border", "probe")).not.toBe(baseBorder);
+      expect(piTheme().colors.selectedBg).not.toEqual(base.colors.selectedBg);
+      expect(piTheme().colors.userMessageBg).not.toEqual(base.colors.userMessageBg);
+      if (mode === "truecolor") {
+        expect(piTheme().bg("selectedBg", "probe")).not.toBe(baseSelection);
+        expect(piTheme().bg("userMessageBg", "probe")).not.toBe(baseMessageBackground);
+      }
       projectedAccents.add(rendered);
     }
     expect(projectedAccents.size).toBe(5);
@@ -139,28 +152,72 @@ describe("pinned Pi theme and layout parity", () => {
 
     expect(currentPiAccentColor()).toBe("cyan");
     expect(piTheme().fg("accent", "probe")).not.toBe(baseAccent);
-    expect(piTheme().fg("border", "probe")).toBe(baseBorder);
+    expect(piTheme().fg("border", "probe")).not.toBe(baseBorder);
+    expect(piTheme().fg("border", "probe")).not.toBe(piTheme().fg("accent", "probe"));
+    expect(piTheme().colors.selectedBg).not.toEqual(base.colors.selectedBg);
+    if (mode === "truecolor") expect(piTheme().bg("selectedBg", "probe")).not.toBe(baseSelection);
+    expect(piTheme().fg("muted", "probe")).toBe(baseMuted);
+    expect(piTheme().colors.userMessageBg).not.toEqual(base.colors.userMessageBg);
+    expect(piTheme().bg("customMessageBg", "probe")).toBe(baseCustomBackground);
     expect(piTheme().colors.accent).not.toEqual(base.colors.accent);
+    expect(piTheme().colors.border).not.toEqual(base.colors.border);
+    expect(piTheme().colors.selectedBg).not.toEqual(base.colors.selectedBg);
+    expect(piTheme().colors.userMessageBg).not.toEqual(base.colors.userMessageBg);
     expect(piTheme().style("probe", { fg: "accent", bold: true })).toContain(piTheme().getFgAnsi("accent"));
+    expect(piTheme().style("probe", { fg: "border" })).toContain(piTheme().getFgAnsi("border"));
+    expect(piTheme().style("probe", { bg: "selectedBg" })).toContain(piTheme().getBgAnsi("selectedBg"));
+    expect(piTheme().style("probe", { bg: "userMessageBg" })).toContain(piTheme().getBgAnsi("userMessageBg"));
+    expect(renderPiAccentPreview("default", "■")).toBe(base.fg("accent", "■"));
+    expect(renderPiAccentPreview("cyan", "■")).toBe(piTheme().fg("accent", "■"));
+    expect(renderPiAccentPreview("unknown", "■")).toBeNull();
     expect(getPiSelectListTheme().selectedText("probe")).toBe(piTheme().fg("accent", "probe"));
 
     setPiAccentColor("default");
     expect(piTheme().fg("accent", "probe")).toBe(baseAccent);
+    expect(piTheme().fg("border", "probe")).toBe(baseBorder);
+    expect(piTheme().bg("selectedBg", "probe")).toBe(baseSelection);
+    expect(piTheme().bg("userMessageBg", "probe")).toBe(baseMessageBackground);
     expect(piTheme().colors.accent).toEqual(base.colors.accent);
+  });
+
+  it.each(["dark", "light"] as const)("keeps %s borders and selections as quiet same-hue accent variations", appearance => {
+    applyPiTheme(appearance, false, "truecolor");
+    for (const color of ["blue", "cyan", "green", "orange", "pink"] as const) {
+      setPiAccentColor(color);
+      const accent = colorToOkhsl(piTheme().colors.accent);
+      const border = colorToOkhsl(piTheme().colors.border);
+      const selection = colorToOkhsl(piTheme().colors.selectedBg);
+      const message = colorToOkhsl(piTheme().colors.userMessageBg);
+      expect(Math.abs(accent.h - border.h)).toBeLessThan(2);
+      expect(Math.abs(accent.h - selection.h)).toBeLessThan(5);
+      expect(Math.abs(accent.h - message.h)).toBeLessThan(8);
+      expect(border.s).toBeLessThan(accent.s);
+      expect(selection.s).toBeLessThan(accent.s);
+      expect(message.s).toBeLessThan(selection.s);
+      expect(appearance === "dark" ? selection.l : 1 - selection.l).toBeLessThan(0.3);
+      expect(appearance === "dark" ? message.l : 1 - message.l).toBeLessThan(0.3);
+    }
   });
 
   it("reapplies the selected accent when an in-memory base theme is replaced", () => {
     const replacement = loadPiTheme("light", "truecolor");
     const baseAccent = replacement.fg("accent", "probe");
     const baseBorder = replacement.fg("border", "probe");
+    const baseSelection = replacement.bg("selectedBg", "probe");
+    const baseMessageBackground = replacement.bg("userMessageBg", "probe");
     setPiAccentColor("orange");
 
     expect(applyPiThemeInstance(replacement)).toEqual({ success: true, name: "light" });
     expect(piTheme().fg("accent", "probe")).not.toBe(baseAccent);
-    expect(piTheme().fg("border", "probe")).toBe(baseBorder);
+    expect(piTheme().fg("border", "probe")).not.toBe(baseBorder);
+    expect(piTheme().bg("selectedBg", "probe")).not.toBe(baseSelection);
+    expect(piTheme().bg("userMessageBg", "probe")).not.toBe(baseMessageBackground);
     setPiAccentColor("default");
     expect(piTheme()).toBe(replacement);
     expect(piTheme().fg("accent", "probe")).toBe(baseAccent);
+    expect(piTheme().fg("border", "probe")).toBe(baseBorder);
+    expect(piTheme().bg("selectedBg", "probe")).toBe(baseSelection);
+    expect(piTheme().bg("userMessageBg", "probe")).toBe(baseMessageBackground);
   });
 
   it("loads built-in themes from owned attributed resources", () => {
