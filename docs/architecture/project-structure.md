@@ -18,7 +18,7 @@ src/
     prompt-history/                profile-isolated prompt retention and bounded SQLite worker lifecycle
     prompt-suggestions/            opt-in bounded metadata capture and local diagnostic snapshots
   contracts/
-    agent-engine/                  dependency-free agent engine, session, package, and capability ports
+    agent-engine/                  dependency-free agent settings and package contracts
     owned-ui/                      dependency-free owned-session and extension UI contracts
     presentation/                  dependency-free component, terminal, and runtime ports
   integrations/

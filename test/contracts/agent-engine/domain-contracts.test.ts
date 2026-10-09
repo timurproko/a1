@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  AGENT_ENGINE_CONTRACT_VERSION,
   assertAgentDomainCapabilities,
   assertAgentFailure,
   assertAgentMessage,
@@ -11,10 +10,7 @@ import {
   assertAgentToolDescriptor,
   assertAgentUiContribution,
   assertAgentUsage,
-  decodeAgentEvent,
-  encodeAgentEvent,
   type AgentDomainCapabilities,
-  type AgentEvent,
 } from "../../../src/contracts/agent-engine/index.js";
 
 const domains: AgentDomainCapabilities = {
@@ -32,23 +28,6 @@ describe("normalized agent domain contracts", () => {
     expect(() => assertAgentDomainCapabilities(domains)).not.toThrow();
     expect(() => assertAgentDomainCapabilities({ ...domains, tools: ["all" as never] })).toThrow(/tools capability/);
     expect(() => assertAgentDomainCapabilities({ ...domains, usage: ["tokens", "tokens"] })).toThrow(/duplicated/);
-  });
-
-  it("preserves forward-compatible unknown content through serialization", () => {
-    const event: AgentEvent = {
-      contractVersion: AGENT_ENGINE_CONTRACT_VERSION,
-      type: "content",
-      sessionId: "session-1",
-      sequence: 1,
-      content: {
-        id: "message-1",
-        role: "assistant",
-        status: "final",
-        content: [{ kind: "unknown", sourceType: "future-reasoning-chart", payload: { points: [1, 2, 3] } }],
-      },
-    };
-    assertAgentMessage(event.content);
-    expect(decodeAgentEvent(encodeAgentEvent(event))).toEqual(event);
   });
 
   it("requires unrecognized content to use the bounded unknown envelope", () => {
