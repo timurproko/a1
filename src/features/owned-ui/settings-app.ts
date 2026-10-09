@@ -188,6 +188,7 @@ interface ValueMenu {
   /** Row this menu was opened from, so it anchors there rather than to the selection. */
   readonly anchorKey: string;
   readonly choices: readonly OwnedUiSettingValue[];
+  readonly keyboardOpened: boolean;
   index: number;
 }
 
@@ -401,7 +402,7 @@ export class SettingsApp implements UiApp {
         const row = rows[selected];
         if (row?.kind === "element" && row.value.structured) this.#openStructured(row.value);
         else if (row?.kind === "element" && typeof this.#shownValue(row.value) === "number") this.#cycle(rows, selected, 1);
-        else this.#openMenu(rows, selected, 0);
+        else this.#openMenu(rows, selected, true);
         return { consumed: true };
       }
       case "move-up":
@@ -466,11 +467,11 @@ export class SettingsApp implements UiApp {
       if (event.kind !== "press") return { consumed: true, render: false };
       if (overRow === null) {
         // Invariant: a press anywhere else dismisses the menu rather than acting through it.
-        this.#menu = null;
+        this.#closeMenu(menu);
         return { consumed: true };
       }
       const value = menu.choices[overRow];
-      this.#menu = null;
+      this.#closeMenu(menu);
       if (value !== undefined) this.#apply(menu.entry, value);
       return { consumed: true };
     }
@@ -574,7 +575,7 @@ export class SettingsApp implements UiApp {
     this.#activityTimer = undefined;
   }
 
-  #openMenu(rows: readonly Row[], selected: number, initialIndex = -1): void {
+  #openMenu(rows: readonly Row[], selected: number, selectCurrent = false): void {
     const row = rows[selected];
     if (row === undefined || row.kind !== "element") return;
     const entry = row.value;
@@ -591,15 +592,30 @@ export class SettingsApp implements UiApp {
       return;
     }
     const current = shown === null ? 0 : Math.max(0, entry.choices.indexOf(shown));
+    const anchorKey = `${entry.backend}:${entry.id}`;
+    // Compatibility: pointer opening already brightens the source value. Enter borrows that
+    // same value-region state for the life of its menu rather than inventing a keyboard color.
+    if (selectCurrent) {
+      this.#hoverKey = anchorKey;
+      this.#hoverRegion = "value";
+    }
     // Invariant: pointer opening stays inactive because it targeted the setting value, while
-    // Enter explicitly starts keyboard choice navigation at the first declared option.
+    // Enter explicitly starts keyboard choice navigation at the value already in effect.
     this.#menu = {
       entry,
       current,
-      anchorKey: `${entry.backend}:${entry.id}`,
+      anchorKey,
       choices: entry.choices,
-      index: Math.min(entry.choices.length - 1, Math.max(-1, initialIndex)),
+      keyboardOpened: selectCurrent,
+      index: selectCurrent ? current : -1,
     };
+  }
+
+  #closeMenu(menu: ValueMenu): void {
+    this.#menu = null;
+    if (!menu.keyboardOpened || this.#hoverKey !== menu.anchorKey) return;
+    this.#hoverKey = null;
+    this.#hoverRegion = "label";
   }
 
   // Rationale: a structured setting opens as its own flag list rather than a value menu.
@@ -789,12 +805,12 @@ export class SettingsApp implements UiApp {
     if (menu === null) return { consumed: false };
     const key = KEYS[data] ?? data;
     if (SETTINGS_SHORTCUTS.resolve(key, SCOPE) === "undo") {
-      this.#menu = null;
+      this.#closeMenu(menu);
       this.#undo();
       return { consumed: true };
     }
     if (key === "escape") {
-      this.#menu = null;
+      this.#closeMenu(menu);
       return { consumed: true };
     }
     if (key === "up" || key === "down") {
@@ -805,7 +821,7 @@ export class SettingsApp implements UiApp {
     }
     else if (key === "enter") {
       const value = menu.choices[menu.index];
-      this.#menu = null;
+      this.#closeMenu(menu);
       if (value !== undefined) this.#apply(menu.entry, value);
     }
     return { consumed: true };

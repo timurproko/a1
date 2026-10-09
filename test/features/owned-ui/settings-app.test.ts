@@ -501,7 +501,7 @@ describe("the settings screen", () => {
     }
   });
 
-  it("opens the first scalar choice on enter and cancels without writing", async () => {
+  it("opens the current scalar choice on enter and cancels without writing", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Thinking level");
     target.onInput?.(SPACE, HOST);
@@ -1136,23 +1136,29 @@ describe("the value dropdown behind the screen", () => {
     expect(opened).not.toContain("<accent>✓</accent>");
   });
 
-  it("keeps the effective value marked separately from the first keyboard choice", async () => {
+  it("opens on the effective value when it is not the first choice", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Thinking level");
     target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
     expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes("Thinking level")))
+      .toContain("<muted>high</muted>");
 
     target.onInput?.(ENTER, HOST);
     const opened = target.render({ width: 80, height: 24 }, NAMING_HOST);
+    const source = opened.find(line => line.includes("Thinking level")) ?? "";
     const low = opened.find(line => line.includes(" low")) ?? "";
     const high = opened.find(line => line.includes(" high")) ?? "";
-    expect(low).toContain("<highlight>");
-    expect(high).toContain("<panel><text>✓</text></panel>");
-    expect(high).not.toContain("<highlight>");
+    expect(source).not.toContain("<muted>high</muted>");
+    expect(source).toContain("  high</highlight>");
+    expect(low).not.toContain("<highlight>");
+    expect(high).toContain("<highlight><text>✓</text></highlight>");
     expect(writes).toHaveLength(1);
 
     target.onInput?.(ESC, HOST);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes("Thinking level")))
+      .toContain("<muted>high</muted>");
     expect(writes).toHaveLength(1);
   });
 
@@ -1169,7 +1175,9 @@ describe("the value dropdown behind the screen", () => {
     target.onInput?.(ENTER, HOST);
 
     expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
-    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).not.toContain("<panel>");
+    const closed = target.render({ width: 80, height: 24 }, NAMING_HOST);
+    expect(closed.join("\n")).not.toContain("<panel>");
+    expect(closed.find(line => line.includes("Thinking level"))).toContain("<muted>high</muted>");
   });
 
   it("opens without an active row and keeps keyboard navigation based on the effective value", async () => {

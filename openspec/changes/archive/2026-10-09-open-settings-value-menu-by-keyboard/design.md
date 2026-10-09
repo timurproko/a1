@@ -4,15 +4,16 @@
 
 `SettingsApp` currently routes Enter through `#cycle`, so an enumerated scalar value changes as soon as Enter is pressed. The scalar `ValueMenu` is opened only by pressing the value with the pointer. Its state already separates the effective choice (`current`) from the active choice (`index`), and its input path already supports Up, Down, Escape, and Enter.
 
-Pointer opening intentionally initializes `index` to `-1` so the opening press does not create an unrelated highlight. Keyboard opening needs a different initial state: the menu should be visible with its first choice active before any value is written.
+Pointer opening intentionally initializes `index` to `-1` so the opening press does not create an unrelated highlight. Keyboard opening needs a different initial state: the menu should be visible with its current effective choice active before any value is written.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
 - Open an editable enumerated scalar's existing value menu when Enter is pressed on its Settings row.
-- Activate the first declared choice immediately for keyboard opening.
-- Keep the effective-value checkmark independent from the active highlight.
+- Activate the current effective choice immediately for keyboard opening.
+- Keep the effective-value checkmark and active highlight on that current choice until navigation moves the selection.
+- Brighten the source row's value with the same foreground treatment used while the pointer is over that value.
 - Let Up and Down navigate, Escape close without changing the setting, and Enter apply the active choice.
 - Retain existing direct adjustment and specialized numeric and structured editing.
 
@@ -27,7 +28,7 @@ Pointer opening intentionally initializes `index` to `-1` so the opening press d
 
 ### 1. Use one menu-opening path with an explicit initial index
 
-Settings will route both pointer and keyboard opening through the same scalar-menu construction path. Pointer opening will request `-1`, preserving its inactive state. Keyboard opening will request index `0`, selecting the first declared choice.
+Settings will route both pointer and keyboard opening through the same scalar-menu construction path. Pointer opening will request an inactive index, preserving its existing state. Keyboard opening will request the already-resolved effective-choice index so selection begins where the setting currently is.
 
 Duplicating menu validation and construction in the Enter branch was rejected because editability, empty choices, anchoring, and current-value lookup would drift between input methods.
 
@@ -37,23 +38,30 @@ The main-list `activate` action will open the menu for editable, non-numeric sca
 
 Changing all scalar controls into menus was rejected because numeric controls intentionally expose bounded stepping, and structured values require their own multi-part workflow.
 
-### 3. Reuse existing menu key handling
+### 3. Give keyboard opening the source-value treatment used by pointer opening
 
-Once open, the current menu state machine will continue to own Up, Down, Escape, Enter, and undo. Since keyboard opening supplies index `0`, Down advances from the first choice, Up remains clamped at the first choice, Escape writes nothing, and Enter applies the active choice through the existing backend route.
+A keyboard-opened menu will identify its anchor as the active value region so the source row renders that value in the terminal foreground rather than the muted value role. Menu state will record that this hover treatment was synthesized by keyboard opening and clear it when the menu closes; pointer-opened menus retain their existing pointer-owned hover lifecycle.
+
+Changing the row renderer or introducing a keyboard-only color was rejected because the existing value-region hover state already defines the requested shared appearance.
+
+### 4. Reuse existing menu key handling
+
+Once open, the current menu state machine will continue to own Up, Down, Escape, Enter, and undo. Since keyboard opening supplies the effective-choice index, Up and Down move from the current value within the existing bounds, Escape writes nothing, and Enter applies the active choice through the existing backend route.
 
 Adding a second keyboard menu controller was rejected because it would duplicate established cancellation, write, and undo behavior.
 
-### 4. Verify behavior at the Settings application boundary
+### 5. Verify behavior at the Settings application boundary
 
-Focused app tests will prove that the opening Enter performs no write, paints the first choice active while preserving the effective checkmark, supports Up/Down navigation, cancels on Escape, and applies only on confirmation. Existing pointer-opening coverage will continue to prove that pointer menus open without an active row.
+Focused app tests will prove that the opening Enter performs no write, paints the effective choice as active and checked, brightens the source value until close, supports Up/Down navigation from that choice, cancels on Escape, and applies only on confirmation. Existing pointer-opening coverage will continue to prove that pointer menus open without an active row.
 
 A shared-renderer-only test is insufficient because the behavioral difference is chosen by Settings input orchestration rather than menu painting.
 
 ## Risks / Trade-offs
 
 - **[Existing users expect Enter to cycle immediately]** → Left/Right remains the direct adjustment path, while the footer already describes Enter as `change`; focused tests bind the new review-before-commit workflow.
-- **[The first active choice differs from the effective value]** → Keep the effective choice visibly checked, so active navigation and current state remain distinct.
-- **[Opening Enter accidentally writes the first choice]** → Assert no backend or owned-settings write occurs until a second Enter confirms.
+- **[The current value cannot be found in the declared choices]** → Retain the existing safe first-choice fallback used by effective-value lookup.
+- **[Opening Enter accidentally rewrites the current choice]** → Assert no backend or owned-settings write occurs until a second Enter confirms.
+- **[Keyboard brightness leaks after the menu closes]** → Track keyboard-origin menu state and assert the source value returns to its ordinary muted selected-row role on every close path.
 - **[Pointer opening regresses to an initial flash]** → Preserve the explicit `-1` pointer opening state and its existing styled-output coverage.
 
 ## Migration Plan
