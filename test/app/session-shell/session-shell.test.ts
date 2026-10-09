@@ -923,6 +923,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       createRuntime: async () => engine as unknown as AgentSessionRuntime,
       checkPackageUpdates: async () => ["pi-mcp-adapter"],
     });
+    await adapter.announcePackageUpdates();
     await vi.waitFor(() => {
       expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(true);
     });
@@ -960,6 +961,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       createRuntime: async () => new Runtime() as unknown as AgentSessionRuntime,
       checkPackageUpdates: async () => ["pi-mcp-adapter"],
     });
+    await adapter.announcePackageUpdates();
     await vi.waitFor(() => {
       expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(true);
     });

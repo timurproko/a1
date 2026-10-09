@@ -225,6 +225,7 @@ async function fixture(workflowHost = host(), configure?: (runtime: WorkflowRunt
   const runtime = new WorkflowRuntime();
   configure?.(runtime);
   const adapter = await createPiEngineAdapter({
+    sessionId: "owned-test",
     cwd: "D:/work",
     agentDir: join(tmpdir(), "a1-workflow-fixture"),
     createRuntime: async () => runtime as unknown as AgentSessionRuntime,
@@ -303,6 +304,9 @@ describe("pinned Pi command and input workflows", () => {
 
     readChangelog.mockClear();
     const update = await fixture(host({ readChangelog }), runtime => runtime.settingsValues.set("LastChangelogVersion", "0.84.1"));
+    // Invariant: startup announces nothing by itself; the engine host asks once per process.
+    expect(readChangelog).not.toHaveBeenCalled();
+    await update.adapter.announceStartupChangelog();
     expect(readChangelog).toHaveBeenCalledWith("0.84.1");
     expect(update.adapter.view().diagnostics).toContainEqual(expect.objectContaining({ code: "changelog-expanded", message: "## 0.84.2\nNew release fixture" }));
     await update.adapter.dispose();
@@ -312,6 +316,7 @@ describe("pinned Pi command and input workflows", () => {
       runtime.settingsValues.set("LastChangelogVersion", "0.84.1");
       Object.defineProperty(runtime.session, "messages", { value: [{ role: "user", content: "resumed fixture", timestamp: 1 }] });
     });
+    await resumed.adapter.announceStartupChangelog();
     expect(readChangelog).not.toHaveBeenCalled();
     await resumed.adapter.dispose();
   });
@@ -1018,6 +1023,7 @@ describe("bare-A1 unified models route", () => {
     const runtime = new WorkflowRuntime();
     configure?.(runtime);
     const adapter = await createPiEngineAdapter({
+      sessionId: "owned-test",
       cwd: "D:/work",
       agentDir: join(tmpdir(), "a1-workflow-fixture"),
       createRuntime: async () => runtime as unknown as AgentSessionRuntime,

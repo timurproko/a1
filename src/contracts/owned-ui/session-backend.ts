@@ -41,6 +41,21 @@ export interface OwnedUiSessionBackend {
   readonly extensions: OwnedUiExtensionPort;
 }
 
+/** What a caller states about the session it wants; everything process-wide stays with the factory. */
+export interface OwnedUiSessionRequest {
+  /** Unique within the process. Omitted means the factory assigns one that is. */
+  readonly sessionId?: string;
+  readonly cwd: string;
+}
+
+/**
+ * The one place sessions come from. The factory owns the state that is process-wide, so two
+ * sessions in one process never install, announce, or trace the same thing twice.
+ */
+export interface OwnedUiSessionFactory {
+  create(request: OwnedUiSessionRequest): Promise<OwnedUiSessionBackend>;
+}
+
 /** Which session this is, where it lives, and how often it has been replaced. */
 export interface OwnedUiSessionIdentityPort {
   readonly sessionId: string;

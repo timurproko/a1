@@ -230,7 +230,7 @@ for (const theme of ["dark", "light"]) {
           } else if (entry.command === "thinking") owner.handleThinkingCommand(entry.argument);
           else throw new Error(`Unmapped pinned outcome command: ${entry.command}`);
         } else {
-          adapter = await engine.createPiEngineAdapter({ cwd, agentDir, createRuntime: async () => state.runtime, workflowHost: state.host });
+          adapter = await engine.createPiEngineAdapter({ sessionId: "owned-test",cwd, agentDir, createRuntime: async () => state.runtime, workflowHost: state.host });
           shell = new owned.OwnedUiSessionShell({ presenters: presenters.createPiSessionPresenters(adapter), engine: { backend: adapter, cwd }, presentation: { terminal: new terminalModule.TestPresentationTerminal(), startup: { quiet: true } } });
           shell.root.editor.setText("preserved draft");
           state.onCancel = () => shell.root.handleInput("\u001b");

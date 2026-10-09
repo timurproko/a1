@@ -10,7 +10,7 @@ import type { AvailableRelease, StartupReleaseCheckOptions } from "../foundation
 import type { NativeProcessIdentity } from "../foundation/lifecycle/model.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
-import { createPiEngineAdapter } from "../integrations/pi/engine/adapter.js";
+import { createPiEngineHost, type PiEngineHostOptions, type PiEngineSessionRequest } from "../integrations/pi/engine/host.js";
 import { createPiSessionPresenters, type PiSessionPresenterBackend } from "../integrations/pi/session-presenters/index.js";
 import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/project-trust-preflight.js";
 import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-selection.js";
@@ -28,6 +28,7 @@ import type {
   OwnedUiQuitOutroSettings,
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
+  UiAccentColor,
 } from "../contracts/owned-ui/index.js";
 import { createOwnedRouteHost, type OwnedReferenceProviders } from "./settings-route-host.js";
 import { renderPiShellChangelogLines } from "../integrations/pi/components/shell-presenters-info.js";
@@ -43,10 +44,18 @@ export interface ComposedSessionBackend extends PiSessionPresenterBackend, Owned
   settingsPort(): AgentSettingsPort | null;
 }
 
+/** The process-level engine host as composition drives it: sessions, the live accent, and disposal. */
+export interface ComposedEngineHost {
+  create(request: PiEngineSessionRequest): Promise<ComposedSessionBackend>;
+  setAccentColor(color: UiAccentColor): void;
+  dispose(): Promise<void>;
+}
+
 export interface OwnedUiCompositionOptions {
   readonly cwd?: string;
   readonly terminal?: PresentationTerminalPort;
-  readonly createPiAdapter?: () => Promise<ComposedSessionBackend>;
+  /** Test seam standing in for the Pi engine host; receives the options composition resolved. */
+  readonly createEngineHost?: (options: PiEngineHostOptions) => Promise<ComposedEngineHost>;
   /** Explicit file selection retained for SDK callers. Public CLI uses sessionSelection. */
   readonly sessionPath?: string;
   readonly sessionSelection?: SessionSelection;
@@ -118,13 +127,35 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     sessionRuntimeRefreshTimer = setInterval(queueSessionRuntimeRefresh, SESSION_RUNTIME_REFRESH_MS);
     sessionRuntimeRefreshTimer.unref();
   };
-  const backend: ComposedSessionBackend = options.createPiAdapter
-    ? await options.createPiAdapter()
-    : await createPiEngineAdapter({
+  const productPaths = resolveProductPaths();
+  // Rationale: the manager reads the engine's settings port lazily, after the session exists.
+  let backend: ComposedSessionBackend;
+  const settings = options.profileId === undefined
+    ? null
+    : new OwnedSettingsManager({
+      configDir: resolveProductPaths().configDir,
+      profileId: options.profileId,
+      agentProvider: () => backend.settingsPort(),
+      hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
+      agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
+    });
+  // Invariant: process-wide engine state has one owner. The host installs the HTTP dispatcher, applies
+  // the theme singletons, and announces startup notices once; every session is created through it.
+  const host = await (options.createEngineHost ?? (async hostOptions => createPiEngineHost(hostOptions)))({
+    productMode: ownedSurfaces ? "bare" : "comparison",
+    availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
+    announceStartupChangelog: !ownedSurfaces,
+    theme: {
+      base: ownedSurfaces ? "dark" : "engine-configured",
+      accentColor: settings !== null && ownedSurfaces ? settings.value("accentColor") : "purple",
+      packageBorderProjection: ownedSurfaces,
+      apply: { base: applyConfiguredPiTheme, accentColor: setPiAccentColor, packageBorderProjection: setPiPackageBorderProjectionEnabled },
+    },
+    ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
+  });
+  try {
+    backend = await host.create({
       cwd,
-      availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
-      settingsProductMode: ownedSurfaces ? "bare" : "comparison",
-      announceStartupChangelog: !ownedSurfaces,
       ...(ownedSurfaces ? {
         repositoryContextReader: async (sessionId: string, sessionFile: string, signal: AbortSignal) => {
           const owner = await runtimeIdentity();
@@ -144,18 +175,11 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
       ...(options.sessionSelection === undefined ? {} : { sessionSelection: options.sessionSelection }),
       ...(options.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: options.sessionForkPrompt }),
-      ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
     });
-  const productPaths = resolveProductPaths();
-  const settings = options.profileId === undefined
-    ? null
-    : new OwnedSettingsManager({
-      configDir: resolveProductPaths().configDir,
-      profileId: options.profileId,
-      agentProvider: () => backend.settingsPort(),
-      hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
-      agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
-    });
+  } catch (error) {
+    await host.dispose();
+    throw error;
+  }
   let releaseNotes: ReleaseNoteCatalog | null = null;
   let releaseNotesFailure: unknown;
   if (ownedSurfaces) {
@@ -173,15 +197,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     : await import("../features/owned-ui/release-note-state.js").then(module => module.claimReleaseNote({
       configDir: productPaths.configDir, profileId: options.profileId!, version: currentReleaseNote.version,
     }));
-  // Compatibility: bare A1 intentionally ships one base visual target while its UI is being completed:
-  // dark, regardless of terminal detection or a previously stored Pi theme. Its owned accent projects
-  // over that base; comparison keeps Pi's configured theme and unmodified semantic accent.
-  setPiPackageBorderProjectionEnabled(ownedSurfaces);
-  setPiAccentColor(settings !== null && ownedSurfaces ? settings.value("accentColor") : "purple");
-  applyConfiguredPiTheme(ownedSurfaces ? "dark" : backend.settings.configuredTheme());
   const unsubscribeAccent = settings === null || !ownedSurfaces
     ? () => {}
-    : settings.onChange(current => setPiAccentColor(current.value("accentColor")));
+    : settings.onChange(current => host.setAccentColor(current.value("accentColor")));
 
   // Rationale: Routes open only after shell construction.
   const references: OwnedReferenceProviders = {
@@ -292,6 +310,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     unsubscribeAccent();
     await releaseNoteClaim?.release();
     clipboardDiagnostics?.dispose(); suggestionDiagnostics?.dispose(); clipboardServices?.dispose();
+    await host.dispose();
     throw error;
   }
   // Rationale: pinned Pi's version check is unreachable because the owned shell never runs its
@@ -345,6 +364,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         }
         await releaseNoteClaim?.release();
         suggestionDiagnostics?.dispose(); clipboardDiagnostics?.dispose();
+        // Invariant: the host outlives the application; disposing it cancels host-level probes last.
+        await host.dispose();
       }
     },
   };

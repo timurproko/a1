@@ -144,6 +144,7 @@ describe("pinned AgentSession compaction progress", () => {
       session.agent.streamFunction = streamFunction as unknown as typeof session.agent.streamFunction;
 
       const adapter = await createPiEngineAdapter({
+        sessionId: "owned-test",
         cwd: directory,
         agentDir: directory,
         createRuntime: async () => ({

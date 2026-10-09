@@ -18,7 +18,7 @@ vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({
   applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {},
 }));
 vi.mock("../../src/integrations/pi/components/history-editor-loader.js", () => ({ loadHistoryEditor: observed.loadEditor }));
-vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
+vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
@@ -60,7 +60,7 @@ async function compose(options: { profileId?: string; ownedSurfaces?: "off" } = 
   return composeOwnedUi({
     ...options,
     cwd: root,
-    createPiAdapter: async () => ({ identity: { cwd: root, agentDir: profileRoot }, settings: { configuredTheme: () => "dark" } }) as never,
+    createEngineHost: async () => ({ create: async () => ({ identity: { cwd: root, agentDir: profileRoot }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never,
   });
 }
 
