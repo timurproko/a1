@@ -210,6 +210,32 @@ describe("pinned Pi theme and layout parity", () => {
     expect(piTheme().colors.accent).toEqual(base.colors.accent);
   });
 
+  it.each(["dark", "light"] as const)("keeps the %s blue accent aligned with A1 branding and distinct from cyan", appearance => {
+    applyPiTheme(appearance, false, "truecolor");
+    setPiAccentColor("blue");
+    const blue = colorToOkhsl(piTheme().colors.accent);
+    const blueAnsi = piTheme().fg("accent", "probe");
+    setPiAccentColor("cyan");
+    const cyan = colorToOkhsl(piTheme().colors.accent);
+    const cyanAnsi = piTheme().fg("accent", "probe");
+    const brandHueDistance = Math.min(Math.abs(blue.h - 268), 360 - Math.abs(blue.h - 268));
+    const cyanHueDistance = Math.min(Math.abs(blue.h - cyan.h), 360 - Math.abs(blue.h - cyan.h));
+
+    expect(brandHueDistance).toBeLessThan(2);
+    expect(cyanHueDistance).toBeGreaterThan(60);
+    expect(blue.s).toBeGreaterThan(appearance === "dark" ? 0.78 : 0.88);
+    expect(blue.l).toBeCloseTo(appearance === "dark" ? 0.67 : 0.47, 1);
+    expect(blueAnsi).not.toBe(cyanAnsi);
+  });
+
+  it.each(PI_PARITY_COLOR_MODES)("emits distinct brand blue and cyan accents in %s", mode => {
+    applyPiTheme("dark", false, mode);
+    setPiAccentColor("blue");
+    const blue = piTheme().fg("accent", "probe");
+    setPiAccentColor("cyan");
+    expect(piTheme().fg("accent", "probe")).not.toBe(blue);
+  });
+
   it.each(["dark", "light"] as const)("derives the full %s semantic family from an arbitrary custom accent", appearance => {
     const accent = okhslColor(123, 0.64, appearance === "dark" ? 0.67 : 0.47);
     const projection = derivePiAccentProjection(accent, appearance);
