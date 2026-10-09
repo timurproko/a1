@@ -323,7 +323,7 @@ describe("the settings screen", () => {
     screen(target);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "Accent color").trimStart()).toMatch(/^→.*purple/);
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
     expect(session.value("accentColor")).toBe("blue");
     expect(find(target, "Accent color").trimStart()).toMatch(/^→.*blue/);
@@ -339,7 +339,7 @@ describe("the settings screen", () => {
     const { app: target, session, writes } = await app();
     selectRow(target, "Background");
     expect(find(target, "Background").trimStart()).toMatch(/^→.*transparent/);
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
     expect(session.value("backgroundStyle")).toBe("accent");
     expect(find(target, "Background").trimStart()).toMatch(/^→.*accent/);
@@ -387,7 +387,7 @@ describe("the settings screen", () => {
     target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "Warnings").trimStart()).toMatch(/^→/);
     selectRow(target, "Prompt suggestions");
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     await session.load();
     expect(session.value("promptSuggestions")).toBe(false);
     // Rationale: the owned Agent rows overflow the test frame, so the rail follows each row.
@@ -472,7 +472,7 @@ describe("the settings screen", () => {
     expect(shown.join("\n")).not.toContain("unavailable");
     expect(shown.some(line => line.includes("Thinking level"))).toBe(false);
     selectRow(target, "Prompt suggestions");
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     expect(session.value("promptSuggestions")).toBe(false);
     expect(backing.writes).toEqual([]);
   });
@@ -501,20 +501,27 @@ describe("the settings screen", () => {
     }
   });
 
-  it("steps to the next value on enter", async () => {
+  it("opens the first scalar choice on enter and cancels without writing", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Thinking level");
     target.onInput?.(SPACE, HOST);
     expect(writes).toEqual([]);
+
     target.onInput?.(ENTER, HOST);
-    expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
+    const opened = target.render({ width: 80, height: 24 }, NAMING_HOST);
+    expect(opened.find(line => line.includes(" low"))).toContain("<highlight>");
+    expect(writes).toEqual([]);
+
+    target.onInput?.(ESC, HOST);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).not.toContain("<panel>");
+    expect(writes).toEqual([]);
   });
 
   it("shows only the selected value through a deferred save and keeps shortcut guidance", async () => {
     const { app: target, session } = await app();
     selectRow(target, "Update check");
 
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     let row = find(target, "Update check");
     expect(row).toMatch(/Update check\s+no/u);
     expect(row).not.toContain("effective");
@@ -545,7 +552,7 @@ describe("the settings screen", () => {
     const { app: target, session } = await app(false, "normal", WHEEL_SETTINGS);
     vi.spyOn(session, "change").mockReturnValue(new Promise(() => {}));
 
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     const row = find(target, "Speed");
     expect(row).toMatch(/Speed\s+fast/u);
     expect(row).not.toContain("effective normal");
@@ -555,10 +562,10 @@ describe("the settings screen", () => {
   it("undoes successful scalar changes in reverse order through their owning backends", async () => {
     const { app: target, session, writes } = await app();
     selectRow(target, "Prompt suggestions");
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
     expect(session.value("promptSuggestions")).toBe(false);
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
     expect(session.value("promptSuggestions")).toBe(true);
 
@@ -571,7 +578,7 @@ describe("the settings screen", () => {
 
     target.onInput?.(CTRL_HOME, HOST);
     selectRow(target, "Thinking level");
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
@@ -584,7 +591,7 @@ describe("the settings screen", () => {
   it("undoes from a scalar menu and active search without losing the query", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Thinking level");
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
 
     let lines = screen(target);
@@ -597,7 +604,7 @@ describe("the settings screen", () => {
     expect(screen(target).some(line => line.includes("✓ high"))).toBe(false);
     expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "low" });
 
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
     target.onInput?.("/", HOST);
     for (const letter of "think") target.onInput?.(letter, HOST);
@@ -614,7 +621,7 @@ describe("the settings screen", () => {
   it("keeps a failed restore retryable without changing the authoritative value", async () => {
     const { app: target, session } = await app();
     selectRow(target, "Prompt suggestions");
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
     expect(session.value("promptSuggestions")).toBe(false);
 
@@ -635,7 +642,7 @@ describe("the settings screen", () => {
   it("discards undo history when the settings screen closes", async () => {
     const { app: target, session } = await app();
     selectRow(target, "Prompt suggestions");
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
     expect(session.value("promptSuggestions")).toBe(false);
     target.onClose?.(HOST);
@@ -1129,6 +1136,42 @@ describe("the value dropdown behind the screen", () => {
     expect(opened).not.toContain("<accent>✓</accent>");
   });
 
+  it("keeps the effective value marked separately from the first keyboard choice", async () => {
+    const { app: target, writes } = await app();
+    selectRow(target, "Thinking level");
+    target.onInput?.(`${ESC}[C`, HOST);
+    await settleChanges();
+    expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
+
+    target.onInput?.(ENTER, HOST);
+    const opened = target.render({ width: 80, height: 24 }, NAMING_HOST);
+    const low = opened.find(line => line.includes(" low")) ?? "";
+    const high = opened.find(line => line.includes(" high")) ?? "";
+    expect(low).toContain("<highlight>");
+    expect(high).toContain("<panel><text>✓</text></panel>");
+    expect(high).not.toContain("<highlight>");
+    expect(writes).toHaveLength(1);
+
+    target.onInput?.(ESC, HOST);
+    expect(writes).toHaveLength(1);
+  });
+
+  it("navigates and confirms a keyboard-opened menu", async () => {
+    const { app: target, writes } = await app();
+    selectRow(target, "Thinking level");
+    target.onInput?.(ENTER, HOST);
+    expect(writes).toEqual([]);
+
+    target.onInput?.(`${ESC}[A`, HOST);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes(" low"))).toContain("<highlight>");
+    target.onInput?.(DOWN, HOST);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes(" high"))).toContain("<highlight>");
+    target.onInput?.(ENTER, HOST);
+
+    expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).not.toContain("<panel>");
+  });
+
   it("opens without an active row and keeps keyboard navigation based on the effective value", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Thinking level");
@@ -1242,7 +1285,7 @@ describe("the input row and status line behind the screen", () => {
     const { app: target, session } = await app(false, "normal", WHEEL_SETTINGS);
     const change = vi.spyOn(session, "change").mockReturnValue(new Promise(() => {}));
     target.render({ width: 80, height: 7 }, HOST);
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     expect(change).toHaveBeenCalledWith("a1", "scrollbarSpeed", "fast");
     expect(session.value("scrollbarSpeed")).toBe("normal");
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 3, column: 70 }, HOST);
@@ -1343,12 +1386,12 @@ describe("the input row and status line behind the screen", () => {
     const change = vi.spyOn(session, "change").mockReturnValue(new Promise(() => {}));
     expect(railCells(target).every(cell => cell === " ")).toBe(true);
 
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     expect(change).toHaveBeenCalledWith("a1", "scrollbarAppearance", "always");
     expect(session.value("scrollbarAppearance")).toBe("auto");
     expect(railCells(target)).toContain("│");
 
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     expect(change).toHaveBeenCalledWith("a1", "scrollbarAppearance", "hidden");
     expect(target.render(RAIL_RECT, HOST).join("\n")).not.toMatch(/[│┃]/);
   });
@@ -1399,7 +1442,7 @@ describe("the input row and status line behind the screen", () => {
   it("reports a failed write instead of the hint and does not make it undoable", async () => {
     const { app: target, writes } = await app(true);
     selectRow(target, "Thinking level");
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     // Invariant: the write is reported once it has been attempted, not on the keypress.
     await settleChanges();
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));

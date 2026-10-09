@@ -400,7 +400,8 @@ export class SettingsApp implements UiApp {
       case "activate": {
         const row = rows[selected];
         if (row?.kind === "element" && row.value.structured) this.#openStructured(row.value);
-        else this.#cycle(rows, selected, 1);
+        else if (row?.kind === "element" && typeof this.#shownValue(row.value) === "number") this.#cycle(rows, selected, 1);
+        else this.#openMenu(rows, selected, 0);
         return { consumed: true };
       }
       case "move-up":
@@ -573,7 +574,7 @@ export class SettingsApp implements UiApp {
     this.#activityTimer = undefined;
   }
 
-  #openMenu(rows: readonly Row[], selected: number): void {
+  #openMenu(rows: readonly Row[], selected: number, initialIndex = -1): void {
     const row = rows[selected];
     if (row === undefined || row.kind !== "element") return;
     const entry = row.value;
@@ -590,9 +591,15 @@ export class SettingsApp implements UiApp {
       return;
     }
     const current = shown === null ? 0 : Math.max(0, entry.choices.indexOf(shown));
-    // Invariant: the opening press targeted the setting value, not an option. Keep the
-    // effective value as the keyboard origin without painting it as pointer-picked.
-    this.#menu = { entry, current, anchorKey: `${entry.backend}:${entry.id}`, choices: entry.choices, index: -1 };
+    // Invariant: pointer opening stays inactive because it targeted the setting value, while
+    // Enter explicitly starts keyboard choice navigation at the first declared option.
+    this.#menu = {
+      entry,
+      current,
+      anchorKey: `${entry.backend}:${entry.id}`,
+      choices: entry.choices,
+      index: Math.min(entry.choices.length - 1, Math.max(-1, initialIndex)),
+    };
   }
 
   // Rationale: a structured setting opens as its own flag list rather than a value menu.
