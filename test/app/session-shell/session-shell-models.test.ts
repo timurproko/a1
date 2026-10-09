@@ -281,14 +281,11 @@ describe("bare-A1 unified Models dialog", () => {
         await vi.advanceTimersByTimeAsync(999);
         expect(frame(shell)).toContain("Models (unsaved) (refreshing)");
         await vi.advanceTimersByTimeAsync(1);
-        expect(frame(shell)).toContain("Models (unsaved) (refreshed)");
-        await vi.advanceTimersByTimeAsync(1_999);
-        expect(frame(shell)).toContain("Models (unsaved) (refreshed)");
-        await vi.advanceTimersByTimeAsync(1);
         text = frame(shell);
         expect(text).toContain("Models (unsaved)");
         expect(text).not.toContain("(refreshing)");
         expect(text).not.toContain("(refreshed)");
+        expect(text).not.toContain("Model catalogs refreshed.");
         for (let index = 0; index < 3; index += 1) shell.root.handleInput("\u007f");
         expect(frame(shell)).toContain("  ○ gemini [google]");
         shell.root.handleInput(ESCAPE);

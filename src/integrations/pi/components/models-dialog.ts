@@ -63,7 +63,6 @@ export interface ModelsDialogCallbacks {
 const MAX_VISIBLE_ROWS = 10;
 const MODELS_TITLE = "Models";
 const REFRESHING_TITLE_MIN_DURATION_MS = 1_000;
-const REFRESHED_TITLE_DURATION_MS = 2_000;
 
 interface ModelsDialogRow {
   readonly fullId: string;
@@ -126,8 +125,6 @@ export class ModelsDialogComponent implements Component, Focusable {
   #refreshing = false;
   #refreshStartedAt: number | undefined;
   #refreshOutcomeTimer: ReturnType<typeof setTimeout> | undefined;
-  #refreshed = false;
-  #refreshDismissalTimer: ReturnType<typeof setTimeout> | undefined;
   #disposed = false;
   #focused = false;
 
@@ -189,11 +186,9 @@ export class ModelsDialogComponent implements Component, Focusable {
     if (this.#disposed) return;
     if (kind === "muted") {
       this.#clearRefreshOutcome();
-      this.#clearRefreshDismissal();
       this.#refreshStatus = undefined;
       this.#refreshing = true;
       this.#refreshStartedAt = Date.now();
-      this.#refreshed = false;
       return;
     }
     const visibleMs = this.#refreshStartedAt === undefined ? REFRESHING_TITLE_MIN_DURATION_MS : Date.now() - this.#refreshStartedAt;
@@ -218,10 +213,8 @@ export class ModelsDialogComponent implements Component, Focusable {
   dispose(): void {
     this.#disposed = true;
     this.#clearRefreshOutcome();
-    this.#clearRefreshDismissal();
     this.#refreshing = false;
     this.#refreshStartedAt = undefined;
-    this.#refreshed = false;
   }
 
   invalidate(): void {
@@ -308,39 +301,20 @@ export class ModelsDialogComponent implements Component, Focusable {
     const theme = piTheme();
     this.#title.setText(theme.fg("accent", theme.bold(MODELS_TITLE))
       + (this.dirty ? theme.fg("warning", " (unsaved)") : "")
-      + (this.#refreshing ? theme.fg("muted", " (refreshing)") : "")
-      + (this.#refreshed ? theme.fg("success", " (refreshed)") : ""));
+      + (this.#refreshing ? theme.fg("muted", " (refreshing)") : ""));
     return this.#frame.render(width);
   }
 
   #applyRefreshOutcome(message: string, kind: "success" | "warning"): void {
-    this.#clearRefreshDismissal();
     this.#refreshing = false;
     this.#refreshStartedAt = undefined;
-    this.#refreshed = kind === "success";
     this.#refreshStatus = kind === "warning" ? { message, kind } : undefined;
-    if (kind !== "success") return;
-    const timer = setTimeout(() => {
-      if (this.#refreshDismissalTimer !== timer) return;
-      this.#refreshDismissalTimer = undefined;
-      if (this.#disposed) return;
-      this.#refreshed = false;
-      this.#callbacks.requestRender();
-    }, REFRESHED_TITLE_DURATION_MS);
-    timer.unref?.();
-    this.#refreshDismissalTimer = timer;
   }
 
   #clearRefreshOutcome(): void {
     if (this.#refreshOutcomeTimer === undefined) return;
     clearTimeout(this.#refreshOutcomeTimer);
     this.#refreshOutcomeTimer = undefined;
-  }
-
-  #clearRefreshDismissal(): void {
-    if (this.#refreshDismissalTimer === undefined) return;
-    clearTimeout(this.#refreshDismissalTimer);
-    this.#refreshDismissalTimer = undefined;
   }
 
   #renderBody(width: number): string[] {
