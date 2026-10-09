@@ -2,6 +2,7 @@
  * The session backend the owned shell presents. The shell and composition depend on this port,
  * never on an engine adapter class, so a per-tab or non-Pi backend can stand behind the shell.
  */
+import type { OwnedUiExtensionUiPort } from "./extension-ui.js";
 import type { OwnedUiCommand, OwnedUiEvent, OwnedUiImageAttachment, OwnedUiSessionViewModel, OwnedUiSnapshot } from "./model.js";
 import type {
   OwnedUiAmbientAuthentication,
@@ -38,8 +39,6 @@ export interface OwnedUiSessionBackend {
   readonly settings: OwnedUiSessionSettingsPort;
   readonly catalog: OwnedUiSessionCatalogPort;
   readonly extensions: OwnedUiExtensionPort;
-  /** Transitional: Pi-typed presentation payloads; removed by extract-pi-session-presenters. */
-  readonly pinned: OwnedUiPinnedPresentationPort;
 }
 
 /** Which session this is, where it lives, and how often it has been replaced. */
@@ -127,28 +126,11 @@ export interface OwnedUiExtensionPort {
   extensionResources(): readonly OwnedUiExtensionResourceSummary[];
   resolveTranscriptImage(assetId: string): OwnedUiImageAttachment | null;
   visualExtensionSupport(): OwnedUiVisualExtensionSupport;
+  /** Attach the shell's extension UI and bind it to the current session. */
+  bindExtensionUi(ui: OwnedUiExtensionUiPort, shutdown?: () => void | Promise<void>): Promise<void>;
   unbindExtensionUi(): Promise<void>;
   /** Bind the owned UI's clipboard lifecycle; true from the writer means acknowledged delivery. Returns the unbind. */
   bindClipboardWriter(writer: (text: string) => Promise<boolean>): () => void;
   /** Report a newer release found by the startup check. */
   announceReleaseUpdate(release: OwnedUiReleaseUpdate): void;
-}
-
-/**
- * Transitional: payloads the shell only forwards to pinned Pi components. They stay `unknown`
- * here so this contract names no Pi type; extract-pi-session-presenters deletes the port.
- */
-export interface OwnedUiPinnedPresentationPort {
-  pinnedModelSelectorContext(): unknown;
-  pinnedSessionSelectorContext(): unknown;
-  pinnedTreeSelectorContext(): unknown;
-  pinnedMessageRenderer(customType: string): unknown;
-  pinnedToolRenderers(toolName: string): unknown;
-  pinnedShortcutDescriptions(bindings: unknown): readonly { readonly key: string; readonly description: string }[];
-  /** The model values the pinned settings selector offers, kept out of the neutral settings snapshot. */
-  pinnedSettingsModels(): { readonly currentModel?: unknown; readonly availableDefaultModels: readonly unknown[] };
-  /** Attach the shell's Pi extension UI context and bind it to the current session. */
-  bindExtensionUi(ui: unknown, shutdown?: () => void | Promise<void>): Promise<void>;
-  /** Apply one pinned settings-selector callback with the value that selector produced. */
-  applyPinnedSettingValue(callback: string, value: unknown): Promise<OwnedUiWorkflowResult>;
 }

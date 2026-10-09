@@ -3,6 +3,7 @@ import { getSelectListTheme, initTheme } from "@earendil-works/pi-coding-agent";
 import { SelectList, TuiMainScreen, type Component } from "@earendil-works/pi-tui";
 import { applyPiTheme, createPiShellSelector } from "../../../src/integrations/pi/components/index.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import type { PiTuiInputDiagnosticsEvent } from "../../../src/integrations/pi/tui-runtime/index.js";
 import { createPinnedEditorHarness } from "../../integrations/pi/components/pinned-editor-upstream-fixture.js";
@@ -30,6 +31,7 @@ async function runOwned(request: InputProducerRequest): Promise<InputProducerRes
   const phases: PiTuiInputDiagnosticsEvent[] = [];
   let frameRecorder: InputFrameRecorder | undefined;
   const shell = new OwnedUiSessionShell({
+    presenters: createPiSessionPresenters(adapter),
     engine: {
       backend: adapter,
       cwd: request.state.cwd,

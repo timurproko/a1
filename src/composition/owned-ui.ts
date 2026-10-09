@@ -11,6 +11,7 @@ import type { NativeProcessIdentity } from "../foundation/lifecycle/model.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
 import { createPiEngineAdapter } from "../integrations/pi/engine/adapter.js";
+import { createPiSessionPresenters, type PiSessionPresenterBackend } from "../integrations/pi/session-presenters/index.js";
 import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/project-trust-preflight.js";
 import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-selection.js";
 import { ClipboardDiagnosticCapture } from "../app/session-shell/clipboard-diagnostics.js";
@@ -23,7 +24,6 @@ import type {
   OwnedUiBackgroundSettingsPort,
   OwnedUiPromptSuggestionGeneratorPort,
   OwnedUiQuitOutroSettings,
-  OwnedUiSessionBackend,
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
 } from "../contracts/owned-ui/index.js";
@@ -37,7 +37,7 @@ import { nativeHyperlinkStyle } from "../ui/components/spans.js";
  * the agent settings port. `settingsPort` stays outside the owned-UI contract because its type
  * belongs to the agent-engine contracts, which the owned-UI contract may not import.
  */
-export interface ComposedSessionBackend extends OwnedUiSessionBackend, OwnedUiPromptSuggestionGeneratorPort {
+export interface ComposedSessionBackend extends PiSessionPresenterBackend, OwnedUiPromptSuggestionGeneratorPort {
   settingsPort(): AgentSettingsPort | null;
 }
 
@@ -243,6 +243,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   let releaseNoteAcknowledgement: Promise<void> | null = null;
   try {
     shell = new OwnedUiSessionShell({
+      presenters: createPiSessionPresenters(backend),
       engine: {
         backend,
         cwd: backend.identity.cwd,

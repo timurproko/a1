@@ -1,6 +1,7 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPiEngineAdapter } from "../../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../../src/integrations/pi/session-presenters/index.js";
 import { OwnedUiSessionShell } from "../../../../src/app/session-shell/index.js";
 import { applyPiTheme, createPiShellSelector } from "../../../../src/integrations/pi/components/index.js";
 import type { PiTuiInputDiagnosticsEvent } from "../../../../src/integrations/pi/tui-runtime/index.js";
@@ -38,6 +39,7 @@ async function capture(observe: boolean, order: "stream-first" | "input-first") 
   const phases: PiTuiInputDiagnosticsEvent[] = [];
   let recorder: InputFrameRecorder | undefined;
   const shell = new OwnedUiSessionShell({
+    presenters: createPiSessionPresenters(adapter),
     engine: { backend: adapter, cwd: process.cwd(), sessionLayout: "custom-viewport" },
     presentation: {
       terminal,

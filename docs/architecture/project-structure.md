@@ -25,6 +25,7 @@ src/
     pi/
       components/                  pinned Pi component and theme adaptation
       engine/                      pinned Pi engine, settings, resource, package, and workflow integration
+      session-presenters/          pinned Pi selectors and transcript renderers built from engine objects
       tui-runtime/                 neutral presentation runtime over pinned Pi TUI
   foundation/
     launch-guardian/               authenticated launch-instance coordination
@@ -42,7 +43,7 @@ src/
 
 Each directory owner exposes `index.ts`, which lists its named exports; `export *` is rejected there so a public contract is readable in one place. Imports within one owner may use private files. Imports crossing owners must use the provider's public entry and follow the dependency DAG declared by `PROJECT_OWNERS`. Two exceptions exist: `src/composition` is the dependency-injection root and may reach past any public entry, and a module on the eager startup path may import a leaf of a provider whose public entry is a prohibited startup entry (`PROHIBITED_STARTUP_ENTRIES` in `startup-graph-policy.mjs`), because loading that barrel would pull the provider's whole graph into startup. `product-identity` is the sole exception to the directory-entry convention because its public entry is `src/product-identity.ts`.
 
-Three layer boundaries hold regardless of the DAG: `src/contracts/*` import nothing outside their own contract; `src/ui/components` imports only contracts; only `src/integrations/pi/*` and the shipped `bin/` entries import the pinned Pi packages. The session shell under `src/app` is the application layer: it may import the contracts, the UI foundations, the three Pi adapters, and the feature owners, and only composition imports it.
+Three layer boundaries hold regardless of the DAG: `src/contracts/*` import nothing outside their own contract; `src/ui/components` imports only contracts; only `src/integrations/pi/*` and the shipped `bin/` entries import the pinned Pi packages. The session shell under `src/app` is the application layer: it may import the contracts, the UI foundations, the three Pi adapters, and the feature owners, and only composition imports it. The shell never holds a Pi engine object: selectors and transcript renderers built from one live in `src/integrations/pi/session-presenters`, the only owner besides composition that may import both the engine and the component adapters, and the shell opens them through the `OwnedUiSessionPresenters` contract.
 
 `src/cli` contains command policy but delegates runtime work. `src/composition` is the concrete dependency-injection boundary: it may know both neutral contracts and Pi implementations, while product features receive vendor-neutral ports. Foundation modules never import product features. Pi package knowledge remains inside the Pi adapter owners.
 

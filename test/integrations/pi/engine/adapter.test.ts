@@ -3,8 +3,10 @@ import { CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION } from "../../../../src/contra
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import {
+  assertOwnedUiExtensionUiPort,
   OWNED_UI_EXTENSION_UI_CALLBACKS,
   type OwnedUiCommand,
+  type OwnedUiExtensionUiPort,
   type OwnedUiEvent,
 } from "../../../../src/contracts/owned-ui/index.js";
 import {
@@ -217,12 +219,13 @@ async function adapterWithRuntime(runtime: FakeRuntime): Promise<{
   return { adapter, events };
 }
 
-function completeExtensionUiPort(): unknown {
+function completeExtensionUiPort(): OwnedUiExtensionUiPort {
   const value: Record<string, unknown> = Object.fromEntries(OWNED_UI_EXTENSION_UI_CALLBACKS.map(name => [name, () => undefined]));
   value.theme = Object.fromEntries([
     "fg", "bg", "bold", "italic", "underline", "inverse", "strikethrough", "getFgAnsi", "getBgAnsi",
     "getColorMode", "getThinkingBorderColor", "getBashModeBorderColor",
   ].map(name => [name, () => undefined]));
+  assertOwnedUiExtensionUiPort(value);
   return value;
 }
 

@@ -97,6 +97,7 @@ tui.setCapabilities({ ...tui.getCapabilities(), trueColor: mode === "truecolor",
 const themeModule = await import(pathToFileURL(join(repository, "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme.js")).href);
 const owned = producer === "owned" ? await import(pathToFileURL(join(repository, "src/app/session-shell/session-shell.ts")).href) : undefined;
 const engine = producer === "owned" ? await import(pathToFileURL(join(repository, "src/integrations/pi/engine/adapter.ts")).href) : undefined;
+const presenters = producer === "owned" ? await import(pathToFileURL(join(repository, "src/integrations/pi/session-presenters/index.ts")).href) : undefined;
 const terminalModule = producer === "owned" ? await import(pathToFileURL(join(repository, "test/features/owned-ui/neutral-port-doubles.ts")).href) : undefined;
 const ownedTheme = producer === "owned" ? await import(pathToFileURL(join(repository, "src/integrations/pi/components/theme.ts")).href) : undefined;
 const pinnedKeys = producer === "pinned" ? await import(pathToFileURL(join(repository, "node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.js")).href) : undefined;
@@ -230,7 +231,7 @@ for (const theme of ["dark", "light"]) {
           else throw new Error(`Unmapped pinned outcome command: ${entry.command}`);
         } else {
           adapter = await engine.createPiEngineAdapter({ cwd, agentDir, createRuntime: async () => state.runtime, workflowHost: state.host });
-          shell = new owned.OwnedUiSessionShell({ engine: { backend: adapter, cwd }, presentation: { terminal: new terminalModule.TestPresentationTerminal(), startup: { quiet: true } } });
+          shell = new owned.OwnedUiSessionShell({ presenters: presenters.createPiSessionPresenters(adapter), engine: { backend: adapter, cwd }, presentation: { terminal: new terminalModule.TestPresentationTerminal(), startup: { quiet: true } } });
           shell.root.editor.setText("preserved draft");
           state.onCancel = () => shell.root.handleInput("\u001b");
           state.onMissingCwd = () => setImmediate(() => shell.root.handleInput(entry.condition === "missing-cwd-declined" ? "\u001b" : "\r"));

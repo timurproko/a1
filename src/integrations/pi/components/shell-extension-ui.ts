@@ -9,9 +9,11 @@ import {
   type Component,
   type OverlayHandle,
 } from "@earendil-works/pi-tui";
-import type {
-  OwnedUiExtensionOverlayHandle,
-  OwnedUiExtensionOverlayOptions,
+import {
+  assertOwnedUiExtensionUiPort,
+  type OwnedUiExtensionOverlayHandle,
+  type OwnedUiExtensionOverlayOptions,
+  type OwnedUiExtensionUiPort,
 } from "../../../contracts/owned-ui/index.js";
 import {
   KeybindingsManager,
@@ -62,7 +64,8 @@ export interface PiExtensionUiBridgeHost {
 }
 
 export interface PiExtensionUiBridge {
-  readonly context: ExtensionUIContext;
+  /** The extension UI context the engine binds to a session, typed by the neutral contract it satisfies. */
+  readonly context: OwnedUiExtensionUiPort;
   input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean }): Promise<string | undefined>;
   reset(): void;
   dispose(): void;
@@ -300,6 +303,9 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
     host.setInputSurface(null);
     host.setProgramStatusBlocked(undefined);
   };
+  // Compatibility: Pi's context takes its own TUI and Theme in factory callbacks, so it is not statically the
+  // neutral port; the same runtime check the engine applies at bind time lets the shell see only that port.
+  assertOwnedUiExtensionUiPort(context);
   return {
     context,
     input: (title, placeholder, options) => showInput<string | undefined>((resolve, cancel) => componentPort(

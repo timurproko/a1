@@ -5,6 +5,7 @@ import {
   type PiExtensionUiBridgeHost,
   type PiShellComponentPort,
 } from "../../../../src/integrations/pi/components/index.js";
+import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 
 function fixture() {
@@ -152,7 +153,8 @@ describe("pinned extension UI bridge", () => {
   it("mounts custom overlays and restores the core surface on resolve and throw", async () => {
     const value = fixture();
     let done: ((result: string) => void) | undefined;
-    const result = value.bridge.context.custom<string>((_tui, _theme, _keys, finish) => {
+    // Compatibility: the bridge publishes the neutral port; this case drives Pi's own four-argument custom factory.
+    const result = (value.bridge.context as unknown as ExtensionUIContext).custom<string>((_tui, _theme, _keys, finish) => {
       done = finish;
       return new Text("custom surface", 0, 0);
     }, { overlay: true });
