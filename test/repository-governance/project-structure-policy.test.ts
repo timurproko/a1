@@ -186,8 +186,8 @@ describe("project structure ownership policy", () => {
 
   it("allows features only neutral integration ports and Pi implementations inward", () => {
     expect(inspectProjectStructureImports({
-      "src/features/owned-ui/new.ts": "import type { AgentEnginePort } from '../../contracts/agent-engine/index.js';",
-      "src/integrations/pi/engine/new.ts": "import type { AgentEnginePort } from '../../../contracts/agent-engine/index.js';",
+      "src/features/owned-ui/new.ts": "import type { AgentSettingsPort } from '../../contracts/agent-engine/index.js';",
+      "src/integrations/pi/engine/new.ts": "import type { AgentSettingsPort } from '../../../contracts/agent-engine/index.js';",
       "src/integrations/pi/components/new.ts": "import type { PresentationComponentPort } from '../../../contracts/presentation/index.js';",
     })).toEqual([]);
     expect(inspectProjectStructureImports({

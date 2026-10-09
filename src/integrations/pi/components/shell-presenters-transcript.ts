@@ -3,7 +3,6 @@ import {
   BashExecutionComponent,
   CompactionSummaryMessageComponent,
   CustomMessageComponent,
-  DynamicBorder,
   parseSkillBlock,
   UserMessageComponent,
 } from "../startup-public.js";
@@ -32,11 +31,9 @@ import {
   piTheme,
 } from "./theme.js";
 import {
-  componentPort,
   createTuiFacade,
   ensureTheme,
   isRecord,
-  type PiShellComponentPort,
   type PiShellExtensionRendererResolver,
   type PiShellImageAssetResolver,
   type PiShellTranscriptComponentPort,
@@ -279,7 +276,7 @@ function transcriptComponent(
     case "custom":
       return customMessageComponent(block, expanded, extensions, outputPad);
     case "bash":
-      return bashExecutionComponent(block, cwd, expanded, tui);
+      return bashExecutionComponent(block, expanded, tui);
   }
 }
 
@@ -461,7 +458,7 @@ function customMessageComponent(
   return component;
 }
 
-function bashExecutionComponent(block: OwnedUiTranscriptBlock, cwd: string, expanded: boolean, tui?: ReturnType<typeof createTuiFacade>): BashExecutionComponent {
+function bashExecutionComponent(block: OwnedUiTranscriptBlock, expanded: boolean, tui?: ReturnType<typeof createTuiFacade>): BashExecutionComponent {
   const payload = blockPayload(block);
   const component = new BashExecutionComponent(
     stringPayload(payload, "command") ?? block.title ?? "",

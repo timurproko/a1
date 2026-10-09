@@ -4,9 +4,8 @@
  */
 import { selectionCopyRowText } from "../../../src/ui/components/index.js";
 import { type AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
-import { join } from "node:path";
 import { getCapabilities as getPinnedPiTuiCapabilities, setCapabilities as setPinnedPiTuiCapabilities } from "@earendil-works/pi-tui";
-import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+import { onTestFailed, onTestFinished, vi } from "vitest";
 import { NativeRegressionTrace } from "../../support/native-regression-trace.js";
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
 vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal => {

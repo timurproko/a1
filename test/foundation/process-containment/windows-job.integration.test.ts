@@ -173,10 +173,6 @@ async function inspect(helper: string, pid: number): Promise<{ pid: number; star
   });
 }
 
-async function inspectExit(helper: string, pid: number | undefined): Promise<number> {
-  return (await inspectOutcome(helper, pid)).code;
-}
-
 async function inspectOutcome(helper: string, pid: number | undefined): Promise<{ code: number; stdout: string; stderr: string }> {
   return await new Promise(resolvePromise => {
     execFile(helper, ["--inspect-pid", String(pid ?? 0)], { windowsHide: true }, (error, stdout, stderr) => {

@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-08T17:35:31.074Z",
+  "recordedAt": "2026-10-09T08:46:13.872Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -39,8 +39,8 @@
     "assets": 4,
     "classifications": {
       "public-api-reuse": 65,
-      "owned-presentation": 33,
-      "host-adaptation": 31
+      "owned-presentation": 32,
+      "host-adaptation": 32
     },
     "requiredBehaviorIds": 29,
     "coveredBehaviorIds": 29,
@@ -3299,13 +3299,11 @@
       "sourceMap": "modes/interactive/theme/system-theme.js.map",
       "lines": 656,
       "sha256": "877a3dc24fd194f2dc5ee9efe8f1699acdcdac6defa197009bc7b39920bbb729",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/theme/system-theme.ts",
-      "implementationStatus": "ported",
+      "classification": "host-adaptation",
+      "localDestination": "src/integrations/pi/components/upstream/theme/theme.ts",
+      "implementationStatus": "declined-not-adopted",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Copied the system palette generator with ESM import remapping and strict indexed-access assertions; A1 retains explicit owned theme selection.",
-      "upgradeStrategy": "three-way",
-      "localSha256": "a29cdf2b589c19299b283ed00496aeb75473b3670ce9caf27ce027a5a4bd264d",
+      "modifications": "Declined the terminal-palette system theme generator; A1 retains explicit owned theme selection, and the copied generator had no importer, so it was deleted.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",

@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { LaunchInstanceOutcome, LaunchProfileId, NativeProcessIdentity } from "../../../src/foundation/lifecycle/index.js";
+import type { LaunchInstanceOutcome, LaunchProfileId } from "../../../src/foundation/lifecycle/index.js";
 import { runLaunchGuardian } from "../../../src/foundation/launch-guardian/index.js";
 import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
 import type { NativeProcessInspector, ProcessContainment } from "../../../src/foundation/process-containment/index.js";

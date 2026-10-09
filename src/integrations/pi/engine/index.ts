@@ -20,8 +20,8 @@ export {
 export type { PiRuntimeIntegrationOptions, PiRuntimePreflightDependencies, PiSessionReplacement } from "./runtime-integration.js";
 export { PiSessionSelectionError, openSelectedPiSession, resolveSessionArgumentPath } from "./session-selection.js";
 export type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
-export { PiSessionCommandIntegration, convertPiSessionEvent, subscribeToPiSessionEvents } from "./session-integration.js";
-export type { PiDocumentedSessionCommands, PiOrderedEventIntegration, PiSessionCommand, PiSessionCommandResult } from "./session-integration.js";
+export { PiSessionCommandIntegration } from "./session-integration.js";
+export type { PiDocumentedSessionCommands, PiSessionCommand, PiSessionCommandResult } from "./session-integration.js";
 export {
   AUTOMATIC_THEME,
   EXPOSED_SETTING_KEYS,

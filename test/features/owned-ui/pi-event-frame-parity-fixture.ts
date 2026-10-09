@@ -215,7 +215,6 @@ class ScriptedRuntime {
 class CapturingTerminal implements PiTuiTerminalPort {
   readonly kittyProtocolActive = false;
   readonly writes: string[] = [];
-  #input: ((data: string) => void) | undefined;
   #resize: (() => void) | undefined;
 
   columns: number;
@@ -223,9 +222,8 @@ class CapturingTerminal implements PiTuiTerminalPort {
   readonly failStop: boolean;
   constructor(columns: number, rows: number, failStop = false) { this.columns = columns; this.rows = rows; this.failStop = failStop; }
 
-  start(onInput: (data: string) => void, onResize: () => void): void { this.#input = onInput; this.#resize = onResize; }
+  start(_onInput: (data: string) => void, onResize: () => void): void { this.#resize = onResize; }
   stop(): void {
-    this.#input = undefined;
     this.#resize = undefined;
     if (this.failStop) throw new Error("injected terminal disposal failure");
   }
