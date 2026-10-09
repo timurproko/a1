@@ -100,8 +100,10 @@ export type {
   OwnedUiExtensionPort,
   OwnedUiSessionBackend,
   OwnedUiSessionCatalogPort,
+  OwnedUiSessionFactory,
   OwnedUiSessionIdentityPort,
   OwnedUiSessionPort,
+  OwnedUiSessionRequest,
   OwnedUiSessionSettingsPort,
   OwnedUiWorkflowPort,
 } from "./session-backend.js";

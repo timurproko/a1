@@ -79,6 +79,8 @@ async function shellFixture(options: {
     createRuntime: async () => engine as unknown as AgentSessionRuntime,
     workflowHost: { copyText: async () => {}, runCommand: async () => ({ stdout: "", stderr: "" }), readChangelog },
   });
+  // Invariant: the engine host announces the changelog once per process; the fixture stands in for it.
+  if (options.lastVersion !== undefined) await adapter.announceStartupChangelog();
   const terminal = new TestPresentationTerminal();
   const routes = options.routes === undefined ? routeHost() : options.routes;
   const shell = new OwnedUiSessionShell({

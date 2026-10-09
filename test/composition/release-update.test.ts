@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { composeOwnedUi } from "../../src/composition/owned-ui.js";
 import type { AvailableRelease, StartupReleaseCheckOptions } from "../../src/foundation/release/latest-release.js";
+import type { PiEngineHostOptions } from "../../src/integrations/pi/engine/host.js";
 
 const observed = vi.hoisted(() => ({
   updateCheck: true as unknown,
@@ -28,7 +29,7 @@ vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async im
   setPiAccentColor(color: string) { observed.accentCalls.push(color); },
   setPiPackageBorderProjectionEnabled(enabled: boolean) { observed.packageBorderProjectionCalls.push(enabled); },
 }));
-vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
+vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({
   createOwnedRouteHost: (_settings: unknown, references: typeof observed.references) => {
@@ -80,13 +81,28 @@ async function compose(options: {
 }) {
   const announced: unknown[] = [];
   const checks: StartupReleaseCheckOptions[] = [];
+  const host = { options: null as PiEngineHostOptions | null, accentCalls: [] as string[], disposed: 0 };
+  const backend = backendFixture(announced);
   const composed = await composeOwnedUi({
     ...(options.ownedSurfaces === undefined ? {} : { ownedSurfaces: options.ownedSurfaces }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
     packageVersion: "0.3.0",
     releaseNotes: (options.releaseNotes ?? { current: () => null, completeMarkdown: "" }) as never,
     checkForNewerRelease: async input => { checks.push(input); return options.release === undefined ? STABLE : options.release; },
-    createPiAdapter: async () => ({
+    createEngineHost: async hostOptions => {
+      host.options = hostOptions;
+      return {
+        create: async () => backend as never,
+        setAccentColor(color: string) { host.accentCalls.push(color); },
+        dispose: async () => { host.disposed += 1; },
+      };
+    },
+  });
+  return { composed, announced, checks, host };
+}
+
+function backendFixture(announced: unknown[]) {
+  return {
       identity: { cwd: process.cwd(), agentDir: "synthetic-agent", disposed: false },
       settings: { configuredTheme: () => "dark" },
       extensions: { announceReleaseUpdate: (release: unknown) => { announced.push(release); } },
@@ -109,34 +125,39 @@ async function compose(options: {
           },
         };
       } },
-    }) as never,
-  });
-  return { composed, announced, checks };
+  };
 }
 
 describe("owned accent composition", () => {
-  it("applies the profile accent live and releases its subscription", async () => {
+  it("hands the engine host the profile accent, routes live changes to it, and disposes it last", async () => {
     observed.accentColor = "blue";
-    const { composed } = await compose({ profileId: "a1", release: null });
+    const { composed, host } = await compose({ profileId: "a1", release: null });
+    expect(host.options).toMatchObject({ productMode: "bare", announceStartupChangelog: false });
+    expect(host.options!.theme).toMatchObject({ base: "dark", accentColor: "blue", packageBorderProjection: true });
+    // Invariant: the host receives the theme singletons themselves, so applying through it reaches them.
+    host.options!.theme.apply.accentColor("blue");
+    host.options!.theme.apply.packageBorderProjection(true);
     expect(observed.accentCalls).toEqual(["blue"]);
     expect(observed.packageBorderProjectionCalls).toEqual([true]);
 
     observed.accentColor = "green";
     for (const listener of [...observed.settingsListeners]) listener();
-    expect(observed.accentCalls).toEqual(["blue", "green"]);
+    expect(host.accentCalls).toEqual(["green"]);
 
     const subscriptions = observed.settingsListeners.length;
     await composed.application.dispose();
     expect(observed.settingsUnsubscribed).toBe(subscriptions);
     expect(observed.settingsListeners).toHaveLength(0);
+    expect(host.disposed).toBe(1);
   });
 
-  it("keeps the A1 facade on purple while comparison uses Pi's unmodified theme path", async () => {
+  it("keeps the A1 facade on purple while comparison follows Pi's configured theme and changelog", async () => {
     observed.accentColor = "pink";
-    const { composed } = await compose({ profileId: "a1", ownedSurfaces: "off", release: null });
-    expect(observed.accentCalls).toEqual(["purple"]);
-    expect(observed.packageBorderProjectionCalls).toEqual([false]);
+    const { composed, host } = await compose({ profileId: "a1", ownedSurfaces: "off", release: null });
+    expect(host.options).toMatchObject({ productMode: "comparison", announceStartupChangelog: true });
+    expect(host.options!.theme).toMatchObject({ base: "engine-configured", accentColor: "purple", packageBorderProjection: false });
     await composed.application.dispose();
+    expect(host.disposed).toBe(1);
   });
 });
 

@@ -31,7 +31,7 @@ class Schedule {
 async function capture(observe: boolean, order: "stream-first" | "input-first") {
   applyPiTheme("dark", false, "truecolor");
   const runtime = new Runtime([{ role: "user", content: [{ type: "text", text: "settled history" }], timestamp: 1 }]);
-  const adapter = await createPiEngineAdapter({ cwd: process.cwd(), createRuntime: async () => runtime as unknown as AgentSessionRuntime });
+  const adapter = await createPiEngineAdapter({ sessionId: "owned-test",cwd: process.cwd(), createRuntime: async () => runtime as unknown as AgentSessionRuntime });
   // Rationale: drive the real TUI's throttle deterministically, not by sleeping or forcing a paint.
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "performance"] });
   const terminal = new RecordingTerminal(80, 24);

@@ -255,7 +255,7 @@ describe("Pi engine adapter", () => {
     expect(adapter.view().lifecycle).toBe("stopped");
   });
 
-  it("announces extension package updates from the startup probe as a recoverable diagnostic", async () => {
+  it("announces extension package updates from the probe as a recoverable diagnostic when the host asks", async () => {
     const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
     let probed = 0;
     const adapter = await createPiEngineAdapter({
@@ -268,6 +268,8 @@ describe("Pi engine adapter", () => {
         return ["pi-mcp-adapter"];
       },
     });
+    expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(false);
+    await adapter.announcePackageUpdates();
     await vi.waitFor(() => {
       expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(true);
     });

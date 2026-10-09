@@ -10,7 +10,7 @@ import type { OwnedUiSessionShellOptions } from "../../src/app/session-shell/ind
 const observed = vi.hoisted(() => ({ options: undefined as OwnedUiSessionShellOptions | undefined }));
 // Rationale: isolate launch composition from provider discovery and terminal ownership.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {} }));
-vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
+vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
@@ -28,7 +28,7 @@ vi.mock("../../src/app/session-shell/session-shell.js", () => ({
 afterEach(() => { observed.options = undefined; vi.unstubAllEnvs(); });
 
 async function compose(options: { ownedSurfaces?: "off"; profileId?: string; suggestionDiagnosticsPath?: string }) {
-  return composeOwnedUi({ ...options, createPiAdapter: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, settings: { configuredTheme: () => "dark" } }) as never });
+  return composeOwnedUi({ ...options, createEngineHost: async () => ({ create: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never });
 }
 
 describe("suggestion diagnostic launch composition", () => {

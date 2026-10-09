@@ -62,6 +62,7 @@ import { PiExtensionUiBinding, type OwnedPiVisualExtensionSupport } from "./exte
 import { PiPromptSuggestions } from "./prompt-suggestions.js";
 import { PiResourceCatalog, type OwnedPiExtensionResourceSummary, type OwnedPiResourceSummary } from "./resource-catalog.js";
 import { PiEngineRuntime, type PiEnginePackageUpdateProbe, type PiEngineRuntimeFactory, type PiRepositoryContextReader } from "./session-runtime.js";
+import { detachedEngineHostPorts, type PiEngineHostSessionPorts } from "./host-ports.js";
 import { PiEngineSettings } from "./settings-port.js";
 import { PiSessionEvents } from "./session-events.js";
 import { readUsageView } from "./usage-view.js";
@@ -100,7 +101,13 @@ type PiSessionApi = AgentSession;
 export interface PiEngineAdapterOptions {
   readonly cwd?: string;
   readonly agentDir?: string;
-  readonly sessionId?: string;
+  /** Unique within the process; the engine host assigns one when the caller has none. */
+  readonly sessionId: string;
+  /**
+   * The process-level host this session belongs to. Absent only for adapters built directly in
+   * tests and tools: then no process dispatcher is installed and nothing is announced.
+   */
+  readonly engineHost?: PiEngineHostSessionPorts;
   readonly sessionPath?: string;
   readonly sessionSelection?: PiSessionSelection;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
@@ -119,8 +126,6 @@ export interface PiEngineAdapterOptions {
    * mode. Returns display names of packages with updates available.
    */
   readonly checkPackageUpdates?: PiEnginePackageUpdateProbe;
-  /** Comparison profiles preserve Pi's startup changelog; bare A1 owns release-note startup. */
-  readonly announceStartupChangelog?: boolean;
   readonly repositoryContextReader?: PiRepositoryContextReader;
 }
 
@@ -145,6 +150,7 @@ const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
 export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSuggestionGeneratorPort {
   readonly #agentDir: string;
   readonly #sessionId: string;
+  readonly #engineHost: PiEngineHostSessionPorts;
   readonly #workflowHost: PiWorkflowHost;
   readonly #engine: PiEngineRuntime;
   #workflowInteraction: PiWorkflowInteractionHost;
@@ -234,9 +240,11 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
   });
   #disposed = false;
   readonly #ports: PiEngineAdapterPorts;
-  constructor(options: PiEngineAdapterOptions = {}) {
+  constructor(options: PiEngineAdapterOptions) {
+    if (typeof options.sessionId !== "string" || options.sessionId.length === 0) throw new TypeError("engine session id is required");
     this.#agentDir = options.agentDir ?? getAgentDir();
-    this.#sessionId = options.sessionId ?? "owned-session-1";
+    this.#sessionId = options.sessionId;
+    this.#engineHost = options.engineHost ?? detachedEngineHostPorts();
     this.#workflowHost = options.workflowHost ?? defaultWorkflowHost();
     this.#workflowInteraction = { prompt: async () => null, notify() {} };
     this.#engine = new PiEngineRuntime({
@@ -249,7 +257,8 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       projectTrustPrompt: options.projectTrustPrompt,
       createRuntime: options.createRuntime,
       checkPackageUpdates: options.checkPackageUpdates,
-      ...(options.announceStartupChangelog === undefined ? {} : { announceStartupChangelog: options.announceStartupChangelog }),
+      signal: this.#engineHost.signal,
+      markStartupPhase: phase => this.#engineHost.markStartupPhase(phase),
       ...(options.repositoryContextReader === undefined ? {} : { repositoryContextReader: options.repositoryContextReader }),
       host: this.#workflowHost,
     }, {
@@ -259,6 +268,8 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
           ...this.#terminal,
           hardwareCursor: runtime.services.settingsManager?.getShowHardwareCursor?.() ?? this.#terminal.hardwareCursor,
         };
+        const httpIdleTimeoutMs = runtime.services.settingsManager?.getHttpIdleTimeoutMs?.();
+        if (typeof httpIdleTimeoutMs === "number") this.#engineHost.httpPolicyLoaded(httpIdleTimeoutMs, this.#sessionId);
       },
       rebindBlocked: () => this.#delivery.overloaded || this.#admissionStopped || this.#disposed,
       sessionReplacing: () => { this.#commands.cancelPending(["new-session", "resume-session"]); },
@@ -319,6 +330,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       runtime: () => this.#engine.runtime,
       requireSession: () => this.#requireWorkflowSession(),
       thinkingLevelChanged: level => { this.#thinkingLevel = level; this.#emitView(); },
+      httpPolicyChanged: timeoutMs => { this.#engineHost.httpPolicyChanged(timeoutMs, this.#sessionId); },
       emitView: () => { this.#emitView(); },
     });
     this.#suggestions = new PiPromptSuggestions({
@@ -410,8 +422,17 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     this.#editor = { ...this.#editor, submitEnabled: true };
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "ready", reason: null });
     this.#emitView();
-    void this.#engine.announcePackageUpdates();
     return this.view();
+  }
+
+  /** Announce pinned Pi's changelog since the profile's last seen version; the host calls this once per process. */
+  announceStartupChangelog(): Promise<void> {
+    return this.#engine.announceChangelog();
+  }
+
+  /** Probe extension packages for updates and announce them; the host calls this once per process. */
+  announcePackageUpdates(): Promise<void> {
+    return this.#engine.announcePackageUpdates();
   }
 
   onEvent(listener: (event: OwnedUiEvent) => void): () => void {
@@ -977,7 +998,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
 }
 
 export async function createPiEngineAdapter(
-  options: PiEngineAdapterOptions = {},
+  options: PiEngineAdapterOptions,
 ): Promise<PiEngineAdapter> {
   const adapter = new PiEngineAdapter(options);
   await adapter.start();

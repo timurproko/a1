@@ -8,7 +8,7 @@ const observed = vi.hoisted(() => ({ options: undefined as OwnedUiSessionShellOp
   captures: [] as ClipboardDiagnosticCapture[], writes: [] as { file: string; data: string }[], failure: "" }));
 // Rationale: exercise real diagnostic capture and launch wiring without provider, terminal, or user-file effects.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {} }));
-vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
+vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
@@ -43,7 +43,7 @@ afterEach(() => {
   vi.useRealTimers(); vi.unstubAllEnvs();
 });
 async function compose(options: { ownedSurfaces?: "off"; profileId?: string; clipboardDiagnosticsPath?: string }) {
-  return composeOwnedUi({ ...options, createPiAdapter: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, settings: { configuredTheme: () => "dark" } }) as never });
+  return composeOwnedUi({ ...options, createEngineHost: async () => ({ create: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never });
 }
 
 describe("clipboard diagnostic launch composition", () => {

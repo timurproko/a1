@@ -72,6 +72,7 @@ describe.skipIf(!enabled)("contextual prompt suggestion real-provider comparison
           return response;
         };
         const adapter = await createPiEngineAdapter({
+          sessionId: "owned-test",
           cwd: directory, agentDir,
           createRuntime: async () => ({
             cwd: directory, session, diagnostics: [],

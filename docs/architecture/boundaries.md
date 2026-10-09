@@ -30,7 +30,7 @@ The owned Pi-backed surface is not an arbitrary-CLI terminal multiplexer. A feat
 - `prompt-suggestions`: opt-in bounded diagnostic snapshots of neutral suggestion lifecycle metadata. Composition supplies an explicit local destination; this feature never imports Pi, generates suggestions, stores conversation text, or owns the editor. See [prompt suggestion diagnostics](prompt-suggestions.md).
 - `storage`: SQLite migrations, prior-boot reconciliation, and plural launch-instance persistence. Legacy foreground rows are historical migration input and never authorize current ownership.
 - `supervisor`: endpoint identity, plural cohort ownership, per-instance reconciliation, and aggregate release shutdown coordination. It owns no terminal surface.
-- `pi-engine-adapter`, `pi-component-adapter`, and `pi-tui-runtime-adapter`: isolate pinned Pi engine and presentation knowledge behind neutral contracts; product features do not import them directly.
+- `pi-engine-adapter`, `pi-component-adapter`, and `pi-tui-runtime-adapter`: isolate pinned Pi engine and presentation knowledge behind neutral contracts; product features do not import them directly. Inside the engine adapter, one process-level engine host owns what is process-wide (the HTTP dispatcher, the theme singletons, the one-time changelog and package-update announcements, the startup trace) and is the only place sessions are created, so every session id is unique per process.
 - `session-shell` (`src/app/session-shell`): the application layer that composes the feature owners, the UI foundations, and the three Pi adapters into the interactive session; only composition imports it. Its render root assembles semantic document and dock rows, while its focused viewport controller owns follow state, pointer routing, selection, and interaction timers. Owned-app route lifecycle belongs to the neutral `ui-apps` owner and is only hosted by the session shell.
 - release/update/bootstrap: package-derived immutable release identity, process-guardian integrity, cohort selection, durable update transactions, rollback, and dependency-light command entry. After an unsuccessful bare-A1 child exit, the bootstrap restores owned terminal modes; neither guardian emits terminal controls.
 - `terminal-cleanup`: bounded, idempotent emergency restoration and fatal-exit diagnostics for an explicitly owned terminal. It does not inspect commands, relay terminal input/output, or emulate terminal state. The owned UI installs its fatal boundary before terminal activation; packaged bootstrap and checkout launch provide the surviving-owner fallback. Fatal records retain at most ten 16 KiB records with trusted classifications and code locations, never prompts, attachments, raw input, credentials, or arbitrary exception messages.
@@ -42,6 +42,14 @@ Terminal boundaries are application-agnostic. They may not select behavior from 
 The JavaScript product path has no PTY or terminal-emulator dependency. Reintroducing `node-pty`, xterm state, custom input encoders, mode/query trackers, cadence-derived frame inference, or renderer/projection code requires an approved capability change and cannot become a second terminal authority. The Rust process guardian is a lifecycle-only native boundary and is independent from the held composed terminal host.
 
 `scripts/governance/check-architecture.mjs` enforces the structural parts of these boundaries. Cross-cutting rationale belongs here; implementation history belongs in Git and archived OpenSpec changes.
+
+## Multi-session limits of the pinned engine
+
+The engine host removes A1's own obstacles to several Pi sessions in one process, but three remain in the pinned Pi SDK and must be planned around, not discovered:
+
+- The extension cache is keyed by one working directory and cleared on reload (`core/extensions/loader.js`), so sessions in different directories reload each other's extensions.
+- `SettingsManager` writes under a lockfile but never re-reads the file, so a second in-memory copy goes stale after another session writes a setting (`core/settings-manager.js`). The host keeps the one process-wide effect, the HTTP dispatcher, consistent itself.
+- `AgentSessionRuntime.dispose()` releases the session but not the model runtime or the resource loader it was created with (`core/agent-session-runtime.js`), so a session's services outlive it until the process ends.
 
 ## Planned multi-agent boundaries
 

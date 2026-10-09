@@ -42,7 +42,7 @@ async function fixture() {
       services: { settingsManager: settings, diagnostics: [], modelRuntime: { getAvailableSnapshot: () => [] }, resourceLoader: { reload: load } },
       session: { sessionId: "trust-fixture", model: undefined, messages: [], thinkingLevel: "off", subscribe: () => () => {} },
     };
-    const adapter = await createPiEngineAdapter({ cwd, agentDir, createRuntime: async () => runtime as unknown as AgentSessionRuntime });
+    const adapter = await createPiEngineAdapter({ sessionId: "owned-test",cwd, agentDir, createRuntime: async () => runtime as unknown as AgentSessionRuntime });
     adapters.push(adapter);
     return { adapter, value: adapter.pinnedProjectTrustContext(), settings, load };
   }

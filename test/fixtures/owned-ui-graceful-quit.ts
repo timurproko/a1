@@ -24,6 +24,7 @@ await new Promise<void>((resolve, reject) => {
 });
 const state = createCommandOutcomeState(home, { command: "quit", condition: "success" }, pi);
 const adapter = await createPiEngineAdapter({
+  sessionId: "owned-test",
   cwd: home,
   agentDir: join(home, "agent"),
   createRuntime: async () => state.runtime,

@@ -44,6 +44,10 @@ The adapter constructor throws without `sessionId`; the factory generates one if
 
 `docs/architecture/boundaries.md` gains a short "Multi-session limits of the pinned engine" paragraph listing the single-cwd extension cache, the non-reloading settings cache, and the service leak on session dispose, each with the SDK location, so the tabs feature plans around them instead of discovering them.
 
+### Delivered shape
+
+The host applies its one-time work on the first session it creates rather than in a separate `start()`: the theme after that session starts (the comparison base is read from it), then the changelog and the package-update probe. The theme singletons are injected by composition as `theme.apply`, so the engine integration still imports no presentation module. The settings port reports a written timeout through its ports; the adapter forwards it with its session id to the host, which re-installs the dispatcher and records the origin. An adapter built without a host (tests, tools) installs no dispatcher and announces nothing. The upstream `core/http-dispatcher.ts` is now a named adjacent authority in the source ledger, classified as host adaptation with `http-dispatcher.ts` as its destination.
+
 ## Risks / Trade-offs
 
 - The engine conformance suite (`test/integrations/pi/engine/conformance.test.ts`) exercises adapter start; it must switch to the host or keep a host-backed adapter factory.

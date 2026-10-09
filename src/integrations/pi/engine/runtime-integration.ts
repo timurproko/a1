@@ -16,7 +16,7 @@ import {
   type PiProjectTrustPreflightPrompt,
 } from "./project-trust-preflight.js";
 import { openSelectedPiSession, resolveSessionArgumentPath, type PiSessionForkPrompt, type PiSessionSelection } from "./session-selection.js";
-import { markStartupPhase } from "../../../foundation/startup/startup-runtime.js";
+import { markStartupPhase, type StartupPhase } from "../../../foundation/startup/startup-runtime.js";
 import { createWindowsNulCleanupExtension } from "./windows-filesystem-hygiene.js";
 
 export interface PiRuntimeIntegrationOptions {
@@ -28,7 +28,13 @@ export interface PiRuntimeIntegrationOptions {
   readonly sessionForkPrompt?: PiSessionForkPrompt;
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
   readonly preflightDependencies?: PiRuntimePreflightDependencies;
+  /** Host signal; model-scope resolution stops with it. Absent means only the resolver's own timeout applies. */
+  readonly signal?: AbortSignal;
+  /** Startup trace sink; the host supplies one that records each phase once per process. */
+  readonly markStartupPhase?: PiStartupPhaseMarker;
 }
+
+export type PiStartupPhaseMarker = (phase: StartupPhase) => Promise<void>;
 
 export interface PiRuntimePreflightDependencies {
   readonly resolveTrust?: typeof resolvePiProjectTrustPreflight;
@@ -55,6 +61,7 @@ interface ConfiguredModelScope {
  */
 export async function resolveConfiguredModelScope(
   services: Pick<AgentSessionServices, "settingsManager" | "modelRuntime">,
+  signal?: AbortSignal,
 ): Promise<ConfiguredModelScope> {
   const patterns = services.settingsManager.getEnabledModels();
   if (!patterns || patterns.length === 0) {
@@ -63,7 +70,7 @@ export async function resolveConfiguredModelScope(
   const { scopedModels, diagnostics } = await resolveModelScopeWithDiagnostics(
     [...patterns],
     services.modelRuntime,
-    { signal: AbortSignal.timeout(15_000) },
+    { signal: signal === undefined ? AbortSignal.timeout(15_000) : AbortSignal.any([signal, AbortSignal.timeout(15_000)]) },
   );
   let selected: ScopedModel | undefined;
   if (scopedModels.length > 0) {
@@ -85,7 +92,7 @@ export async function resolveConfiguredModelScope(
 }
 
 export async function createPiRuntimeServicesAfterTrust(
-  options: Pick<PiRuntimeIntegrationOptions, "agentDir" | "projectTrustPrompt" | "preflightDependencies"> & { readonly cwd: string },
+  options: Pick<PiRuntimeIntegrationOptions, "agentDir" | "projectTrustPrompt" | "preflightDependencies" | "markStartupPhase"> & { readonly cwd: string },
 ): Promise<{
   readonly services: AgentSessionServices;
   readonly trust: Awaited<ReturnType<typeof resolvePiProjectTrustPreflight>>;
@@ -94,13 +101,14 @@ export async function createPiRuntimeServicesAfterTrust(
   const createSettingsManager = options.preflightDependencies?.createSettingsManager
     ?? ((targetCwd: string, agentDir: string, projectTrusted: boolean) => SettingsManager.create(targetCwd, agentDir, { projectTrusted }));
   const createServices = options.preflightDependencies?.createServices ?? createAgentSessionServices;
+  const markPhase = options.markStartupPhase ?? defaultStartupPhaseMarker;
   const trust = await resolveTrust({
     cwd: options.cwd,
     agentDir: options.agentDir,
     ...(options.projectTrustPrompt === undefined ? {} : { prompt: options.projectTrustPrompt }),
   });
   const settingsManager = createSettingsManager(options.cwd, options.agentDir, trust.trusted);
-  await markStartupPhase(process.env, "settings-loaded");
+  await markPhase("settings-loaded");
   const cleanupExtension = createWindowsNulCleanupExtension();
   const services = await createServices({
     cwd: options.cwd,
@@ -110,8 +118,8 @@ export async function createPiRuntimeServicesAfterTrust(
       resourceLoaderOptions: { extensionFactories: [cleanupExtension] },
     }),
   });
-  await markStartupPhase(process.env, "pi-services");
-  await markStartupPhase(process.env, "resource-discovery");
+  await markPhase("pi-services");
+  await markPhase("resource-discovery");
   return { services, trust };
 }
 
@@ -136,8 +144,9 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
       agentDir: options.agentDir,
       ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
       ...(options.preflightDependencies === undefined ? {} : { preflightDependencies: options.preflightDependencies }),
+      ...(options.markStartupPhase === undefined ? {} : { markStartupPhase: options.markStartupPhase }),
     });
-    const modelScope = await resolveConfiguredModelScope(services);
+    const modelScope = await resolveConfiguredModelScope(services, options.signal);
     const hasExistingSession = targetSessionManager.buildSessionContext().messages.length > 0;
     const created = await createAgentSessionFromServices({
       services,
@@ -147,7 +156,7 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
       ...(modelScope.thinkingLevel && !hasExistingSession ? { thinkingLevel: modelScope.thinkingLevel } : {}),
       ...(modelScope.scopedModels.length > 0 ? { scopedModels: [...modelScope.scopedModels] } : {}),
     });
-    await markStartupPhase(process.env, "session-created");
+    await (options.markStartupPhase ?? defaultStartupPhaseMarker)("session-created");
     return {
       ...created,
       services,
@@ -162,6 +171,10 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
     agentDir: options.agentDir,
     sessionManager,
   });
+}
+
+function defaultStartupPhaseMarker(phase: StartupPhase): Promise<void> {
+  return markStartupPhase(process.env, phase);
 }
 
 export function bindPiRuntimeSession(runtime: AgentSessionRuntime, rebind: (session: AgentSession) => Promise<void>): () => void {

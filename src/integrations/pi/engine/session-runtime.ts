@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 import { observeCompactionProgress, type CompactionProgressObserver } from "./compaction-progress.js";
-import { createPiRuntimeIntegration } from "./runtime-integration.js";
+import { createPiRuntimeIntegration, type PiStartupPhaseMarker } from "./runtime-integration.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
 import { DefaultPackageManager, VERSION, type AgentSession, type AgentSessionRuntime, type AgentSessionServices } from "../startup-public.js";
 import type { PiProjectTrustPreflightPrompt } from "./project-trust-preflight.js";
@@ -30,6 +30,9 @@ export interface PiEngineRuntimeFactoryInput {
   readonly sessionSelection?: PiSessionSelection;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
+  /** The host's signal; runtime creation steps that wait on the network stop with it. */
+  readonly signal: AbortSignal;
+  readonly markStartupPhase: PiStartupPhaseMarker;
 }
 
 export type PiEngineRuntimeFactory = (input: PiEngineRuntimeFactoryInput) => Promise<AgentSessionRuntime>;
@@ -52,7 +55,9 @@ export interface PiEngineRuntimeOptions {
   readonly projectTrustPrompt: PiProjectTrustPreflightPrompt | undefined;
   readonly createRuntime: PiEngineRuntimeFactory | undefined;
   readonly checkPackageUpdates: PiEnginePackageUpdateProbe | undefined;
-  readonly announceStartupChangelog?: boolean;
+  /** Aborted by the host on disposal; a probe that resolves afterwards announces nothing. */
+  readonly signal: AbortSignal;
+  readonly markStartupPhase: PiStartupPhaseMarker;
   readonly pullRequestProbe?: PiPullRequestProbe;
   readonly pullRequestRefreshMs?: number;
   readonly repositoryContextPollMs?: number;
@@ -174,12 +179,14 @@ export class PiEngineRuntime {
     return this.#runtime !== undefined;
   }
 
-  /** Create the runtime, bind its first session, and announce the changelog; startup failures propagate. */
+  /** Create the runtime and bind its first session; startup failures propagate. */
   async start(): Promise<AgentSessionRuntime> {
     const runtime = await this.#runtimeFactory({
       cwd: this.#cwd,
       agentDir: this.#options.agentDir,
       sessionId: this.#options.sessionId,
+      signal: this.#options.signal,
+      markStartupPhase: this.#options.markStartupPhase,
       ...(this.#options.sessionPath === undefined ? {} : { sessionPath: this.#options.sessionPath }),
       ...(this.#options.sessionSelection === undefined ? {} : { sessionSelection: this.#options.sessionSelection }),
       ...(this.#options.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: this.#options.sessionForkPrompt }),
@@ -206,23 +213,25 @@ export class PiEngineRuntime {
       );
     }
     this.bindSession(runtime.session);
-    if (this.#options.announceStartupChangelog !== false) await this.#announceChangelog(runtime.services.settingsManager);
     this.#repositoryRefreshEnabled = true;
     this.#startRepositoryRefresh();
     return runtime;
   }
 
-  /** Probe extension packages for updates after startup and report them as an informational diagnostic. */
+  /**
+   * Probe extension packages for updates and report them as an informational diagnostic. The host
+   * calls this once per process, on the first session it creates.
+   */
   async announcePackageUpdates(): Promise<void> {
     const runtime = this.#runtime;
-    if (process.env.PI_OFFLINE || runtime === undefined) return;
+    if (process.env.PI_OFFLINE || runtime === undefined || this.#options.signal.aborted) return;
     let updates: readonly string[];
     try {
       updates = await this.#checkPackageUpdates(runtime.services.settingsManager);
     } catch {
       return;
     }
-    if (this.#ports.disposed() || updates.length === 0) return;
+    if (this.#ports.disposed() || this.#options.signal.aborted || updates.length === 0) return;
     const packages = updates.map(name => `- ${name}`).join("\n");
     this.#ports.diagnostic(
       "info",
@@ -439,7 +448,13 @@ export class PiEngineRuntime {
     });
   }
 
-  async #announceChangelog(settingsManager: AgentSessionServices["settingsManager"]): Promise<void> {
+  /**
+   * Announce pinned Pi's changelog since the last version this profile saw and record the current
+   * one. The host calls this once per process, on the first session it creates; the session must be
+   * empty, as in Pi's own startup.
+   */
+  async announceChangelog(): Promise<void> {
+    const settingsManager = this.#runtime?.services.settingsManager;
     if (!settingsManager || typeof settingsManager.getLastChangelogVersion !== "function"
       || typeof settingsManager.setLastChangelogVersion !== "function") return;
     if ((this.#session?.messages.length ?? 0) > 0) return;
@@ -468,6 +483,8 @@ async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promi
   return createPiRuntimeIntegration({
     cwd: input.cwd,
     agentDir: input.agentDir,
+    signal: input.signal,
+    markStartupPhase: input.markStartupPhase,
     ...(input.sessionPath === undefined ? {} : { sessionPath: input.sessionPath }),
     ...(input.sessionSelection === undefined ? {} : { sessionSelection: input.sessionSelection }),
     ...(input.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: input.sessionForkPrompt }),
