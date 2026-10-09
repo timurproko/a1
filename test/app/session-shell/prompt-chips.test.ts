@@ -186,6 +186,39 @@ describe("PromptChipStore", () => {
     expect(store.prepareSubmission(`inspect ${fileChip}`).text).toBe(`inspect ${file}`);
   });
 
+  it("uses the shortest distinguishing path suffix instead of a random hash", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "a1-path-chip-collisions-"));
+    cleanup.push(root);
+    const first = path.join(root, "first", "shared");
+    const second = path.join(root, "second", "shared");
+    const third = path.join(root, "other", "second", "shared");
+    const firstFile = path.join(root, "first", "notes.txt"), secondFile = path.join(root, "second", "notes.txt");
+    const firstImage = path.join(root, "first", "photo.png"), secondImage = path.join(root, "second", "photo.png");
+    await Promise.all([mkdir(first, { recursive: true }), mkdir(second, { recursive: true }), mkdir(third, { recursive: true })]);
+    await Promise.all([firstFile, secondFile, firstImage, secondImage].map(file => writeFile(file, "fixture", "utf8")));
+    const store = new PromptChipStore();
+    try {
+      const firstChip = store.transformPastedContent({ kind: "text", text: first });
+      const secondChip = store.transformPastedContent({ kind: "text", text: second });
+      const thirdChip = store.transformPastedContent({ kind: "text", text: third });
+      const fileChips = [firstFile, secondFile].map(text => store.transformPastedContent({ kind: "text", text }));
+      const imageChips = [firstImage, secondImage].map(text => store.transformPastedContent({ kind: "text", text }));
+      expect(firstChip).toBe("[📁 shared]");
+      expect(secondChip).toBe("[📁 second/shared]");
+      expect(thirdChip).toBe("[📁 other/second/shared]");
+      expect(fileChips).toEqual(["[📄 notes.txt]", "[📄 second/notes.txt]"]);
+      expect(imageChips).toEqual(["[🖼  photo.png]", "[🖼  second/photo.png]"]);
+      expect(store.transformPastedContent({ kind: "text", text: second })).toBe(secondChip);
+      expect(`${firstChip}${secondChip}${thirdChip}${fileChips.join("")}${imageChips.join("")}`).not.toMatch(/ #[a-f0-9]+\]/u);
+      expect(store.atomicRanges(`${firstChip}${secondChip}${thirdChip}${fileChips.join("")}${imageChips.join("")}`)).toHaveLength(7);
+      expect(store.expandCopiedText(secondChip)).toBe(second);
+      expect(store.expandCopiedText(fileChips[1]!)).toBe(secondFile);
+      expect(store.expandCopiedText(imageChips[1]!)).toBe(secondImage);
+      expect(store.prepareHistoryText(thirdChip)).toBe(third);
+      expect(store.prepareSubmission(`${firstChip}${secondChip}${thirdChip}`).text).toBe(first + second + third);
+    } finally { await store.dispose(); }
+  });
+
   it("keeps a full URL target behind its truncated chip label", () => {
     const store = new PromptChipStore();
     const url = "https://example.com/a/very/useful/resource?with=details";

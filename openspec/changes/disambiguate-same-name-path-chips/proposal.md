@@ -22,4 +22,4 @@ None.
 
 ## Impact
 
-The later implementation will affect the session-shell path-chip presentation and chip-store collision handling plus focused paste/chip tests. It requires no persisted-data migration, dependency change, clipboard transport change, attachment change, installed Pi modification, or `a1 pi` behavior change.
+The later implementation will affect the session-shell path-chip presentation and chip-store collision handling, focused paste/chip tests, and the generated startup-reachability baseline. It requires no persisted-data migration, dependency change, clipboard transport change, attachment change, installed Pi modification, or `a1 pi` behavior change.

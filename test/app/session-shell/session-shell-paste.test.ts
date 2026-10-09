@@ -2,7 +2,7 @@ import { createResponseCopyExecutor } from "../../../src/app/session-shell/respo
 import { selectionCopyRowText } from "../../../src/ui/components/index.js";
 import { PromptHistoryService } from "../../../src/features/prompt-history/index.js";
 import { type ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
@@ -239,6 +239,25 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(shell.root.preparePromptSubmission(draft).text === expanded + " after").toBe(true);
     } finally { clearInterval(heartbeat); await shell.dispose(); await rm(directory, { recursive: true, force: true }); }
   }, 25_000);
+
+  it("shows distinguishing paths for same-name folders and submits their exact values", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "same-name-path-chips-"));
+    const first = join(directory, "one", "shared");
+    const second = join(directory, "two", "shared");
+    await Promise.all([mkdir(first, { recursive: true }), mkdir(second, { recursive: true })]);
+    const readText = vi.fn(async () => `"${first}" "${second}"`);
+    const { shell, terminal, engine } = await fixture([], [], true, undefined, { readText });
+    try {
+      terminal.input("\x16");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("[📁 shared][📁 two/shared]"), { timeout: 5_000 });
+      expect(shell.root.editor.getText()).not.toMatch(/ #[a-f0-9]+\]/u);
+      expect(shell.root.preparePromptSubmission(shell.root.editor.getText()).text).toBe(first + second);
+      terminal.input("\r");
+      await nextImmediate();
+      expect(engine.session.calls).toContain(`prompt:${first}${second}`);
+      expect(readText).toHaveBeenCalledOnce();
+    } finally { await shell.dispose(); await rm(directory, { recursive: true, force: true }); }
+  });
 
   it.each(["\n", " "])("bounds aggregate URL metadata and resets each decoration pass (separator=%j)", async separator => {
     const { shell } = await fixture([], [], true);
