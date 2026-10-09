@@ -1,33 +1,12 @@
 import { isRecord, stringProperty } from "./message-values.js";
 import type { AgentSession, AgentSessionRuntime } from "../startup-public.js";
+import type { OwnedUiExtensionResourceSummary, OwnedUiExtensionSourceSummary, OwnedUiResourceSummary } from "../../../contracts/owned-ui/index.js";
 import type { PiWorkflowContexts } from "./workflow-contexts.js";
 import { OWNED_MODELS_COMMAND_NAME, workflowCommandNames, type PiProductMode, type PiWorkflowAutocompleteCommand } from "./workflows.js";
 
-export interface OwnedPiResourceSummary {
-  readonly kind: "skill" | "prompt-template" | "agent-context" | "system-prompt" | "theme";
-  readonly id: string;
-  readonly label: string;
-  readonly sourcePath: string | null;
-  readonly diagnostic: string | null;
-}
-
-export interface OwnedPiExtensionSourceSummary {
-  readonly source: string;
-  readonly scope: "user" | "project" | "temporary";
-  readonly origin: "package" | "top-level";
-  readonly baseDir: string | null;
-}
-
-export interface OwnedPiExtensionResourceSummary {
-  readonly kind: "extension";
-  readonly id: string;
-  readonly sourcePath: string | null;
-  readonly resolvedPath: string | null;
-  readonly sourceInfo: OwnedPiExtensionSourceSummary | null;
-  readonly loaded: boolean;
-  readonly hidden: boolean;
-  readonly diagnostic: string | null;
-}
+export type OwnedPiResourceSummary = OwnedUiResourceSummary;
+export type OwnedPiExtensionSourceSummary = OwnedUiExtensionSourceSummary;
+export type OwnedPiExtensionResourceSummary = OwnedUiExtensionResourceSummary;
 
 export interface PiResourceCatalogPorts {
   session(): AgentSession | undefined;

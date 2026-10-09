@@ -188,7 +188,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       },
     };
     const { adapter, shell, terminal } = await fixtureWithLazySelectors(lazySelectors);
-    vi.spyOn(adapter, "pinnedTreeSelectorContext").mockReturnValue({
+    vi.spyOn(adapter.pinned, "pinnedTreeSelectorContext").mockReturnValue({
       tree: [{
         entry: {
           type: "message",
@@ -318,11 +318,11 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(shell.root.usesDefaultInputSurface()).toBe(false);
 
     engine.session.emit({ type: "agent_start" });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     expect(shell.root.usesDefaultInputSurface()).toBe(false);
 
     engine.session.emit({ type: "agent_settled" });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     expect(shell.root.usesDefaultInputSurface()).toBe(false);
     await shell.dispose();
   });
@@ -357,7 +357,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
 
   it("ports project trust as a stateful save-or-cancel selector", async () => {
     const { adapter, terminal, shell } = await fixture();
-    vi.spyOn(adapter, "pinnedProjectTrustContext").mockReturnValue({
+    vi.spyOn(adapter.catalog, "pinnedProjectTrustContext").mockReturnValue({
       cwd: "D:\\work",
       savedDecision: null,
       projectTrusted: false,
@@ -366,7 +366,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
         { label: "Do not trust", trusted: false, updates: [{ path: "D:\\work", decision: false }], savedPath: "D:\\work" },
       ],
     });
-    const persist = vi.spyOn(adapter, "persistProjectTrust").mockImplementation(() => {});
+    const persist = vi.spyOn(adapter.catalog, "persistProjectTrust").mockImplementation(() => {});
 
     await shell.submit("/trust");
     const trustFrame = shell.root.render(100).map(stripTerminalSequences).join("\n");
@@ -396,7 +396,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       firstMessage: "First prompt",
       allMessagesText: "First prompt response",
     };
-    vi.spyOn(adapter, "pinnedSessionSelectorContext").mockReturnValue({
+    vi.spyOn(adapter.pinned, "pinnedSessionSelectorContext").mockReturnValue({
       currentSessionFilePath: "D:/sessions/current.jsonl",
       loadCurrentSessions: async () => [session],
       loadAllSessions: async progress => {
@@ -460,14 +460,14 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       },
       children: [],
     }];
-    vi.spyOn(adapter, "pinnedTreeSelectorContext").mockReturnValue({
+    vi.spyOn(adapter.pinned, "pinnedTreeSelectorContext").mockReturnValue({
       tree,
       currentLeafId: null,
       filterMode: "default",
       skipSummaryPrompt: false,
       appendLabelChange() {},
     });
-    const execute = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
+    const execute = vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(async request => ({
       command: request.command,
       outcome: "completed",
       message: "Navigated to selected point",
@@ -567,14 +567,14 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       },
       children: [],
     }];
-    vi.spyOn(adapter, "pinnedTreeSelectorContext").mockReturnValue({
+    vi.spyOn(adapter.pinned, "pinnedTreeSelectorContext").mockReturnValue({
       tree,
       currentLeafId: null,
       filterMode: "default",
       skipSummaryPrompt: true,
       appendLabelChange() {},
     });
-    const execute = vi.spyOn(adapter, "executeWorkflow").mockResolvedValue({
+    const execute = vi.spyOn(adapter.workflows, "executeWorkflow").mockResolvedValue({
       command: "tree",
       outcome: "completed",
       message: "Navigated to selected point",
@@ -609,7 +609,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       },
       children: [],
     }));
-    vi.spyOn(adapter, "pinnedTreeSelectorContext").mockReturnValue({
+    vi.spyOn(adapter.pinned, "pinnedTreeSelectorContext").mockReturnValue({
       tree: [{
         entry: {
           type: "message",
@@ -647,7 +647,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     terminal.input("\x1b");
     terminal.input("\x1b");
     await shell.runWorkflow({ command: "logout", argument: "", selection: "oauth:openai" });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     expect(shell.view().activeModel).toBeNull();
     expect(shell.view().status.footer?.availableProviderCount).toBe(1);
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("gpt-5 • medium");
@@ -660,8 +660,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
 
   it("renders empty fork and logout outcomes as pinned statuses", async () => {
     const { adapter, shell } = await fixture();
-    vi.spyOn(adapter, "pinnedForkOptions").mockReturnValue([]);
-    vi.spyOn(adapter, "pinnedLogoutOptions").mockResolvedValue([]);
+    vi.spyOn(adapter.catalog, "pinnedForkOptions").mockReturnValue([]);
+    vi.spyOn(adapter.catalog, "pinnedLogoutOptions").mockResolvedValue([]);
 
     shell.showForkSelector();
     const forkFrame = stripTerminalSequences(shell.root.render(100).join("\n"));
@@ -677,14 +677,14 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
 
   it("nests login authentication type and provider selection with pinned cancellation", async () => {
     const { adapter, terminal, shell } = await fixture();
-    vi.spyOn(adapter, "pinnedLoginOptions").mockImplementation(authType => [{
+    vi.spyOn(adapter.catalog, "pinnedLoginOptions").mockImplementation(authType => [{
       id: `${authType ?? "oauth"}:openai`,
       providerId: "openai",
       label: "OpenAI",
       description: authType === "api_key" ? "API key" : "Account / OAuth",
       authType: authType ?? "oauth",
     }]);
-    const execute = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
+    const execute = vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(async request => ({
       command: request.command,
       outcome: "completed",
       message: `completed ${request.selection ?? ""}`,
@@ -777,7 +777,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
 
   it("opens the model selector with the original search after a command-owned refresh misses", async () => {
     const { adapter, shell } = await fixture();
-    vi.spyOn(adapter, "executeWorkflow").mockResolvedValue({
+    vi.spyOn(adapter.workflows, "executeWorkflow").mockResolvedValue({
       command: "model",
       outcome: "requires-selection",
       message: "Select a model",

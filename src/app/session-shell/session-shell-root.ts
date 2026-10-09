@@ -1,8 +1,13 @@
 import { acceptsTranscriptUpdate, ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type {
   OwnedUiBackgroundSettingsPort,
+  OwnedUiExtensionResourceSummary,
+  OwnedUiExtensionSourceSummary,
   OwnedUiPromptSuggestionGeneratorPort,
+  OwnedUiSessionBackend,
   OwnedUiSessionViewModel,
+  OwnedUiWorkflowMessage,
+  OwnedUiWorkflowResult,
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
   OwnedUiQuitOutroSettingsPort,
@@ -34,15 +39,6 @@ import type {
   TranscriptViewportFrameInput,
   TranscriptViewportTheme,
 } from "../../ui/components/transcript-viewport.js";
-import type {
-  OwnedPiExtensionResourceSummary,
-  OwnedPiExtensionSourceSummary,
-  PiEngineAdapter,
-} from "../../integrations/pi/engine/adapter.js";
-import type {
-  PiWorkflowMessage,
-  PiWorkflowResult,
-} from "../../integrations/pi/engine/workflows.js";
 import type { PiShellLazySelectorLoader } from "../../integrations/pi/components/lazy-selectors.js";
 import { createPiShellEditor } from "../../integrations/pi/components/shell-editor-autocomplete.js";
 import {
@@ -117,7 +113,6 @@ import type { PasteEvent, PasteSource } from "./paste-protocol.js";
 import { canPreparePasteInline } from "./paste-text-preparation.js";
 import type { StreamPresentationScheduler } from "./stream-presentation-coalescer.js";
 
-export type OwnedUiBackendPort = PiEngineAdapter;
 export type OwnedUiTerminalPort = PiTuiTerminalPort;
 type OwnedUiStartupOptions = PiShellHeaderOptions;
 
@@ -129,7 +124,7 @@ export interface OwnedUiClipboardPort {
 
 /** The engine session the shell presents and the composition's decisions about it. */
 export interface OwnedUiShellEngineOptions {
-  readonly backend: OwnedUiBackendPort;
+  readonly backend: OwnedUiSessionBackend;
   readonly cwd: string;
   /**
    * Declared A1-owned routes. A route this host claims resolves to its app;
@@ -1284,7 +1279,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#lastWorkflowStatusId = id;
   }
 
-  appendWorkflowMessage(message: PiWorkflowMessage, errorCode?: ImageAttachmentError["code"]): void {
+  appendWorkflowMessage(message: OwnedUiWorkflowMessage, errorCode?: ImageAttachmentError["code"]): void {
     if (message.kind === "status") {
       this.appendWorkflowStatus(message.message);
       return;
@@ -1303,7 +1298,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#appendAnchoredWorkflowComponent(width => renderPiShellCommandMessage(presentation, width, this.#outputPad));
   }
 
-  appendWorkflowResult(result: PiWorkflowResult, errorCode?: ImageAttachmentError["code"]): void {
+  appendWorkflowResult(result: OwnedUiWorkflowResult, errorCode?: ImageAttachmentError["code"]): void {
     if (result.messages !== undefined) {
       for (const message of result.messages) this.appendWorkflowMessage(message, errorCode);
       return;
@@ -1776,8 +1771,8 @@ function layoutPort(
   };
 }
 
-export function shellResourceEntries(backend: OwnedUiBackendPort): readonly PiShellResourceEntry[] {
-  const resources: PiShellResourceEntry[] = backend.nonVisualResources().map(resource => ({
+export function shellResourceEntries(backend: OwnedUiSessionBackend): readonly PiShellResourceEntry[] {
+  const resources: PiShellResourceEntry[] = backend.extensions.nonVisualResources().map(resource => ({
     section: resource.kind === "skill"
       ? "Skills"
       : resource.kind === "prompt-template"
@@ -1793,7 +1788,7 @@ export function shellResourceEntries(backend: OwnedUiBackendPort): readonly PiSh
     sourcePath: resource.sourcePath,
     diagnostic: resource.diagnostic,
   }));
-  const extensions = backend.extensionResources().filter(extension => !extension.hidden);
+  const extensions = backend.extensions.extensionResources().filter(extension => !extension.hidden);
   const loadedExtensions = extensions.filter(extension => extension.diagnostic === null);
   const extensionLabels = compactExtensionLabels(loadedExtensions);
   for (const extension of extensions) {
@@ -1820,7 +1815,7 @@ function compactResourceLabel(path: string): string {
  * 914cf1472e715297caa30db4b9535d534a9eb718. The source metadata crosses an
  * A1-owned boundary first; the owned shell never inspects Pi's private root.
  */
-function compactExtensionLabels(extensions: readonly OwnedPiExtensionResourceSummary[]): readonly string[] {
+function compactExtensionLabels(extensions: readonly OwnedUiExtensionResourceSummary[]): readonly string[] {
   const localExtensions = extensions
     .filter(extension => !isPackageExtensionSource(extension.sourceInfo))
     .map(extension => {
@@ -1848,7 +1843,7 @@ function compactExtensionLabels(extensions: readonly OwnedPiExtensionResourceSum
   });
 }
 
-function compactPackageExtensionLabel(resourcePath: string, sourceInfo: OwnedPiExtensionSourceSummary): string {
+function compactPackageExtensionLabel(resourcePath: string, sourceInfo: OwnedUiExtensionSourceSummary): string {
   const sourceLabel = compactPackageSourceLabel(sourceInfo.source);
   if (!sourceLabel) return compactResourceLabel(resourcePath);
   const shortPath = shortPackagePath(resourcePath, sourceInfo).replaceAll("\\", "/");
@@ -1886,7 +1881,7 @@ function compactPackageSourceLabel(source: string): string {
   return withoutRef.replace(/\.git$/, "") || source;
 }
 
-function shortPackagePath(resourcePath: string, sourceInfo: OwnedPiExtensionSourceSummary): string {
+function shortPackagePath(resourcePath: string, sourceInfo: OwnedUiExtensionSourceSummary): string {
   const fullPath = normalizeResourcePath(resourcePath);
   const baseDir = sourceInfo.baseDir === null ? undefined : normalizeResourcePath(sourceInfo.baseDir).replace(/\/$/, "");
   if (baseDir) {
@@ -1919,7 +1914,7 @@ function normalizeResourcePath(path: string): string {
   return path.replaceAll("\\", "/");
 }
 
-function isPackageExtensionSource(sourceInfo: OwnedPiExtensionSourceSummary | null): sourceInfo is OwnedPiExtensionSourceSummary {
+function isPackageExtensionSource(sourceInfo: OwnedUiExtensionSourceSummary | null): sourceInfo is OwnedUiExtensionSourceSummary {
   const source = sourceInfo?.source ?? "";
   return source.startsWith("npm:") || source.startsWith("git:");
 }

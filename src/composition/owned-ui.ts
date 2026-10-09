@@ -11,7 +11,6 @@ import type { NativeProcessIdentity } from "../foundation/lifecycle/model.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
 import { createPiEngineAdapter } from "../integrations/pi/engine/adapter.js";
-import type { PiEngineAdapter } from "../integrations/pi/engine/adapter.js";
 import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/project-trust-preflight.js";
 import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-selection.js";
 import { ClipboardDiagnosticCapture } from "../app/session-shell/clipboard-diagnostics.js";
@@ -19,9 +18,12 @@ import { OwnedUiSessionShell } from "../app/session-shell/session-shell.js";
 import { OwnedSettingsManager } from "../ui/settings/manager.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentation-adapter.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
+import type { AgentSettingsPort } from "../contracts/agent-engine/index.js";
 import type {
   OwnedUiBackgroundSettingsPort,
+  OwnedUiPromptSuggestionGeneratorPort,
   OwnedUiQuitOutroSettings,
+  OwnedUiSessionBackend,
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
 } from "../contracts/owned-ui/index.js";
@@ -30,10 +32,19 @@ import { renderPiShellChangelogLines } from "../integrations/pi/components/shell
 import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 
+/**
+ * The session backend composition wires: the owned-UI port, the prompt-suggestion generator, and
+ * the agent settings port. `settingsPort` stays outside the owned-UI contract because its type
+ * belongs to the agent-engine contracts, which the owned-UI contract may not import.
+ */
+export interface ComposedSessionBackend extends OwnedUiSessionBackend, OwnedUiPromptSuggestionGeneratorPort {
+  settingsPort(): AgentSettingsPort | null;
+}
+
 export interface OwnedUiCompositionOptions {
   readonly cwd?: string;
   readonly terminal?: PresentationTerminalPort;
-  readonly createPiAdapter?: () => Promise<PiEngineAdapter>;
+  readonly createPiAdapter?: () => Promise<ComposedSessionBackend>;
   /** Explicit file selection retained for SDK callers. Public CLI uses sessionSelection. */
   readonly sessionPath?: string;
   readonly sessionSelection?: SessionSelection;
@@ -105,7 +116,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     sessionRuntimeRefreshTimer = setInterval(queueSessionRuntimeRefresh, SESSION_RUNTIME_REFRESH_MS);
     sessionRuntimeRefreshTimer.unref();
   };
-  const adapter = options.createPiAdapter
+  const backend: ComposedSessionBackend = options.createPiAdapter
     ? await options.createPiAdapter()
     : await createPiEngineAdapter({
       cwd,
@@ -139,7 +150,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     : new OwnedSettingsManager({
       configDir: resolveProductPaths().configDir,
       profileId: options.profileId,
-      agentProvider: () => adapter.settingsPort(),
+      agentProvider: () => backend.settingsPort(),
       hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
       agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
     });
@@ -165,7 +176,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // over that base; comparison keeps Pi's configured theme and unmodified semantic accent.
   setPiPackageBorderProjectionEnabled(ownedSurfaces);
   setPiAccentColor(settings !== null && ownedSurfaces ? settings.value("accentColor") : "purple");
-  applyConfiguredPiTheme(ownedSurfaces ? "dark" : adapter.configuredTheme());
+  applyConfiguredPiTheme(ownedSurfaces ? "dark" : backend.settings.configuredTheme());
   const unsubscribeAccent = settings === null || !ownedSurfaces
     ? () => {}
     : settings.onChange(current => setPiAccentColor(current.value("accentColor")));
@@ -182,7 +193,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       const { renderPiShellHotkeySections } = await import("../integrations/pi/components/shell-hotkey-sections.js");
       return { sections: width => renderPiShellHotkeySections(presentation, width) };
     },
-    session: () => import("./session-info-reference.js").then(m => m.loadSessionInfoReference(adapter)),
+    session: () => import("./session-info-reference.js").then(m => m.loadSessionInfoReference(backend)),
   };
   const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(settings, references);
   const viewportSettings: OwnedUiViewportSettingsPort | null = settings === null || !ownedSurfaces ? null : {
@@ -199,7 +210,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ? new SuggestionDiagnosticCapture({ enabled: true, destination: diagnosticDestination }) : null;
   const promptSuggestions = settings === null || !ownedSurfaces ? null : {
     ...(suggestionDiagnostics === null ? {} : { diagnostics: suggestionDiagnostics }),
-    generator: adapter,
+    generator: backend,
     enabled: () => settings.value("promptSuggestions"),
     onChange: (listener: (enabled: boolean) => void) => settings.onChange(() => listener(settings.value("promptSuggestions"))),
   };
@@ -215,12 +226,12 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const historyLimit = settings?.value("promptHistoryMaxItems");
   const historyProfileLocation = settings === null || !ownedSurfaces || !settings.value("promptHistoryEnabled")
     ? null
-    : resolvePromptHistoryPath(resolvePromptHistoryDataDir(), adapter.agentDir);
+    : resolvePromptHistoryPath(resolvePromptHistoryDataDir(), backend.identity.agentDir);
   const promptHistory = historyProfileLocation === null ? null : {
     limit: typeof historyLimit === "number" ? historyLimit : 100,
     store: new PromptHistoryService({
       dataDir: resolvePromptHistoryDataDir(),
-      profileRoot: adapter.agentDir,
+      profileRoot: backend.identity.agentDir,
       limit: typeof historyLimit === "number" ? historyLimit : 100,
     }),
     imageSidecar: new PromptImageSidecar(historyProfileLocation.imagesDir),
@@ -233,8 +244,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   try {
     shell = new OwnedUiSessionShell({
       engine: {
-        backend: adapter,
-        cwd: adapter.cwd,
+        backend,
+        cwd: backend.identity.cwd,
         ...(routeHost === null ? {} : { routeHost }),
         ...(currentReleaseNote === null || releaseNoteClaim === null ? {} : {
           startupRoute: {
@@ -287,22 +298,22 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       interactive: process.stdout.isTTY === true,
       ...(settings === null || !ownedSurfaces ? {} : { settingEnabled: settings.value("updateCheck") }),
     });
-    if (release !== null) adapter.announceReleaseUpdate(release);
+    if (release !== null) backend.extensions.announceReleaseUpdate(release);
   };
   const exitNoticePath = process.env[PRODUCT_IDENTITY.environment.exitNoticePath];
   // Security: tools the agent runs must never see, or rewrite, this instance's notice.
   delete process.env[PRODUCT_IDENTITY.environment.exitNoticePath];
   let exitNotice: Promise<{ clear(): void } | null> = Promise.resolve(null);
   const application: OwnedUiApplicationPort = {
-    get disposed() { return adapter.disposed; },
+    get disposed() { return backend.identity.disposed; },
     start: () => {
       // Performance: the guardian notice loads beside first paint, never on the startup path.
       if (exitNoticePath) exitNotice = import("../app/session-shell/exit-notice.js")
-        .then(module => module.armExitNotice(adapter, exitNoticePath), () => null);
+        .then(module => module.armExitNotice(backend, exitNoticePath), () => null);
       shell.start();
       void announceNewerRelease().catch(() => undefined);
     },
-    flush: () => adapter.flushEvents(),
+    flush: () => backend.session.flushEvents(),
     waitUntilStopped: () => shell.waitUntilStopped(),
     dispose: async () => {
       try {

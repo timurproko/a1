@@ -77,7 +77,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
       expect(value.terminal.writes.at(-1)).toContain(text);
     }
 
-    overlay.dispose();
+    overlay.hide();
     style = "transparent";
     notify?.(style);
     value.shell.runtime.renderNow(true);
@@ -550,7 +550,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     const { engine, adapter, shell, terminal } = await fixture([], [], true);
     let finishDispose!: () => void;
     vi.spyOn(engine, "dispose").mockImplementation(() => new Promise<void>(resolve => { finishDispose = resolve; }));
-    const executeWorkflow = vi.spyOn(adapter, "executeWorkflow");
+    const executeWorkflow = vi.spyOn(adapter.workflows, "executeWorkflow");
     const first = shell.shutdown();
     const second = shell.shutdown();
     try {
