@@ -66,9 +66,7 @@
           "name": "AgentSessionEvent",
           "kind": "type",
           "hash": "6851c0ab591026cfbae321aa427faf08a4177654b9349dff61ae528dedcb4881",
-          "consumers": [
-            "src/integrations/pi/engine/session-integration.ts"
-          ]
+          "consumers": []
         },
         {
           "name": "AgentSessionEventListener",
