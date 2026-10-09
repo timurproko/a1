@@ -1,10 +1,7 @@
 import { acceptsTranscriptUpdate, ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type {
-  OwnedUiCommand,
-  OwnedUiDialog,
   OwnedUiPromptSuggestionGeneratorPort,
   OwnedUiSessionViewModel,
-  OwnedUiThinkingLevel,
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
   OwnedUiQuitOutroSettingsPort,
@@ -36,23 +33,15 @@ import type {
   TranscriptViewportFrameInput,
   TranscriptViewportTheme,
 } from "../../ui/components/transcript-viewport.js";
-import { PINNED_PI_HIDDEN_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../integrations/pi/engine/workflows.js";
 import type {
-  AdapterCommandResult,
   OwnedPiExtensionResourceSummary,
   OwnedPiExtensionSourceSummary,
   PiEngineAdapter,
 } from "../../integrations/pi/engine/adapter.js";
 import type {
-  PiWorkflowInteractionRequest,
-  PiWorkflowLoginNotification,
-  PiWorkflowLoginStart,
   PiWorkflowMessage,
-  PiWorkflowRequest,
   PiWorkflowResult,
-  PiWorkflowRoute,
 } from "../../integrations/pi/engine/workflows.js";
-import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../../integrations/pi/components/shell-extension-ui.js";
 import type { PiShellLazySelectorLoader } from "../../integrations/pi/components/lazy-selectors.js";
 import { createPiShellEditor } from "../../integrations/pi/components/shell-editor-autocomplete.js";
 import {
@@ -64,21 +53,7 @@ import {
 } from "../../integrations/pi/components/shell-footer-status.js";
 import {
   createPiShellArmin,
-  createPiShellAuthProviderSelector,
-  createPiShellDialog,
   createPiShellEarendilAnnouncement,
-  createPiShellExtensionSelector,
-  createPiShellLoginDialog,
-  createPiShellModelSelector,
-  createPiShellScopedModelsSelector,
-  createPiShellSelector,
-  createPiShellSessionSelector,
-  createPiShellSettingsSelector,
-  createPiShellTreeSelector,
-  createPiShellTrustSelector,
-  createPiShellUserMessageSelector,
-  type PiShellLoginDialogPort,
-  type PiShellScopedModelsSelectorPort,
 } from "../../integrations/pi/components/shell-selectors-dialogs.js";
 import {
   createPiShellChangelog,
@@ -116,7 +91,6 @@ import {
   type PiShellLoadedResourcesPort,
   type PiShellQueuedInputPort,
   type PiShellResourceEntry,
-  type PiShellSelectorOption,
   type PiShellStatusPort,
   type PiShellTranscriptComponentPort,
   type PiShellViewComponentPort,
@@ -130,7 +104,6 @@ import type {
   PiTuiComponentPort,
   PiTuiInputDiagnosticsEvent,
   PiTuiLayoutNode,
-  PiTuiOverlayHandle,
   PiTuiTerminalPort,
 } from "../../integrations/pi/tui-runtime/contracts.js";
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";

@@ -932,10 +932,6 @@ async function canonicalImmutableRoot(dataDir: string, releaseRoot: string): Pro
 function samePath(left: string, right: string): boolean {
   return process.platform === "win32" ? resolve(left).toLowerCase() === resolve(right).toLowerCase() : resolve(left) === resolve(right);
 }
-function isContainedBy(parent: string, child: string): boolean {
-  const pathFromParent = relative(parent, child);
-  return pathFromParent.length > 0 && pathFromParent !== ".." && !pathFromParent.startsWith(`..${sep}`) && !isAbsolute(pathFromParent);
-}
 function unsuccessfulCode(code: number | null): number { return code === null || code === 0 ? 1 : code; }
 function formatExitCode(code: number | null): string { return code === null ? "unknown" : String(code); }
 function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }

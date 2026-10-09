@@ -1,10 +1,4 @@
-import type { AgentSession, AgentSessionEvent, PromptOptions } from "../startup-public.js";
-import {
-  AGENT_ENGINE_CONTRACT_VERSION,
-  type AgentCommandOutcome,
-  type AgentEvent,
-  type AgentMessage,
-} from "../../../contracts/agent-engine/index.js";
+import type { AgentSession, PromptOptions } from "../startup-public.js";
 
 type PiPromptImages = NonNullable<PromptOptions["images"]>;
 
@@ -34,8 +28,10 @@ export type PiSessionCommand =
   | { readonly type: "abort" | "retry" | "compact" }
   | { readonly type: "bash"; readonly command: string; readonly excludeFromContext: boolean; readonly onChunk?: (chunk: string) => void };
 
+export type PiSessionCommandOutcome = "completed" | "rejected" | "failed" | "cancelled";
+
 export interface PiSessionCommandResult {
-  readonly outcome: AgentCommandOutcome;
+  readonly outcome: PiSessionCommandOutcome;
   readonly value?: unknown;
 }
 
@@ -174,59 +170,4 @@ export class PiSessionCommandIntegration {
     const name = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
     return this.session.extensionRunner?.getCommand(name) !== undefined;
   }
-}
-
-export interface PiOrderedEventIntegration {
-  dispose(): void;
-}
-
-export function subscribeToPiSessionEvents(
-  session: Pick<AgentSession, "subscribe">,
-  sessionId: string,
-  emit: (event: AgentEvent) => void,
-  malformed: (diagnostic: string) => void,
-): PiOrderedEventIntegration {
-  let sequence = 0;
-  let disposed = false;
-  const unsubscribe = session.subscribe(event => {
-    if (disposed) return;
-    sequence += 1;
-    try {
-      const converted = convertPiSessionEvent(event, sessionId, sequence);
-      if (converted) emit(converted);
-    } catch (error) {
-      malformed(`Pi session event ${sequence} is malformed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  });
-  return { dispose() { if (disposed) return; disposed = true; unsubscribe(); } };
-}
-
-export function convertPiSessionEvent(event: AgentSessionEvent, sessionId: string, sequence: number): AgentEvent | null {
-  const base = { contractVersion: AGENT_ENGINE_CONTRACT_VERSION, sessionId, sequence } as const;
-  switch (event.type) {
-    case "agent_start": return { ...base, type: "lifecycle", lifecycle: "busy", reason: null };
-    case "agent_settled": return { ...base, type: "lifecycle", lifecycle: "ready", reason: null };
-    case "agent_end": return event.willRetry ? null : { ...base, type: "lifecycle", lifecycle: "ready", reason: null };
-    case "message_start":
-    case "message_update":
-    case "message_end":
-      return { ...base, type: "content", content: toAgentMessage(event.message, event.type === "message_end" ? "final" : "streaming", sequence) };
-    default: return null;
-  }
-}
-
-function toAgentMessage(value: unknown, status: "streaming" | "final", sequence: number): AgentMessage {
-  if (!value || typeof value !== "object") throw new TypeError("message payload is not an object");
-  const message = value as Record<string, unknown>;
-  const role = message.role === "user" || message.role === "assistant" || message.role === "tool" || message.role === "system" ? message.role : "assistant";
-  const source = Array.isArray(message.content) ? message.content : [];
-  const text = source.flatMap(part => part && typeof part === "object" && typeof (part as Record<string, unknown>).text === "string" ? [(part as Record<string, unknown>).text as string] : []).join("");
-  return {
-    id: typeof message.id === "string" ? message.id : `message-${sequence}`,
-    role,
-    status,
-    content: text.length > 0
-      ? [{ kind: "text", text }]
-      : [{ kind: "unknown", sourceType: "pi-message", payload: { role: String(message.role ?? "unknown") } }],
-  };
 }

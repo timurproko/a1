@@ -2,7 +2,6 @@ import { spawn } from "node:child_process";
 import { restoreAfterOwnedExit } from "../terminal-cleanup/index.js";
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
-import { platform } from "node:os";
 import { resolve } from "node:path";
 import { selectCohortLaunch } from "./cohort-selection.js";
 import { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
@@ -16,7 +15,7 @@ import { selectUpdateLaunchRelease } from "./update-launch.js";
 import { consumeMaterializationProof, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease, type VerifyMaterializedReleaseOptions } from "./release-store.js";
 import { scheduleReleaseCleanup } from "./release-gc.js";
 import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDocument } from "./restart-certification.js";
-import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
+import { PRODUCT_TEXT } from "../../product-identity.js";
 import { markStartupPhase } from "../startup/index.js";
 import { launchContractTarget, readLaunchContext, withLaunchContext } from "../launch-context/index.js";
 

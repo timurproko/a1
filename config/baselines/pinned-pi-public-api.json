@@ -66,9 +66,7 @@
           "name": "AgentSessionEvent",
           "kind": "type",
           "hash": "6851c0ab591026cfbae321aa427faf08a4177654b9349dff61ae528dedcb4881",
-          "consumers": [
-            "src/integrations/pi/engine/session-integration.ts"
-          ]
+          "consumers": []
         },
         {
           "name": "AgentSessionEventListener",
@@ -917,7 +915,6 @@
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/share-operation-dialog.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
-            "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/earendil-announcement.ts",
@@ -2644,7 +2641,6 @@
           "kind": "type",
           "hash": "098b4b0aa70b3a90316e3ef0c16a174bc9bd0632ccf6b99a02444ec4720fded3",
           "consumers": [
-            "src/integrations/pi/components/upstream/theme/system-theme.ts",
             "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
         },
@@ -3139,7 +3135,6 @@
           "kind": "function",
           "hash": "c91ff69b08837570d236ef1973dce4258b7d4ab5f9b42ac0811d26d5b8f50dfd",
           "consumers": [
-            "src/integrations/pi/components/upstream/theme/system-theme.ts",
             "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
         },
@@ -3147,17 +3142,13 @@
           "name": "colorToOklch",
           "kind": "function",
           "hash": "15d7b08ac4da39fcbdac02a82eb6012631da6f7ebc389f2938edd33bbd3c4861",
-          "consumers": [
-            "src/integrations/pi/components/upstream/theme/system-theme.ts"
-          ]
+          "consumers": []
         },
         {
           "name": "colorToRgb",
           "kind": "function",
           "hash": "c5788525c1929171e37195a9abe1d140fec3fde8905380cccf1d391fe9cf6f65",
-          "consumers": [
-            "src/integrations/pi/components/upstream/theme/system-theme.ts"
-          ]
+          "consumers": []
         },
         {
           "name": "CombinedAutocompleteProvider",
@@ -3753,16 +3744,13 @@
           "name": "OkhslChannels",
           "kind": "interface",
           "hash": "c36568c079d53d1071e3f76e03ec6e301ace098d244d5b2b6785f701b222e283",
-          "consumers": [
-            "src/integrations/pi/components/upstream/theme/system-theme.ts"
-          ]
+          "consumers": []
         },
         {
           "name": "okhslColor",
           "kind": "function",
           "hash": "8f48b835e317de4e155421dd0bff642057205f8fe0225a7ac529cc8a7109d82c",
           "consumers": [
-            "src/integrations/pi/components/upstream/theme/system-theme.ts",
             "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
         },
@@ -3770,9 +3758,7 @@
           "name": "oklabToOkhslLightness",
           "kind": "const",
           "hash": "42df0babdaa36d02edad1a071aa3d6d3edb0dca7a898fe2fcad84eaf3c7c6606",
-          "consumers": [
-            "src/integrations/pi/components/upstream/theme/system-theme.ts"
-          ]
+          "consumers": []
         },
         {
           "name": "OklchChannels",
@@ -3784,9 +3770,7 @@
           "name": "oklchColor",
           "kind": "function",
           "hash": "66becc386a5d51d5689ad6970c692426acac02f5802055e1caf7e43bf3bbb404",
-          "consumers": [
-            "src/integrations/pi/components/upstream/theme/system-theme.ts"
-          ]
+          "consumers": []
         },
         {
           "name": "OklchColorValue",
@@ -3902,8 +3886,7 @@
           "kind": "function",
           "hash": "ffbb22907fb7ad96c1664d731635d11a9910c2d37e06c494b9ec6bcdbe7e6039",
           "consumers": [
-            "src/integrations/pi/components/upstream/components/pi-logo.ts",
-            "src/integrations/pi/components/upstream/theme/system-theme.ts"
+            "src/integrations/pi/components/upstream/components/pi-logo.ts"
           ]
         },
         {
@@ -3911,7 +3894,6 @@
           "kind": "interface",
           "hash": "76806809a1cbd49faabbfa2bcae9d75cca16771b9d7b82297747776cf4086b79",
           "consumers": [
-            "src/integrations/pi/components/upstream/theme/system-theme.ts",
             "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
         },

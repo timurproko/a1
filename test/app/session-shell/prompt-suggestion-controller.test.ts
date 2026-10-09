@@ -321,7 +321,7 @@ describe("suggestion lifecycle diagnostics", () => {
     try {
       const resolvers: Array<(result: OwnedUiPromptSuggestionResult) => void> = [];
       const generator: OwnedUiPromptSuggestionGeneratorPort = {
-        generate: vi.fn(request => new Promise<OwnedUiPromptSuggestionResult>(resolve => { resolvers.push(resolve); })),
+        generate: vi.fn(() => new Promise<OwnedUiPromptSuggestionResult>(resolve => { resolvers.push(resolve); })),
       };
       const { controller, records, target } = observed(generator);
       controller.consider(IDENTITY, null);

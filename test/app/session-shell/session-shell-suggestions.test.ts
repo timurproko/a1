@@ -1,8 +1,7 @@
 import { SUGGESTION_CONVERSATIONS } from "../../fixtures/prompt-suggestion-conversations.js";
 import { SuggestionDiagnosticCapture } from "../../../src/features/prompt-suggestions/index.js";
-import { join } from "node:path";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
-import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
 vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal => {
   const actual = await importOriginal<typeof import("../../../src/app/session-shell/paste-executor.js")>();

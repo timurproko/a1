@@ -42,7 +42,6 @@ import {
   humanizeLabel,
   humanizeTitle,
   indexOfKey,
-  isThumbRow,
   layoutList,
   moveSelection,
   rowKey,
@@ -66,7 +65,7 @@ import type {
   OwnedUiSettingsEntry,
   OwnedSettingsManager,
 } from "../../ui/settings/index.js";
-import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
+import { SETTINGS_APP_ID } from "./settings-route.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 const SCOPE = SETTINGS_APP_ID;
 const SETTINGS_TOP_RULE_ROWS = 1;
@@ -1260,10 +1259,6 @@ function changeFailure(outcome: OwnedUiSettingsChangeOutcome): string | null {
 /** The source's own wording when it has one, otherwise the id made readable. */
 function labelOf(entry: OwnedUiSettingsEntry): string {
   return entry.label ?? humanizeLabel(entry.id);
-}
-
-function isStepper(entry: OwnedUiSettingsEntry, shown: OwnedUiSettingValue | null = entry.value): boolean {
-  return typeof shown === "number" && entry.editable;
 }
 
 /** Where a setting's number may go: what the engine states, or what it offers. */
