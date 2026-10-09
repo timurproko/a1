@@ -32,7 +32,7 @@ import {
 } from "../../../src/integrations/pi/components/index.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
 import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
-import { formatSessionResumeCommand, OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
+import { formatSessionResumeCommand, OwnedUiSessionShell, OwnedUiSessionShellRoot } from "../../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
 import { Runtime, fixture, InputImmediateScheduler, nextImmediate } from "./session-shell-fixture.js";
 
@@ -569,6 +569,114 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
       finishDispose?.();
       await Promise.allSettled([first, second]);
       await shell.dispose();
+    }
+  });
+
+  it("restores the terminal within the cleanup deadline while a hung engine quit is still pending", async () => {
+    const { engine, shell, terminal } = await fixture([], [], true);
+    let finishDispose!: () => void;
+    vi.spyOn(engine, "dispose").mockImplementation(() => new Promise<void>(resolve => { finishDispose = resolve; }));
+    let settled = false;
+    const shutdown = shell.shutdown().finally(() => { settled = true; });
+    try {
+      await vi.waitFor(() => expect(terminal.active).toBe(false), { timeout: 3_000 });
+      expect(shell.runtime.active).toBe(false);
+      expect(settled).toBe(false);
+      finishDispose();
+      await expect(shutdown).resolves.toEqual({ outcome: "completed", diagnostic: null });
+    } finally {
+      finishDispose?.();
+      await shutdown.catch(() => undefined);
+    }
+  });
+
+  it("ignores engine events once disposal has begun", async () => {
+    const { engine, adapter, shell } = await fixture([], [], true);
+    const update = vi.spyOn(shell.root, "update");
+    const applyBlock = vi.spyOn(shell.root, "applyTranscriptBlock");
+    const requestRender = vi.spyOn(shell.runtime, "requestRender");
+    let disposal: Promise<void> | undefined;
+    let presented = 0;
+    // Invariant: disposal requested from inside a delivery, as the stop event does, leaves the rest of
+    // that batch in the window before teardown starts.
+    adapter.session.onEvent(() => {
+      if (disposal !== undefined) return;
+      presented = update.mock.calls.length + applyBlock.mock.calls.length + requestRender.mock.calls.length;
+      disposal = shell.dispose();
+    });
+    engine.session.emit({ type: "agent_start" });
+    engine.session.emit({ type: "message_start", message: { role: "assistant", content: [{ type: "text", text: "late" }], timestamp: 1 } });
+    await adapter.flushEvents();
+    expect(disposal).toBeDefined();
+    await disposal;
+    expect(update.mock.calls.length + applyBlock.mock.calls.length + requestRender.mock.calls.length).toBe(presented);
+  });
+
+  it("shares one in-flight disposal with every concurrent caller and never tears down twice", async () => {
+    const { adapter, shell } = await fixture([], [], true);
+    const setInteractionHost = vi.spyOn(adapter.workflows, "setWorkflowInteractionHost");
+    const restore = shell.runtime.dispose.bind(shell.runtime);
+    vi.spyOn(shell.runtime, "dispose").mockRejectedValueOnce(new Error("restoration failed"));
+    const first = shell.dispose();
+    const second = shell.dispose();
+    expect(second).toBe(first);
+    await expect(second).rejects.toThrow("Owned UI disposal failed");
+    await expect(shell.dispose()).resolves.toBeUndefined();
+    expect(shell.runtime.dispose).toHaveBeenCalledTimes(1);
+    // Invariant: the engine keeps no interaction host that reaches back into a disposed shell.
+    expect(setInteractionHost).toHaveBeenLastCalledWith(expect.not.objectContaining({ startLogin: expect.anything() }));
+    await restore();
+  });
+
+  it("releases every binding it already made when construction fails", async () => {
+    const adapter = await createPiEngineAdapter({
+      cwd: "D:/work",
+      sessionId: "owned-shell",
+      createRuntime: async () => new Runtime([]) as unknown as AgentSessionRuntime,
+    });
+    let owners = 0;
+    let listeners = 0;
+    const bindOwner = adapter.settings.bindOwner.bind(adapter.settings);
+    vi.spyOn(adapter.settings, "bindOwner").mockImplementation((owner, handlers) => {
+      const unbind = bindOwner(owner, handlers);
+      owners += 1;
+      return () => { owners -= 1; unbind(); };
+    });
+    const onEvent = adapter.session.onEvent.bind(adapter.session);
+    vi.spyOn(adapter.session, "onEvent").mockImplementation(listener => {
+      const unsubscribe = onEvent(listener);
+      listeners += 1;
+      return () => { listeners -= 1; unsubscribe(); };
+    });
+    const setInteractionHost = vi.spyOn(adapter.workflows, "setWorkflowInteractionHost");
+    vi.spyOn(adapter.extensions, "bindClipboardWriter").mockImplementation(() => { throw new Error("clipboard bind failed"); });
+    const disposeRoot = vi.spyOn(OwnedUiSessionShellRoot.prototype, "dispose");
+    const terminal = new TestPresentationTerminal();
+    try {
+      expect(() => new OwnedUiSessionShell({
+        presenters: createPiSessionPresenters(adapter),
+        engine: { backend: adapter, cwd: "D:/work", sessionLayout: "custom-viewport" },
+        presentation: { terminal },
+      })).toThrow("clipboard bind failed");
+      expect(owners).toBe(0);
+      expect(listeners).toBe(0);
+      expect(setInteractionHost).toHaveBeenLastCalledWith(expect.not.objectContaining({ startLogin: expect.anything() }));
+      expect(disposeRoot).toHaveBeenCalledTimes(1);
+      expect(terminal.active).toBe(false);
+
+      // Invariant: a failure before the runtime exists still releases the root it already built.
+      vi.spyOn(adapter.settings, "snapshot").mockImplementationOnce(() => { throw new Error("settings unavailable"); });
+      expect(() => new OwnedUiSessionShell({
+        presenters: createPiSessionPresenters(adapter),
+        engine: { backend: adapter, cwd: "D:/work", sessionLayout: "custom-viewport" },
+        presentation: { terminal },
+      })).toThrow("settings unavailable");
+      expect(disposeRoot).toHaveBeenCalledTimes(2);
+      expect(owners).toBe(0);
+      expect(listeners).toBe(0);
+    } finally {
+      disposeRoot.mockRestore();
+      await adapter.dispose();
     }
   });
 

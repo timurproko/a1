@@ -17,6 +17,7 @@ import type {
   OwnedUiSessionPresenters,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
+  OwnedUiWorkflowInteractionHost,
   OwnedUiWorkflowInteractionRequest,
   OwnedUiWorkflowLoginNotification,
   OwnedUiWorkflowLoginStart,
@@ -92,6 +93,10 @@ import {
   type OwnedUiShellPromptImagesOptions,
   type OwnedUiShellSkillsOptions,
 } from "./session-shell-root.js";
+
+// Invariant: a disposed shell leaves the engine a host that holds no reference back to it.
+const DETACHED_WORKFLOW_INTERACTION: OwnedUiWorkflowInteractionHost = { prompt: async () => null, notify() {} };
+
 export {
   OwnedUiSessionShellRoot,
   type OwnedUiSessionShellOptions,
@@ -203,484 +208,522 @@ export class OwnedUiSessionShell {
     // Invariant: owned prompt limits and collapsed skills are bare-A1 replacements; comparison profiles keep pinned behavior.
     this.#promptImages = this.#customViewport ? options.promptImages ?? null : null;
     this.#skills = this.#customViewport ? options.skills ?? null : null;
-    const terminalCopy = terminal !== undefined || hasAsyncClipboardOutput();
-    this.#responseCopy = this.#customViewport ? new ResponseCopyCoordinator({
-      execute: responseCopy?.execute ?? (this.#copyExecutor = createResponseCopyExecutor({
-        ...(terminal === undefined && clipboard === undefined ? {} : { destination: "terminal" }),
-        ...(clipboard?.writeText === undefined ? {} : { writeText: (text, signal) => clipboard!.writeText!(text, signal) }),
-        ...(terminalCopy ? { terminal: { submit: async (control, signal) => {
-          if (signal.aborted || this.#disposed || !runtime?.active) throw new Error("Copy canceled");
-          // Performance: never grow the real terminal's pending buffer with another clipboard payload.
-          if (terminal === undefined && process.stdout.writableLength + control.length > MAX_COPY_CONTROL_BYTES) {
-            throw new Error("Clipboard terminal is busy");
-          }
-          runtime.writeControl(control);
-        } } } : {}),
-      })),
-      ...(responseCopy?.onEvent === undefined ? {} : { onEvent: responseCopy.onEvent }),
-      onFailure: result => {
-        if (this.#disposed || !runtime?.active) return;
-        this.root.appendWorkflowStatus(result.outcome === "timed-out" ? "Copy timed out; the clipboard did not respond."
-          : result.failure === "size" ? "Selection exceeds this clipboard route's size limit."
-          : "Could not copy the selection; the clipboard is unavailable.");
-        runtime.requestRender();
-      },
-    }) : null;
-    const readClipboard = async (signal: AbortSignal): Promise<PiShellClipboardContent | null> => {
-      if (signal.aborted) throw new ImageAttachmentError("image-canceled");
-      if (clipboard === undefined) return runImageWorker({ kind: "clipboard" }, signal);
-      try {
-        const image = await clipboard.readImage?.(signal);
-        if (image !== null && image !== undefined) {
-          const canonical = await runImageWorker<ClipboardImageData | null>({ kind: "canonicalize", source: image }, signal);
-          if (canonical !== null) return { kind: "image", ...canonical };
-        }
-      } catch (error) {
-        if (error instanceof ImageAttachmentError) throw error;
-        // Compatibility: an unavailable image reader can still provide text.
-      }
-      const text = await clipboard.readText(signal);
-      return text === null ? null : { kind: "text", text };
-    };
-    this.root = new OwnedUiSessionShellRoot(this.backend.session.view(), cwd, {
-      getColumns: () => runtime?.viewport().columns ?? terminal?.columns ?? 80,
-      getRows: () => runtime?.viewport().rows ?? terminal?.rows ?? 24,
-      requestRender: force => runtime?.requestRender(force),
-      requestHyperlinkCleanup: rows => damageTerminal?.requestHyperlinkCleanup(rows),
-      onViewportFrame: frame => damageTerminal?.arm(frame.descriptor, {
-        overlayActive: runtime?.hasOverlay() ?? false,
-        selectionActive: this.root.hasActiveSelection(),
-        replacementSurfaceActive: !this.root.usesDefaultInputSurface(),
-      }),
-      enableDockInputReuse: inputPresentation?.viewportReuse !== false,
-      persistentHistory: this.#customViewport && promptHistory !== undefined,
-      ...(promptHistory === undefined ? {} : { historyEditor: promptHistory.editor }),
-      onSubmit: text => { void this.submit(text).catch(() => this.#reportSubmissionError()); },
-      onPasteRejected: error => this.#reportSubmissionError(error),
-      onInterrupt: () => { void this.interrupt(); },
-      onClear: () => { void this.clearOrExit(); },
-      onExit: () => { void this.shutdown(); },
-      onModelSelect: () => this.#customViewport ? this.showModelsDialog() : this.showModelSelector(),
-      onModelCycle: direction => { void this.cycleModel(direction); },
-      onThinkingCycle: () => { void this.cycleThinkingLevel(); },
-      onThinkingToggle: () => {
-        this.root.toggleThinkingVisibility();
-        this.runtime.requestRender();
-      },
-      onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
-      onFollowUp: () => { void this.queueFollowUp().catch(() => this.#reportSubmissionError()); },
-      onDequeue: () => this.restoreQueuedInput(),
-      onEditorChange: text => {
-        this.#editorRevision++;
-        promptSuggestionController?.abortPending();
-        if (text.length === 0) {
-          // Concurrency: the editor synchronizes deletion-owned autocomplete after onChange.
-          // Reassert retained ghost text in the microtask before Pi emits its scheduled frame.
-          queueMicrotask(() => promptSuggestionController?.restoreAvailable());
-        }
-        this.root.reconcilePromptImageLimitNotice(text);
-      },
-      onPromptSuggestionAccepted: () => promptSuggestionController?.accept(),
-      onPromptSuggestionEligibilityChanged: () => {
-        queueMicrotask(() => promptSuggestionController?.restoreAvailable());
-      },
-      onInputSurfaceChanged: () => {
-        promptSuggestionController?.invalidate();
-        this.#promptHistory?.synchronize();
-      },
-      onCopyText: text => {
-        if (this.#responseCopy !== null) { void this.#responseCopy.submitText(text); return; }
-        const write = () => {
-          if (this.#disposed) return Promise.resolve();
-          runtime?.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
-          return clipboard === undefined ? writeSystemClipboardText(text)
-            : clipboard.writeText?.(text) ?? Promise.resolve();
-        };
-        // Compatibility: comparison profiles retain their existing clipboard path.
-        pendingClipboardWrite = write().catch(() => {});
-      },
-      readClipboardContent: async (signal = new AbortController().signal) => {
-        await pendingClipboardWrite;
-        return readClipboard(signal);
-      },
-      captureClipboardPaste: () => {
-        const before = this.#responseCopy?.capturePasteBarrier() ?? (async () => true);
-        if (clipboard !== undefined) return { kind: "provided", read: readClipboard, before };
-        if (responseCopyDestination(process.env) === "terminal") return {
-          kind: "provided", before, read: async () => { throw new ImageAttachmentError("paste-unavailable"); },
-        };
-        return { kind: "native", before };
-      },
-      ...(pasteDiagnostics === undefined ? {} : { pasteDiagnostics: pasteDiagnostics }),
-      ...(pastePreparation === undefined ? {} : { pastePreparation }),
-      ...(this.#promptImages === null ? {} : { promptImageLimit: this.#promptImages.limit }),
-      skillsPresentation: () => this.#skills?.presentation() ?? "expand",
-    }, {
-      ...startup,
-      resources: startup?.resources ?? shellResourceEntries(this.backend),
-    }, this.backend.identity.agentDir, this.#presenters.transcriptRenderers(), sessionLayout, {
-      resolve: assetId => this.backend.extensions.resolveTranscriptImage(assetId),
-    });
-    const initialPiSettings = this.backend.settings.snapshot();
-    // Invariant: bare A1 owns a bounded viewport and therefore always runs on the alternate
-    // fullscreen surface. The pinned comparison profiles still honor Pi's mode.
-    const tuiMode = this.#customViewport
-      ? "fullscreen"
-      : this.backend.identity.disposed ? "regular" : initialPiSettings.tuiMode;
-    const runtimeOptions: PiTuiRuntimeAdapterOptions = {
-      root: this.root,
-      mode: tuiMode,
-      ...(this.#customViewport ? {
-        // Invariant: the owned shell enables and routes mouse reports itself. Pi's
-        // enclosing fullscreen renderer must never establish a competing white selection.
-        mouse: false,
-        consumeUnhandledMouse: true,
-        onOverlayGeometry: surfaces => this.root.setViewportOverlaySurfaces(surfaces),
-        decorateTerminal: (terminal: PiTuiTerminalPort) => {
-          damageTerminal = new DamageAwareTerminalAdapter(terminal, {
-            regionalScroll: process.env.TERM !== "dumb",
-            inspectHyperlinks: readVisibleHyperlinks,
-            onResize: () => streamPresentation?.noteImmediatePresentation(),
-            onHyperlinkCleanupRequired: () => runtime?.requestRender(true),
-          });
-          return damageTerminal;
+    // Invariant: construction is transactional. Each binding registers its release as it is made, and a
+    // throw releases them in reverse, so a shell that never finished constructing holds nothing.
+    const constructed: (() => void)[] = [];
+    try {
+      const terminalCopy = terminal !== undefined || hasAsyncClipboardOutput();
+      this.#responseCopy = this.#customViewport ? new ResponseCopyCoordinator({
+        execute: responseCopy?.execute ?? (this.#copyExecutor = createResponseCopyExecutor({
+          ...(terminal === undefined && clipboard === undefined ? {} : { destination: "terminal" }),
+          ...(clipboard?.writeText === undefined ? {} : { writeText: (text, signal) => clipboard!.writeText!(text, signal) }),
+          ...(terminalCopy ? { terminal: { submit: async (control, signal) => {
+            if (signal.aborted || this.#disposed || !runtime?.active) throw new Error("Copy canceled");
+            // Performance: never grow the real terminal's pending buffer with another clipboard payload.
+            if (terminal === undefined && process.stdout.writableLength + control.length > MAX_COPY_CONTROL_BYTES) {
+              throw new Error("Clipboard terminal is busy");
+            }
+            runtime.writeControl(control);
+          } } } : {}),
+        })),
+        ...(responseCopy?.onEvent === undefined ? {} : { onEvent: responseCopy.onEvent }),
+        onFailure: result => {
+          if (this.#disposed || !runtime?.active) return;
+          this.root.appendWorkflowStatus(result.outcome === "timed-out" ? "Copy timed out; the clipboard did not respond."
+            : result.failure === "size" ? "Selection exceeds this clipboard route's size limit."
+            : "Could not copy the selection; the clipboard is unavailable.");
+          runtime.requestRender();
         },
-        ...(inputPresentation?.coordination === false ? {} : {
-          inputCoordination: {
-            classify: (data: string, focusedOverlay) => classifyPiTuiInput(
-              data,
-              focusedOverlay ?? this.root.inputCoordinationSurface(),
-            ),
-            onReceipt: () => streamPresentation?.noteImmediatePresentation(),
-            ...(inputPresentation?.scheduler === undefined
-              ? {}
-              : { scheduler: inputPresentation.scheduler }),
+      }) : null;
+      constructed.push(() => { this.#responseCopy?.dispose(); this.#copyExecutor?.dispose(); });
+      const readClipboard =async (signal: AbortSignal): Promise<PiShellClipboardContent | null> => {
+        if (signal.aborted) throw new ImageAttachmentError("image-canceled");
+        if (clipboard === undefined) return runImageWorker({ kind: "clipboard" }, signal);
+        try {
+          const image = await clipboard.readImage?.(signal);
+          if (image !== null && image !== undefined) {
+            const canonical = await runImageWorker<ClipboardImageData | null>({ kind: "canonicalize", source: image }, signal);
+            if (canonical !== null) return { kind: "image", ...canonical };
+          }
+        } catch (error) {
+          if (error instanceof ImageAttachmentError) throw error;
+          // Compatibility: an unavailable image reader can still provide text.
+        }
+        const text = await clipboard.readText(signal);
+        return text === null ? null : { kind: "text", text };
+      };
+      this.root = new OwnedUiSessionShellRoot(this.backend.session.view(), cwd, {
+        getColumns: () => runtime?.viewport().columns ?? terminal?.columns ?? 80,
+        getRows: () => runtime?.viewport().rows ?? terminal?.rows ?? 24,
+        requestRender: force => runtime?.requestRender(force),
+        requestHyperlinkCleanup: rows => damageTerminal?.requestHyperlinkCleanup(rows),
+        onViewportFrame: frame => damageTerminal?.arm(frame.descriptor, {
+          overlayActive: runtime?.hasOverlay() ?? false,
+          selectionActive: this.root.hasActiveSelection(),
+          replacementSurfaceActive: !this.root.usesDefaultInputSurface(),
+        }),
+        enableDockInputReuse: inputPresentation?.viewportReuse !== false,
+        persistentHistory: this.#customViewport && promptHistory !== undefined,
+        ...(promptHistory === undefined ? {} : { historyEditor: promptHistory.editor }),
+        onSubmit: text => { void this.submit(text).catch(() => this.#reportSubmissionError()); },
+        onPasteRejected: error => this.#reportSubmissionError(error),
+        onInterrupt: () => { void this.interrupt(); },
+        onClear: () => { void this.clearOrExit(); },
+        onExit: () => { void this.shutdown(); },
+        onModelSelect: () => this.#customViewport ? this.showModelsDialog() : this.showModelSelector(),
+        onModelCycle: direction => { void this.cycleModel(direction); },
+        onThinkingCycle: () => { void this.cycleThinkingLevel(); },
+        onThinkingToggle: () => {
+          this.root.toggleThinkingVisibility();
+          this.runtime.requestRender();
+        },
+        onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
+        onFollowUp: () => { void this.queueFollowUp().catch(() => this.#reportSubmissionError()); },
+        onDequeue: () => this.restoreQueuedInput(),
+        onEditorChange: text => {
+          this.#editorRevision++;
+          promptSuggestionController?.abortPending();
+          if (text.length === 0) {
+            // Concurrency: the editor synchronizes deletion-owned autocomplete after onChange.
+            // Reassert retained ghost text in the microtask before Pi emits its scheduled frame.
+            queueMicrotask(() => promptSuggestionController?.restoreAvailable());
+          }
+          this.root.reconcilePromptImageLimitNotice(text);
+        },
+        onPromptSuggestionAccepted: () => promptSuggestionController?.accept(),
+        onPromptSuggestionEligibilityChanged: () => {
+          queueMicrotask(() => promptSuggestionController?.restoreAvailable());
+        },
+        onInputSurfaceChanged: () => {
+          promptSuggestionController?.invalidate();
+          this.#promptHistory?.synchronize();
+        },
+        onCopyText: text => {
+          if (this.#responseCopy !== null) { void this.#responseCopy.submitText(text); return; }
+          const write = () => {
+            if (this.#disposed) return Promise.resolve();
+            runtime?.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
+            return clipboard === undefined ? writeSystemClipboardText(text)
+              : clipboard.writeText?.(text) ?? Promise.resolve();
+          };
+          // Compatibility: comparison profiles retain their existing clipboard path.
+          pendingClipboardWrite = write().catch(() => {});
+        },
+        readClipboardContent: async (signal = new AbortController().signal) => {
+          await pendingClipboardWrite;
+          return readClipboard(signal);
+        },
+        captureClipboardPaste: () => {
+          const before = this.#responseCopy?.capturePasteBarrier() ?? (async () => true);
+          if (clipboard !== undefined) return { kind: "provided", read: readClipboard, before };
+          if (responseCopyDestination(process.env) === "terminal") return {
+            kind: "provided", before, read: async () => { throw new ImageAttachmentError("paste-unavailable"); },
+          };
+          return { kind: "native", before };
+        },
+        ...(pasteDiagnostics === undefined ? {} : { pasteDiagnostics: pasteDiagnostics }),
+        ...(pastePreparation === undefined ? {} : { pastePreparation }),
+        ...(this.#promptImages === null ? {} : { promptImageLimit: this.#promptImages.limit }),
+        skillsPresentation: () => this.#skills?.presentation() ?? "expand",
+      }, {
+        ...startup,
+        resources: startup?.resources ?? shellResourceEntries(this.backend),
+      }, this.backend.identity.agentDir, this.#presenters.transcriptRenderers(), sessionLayout, {
+        resolve: assetId => this.backend.extensions.resolveTranscriptImage(assetId),
+      });
+      // Invariant: the runtime owns the root (its theme subscription and helper clients) once constructed;
+      // stopping an idle runtime disposes it synchronously.
+      constructed.push(() => {
+        if (runtime === undefined) this.root.dispose();
+        else void runtime.dispose().catch(() => {});
+      });
+      const initialPiSettings = this.backend.settings.snapshot();
+      // Invariant: bare A1 owns a bounded viewport and therefore always runs on the alternate
+      // fullscreen surface. The pinned comparison profiles still honor Pi's mode.
+      const tuiMode = this.#customViewport
+        ? "fullscreen"
+        : this.backend.identity.disposed ? "regular" : initialPiSettings.tuiMode;
+      const runtimeOptions: PiTuiRuntimeAdapterOptions = {
+        root: this.root,
+        mode: tuiMode,
+        ...(this.#customViewport ? {
+          // Invariant: the owned shell enables and routes mouse reports itself. Pi's
+          // enclosing fullscreen renderer must never establish a competing white selection.
+          mouse: false,
+          consumeUnhandledMouse: true,
+          onOverlayGeometry: surfaces => this.root.setViewportOverlaySurfaces(surfaces),
+          decorateTerminal: (terminal: PiTuiTerminalPort) => {
+            damageTerminal = new DamageAwareTerminalAdapter(terminal, {
+              regionalScroll: process.env.TERM !== "dumb",
+              inspectHyperlinks: readVisibleHyperlinks,
+              onResize: () => streamPresentation?.noteImmediatePresentation(),
+              onHyperlinkCleanupRequired: () => runtime?.requestRender(true),
+            });
+            return damageTerminal;
+          },
+          ...(inputPresentation?.coordination === false ? {} : {
+            inputCoordination: {
+              classify: (data: string, focusedOverlay) => classifyPiTuiInput(
+                data,
+                focusedOverlay ?? this.root.inputCoordinationSurface(),
+              ),
+              onReceipt: () => streamPresentation?.noteImmediatePresentation(),
+              ...(inputPresentation?.scheduler === undefined
+                ? {}
+                : { scheduler: inputPresentation.scheduler }),
+            },
+          }),
+        } : { layoutRoot: this.root.layoutRoot() }),
+        ...(inputPresentation?.onEvent === undefined ? {} : {
+          inputDiagnostics: {
+            onEvent: inputPresentation.onEvent,
+            ...(inputPresentation.now === undefined ? {} : { now: inputPresentation.now }),
           },
         }),
-      } : { layoutRoot: this.root.layoutRoot() }),
-      ...(inputPresentation?.onEvent === undefined ? {} : {
-        inputDiagnostics: {
-          onEvent: inputPresentation.onEvent,
-          ...(inputPresentation.now === undefined ? {} : { now: inputPresentation.now }),
+        ...(terminal === undefined ? {} : { terminal: terminal }),
+        hardwareCursor: this.backend.session.view().terminal.hardwareCursor,
+        ...(this.#customViewport ? {} : { wheelScrollLines: initialPiSettings.fullscreenWheelScrollLines }),
+      };
+      runtime = new PiTuiRuntimeAdapter(runtimeOptions);
+      this.runtime = runtime;
+      this.#programStatus = new ProgramStatusReporter(
+        status => { if (this.runtime.active) this.runtime.setProgramStatus(status); },
+        () => this.view().status.footer?.sessionName ?? undefined,
+      );
+      this.#damageTerminal = damageTerminal ?? null;
+      if (this.#customViewport && backgroundSettings !== undefined && damageTerminal !== undefined) {
+        damageTerminal.setCanvasBackground(piCanvasBackgroundAnsi(backgroundSettings.snapshot()));
+      }
+      this.#quitOutro = quitOutro;
+      this.#reloadPresentation = reloadPresentation;
+      const presentationInterval = streamPresentationOptions?.intervalMs ?? STREAM_PRESENTATION_INTERVAL_MS;
+      streamPresentation = streamPresentationOptions?.scheduler === undefined
+        ? new StreamPresentationCoalescer(() => this.runtime.requestRender(), presentationInterval)
+        : new StreamPresentationCoalescer(
+            () => this.runtime.requestRender(),
+            presentationInterval,
+            streamPresentationOptions.scheduler,
+          );
+      this.#streamPresentation = streamPresentation;
+      constructed.push(() => this.#streamPresentation.dispose());
+      const promptSuggestionOptions = this.#customViewport ? options.suggestions : undefined;
+      promptSuggestionController = promptSuggestionOptions === undefined ? null : new ContextualPromptSuggestionController({
+        generator: promptSuggestionOptions.generator,
+        enabled: promptSuggestionOptions.enabled(),
+        ...(promptSuggestionOptions.diagnostics === undefined ? {} : { diagnostics: promptSuggestionOptions.diagnostics }),
+        surface: {
+          canPresent: identity => this.#promptSuggestionPresentationBlockReason(identity) === null,
+          presentationBlockReason: identity => this.#promptSuggestionPresentationBlockReason(identity),
+          present: text => {
+            if (!this.root.canPresentPromptSuggestion()) return false;
+            this.root.setPromptSuggestion(text);
+            return true;
+          },
+          clear: () => this.root.setPromptSuggestion(null),
+          requestRender: () => this.runtime.requestRender(),
         },
-      }),
-      ...(terminal === undefined ? {} : { terminal: terminal }),
-      hardwareCursor: this.backend.session.view().terminal.hardwareCursor,
-      ...(this.#customViewport ? {} : { wheelScrollLines: initialPiSettings.fullscreenWheelScrollLines }),
-    };
-    runtime = new PiTuiRuntimeAdapter(runtimeOptions);
-    this.runtime = runtime;
-    this.#programStatus = new ProgramStatusReporter(
-      status => { if (this.runtime.active) this.runtime.setProgramStatus(status); },
-      () => this.view().status.footer?.sessionName ?? undefined,
-    );
-    this.#damageTerminal = damageTerminal ?? null;
-    if (this.#customViewport && backgroundSettings !== undefined && damageTerminal !== undefined) {
-      damageTerminal.setCanvasBackground(piCanvasBackgroundAnsi(backgroundSettings.snapshot()));
-    }
-    this.#quitOutro = quitOutro;
-    this.#reloadPresentation = reloadPresentation;
-    const presentationInterval = streamPresentationOptions?.intervalMs ?? STREAM_PRESENTATION_INTERVAL_MS;
-    streamPresentation = streamPresentationOptions?.scheduler === undefined
-      ? new StreamPresentationCoalescer(() => this.runtime.requestRender(), presentationInterval)
-      : new StreamPresentationCoalescer(
-          () => this.runtime.requestRender(),
-          presentationInterval,
-          streamPresentationOptions.scheduler,
-        );
-    this.#streamPresentation = streamPresentation;
-    const promptSuggestionOptions = this.#customViewport ? options.suggestions : undefined;
-    promptSuggestionController = promptSuggestionOptions === undefined ? null : new ContextualPromptSuggestionController({
-      generator: promptSuggestionOptions.generator,
-      enabled: promptSuggestionOptions.enabled(),
-      ...(promptSuggestionOptions.diagnostics === undefined ? {} : { diagnostics: promptSuggestionOptions.diagnostics }),
-      surface: {
-        canPresent: identity => this.#promptSuggestionPresentationBlockReason(identity) === null,
-        presentationBlockReason: identity => this.#promptSuggestionPresentationBlockReason(identity),
-        present: text => {
-          if (!this.root.canPresentPromptSuggestion()) return false;
-          this.root.setPromptSuggestion(text);
-          return true;
-        },
-        clear: () => this.root.setPromptSuggestion(null),
-        requestRender: () => this.runtime.requestRender(),
-      },
-    });
-    this.#promptSuggestions = promptSuggestionController;
-    this.#unsubscribePromptSuggestions = promptSuggestionOptions === undefined
-      ? () => {}
-      : promptSuggestionOptions.onChange(enabled => this.#promptSuggestions?.setEnabled(enabled));
-    this.#unsubscribePromptImages = this.#promptImages === null ? () => {} : this.#promptImages.onChange(() => {
-      if (!this.#disposed && this.root.reconcilePromptImageLimitNotice()) this.runtime.requestRender();
-    });
-    // Rationale: the same listener refreshes the menu for the A1 presentation choice and for the engine's
-    // skill-command registration, both of which the owned settings manager reports through one change.
-    this.#unsubscribeSkills = this.#skills === null ? () => {} : this.#skills.onChange(() => {
-      // Invariant: reinstalling drops extension provider wrappers, so an unrelated setting change leaves the list alone.
-      if (this.#disposed || this.#commandListSignature() === this.#installedCommandSignature) return;
-      this.#installAutocompleteCommands();
-      this.runtime.requestRender();
-    });
-    this.runtime.setHardwareCursor(initialPiSettings.showHardwareCursor);
-    this.runtime.setClearOnShrink(initialPiSettings.clearOnShrink);
-    this.#terminalProgressEnabled = initialPiSettings.showTerminalProgress;
-    this.#fullscreenExitOutput = initialPiSettings.fullscreenExitOutput;
-    // Invariant: bare A1 prints only the resume hint at exit, so the pinned exit-output
-    // choice is hidden there and cannot be bound; the comparison profile binds and honors it.
-    this.#unbindShutdownSettings = this.backend.settings.productMode === "bare" ? () => {} : this.backend.settings.bindOwner("shutdown", {
-      fullscreenExitOutput: { apply() {} },
-    });
-    this.#unbindTerminalSettings = this.backend.settings.bindOwner("terminal", {
-      showHardwareCursor: { apply: value => {
-        if (typeof value !== "boolean") throw new TypeError("Hardware cursor setting is invalid");
-        this.runtime.setHardwareCursor(value);
-      } },
-      clearOnShrink: { apply: value => {
-        if (typeof value !== "boolean") throw new TypeError("Clear-on-shrink setting is invalid");
-        this.runtime.setClearOnShrink(value);
-      } },
-      showTerminalProgress: { apply: value => {
-        if (typeof value !== "boolean") throw new TypeError("Terminal progress setting is invalid");
-        this.#terminalProgressEnabled = value;
-        this.#syncTerminalProgress(this.view());
-      } },
-    });
-    this.#removeViewportPreInput = this.#customViewport
-      ? this.runtime.addPreInputListener(data => {
-          if (inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
-          // Compatibility: route modal paging and boundary keys before Pi's fullscreen handlers.
-          const isDefault = this.root.usesDefaultInputSurface();
-          if (!this.runtime.hasOverlay() && !isDefault
-            && (this.root.editor.matchesTerminalKey(data, "pageUp")
-              || this.root.editor.matchesTerminalKey(data, "pageDown"))) {
-            this.root.handleInput(data);
-            this.runtime.requestRender();
-            return { consume: true };
-          }
-          if (!this.runtime.hasOverlay() && (this.root.editor.matchesTerminalKey(data, "home")
-            || this.root.editor.matchesTerminalKey(data, "end")
-            || !isDefault && (this.root.editor.matchesTerminalKey(data, "ctrl+home")
-              || this.root.editor.matchesTerminalKey(data, "ctrl+end")))) {
-            if (isDefault) this.root.handleViewportPreInput(data, true);
-            this.root.handleInput(data);
-            this.runtime.requestRender();
-            return { consume: true };
-          }
-          // Invariant: geometry must belong to the painted frame, including newly opened/nested
-          // surfaces. Steady pointer input does not trigger a synchronous composition.
-          const viewport = this.runtime.viewport();
-          if (data.includes("\u001b[<") && !this.root.viewportInputGeometryReady(viewport.columns, viewport.rows)) {
-            this.runtime.renderNow();
-          }
-          const routed = this.root.handleViewportPreInput(data, true, Date.now(),
-            this.root.usesDefaultInputSurface() && !this.runtime.hasFocusedOverlay());
-          if (routed.copySelection !== undefined) {
-            const snapshot = routed.copySelection;
-            const acknowledgement = copyAcknowledgement(snapshot);
-            const intent = ++this.#copyIntentSequence;
-            void this.#responseCopy?.submit(snapshot, pendingClipboardWrite).then(result => {
-              if (this.#disposed || !runtime.active || intent !== this.#copyIntentSequence
-                || result.outcome !== "delivered" && result.outcome !== "submitted-unverified") return;
-              if (acknowledgement.hasNonWhitespace) {
-                this.root.showCopyAcknowledgement(`copied ${acknowledgement.characters} chars to clipboard`);
-              }
-            });
-          }
-          if (!routed.consumed) return routed.data === data ? undefined : { data: routed.data };
-          return routed.data.length === 0 ? { consume: true } : { data: routed.data };
-        })
-      : () => {};
-    const applyViewportSettings = () => {
-      const snapshot = viewportSettings?.snapshot();
-      this.root.setViewportConfig(snapshot ?? {
-        scrollbarAppearance: "auto",
-        scrollbarStyle: "thin",
-        scrollbarSpeed: "normal",
       });
-    };
-    applyViewportSettings();
-    this.#unsubscribeSettings = this.#customViewport && viewportSettings
-      ? viewportSettings.onChange(settings => this.root.setViewportConfig(settings))
-      : () => {};
-    this.#unsubscribeBackgroundSettings = this.#customViewport && backgroundSettings
-      ? backgroundSettings.onChange(style => {
-          if (this.#damageTerminal?.setCanvasBackground(piCanvasBackgroundAnsi(style))) {
-            this.runtime.requestRender(true);
-          }
-        })
-      : () => {};
-    this.root.setEditorPaddingX(initialPiSettings.editorPaddingX);
-    this.root.setAutocompleteMaxVisible(initialPiSettings.autocompleteMaxVisible);
-    this.root.setOutputPad(initialPiSettings.outputPad);
-    this.root.setFullscreenCopyOnSelect(initialPiSettings.fullscreenCopyOnSelect);
-    this.root.setHideThinkingBlock(initialPiSettings.hideThinkingBlock);
-    this.root.setMermaidRenderingMode(initialPiSettings.mermaidRenderingMode);
-    this.#showImages = initialPiSettings.showImages;
-    this.#imageWidthCells = initialPiSettings.imageWidthCells;
-    this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
-    this.#unbindPiSettings = this.backend.settings.bindOwner("shell", {
-      editorPaddingX: { apply: value => {
-        if (typeof value !== "number") throw new TypeError("Editor padding is invalid");
-        this.root.setEditorPaddingX(value);
-      } },
-      autocompleteMaxVisible: { apply: value => {
-        if (typeof value !== "number") throw new TypeError("Autocomplete maximum is invalid");
-        this.root.setAutocompleteMaxVisible(value);
-      } },
-      outputPad: { apply: value => {
-        if (value !== 0 && value !== 1) throw new TypeError("Output padding is invalid");
-        this.root.setOutputPad(value);
-      } },
-      hideThinkingBlock: { apply: value => {
-        if (typeof value !== "boolean") throw new TypeError("Thinking-block visibility is invalid");
-        this.root.setHideThinkingBlock(value);
-      } },
-      mermaidRenderingMode: { apply: value => {
-        if (value !== "off" && value !== "final" && value !== "streaming") throw new TypeError("Mermaid mode is invalid");
-        this.root.setMermaidRenderingMode(value);
-      } },
-      showImages: { apply: value => {
-        if (typeof value !== "boolean") throw new TypeError("Image visibility is invalid");
-        this.#showImages = value;
-        this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
-      } },
-      imageWidthCells: { apply: value => {
-        if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) throw new TypeError("Image width is invalid");
-        this.#imageWidthCells = value;
-        this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
-      } },
-      ...(this.#customViewport ? { fullscreenCopyOnSelect: { apply: (value: unknown) => {
-        if (typeof value !== "boolean") throw new TypeError("Fullscreen copy-on-select setting is invalid");
-        this.root.setFullscreenCopyOnSelect(value);
-      } } } : {
-        fullscreenWheelScrollLines: { apply: (value: unknown) => {
-          if (value !== "auto" && (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > 100)) {
-            throw new TypeError("Fullscreen wheel-scroll distance is invalid");
-          }
-          this.runtime.setWheelScrollLines(value);
-        } },
-      }),
-    });
-    if (this.#customViewport && promptHistory !== undefined) {
-      this.#promptHistoryImageSidecar = promptHistory.imageSidecar;
-      const sidecar = this.#promptHistoryImageSidecar;
-      this.#promptHistory = new PromptHistoryController({
-        editor: this.root.editor,
-        store: promptHistory.store,
-        limit: promptHistory.limit,
-        fallback: this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []),
-        active: () => this.root.usesDefaultInputSurface(),
-        render: () => this.runtime.requestRender(),
-        rehydrate: value => this.root.rehydrateHistoryText(value, id => sidecar?.readAttachment(id) ?? null),
+      this.#promptSuggestions = promptSuggestionController;
+      constructed.push(() => this.#promptSuggestions?.dispose());
+      this.#unsubscribePromptSuggestions = promptSuggestionOptions === undefined
+        ? () => {}
+        : promptSuggestionOptions.onChange(enabled => this.#promptSuggestions?.setEnabled(enabled));
+      constructed.push(this.#unsubscribePromptSuggestions);
+      this.#unsubscribePromptImages = this.#promptImages === null ? () => {} : this.#promptImages.onChange(() => {
+        if (!this.#disposed && this.root.reconcilePromptImageLimitNotice()) this.runtime.requestRender();
       });
-    }
-    this.#extensionBridge = createPiExtensionUiBridge({
-      runtime: {
-        getColumns: () => this.runtime.viewport().columns,
-        getRows: () => this.runtime.viewport().rows,
-        requestRender: () => this.runtime.requestRender(),
-      },
-      agentDir: this.backend.identity.agentDir,
-      setInputSurface: component => this.root.setInputSurface(component, true, "opaque"),
-      setProgramStatusBlocked: status => this.#programStatus.setBlocked("extension-dialog", status),
-      showOverlay: (component, overlayOptions) => this.runtime.showOverlay(component, overlayOptions),
-      listenInput: handler => this.runtime.addInputListener(handler),
-      replaceWidget: (key, component, placement) => this.root.setExtensionWidget(key, component, placement),
-      replaceHeader: component => this.root.setExtensionHeader(component),
-      replaceFooter: component => this.root.setExtensionFooter(component),
-      setStatus: (key, text) => this.root.setExtensionStatus(key, text),
-      setWorking: (message, visible) => this.root.setExtensionWorking(message, visible),
-      notify: (message, type) => this.root.addExtensionNotification(message, type),
-      setTitle: title => this.runtime.setTitle(title),
-      getEditorText: () => this.root.editor.getText(),
-      setEditorText: text => this.root.editor.setText(text),
-      pasteToEditor: text => this.root.editor.insertText(text),
-      addAutocompleteProvider: factory => this.root.editor.addAutocompleteProvider(factory),
-      setCustomEditor: component => this.root.setInputSurface(component, true, "opaque"),
-      getFooterData: () => this.root.extensionFooterData(),
-      getToolsExpanded: () => this.root.toolsExpanded,
-      setToolsExpanded: expanded => this.root.setToolsExpanded(expanded),
-    });
-    this.backend.workflows.setWorkflowInteractionHost({
-      startLogin: request => this.#startWorkflowLogin(request),
-      prompt: request => this.#requestWorkflowInput(request),
-      notify: event => this.#notifyWorkflowLogin(event),
-      publish: message => {
-        this.root.appendWorkflowMessage(message);
+      constructed.push(this.#unsubscribePromptImages);
+      // Rationale: the same listener refreshes the menu for the A1 presentation choice and for the engine's
+      // skill-command registration, both of which the owned settings manager reports through one change.
+      this.#unsubscribeSkills = this.#skills === null ? () => {} : this.#skills.onChange(() => {
+        // Invariant: reinstalling drops extension provider wrappers, so an unrelated setting change leaves the list alone.
+        if (this.#disposed || this.#commandListSignature() === this.#installedCommandSignature) return;
+        this.#installAutocompleteCommands();
         this.runtime.requestRender();
-      },
-      finishLogin: () => this.#finishWorkflowLogin(),
-    });
-    this.#installAutocompleteCommands();
-    this.#unsubscribe = this.backend.session.onEvent(event => {
-      // Performance: a streamed chunk names one block, and touching only that block is what keeps the
-      // cost of a chunk the same in a long session as in a new one. Everything else
-      // resynchronizes the view, which is cheap next to re-reading the transcript.
-      if (event.type === "agent-run-started") {
-        this.#promptSuggestions?.invalidate();
-        this.root.resumeViewportFollowing();
+      });
+      constructed.push(this.#unsubscribeSkills);
+      this.runtime.setHardwareCursor(initialPiSettings.showHardwareCursor);
+      this.runtime.setClearOnShrink(initialPiSettings.clearOnShrink);
+      this.#terminalProgressEnabled = initialPiSettings.showTerminalProgress;
+      this.#fullscreenExitOutput = initialPiSettings.fullscreenExitOutput;
+      // Invariant: bare A1 prints only the resume hint at exit, so the pinned exit-output
+      // choice is hidden there and cannot be bound; the comparison profile binds and honors it.
+      this.#unbindShutdownSettings = this.backend.settings.productMode === "bare" ? () => {} : this.backend.settings.bindOwner("shutdown", {
+        fullscreenExitOutput: { apply() {} },
+      });
+      constructed.push(this.#unbindShutdownSettings);
+      this.#unbindTerminalSettings = this.backend.settings.bindOwner("terminal", {
+        showHardwareCursor: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Hardware cursor setting is invalid");
+          this.runtime.setHardwareCursor(value);
+        } },
+        clearOnShrink: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Clear-on-shrink setting is invalid");
+          this.runtime.setClearOnShrink(value);
+        } },
+        showTerminalProgress: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Terminal progress setting is invalid");
+          this.#terminalProgressEnabled = value;
+          this.#syncTerminalProgress(this.view());
+        } },
+      });
+      constructed.push(this.#unbindTerminalSettings);
+      this.#removeViewportPreInput = this.#customViewport
+        ? this.runtime.addPreInputListener(data => {
+            if (inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
+            // Compatibility: route modal paging and boundary keys before Pi's fullscreen handlers.
+            const isDefault = this.root.usesDefaultInputSurface();
+            if (!this.runtime.hasOverlay() && !isDefault
+              && (this.root.editor.matchesTerminalKey(data, "pageUp")
+                || this.root.editor.matchesTerminalKey(data, "pageDown"))) {
+              this.root.handleInput(data);
+              this.runtime.requestRender();
+              return { consume: true };
+            }
+            if (!this.runtime.hasOverlay() && (this.root.editor.matchesTerminalKey(data, "home")
+              || this.root.editor.matchesTerminalKey(data, "end")
+              || !isDefault && (this.root.editor.matchesTerminalKey(data, "ctrl+home")
+                || this.root.editor.matchesTerminalKey(data, "ctrl+end")))) {
+              if (isDefault) this.root.handleViewportPreInput(data, true);
+              this.root.handleInput(data);
+              this.runtime.requestRender();
+              return { consume: true };
+            }
+            // Invariant: geometry must belong to the painted frame, including newly opened/nested
+            // surfaces. Steady pointer input does not trigger a synchronous composition.
+            const viewport = this.runtime.viewport();
+            if (data.includes("\u001b[<") && !this.root.viewportInputGeometryReady(viewport.columns, viewport.rows)) {
+              this.runtime.renderNow();
+            }
+            const routed = this.root.handleViewportPreInput(data, true, Date.now(),
+              this.root.usesDefaultInputSurface() && !this.runtime.hasFocusedOverlay());
+            if (routed.copySelection !== undefined) {
+              const snapshot = routed.copySelection;
+              const acknowledgement = copyAcknowledgement(snapshot);
+              const intent = ++this.#copyIntentSequence;
+              void this.#responseCopy?.submit(snapshot, pendingClipboardWrite).then(result => {
+                if (this.#disposed || !this.runtime.active || intent !== this.#copyIntentSequence
+                  || result.outcome !== "delivered" && result.outcome !== "submitted-unverified") return;
+                if (acknowledgement.hasNonWhitespace) {
+                  this.root.showCopyAcknowledgement(`copied ${acknowledgement.characters} chars to clipboard`);
+                }
+              });
+            }
+            if (!routed.consumed) return routed.data === data ? undefined : { data: routed.data };
+            return routed.data.length === 0 ? { consume: true } : { data: routed.data };
+          })
+        : () => {};
+      constructed.push(this.#removeViewportPreInput);
+      const applyViewportSettings = () => {
+        const snapshot = viewportSettings?.snapshot();
+        this.root.setViewportConfig(snapshot ?? {
+          scrollbarAppearance: "auto",
+          scrollbarStyle: "thin",
+          scrollbarSpeed: "normal",
+        });
+      };
+      applyViewportSettings();
+      this.#unsubscribeSettings = this.#customViewport && viewportSettings
+        ? viewportSettings.onChange(settings => this.root.setViewportConfig(settings))
+        : () => {};
+      constructed.push(this.#unsubscribeSettings);
+      this.#unsubscribeBackgroundSettings = this.#customViewport && backgroundSettings
+        ? backgroundSettings.onChange(style => {
+            if (this.#damageTerminal?.setCanvasBackground(piCanvasBackgroundAnsi(style))) {
+              this.runtime.requestRender(true);
+            }
+          })
+        : () => {};
+      constructed.push(this.#unsubscribeBackgroundSettings);
+      this.root.setEditorPaddingX(initialPiSettings.editorPaddingX);
+      this.root.setAutocompleteMaxVisible(initialPiSettings.autocompleteMaxVisible);
+      this.root.setOutputPad(initialPiSettings.outputPad);
+      this.root.setFullscreenCopyOnSelect(initialPiSettings.fullscreenCopyOnSelect);
+      this.root.setHideThinkingBlock(initialPiSettings.hideThinkingBlock);
+      this.root.setMermaidRenderingMode(initialPiSettings.mermaidRenderingMode);
+      this.#showImages = initialPiSettings.showImages;
+      this.#imageWidthCells = initialPiSettings.imageWidthCells;
+      this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
+      this.#unbindPiSettings = this.backend.settings.bindOwner("shell", {
+        editorPaddingX: { apply: value => {
+          if (typeof value !== "number") throw new TypeError("Editor padding is invalid");
+          this.root.setEditorPaddingX(value);
+        } },
+        autocompleteMaxVisible: { apply: value => {
+          if (typeof value !== "number") throw new TypeError("Autocomplete maximum is invalid");
+          this.root.setAutocompleteMaxVisible(value);
+        } },
+        outputPad: { apply: value => {
+          if (value !== 0 && value !== 1) throw new TypeError("Output padding is invalid");
+          this.root.setOutputPad(value);
+        } },
+        hideThinkingBlock: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Thinking-block visibility is invalid");
+          this.root.setHideThinkingBlock(value);
+        } },
+        mermaidRenderingMode: { apply: value => {
+          if (value !== "off" && value !== "final" && value !== "streaming") throw new TypeError("Mermaid mode is invalid");
+          this.root.setMermaidRenderingMode(value);
+        } },
+        showImages: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Image visibility is invalid");
+          this.#showImages = value;
+          this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
+        } },
+        imageWidthCells: { apply: value => {
+          if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) throw new TypeError("Image width is invalid");
+          this.#imageWidthCells = value;
+          this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
+        } },
+        ...(this.#customViewport ? { fullscreenCopyOnSelect: { apply: (value: unknown) => {
+          if (typeof value !== "boolean") throw new TypeError("Fullscreen copy-on-select setting is invalid");
+          this.root.setFullscreenCopyOnSelect(value);
+        } } } : {
+          fullscreenWheelScrollLines: { apply: (value: unknown) => {
+            if (value !== "auto" && (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > 100)) {
+              throw new TypeError("Fullscreen wheel-scroll distance is invalid");
+            }
+            this.runtime.setWheelScrollLines(value);
+          } },
+        }),
+      });
+      constructed.push(this.#unbindPiSettings);
+      if (this.#customViewport && promptHistory !== undefined) {
+        this.#promptHistoryImageSidecar = promptHistory.imageSidecar;
+        const sidecar = this.#promptHistoryImageSidecar;
+        this.#promptHistory = new PromptHistoryController({
+          editor: this.root.editor,
+          store: promptHistory.store,
+          limit: promptHistory.limit,
+          fallback: this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []),
+          active: () => this.root.usesDefaultInputSurface(),
+          render: () => this.runtime.requestRender(),
+          rehydrate: value => this.root.rehydrateHistoryText(value, id => sidecar?.readAttachment(id) ?? null),
+        });
+        constructed.push(() => { void this.#promptHistory?.close().catch(() => false); });
       }
-      if (event.type === "assistant-message-completed" && !event.successful) {
-        this.#programStatus.setErrorMessage(this.view().status.diagnostics.at(-1));
+      this.#extensionBridge = createPiExtensionUiBridge({
+        runtime: {
+          getColumns: () => this.runtime.viewport().columns,
+          getRows: () => this.runtime.viewport().rows,
+          requestRender: () => this.runtime.requestRender(),
+        },
+        agentDir: this.backend.identity.agentDir,
+        setInputSurface: component => this.root.setInputSurface(component, true, "opaque"),
+        setProgramStatusBlocked: status => this.#programStatus.setBlocked("extension-dialog", status),
+        showOverlay: (component, overlayOptions) => this.runtime.showOverlay(component, overlayOptions),
+        listenInput: handler => this.runtime.addInputListener(handler),
+        replaceWidget: (key, component, placement) => this.root.setExtensionWidget(key, component, placement),
+        replaceHeader: component => this.root.setExtensionHeader(component),
+        replaceFooter: component => this.root.setExtensionFooter(component),
+        setStatus: (key, text) => this.root.setExtensionStatus(key, text),
+        setWorking: (message, visible) => this.root.setExtensionWorking(message, visible),
+        notify: (message, type) => this.root.addExtensionNotification(message, type),
+        setTitle: title => this.runtime.setTitle(title),
+        getEditorText: () => this.root.editor.getText(),
+        setEditorText: text => this.root.editor.setText(text),
+        pasteToEditor: text => this.root.editor.insertText(text),
+        addAutocompleteProvider: factory => this.root.editor.addAutocompleteProvider(factory),
+        setCustomEditor: component => this.root.setInputSurface(component, true, "opaque"),
+        getFooterData: () => this.root.extensionFooterData(),
+        getToolsExpanded: () => this.root.toolsExpanded,
+        setToolsExpanded: expanded => this.root.setToolsExpanded(expanded),
+      });
+      constructed.push(() => this.#extensionBridge.dispose());
+      constructed.push(() => this.backend.workflows.setWorkflowInteractionHost(DETACHED_WORKFLOW_INTERACTION));
+      this.backend.workflows.setWorkflowInteractionHost({
+        startLogin: request => this.#startWorkflowLogin(request),
+        prompt: request => this.#requestWorkflowInput(request),
+        notify: event => this.#notifyWorkflowLogin(event),
+        publish: message => {
+          this.root.appendWorkflowMessage(message);
+          this.runtime.requestRender();
+        },
+        finishLogin: () => this.#finishWorkflowLogin(),
+      });
+      this.#installAutocompleteCommands();
+      this.#unsubscribe = this.backend.session.onEvent(event => {
+        // Invariant: once disposal begins no event touches the view; only the stop still settles the shell.
+        if (this.#disposed) {
+          if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#settleStoppedLifecycle();
+          return;
+        }
+        // Performance: a streamed chunk names one block, and touching only that block is what keeps the
+        // cost of a chunk the same in a long session as in a new one. Everything else
+        // resynchronizes the view, which is cheap next to re-reading the transcript.
+        if (event.type === "agent-run-started") {
+          this.#promptSuggestions?.invalidate();
+          this.root.resumeViewportFollowing();
+        }
+        if (event.type === "assistant-message-completed" && !event.successful) {
+          this.#programStatus.setErrorMessage(this.view().status.diagnostics.at(-1));
+        }
+        if (event.type === "agent-run-started" || event.type === "assistant-message-completed" || event.type === "agent-run-settled") {
+          this.#programStatus.handleEvent(event);
+        }
+        if (event.type === "assistant-message-completed") {
+          this.root.noteCompletedAssistantMessage();
+          const identity = {
+            sessionId: event.sessionId,
+            sessionGeneration: event.sessionGeneration,
+            runSequence: event.runSequence,
+            responseSequence: event.responseSequence,
+            model: event.model,
+          };
+          if (event.model === null) this.#promptSuggestions?.skip(identity, "no-model");
+          else this.#promptSuggestions?.consider({ ...identity, model: event.model },
+            !event.successful ? "failed-response"
+              : event.toolContinuation || event.stopReason === "toolUse" ? "tool-continuation"
+              : event.stopReason !== "stop" ? "incomplete-response"
+              : event.assistantMessageCount < 2 ? "early-conversation"
+              : this.root.promptSuggestionPrepareBlockReason());
+        }
+        const semanticOnly = event.type === "agent-run-started" || event.type === "assistant-message-completed";
+        const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.identity.sessionGeneration
+          ? this.#syncBlock(event.block)
+          : semanticOnly ? this.view() : this.#syncView();
+        this.#syncTerminalProgress(view);
+        const currentModelKey = modelKey(view);
+        if (this.backend.identity.sessionGeneration !== this.#sessionGeneration || currentModelKey !== this.#suggestionModelKey) {
+          this.#promptSuggestions?.invalidate();
+          this.#suggestionModelKey = currentModelKey;
+        }
+        if (event.type === "status" && /^(Retrying|Compacting)/.test(event.status.workingMessage ?? "")) {
+          this.#promptSuggestions?.invalidate();
+        }
+        if (event.type === "agent-run-settled") {
+          const identity = {
+            sessionId: event.sessionId,
+            sessionGeneration: event.sessionGeneration,
+            runSequence: event.runSequence,
+            responseSequence: event.responseSequence,
+            model: event.model,
+          };
+          if (event.model === null) this.#promptSuggestions?.skip(identity, "no-model");
+          else this.#promptSuggestions?.settle({ ...identity, model: event.model },
+            !event.successful ? "failed-response"
+              : event.toolContinuation || event.stopReason === "toolUse" ? "tool-continuation"
+              : event.stopReason !== "stop" ? "incomplete-response"
+              : event.assistantMessageCount < 2 ? "early-conversation"
+              : this.root.promptSuggestionPrepareBlockReason());
+        }
+        if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#settleStoppedLifecycle();
+      });
+      constructed.push(this.#unsubscribe);
+      this.#unbindClipboardWriter =this.#responseCopy === null ? () => {} : this.backend.extensions.bindClipboardWriter(async text => {
+        const result = await this.#responseCopy!.submitText(text);
+        if (result.outcome === "delivered") return true;
+        if (result.outcome === "submitted-unverified") return false;
+        throw new Error(result.outcome === "timed-out" ? "Clipboard delivery timed out" : "Clipboard delivery could not be completed");
+      });
+      constructed.push(this.#unbindClipboardWriter);
+      if (this.backend.session.view().lifecycle === "stopped") this.#resolveStopped?.();
+    } catch (error) {
+      for (const release of constructed.reverse()) {
+        try { release(); } catch { /* Rationale: the construction failure is the error worth reporting. */ }
       }
-      if (event.type === "agent-run-started" || event.type === "assistant-message-completed" || event.type === "agent-run-settled") {
-        this.#programStatus.handleEvent(event);
-      }
-      if (event.type === "assistant-message-completed") {
-        this.root.noteCompletedAssistantMessage();
-        const identity = {
-          sessionId: event.sessionId,
-          sessionGeneration: event.sessionGeneration,
-          runSequence: event.runSequence,
-          responseSequence: event.responseSequence,
-          model: event.model,
-        };
-        if (event.model === null) this.#promptSuggestions?.skip(identity, "no-model");
-        else this.#promptSuggestions?.consider({ ...identity, model: event.model },
-          !event.successful ? "failed-response"
-            : event.toolContinuation || event.stopReason === "toolUse" ? "tool-continuation"
-            : event.stopReason !== "stop" ? "incomplete-response"
-            : event.assistantMessageCount < 2 ? "early-conversation"
-            : this.root.promptSuggestionPrepareBlockReason());
-      }
-      const semanticOnly = event.type === "agent-run-started" || event.type === "assistant-message-completed";
-      const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.identity.sessionGeneration
-        ? this.#syncBlock(event.block)
-        : semanticOnly ? this.view() : this.#syncView();
-      this.#syncTerminalProgress(view);
-      const currentModelKey = modelKey(view);
-      if (this.backend.identity.sessionGeneration !== this.#sessionGeneration || currentModelKey !== this.#suggestionModelKey) {
-        this.#promptSuggestions?.invalidate();
-        this.#suggestionModelKey = currentModelKey;
-      }
-      if (event.type === "status" && /^(Retrying|Compacting)/.test(event.status.workingMessage ?? "")) {
-        this.#promptSuggestions?.invalidate();
-      }
-      if (event.type === "agent-run-settled") {
-        const identity = {
-          sessionId: event.sessionId,
-          sessionGeneration: event.sessionGeneration,
-          runSequence: event.runSequence,
-          responseSequence: event.responseSequence,
-          model: event.model,
-        };
-        if (event.model === null) this.#promptSuggestions?.skip(identity, "no-model");
-        else this.#promptSuggestions?.settle({ ...identity, model: event.model },
-          !event.successful ? "failed-response"
-            : event.toolContinuation || event.stopReason === "toolUse" ? "tool-continuation"
-            : event.stopReason !== "stop" ? "incomplete-response"
-            : event.assistantMessageCount < 2 ? "early-conversation"
-            : this.root.promptSuggestionPrepareBlockReason());
-      }
-      if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#settleStoppedLifecycle();
-    });
-    this.#unbindClipboardWriter = this.#responseCopy === null ? () => {} : this.backend.extensions.bindClipboardWriter(async text => {
-      const result = await this.#responseCopy!.submitText(text);
-      if (result.outcome === "delivered") return true;
-      if (result.outcome === "submitted-unverified") return false;
-      throw new Error(result.outcome === "timed-out" ? "Clipboard delivery timed out" : "Clipboard delivery could not be completed");
-    });
-    if (this.backend.session.view().lifecycle === "stopped") this.#resolveStopped?.();
+      throw error;
+    }
   }
 
   view(): OwnedUiSessionViewModel {
@@ -1224,7 +1267,12 @@ export class OwnedUiSessionShell {
 
   async #shutdown(): Promise<OwnedUiCommandResult> {
     try {
-      const result = await this.backend.workflows.executeWorkflow({ command: "quit", argument: "" });
+      const quit = this.backend.workflows.executeWorkflow({ command: "quit", argument: "" });
+      // Invariant: a slow or hung engine quit never holds the terminal past the cleanup deadline. The
+      // shell restores it then, and the result still waits for the engine to finish quitting.
+      const timedOut = await boundedCleanup(() => quit.catch(() => {})).then(() => false, () => true);
+      if (timedOut) await this.dispose();
+      const result = await quit;
       await this.dispose();
       return workflowAdapterResult(result);
     } finally {
@@ -1449,9 +1497,12 @@ export class OwnedUiSessionShell {
     this.runtime.writeControl(effective ? MOUSE_TRACKING_ON : MOUSE_TRACKING_OFF);
   }
 
+  // Invariant: one teardown per shell, starting on a microtask so never inside the event listener that
+  // requested it. Callers during the teardown share its outcome; a later call finds it done.
   dispose(): Promise<void> {
     if (this.#disposePromise !== undefined) return this.#disposePromise;
     if (this.#disposed) return Promise.resolve();
+    this.#disposed = true;
     const pending = Promise.resolve().then(() => this.#dispose());
     this.#disposePromise = pending;
     const clear = () => { if (this.#disposePromise === pending) this.#disposePromise = undefined; };
@@ -1460,15 +1511,16 @@ export class OwnedUiSessionShell {
   }
 
   async #dispose(): Promise<void> {
-    this.#disposed = true;
+    const failures: unknown[] = [];
+    const attempt = (action: () => void) => { try { action(); } catch (error) { failures.push(error); } };
+    // Invariant: events stop first, so nothing re-enters the view during history close, outro, or restoration.
+    attempt(() => this.#unsubscribe());
     this.#copyIntentSequence += 1;
     // Invariant: the outro frame is what the terminal shows now, before any cleanup writes.
     const outroFrame = this.#captureQuitOutroFrame();
     this.#responseCopy?.dispose();
     this.#copyExecutor?.dispose();
     this.#cancelWaitingImages();
-    const failures: unknown[] = [];
-    const attempt = (action: () => void) => { try { action(); } catch (error) { failures.push(error); } };
     let pasteCleanup = Promise.resolve();
     let historyCleanup = Promise.resolve(true);
     attempt(() => { historyCleanup = this.#promptHistory?.close() ?? Promise.resolve(true); });
@@ -1502,7 +1554,7 @@ export class OwnedUiSessionShell {
     attempt(() => this.#unbindPiSettings());
     attempt(() => this.#unbindTerminalSettings());
     attempt(() => this.#unbindShutdownSettings());
-    attempt(() => this.#unsubscribe());
+    attempt(() => this.backend.workflows.setWorkflowInteractionHost(DETACHED_WORKFLOW_INTERACTION));
     attempt(() => this.#dialogHandle?.hide());
     attempt(() => this.#extensionBridge.dispose());
     attempt(() => this.#programStatus.clear());
