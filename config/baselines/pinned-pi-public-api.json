@@ -3397,6 +3397,7 @@
           "hash": "0f98403d2c6a96329ba879315081e07f1a0f87d4aefab71b870526095b82b23f",
           "consumers": [
             "src/integrations/pi/components/models-dialog.ts",
+            "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/extension-input.ts",
             "src/integrations/pi/components/upstream/components/extension-selector.ts",
@@ -4001,8 +4002,6 @@
           "kind": "function",
           "hash": "c92dde39880f816eb9106f767d43f060e9c3bc984f2a71bd30c12026121811e4",
           "consumers": [
-            "src/integrations/pi/components/shell-editor-autocomplete.ts",
-            "src/integrations/pi/components/shell-extension-ui.ts",
             "src/integrations/pi/components/shell-shared-facade.ts"
           ]
         },
