@@ -4,8 +4,9 @@ Verdict: accepted only when an authorized human manually merges the containing e
 
 The maintainer integration decision accepts these scenarios:
 - Enter opens an editable enumerated Settings menu without changing its value.
-- A keyboard-opened menu activates the first declared choice while independently marking the effective value.
-- Up and Down navigate choices, Escape closes without a write, and Enter applies the active choice through the owning backend.
+- A keyboard-opened menu activates and marks the current effective choice, including when it is not the first option.
+- The source row value uses the pointer-hover foreground while its keyboard-opened menu is active and returns to its ordinary role when the menu closes.
+- Up and Down navigate from the current choice, Escape closes without a write, and Enter applies the active choice through the owning backend.
 - Pointer-opened menus, closed-menu Left and Right adjustment, numeric stepping, and structured dialogs retain their existing behavior.
 
 ```openspec-delivery
@@ -20,14 +21,15 @@ The maintainer integration decision accepts these scenarios:
   "specBaseSha": "508c44fd2af2f428e0a907eff8ba312a8db46982",
   "acceptanceScenarios": [
     "Enter opens an editable enumerated Settings menu without changing its value.",
-    "A keyboard-opened menu activates the first declared choice while independently marking the effective value.",
-    "Up and Down navigate choices, Escape closes without a write, and Enter applies the active choice through the owning backend.",
+    "A keyboard-opened menu activates and marks the current effective choice, including when it is not the first option.",
+    "The source row value uses the pointer-hover foreground while its keyboard-opened menu is active and returns to its ordinary role when the menu closes.",
+    "Up and Down navigate from the current choice, Escape closes without a write, and Enter applies the active choice through the owning backend.",
     "Pointer-opened menus, closed-menu Left and Right adjustment, numeric stepping, and structured dialogs retain their existing behavior."
   ],
-  "archiveDigest": "789576a04858b967c640abb08e298afef51070167581fef37e5389e8869ee024",
-  "specDigest": "7dd1286191ddf52bf7d38e8a02cebbab0f38a6838132726a1ca869521f25afaa",
-  "tasksDigest": "047f11575df03fe0cc182ebb817cecee910a5dd2f2679f1f856334f0de2974be",
-  "evidenceDigest": "e26334a910fc0650478de9886b0593c1830682fe8eee78eed6035ce54f35c1fd",
+  "archiveDigest": "26f16392cb3bb96495b8cbd5f1b37b413ff26ae1522f074f3c61f6cd1bdc51ef",
+  "specDigest": "0297af987df437fbab35e82a891791a6eabd2354104c1b9929b181d6b6b891b3",
+  "tasksDigest": "95b1b9261506f3cda852d52d436ff0dfe1afaa868f6f5744225bb36daed0d3e9",
+  "evidenceDigest": "1f08298b4494f073421c3d526fa9cac5c3dcf972dabae11c5bcc9767e5f857e5",
   "knownGaps": []
 }
 ```
