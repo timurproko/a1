@@ -82,6 +82,7 @@ import {
   piShellVisibleWidth,
   type PiShellClipboardContent,
   type PiShellComponentPort,
+  type PiKeybindingsHost,
   type PiShellEditorPort,
   type PiShellHeaderOptions,
   type PiShellHeaderPort,
@@ -106,6 +107,7 @@ import type {
 } from "../../integrations/pi/tui-runtime/contracts.js";
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
 import type { PastePreparationClientOptions } from "./paste-preparation-client.js";
+import type { OwnedUiClipboardServices } from "./clipboard-services.js";
 import { EditorHyperlinkBudget } from "./editor-hyperlink-budget.js";
 import { SessionViewportController, type SessionViewportInputResult, type TailControlRegion } from "./session-viewport-controller.js";
 import type { ResponseCopyExecutor } from "./response-copy-transport.js";
@@ -234,6 +236,13 @@ export interface OwnedUiShellSkillsOptions {
   readonly onChange: (listener: () => void) => () => void;
 }
 
+/** Process-wide services composition creates once and every session shell borrows; absent, a shell keeps private ones. */
+export interface OwnedUiShellSharedServices {
+  readonly clipboard?: OwnedUiClipboardServices;
+  /** Must match the shell's layout: the owned-input profile for the custom viewport, Pi's otherwise. */
+  readonly keybindings?: PiKeybindingsHost;
+}
+
 /** What composes an owned session shell, grouped by the collaborator that provides each part. */
 export interface OwnedUiSessionShellOptions {
   readonly engine: OwnedUiShellEngineOptions;
@@ -247,6 +256,7 @@ export interface OwnedUiSessionShellOptions {
   /** Supplied only to the bare-A1 composition; absent keeps the pinned per-skill command list. */
   readonly skills?: OwnedUiShellSkillsOptions;
   readonly diagnostics?: OwnedUiShellDiagnosticOptions;
+  readonly shared?: OwnedUiShellSharedServices;
 }
 
 /** Composes backend session state into the owned transcript, viewport, editor, and dock presentation. */
@@ -368,6 +378,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly captureClipboardPaste?: () => PasteSource;
       readonly pasteDiagnostics?: (event: PasteEvent) => void;
       readonly pastePreparation?: Omit<PastePreparationClientOptions, "onEvent">;
+      readonly keybindings?: PiKeybindingsHost;
       readonly promptImageLimit?: () => number;
       readonly skillsPresentation?: () => "collapse" | "expand";
     },
@@ -416,6 +427,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.editor = createPiShellEditor({
       ...handlers,
       keybindingProfile: this.#customViewport ? "a1" : "pi",
+      ...(handlers.keybindings === undefined ? {} : { keybindings: handlers.keybindings }),
       paintEditorSelection: (line, from, to, atomic) => backgroundSgrSpan(
         line,
         from,

@@ -15,34 +15,36 @@ Fifth of eight preparatory changes for multi-agent tabs. Should follow `session-
 
 ## Decisions
 
-### A clipboard services object owned by composition
+### Share the helper pools, not the clients
 
 ```ts
 export interface OwnedUiClipboardServices {
-  readonly paste: PastePreparationClient;
-  readonly copy: OwnedResponseCopyExecutor;
-  readonly images: ImagePreparationClient;
-  warm(): void;
-  dispose(): Promise<void>;
+  readonly paste: HelperPool;
+  readonly copy: HelperPool;
+  dispose(): void;
 }
 ```
 
-`composeOwnedUi` creates it once, calls `warm()` where the shell used to warm at `session-shell.ts:746-747`, passes it as `clipboard` in the shell options, and disposes it after the shell in `application.dispose`. The shell's existing optional `responseCopy.execute` and `paste.execute` test seams remain as overrides on the services object so current fixtures keep working.
+The forked spares are the only process-wide cost, so they are what composition shares. `PastePreparationClient`, `ImagePreparationClient`, and the response-copy executor stay per shell: the paste client's `reset()` cancels every in-flight paste and its `onEvent` is the session's diagnostics, the prompt-chip store replaces its image client on every reset, and the copy executor closes over the shell's own terminal and runtime. Sharing those would let one tab cancel another tab's paste or write a copy to the wrong terminal. `PastePreparationClient` and `createResponseCopyExecutor` accept an optional `pool`; a borrowed pool is warmed but never disposed by its borrower.
 
-### Caps live on the services object
+`composeOwnedUi` creates the services once for the bare-A1 layout, passes them as `shared.clipboard`, and disposes them in `application.dispose`'s `finally`, after the shell. Each shell keeps warming after its first frame (`OwnedUiSessionShell.start()`); `HelperPool.warm()` is idempotent, so N shells still hold one spare per helper kind and startup never waits on a fork. A shell built without shared services (tests, embedders) keeps private pools exactly as before.
 
-`ACTIVE_IMAGE_WORKERS`, the paste `live` set and `conversionQueue`, and the clipboard write serialization become fields of the respective client instances. The process-wide limit is then the services object's limit, documented in one place, and tests construct isolated instances instead of resetting module state.
+### Module-level caps stay process-wide
+
+`ACTIVE_IMAGE_WORKERS`, the paste executor's `live` set and conversion queue, and the clipboard write serialization are already process-wide, which is the limit N sessions need. Moving them onto instances only changes anything if two instances exist, and then the cap becomes per instance. They stay where they are; that task from the plan is dropped.
 
 ### One keybindings host in the component adapter
 
-`src/integrations/pi/components` gains `createPiKeybindingsHost()` returning `{ manager, apply(), reload() }`. Composition creates it once; `createPiShellEditor` and every presenter that calls `ensureTheme()` receive the manager through options instead of creating one. `ensureTheme()` keeps its theme responsibilities and loses the keybindings reset. `apply()` calls pi-tui's `setKeybindings` once; the viewport controller's per-key activation becomes `host.ensureActive()` which compares identity and returns early.
+`shell-shared-facade.ts` gains `createPiKeybindingsHost({ profile, agentDir })` returning `{ manager, ensureActive(), reload() }`, exported from the component owner index. Composition creates it once, before the shell, with the owned-input profile for bare A1 and Pi's for comparison profiles, and passes it as `shared.keybindings`; the root hands it to `createPiShellEditor`. `ensureActive()` compares identity and returns early, so the viewport controller's per-key `activateKeybindings()` is now a guard. `reloadKeybindings()` goes through `host.reload()`. The extension UI bridge keeps passing Pi's manager to extension components explicitly but no longer writes the registry.
+
+`ensureTheme()` keeps its theme work and stops resetting the registry. It installs Pi's default manager only when no A1 `KeybindingsManager` is active (a presenter built outside composition); once a host has applied its manager, presenter construction never changes it.
 
 ## Risks / Trade-offs
 
 - Any presenter constructed before the host applies keybindings would read defaults; composition applies the host before the shell is constructed.
-- Some tests reset module-level caps directly; they change to constructing a fresh services object.
+- In bare A1, dialogs now see the owned-input manager instead of Pi's defaults while they are focused. The only `tui.*` differences are the extra Ctrl+Backspace/Ctrl+Delete word-deletion and Ctrl+Z undo aliases; no dialog reads the `app.*` actions the owned profile remaps.
 - `KeybindingsManager.create()` read the file on every presenter construction, which hid user edits made mid-session; the shared instance reloads only on explicit `reload()`, matching the editor's existing `/reload` path.
 
 ## Planned Evidence
 
-`test/app/session-shell` clipboard, paste, prompt-chips, and helper-pool suites; a new test asserting two shells over one services object fork at most one spare per helper kind; `test/integrations/pi/components` editor and footer suites asserting the registry is set once; type check; strict OpenSpec validation.
+`test/app/session-shell` clipboard, paste, prompt-chips, and helper-pool suites; a new test asserting two shells over one services object fork one spare per helper kind and keep them until the services are disposed; `test/integrations/pi/components` tests asserting presenter construction keeps the host's manager and reload re-reads into it; type check; strict OpenSpec validation.

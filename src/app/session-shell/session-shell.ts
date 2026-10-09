@@ -105,6 +105,7 @@ export {
   type OwnedUiShellHistoryOptions,
   type OwnedUiShellPresentationOptions,
   type OwnedUiShellPromptImagesOptions,
+  type OwnedUiShellSharedServices,
   type OwnedUiShellSkillsOptions,
   type OwnedUiShellSuggestionOptions,
 } from "./session-shell-root.js";
@@ -185,6 +186,7 @@ export class OwnedUiSessionShell {
     } = options.presentation ?? {};
     const { clipboard, responseCopy, paste: pasteDiagnostics, pastePreparation } = options.diagnostics ?? {};
     const promptHistory = options.history;
+    const { clipboard: sharedClipboard, keybindings: sharedKeybindings } = options.shared ?? {};
     this.backend = backend;
     this.#presenters = options.presenters;
     this.#sessionGeneration = this.backend.identity.sessionGeneration;
@@ -215,6 +217,7 @@ export class OwnedUiSessionShell {
       const terminalCopy = terminal !== undefined || hasAsyncClipboardOutput();
       this.#responseCopy = this.#customViewport ? new ResponseCopyCoordinator({
         execute: responseCopy?.execute ?? (this.#copyExecutor = createResponseCopyExecutor({
+          ...(sharedClipboard === undefined ? {} : { pool: sharedClipboard.copy }),
           ...(terminal === undefined && clipboard === undefined ? {} : { destination: "terminal" }),
           ...(clipboard?.writeText === undefined ? {} : { writeText: (text, signal) => clipboard!.writeText!(text, signal) }),
           ...(terminalCopy ? { terminal: { submit: async (control, signal) => {
@@ -322,7 +325,10 @@ export class OwnedUiSessionShell {
           return { kind: "native", before };
         },
         ...(pasteDiagnostics === undefined ? {} : { pasteDiagnostics: pasteDiagnostics }),
-        ...(pastePreparation === undefined ? {} : { pastePreparation }),
+        ...(pastePreparation === undefined && sharedClipboard === undefined ? {} : {
+          pastePreparation: { ...pastePreparation, ...(sharedClipboard === undefined ? {} : { pool: sharedClipboard.paste }) },
+        }),
+        ...(sharedKeybindings === undefined ? {} : { keybindings: sharedKeybindings }),
         ...(this.#promptImages === null ? {} : { promptImageLimit: this.#promptImages.limit }),
         skillsPresentation: () => this.#skills?.presentation() ?? "expand",
       }, {

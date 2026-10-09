@@ -1,11 +1,11 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, getKeybindings, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel, OwnedUiThinkingLevel } from "../../../../src/contracts/owned-ui/index.js";
 import { hyperlinkTargetAtColumn, LineInput, PromptInput, promptRule, renderInputRow } from "../../../../src/ui/components/index.js";
-import { applyPiTheme, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS } from "../../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, createPiKeybindingsHost, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS } from "../../../../src/integrations/pi/components/index.js";
 import { createPiShellThinkingSelector } from "../../../../src/integrations/pi/components/thinking-selector-dialog.js";
 import { KeybindingsManager, useWindowsKeybindings } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
@@ -474,5 +474,38 @@ describe("owned level and model keybindings", () => {
     const pinned = createPiShellHeader({ expanded: true }).render(100).map(stripTerminalSequences);
     expect(pinned.find(line => line.includes("to cycle thinking level"))).toContain("shift+tab");
     expect(pinned.find(line => line.includes("to select model"))).toContain("ctrl+l");
+  });
+});
+
+describe("process keybindings host", () => {
+  it("keeps the applied manager while footer, header, and info presenters build their chrome", async () => {
+    const agentDir = await mkdtemp(join(tmpdir(), "a1-keybindings-host-"));
+    try {
+      const host = createPiKeybindingsHost({ profile: "a1", agentDir });
+      expect(getKeybindings()).toBe(host.manager);
+      createPiShellFooter(view(), "/WORK", "a1");
+      createPiShellHeader({ expanded: true });
+      createPiShellHotkeys(undefined, undefined, "a1");
+      expect(getKeybindings()).toBe(host.manager);
+      const editor = createPiShellEditor({ getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {}, keybindingProfile: "a1", keybindings: host });
+      expect(getKeybindings()).toBe(host.manager);
+      expect(editor.keybindingConfig()["app.thinking.cycle"]).toBe("ctrl+l");
+    } finally {
+      await rm(agentDir, { recursive: true, force: true });
+    }
+  });
+
+  it("re-reads the user's file into the same shared manager on reload", async () => {
+    const agentDir = await mkdtemp(join(tmpdir(), "a1-keybindings-host-"));
+    try {
+      const host = createPiKeybindingsHost({ profile: "a1", agentDir });
+      const editor = createPiShellEditor({ getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {}, keybindingProfile: "a1", keybindings: host });
+      await writeFile(join(agentDir, "keybindings.json"), JSON.stringify({ "app.thinking.cycle": "ctrl+t" }));
+      editor.reloadKeybindings();
+      expect(getKeybindings()).toBe(host.manager);
+      expect(host.manager.getKeys("app.thinking.cycle")).toEqual(["ctrl+t"]);
+    } finally {
+      await rm(agentDir, { recursive: true, force: true });
+    }
   });
 });

@@ -1,5 +1,6 @@
 import { fork, type ChildProcess } from "node:child_process";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createOwnedUiClipboardServices } from "../../../src/app/session-shell/index.js";
 import { fixture } from "./session-shell-fixture.js";
 
 // Rationale: observe which helpers the shell forks at start without touching the system clipboard.
@@ -42,6 +43,25 @@ describe("OwnedUiSessionShell spare clipboard helpers", () => {
     expect(vi.mocked(fork).mock.calls.map(([entry]) => String(entry)).filter(entry => /paste-helper/.test(entry))).toHaveLength(2);
     await shell.dispose();
     for (const child of children()) await exited(child);
+  }, 20_000);
+
+  it("shares one paste spare and one copy spare across shells and stops them only with the services", async () => {
+    const shared = { clipboard: createOwnedUiClipboardServices() };
+    const open = () => fixture([], [], true, undefined, { readText: async () => "generated" }, undefined, undefined, undefined, undefined, undefined,
+      "forked", undefined, undefined, undefined, "forked", undefined, undefined, undefined, undefined, shared);
+    const first = await open();
+    const second = await open();
+    await nextImmediate();
+    const entries = vi.mocked(fork).mock.calls.map(([entry]) => String(entry));
+    expect(entries.filter(entry => /paste-helper\.(?:ts|js)$/.test(entry))).toHaveLength(1);
+    expect(entries.filter(entry => /response-copy-helper\.(?:ts|js)$/.test(entry))).toHaveLength(1);
+    const [paste, copy] = children();
+    await first.shell.dispose();
+    await second.shell.dispose();
+    expect(paste!.connected && copy!.connected).toBe(true);
+    shared.clipboard.dispose();
+    await exited(paste!);
+    await exited(copy!);
   }, 20_000);
 
   it("keeps the in-process preparation seam free of forked helpers", async () => {
