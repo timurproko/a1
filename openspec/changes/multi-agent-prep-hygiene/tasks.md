@@ -10,8 +10,8 @@ This change is planning-only until the maintainer approves it and requests imple
 
 ## 2. Dead ported theme code
 
-- [ ] 2.1 Delete `src/integrations/pi/components/upstream/theme/system-theme.ts` and any re-export of `generateSystemThemeColors`.
-- [ ] 2.2 Regenerate `config/baselines/pinned-pi-source-port-ledger.json` with `scripts/pi/update-pinned-pi-source-ledger.mjs` and verify `npm run check:architecture`.
+- [x] 2.1 Delete `src/integrations/pi/components/upstream/theme/system-theme.ts` and any re-export of `generateSystemThemeColors`.
+- [x] 2.2 Regenerate `config/baselines/pinned-pi-source-port-ledger.json` with `scripts/pi/update-pinned-pi-source-ledger.mjs` and verify `npm run check:architecture`.
 
 ## 3. Dormant engine-session contract
 
