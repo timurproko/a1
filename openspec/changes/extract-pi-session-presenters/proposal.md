@@ -8,7 +8,7 @@ Six adapter members hand raw Pi objects to the session shell, which never inspec
 - Declare `OwnedUiSessionPresenters` and `OwnedUiDialogHost` in `src/contracts/owned-ui`; the new owner exports `createPiSessionPresenters(adapter)` implementing the former.
 - Move `showModelSelector`, `showSessionSelector`, `showTreeSelector`, and the transcript renderer wiring out of `session-shell.ts` and `session-shell-root.ts` into the new owner; the shell receives presenters through its options from composition.
 - Merge the duplicated fifteen-second refresh and timeout logic of `showScopedModelsSelector` and `showModelsDialog` into one presenter helper.
-- Delete the transitional `pinned` sub-port introduced by `narrow-owned-ui-backend-port`.
+- Delete the transitional `pinned` sub-port introduced by `narrow-owned-ui-backend-port`. Its other three members also leave: the settings selector moves into the presenters with `pinnedSettingsModels` and `applyPinnedSettingValue`, and `bindExtensionUi` returns to the `extensions` sub-port typed with the existing `OwnedUiExtensionUiPort` contract.
 - Register the owner in `scripts/governance/project-structure-policy.mjs`, the owner-id list in `test/repository-governance/project-structure-policy.test.ts`, `config/validation-ownership.json`, and `docs/architecture/project-structure.md`.
 
 ## Capabilities
