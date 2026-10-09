@@ -1,5 +1,4 @@
 import { randomBytes } from "node:crypto";
-import path from "node:path";
 import type {
   PiShellClipboardContent,
   PiShellEditorTextRange,
@@ -16,7 +15,8 @@ import {
 import { ImagePreparationClient, type ImagePasteJob } from "./image-preparation-client.js";
 import type { PreparedImage } from "./image-preparation.js";
 import { preparePasteText, type PreparedPasteText } from "./paste-text-preparation.js";
-import { pathChipTag } from "./path-chip-presentation.js";
+import { normalizedPathIdentity, pathChipTagCandidates } from "./path-chip-presentation.js";
+import type { ClipboardPath } from "./paste-types.js";
 import { PastePreparationClient, type PastePreparationClientOptions, type PreparedPasteJob } from "./paste-preparation-client.js";
 import type { PasteEvent, PasteSource, PreparedPaste } from "./paste-protocol.js";
 
@@ -69,6 +69,7 @@ function referencesPasteMarker(text: string, entry: PendingPaste): boolean {
 /** Owns semantic chips and bounded pending paste references; cancels background work on reset or disposal. */
 export class PromptChipStore {
   readonly #chips = new Map<string, PromptChip>();
+  readonly #pathTags = new Map<string, string>();
   // Invariant: clearing the editor never recycles a recoverable text chip's identity.
   #textCounter = 0;
   readonly #pending = new Map<string, PendingPaste>();
@@ -238,6 +239,7 @@ export class PromptChipStore {
   async dispose(): Promise<void> {
     await Promise.all([this.#preparation.dispose(), this.#isolated?.dispose(), ...this.#stopping]);
     this.#chips.clear();
+    this.#pathTags.clear();
     this.#pending.clear();
     this.#countRejectedImages.clear();
     this.#provisionalOwners.clear();
@@ -306,7 +308,26 @@ export class PromptChipStore {
       this.#claimChip(tag, owner, true);
       return tag;
     }
-    return paste.paths.map(item => this.#recordUnique({ kind: item.kind, tag: pathChipTag(item), path: item.fullPath }, owner)).join("");
+    return paste.paths.map(item => this.#recordPath(item, owner)).join("");
+  }
+
+  #recordPath(item: ClipboardPath, owner?: symbol): string {
+    const key = pathChipKey(item);
+    const establishedTag = this.#pathTags.get(key);
+    if (establishedTag !== undefined && this.#chips.has(establishedTag)) {
+      this.#claimChip(establishedTag, owner, false);
+      return establishedTag;
+    }
+    for (const tag of pathChipTagCandidates(item)) {
+      const chip = { kind: item.kind, tag, path: item.fullPath } as const;
+      const existing = this.#chips.get(tag);
+      if (existing !== undefined && !sameChipValue(existing, chip)) continue;
+      this.#chips.set(tag, chip);
+      this.#pathTags.set(key, tag);
+      this.#claimChip(tag, owner, existing === undefined);
+      return tag;
+    }
+    throw new Error("Path chip labels could not distinguish normalized paths");
   }
 
   /** Hide provisional clipboard identities until the read identifies an actual image. */
@@ -515,7 +536,12 @@ export class PromptChipStore {
       if (commit) this.#provisionalOwners.delete(tag);
       else {
         owners.delete(owner);
-        if (owners.size === 0) { this.#provisionalOwners.delete(tag); this.#chips.delete(tag); }
+        if (owners.size === 0) {
+          this.#provisionalOwners.delete(tag);
+          const chip = this.#chips.get(tag);
+          this.#chips.delete(tag);
+          if (chip?.kind === "file" || chip?.kind === "folder") this.#pathTags.delete(pathChipKey(chip));
+        }
       }
     }
     this.#ownedChipTags.delete(owner);
@@ -537,11 +563,15 @@ export class PromptChipStore {
   }
 }
 
+function pathChipKey(item: ClipboardPath | Extract<PromptChip, { readonly kind: "file" | "folder" }>): string {
+  return `${item.kind}\0${normalizedPathIdentity("fullPath" in item ? item.fullPath : item.path)}`;
+}
+
 function sameChipValue(left: PromptChip, right: PromptChip): boolean {
   if (left.kind !== right.kind) return false;
   if (left.kind === "url" && right.kind === "url") return left.url === right.url;
   if ((left.kind === "file" || left.kind === "folder") && (right.kind === "file" || right.kind === "folder")) {
-    return path.normalize(left.path) === path.normalize(right.path);
+    return normalizedPathIdentity(left.path) === normalizedPathIdentity(right.path);
   }
   if (left.kind === "image" && right.kind === "image") return left.image.data === right.image.data;
   return false;
