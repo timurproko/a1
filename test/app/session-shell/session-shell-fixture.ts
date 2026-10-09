@@ -34,6 +34,7 @@ import {
   type OwnedUiShellHistoryOptions,
   type OwnedUiShellPresentationOptions,
   type OwnedUiShellPromptImagesOptions,
+  type OwnedUiShellSharedServices,
   type OwnedUiShellSkillsOptions,
   type OwnedUiShellSuggestionOptions,
 } from "../../../src/app/session-shell/index.js";
@@ -296,6 +297,7 @@ export async function fixture(
   promptImages?: OwnedUiShellPromptImagesOptions,
   lazySelectors?: PiShellLazySelectorLoader,
   backgroundSettings?: OwnedUiBackgroundSettingsPort,
+  shared?: OwnedUiShellSharedServices,
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -338,6 +340,7 @@ export async function fixture(
     ...(promptHistory === undefined ? {} : { history: { ...promptHistory, editor: await loadHistoryEditor() } }),
     ...(promptImages === undefined ? {} : { promptImages }),
     ...(skills === undefined ? {} : { skills }),
+    ...(shared === undefined ? {} : { shared }),
   });
   shell.start();
   shell.runtime.renderNow();

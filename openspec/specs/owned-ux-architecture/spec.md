@@ -169,3 +169,14 @@ Every A1 palette choice, including the initial `purple` choice, SHALL provide on
 - **WHEN** bare A1 opens a retained package dialog whose border factory reads Pi's shared theme slot
 - **THEN** the slot SHALL expose only A1's projected `border` over the package base theme
 - **AND** comparison mode SHALL restore the complete unmodified package base theme
+
+### Requirement: Process-wide services are created once and injected
+A service whose cost or state is process-wide, such as a forked helper pool, a native clipboard bridge, an image conversion worker set, or the terminal keybinding registry, SHALL be constructed once by composition and injected into every screen or presenter that uses it. A screen given those services SHALL NOT fork its own helper spare or reset a process-global registry.
+
+#### Scenario: A second session presenter is constructed
+- **WHEN** composition constructs a second session presenter in the same process
+- **THEN** no additional helper process SHALL be forked and the active keybinding manager SHALL be unchanged
+
+#### Scenario: A presenter builds its chrome
+- **WHEN** a footer, status, header, or info presenter is constructed
+- **THEN** the pi-tui keybinding registry SHALL keep the manager composition applied

@@ -1,12 +1,10 @@
 import {
   CombinedAutocompleteProvider,
   matchesKey,
-  setKeybindings,
   visibleWidth,
   type AutocompleteProvider,
 } from "@earendil-works/pi-tui";
 import { PROMPT_HISTORY_EDITOR_REPLACEMENT, type OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js";
-import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { OwnedEditor, type ShellEditorInstance } from "./upstream/components/owned-editor.js";
 import {
   OwnedEditorUxInterception,
@@ -20,6 +18,7 @@ import {
   renderPiListSelection,
 } from "./theme.js";
 import {
+  createPiKeybindingsHost,
   createTuiFacade,
   ensureTheme,
   isAutocompleteProvider,
@@ -94,10 +93,13 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   ensureTheme();
   const tui = createTuiFacade(options);
   const inputPresentation = options.keybindingProfile === "a1" ? options.promptPresentation?.input : undefined;
-  const keybindings = options.keybindingProfile === "a1"
-    ? KeybindingsManager.createForOwnedInput(options.agentDir)
-    : KeybindingsManager.create(options.agentDir);
-  setKeybindings(keybindings);
+  // Invariant: the process shares one manager; a standalone editor gets its own host for its profile.
+  const host = options.keybindings ?? createPiKeybindingsHost({
+    profile: options.keybindingProfile ?? "pi",
+    ...(options.agentDir === undefined ? {} : { agentDir: options.agentDir }),
+  });
+  host.ensureActive();
+  const keybindings = host.manager;
   if (options.persistentHistory === true && options.keybindingProfile === "a1" && options.historyEditor === undefined) {
     throw new Error("Persistent history requires the loaded owned editor");
   }
@@ -273,9 +275,9 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       // Completion state, sizing, styles, and pagination still belong to the editor.
       return [...menu, ...bodyRows];
     },
-    activateKeybindings: () => setKeybindings(keybindings),
+    activateKeybindings: () => host.ensureActive(),
     keybindingConfig: () => keybindings.getEffectiveConfig(),
-    reloadKeybindings: () => { keybindings.reload(); setKeybindings(keybindings); },
+    reloadKeybindings: () => host.reload(),
     matchesTerminalKey: (data, key) => matchesKey(data, key),
     handleInput: data => {
       // Compatibility: an unassigned reverse Tab must not clear selection or reach autocomplete fallback.

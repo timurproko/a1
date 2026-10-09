@@ -1,4 +1,5 @@
 import {
+  getKeybindings,
   hyperlink,
   matchesKey,
   setKeybindings,
@@ -65,7 +66,7 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   bodyGeometry?(): PiShellEditorBodyGeometry;
   readonly recall?: EditorRecallPort;
   readonly historyReplacement?: typeof import("../../../contracts/owned-ui/index.js").PROMPT_HISTORY_EDITOR_REPLACEMENT;
-  /** Restores this editor's profile after another Pi component changed the global manager. */
+  /** Restores the shared manager if anything replaced pi-tui's registry; a no-op when it is already active. */
   activateKeybindings(): void;
   keybindingConfig(): KeybindingsConfig;
   reloadKeybindings(): void;
@@ -200,6 +201,8 @@ export interface PiShellEditorOptions {
   readonly historyEditor?: HistoryEditorConstructor;
   /** Bare A1 adds ergonomic aliases while comparison profiles retain Pi defaults. */
   readonly keybindingProfile?: "pi" | "a1";
+  /** The process's shared keybindings; its profile must match `keybindingProfile`. */
+  readonly keybindings?: PiKeybindingsHost;
   readonly getColumns: () => number;
   readonly getRows: () => number;
   readonly requestRender: () => void;
@@ -358,7 +361,32 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+let fallbackKeybindings: KeybindingsManager | undefined;
+
+/**
+ * Applies theme state. The keybinding registry belongs to the process's `PiKeybindingsHost`; only when no
+ * A1 manager was ever applied (a presenter built outside composition) does this install Pi's defaults once.
+ */
 export function ensureTheme(): void {
   ensurePiTheme();
-  setKeybindings(KeybindingsManager.create());
+  if (!(getKeybindings() instanceof KeybindingsManager)) setKeybindings(fallbackKeybindings ??= KeybindingsManager.create());
+}
+
+/** The process's one keybinding manager and the only writer of pi-tui's global keybinding registry. */
+export interface PiKeybindingsHost {
+  readonly manager: KeybindingsManager;
+  /** Installs the manager in the registry unless it is already the active one. */
+  ensureActive(): void;
+  /** Re-reads the user's keybindings file into the shared manager and keeps it active. */
+  reload(): void;
+}
+
+/** Composition creates one host per process; bare A1 uses the owned-input aliases, comparison profiles keep Pi's. */
+export function createPiKeybindingsHost(options: { readonly profile: "pi" | "a1"; readonly agentDir?: string }): PiKeybindingsHost {
+  const manager = options.profile === "a1"
+    ? KeybindingsManager.createForOwnedInput(options.agentDir)
+    : KeybindingsManager.create(options.agentDir);
+  const ensureActive = () => { if (getKeybindings() !== manager) setKeybindings(manager); };
+  ensureActive();
+  return { manager, ensureActive, reload: () => { manager.reload(); setKeybindings(manager); } };
 }

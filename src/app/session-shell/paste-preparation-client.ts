@@ -21,6 +21,8 @@ export interface PastePreparationClientOptions {
   readonly helper?: URL;
   /** Idle bound for the spare helper; production keeps the default. */
   readonly spareIdleMs?: number;
+  /** Process-wide spare pool shared across sessions; the client warms it but never disposes it. */
+  readonly pool?: HelperPool;
 }
 
 /** Keeps eight distinct paste transactions alive through insertion; canceled executors retain capacity until fenced. */
@@ -30,13 +32,15 @@ export class PastePreparationClient {
   readonly #execute: PasteExecutorStarter;
   readonly #helper: URL | undefined;
   readonly #pool: HelperPool | undefined;
+  readonly #ownsPool: boolean;
   #sequence = 0;
   #disposed = false;
   constructor(options: PastePreparationClientOptions = {}) {
     this.#onEvent = options.onEvent;
     this.#execute = options.execute ?? startPasteExecutor;
     this.#helper = options.helper;
-    this.#pool = options.execute === undefined ? createPasteHelperPool(options.helper, options.spareIdleMs) : undefined;
+    this.#pool = options.execute === undefined ? options.pool ?? createPasteHelperPool(options.helper, options.spareIdleMs) : undefined;
+    this.#ownsPool = options.pool === undefined;
   }
 
   /** Forks the spare helper now so the first paste takes a live child; later pastes rewarm it themselves. */
@@ -147,7 +151,7 @@ export class PastePreparationClient {
 
   async dispose(): Promise<void> {
     this.#disposed = true; this.reset();
-    this.#pool?.dispose();
+    if (this.#ownsPool) this.#pool?.dispose();
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([Promise.all([...this.#active].map(active => active.stopped)),
       new Promise<void>(resolve => { timer = setTimeout(resolve, PASTE_STOP_MS); timer.unref(); })]);

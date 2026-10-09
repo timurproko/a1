@@ -15,6 +15,8 @@ import { createPiSessionPresenters, type PiSessionPresenterBackend } from "../in
 import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/project-trust-preflight.js";
 import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-selection.js";
 import { ClipboardDiagnosticCapture } from "../app/session-shell/clipboard-diagnostics.js";
+import { createOwnedUiClipboardServices } from "../app/session-shell/clipboard-services.js";
+import { createPiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
 import { OwnedUiSessionShell } from "../app/session-shell/session-shell.js";
 import { OwnedSettingsManager } from "../ui/settings/manager.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentation-adapter.js";
@@ -239,6 +241,10 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const clipboardDestination = options.clipboardDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.clipboardDiagnostics];
   const clipboardDiagnostics = settings !== null && ownedSurfaces && clipboardDestination?.trim()
     ? new ClipboardDiagnosticCapture(clipboardDestination) : null;
+  // Invariant: process-wide services are created once here and borrowed by every session shell. The
+  // keybinding registry is applied before any presenter is built, so none of them reads Pi's defaults.
+  const keybindings = createPiKeybindingsHost({ profile: ownedSurfaces ? "a1" : "pi", agentDir: backend.identity.agentDir });
+  const clipboardServices = ownedSurfaces ? createOwnedUiClipboardServices() : null;
   let shell: OwnedUiSessionShell;
   let releaseNoteAcknowledgement: Promise<void> | null = null;
   try {
@@ -276,6 +282,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       ...(promptSuggestions === null ? {} : { suggestions: promptSuggestions }),
       ...(promptImages === null ? {} : { promptImages }),
       ...(skills === null ? {} : { skills }),
+      shared: { keybindings, ...(clipboardServices === null ? {} : { clipboard: clipboardServices }) },
       ...(promptHistory === null ? {} : { history: {
         ...promptHistory,
         editor: await import("../integrations/pi/components/history-editor-loader.js").then(module => module.loadHistoryEditor()),
@@ -284,7 +291,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   } catch (error) {
     unsubscribeAccent();
     await releaseNoteClaim?.release();
-    clipboardDiagnostics?.dispose(); suggestionDiagnostics?.dispose();
+    clipboardDiagnostics?.dispose(); suggestionDiagnostics?.dispose(); clipboardServices?.dispose();
     throw error;
   }
   // Rationale: pinned Pi's version check is unreachable because the owned shell never runs its
@@ -323,6 +330,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         (await exitNotice)?.clear();
         await releaseNoteAcknowledgement?.catch(() => undefined);
       } finally {
+        // Invariant: the shared spares outlive every shell and stop only after the last one is disposed.
+        clipboardServices?.dispose();
         unsubscribeAccent();
         sessionRuntimeDisposed = true;
         if (sessionRuntimeRefreshTimer !== null) clearInterval(sessionRuntimeRefreshTimer);

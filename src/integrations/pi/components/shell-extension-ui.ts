@@ -4,7 +4,6 @@ import { ExtensionInputComponent } from "./upstream/components/extension-input.j
 import { ExtensionSelectorComponent } from "./upstream/components/extension-selector.js";
 import type { ProgramStatusBlocked } from "./upstream/program-status-reporter.js";
 import {
-  setKeybindings,
   Text,
   type Component,
   type OverlayHandle,
@@ -75,8 +74,8 @@ export interface PiExtensionUiBridge {
 export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExtensionUiBridge {
   ensureTheme();
   const tui = createTuiFacade(host.runtime);
+  // Invariant: extension components receive Pi's manager explicitly; the registry stays the process host's.
   const keybindings = KeybindingsManager.create(host.agentDir);
-  setKeybindings(keybindings);
   const disposers = new Set<() => void>();
   let customEditorFactory: PiEditorFactory | undefined;
   let activeSurface: PiShellComponentPort | undefined;
