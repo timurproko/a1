@@ -300,9 +300,9 @@ describe("unified Models dialog", () => {
         expect(dialog.dirty).toBe(true);
         expect(text(dialog)).toContain("Models (unsaved) (refreshing)");
         await vi.advanceTimersByTimeAsync(1_000);
-        const refreshedLines = dialog.render(200);
-        expect(stripTerminalSequences(refreshedLines[1]!)).toBe(" Models (unsaved) (refreshed)");
-        expect(refreshedLines[1]).toContain(piTheme().fg("success", " (refreshed)"));
+        const completedLines = dialog.render(200);
+        expect(stripTerminalSequences(completedLines[1]!)).toBe(" Models (unsaved)");
+        expect(text(dialog)).not.toContain("(refreshed)");
         expect(text(dialog)).not.toContain("Model catalogs refreshed.");
         dialog.updateModels([models[0]!]);
         dialog.setRefreshStatus("Model refresh timed out; showing cached models.", "warning");
@@ -319,7 +319,7 @@ describe("unified Models dialog", () => {
     }
   });
 
-  it("holds refreshing for one second and refreshed for two seconds without late rendering", async () => {
+  it("holds refreshing for one second then clears success without late rendering", async () => {
     vi.useFakeTimers();
     try {
       await withDialog(async (dialog, callbacks) => {
@@ -330,20 +330,22 @@ describe("unified Models dialog", () => {
         expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models (refreshing)");
         expect(callbacks.requestRender).not.toHaveBeenCalled();
         await vi.advanceTimersByTimeAsync(1);
-        expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models (refreshed)");
+        expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models");
+        expect(text(dialog)).not.toContain("(refreshed)");
+        expect(text(dialog)).not.toContain("Model catalogs refreshed.");
         expect(callbacks.requestRender).toHaveBeenCalledOnce();
 
         callbacks.requestRender.mockClear();
         dialog.handleInput(SPACE);
-        await vi.advanceTimersByTimeAsync(1_999);
-        expect(text(dialog)).toContain("Models (unsaved) (refreshed)");
-        expect(callbacks.requestRender).not.toHaveBeenCalled();
+        dialog.setRefreshStatus("Refreshing model catalogs…", "muted");
+        await vi.advanceTimersByTimeAsync(500);
         dialog.setRefreshStatus("Model catalogs refreshed.", "success");
-        await vi.advanceTimersByTimeAsync(1);
-        expect(text(dialog)).toContain("Models (unsaved) (refreshed)");
+        await vi.advanceTimersByTimeAsync(499);
+        expect(text(dialog)).toContain("Models (unsaved) (refreshing)");
         expect(callbacks.requestRender).not.toHaveBeenCalled();
-        await vi.advanceTimersByTimeAsync(1_999);
+        await vi.advanceTimersByTimeAsync(1);
         expect(text(dialog)).toContain("Models (unsaved)");
+        expect(text(dialog)).not.toContain("(refreshing)");
         expect(text(dialog)).not.toContain("(refreshed)");
         expect(callbacks.requestRender).toHaveBeenCalledOnce();
 
