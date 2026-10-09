@@ -51,6 +51,7 @@ const adjacentCodingAgentMaps = [
   "core/extensions/runner.js.map",
   "core/extensions/types.js.map",
   "core/footer-data-provider.js.map",
+  "core/http-dispatcher.js.map",
   "core/keybindings.js.map",
   "core/model-runtime.js.map",
   "core/prompt-templates.js.map",
@@ -192,7 +193,7 @@ const ledger = {
     included: [
       "Every TypeScript source represented by a JavaScript source map under @earendil-works/pi-coding-agent/dist/modes/interactive.",
       "Every TypeScript source represented by a JavaScript source map in the pinned @earendil-works/pi-tui package.",
-      "Named adjacent coding-agent authorities for startup, public SDK sessions, resources, commands, keybindings, extensions, settings, models, sessions, skills, prompts, bash, footer data, and clipboard.",
+      "Named adjacent coding-agent authorities for startup, public SDK sessions, resources, commands, keybindings, extensions, settings, models, sessions, skills, prompts, bash, footer data, clipboard, and the HTTP dispatcher.",
       "Pinned interactive image, built-in theme, and theme-schema assets.",
     ],
     excluded: [
@@ -426,6 +427,7 @@ function classify(packageName, upstreamPath) {
 
 function behaviorCategories(path) {
   if (path.endsWith("interactive-mode.ts")) return [...baseline.requiredCategories];
+  if (path.endsWith("/core/http-dispatcher.ts")) return ["settings"];
   if (/theme|diff|visual-truncate|markdown|mermaid|image|text|box|stack|spacer|layout/.test(path)) return ["startup-composition", "stateful-components", "resize"];
   if (/editor|autocomplete|keybinding|keys|kill-ring|undo-stack|word-navigation/.test(path)) return ["editor", "autocomplete", "keybindings", "clipboard"];
   if (/selector|config-selector|model-search|input\.ts/.test(path)) return ["selectors", "settings", "sessions", "models", "thinking"];

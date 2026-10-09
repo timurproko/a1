@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-09T12:21:27.689Z",
+  "recordedAt": "2026-10-09T18:36:02.081Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -24,7 +24,7 @@
     "included": [
       "Every TypeScript source represented by a JavaScript source map under @earendil-works/pi-coding-agent/dist/modes/interactive.",
       "Every TypeScript source represented by a JavaScript source map in the pinned @earendil-works/pi-tui package.",
-      "Named adjacent coding-agent authorities for startup, public SDK sessions, resources, commands, keybindings, extensions, settings, models, sessions, skills, prompts, bash, footer data, and clipboard.",
+      "Named adjacent coding-agent authorities for startup, public SDK sessions, resources, commands, keybindings, extensions, settings, models, sessions, skills, prompts, bash, footer data, clipboard, and the HTTP dispatcher.",
       "Pinned interactive image, built-in theme, and theme-schema assets."
     ],
     "excluded": [
@@ -34,13 +34,13 @@
     "behaviorAuthority": "config/baselines/pinned-pi-interactive-baseline.json"
   },
   "summary": {
-    "modules": 129,
-    "sourceModules": 125,
+    "modules": 130,
+    "sourceModules": 126,
     "assets": 4,
     "classifications": {
       "public-api-reuse": 65,
       "owned-presentation": 32,
-      "host-adaptation": 32
+      "host-adaptation": 33
     },
     "requiredBehaviorIds": 29,
     "coveredBehaviorIds": 29,
@@ -431,6 +431,35 @@
       ],
       "tests": [
         "test/app/session-shell/session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/http-dispatcher",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/http-dispatcher.ts",
+      "sourceMap": "core/http-dispatcher.js.map",
+      "lines": 114,
+      "sha256": "d64922c476d11b90555b8f23cab92ce1f4f83174cb750c125a96d8d4374744e2",
+      "classification": "host-adaptation",
+      "localDestination": "src/integrations/pi/engine/http-dispatcher.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Adapted as the owned undici dispatcher seam with no private Pi import; the process-level engine host installs it once per process and re-installs it when any session writes the HTTP idle timeout.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "settings"
+      ],
+      "behaviorIds": [
+        "settings.complete-surface"
+      ],
+      "acceptanceTasks": [
+        "7.3"
+      ],
+      "tests": [
+        "test/integrations/pi/engine/http-dispatcher.test.ts",
+        "test/integrations/pi/engine/host.test.ts"
       ]
     },
     {
