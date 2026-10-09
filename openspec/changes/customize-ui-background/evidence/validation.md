@@ -22,8 +22,8 @@ A direct all-suite `npx vitest run` completed 403 files and 4,728 tests successf
 
 ## Physical acceptance
 
-Not yet performed. This coding harness has no interactive truecolor terminal in which to visually inspect every accent, resize/scroll behavior, parent-terminal restoration, and the `a1 pi` comparison. Task 4.2 remains open for maintainer acceptance.
+The maintainer ran the rebuilt candidate from the implementation worktree in an interactive terminal and reported "tested working good" on 2026-10-09 after reviewing the implemented background behavior.
 
 ## Known gaps
 
-No known automated implementation gap remains. Interactive truecolor acceptance is pending.
+No known implementation or validation gaps remain. Full regression and native-host gates remain CI-owned under repository policy.

@@ -18,4 +18,4 @@
 ## 4. Validate the completed behavior
 
 - [x] 4.1 Run focused settings, theme, terminal-runtime, shell-frame, lifecycle, comparison-parity, architecture, typecheck, build, and strict OpenSpec validation; record implementation-specific results and any reviewed gap in `evidence/validation.md` without weakening assertions.
-- [ ] 4.2 Perform build-first interactive truecolor review of transparent, every accent-derived background, fixed dark, live switching, resize/scroll, quit restoration, and `a1 pi` isolation; record the observed terminal and result in `evidence/validation.md`.
+- [x] 4.2 Perform build-first interactive truecolor review of transparent, every accent-derived background, fixed dark, live switching, resize/scroll, quit restoration, and `a1 pi` isolation; record the observed terminal and result in `evidence/validation.md`.
