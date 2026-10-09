@@ -3,7 +3,8 @@
  * packages/coding-agent/src/modes/interactive/theme/theme.ts.
  * Modifications: Source-synchronized theme port: retain pinned theme schema, variable/color
  * resolution, built-in and custom loading, terminal detection, and layout defaults while constructing
- * the public package-root Theme class and projecting A1's optional semantic accent.
+ * the public package-root Theme class, projecting A1's optional semantic accent, and deriving its
+ * owned fullscreen canvas.
  * Deviations: theme-public-api-boundary, theme-owned-watcher-boundary, semantic-accent-projection.
  */
 import { existsSync, readFileSync, readdirSync, watch, type FSWatcher } from "node:fs";
@@ -24,7 +25,7 @@ import {
   type Color,
   type RgbColor,
 } from "@earendil-works/pi-tui";
-import type { UiAccentColor } from "../../../../../contracts/owned-ui/index.js";
+import type { OwnedUiBackgroundStyle, UiAccentColor } from "../../../../../contracts/owned-ui/index.js";
 import { BUILTIN_THEME_RESOURCES, isBuiltinThemeName } from "../../resources/builtin-themes.js";
 
 export const PINNED_PI_LAYOUT = Object.freeze({
@@ -182,6 +183,23 @@ export function renderPiAccentPreview(color: string, text: string): string | nul
   if (!isAccentColor(color)) return null;
   const accent = ACCENT_PALETTE[color][base.appearance];
   return `${foregroundAnsi(accent, base.getColorMode())}${text}\u001b[39m`;
+}
+
+/** Derives A1's fullscreen canvas without adding a token to Pi's theme grammar. */
+export function derivePiCanvasBackground(style: OwnedUiBackgroundStyle, accent: Color): Color | null {
+  if (style === "transparent") return null;
+  if (style === "dark") return okhslColor(229, 0.03, 0.12);
+  const { h } = colorToOkhsl(accent);
+  return okhslColor(h, 0.12, 0.12);
+}
+
+/** Resolves the selected canvas through the active accent and terminal color mode. */
+export function piCanvasBackgroundAnsi(style: OwnedUiBackgroundStyle): string | null {
+  ensurePiTheme();
+  const base = activeBaseTheme!;
+  const accent = ACCENT_PALETTE[activeAccentColor][base.appearance];
+  const background = derivePiCanvasBackground(style, accent);
+  return background === null ? null : backgroundAnsi(background, base.getColorMode());
 }
 
 /** Keeps the complete comparison theme unmodified while bare A1 projects its semantic accent family. */

@@ -53,6 +53,8 @@ export type {
 } from "./extension-ui.js";
 export { OWNED_UI_CONTRACT_VERSION } from "./model.js";
 export type {
+  OwnedUiBackgroundSettingsPort,
+  OwnedUiBackgroundStyle,
   OwnedUiBlockStatus,
   OwnedUiCommand,
   OwnedUiCommandOutcome,

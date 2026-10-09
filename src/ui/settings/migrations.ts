@@ -104,6 +104,13 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
         : { ...values };
     },
   }),
+  Object.freeze({
+    to: 13,
+    description: "Introduce the transparent fullscreen background default.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      return { ...values };
+    },
+  }),
 ]);
 
 export function assertOwnedUiSettingsMigrations(

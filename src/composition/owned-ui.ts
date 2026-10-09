@@ -19,7 +19,12 @@ import { OwnedUiSessionShell } from "../app/session-shell/session-shell.js";
 import { OwnedSettingsManager } from "../ui/settings/manager.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentation-adapter.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
-import type { OwnedUiQuitOutroSettings, OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../contracts/owned-ui/index.js";
+import type {
+  OwnedUiBackgroundSettingsPort,
+  OwnedUiQuitOutroSettings,
+  OwnedUiViewportSettings,
+  OwnedUiViewportSettingsPort,
+} from "../contracts/owned-ui/index.js";
 import { createOwnedRouteHost, type OwnedReferenceProviders } from "./settings-route-host.js";
 import { renderPiShellChangelogLines } from "../integrations/pi/components/shell-presenters-info.js";
 import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
@@ -184,6 +189,11 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     snapshot: () => viewportSettingsSnapshot(settings),
     onChange: listener => settings.onChange(() => listener(viewportSettingsSnapshot(settings))),
   };
+  const backgroundSettings: OwnedUiBackgroundSettingsPort | null = settings === null || !ownedSurfaces ? null : {
+    snapshot: () => settings.value("backgroundStyle"),
+    // Rationale: one manager notification also recomputes an accent-derived canvas after accentColor changes.
+    onChange: listener => settings.onChange(current => listener(current.value("backgroundStyle"))),
+  };
   const diagnosticDestination = options.suggestionDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.suggestionDiagnostics];
   const suggestionDiagnostics = settings !== null && ownedSurfaces && diagnosticDestination?.trim()
     ? new SuggestionDiagnosticCapture({ enabled: true, destination: diagnosticDestination }) : null;
@@ -242,6 +252,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
         ...(clipboardDiagnostics === null ? {} : { input: { onEvent: event => clipboardDiagnostics.runtime(event) } }),
         ...(viewportSettings === null ? {} : { viewportSettings }),
+        ...(backgroundSettings === null ? {} : { backgroundSettings }),
         ...(settings === null || !ownedSurfaces ? {} : {
           quitOutro: { snapshot: () => quitOutroSettingsSnapshot(settings), interactive: process.stdout.isTTY === true },
         }),

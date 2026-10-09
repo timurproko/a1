@@ -73,6 +73,7 @@ import type {
   PiShellClipboardContent,
   PiShellSelectorOption,
 } from "../../integrations/pi/components/shell-shared-facade.js";
+import { piCanvasBackgroundAnsi } from "../../integrations/pi/components/theme.js";
 import { DamageAwareTerminalAdapter, type PiTuiDamageDecision } from "../../integrations/pi/tui-runtime/damage-aware-terminal.js";
 import { PiTuiRuntimeAdapter } from "../../integrations/pi/tui-runtime/adapter.js";
 import { classifyPiTuiInput } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
@@ -162,6 +163,7 @@ export class OwnedUiSessionShell {
   readonly #streamPresentation: StreamPresentationCoalescer;
   readonly #removeViewportPreInput: () => void;
   readonly #unsubscribeSettings: () => void;
+  readonly #unsubscribeBackgroundSettings: () => void;
   readonly #unbindPiSettings: () => void;
   readonly #unbindTerminalSettings: () => void;
   readonly #unbindShutdownSettings: () => void;
@@ -180,7 +182,10 @@ export class OwnedUiSessionShell {
 
   constructor(options: OwnedUiSessionShellOptions) {
     const { backend, cwd, routeHost, sessionLayout } = options.engine;
-    const { terminal, startup, viewportSettings, quitOutro, reload: reloadPresentation, stream: streamPresentationOptions, input: inputPresentation } = options.presentation ?? {};
+    const {
+      terminal, startup, viewportSettings, backgroundSettings, quitOutro,
+      reload: reloadPresentation, stream: streamPresentationOptions, input: inputPresentation,
+    } = options.presentation ?? {};
     const { clipboard, responseCopy, paste: pasteDiagnostics, pastePreparation } = options.diagnostics ?? {};
     const promptHistory = options.history;
     this.backend = backend;
@@ -379,6 +384,9 @@ export class OwnedUiSessionShell {
       () => this.view().status.footer?.sessionName ?? undefined,
     );
     this.#damageTerminal = damageTerminal ?? null;
+    if (this.#customViewport && backgroundSettings !== undefined && damageTerminal !== undefined) {
+      damageTerminal.setCanvasBackground(piCanvasBackgroundAnsi(backgroundSettings.snapshot()));
+    }
     this.#quitOutro = quitOutro;
     this.#reloadPresentation = reloadPresentation;
     const presentationInterval = streamPresentationOptions?.intervalMs ?? STREAM_PRESENTATION_INTERVAL_MS;
@@ -502,6 +510,13 @@ export class OwnedUiSessionShell {
     applyViewportSettings();
     this.#unsubscribeSettings = this.#customViewport && viewportSettings
       ? viewportSettings.onChange(settings => this.root.setViewportConfig(settings))
+      : () => {};
+    this.#unsubscribeBackgroundSettings = this.#customViewport && backgroundSettings
+      ? backgroundSettings.onChange(style => {
+          if (this.#damageTerminal?.setCanvasBackground(piCanvasBackgroundAnsi(style))) {
+            this.runtime.requestRender(true);
+          }
+        })
       : () => {};
     this.root.setEditorPaddingX(initialPiSettings.editorPaddingX);
     this.root.setAutocompleteMaxVisible(initialPiSettings.autocompleteMaxVisible);
@@ -1750,6 +1765,7 @@ export class OwnedUiSessionShell {
     attempt(() => this.#unsubscribePromptImages());
     attempt(() => this.#unsubscribeSkills());
     attempt(() => this.#unsubscribeSettings());
+    attempt(() => this.#unsubscribeBackgroundSettings());
     let fullscreenExitText = "";
     attempt(() => {
       const exitMode = this.backend.disposed ? this.#fullscreenExitOutput : this.backend.pinnedSettingsSnapshot().fullscreenExitOutput;
@@ -1795,7 +1811,11 @@ export class OwnedUiSessionShell {
       const viewport = this.runtime.viewport();
       return {
         rows: this.#damageTerminal.presentedRows(), columns: viewport.columns, height: viewport.rows,
-        settings: { effect: QUIT_OUTRO_EFFECT, durationMs: QUIT_OUTRO_DURATION_MS },
+        settings: {
+          effect: QUIT_OUTRO_EFFECT,
+          durationMs: QUIT_OUTRO_DURATION_MS,
+          canvasBackgroundAnsi: this.#damageTerminal.canvasBackgroundAnsi,
+        },
       };
     } catch {
       return null;
@@ -1818,6 +1838,9 @@ export class OwnedUiSessionShell {
       if (frame === null || !this.runtime.active) return;
       await playQuitOutro(frame, capture.settings.effect, capture.settings.durationMs, {
         write: data => this.runtime.writeControl(data),
+        ...(capture.settings.canvasBackgroundAnsi === null
+          ? {}
+          : { canvasBackgroundAnsi: capture.settings.canvasBackgroundAnsi }),
         ...(outro.now === undefined ? {} : { now: outro.now }),
         ...(outro.sleep === undefined ? {} : { sleep: outro.sleep }),
         ...(outro.seed === undefined ? {} : { seed: outro.seed }),
@@ -2402,7 +2425,11 @@ interface QuitOutroCapture {
   readonly rows: readonly string[];
   readonly columns: number;
   readonly height: number;
-  readonly settings: { readonly effect: QuitOutroEffect; readonly durationMs: number };
+  readonly settings: {
+    readonly effect: QuitOutroEffect;
+    readonly durationMs: number;
+    readonly canvasBackgroundAnsi: string | null;
+  };
 }
 
 

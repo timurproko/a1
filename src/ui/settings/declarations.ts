@@ -1,6 +1,6 @@
-import type { UiAccentColor } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiBackgroundStyle, UiAccentColor } from "../../contracts/owned-ui/index.js";
 
-export const OWNED_UI_SETTINGS_VERSION = 12;
+export const OWNED_UI_SETTINGS_VERSION = 13;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
   "purple", "blue", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);
@@ -52,6 +52,17 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     application: "live",
     defaultValue: "purple",
     allowedValues: UI_ACCENT_COLOR_CHOICES,
+  }),
+  backgroundStyle: Object.freeze({
+    id: "backgroundStyle",
+    label: "Background",
+    section: APPEARANCE_SECTION,
+    description: "Fullscreen canvas background: terminal transparency, a dark accent tint, or fixed neutral dark.",
+    application: "live",
+    defaultValue: "transparent",
+    allowedValues: Object.freeze([
+      "transparent", "accent", "dark",
+    ] as const satisfies readonly OwnedUiBackgroundStyle[]),
   }),
   quitAnimation: Object.freeze({
     id: "quitAnimation",

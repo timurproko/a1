@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-09T08:46:13.872Z",
+  "recordedAt": "2026-10-09T11:12:05.689Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -3472,9 +3472,9 @@
       "localDestination": "src/integrations/pi/components/upstream/theme/theme.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class and projecting A1's optional semantic accent.",
+      "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class, projecting A1's optional semantic accent, and deriving its owned fullscreen canvas.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "ce9b6dfdd5cd543070ce871212000012822f0c3813f8495ebcefc28d00acb9d0",
+      "localSha256": "da3b2c5705f3e14f956c2697294f0722e29f92276f87f729bc50b6f24efcadcd",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",

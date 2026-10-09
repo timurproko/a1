@@ -23,12 +23,70 @@ vi.mock("node:worker_threads", async importOriginal => {
     }
   } };
 });
+import type { OwnedUiBackgroundSettingsPort, OwnedUiBackgroundStyle } from "../../../src/contracts/owned-ui/index.js";
+import {
+  applyPiTheme,
+  piCanvasBackgroundAnsi,
+  piTheme,
+  setPiAccentColor,
+} from "../../../src/integrations/pi/components/index.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
 import { formatSessionResumeCommand, OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
 import { Runtime, fixture, InputImmediateScheduler, nextImmediate } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
+  it("applies and replaces the live bare-A1 canvas without changing transparent frames", async () => {
+    applyPiTheme("dark", false, "truecolor");
+    setPiAccentColor("cyan");
+    let style: OwnedUiBackgroundStyle = "dark";
+    let notify: ((style: OwnedUiBackgroundStyle) => void) | undefined;
+    const backgroundSettings: OwnedUiBackgroundSettingsPort = {
+      snapshot: () => style,
+      onChange: listener => { notify = listener; return () => { notify = undefined; }; },
+    };
+    const value = await fixture(
+      [], [], true,
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      backgroundSettings,
+    );
+    const dark = piCanvasBackgroundAnsi("dark")!;
+    expect(value.terminal.writes.some(write => write.includes(`${dark}\u001b[2K${dark}`))).toBe(true);
+    const explicit = [
+      piTheme().bg("selectedBg", "selected/search/dialog"),
+      piTheme().bg("userMessageBg", "prompt"),
+      piTheme().bg("toolPendingBg", "tool/panel"),
+      "\u001b[45mextension\u001b[49m",
+    ].join(" ");
+    const overlay = value.shell.runtime.showOverlay({ render: () => [explicit], invalidate() {} }, { width: 60, row: 5, col: 2 });
+    value.shell.runtime.renderNow(true);
+    const opaqueFrame = value.terminal.writes.at(-1)!;
+    for (const text of ["selected/search/dialog", "prompt", "tool/panel", "extension"]) {
+      expect(opaqueFrame).toContain(text);
+    }
+    expect(opaqueFrame).toContain("\u001b[45mextension\u001b[49m");
+
+    style = "accent";
+    notify?.(style);
+    value.shell.runtime.renderNow(true);
+    const accent = piCanvasBackgroundAnsi("accent")!;
+    expect(accent).not.toBe(dark);
+    expect(value.terminal.writes.at(-1)).toContain(`${accent}\u001b[2K${accent}`);
+    for (const text of ["selected/search/dialog", "prompt", "tool/panel", "extension"]) {
+      expect(value.terminal.writes.at(-1)).toContain(text);
+    }
+
+    overlay.dispose();
+    style = "transparent";
+    notify?.(style);
+    value.shell.runtime.renderNow(true);
+    expect(value.terminal.writes.at(-1)).not.toContain(dark);
+    expect(value.terminal.writes.at(-1)).not.toContain(accent);
+    await value.shell.dispose();
+    setPiAccentColor("purple");
+  });
+
   it("reports working, completed, and aborted runs through the terminal program-status protocol", async () => {
     const messages = [{ role: "assistant", content: [{ type: "text", text: "Done" }], stopReason: "stop" }];
     const value = await fixture(messages);
