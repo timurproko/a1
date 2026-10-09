@@ -88,6 +88,7 @@ const ROW_MARKER = /\u001b\[(\d+);1H\u001b\[2K/gu;
 const ROW_CONTENT_CURSOR = /\u001b\[\d+;1H/u;
 const CURSOR_SUFFIX = /(?:\u001b\[(\d+);(\d+)H)?\u001b\[\?25[hl]\u001b\[\?2026l$/u;
 const OUT_OF_BAND = /^(?:\u001b\](?:0|2|9|52);[^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b\[\?25[hl])+$/u;
+const SGR_SEQUENCE = /\u001b\[([0-9:;]*)m/gu;
 
 /**
  * A fail-closed adapter for one pinned Pi fullscreen write grammar. Semantic
@@ -107,6 +108,7 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
   #lastConsumedFrameId = 0;
   #cacheWidth = 0;
   #cacheHeight = 0;
+  #canvasBackgroundAnsi: string | null = null;
   #decision: PiTuiDamageDecision = {
     frameId: null,
     transformed: false,
@@ -127,6 +129,15 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
   get kittyProtocolActive(): boolean { return this.inner.kittyProtocolActive; }
   get lastDecision(): PiTuiDamageDecision { return this.#decision; }
   get hyperlinkCleanupPending(): boolean { return this.#cleanupRevision > this.#cleanedRevision; }
+  get canvasBackgroundAnsi(): string | null { return this.#canvasBackgroundAnsi; }
+
+  /** Invalidates remembered terminal cells before the shell forces one complete canvas repaint. */
+  setCanvasBackground(ansi: string | null): boolean {
+    if (this.#canvasBackgroundAnsi === ansi) return false;
+    this.#canvasBackgroundAnsi = ansi;
+    this.#invalidatePresentation();
+    return true;
+  }
 
   /**
    * The rows as last forwarded to the terminal, top to bottom, with styling
@@ -224,7 +235,10 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
         output = buildDamageWrite(parsed, armed.descriptor, new Set(decision.paintedRows), this.#rows);
       }
     }
-    this.inner.write(output);
+    const forwarded = this.#canvasBackgroundAnsi === null
+      ? output
+      : paintTerminalCanvasFrame(output, this.#canvasBackgroundAnsi);
+    this.inner.write(forwarded);
     if (epoch !== this.#epoch
       || (armed !== undefined && this.#lastConsumedFrameId !== armed.descriptor.frameId)) return;
     // Invariant: cache invalidation follows forwarded bytes, not a suppressed clear.
@@ -437,6 +451,56 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     this.#cacheWidth = 0;
     this.#cacheHeight = 0;
   }
+}
+
+/** Makes SGR background resets return to A1's canvas while preserving explicit backgrounds. */
+export function rebaseTerminalDefaultBackground(content: string, backgroundAnsi: string): string {
+  return content.replace(SGR_SEQUENCE, (sequence, parameters: string) => (
+    sgrLeavesDefaultBackground(parameters) ? `${sequence}${backgroundAnsi}` : sequence
+  ));
+}
+
+/** Paints only synchronized fullscreen rows; clipboard/title/progress controls remain byte-identical. */
+export function paintTerminalCanvasFrame(data: string, backgroundAnsi: string): string {
+  if (!data.startsWith(BEGIN_SYNCHRONIZED_OUTPUT) || !data.endsWith(END_SYNCHRONIZED_OUTPUT)
+    || !ROW_MARKER.test(data)) {
+    ROW_MARKER.lastIndex = 0;
+    return data;
+  }
+  ROW_MARKER.lastIndex = 0;
+  const rows = data.replace(ROW_MARKER, (_marker, row: string) => (
+    `\u001b[${row};1H${backgroundAnsi}\u001b[2K${backgroundAnsi}`
+  ));
+  ROW_MARKER.lastIndex = 0;
+  const rebased = rebaseTerminalDefaultBackground(rows, backgroundAnsi);
+  return `${rebased.slice(0, -END_SYNCHRONIZED_OUTPUT.length)}\u001b[49m${END_SYNCHRONIZED_OUTPUT}`;
+}
+
+function sgrLeavesDefaultBackground(parameters: string): boolean {
+  if (parameters.length === 0) return true;
+  const values = parameters.split(";");
+  let defaultBackground: boolean | undefined;
+  for (let index = 0; index < values.length; index += 1) {
+    const token = values[index]!;
+    const code = Number.parseInt(token.split(":", 1)[0] || "0", 10);
+    if (!Number.isFinite(code)) continue;
+    if (code === 0 || code === 49) {
+      defaultBackground = true;
+      continue;
+    }
+    if (code >= 40 && code <= 47 || code >= 100 && code <= 107) {
+      defaultBackground = false;
+      continue;
+    }
+    if (code !== 38 && code !== 48 && code !== 58) continue;
+    if (code === 48) defaultBackground = false;
+    if (token.includes(":")) continue;
+    const mode = Number.parseInt(values[index + 1] ?? "", 10);
+    if (mode === 5) index += 2;
+    else if (mode === 2) index += 4;
+    else index += 1;
+  }
+  return defaultBackground === true;
 }
 
 function parsePinnedFullscreenWrite(data: string): ParsedFullscreenWrite | null {

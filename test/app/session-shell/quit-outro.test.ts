@@ -89,6 +89,15 @@ describe("quit outro capture", () => {
     expect(surface).toContain("\x1b[3;1Hbottom\x1b[0m");
     expect(surface).not.toContain("\x1b[2;1H");
   });
+
+  it("keeps an opaque canvas behind seeded rows and restores terminal-default state", () => {
+    const frame = captureQuitOutroFrame(["top\x1b[49m tail", "", "bottom"], 10, 3)!;
+    const canvas = "\x1b[48;2;20;21;22m";
+    const surface = createQuitOutroSurfaceFrame(frame, canvas);
+    expect(surface.startsWith(`${SYNC_BEGIN}\x1b[?25l\x1b[0m${canvas}\x1b[2J\x1b[H`)).toBe(true);
+    expect(surface).toContain(`\x1b[1;1H${canvas}top\x1b[49m${canvas} tail`);
+    expect(surface.endsWith(`\x1b[0m${SYNC_END}`)).toBe(true);
+  });
 });
 
 describe("quit outro playback", () => {
@@ -121,6 +130,24 @@ describe("quit outro playback", () => {
     // Invariant: playback ends once the last clear lands, never later than the duration plus one tick.
     expect(clock).toBeGreaterThan(300);
     expect(clock).toBeLessThanOrEqual(600 + 1000 / 30);
+  });
+
+  it("clears animated cells onto the active canvas and resets it after every tick", async () => {
+    const frame = captureQuitOutroFrame(["canvas"], 10, 1)!;
+    const canvas = "\x1b[48;2;20;21;22m";
+    const writes: string[] = [];
+    let clock = 0;
+    await playQuitOutro(frame, "fall", 300, {
+      write: data => writes.push(data),
+      now: () => clock,
+      sleep: async ms => { clock += ms; },
+      seed: 4,
+      canvasBackgroundAnsi: canvas,
+    });
+    expect(writes[0]).toBe(createQuitOutroSurfaceFrame(frame, canvas));
+    expect(writes.slice(1).every(write => write.startsWith(`${SYNC_BEGIN}\x1b[0m${canvas}`))).toBe(true);
+    expect(writes.join("")).toContain(`\x1b[0m${canvas} `);
+    expect(writes.every(write => write.endsWith(`\x1b[0m${SYNC_END}`))).toBe(true);
   });
 
   it("abandons remaining ticks once the guard elapses on a slow terminal", async () => {

@@ -14,11 +14,13 @@ import {
   createPiShellSelector,
   currentPiAccentColor,
   derivePiAccentProjection,
+  derivePiCanvasBackground,
   detectPiTerminalBackgroundFromEnv,
   getAvailablePiThemes,
   getPiSelectListTheme,
   loadPiTheme,
   onPiThemeChange,
+  piCanvasBackgroundAnsi,
   piTheme,
   setPiAccentColor,
   setPiPackageBorderProjectionEnabled,
@@ -222,6 +224,40 @@ describe("pinned Pi theme and layout parity", () => {
     expect(selection.s).toBeLessThan(0.18);
     expect(message.s).toBeLessThan(selection.s);
     expect(appearance === "dark" ? message.l < selection.l : message.l > selection.l).toBe(true);
+  });
+
+  it("derives transparent, accent-grey, and fixed-dark canvas colors", () => {
+    const custom = okhslColor(123, 0.64, 0.67);
+    expect(derivePiCanvasBackground("transparent", custom)).toBeNull();
+    const accent = colorToOkhsl(derivePiCanvasBackground("accent", custom)!);
+    const dark = colorToOkhsl(derivePiCanvasBackground("dark", custom)!);
+    expect(Math.abs(accent.h - 123)).toBeLessThan(20);
+    expect(accent.s).toBeCloseTo(0.12, 1);
+    expect(accent.l).toBeCloseTo(0.12, 1);
+    expect(dark.s).toBeLessThan(0.05);
+    expect(dark.l).toBeCloseTo(0.12, 1);
+
+    applyPiTheme("dark", false, "truecolor");
+    expect(piCanvasBackgroundAnsi("transparent")).toBeNull();
+    const fixed = new Set<string>();
+    const tinted = new Set<string>();
+    for (const color of ["purple", "blue", "cyan", "green", "orange", "pink"] as const) {
+      setPiAccentColor(color);
+      fixed.add(piCanvasBackgroundAnsi("dark")!);
+      tinted.add(piCanvasBackgroundAnsi("accent")!);
+    }
+    expect(fixed.size).toBe(1);
+    expect(tinted.size).toBe(6);
+  });
+
+  it.each(PI_PARITY_COLOR_MODES)("emits every palette canvas through the supported %s boundary", mode => {
+    applyPiTheme("dark", false, mode);
+    const expected = mode === "truecolor" ? /^\u001b\[48;2;/u : /^\u001b\[48;5;/u;
+    for (const color of ["purple", "blue", "cyan", "green", "orange", "pink"] as const) {
+      setPiAccentColor(color);
+      expect(piCanvasBackgroundAnsi("dark")).toMatch(expected);
+      expect(piCanvasBackgroundAnsi("accent")).toMatch(expected);
+    }
   });
 
   it.each(["dark", "light"] as const)("keeps %s hierarchy distinct with half-strength selected rows", appearance => {

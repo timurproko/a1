@@ -4,6 +4,8 @@ import { readVisibleHyperlinks } from "../../../../src/ui/components/visible-hyp
 import {
   DamageAwareTerminalAdapter,
   PINNED_PI_TUI_DAMAGE_GRAMMAR,
+  paintTerminalCanvasFrame,
+  rebaseTerminalDefaultBackground,
   type PiTuiDamageFrameDescriptor,
   type PiTuiDamageFrameSafety,
   type PiTuiTerminalPort,
@@ -75,6 +77,59 @@ function initialized(options: { readonly regionalScroll?: boolean } = {}) {
 describe("A1-owned damage-aware terminal adapter", () => {
   it("pins one public-boundary grammar to the installed Pi package identity", async () => {
     expect(PINNED_PI_TUI_DAMAGE_GRAMMAR).toBe(`@earendil-works/pi-tui@${(await readPinnedPiIdentity(".")).version}:tui-alt-screen-one-write-v1`);
+  });
+
+  it("keeps transparent frames byte-identical and paints an opaque canvas behind explicit surfaces", () => {
+    const { adapter, terminal } = initialized();
+    const canvas = "\u001b[48;2;20;21;22m";
+    expect(adapter.canvasBackgroundAnsi).toBeNull();
+    expect(adapter.setCanvasBackground(canvas)).toBe(true);
+    expect(adapter.presentedRows()).toEqual(initialRows.map(() => ""));
+    expect(adapter.setCanvasBackground(canvas)).toBe(false);
+    const styled = fullscreenWrite([
+      `plain \u001b[44mselected\u001b[49mtail`,
+      `\u001b[1mstrong\u001b[0m normal`,
+      ...initialRows.slice(2),
+    ]);
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(styled);
+    const painted = terminal.writes.at(-1)!;
+    expect(painted).toContain(`\u001b[1;1H${canvas}\u001b[2K${canvas}plain `);
+    expect(painted).toContain(`\u001b[44mselected\u001b[49m${canvas}tail`);
+    expect(painted).toContain(`\u001b[0m${canvas} normal`);
+    expect(painted.endsWith(`\u001b[49m\u001b[?2026l`)).toBe(true);
+    expect(adapter.presentedRows()[0]).toBe("plain \u001b[44mselected\u001b[49mtail");
+
+    expect(adapter.setCanvasBackground(null)).toBe(true);
+    adapter.arm(descriptor(3), SAFE);
+    adapter.write(styled);
+    expect(terminal.writes.at(-1)).toBe(styled);
+  });
+
+  it("rebases only SGR sequences whose final background state is terminal-default", () => {
+    const canvas = "\u001b[48;2;20;21;22m";
+    expect(rebaseTerminalDefaultBackground("a\u001b[49mb\u001b[0mc", canvas))
+      .toBe(`a\u001b[49m${canvas}b\u001b[0m${canvas}c`);
+    expect(rebaseTerminalDefaultBackground("\u001b[0;48;2;1;2;3mcolor", canvas))
+      .toBe("\u001b[0;48;2;1;2;3mcolor");
+    expect(rebaseTerminalDefaultBackground("\u001b[48;2;0;0;0mblack\u001b[39;49mplain", canvas))
+      .toBe(`\u001b[48;2;0;0;0mblack\u001b[39;49m${canvas}plain`);
+    expect(paintTerminalCanvasFrame("\u001b]52;c;YWJj\u0007", canvas))
+      .toBe("\u001b]52;c;YWJj\u0007");
+  });
+
+  it("paints batched erase rows even when their image grammar remains outside damage optimization", () => {
+    const { adapter, terminal } = initialized();
+    const canvas = "\u001b[48;5;234m";
+    adapter.setCanvasBackground(canvas);
+    const rows = ["B", "C", "D", "E", "F", "G"];
+    const erases = rows.map((_content, index) => `\u001b[${index + 1};1H\u001b[2K`).join("");
+    const paints = rows.map((content, index) => `\u001b[${index + 1};1H${content}`).join("");
+    const batched = `\u001b[?2026h${erases}${paints}\u001b[7;1H\u001b[?25l\u001b[?2026l`;
+    adapter.arm(descriptor(2, 1, true), SAFE);
+    adapter.write(batched);
+    expect(terminal.writes.at(-1)).toContain(`\u001b[1;1H${canvas}\u001b[2K${canvas}`);
+    expect(adapter.lastDecision).toMatchObject({ frameId: 2, transformed: false });
   });
 
   it("forwards a batched-erase frame unchanged instead of reading its paints as one row's content", () => {

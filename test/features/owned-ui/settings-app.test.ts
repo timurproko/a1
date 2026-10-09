@@ -295,6 +295,9 @@ describe("the settings screen", () => {
     expect(lines.some(line => line.includes("Quit animation") && line.includes("yes"))).toBe(true);
     expect(lines.some(line => line.trim() === "Appearance")).toBe(true);
     expect(lines.some(line => line.includes("Accent color") && line.includes("purple"))).toBe(true);
+    expect(lines.some(line => line.includes("Background") && line.includes("transparent"))).toBe(true);
+    expect(lines.findIndex(line => line.includes("Accent color"))).toBeLessThan(lines.findIndex(line => line.includes("Background")));
+    expect(lines.findIndex(line => line.includes("Background"))).toBeLessThan(lines.findIndex(line => line.includes("Quit animation")));
     expect(lines.some(line => line.trim() === "Scroll")).toBe(true);
     expect(lines.some(line => line.includes("Scrollbar mode") && line.includes("auto"))).toBe(true);
     expect(lines.some(line => line.includes("Fullscreen scrollbar"))).toBe(false);
@@ -330,6 +333,21 @@ describe("the settings screen", () => {
     await settleChanges();
     expect(session.value("accentColor")).toBe("purple");
     expect(find(target, "Accent color").trimStart()).toMatch(/^→.*purple/);
+  });
+
+  it("changes and undoes the owned background without writing Pi settings", async () => {
+    const { app: target, session, writes } = await app();
+    selectRow(target, "Background");
+    expect(find(target, "Background").trimStart()).toMatch(/^→.*transparent/);
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(session.value("backgroundStyle")).toBe("accent");
+    expect(find(target, "Background").trimStart()).toMatch(/^→.*accent/);
+    expect(writes).toEqual([]);
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("backgroundStyle")).toBe("transparent");
   });
 
   // Rationale: the selected value keeps its semantic foreground while the item gains a surface.
@@ -1046,13 +1064,16 @@ describe("the settings screen", () => {
 describe("the list view behind the screen", () => {
   it("begins every value at one column, however wide the labels are", async () => {
     const { app: target } = await app();
-    const rows = screen(target).filter(line => /\b(true|false|low|high|3|0)\s*$/.test(line) && line.includes(" "));
+    const rows = target.render({ width: 80, height: 32 }, HOST)
+      .map(line => line.replace(STYLE, "").trimEnd())
+      .filter(line => /\b(true|false|low|high|3|0)\s*$/.test(line) && line.includes(" "));
     const columns = new Set(rows.map(line => line.search(/\S+\s*$/)));
     expect(columns.size, `values start at ${[...columns].join(", ")}`).toBe(1);
   });
 
   it("reads the pointer as a label, a value, or a control beside it", async () => {
     const { app: target, writes } = await app();
+    selectRow(target, "Thinking level");
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Thinking level"));
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
@@ -1110,6 +1131,7 @@ describe("the value dropdown behind the screen", () => {
 
   it("opens without an active row and keeps keyboard navigation based on the effective value", async () => {
     const { app: target, writes } = await app();
+    selectRow(target, "Thinking level");
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Thinking level"));
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
@@ -1128,6 +1150,7 @@ describe("the value dropdown behind the screen", () => {
 
   it("highlights only after the pointer enters a menu row and clears after it leaves", async () => {
     const { app: target } = await app();
+    selectRow(target, "Thinking level");
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Thinking level"));
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
@@ -1146,6 +1169,7 @@ describe("the value dropdown behind the screen", () => {
 
   it("applies the choice pressed inside the shared menu", async () => {
     const { app: target, writes } = await app();
+    selectRow(target, "Thinking level");
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Thinking level"));
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;

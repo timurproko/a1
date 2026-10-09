@@ -1,5 +1,6 @@
 import { acceptsTranscriptUpdate, ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type {
+  OwnedUiBackgroundSettingsPort,
   OwnedUiExtensionResourceSummary,
   OwnedUiExtensionSourceSummary,
   OwnedUiPromptSuggestionGeneratorPort,
@@ -146,6 +147,8 @@ export interface OwnedUiShellPresentationOptions {
   readonly startup?: OwnedUiStartupOptions;
   /** Live profile-local settings, supplied only to the bare-A1 composition. */
   readonly viewportSettings?: OwnedUiViewportSettingsPort;
+  /** Live fullscreen canvas choice, supplied only to the bare-A1 composition. */
+  readonly backgroundSettings?: OwnedUiBackgroundSettingsPort;
   /** Deterministic scheduling seam for presentation-cadence tests. */
   readonly stream?: {
     readonly intervalMs?: number;

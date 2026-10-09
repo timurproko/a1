@@ -22,7 +22,12 @@ export type {
   PiTuiViewport,
 } from "./contracts.js";
 export { samePointerSurfaces } from "./overlay-geometry.js";
-export { DamageAwareTerminalAdapter, PINNED_PI_TUI_DAMAGE_GRAMMAR } from "./damage-aware-terminal.js";
+export {
+  DamageAwareTerminalAdapter,
+  PINNED_PI_TUI_DAMAGE_GRAMMAR,
+  paintTerminalCanvasFrame,
+  rebaseTerminalDefaultBackground,
+} from "./damage-aware-terminal.js";
 export type {
   DamageAwareTerminalOptions,
   PiTuiDamageDecision,

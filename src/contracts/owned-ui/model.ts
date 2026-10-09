@@ -83,6 +83,14 @@ export interface OwnedUiViewportSettingsPort {
   onChange(listener: (settings: OwnedUiViewportSettings) => void): () => void;
 }
 
+export type OwnedUiBackgroundStyle = "transparent" | "accent" | "dark";
+
+/** Narrow live canvas setting supplied only to the bare-A1 fullscreen presentation. */
+export interface OwnedUiBackgroundSettingsPort {
+  snapshot(): OwnedUiBackgroundStyle;
+  onChange(listener: (style: OwnedUiBackgroundStyle) => void): () => void;
+}
+
 /** Profile-local quit outro choice, read at the moment bare A1 quits. */
 export interface OwnedUiQuitOutroSettings {
   /** False leaves the terminal immediately; true plays the shell's fixed effect. */

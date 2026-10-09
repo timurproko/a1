@@ -37,7 +37,11 @@ import {
   type OwnedUiShellSuggestionOptions,
 } from "../../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
-import { ImageAttachmentError, type OwnedUiViewportSettingsPort } from "../../../src/contracts/owned-ui/index.js";
+import {
+  ImageAttachmentError,
+  type OwnedUiBackgroundSettingsPort,
+  type OwnedUiViewportSettingsPort,
+} from "../../../src/contracts/owned-ui/index.js";
 import { startPasteExecutor } from "../../../src/app/session-shell/paste-executor.js";
 import type { PasteExecutorStarter } from "../../../src/app/session-shell/paste-preparation-client.js";
 import { PASTE_TEXT_BYTES, type PreparedPaste } from "../../../src/app/session-shell/paste-protocol.js";
@@ -290,6 +294,7 @@ export async function fixture(
   skills?: OwnedUiShellSkillsOptions,
   promptImages?: OwnedUiShellPromptImagesOptions,
   lazySelectors?: PiShellLazySelectorLoader,
+  backgroundSettings?: OwnedUiBackgroundSettingsPort,
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -305,6 +310,7 @@ export async function fixture(
     presentation: {
       terminal,
       ...(viewportSettings === undefined ? {} : { viewportSettings }),
+      ...(backgroundSettings === undefined ? {} : { backgroundSettings }),
       ...(streamPresentation === undefined ? {} : { stream: streamPresentation }),
       ...(inputPresentation === undefined ? {} : { input: inputPresentation }),
       ...(quitOutro === undefined ? {} : { quitOutro }),

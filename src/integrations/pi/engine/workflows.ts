@@ -179,4 +179,3 @@ export interface PiSessionSelectorContext {
   readonly loadAllSessions: (onProgress?: PiSessionListProgress) => Promise<SessionInfo[]>;
   readonly renameSession: (sessionFilePath: string, nextName: string | undefined) => Promise<void>;
 }
-

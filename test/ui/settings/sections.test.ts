@@ -70,7 +70,7 @@ describe("owned UI settings sections", () => {
   it("places owned agent controls once after engine entries in a single Agent group", () => {
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
-      document: { version: 12, values: { promptSuggestions: false } },
+      document: { version: 13, values: { promptSuggestions: false } },
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: AGENT });
     expect(sections.map(section => [section.id, section.title])).toEqual([
@@ -78,7 +78,7 @@ describe("owned UI settings sections", () => {
     ]);
     const entries = (id: string) => sections.find(section => section.id === id)?.entries.map(entry => entry.id);
     expect(entries("generic")).toEqual(["updateCheck"]);
-    expect(entries("appearance")).toEqual(["accentColor", "quitAnimation"]);
+    expect(entries("appearance")).toEqual(["accentColor", "backgroundStyle", "quitAnimation"]);
     expect(entries("scroll")).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
     expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryMaxItems"]);
     expect(entries("quit")).toBeUndefined();
@@ -89,6 +89,10 @@ describe("owned UI settings sections", () => {
     expect(findOwnedUiSettingsEntry(sections, "accentColor", "a1")).toMatchObject({
       label: "Accent color", value: "purple", origin: "default", application: "live",
       choices: ["purple", "blue", "cyan", "green", "orange", "pink"],
+    });
+    expect(findOwnedUiSettingsEntry(sections, "backgroundStyle", "a1")).toMatchObject({
+      label: "Background", value: "transparent", origin: "default", application: "live",
+      choices: ["transparent", "accent", "dark"],
     });
     expect(sections.find(section => section.id === "agent")?.entries.map(entry => [entry.backend, entry.id])).toEqual([
       ["agent", "autoCompact"], ["agent", "thinkingLevel"], ["agent", "providerProfile"],
