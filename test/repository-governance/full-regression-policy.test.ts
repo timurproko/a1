@@ -9,14 +9,18 @@ import {
 } from "../../scripts/release/publication-validation-matrix.mjs";
 
 describe("complete regression automation", () => {
-  it("runs on its own nightly schedule and on explicit demand, apart from publication", async () => {
-    const [regression, release] = await Promise.all([
+  it("runs on explicit demand and keeps daily automation staggered around UTC midnight", async () => {
+    const [piSync, regression, release, archive] = await Promise.all([
+      readFile(".github/workflows/pi-upstream-sync.yml", "utf8"),
       readFile(".github/workflows/full-regression.yml", "utf8"),
       readFile(".github/workflows/publish.yml", "utf8"),
+      readFile(".github/workflows/openspec-archive.yml", "utf8"),
     ]);
     expect(regression).toContain("workflow_dispatch:");
-    expect(regression).toContain("cron: '47 2 * * *'");
-    expect(release).toContain('cron: "17 3 * * *"');
+    expect(piSync).toContain("cron: '23 23 * * *'");
+    expect(regression).toContain("cron: '47 23 * * *'");
+    expect(release).toContain('cron: "17 0 * * *"');
+    expect(archive).toContain("cron: '43 0 * * *'");
     expect(release).toContain('selected=\'["full-release"]\'');
   });
 
@@ -165,8 +169,8 @@ describe("complete regression automation", () => {
       .toContain("full-regression-evidence.mjs --merge-shards");
     expect(releaseAggregate.needs).toEqual(["plan", "package", "documentation", "validate_sequential", "validate_windows_shard", "validate_windows_lane"]);
     expect(releaseAggregate.steps[0].run).toContain('test "$WINDOWS_SHARDS" = success');
-    expect(release.on.schedule).toEqual([{ cron: "17 3 * * *" }]);
-    expect(wrapper.on).toEqual({ schedule: [{ cron: "47 2 * * *" }], workflow_dispatch: null });
+    expect(release.on.schedule).toEqual([{ cron: "17 0 * * *" }]);
+    expect(wrapper.on).toEqual({ schedule: [{ cron: "47 23 * * *" }], workflow_dispatch: null });
     expect(wrapper.jobs.complete.uses).toBe("./.github/workflows/full-regression-shared.yml");
     expect(wrapper.jobs.complete.with.source).toBe("${{ github.sha }}");
     const selection = sequentialJob.steps.find((step: { id: string }) => step.id === "selection");
