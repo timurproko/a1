@@ -21,8 +21,8 @@
 
 ## Physical review
 
-Pending maintainer review through `./scripts/dev` with two distinct same-name folders.
+The maintainer tested the built candidate through `./scripts/dev` and confirmed that pasting distinct same-name items shows the intended path-based disambiguation without a hexadecimal suffix.
 
 ## Known gaps
 
-No implementation gap is known. Physical terminal confirmation remains pending before finalization.
+None.

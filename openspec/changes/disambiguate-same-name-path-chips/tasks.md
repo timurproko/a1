@@ -12,4 +12,4 @@
 
 - [x] 3.1 Add an owned-shell paste regression using distinct same-name filesystem items; verify visible chips use distinguishing path suffixes and submission receives both exact full paths in order.
 - [x] 3.2 Run the focused path-presentation, prompt-chip, and shell-paste tests plus build, typecheck, architecture/documentation governance, and strict OpenSpec validation; record outcomes and disposition any known gaps before finalization.
-- [ ] 3.3 Build and launch with `./scripts/dev`; verify two same-name folders show basename then shortest distinguishing path label without a hexadecimal suffix, and copying/submitting resolves the intended paths.
+- [x] 3.3 Build and launch with `./scripts/dev`; verify two same-name folders show basename then shortest distinguishing path label without a hexadecimal suffix, and copying/submitting resolves the intended paths.
