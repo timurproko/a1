@@ -102,7 +102,7 @@ const ACCENT_PALETTE: Readonly<Record<UiAccentColor, Readonly<Record<PiTerminalT
     dark: Object.freeze({ kind: "rgb", r: 167, g: 152, b: 215 }),
     light: Object.freeze({ kind: "rgb", r: 116, g: 89, b: 180 }),
   }),
-  blue: Object.freeze({ dark: okhslColor(232, 0.54, 0.67), light: okhslColor(231, 0.68, 0.47) }),
+  blue: Object.freeze({ dark: okhslColor(268, 0.80, 0.67), light: okhslColor(268, 0.90, 0.47) }),
   cyan: Object.freeze({ dark: okhslColor(202, 0.58, 0.67), light: okhslColor(203, 0.73, 0.46) }),
   green: Object.freeze({ dark: okhslColor(159, 0.59, 0.67), light: okhslColor(159, 0.75, 0.46) }),
   orange: Object.freeze({ dark: okhslColor(48, 0.75, 0.67), light: okhslColor(48, 0.90, 0.47) }),
