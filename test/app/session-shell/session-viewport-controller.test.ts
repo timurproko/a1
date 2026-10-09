@@ -509,7 +509,7 @@ describe("session viewport interaction controller", () => {
   });
 
   it("selects across transient tail chrome without copying it", () => {
-    const { target, input, compose } = hoverFixture();
+    const { target, input } = hoverFixture();
     try {
       const tailed = {
         ...input,
@@ -534,7 +534,7 @@ describe("session viewport interaction controller", () => {
   });
 
   it("keeps wheel scrolling over the transient tail while allowing visual selection", () => {
-    const { target, input, compose } = hoverFixture();
+    const { target, input } = hoverFixture();
     try {
       const tailed = { ...input, documentRows: [...input.documentRows, "", " Working..."], selectableDocumentRowCount: 30 };
       const followed = target.compose(tailed);
@@ -557,7 +557,7 @@ describe("session viewport interaction controller", () => {
   });
 
   it("clamps selection and copy at the semantic end of a transient tail", () => {
-    const { target, input, compose } = hoverFixture();
+    const { target, input } = hoverFixture();
     try {
       const tailed = {
         ...input,
@@ -565,7 +565,7 @@ describe("session viewport interaction controller", () => {
         selectableDocumentRowCount: 30,
         bottomAlignedTailRowCount: 1,
       };
-      compose();
+      target.compose(tailed);
       target.handlePreInput("\u001b[<0;4;2M");
       target.handlePreInput("\u001b[<32;4;7M");
       target.handlePreInput("\u001b[<0;4;7m");
@@ -573,14 +573,14 @@ describe("session viewport interaction controller", () => {
       expect(copied.consumed).toBe(true);
       expect(copiedText(copied)).not.toContain("Steering");
       expect(copiedText(copied)).not.toContain("Working");
-      expect(copiedText(copied)).toContain("row-25");
+      expect(copiedText(copied)).toContain("row-28");
     } finally {
       target.clearPointerState();
     }
   });
 
   it("keeps jump-to-bottom controls ahead of transient-tail suppression", () => {
-    const { target, input, compose } = hoverFixture();
+    const { target, input } = hoverFixture();
     try {
       const tailed = { ...input, documentRows: [...input.documentRows, "", "", " Working..."], selectableDocumentRowCount: 30 };
       target.handlePreInput("\u001b[<64;30;2M");

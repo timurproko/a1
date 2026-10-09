@@ -154,7 +154,6 @@ export class PiTuiRuntimeAdapter {
   readonly #terminal: PiTuiTerminalPort;
   readonly #tuiTerminal: PiTuiTerminal;
   #tui: TUI;
-  readonly #root: PiTuiComponentPort;
   readonly #layoutRoot: PiTuiLayoutNode | undefined;
   readonly #tuiOptions: TuiAltScreenOptions;
   readonly #logDirectory: string | undefined;
@@ -180,7 +179,6 @@ export class PiTuiRuntimeAdapter {
   readonly #presentationHolds = new Set<symbol>();
 
   constructor(options: PiTuiRuntimeAdapterOptions) {
-    this.#root = options.root;
     this.#overlayGeometry = options.onOverlayGeometry === undefined ? undefined : new OverlayGeometryTracker(options.onOverlayGeometry);
     this.#terminal = options.terminal ?? new ProcessTerminal();
     this.#consumeUnhandledMouse = options.consumeUnhandledMouse ?? false;

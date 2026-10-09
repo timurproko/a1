@@ -48,7 +48,6 @@ async function fixture() {
   }
   return { home, target, alias, agentDir, canonical, store, context };
 }
-function rows(selector: { render(width: number): readonly string[] }) { return selector.render(600).map(stripTerminalSequences); }
 
 describe("canonical project trust context", () => {
   it("uses the target parent, not the alias parent, without rewriting the cwd heading", async () => {

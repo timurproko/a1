@@ -4,9 +4,9 @@ This change is planning-only until the maintainer approves it and requests imple
 
 ## 1. Compiler flags
 
-- [ ] 1.1 Add `noUnusedLocals: true` and `noUnusedParameters: true` to `tsconfig.json` and `tsconfig.bin.json`; confirm `tsconfig.build.json` inherits or add them there too.
-- [ ] 1.2 Run `npm run typecheck`, then remove every reported unused import and local in `src/`, `bin/`, and `test/`; rename interface-required unused parameters with a leading underscore.
-- [ ] 1.3 Confirm `scripts/governance/check-code-documentation.mjs --mode full` still passes after import removals that shortened files.
+- [x] 1.1 Add `noUnusedLocals: true` and `noUnusedParameters: true` to `tsconfig.json` and `tsconfig.bin.json`; confirm `tsconfig.build.json` inherits or add them there too.
+- [x] 1.2 Run `npm run typecheck`, then remove every reported unused import and local in `src/`, `bin/`, and `test/`; rename interface-required unused parameters with a leading underscore.
+- [x] 1.3 Confirm `scripts/governance/check-code-documentation.mjs --mode full` still passes after import removals that shortened files.
 
 ## 2. Dead ported theme code
 

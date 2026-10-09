@@ -10,7 +10,6 @@ import { assertPromptImages, ImageAttachmentError } from "../../contracts/owned-
 import type {
   OwnedUiCommand,
   OwnedUiDialog,
-  OwnedUiImageAttachment,
   OwnedUiPromptSuggestionIdentity,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
@@ -25,9 +24,6 @@ import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js
 import { PINNED_PI_HIDDEN_COMMAND_NAMES, workflowCommandNames } from "../../integrations/pi/engine/workflows.js";
 import type {
   AdapterCommandResult,
-  OwnedPiExtensionResourceSummary,
-  OwnedPiExtensionSourceSummary,
-  PiEngineAdapter,
 } from "../../integrations/pi/engine/adapter.js";
 import type {
   PiWorkflowInteractionRequest,
@@ -40,7 +36,6 @@ import type {
 import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../../integrations/pi/components/shell-extension-ui.js";
 import type { PiShellLazySelectorLoader } from "../../integrations/pi/components/lazy-selectors.js";
 import { ProgramStatusReporter } from "../../integrations/pi/components/upstream/program-status-reporter.js";
-import { createPiShellEditor } from "../../integrations/pi/components/shell-editor-autocomplete.js";
 import {
   SKILLS_COMMAND_NAME,
   findSkillByArgument,
@@ -50,17 +45,8 @@ import {
   type PiShellSkillSummary,
 } from "../../integrations/pi/components/skills-command.js";
 import {
-  createPiQueuedInputStatus,
-  createPiShellFooter,
-  createPiShellHeader,
-  createPiShellLoadedResources,
-  createPiShellStatus,
-} from "../../integrations/pi/components/shell-footer-status.js";
-import {
-  createPiShellArmin,
   createPiShellAuthProviderSelector,
   createPiShellDialog,
-  createPiShellEarendilAnnouncement,
   createPiShellExtensionSelector,
   createPiShellLoginDialog,
   createPiShellModelSelector,
@@ -79,40 +65,18 @@ import {
   type PiShellScopedModelsSelectorPort,
 } from "../../integrations/pi/components/shell-selectors-dialogs.js";
 import {
-  createPiShellChangelog,
-  createPiShellHotkeys,
-  createPiShellSessionInfo,
-  renderPiShellPackageUpdateNotice,
   renderPiShellStatusText,
   type PiShellHotkeysPresentation,
 } from "../../integrations/pi/components/shell-presenters-info.js";
-import {
-  createPiShellTranscriptComponent,
-  renderPiShellStartupDiagnostic,
-  renderPiShellTranscriptBlock,
-} from "../../integrations/pi/components/shell-presenters-transcript.js";
-import { onPiThemeChange, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
 import type {
   PiShellComponentPort,
   PiShellClipboardContent,
-  PiShellEditorPort,
-  PiShellExtensionRendererResolver,
-  PiShellHeaderOptions,
-  PiShellHeaderPort,
-  PiShellLoadedResourcesPort,
-  PiShellQueuedInputPort,
-  PiShellResourceEntry,
   PiShellSelectorOption,
-  PiShellStatusPort,
-  PiShellTranscriptComponentPort,
-  PiShellViewComponentPort,
 } from "../../integrations/pi/components/shell-shared-facade.js";
 import { DamageAwareTerminalAdapter, type PiTuiDamageDecision } from "../../integrations/pi/tui-runtime/damage-aware-terminal.js";
 import { PiTuiRuntimeAdapter } from "../../integrations/pi/tui-runtime/adapter.js";
 import { classifyPiTuiInput } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
 import type {
-  PiTuiComponentPort,
-  PiTuiLayoutNode,
   PiTuiOverlayHandle,
   PiTuiRuntimeAdapterOptions,
   PiTuiTerminalPort,
@@ -136,7 +100,6 @@ import {
   type OwnedUiShellPresentationOptions,
   type OwnedUiShellPromptImagesOptions,
   type OwnedUiShellSkillsOptions,
-  type OwnedUiTerminalPort,
 } from "./session-shell-root.js";
 export {
   OwnedUiSessionShellRoot,

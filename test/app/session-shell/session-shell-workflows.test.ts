@@ -1,6 +1,5 @@
-import { join } from "node:path";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
-import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
 vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal => {
   const actual = await importOriginal<typeof import("../../../src/app/session-shell/paste-executor.js")>();
@@ -22,7 +21,7 @@ import { piTheme } from "../../../src/integrations/pi/components/index.js";
 import { piShellLazySelectors, type PiShellLazySelectorLoader } from "../../../src/integrations/pi/components/lazy-selectors.js";
 import { cellStyle } from "../../support/ansi-cell-style.js";
 import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
-import { Session, fixture, nextImmediate } from "./session-shell-fixture.js";
+import { fixture, nextImmediate } from "./session-shell-fixture.js";
 
 function deferred<T = void>() {
   let resolve!: (value: T | PromiseLike<T>) => void;

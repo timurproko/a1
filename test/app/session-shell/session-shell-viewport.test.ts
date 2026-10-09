@@ -7,7 +7,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
-import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const DEQUEUE_HINT = `${process.platform === "darwin" ? "Option" : "Alt"}+Up to edit all queued messages`;
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
