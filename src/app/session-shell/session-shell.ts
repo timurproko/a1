@@ -5,14 +5,22 @@ import { PromptHistoryController } from "./prompt-history-controller.js";
 import type { PromptHistoryKind } from "../../contracts/owned-ui/index.js";
 import { PRODUCT_TEXT } from "../../product-identity.js";
 import { boundedCleanup } from "../../foundation/terminal-cleanup/terminal-reset.js";
-import { assertOwnedUiCommand } from "../../contracts/owned-ui/index.js";
+import { assertOwnedUiCommand, OWNED_UI_HIDDEN_COMMAND_NAMES } from "../../contracts/owned-ui/index.js";
 import { assertPromptImages, ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type {
   OwnedUiCommand,
+  OwnedUiCommandResult,
   OwnedUiDialog,
   OwnedUiPromptSuggestionIdentity,
+  OwnedUiSessionBackend,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
+  OwnedUiWorkflowInteractionRequest,
+  OwnedUiWorkflowLoginNotification,
+  OwnedUiWorkflowLoginStart,
+  OwnedUiWorkflowRequest,
+  OwnedUiWorkflowResult,
+  OwnedUiWorkflowRoute,
   SuggestionDecision,
 } from "../../contracts/owned-ui/index.js";
 import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
@@ -21,18 +29,8 @@ import type { SelectionCopySnapshot } from "../../ui/components/selection-copy.j
 import { ContextualPromptSuggestionController } from "./prompt-suggestion-controller.js";
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../ui/components/mouse.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
-import { PINNED_PI_HIDDEN_COMMAND_NAMES, workflowCommandNames } from "../../integrations/pi/engine/workflows.js";
-import type {
-  AdapterCommandResult,
-} from "../../integrations/pi/engine/adapter.js";
-import type {
-  PiWorkflowInteractionRequest,
-  PiWorkflowLoginNotification,
-  PiWorkflowLoginStart,
-  PiWorkflowRequest,
-  PiWorkflowResult,
-  PiWorkflowRoute,
-} from "../../integrations/pi/engine/workflows.js";
+import { workflowCommandNames } from "../../integrations/pi/engine/workflows.js";
+import type { PiPinnedPresentationPort } from "../../integrations/pi/engine/adapter.js";
 import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../../integrations/pi/components/shell-extension-ui.js";
 import type { PiShellLazySelectorLoader } from "../../integrations/pi/components/lazy-selectors.js";
 import { ProgramStatusReporter } from "../../integrations/pi/components/upstream/program-status-reporter.js";
@@ -95,7 +93,6 @@ import {
 import {
   OwnedUiSessionShellRoot,
   shellResourceEntries,
-  type OwnedUiBackendPort,
   type OwnedUiSessionShellOptions,
   type OwnedUiShellPresentationOptions,
   type OwnedUiShellPromptImagesOptions,
@@ -115,7 +112,7 @@ export {
 
 /** Coordinates backend, owned presentation, and Pi TUI lifecycles for one interactive session. */
 export class OwnedUiSessionShell {
-  readonly backend: OwnedUiBackendPort;
+  readonly backend: OwnedUiSessionBackend;
   readonly root: OwnedUiSessionShellRoot;
   readonly runtime: PiTuiRuntimeAdapter;
   readonly #cwd: string;
@@ -143,7 +140,7 @@ export class OwnedUiSessionShell {
   #editorRevision = 0;
   #started = false;
   #disposed = false;
-  #shutdownPromise: Promise<AdapterCommandResult> | undefined;
+  #shutdownPromise: Promise<OwnedUiCommandResult> | undefined;
   #disposePromise: Promise<void> | undefined;
   #pointerReporting = false;
   // Invariant: translated startup diagnostics create at most one dock notice per kind per shell.
@@ -170,7 +167,7 @@ export class OwnedUiSessionShell {
   #showImages = true;
   #imageWidthCells = 80;
   #fullscreenExitOutput: "transcript" | "resume-hint" = "transcript";
-  readonly #waitingImages = new Map<string, { controller: AbortController; result: Promise<AdapterCommandResult> }>();
+  readonly #waitingImages = new Map<string, { controller: AbortController; result: Promise<OwnedUiCommandResult> }>();
   #lastClearTime = 0;
   #lastEscapeTime = 0;
   #activeLoginDialog: PiShellLoginDialogPort | undefined;
@@ -184,9 +181,9 @@ export class OwnedUiSessionShell {
     const { clipboard, responseCopy, paste: pasteDiagnostics, pastePreparation } = options.diagnostics ?? {};
     const promptHistory = options.history;
     this.backend = backend;
-    this.#sessionGeneration = this.backend.sessionGeneration;
-    this.#sessionBindingGeneration = this.backend.sessionBindingGeneration;
-    this.#suggestionModelKey = modelKey(this.backend.view());
+    this.#sessionGeneration = this.backend.identity.sessionGeneration;
+    this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
+    this.#suggestionModelKey = modelKey(this.backend.session.view());
     this.#cwd = cwd;
     this.#routeHost = routeHost ?? null;
     this.#startupRoute = options.engine.startupRoute;
@@ -242,7 +239,7 @@ export class OwnedUiSessionShell {
       const text = await clipboard.readText(signal);
       return text === null ? null : { kind: "text", text };
     };
-    this.root = new OwnedUiSessionShellRoot(this.backend.view(), cwd, {
+    this.root = new OwnedUiSessionShellRoot(this.backend.session.view(), cwd, {
       getColumns: () => runtime?.viewport().columns ?? terminal?.columns ?? 80,
       getRows: () => runtime?.viewport().rows ?? terminal?.rows ?? 24,
       requestRender: force => runtime?.requestRender(force),
@@ -318,19 +315,19 @@ export class OwnedUiSessionShell {
     }, {
       ...startup,
       resources: startup?.resources ?? shellResourceEntries(this.backend),
-    }, this.backend.agentDir, {
-      getMessageRenderer: customType => this.backend.pinnedMessageRenderer(customType),
-      getToolRenderers: toolName => this.backend.pinnedToolRenderers(toolName),
-      getShortcuts: bindings => this.backend.pinnedShortcutDescriptions(bindings),
+    }, this.backend.identity.agentDir, {
+      getMessageRenderer: customType => this.#pinned.pinnedMessageRenderer(customType),
+      getToolRenderers: toolName => this.#pinned.pinnedToolRenderers(toolName),
+      getShortcuts: bindings => this.#pinned.pinnedShortcutDescriptions(bindings),
     }, sessionLayout, {
-      resolve: assetId => this.backend.resolveTranscriptImage(assetId),
+      resolve: assetId => this.backend.extensions.resolveTranscriptImage(assetId),
     });
-    const initialPiSettings = this.backend.pinnedSettingsSnapshot();
+    const initialPiSettings = this.backend.settings.snapshot();
     // Invariant: bare A1 owns a bounded viewport and therefore always runs on the alternate
     // fullscreen surface. The pinned comparison profiles still honor Pi's mode.
     const tuiMode = this.#customViewport
       ? "fullscreen"
-      : this.backend.disposed ? "regular" : initialPiSettings.tuiMode;
+      : this.backend.identity.disposed ? "regular" : initialPiSettings.tuiMode;
     const runtimeOptions: PiTuiRuntimeAdapterOptions = {
       root: this.root,
       mode: tuiMode,
@@ -369,7 +366,7 @@ export class OwnedUiSessionShell {
         },
       }),
       ...(terminal === undefined ? {} : { terminal: terminal }),
-      hardwareCursor: this.backend.view().terminal.hardwareCursor,
+      hardwareCursor: this.backend.session.view().terminal.hardwareCursor,
       ...(this.#customViewport ? {} : { wheelScrollLines: initialPiSettings.fullscreenWheelScrollLines }),
     };
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
@@ -428,10 +425,10 @@ export class OwnedUiSessionShell {
     this.#fullscreenExitOutput = initialPiSettings.fullscreenExitOutput;
     // Invariant: bare A1 prints only the resume hint at exit, so the pinned exit-output
     // choice is hidden there and cannot be bound; the comparison profile binds and honors it.
-    this.#unbindShutdownSettings = this.backend.settingsProductMode === "bare" ? () => {} : this.backend.bindSettingsOwner("shutdown", {
+    this.#unbindShutdownSettings = this.backend.settings.productMode === "bare" ? () => {} : this.backend.settings.bindOwner("shutdown", {
       fullscreenExitOutput: { apply() {} },
     });
-    this.#unbindTerminalSettings = this.backend.bindSettingsOwner("terminal", {
+    this.#unbindTerminalSettings = this.backend.settings.bindOwner("terminal", {
       showHardwareCursor: { apply: value => {
         if (typeof value !== "boolean") throw new TypeError("Hardware cursor setting is invalid");
         this.runtime.setHardwareCursor(value);
@@ -512,7 +509,7 @@ export class OwnedUiSessionShell {
     this.#showImages = initialPiSettings.showImages;
     this.#imageWidthCells = initialPiSettings.imageWidthCells;
     this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
-    this.#unbindPiSettings = this.backend.bindSettingsOwner("shell", {
+    this.#unbindPiSettings = this.backend.settings.bindOwner("shell", {
       editorPaddingX: { apply: value => {
         if (typeof value !== "number") throw new TypeError("Editor padding is invalid");
         this.root.setEditorPaddingX(value);
@@ -574,7 +571,7 @@ export class OwnedUiSessionShell {
         getRows: () => this.runtime.viewport().rows,
         requestRender: () => this.runtime.requestRender(),
       },
-      agentDir: this.backend.agentDir,
+      agentDir: this.backend.identity.agentDir,
       setInputSurface: component => this.root.setInputSurface(component, true, "opaque"),
       setProgramStatusBlocked: status => this.#programStatus.setBlocked("extension-dialog", status),
       showOverlay: (component, overlayOptions) => this.runtime.showOverlay(component, overlayOptions),
@@ -595,7 +592,7 @@ export class OwnedUiSessionShell {
       getToolsExpanded: () => this.root.toolsExpanded,
       setToolsExpanded: expanded => this.root.setToolsExpanded(expanded),
     });
-    this.backend.setWorkflowInteractionHost({
+    this.backend.workflows.setWorkflowInteractionHost({
       startLogin: request => this.#startWorkflowLogin(request),
       prompt: request => this.#requestWorkflowInput(request),
       notify: event => this.#notifyWorkflowLogin(event),
@@ -606,7 +603,7 @@ export class OwnedUiSessionShell {
       finishLogin: () => this.#finishWorkflowLogin(),
     });
     this.#installAutocompleteCommands();
-    this.#unsubscribe = this.backend.onEvent(event => {
+    this.#unsubscribe = this.backend.session.onEvent(event => {
       // Performance: a streamed chunk names one block, and touching only that block is what keeps the
       // cost of a chunk the same in a long session as in a new one. Everything else
       // resynchronizes the view, which is cheap next to re-reading the transcript.
@@ -638,12 +635,12 @@ export class OwnedUiSessionShell {
             : this.root.promptSuggestionPrepareBlockReason());
       }
       const semanticOnly = event.type === "agent-run-started" || event.type === "assistant-message-completed";
-      const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.sessionGeneration
+      const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.identity.sessionGeneration
         ? this.#syncBlock(event.block)
         : semanticOnly ? this.view() : this.#syncView();
       this.#syncTerminalProgress(view);
       const currentModelKey = modelKey(view);
-      if (this.backend.sessionGeneration !== this.#sessionGeneration || currentModelKey !== this.#suggestionModelKey) {
+      if (this.backend.identity.sessionGeneration !== this.#sessionGeneration || currentModelKey !== this.#suggestionModelKey) {
         this.#promptSuggestions?.invalidate();
         this.#suggestionModelKey = currentModelKey;
       }
@@ -668,23 +665,23 @@ export class OwnedUiSessionShell {
       }
       if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#settleStoppedLifecycle();
     });
-    this.#unbindClipboardWriter = this.#responseCopy === null ? () => {} : this.backend.bindClipboardWriter(async text => {
+    this.#unbindClipboardWriter = this.#responseCopy === null ? () => {} : this.backend.extensions.bindClipboardWriter(async text => {
       const result = await this.#responseCopy!.submitText(text);
       if (result.outcome === "delivered") return true;
       if (result.outcome === "submitted-unverified") return false;
       throw new Error(result.outcome === "timed-out" ? "Clipboard delivery timed out" : "Clipboard delivery could not be completed");
     });
-    if (this.backend.view().lifecycle === "stopped") this.#resolveStopped?.();
+    if (this.backend.session.view().lifecycle === "stopped") this.#resolveStopped?.();
   }
 
   view(): OwnedUiSessionViewModel {
-    return this.backend.view();
+    return this.backend.session.view();
   }
 
   #promptSuggestionPresentationBlockReason(identity: OwnedUiPromptSuggestionIdentity): SuggestionDecision {
     const view = this.view();
     if (this.#disposed) return "disposed";
-    if (identity.sessionId !== view.sessionId || identity.sessionGeneration !== this.backend.sessionGeneration
+    if (identity.sessionId !== view.sessionId || identity.sessionGeneration !== this.backend.identity.sessionGeneration
       || modelKey(view) !== `${identity.model.providerId}/${identity.model.modelId}`) return "stale-identity";
     return this.root.promptSuggestionPresentationBlockReason();
   }
@@ -700,7 +697,7 @@ export class OwnedUiSessionShell {
     this.#promptHistory?.start();
     this.#syncTerminalProgress(this.view());
     if (this.#customViewport) this.#setPointerReporting(true);
-    void this.backend.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
+    void this.#pinned.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
     this.#syncView();
     // Performance: the spare clipboard helpers fork after the first frame is out, so startup never waits on them.
     setImmediate(() => {
@@ -722,19 +719,19 @@ export class OwnedUiSessionShell {
     return this.#stopped;
   }
 
-  async submit(text: string): Promise<AdapterCommandResult> {
+  async submit(text: string): Promise<OwnedUiCommandResult> {
     return this.#submitWhenReady(text, () => this.#submit(text));
   }
 
-  #submitWhenReady(draft: string, action: () => Promise<AdapterCommandResult>): Promise<AdapterCommandResult> {
+  #submitWhenReady(draft: string, action: () => Promise<OwnedUiCommandResult>): Promise<OwnedUiCommandResult> {
     const previous = this.#waitingImages.get(draft);
     if (previous !== undefined) return previous.result;
     if (!this.root.hasPendingPastes(draft)) return this.#guardSubmission(draft, action);
     const controller = new AbortController();
-    const generation = this.backend.sessionGeneration;
+    const generation = this.backend.identity.sessionGeneration;
     const result = this.#guardSubmission(draft, async () => {
       await this.root.waitForPromptPastes(draft, controller.signal);
-      if (controller.signal.aborted || this.#disposed || this.backend.sessionGeneration !== generation) return rejected("image submission canceled");
+      if (controller.signal.aborted || this.#disposed || this.backend.identity.sessionGeneration !== generation) return rejected("image submission canceled");
       return action();
     }).finally(() => {
       this.#waitingImages.delete(draft);
@@ -766,7 +763,7 @@ export class OwnedUiSessionShell {
       if (reusable.length === 0) this.#promptHistory.rememberRecovery(text);
       else {
         this.#persistImageSidecars(text);
-        this.#promptHistory.capture(reusable, kind, this.#cwd, this.backend.sessionId);
+        this.#promptHistory.capture(reusable, kind, this.#cwd, this.backend.identity.sessionId);
       }
     }
   }
@@ -781,7 +778,7 @@ export class OwnedUiSessionShell {
     }
   }
 
-  async #submit(text: string): Promise<AdapterCommandResult> {
+  async #submit(text: string): Promise<OwnedUiCommandResult> {
     this.#promptSuggestions?.invalidate();
     const displayInput = text.trim();
     if (!displayInput) return { outcome: "completed", diagnostic: null };
@@ -795,8 +792,8 @@ export class OwnedUiSessionShell {
       if (command) {
         this.#rememberInput(displayInput, "bash");
         try {
-          const result = await this.backend.executeBashWorkflow(command, excludeFromContext);
-          const workflow: PiWorkflowResult = {
+          const result = await this.backend.workflows.executeBashWorkflow(command, excludeFromContext);
+          const workflow: OwnedUiWorkflowResult = {
             command: "debug",
             outcome: result.cancelled ? "cancelled" : result.exitCode === 0 || result.exitCode === undefined ? "completed" : "failed",
             message: result.cancelled ? "Bash command cancelled" : `Bash exited ${result.exitCode ?? 0}: ${command}`,
@@ -823,7 +820,7 @@ export class OwnedUiSessionShell {
       return await this.#execute({
         type,
         correlationId: this.#correlation(type),
-        sessionId: this.backend.sessionId,
+        sessionId: this.backend.identity.sessionId,
         text: input,
         ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
       }, displayInput);
@@ -832,7 +829,7 @@ export class OwnedUiSessionShell {
     }
   }
 
-  async clearOrExit(now = Date.now()): Promise<AdapterCommandResult> {
+  async clearOrExit(now = Date.now()): Promise<OwnedUiCommandResult> {
     this.#promptSuggestions?.abortPending();
     if (now - this.#lastClearTime < 500) return this.shutdown();
     this.root.editor.setText("");
@@ -841,7 +838,7 @@ export class OwnedUiSessionShell {
     return { outcome: "completed", diagnostic: null };
   }
 
-  async interrupt(now = Date.now()): Promise<AdapterCommandResult> {
+  async interrupt(now = Date.now()): Promise<OwnedUiCommandResult> {
     this.#promptSuggestions?.invalidate();
     if (this.#waitingImages.size > 0) {
       this.#cancelWaitingImages();
@@ -856,7 +853,7 @@ export class OwnedUiSessionShell {
     // Compatibility: match Pi: with an empty editor, two escapes inside 500 ms open the
     // configured session navigator. The first escape intentionally does not
     // interrupt or mutate the prompt.
-    const action = this.backend.pinnedSettingsSnapshot().doubleEscapeAction;
+    const action = this.backend.settings.snapshot().doubleEscapeAction;
     if (action === "none") return { outcome: "rejected", diagnostic: "nothing to interrupt" };
     if (now - this.#lastEscapeTime < 500) {
       this.#lastEscapeTime = 0;
@@ -868,73 +865,73 @@ export class OwnedUiSessionShell {
     return { outcome: "completed", diagnostic: null };
   }
 
-  async abort(): Promise<AdapterCommandResult> {
+  async abort(): Promise<OwnedUiCommandResult> {
     return this.#execute(this.#simple("abort"));
   }
 
-  async retry(): Promise<AdapterCommandResult> {
+  async retry(): Promise<OwnedUiCommandResult> {
     this.#promptSuggestions?.invalidate();
     return this.#execute(this.#simple("retry"));
   }
 
-  async compact(): Promise<AdapterCommandResult> {
+  async compact(): Promise<OwnedUiCommandResult> {
     this.#promptSuggestions?.invalidate();
     return this.#execute(this.#simple("compact"));
   }
 
-  async newSession(): Promise<AdapterCommandResult> {
+  async newSession(): Promise<OwnedUiCommandResult> {
     this.#promptSuggestions?.invalidate();
     return this.#execute(this.#simple("new-session"));
   }
 
-  async resumeSession(sessionPath: string): Promise<AdapterCommandResult> {
+  async resumeSession(sessionPath: string): Promise<OwnedUiCommandResult> {
     this.#promptSuggestions?.invalidate();
     return this.#execute({
       type: "resume-session",
       correlationId: this.#correlation("resume"),
-      sessionId: this.backend.sessionId,
+      sessionId: this.backend.identity.sessionId,
       sessionPath,
     });
   }
 
-  async setModel(providerId: string, modelId: string): Promise<AdapterCommandResult> {
+  async setModel(providerId: string, modelId: string): Promise<OwnedUiCommandResult> {
     this.#promptSuggestions?.invalidate();
     return this.#execute({
       type: "set-model",
       correlationId: this.#correlation("model"),
-      sessionId: this.backend.sessionId,
+      sessionId: this.backend.identity.sessionId,
       model: { providerId, modelId, displayName: modelId },
     });
   }
 
-  async setThinkingLevel(thinkingLevel: OwnedUiThinkingLevel): Promise<AdapterCommandResult> {
+  async setThinkingLevel(thinkingLevel: OwnedUiThinkingLevel): Promise<OwnedUiCommandResult> {
     return this.#execute({
       type: "set-thinking-level",
       correlationId: this.#correlation("thinking"),
-      sessionId: this.backend.sessionId,
+      sessionId: this.backend.identity.sessionId,
       thinkingLevel,
     });
   }
 
-  async cycleThinkingLevel(): Promise<AdapterCommandResult> {
+  async cycleThinkingLevel(): Promise<OwnedUiCommandResult> {
     const levels: readonly OwnedUiThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh"];
     const current = Math.max(0, levels.indexOf(this.view().thinkingLevel));
     return this.setThinkingLevel(levels[(current + 1) % levels.length] ?? "off");
   }
 
-  async cycleModel(direction: "forward" | "backward"): Promise<AdapterCommandResult> {
-    const result = await this.backend.cycleModelWorkflow(direction);
+  async cycleModel(direction: "forward" | "backward"): Promise<OwnedUiCommandResult> {
+    const result = await this.backend.workflows.cycleModelWorkflow(direction);
     this.root.appendWorkflowResult(result);
     this.runtime.requestRender();
     return workflowAdapterResult(result);
   }
 
-  async queueFollowUp(): Promise<AdapterCommandResult> {
+  async queueFollowUp(): Promise<OwnedUiCommandResult> {
     const draft = this.root.editor.getText();
     return this.#submitWhenReady(draft, () => this.#queueFollowUp(draft));
   }
 
-  async #queueFollowUp(draft: string): Promise<AdapterCommandResult> {
+  async #queueFollowUp(draft: string): Promise<OwnedUiCommandResult> {
     const displayInput = draft.trim();
     if (!displayInput) return rejected("nothing to queue");
     const prepared = this.root.preparePromptSubmission(displayInput);
@@ -946,14 +943,14 @@ export class OwnedUiSessionShell {
     return this.#execute({
       type: "follow-up",
       correlationId: this.#correlation("follow-up"),
-      sessionId: this.backend.sessionId,
+      sessionId: this.backend.identity.sessionId,
       text,
       ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
     }, displayInput);
   }
 
   restoreQueuedInput(): void {
-    const queued = [...this.#waitingImages.keys(), ...this.backend.clearQueuedWorkflows()];
+    const queued = [...this.#waitingImages.keys(), ...this.backend.workflows.clearQueuedWorkflows()];
     this.#cancelWaitingImages();
     if (queued.length === 0) return;
     this.root.editor.setText(queued.join("\n"));
@@ -995,6 +992,12 @@ export class OwnedUiSessionShell {
     return handle;
   }
 
+  // Compatibility: the contract types the pinned port's payloads `unknown`; this narrows them for the
+  // Pi components they are forwarded to until extract-pi-session-presenters removes the port.
+  get #pinned(): PiPinnedPresentationPort {
+    return this.backend.pinned as PiPinnedPresentationPort;
+  }
+
   #loadLazySelectors(): Promise<PiShellLazySelectorLoader> {
     if (this.#lazySelectors !== undefined) return Promise.resolve(this.#lazySelectors);
     return this.#lazySelectorsPromise ??= import("../../integrations/pi/components/lazy-selectors.js").then(module => {
@@ -1004,7 +1007,7 @@ export class OwnedUiSessionShell {
   }
 
   async showThinkingSelector(): Promise<void> {
-    const snapshot = this.backend.pinnedSettingsSnapshot();
+    const snapshot = this.backend.settings.snapshot();
     const close = () => {
       this.root.setFooterLevel(true);
       this.root.setInputSurface(null);
@@ -1022,7 +1025,7 @@ export class OwnedUiSessionShell {
         availableLevels: snapshot.availableThinkingLevels,
         onSelect: select,
         onCancel: close,
-        onSelectAsDefault: level => this.backend.setDefaultThinkingLevel(level),
+        onSelectAsDefault: level => this.backend.settings.setDefaultThinkingLevel(level),
         defaultLevel: snapshot.defaultThinkingLevel,
         ...(this.#customViewport ? {
           presentation: {
@@ -1059,7 +1062,7 @@ export class OwnedUiSessionShell {
   }
 
   showModelSelector(initialSearchInput?: string): void {
-    const context = this.backend.pinnedModelSelectorContext();
+    const context = this.#pinned.pinnedModelSelectorContext();
     const close = () => {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
@@ -1087,7 +1090,7 @@ export class OwnedUiSessionShell {
   }
 
   showForkSelector(): void {
-    const options = this.backend.pinnedForkOptions();
+    const options = this.backend.catalog.pinnedForkOptions();
     if (options.length === 0) {
       this.root.appendWorkflowResult({ command: "fork", outcome: "completed", message: "No messages to fork from", messageKind: "status" });
       this.runtime.requestRender();
@@ -1108,7 +1111,7 @@ export class OwnedUiSessionShell {
   async showLogoutSelector(): Promise<void> {
     let options;
     try {
-      options = await this.backend.pinnedLogoutOptions();
+      options = await this.backend.catalog.pinnedLogoutOptions();
     } catch (error) {
       this.root.appendWorkflowResult({
         command: "logout",
@@ -1136,7 +1139,7 @@ export class OwnedUiSessionShell {
   }
 
   showLoginMethodSelector(providerReference: string): void {
-    const method = this.backend.pinnedLoginMethodOptions(providerReference);
+    const method = this.backend.catalog.pinnedLoginMethodOptions(providerReference);
     if (method.options.length === 0) {
       this.showLoginProviderSelector(undefined, providerReference);
       return;
@@ -1162,7 +1165,7 @@ export class OwnedUiSessionShell {
   }
 
   async showTreeSelector(initialSelectedId?: string): Promise<void> {
-    const context = this.backend.pinnedTreeSelectorContext();
+    const context = this.#pinned.pinnedTreeSelectorContext();
     if (context.tree.length === 0) {
       this.root.appendWorkflowStatus("No entries in session");
       this.runtime.requestRender();
@@ -1188,13 +1191,13 @@ export class OwnedUiSessionShell {
             this.runtime.requestRender();
             return;
           }
-          const generation = this.backend.sessionBindingGeneration;
-          void this.backend.copyWorkflowText(text).then(acknowledged => {
-            if (this.#disposed || generation !== this.backend.sessionBindingGeneration) return;
+          const generation = this.backend.identity.sessionBindingGeneration;
+          void this.backend.workflows.copyWorkflowText(text).then(acknowledged => {
+            if (this.#disposed || generation !== this.backend.identity.sessionBindingGeneration) return;
             this.root.appendWorkflowStatus(acknowledged ? "Copied selected message to clipboard" : "Submitted selected message to clipboard");
             this.runtime.requestRender();
           }).catch(error => {
-            if (this.#disposed || generation !== this.backend.sessionBindingGeneration) return;
+            if (this.#disposed || generation !== this.backend.identity.sessionBindingGeneration) return;
             this.root.appendWorkflowResult({ command: "tree", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
             this.runtime.requestRender();
           });
@@ -1239,7 +1242,7 @@ export class OwnedUiSessionShell {
   }
 
   showLoginProviderSelector(authType?: "oauth" | "api_key", initialSearchInput?: string): void {
-    const options = this.backend.pinnedLoginOptions(authType);
+    const options = this.backend.catalog.pinnedLoginOptions(authType);
     if (options.length === 0) {
       this.root.appendWorkflowStatus(authType === "oauth" ? "No account providers available." : authType === "api_key" ? "No API key providers available." : "No login providers available.");
       this.runtime.requestRender();
@@ -1261,7 +1264,7 @@ export class OwnedUiSessionShell {
   }
 
   async showSessionSelector(): Promise<void> {
-    const context = this.backend.pinnedSessionSelectorContext();
+    const context = this.#pinned.pinnedSessionSelectorContext();
     const close = () => {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
@@ -1287,21 +1290,21 @@ export class OwnedUiSessionShell {
   }
 
   showSettingsSelector(): void {
-    const snapshot = this.backend.pinnedSettingsSnapshot();
+    const snapshot = this.backend.settings.snapshot();
+    const { currentModel, availableDefaultModels } = this.#pinned.pinnedSettingsModels();
     const close = () => {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
     };
-    const { currentModel, ...settingsSnapshot } = snapshot;
     const component = createPiShellSettingsSelector({
       config: {
-        ...settingsSnapshot,
+        ...snapshot,
         availableThinkingLevels: [...snapshot.availableThinkingLevels],
         availableThemes: [...snapshot.availableThemes],
         warnings: { ...snapshot.warnings },
         modelThinkingLevels: { ...snapshot.modelThinkingLevels } as PiShellSettingsSelectorOptions["config"]["modelThinkingLevels"],
         ...(currentModel === undefined ? {} : { currentModel: currentModel as NonNullable<PiShellSettingsSelectorOptions["config"]["currentModel"]> }),
-        availableDefaultModels: snapshot.availableDefaultModels as PiShellSettingsSelectorOptions["config"]["availableDefaultModels"],
+        availableDefaultModels: availableDefaultModels as PiShellSettingsSelectorOptions["config"]["availableDefaultModels"],
       },
       onChange: (callback, value) => {
         if (callback === "onCancel") {
@@ -1323,7 +1326,7 @@ export class OwnedUiSessionShell {
             this.#setPointerReporting(true);
           }
         }
-        void this.backend.applyPinnedSettingValue(callback, value).then(result => {
+        void this.#pinned.applyPinnedSettingValue(callback, value).then(result => {
           if (result.outcome === "failed") this.root.appendWorkflowResult(result);
           else if (callback === "onTuiModeChange") this.root.appendWorkflowStatus(`TUI mode: ${value}`);
           this.runtime.requestRender();
@@ -1335,14 +1338,14 @@ export class OwnedUiSessionShell {
     this.runtime.requestRender();
   }
 
-  shutdown(): Promise<AdapterCommandResult> {
+  shutdown(): Promise<OwnedUiCommandResult> {
     this.#shutdownPromise ??= this.#shutdown();
     return this.#shutdownPromise;
   }
 
-  async #shutdown(): Promise<AdapterCommandResult> {
+  async #shutdown(): Promise<OwnedUiCommandResult> {
     try {
-      const result = await this.backend.executeWorkflow({ command: "quit", argument: "" });
+      const result = await this.backend.workflows.executeWorkflow({ command: "quit", argument: "" });
       await this.dispose();
       return workflowAdapterResult(result);
     } finally {
@@ -1350,7 +1353,7 @@ export class OwnedUiSessionShell {
     }
   }
 
-  async runWorkflow(request: PiWorkflowRequest): Promise<AdapterCommandResult> {
+  async runWorkflow(request: OwnedUiWorkflowRequest): Promise<OwnedUiCommandResult> {
     if (request.command === "quit") return this.shutdown();
     if (this.#customViewport && request.command === "name" && request.argument.trim().length === 0) {
       void this.#extensionBridge.input("Session Name", "Enter name").then(value => {
@@ -1363,9 +1366,9 @@ export class OwnedUiSessionShell {
       });
       return { outcome: "completed", diagnostic: null };
     }
-    const copyGeneration = request.command === "copy" ? this.backend.sessionBindingGeneration : undefined;
+    const copyGeneration = request.command === "copy" ? this.backend.identity.sessionBindingGeneration : undefined;
     if (request.command === "login" && request.selection !== undefined) {
-      const setup = this.backend.pinnedAmbientAuthentication(request.selection);
+      const setup = this.backend.catalog.pinnedAmbientAuthentication(request.selection);
       if (setup) {
         const close = () => {
           this.root.setInputSurface(null);
@@ -1428,7 +1431,7 @@ export class OwnedUiSessionShell {
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "reload") {
-      const blocked = this.backend.reloadBlockedResult();
+      const blocked = this.backend.workflows.reloadBlockedResult();
       if (blocked) {
         this.root.appendWorkflowResult(blocked);
         this.runtime.requestRender();
@@ -1452,9 +1455,9 @@ export class OwnedUiSessionShell {
       this.root.setInputSurface(operationSurface);
       this.runtime.requestRender();
     }
-    let result: PiWorkflowResult;
+    let result: OwnedUiWorkflowResult;
     try {
-      result = await this.backend.executeWorkflow(shareSurface === undefined ? request : { ...request, signal: shareSurface.signal });
+      result = await this.backend.workflows.executeWorkflow(shareSurface === undefined ? request : { ...request, signal: shareSurface.signal });
     } finally {
       if (operationSurface) {
         // Rationale: a near-instant reload would flash the box for a frame or skip it entirely; holding it
@@ -1464,7 +1467,7 @@ export class OwnedUiSessionShell {
         this.runtime.requestRender();
       }
     }
-    if (copyGeneration !== undefined && (this.#disposed || copyGeneration !== this.backend.sessionBindingGeneration)) {
+    if (copyGeneration !== undefined && (this.#disposed || copyGeneration !== this.backend.identity.sessionBindingGeneration)) {
       return workflowAdapterResult({ command: "copy", outcome: "cancelled", message: "" });
     }
     if (result.outcome === "requires-selection" && request.command === "model") {
@@ -1519,7 +1522,7 @@ export class OwnedUiSessionShell {
   }
 
   showTrustSelector(): void {
-    const context = this.backend.pinnedProjectTrustContext();
+    const context = this.backend.catalog.pinnedProjectTrustContext();
     const close = () => {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
@@ -1528,7 +1531,7 @@ export class OwnedUiSessionShell {
       ...context,
       onSelect: selection => {
         try {
-          this.backend.persistProjectTrust(selection.updates);
+          this.backend.catalog.persistProjectTrust(selection.updates);
           close();
           this.root.appendWorkflowStatus(`Saved trust decision: ${selection.trusted ? "trusted" : "untrusted"}. Restart pi for this to take effect.`);
         } catch (error) {
@@ -1544,7 +1547,7 @@ export class OwnedUiSessionShell {
   }
 
   showScopedModelsSelector(): void {
-    const initial = this.backend.pinnedScopedModelsContext();
+    const initial = this.backend.catalog.pinnedScopedModelsContext();
     let currentEnabledIds = initial.enabledModelIds === null ? null : [...initial.enabledModelIds];
     let selectionChanged = false;
     let disposed = false;
@@ -1568,12 +1571,12 @@ export class OwnedUiSessionShell {
       onChange: enabledIds => {
         selectionChanged = true;
         currentEnabledIds = enabledIds === null ? null : [...enabledIds];
-        this.backend.updateScopedModels(currentEnabledIds);
+        this.backend.catalog.updateScopedModels(currentEnabledIds);
         this.runtime.requestRender();
       },
       onPersist: enabledIds => {
         currentEnabledIds = enabledIds === null ? null : [...enabledIds];
-        this.backend.persistScopedModels(currentEnabledIds);
+        this.backend.catalog.persistScopedModels(currentEnabledIds);
         this.root.appendWorkflowStatus("Model selection saved to settings");
         this.runtime.requestRender();
       },
@@ -1590,14 +1593,14 @@ export class OwnedUiSessionShell {
     };
     this.root.setInputSurface(component);
     this.runtime.requestRender();
-    void this.backend.refreshScopedModels(controller.signal).then(refreshed => {
+    void this.backend.catalog.refreshScopedModels(controller.signal).then(refreshed => {
       if (disposed) return;
       if (!selectionChanged) {
         currentEnabledIds = refreshed.enabledModelIds === null ? null : [...refreshed.enabledModelIds];
         component.updateModels(refreshed.models, currentEnabledIds);
       } else {
         component.updateModels(refreshed.models);
-        this.backend.updateScopedModels(currentEnabledIds);
+        this.backend.catalog.updateScopedModels(currentEnabledIds);
       }
       component.setRefreshStatus(
         timedOut ? "Model refresh timed out; showing cached models." : refreshed.status,
@@ -1617,14 +1620,14 @@ export class OwnedUiSessionShell {
   }
 
   // Invariant: bare A1 routes `models`; the comparison profile keeps the pinned `model`/`scoped-models` pair. Hidden routes are shared.
-  #isWorkflowRoute(value: string): value is PiWorkflowRoute {
+  #isWorkflowRoute(value: string): value is OwnedUiWorkflowRoute {
     return (workflowCommandNames(this.#customViewport ? "bare" : "comparison") as readonly string[]).includes(value)
-      || (PINNED_PI_HIDDEN_COMMAND_NAMES as readonly string[]).includes(value);
+      || (OWNED_UI_HIDDEN_COMMAND_NAMES as readonly string[]).includes(value);
   }
 
   /** The bare-A1 unified Models dialog: switch on Enter, scope on Space, persist on Ctrl+S, all through the engine. */
   showModelsDialog(initialQuery?: string): void {
-    const context = this.backend.modelsContext();
+    const context = this.backend.catalog.modelsContext();
     const available = new Set(context.models.map(model => `${model.provider}/${model.id}`));
     const savedScopeIds = context.persistedScopeIds.filter(id => available.has(id));
     // Invariant: an explicit session scope wins; otherwise the dialog starts from what is persisted, never from "all rows scoped".
@@ -1657,12 +1660,12 @@ export class OwnedUiSessionShell {
         });
       },
       onScopeChange: ids => {
-        this.backend.setSessionModelScope(ids);
+        this.backend.catalog.setSessionModelScope(ids);
         this.runtime.requestRender();
       },
       onSave: ids => {
         try {
-          this.backend.persistModelScope(ids);
+          this.backend.catalog.persistModelScope(ids);
         } catch (error) {
           this.root.appendWorkflowResult({ command: "models", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
           this.runtime.requestRender();
@@ -1684,7 +1687,7 @@ export class OwnedUiSessionShell {
     };
     this.root.setInputSurface(component);
     this.runtime.requestRender();
-    void this.backend.refreshModels(controller.signal).then(refreshed => {
+    void this.backend.catalog.refreshModels(controller.signal).then(refreshed => {
       if (disposed) return;
       component.updateModels(refreshed.models);
       component.setRefreshStatus(
@@ -1752,8 +1755,8 @@ export class OwnedUiSessionShell {
     attempt(() => this.#unsubscribeSettings());
     let fullscreenExitText = "";
     attempt(() => {
-      const exitMode = this.backend.disposed ? this.#fullscreenExitOutput : this.backend.pinnedSettingsSnapshot().fullscreenExitOutput;
-      const resume = this.backend.currentSessionResumeMetadata();
+      const exitMode = this.backend.identity.disposed ? this.#fullscreenExitOutput : this.backend.settings.snapshot().fullscreenExitOutput;
+      const resume = this.backend.identity.currentSessionResumeMetadata();
       const resumeHint = resume === null ? "" : `${dim("To resume this session:")} ${formatSessionResumeCommand(resume)}`;
       // Invariant: bare A1 leaves only the hint behind; the pinned comparison profile still
       // honors fullscreenExitOutput, including the styled transcript.
@@ -1780,7 +1783,7 @@ export class OwnedUiSessionShell {
     await this.runtime.dispose({ preserveScreen: this.runtime.mode === "fullscreen" }).catch(error => failures.push(error));
     await historyCleanup.catch(() => false); // Security: background durability outcomes never enter terminal output.
     await boundedCleanup(() => pasteCleanup).catch(error => failures.push(error));
-    await boundedCleanup(() => this.backend.unbindExtensionUi()).catch(error => failures.push(error));
+    await boundedCleanup(() => this.backend.extensions.unbindExtensionUi()).catch(error => failures.push(error));
     if (failures.length > 0) throw new AggregateError(failures, "Owned UI disposal failed");
     if (fullscreenExitText.length > 0) this.runtime.writeAfterStop(`${fullscreenExitText}\n`);
   }
@@ -1873,17 +1876,17 @@ export class OwnedUiSessionShell {
   #syncView(): OwnedUiSessionViewModel {
     this.#streamPresentation.noteImmediatePresentation();
     const view = this.view();
-    if (this.backend.sessionGeneration !== this.#sessionGeneration) {
+    if (this.backend.identity.sessionGeneration !== this.#sessionGeneration) {
       this.#copyIntentSequence += 1;
       this.#responseCopy?.reset();
       this.#cancelWaitingImages();
       this.root.resetPendingPastes();
       this.#promptSuggestions?.invalidate();
-      this.#sessionGeneration = this.backend.sessionGeneration;
+      this.#sessionGeneration = this.backend.identity.sessionGeneration;
       this.#programStatus.reset();
       // Invariant: delivery recovery invalidates callbacks, not same-session local recall or its draft.
-      if (this.#sessionBindingGeneration !== this.backend.sessionBindingGeneration) {
-        this.#sessionBindingGeneration = this.backend.sessionBindingGeneration;
+      if (this.#sessionBindingGeneration !== this.backend.identity.sessionBindingGeneration) {
+        this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
         this.root.resetTranscript();
         this.#promptHistory?.reset(view.transcript.flatMap(block => block.kind === "user" ? [block.text] : []));
       }
@@ -1933,7 +1936,7 @@ export class OwnedUiSessionShell {
     this.#openOwnedRoute(pending.route, pending.input, pending.onClosed);
   }
 
-  #openOwnedRoute(route: string, input?: UiRouteInput, onClosed?: () => void | Promise<void>): AdapterCommandResult {
+  #openOwnedRoute(route: string, input?: UiRouteInput, onClosed?: () => void | Promise<void>): OwnedUiCommandResult {
     const surface = this.#routeHost?.open(route, input) ?? null;
     if (surface === null) return { outcome: "failed", diagnostic: `route is unavailable: ${route}` };
     if (!this.runtime.active) return { outcome: "failed", diagnostic: "runtime is not active" };
@@ -2081,7 +2084,7 @@ export class OwnedUiSessionShell {
     return this.root.hotkeysPresentation();
   }
 
-  async #slashCommand(text: string): Promise<AdapterCommandResult> {
+  async #slashCommand(text: string): Promise<OwnedUiCommandResult> {
     const body = text.slice(1).trim();
     const separator = body.search(/\s/);
     const name = separator < 0 ? body : body.slice(0, separator);
@@ -2099,32 +2102,32 @@ export class OwnedUiSessionShell {
     return this.#execute({
       type: this.view().lifecycle === "busy" ? "steer" : "prompt",
       correlationId: this.#correlation("prompt-command"),
-      sessionId: this.backend.sessionId,
+      sessionId: this.backend.identity.sessionId,
       text,
     });
   }
 
   #installAutocompleteCommands(): void {
-    this.root.editor.setAutocompleteCommands(this.backend.workflowAutocompleteCommands());
+    this.root.editor.setAutocompleteCommands(this.backend.workflows.workflowAutocompleteCommands());
     this.#installedCommandSignature = this.#commandListSignature();
   }
 
   #commandListSignature(): string {
-    return JSON.stringify([this.#skills?.presentation() ?? "expand", this.backend.disposed ? [] : this.backend.workflowAutocompleteCommands().map(command => command.name)]);
+    return JSON.stringify([this.#skills?.presentation() ?? "expand", this.backend.identity.disposed ? [] : this.backend.workflows.workflowAutocompleteCommands().map(command => command.name)]);
   }
 
   // Invariant: collapse applies only while the engine registers skill commands; otherwise there is nothing to collapse.
   #skillsCollapsed(): boolean {
     return this.#skills !== null && this.#skills.presentation() === "collapse"
-      && !this.backend.disposed && this.backend.pinnedSettingsSnapshot().enableSkillCommands;
+      && !this.backend.identity.disposed && this.backend.settings.snapshot().enableSkillCommands;
   }
 
   #skillSummaries(): readonly PiShellSkillSummary[] {
-    return skillsFromCommands(this.backend.workflowAutocompleteCommands());
+    return skillsFromCommands(this.backend.workflows.workflowAutocompleteCommands());
   }
 
   // Protocol: bare "/skills" opens the dialog, "/skills <name> [args]" applies directly, and an unknown name is a command outcome.
-  async #runSkillsCommand(text: string, argument: string): Promise<AdapterCommandResult> {
+  async #runSkillsCommand(text: string, argument: string): Promise<OwnedUiCommandResult> {
     const skills = this.#skillSummaries();
     const trimmed = argument.trim();
     if (trimmed.length === 0) {
@@ -2144,13 +2147,13 @@ export class OwnedUiSessionShell {
   }
 
   // Rationale: engine expands skill arguments; history retains typed input for recall.
-  #submitSkillPrompt(prompt: string, typed: string): Promise<AdapterCommandResult> {
+  #submitSkillPrompt(prompt: string, typed: string): Promise<OwnedUiCommandResult> {
     this.#rememberInput(typed, "slash");
     this.root.resumeViewportFollowing();
     return this.#execute({
       type: this.view().lifecycle === "busy" ? "steer" : "prompt",
       correlationId: this.#correlation("prompt-command"),
-      sessionId: this.backend.sessionId,
+      sessionId: this.backend.identity.sessionId,
       text: prompt,
     });
   }
@@ -2199,7 +2202,7 @@ export class OwnedUiSessionShell {
     if (result.diagnostic === "Branch summarization cancelled") await this.showTreeSelector(entryId);
   }
 
-  #startWorkflowLogin(request: PiWorkflowLoginStart): void {
+  #startWorkflowLogin(request: OwnedUiWorkflowLoginStart): void {
     this.#finishWorkflowLogin();
     const dialog = createPiShellLoginDialog({
       getColumns: () => this.runtime.viewport().columns,
@@ -2218,7 +2221,7 @@ export class OwnedUiSessionShell {
     this.runtime.requestRender();
   }
 
-  #requestWorkflowInput(request: PiWorkflowInteractionRequest): Promise<string | null> {
+  #requestWorkflowInput(request: OwnedUiWorkflowInteractionRequest): Promise<string | null> {
     const dialog = this.#activeLoginDialog;
     if (!dialog) return Promise.resolve(null);
     if (request.type === "select") {
@@ -2248,7 +2251,7 @@ export class OwnedUiSessionShell {
     return response.then(value => value, () => null);
   }
 
-  #notifyWorkflowLogin(event: PiWorkflowLoginNotification): void {
+  #notifyWorkflowLogin(event: OwnedUiWorkflowLoginNotification): void {
     const dialog = this.#activeLoginDialog;
     if (!dialog) return;
     if (event.type === "auth_url") dialog.showAuth(event.url, event.instructions);
@@ -2270,8 +2273,8 @@ export class OwnedUiSessionShell {
     this.runtime.requestRender();
   }
 
-  async #execute(command: OwnedUiCommand, draft?: string): Promise<AdapterCommandResult> {
-    if (draft === undefined) return this.backend.execute(command);
+  async #execute(command: OwnedUiCommand, draft?: string): Promise<OwnedUiCommandResult> {
+    if (draft === undefined) return this.backend.session.execute(command);
     const revision = this.#editorRevision;
     try {
       assertOwnedUiCommand(command);
@@ -2279,7 +2282,7 @@ export class OwnedUiSessionShell {
       return this.#recoverSubmission(draft, revision, error);
     }
     try {
-      const result = await this.backend.execute(command);
+      const result = await this.backend.session.execute(command);
       if (result.outcome === "rejected") return this.#recoverSubmission(draft, revision);
       return result;
     } catch {
@@ -2291,7 +2294,7 @@ export class OwnedUiSessionShell {
     }
   }
 
-  async #guardSubmission(draft: string, action: () => Promise<AdapterCommandResult>): Promise<AdapterCommandResult> {
+  async #guardSubmission(draft: string, action: () => Promise<OwnedUiCommandResult>): Promise<OwnedUiCommandResult> {
     const revision = this.#editorRevision;
     try { return await action(); }
     catch (error) {
@@ -2300,7 +2303,7 @@ export class OwnedUiSessionShell {
     }
   }
 
-  #recoverSubmission(draft: string, revision: number, error?: unknown): AdapterCommandResult {
+  #recoverSubmission(draft: string, revision: number, error?: unknown): OwnedUiCommandResult {
     this.root.editor.addToHistory(draft);
     this.#promptHistory?.rememberRecovery(draft);
     // Concurrency: never overwrite input typed (even typed and cleared) after this submission.
@@ -2323,7 +2326,7 @@ export class OwnedUiSessionShell {
   }
 
   #simple(type: "abort" | "retry" | "compact" | "shutdown" | "new-session"): OwnedUiCommand {
-    return { type, correlationId: this.#correlation(type), sessionId: this.backend.sessionId };
+    return { type, correlationId: this.#correlation(type), sessionId: this.backend.identity.sessionId };
   }
 
   #correlation(prefix: string): string {
@@ -2377,7 +2380,7 @@ function modelReference(model: unknown): string {
   return provider && id ? `${provider}/${id}` : "";
 }
 
-function rejected(diagnostic: string): AdapterCommandResult {
+function rejected(diagnostic: string): OwnedUiCommandResult {
   return { outcome: "rejected", diagnostic };
 }
 
@@ -2385,7 +2388,7 @@ function modelKey(view: OwnedUiSessionViewModel): string {
   return view.activeModel === null ? "" : `${view.activeModel.providerId}/${view.activeModel.modelId}`;
 }
 
-function workflowAdapterResult(result: PiWorkflowResult): AdapterCommandResult {
+function workflowAdapterResult(result: OwnedUiWorkflowResult): OwnedUiCommandResult {
   if (result.outcome === "completed") return { outcome: "completed", diagnostic: null };
   if (result.outcome === "failed") return { outcome: "failed", diagnostic: result.message };
   return { outcome: "rejected", diagnostic: result.message };

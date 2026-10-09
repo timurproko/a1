@@ -259,12 +259,12 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     try {
       terminal.resize(80, 30);
       adapter.announceReleaseUpdate({ version: "0.2.1", command: "a1 update", changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.2.1" });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const idleRows = shell.root.render(80).map(row => stripTerminalSequences(row));
       const idleEditorBorderRow = idleRows.findIndex((row, index) => index > 0 && /^─+$/.test(row.trim()));
       const idleBannerEnd = idleRows.findIndex(row => row.includes("Changelog:")) + 1;
       engine.session.emit({ type: "agent_start" });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const rows = shell.root.render(80).map(row => stripTerminalSequences(row));
       const titleRow = rows.findIndex(row => row.includes("Update Available"));
       const workingRow = rows.findIndex(row => row.includes("Working"));
@@ -317,7 +317,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     try {
       terminal.resize(60, 12);
       engine.session.emit({ type: "agent_start" });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const workingFrame = shell.root.render(60);
       const workingRowIndex = workingFrame.findIndex(row => stripTerminalSequences(row).includes("Working"));
       const workingColumn = stripTerminalSequences(workingFrame[workingRowIndex] ?? "").indexOf("Working") + 1;
@@ -358,7 +358,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       terminal.resize(60, 18);
       engine.session.emit({ type: "agent_start" });
       engine.session.emit({ type: "queue_update", steering: ["first", "second"], followUp: [] });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
 
       const rows = shell.root.render(60).map(row => stripTerminalSequences(row));
       const first = rows.findIndex(row => row.includes("Steering: first"));
@@ -400,7 +400,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       terminal.resize(50, 18);
       engine.session.emit({ type: "agent_start" });
       engine.session.emit({ type: "queue_update", steering: [`${"x".repeat(120)}${marker}`, "second"], followUp: [] });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
 
       let rows = shell.root.render(50).map(row => stripTerminalSequences(row));
       const chipRows = rows.filter(row => row.includes("[📷") || row.includes("screenshot-0123456789]"));
@@ -434,7 +434,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       const settledTranscriptRow = settledRows.findIndex(row => row.includes("fitting transcript"));
       engine.session.emit({ type: "agent_start" });
       engine.session.emit({ type: "queue_update", steering: ["stable queue"], followUp: [] });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
 
       const positions = () => {
         const rows = shell.root.render(60).map(row => stripTerminalSequences(row));
@@ -463,7 +463,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
         type: "message_start",
         message: { role: "assistant", content: [{ type: "text", text: "another fitting row" }], timestamp: 2 },
       });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const grownButFitting = positions();
       expect(grownButFitting.queue).toBe(fitting.queue);
       expect(grownButFitting.hint).toBe(fitting.hint);
@@ -477,7 +477,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
           message: { role: "user", content: [{ type: "text", text: `overflow prompt ${index}` }], timestamp: 10 + index },
         });
       }
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const overflowing = positions();
       expect(overflowing.dockStart).toBe(fitting.dockStart);
       expect(overflowing.alignmentGap).toBe(0);
@@ -488,7 +488,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       expect(overflowing.rows.filter(row => row.includes("Working"))).toHaveLength(1);
 
       engine.session.emit({ type: "queue_update", steering: [], followUp: [] });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const cleared = positions();
       expect(cleared.queue).toBe(-1);
       expect(cleared.hint).toBe(-1);
@@ -509,7 +509,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     try {
       terminal.resize(60, 12);
       engine.session.emit({ type: "agent_start" });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const plainRows = () => shell.root.render(60).map(row => stripTerminalSequences(row));
       expect(plainRows().some(row => row.includes("Working…"))).toBe(true);
       shell.root.setExtensionWorking("Indexing sources");
@@ -540,7 +540,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
         timestamp: Date.now(),
       } });
       engine.session.emit({ type: "agent_settled" });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const completed = plainRows();
       expect(completed.some(row => row.includes("Still indexing"))).toBe(false);
       expect(completed.some(row => row.includes("Working"))).toBe(false);

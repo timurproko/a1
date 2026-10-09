@@ -90,7 +90,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("routes the complete command manifest, hidden routes, prompt resources, bash modes, and streaming queues", async () => {
     const { engine, adapter, shell } = await fixture();
-    const workflow = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
+    const workflow = vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(async request => ({
       command: request.command,
       outcome: "completed",
       message: `ran ${request.command}`,
@@ -199,7 +199,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("cancels the share operation through its loader without rendering late success", async () => {
     const { adapter, terminal, shell } = await fixture();
-    const execute = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => {
+    const execute = vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(async request => {
       if (request.command !== "share" || !request.signal) return { command: request.command, outcome: "completed", message: "done" };
       await new Promise<void>(resolve => request.signal?.addEventListener("abort", () => resolve(), { once: true }));
       return { command: "share", outcome: "cancelled", message: "Share cancelled", messageKind: "status" };
@@ -219,7 +219,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
   it("uses pinned editor-replacement loaders for share and reload operations", async () => {
     const { adapter, shell } = await fixture();
     let resolveShare: ((result: Awaited<ReturnType<typeof adapter.executeWorkflow>>) => void) | undefined;
-    const execute = vi.spyOn(adapter, "executeWorkflow").mockImplementation(request => request.command === "share"
+    const execute = vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(request => request.command === "share"
       ? new Promise(resolve => { resolveShare = resolve; })
       : Promise.resolve({ command: request.command, outcome: "completed", message: "Reloaded keybindings, extensions, skills, prompts, themes, and context files" }));
 
@@ -252,7 +252,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     await withPinnedHyperlinks(async () => {
       const { adapter, shell } = await fixture([], [], true);
       let resolveShare: ((result: Awaited<ReturnType<typeof adapter.executeWorkflow>>) => void) | undefined;
-      vi.spyOn(adapter, "executeWorkflow").mockImplementation(request => new Promise(resolve => {
+      vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(request => new Promise(resolve => {
         if (request.command === "share") resolveShare = resolve;
       }));
 
@@ -305,7 +305,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
         return new Promise<void>(resolve => { releaseSleep = resolve; });
       },
     });
-    vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => {
+    vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(async request => {
       clock += 50;
       return { command: request.command, outcome: "completed", message: "Reloaded keybindings, extensions, skills, prompts, themes, and context files" };
     });
@@ -329,7 +329,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       now: () => clock,
       sleep: async ms => { sleeps.push(ms); },
     });
-    vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => {
+    vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(async request => {
       clock += 400;
       return { command: request.command, outcome: "completed", message: "Reloaded keybindings, extensions, skills, prompts, themes, and context files" };
     });
@@ -831,7 +831,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("uses the pinned confirmation surface without committing on cancel", async () => {
     const { adapter, terminal, shell } = await fixture();
-    const workflow = vi.spyOn(adapter, "executeWorkflow")
+    const workflow = vi.spyOn(adapter.workflows, "executeWorkflow")
       .mockResolvedValueOnce({ command: "import", outcome: "requires-confirmation", message: "Replace current session with fixture.jsonl?" })
       .mockResolvedValueOnce({ command: "import", outcome: "cancelled", message: "Import cancelled", messageKind: "status" })
       .mockResolvedValueOnce({ command: "import", outcome: "requires-confirmation", message: "Replace current session with fixture.jsonl?" })
@@ -857,7 +857,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("continues import through the missing-cwd recovery confirmation", async () => {
     const { adapter, terminal, shell } = await fixture();
-    const workflow = vi.spyOn(adapter, "executeWorkflow")
+    const workflow = vi.spyOn(adapter.workflows, "executeWorkflow")
       .mockResolvedValueOnce({ command: "import", outcome: "requires-confirmation", message: "Replace current session with fixture.jsonl?" })
       .mockResolvedValueOnce({
         command: "import",
@@ -886,7 +886,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("closes selectors silently, restores editor input, and continues selected workflows", async () => {
     const { adapter, terminal, shell } = await fixture();
-    const workflow = vi.spyOn(adapter, "executeWorkflow")
+    const workflow = vi.spyOn(adapter.workflows, "executeWorkflow")
       .mockResolvedValueOnce({ command: "model", outcome: "completed", message: "Selected GPT-5" })
       .mockResolvedValueOnce({ command: "copy", outcome: "failed", message: "clipboard denied" });
 

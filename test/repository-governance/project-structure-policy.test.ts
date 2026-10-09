@@ -113,6 +113,23 @@ describe("project structure ownership policy", () => {
     ]);
   });
 
+  it("keeps the application layer on the declared session backend port", () => {
+    expect(inspectLayerBoundaries({
+      "src/app/session-shell/session-shell.ts": "import type { OwnedUiSessionBackend } from '../../contracts/owned-ui/index.js';",
+      "src/app/session-shell/exit-notice.ts": "import type { PiPinnedPresentationPort } from '../../integrations/pi/engine/adapter.js';",
+      "src/composition/owned-ui.ts": "import { createPiEngineAdapter, type PiEngineAdapter } from '../integrations/pi/engine/adapter.js';",
+    })).toEqual([]);
+    expect(inspectLayerBoundaries({
+      "src/app/session-shell/session-shell-root.ts": "import type {\n  PiEngineAdapter,\n} from '../../integrations/pi/engine/adapter.js';",
+      "src/app/session-shell/session-shell.ts": "import { PiEngineAdapter } from '../../integrations/pi/engine/index.js';",
+      "src/app/session-shell/exit-notice.ts": "let backend: import('../../integrations/pi/engine/adapter.js').PiEngineAdapter;",
+    })).toEqual([
+      "src/app/session-shell/session-shell-root.ts: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class",
+      "src/app/session-shell/session-shell.ts: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class",
+      "src/app/session-shell/exit-notice.ts: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class",
+    ]);
+  });
+
   it("holds the three layer boundaries regardless of the owner DAG", () => {
     expect(inspectLayerBoundaries({
       "src/contracts/owned-ui/index.ts": "export type { PasteEvent } from './paste.js';",

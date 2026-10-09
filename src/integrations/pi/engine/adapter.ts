@@ -6,13 +6,21 @@ import {
   type OwnedUiCommand,
   type OwnedUiDiagnostics,
   type OwnedUiEditorState,
+  type OwnedUiExtensionPort,
   type OwnedUiImageAttachment,
+  type OwnedUiPinnedPresentationPort,
   type OwnedUiPromptSuggestionGeneratorPort,
   type OwnedUiPromptSuggestionReasoning,
   type OwnedUiPromptSuggestionRequest,
   type OwnedUiPromptSuggestionResult,
   type OwnedUiEvent,
   type OwnedUiModelInfo,
+  type OwnedUiReleaseUpdate,
+  type OwnedUiSessionBackend,
+  type OwnedUiSessionCatalogPort,
+  type OwnedUiSessionIdentityPort,
+  type OwnedUiSessionPort,
+  type OwnedUiSessionSettingsPort,
   type OwnedUiSessionViewModel,
   type OwnedUiSnapshot,
   type OwnedUiStatusView,
@@ -20,6 +28,7 @@ import {
   type OwnedUiThinkingLevel,
   type OwnedUiTranscriptBlock,
   type OwnedUiUsageView,
+  type OwnedUiWorkflowPort,
 } from "../../../contracts/owned-ui/index.js";
 import type {
   PiAuthenticationProviderOption,
@@ -65,6 +74,19 @@ export type { PiEngineRuntimeFactory, PiEngineRuntimeFactoryInput } from "./sess
 export type { AdapterCommandResult } from "./command-dispatch.js";
 export type { OwnedPiVisualExtensionSupport } from "./extension-ui-binding.js";
 
+/**
+ * The transitional pinned port with the Pi payload types the contract declares as `unknown`.
+ * Only the shell's forwarding sites narrow to it; extract-pi-session-presenters deletes both.
+ */
+export interface PiPinnedPresentationPort extends OwnedUiPinnedPresentationPort {
+  pinnedModelSelectorContext(): ReturnType<PiWorkflowContexts["pinnedModelSelectorContext"]>;
+  pinnedSessionSelectorContext(): PiSessionSelectorContext;
+  pinnedTreeSelectorContext(): PiTreeSelectorContext;
+  pinnedShortcutDescriptions(bindings: Parameters<AgentSession["extensionRunner"]["getShortcuts"]>[0]): readonly { readonly key: string; readonly description: string }[];
+  pinnedSettingsModels(): Pick<PiPinnedSettingsSnapshot, "currentModel" | "availableDefaultModels">;
+  applyPinnedSettingValue(callback: PiPinnedSettingsCallback, value: unknown): Promise<PiWorkflowResult>;
+}
+
 /** Explicit flush failure when required delivery was interrupted rather than completed. */
 export class EngineDeliveryError extends Error {
   constructor() { super("Engine delivery did not complete"); this.name = "EngineDeliveryError"; }
@@ -100,6 +122,16 @@ export interface PiEngineAdapterOptions {
   readonly repositoryContextReader?: PiRepositoryContextReader;
 }
 
+interface PiEngineAdapterPorts {
+  readonly identity: OwnedUiSessionIdentityPort;
+  readonly session: OwnedUiSessionPort;
+  readonly workflows: OwnedUiWorkflowPort;
+  readonly settings: OwnedUiSessionSettingsPort;
+  readonly catalog: OwnedUiSessionCatalogPort;
+  readonly extensions: OwnedUiExtensionPort;
+  readonly pinned: PiPinnedPresentationPort;
+}
+
 const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
   columns: 100,
   rows: 32,
@@ -107,8 +139,8 @@ const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
   hardwareCursor: false,
 };
 
-/** Owns the pinned Pi session lifecycle and translates its events into the neutral agent-engine contract. */
-export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
+/** Owns the pinned Pi session lifecycle and serves it to the owned shell as the neutral session backend. */
+export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSuggestionGeneratorPort {
   readonly #agentDir: string;
   readonly #sessionId: string;
   readonly #workflowHost: PiWorkflowHost;
@@ -199,6 +231,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     emitView: () => { this.#emitView(); },
   });
   #disposed = false;
+  readonly #ports: PiEngineAdapterPorts;
   constructor(options: PiEngineAdapterOptions = {}) {
     this.#agentDir = options.agentDir ?? getAgentDir();
     this.#sessionId = options.sessionId ?? "owned-session-1";
@@ -293,7 +326,17 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       identity: () => ({ sessionId: this.#sessionId, sessionGeneration: this.#engine.generation, runSequence: this.#events.runSequence, responseSequence: this.#events.responseSequence }),
       unavailable: () => this.#disposed || this.#delivery.overloaded || this.#admissionStopped,
     });
+    this.#ports = this.#createPorts();
   }
+
+  get identity(): OwnedUiSessionIdentityPort { return this.#ports.identity; }
+  get session(): OwnedUiSessionPort { return this.#ports.session; }
+  get workflows(): OwnedUiWorkflowPort { return this.#ports.workflows; }
+  get settings(): OwnedUiSessionSettingsPort { return this.#ports.settings; }
+  get catalog(): OwnedUiSessionCatalogPort { return this.#ports.catalog; }
+  get extensions(): OwnedUiExtensionPort { return this.#ports.extensions; }
+  /** Transitional: Pi-typed presentation payloads; removed by extract-pi-session-presenters. */
+  get pinned(): PiPinnedPresentationPort { return this.#ports.pinned; }
 
   setWorkflowInteractionHost(interaction: PiWorkflowInteractionHost): void {
     this.#workflowInteraction = interaction;
@@ -339,7 +382,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
    * pinned Pi's `Update Available` notice; it arrives whenever the check resolves, so a late
    * result is appended to the transcript like Pi's own fire-and-forget version check.
    */
-  announceReleaseUpdate(release: { readonly version: string; readonly command: string; readonly changelogUrl: string | null }): void {
+  announceReleaseUpdate(release: OwnedUiReleaseUpdate): void {
     if (this.#disposed) return;
     const changelog = release.changelogUrl === null ? "" : `\nChangelog: ${release.changelogUrl}`;
     this.#addDiagnostic("info", "release-update", `New version ${release.version} is available. Run ${release.command}${changelog}`, true);
@@ -647,6 +690,100 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "stopped", reason: null });
     this.#emitView();
     try { await this.flushEvents(); } catch (error) { if (!(error instanceof EngineDeliveryError)) throw error; }
+  }
+
+  // Invariant: every sub-port member delegates at call time, so ports built once follow session replacement.
+  #createPorts(): PiEngineAdapterPorts {
+    const engine = this.#engine;
+    const contexts = this.#contexts;
+    const workflows = this.#workflows;
+    const settings = this.#settings;
+    const resources = this.#resources;
+    const extensions = this.#extensions;
+    const isDisposed = () => this.#disposed;
+    const sessionId = this.#sessionId;
+    const agentDir = this.#agentDir;
+    return {
+      identity: {
+        sessionId,
+        agentDir,
+        get cwd() { return engine.cwd; },
+        get sessionGeneration() { return engine.generation; },
+        get sessionBindingGeneration() { return engine.bindingGeneration; },
+        get disposed() { return isDisposed(); },
+        currentSessionResumeMetadata: () => engine.currentSessionResumeMetadata(),
+      },
+      session: {
+        start: () => this.start(),
+        view: () => this.view(),
+        snapshot: () => this.snapshot(),
+        onEvent: listener => this.onEvent(listener),
+        execute: command => this.execute(command),
+        flushEvents: () => this.flushEvents(),
+        dispose: () => this.dispose(),
+      },
+      workflows: {
+        executeWorkflow: request => this.executeWorkflow(request),
+        executeBashWorkflow: (command, excludeFromContext) => workflows.executeBashWorkflow(command, excludeFromContext),
+        cycleModelWorkflow: direction => workflows.cycleModelWorkflow(direction),
+        workflowAutocompleteCommands: () => resources.workflowAutocompleteCommands(),
+        clearQueuedWorkflows: () => this.clearQueuedWorkflows(),
+        reloadBlockedResult: () => workflows.reloadBlockedResult(),
+        copyWorkflowText: text => workflows.copyWorkflowText(text),
+        setWorkflowInteractionHost: interaction => { this.setWorkflowInteractionHost(interaction); },
+      },
+      settings: {
+        get productMode() { return settings.productMode; },
+        snapshot: () => {
+          // Invariant: the selector-only model values travel on the pinned port, not in the neutral snapshot.
+          const { currentModel: _currentModel, availableDefaultModels: _availableDefaultModels, ...snapshot } = settings.pinnedSettingsSnapshot();
+          return snapshot;
+        },
+        bindOwner: (owner, handlers) => settings.bindSettingsOwner(owner, handlers),
+        setDefaultThinkingLevel: level => { settings.setDefaultThinkingLevel(level); },
+        configuredTheme: () => settings.configuredTheme(),
+      },
+      catalog: {
+        modelsContext: () => contexts.modelsContext(),
+        setSessionModelScope: scopeIds => { contexts.setSessionModelScope(scopeIds); },
+        persistModelScope: scopeIds => { contexts.persistModelScope(scopeIds); },
+        refreshModels: signal => contexts.refreshModels(signal),
+        pinnedScopedModelsContext: () => contexts.pinnedScopedModelsContext(),
+        updateScopedModels: enabledModelIds => { contexts.updateScopedModels(enabledModelIds); },
+        persistScopedModels: enabledModelIds => { contexts.persistScopedModels(enabledModelIds); },
+        refreshScopedModels: signal => contexts.refreshScopedModels(signal),
+        pinnedProjectTrustContext: () => contexts.pinnedProjectTrustContext(),
+        persistProjectTrust: updates => { contexts.persistProjectTrust(updates); },
+        pinnedLoginOptions: authType => contexts.loginOptions(authType),
+        pinnedLoginMethodOptions: providerReference => contexts.pinnedLoginMethodOptions(providerReference),
+        pinnedAmbientAuthentication: selection => contexts.pinnedAmbientAuthentication(selection),
+        pinnedLogoutOptions: () => contexts.logoutOptions(),
+        pinnedForkOptions: () => contexts.pinnedForkOptions(),
+      },
+      extensions: {
+        nonVisualResources: () => resources.nonVisualResources(),
+        extensionResources: () => resources.extensionResources(),
+        resolveTranscriptImage: assetId => this.resolveTranscriptImage(assetId),
+        visualExtensionSupport: () => extensions.support(),
+        unbindExtensionUi: () => extensions.unbind(),
+        bindClipboardWriter: writer => workflows.bindClipboardWriter(writer),
+        announceReleaseUpdate: release => { this.announceReleaseUpdate(release); },
+      },
+      pinned: {
+        pinnedModelSelectorContext: () => contexts.pinnedModelSelectorContext(),
+        pinnedSessionSelectorContext: () => contexts.pinnedSessionSelectorContext(),
+        pinnedTreeSelectorContext: () => contexts.pinnedTreeSelectorContext(),
+        pinnedMessageRenderer: customType => this.pinnedMessageRenderer(customType),
+        pinnedToolRenderers: toolName => this.pinnedToolRenderers(toolName),
+        pinnedShortcutDescriptions: bindings => this.pinnedShortcutDescriptions(bindings),
+        pinnedSettingsModels: () => {
+          const { currentModel, availableDefaultModels } = settings.pinnedSettingsSnapshot();
+          return { ...(currentModel === undefined ? {} : { currentModel }), availableDefaultModels };
+        },
+        bindExtensionUi: (ui, shutdown) => extensions.bind(ui, shutdown),
+        applyPinnedSettingValue: (callback, value) => settings.applyPinnedSettingValue(callback, value),
+      },
+    };
   }
 
   #requireWorkflowSession(): PiSessionApi {

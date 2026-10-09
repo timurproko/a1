@@ -95,7 +95,7 @@ describe("OwnedUiSessionShell prompt history", () => {
       engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
       await adapter.flushEvents(); await nextImmediate();
       expect(history.submitted).toHaveLength(3);
-      const dispatch = vi.spyOn(adapter, "execute").mockRejectedValueOnce(new Error("private provider sentinel"));
+      const dispatch = vi.spyOn(adapter.session, "execute").mockRejectedValueOnce(new Error("private provider sentinel"));
       await shell.submit("recover me");
       expect(history.submitted.filter(item => item.text === "recover me")).toHaveLength(1);
       expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain("private provider sentinel");

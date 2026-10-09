@@ -803,7 +803,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       await shell.root.waitForPromptPastes(draft, new AbortController().signal);
       expect(shell.root.hasPendingPastes(draft)).toBe(false);
       expect(shell.root.editor.getText()).toBe(draft);
-      vi.spyOn(adapter, "execute").mockResolvedValueOnce({ outcome: "rejected", diagnostic: "synthetic rejection" });
+      vi.spyOn(adapter.session, "execute").mockResolvedValueOnce({ outcome: "rejected", diagnostic: "synthetic rejection" });
       terminal.input("\r");
       await nextImmediate();
       expect(shell.root.editor.getText()).toBe(draft);
@@ -836,7 +836,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     const { shell, adapter, terminal, engine } = await fixture([], [], true);
     try {
       let rejectSubmission!: (value: { outcome: "rejected"; diagnostic: string }) => void;
-      const execute = vi.spyOn(adapter, "execute").mockImplementationOnce(() => new Promise(resolve => { rejectSubmission = resolve; }));
+      const execute = vi.spyOn(adapter.session, "execute").mockImplementationOnce(() => new Promise(resolve => { rejectSubmission = resolve; }));
       shell.root.editor.setText("old draft");
       terminal.input("\r");
       terminal.input("new draft");
@@ -857,7 +857,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
   it.each(["throw", "reject"])("contains an unexpected %s from dispatch without automatic retry", async failure => {
     const { shell, adapter, terminal } = await fixture([], [], true);
     try {
-      const execute = vi.spyOn(adapter, "execute").mockImplementationOnce(() => {
+      const execute = vi.spyOn(adapter.session, "execute").mockImplementationOnce(() => {
         if (failure === "throw") throw new Error("PRIVATE_REQUEST");
         return Promise.reject(new Error("PRIVATE_REQUEST"));
       });
@@ -967,7 +967,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       const submission = shell.submit(draft);
       await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("Sending…"));
       engine.session.emit({ type: "agent_start" });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const acceptedFrame = stripTerminalSequences(shell.root.render(80).join("\n"));
       expect(acceptedFrame).toContain("Working…");
       expect(acceptedFrame).not.toContain("Sending…");

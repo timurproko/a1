@@ -87,9 +87,10 @@ async function compose(options: {
     releaseNotes: (options.releaseNotes ?? { current: () => null, completeMarkdown: "" }) as never,
     checkForNewerRelease: async input => { checks.push(input); return options.release === undefined ? STABLE : options.release; },
     createPiAdapter: async () => ({
-      cwd: process.cwd(), agentDir: "synthetic-agent", configuredTheme: () => "dark", disposed: false,
-      announceReleaseUpdate: (release: unknown) => { announced.push(release); },
-      executeWorkflow: async (request: { command: string }) => {
+      identity: { cwd: process.cwd(), agentDir: "synthetic-agent", disposed: false },
+      settings: { configuredTheme: () => "dark" },
+      extensions: { announceReleaseUpdate: (release: unknown) => { announced.push(release); } },
+      workflows: { executeWorkflow: async (request: { command: string }) => {
         if (request.command !== "session") throw new Error(`unexpected workflow: ${request.command}`);
         observed.sessionCalls += 1;
         if (observed.sessionResult !== null) return observed.sessionResult;
@@ -107,7 +108,7 @@ async function compose(options: {
             usageBreakdown: [], cacheWarming: { mode: "streaming" },
           },
         };
-      },
+      } },
     }) as never,
   });
   return { composed, announced, checks };

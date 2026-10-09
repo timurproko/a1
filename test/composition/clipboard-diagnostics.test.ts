@@ -43,7 +43,7 @@ afterEach(() => {
   vi.useRealTimers(); vi.unstubAllEnvs();
 });
 async function compose(options: { ownedSurfaces?: "off"; profileId?: string; clipboardDiagnosticsPath?: string }) {
-  return composeOwnedUi({ ...options, createPiAdapter: async () => ({ cwd: process.cwd(), agentDir: "synthetic-agent", configuredTheme: () => "dark" }) as never });
+  return composeOwnedUi({ ...options, createPiAdapter: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, settings: { configuredTheme: () => "dark" } }) as never });
 }
 
 describe("clipboard diagnostic launch composition", () => {

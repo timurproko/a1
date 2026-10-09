@@ -7,16 +7,10 @@ import type {
   AgentSettingOwner,
   AgentSettingsPort,
 } from "../../../contracts/agent-engine/index.js";
+import type { OwnedUiSessionSettingKey } from "../../../contracts/owned-ui/index.js";
 import { loadPiSettingsMetadata, type PiSettingsMetadata } from "./settings-metadata.js";
 
-export type PiSettingKey =
-  | "autoCompact" | "showImages" | "imageWidthCells" | "autoResizeImages" | "blockImages"
-  | "enableSkillCommands" | "steeringMode" | "followUpMode" | "transport" | "httpIdleTimeoutMs" | "cacheWarmingMode"
-  | "modelThinkingLevels" | "theme" | "hideThinkingBlock" | "mermaidRenderingMode" | "showCacheMissNotices"
-  | "collapseChangelog" | "enableInstallTelemetry" | "quietStartup" | "defaultProjectTrust"
-  | "doubleEscapeAction" | "treeFilterMode" | "showHardwareCursor" | "editorPaddingX" | "outputPad"
-  | "autocompleteMaxVisible" | "clearOnShrink" | "showTerminalProgress" | "tuiMode"
-  | "fullscreenExitOutput" | "fullscreenScrollbar" | "fullscreenCopyOnSelect" | "fullscreenWheelScrollLines" | "warnings";
+export type PiSettingKey = OwnedUiSessionSettingKey;
 
 export type PiSettingVisualClass =
   | "none"

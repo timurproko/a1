@@ -118,10 +118,10 @@ describe("transcript image conversion lifetime", () => {
     const value = await fixture(height, width);
     const content = [image(255, "image/jpeg")];
     await value.emit({ type: "tool_execution_end", toolCallId: "image", toolName: "unknown", isError: false, result: { content } });
-    const revision = value.backend.view().transcript.at(-1)!.revision;
+    const revision = value.backend.session.view().transcript.at(-1)!.revision;
     await vi.waitFor(() => expect(value.shell.root.transcriptComponent("tool-image")!.presentationRevision).toBeGreaterThan(0));
     await vi.waitFor(() => expect(kittyData(value.terminal.writes.map(write => write.data)).length).toBeGreaterThan(0));
-    expect(value.backend.view().transcript.at(-1)!.revision).toBe(revision);
+    expect(value.backend.session.view().transcript.at(-1)!.revision).toBe(revision);
   });
 
   it("shows an unavailable fallback when Kitty conversion fails without hiding unaffected output", async () => {
@@ -134,6 +134,6 @@ describe("transcript image conversion lifetime", () => {
       expect(text).toContain("UNAFFECTED_RESULT");
       expect(text).toMatch(/\[Image (?:unavailable|conversion failed)/);
     });
-    expect(value.backend.view().transcript.at(-1)?.toolState?.execution).toBe("succeeded");
+    expect(value.backend.session.view().transcript.at(-1)?.toolState?.execution).toBe("succeeded");
   });
 });

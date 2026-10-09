@@ -19,7 +19,7 @@ function update(id: string, data: string, text = "kept output") {
     partialResult: { content: [{ type: "text", text }, { type: "image", mimeType: "image/png", data }] } };
 }
 function assetId(value: Awaited<ReturnType<typeof fixture>>, id: string): string {
-  return value.backend.view().transcript.find(block => block.id === `tool-${id}`)!.imageReferences![0]!.assetId;
+  return value.backend.session.view().transcript.find(block => block.id === `tool-${id}`)!.imageReferences![0]!.assetId;
 }
 
 describe("transcript attachment ownership", () => {
@@ -29,11 +29,11 @@ describe("transcript attachment ownership", () => {
     const original = assetId(value, "a");
     expect(assetId(value, "b")).toBe(original);
     await value.emit(update("a", "BAUG"));
-    expect(value.backend.resolveTranscriptImage(original)).not.toBeNull();
+    expect(value.backend.extensions.resolveTranscriptImage(original)).not.toBeNull();
     await value.emit(update("b", "BwgJ"));
-    expect(value.backend.resolveTranscriptImage(original)).toBeNull();
-    expect(value.backend.resolveTranscriptImage(assetId(value, "a"))).not.toBeNull();
-    expect(value.backend.resolveTranscriptImage(assetId(value, "b"))).not.toBeNull();
+    expect(value.backend.extensions.resolveTranscriptImage(original)).toBeNull();
+    expect(value.backend.extensions.resolveTranscriptImage(assetId(value, "a"))).not.toBeNull();
+    expect(value.backend.extensions.resolveTranscriptImage(assetId(value, "b"))).not.toBeNull();
   });
 
   it("does not retain every superseded attachment in a synchronous producer burst", async () => {
@@ -44,17 +44,17 @@ describe("transcript attachment ownership", () => {
       ids.push(assetId(value, "burst"));
     }
     expect(value.backend.deliveryDiagnostics().pending).toBeLessThan(4);
-    expect(ids.slice(0, -1).filter(id => value.backend.resolveTranscriptImage(id) !== null)).toEqual([]);
-    await value.backend.flushEvents();
-    expect(value.backend.resolveTranscriptImage(ids.at(-1)!)).not.toBeNull();
+    expect(ids.slice(0, -1).filter(id => value.backend.extensions.resolveTranscriptImage(id) !== null)).toEqual([]);
+    await value.backend.session.flushEvents();
+    expect(value.backend.extensions.resolveTranscriptImage(ids.at(-1)!)).not.toBeNull();
   });
 
   it("retains sealed queued attachments until their event is consumed, then releases them", async () => {
     const value = await fixture();
     const delivered: (string | null)[] = [];
-    const unsubscribe = value.backend.onEvent(event => {
+    const unsubscribe = value.backend.session.onEvent(event => {
       if (event.type === "transcript-block" && event.block.id === "tool-queued") {
-        delivered.push(value.backend.resolveTranscriptImage(event.block.imageReferences![0]!.assetId)?.data ?? null);
+        delivered.push(value.backend.extensions.resolveTranscriptImage(event.block.imageReferences![0]!.assetId)?.data ?? null);
       }
     });
     try {
@@ -63,24 +63,24 @@ describe("transcript attachment ownership", () => {
       const original = assetId(value, "queued");
       value.session.emit({ type: "auto_retry_start" });
       value.session.emit(update("queued", "BAUG", "x".repeat(100_000)));
-      expect(value.backend.resolveTranscriptImage(original)).not.toBeNull();
-      await value.backend.flushEvents();
+      expect(value.backend.extensions.resolveTranscriptImage(original)).not.toBeNull();
+      await value.backend.session.flushEvents();
       expect(delivered).toEqual(["AQID", "BAUG"]);
-      expect(value.backend.resolveTranscriptImage(original)).toBeNull();
+      expect(value.backend.extensions.resolveTranscriptImage(original)).toBeNull();
     } finally { unsubscribe(); }
   });
 
   it("keeps a resolved lazy image alive through reentrant listener production", async () => {
     const value = await fixture();
     const seen: (string | null)[] = [];
-    const first = value.backend.onEvent(event => {
+    const first = value.backend.session.onEvent(event => {
       if (event.type === "transcript-block" && event.block.id === "tool-lazy" && event.block.revision === 1) {
         value.session.emit(update("lazy", "BAUG", "y".repeat(100_000)));
       }
     });
-    const second = value.backend.onEvent(event => {
+    const second = value.backend.session.onEvent(event => {
       if (event.type === "transcript-block" && event.block.id === "tool-lazy") {
-        seen.push(value.backend.resolveTranscriptImage(event.block.imageReferences![0]!.assetId)?.data ?? null);
+        seen.push(value.backend.extensions.resolveTranscriptImage(event.block.imageReferences![0]!.assetId)?.data ?? null);
       }
     });
     try {
@@ -95,8 +95,8 @@ describe("transcript attachment ownership", () => {
     const original = assetId(value, "removed");
     value.session.messages = [{ role: "user", timestamp: 1, content: "REPLACEMENT_HISTORY" }];
     await value.emit({ type: "agent_settled" });
-    expect(value.backend.view().transcript.some(block => block.id === "tool-removed")).toBe(false);
-    expect(value.backend.resolveTranscriptImage(original)).toBeNull();
+    expect(value.backend.session.view().transcript.some(block => block.id === "tool-removed")).toBe(false);
+    expect(value.backend.extensions.resolveTranscriptImage(original)).toBeNull();
   });
 
   it("keeps mounted image bytes through a settings rebuild while newer delivery is pending", async () => {
@@ -105,10 +105,10 @@ describe("transcript attachment ownership", () => {
     const original = assetId(value, "mounted");
     const mounted = value.shell.root.transcriptComponent("tool-mounted")!;
     value.session.emit(update("mounted", "BAUG"));
-    expect(value.backend.resolveTranscriptImage(original)).toBeNull();
+    expect(value.backend.extensions.resolveTranscriptImage(original)).toBeNull();
     mounted.setOutputPad(0);
     expect(mounted.render(80).join("\n")).not.toContain("Image unavailable");
-    await value.backend.flushEvents();
+    await value.backend.session.flushEvents();
     expect(value.shell.root.transcriptComponent("tool-mounted")).toBe(mounted);
   });
 
@@ -122,9 +122,9 @@ describe("transcript attachment ownership", () => {
     await expect(value.emit({ type: "agent_settled" })).rejects.toThrow("Engine delivery did not complete");
     expect(value.backend.deliveryDiagnostics()).toMatchObject({ overloads: 1, pending: 0, recovering: false });
     expect(value.backend.deliveryDiagnostics().peakBytes).toBeLessThanOrEqual(8 * 1024 * 1024);
-    expect(value.backend.snapshot().view.transcript.filter(block => block.kind === "tool-result"))
+    expect(value.backend.session.snapshot().view.transcript.filter(block => block.kind === "tool-result"))
       .toHaveLength(32);
-    expect(value.backend.resolveTranscriptImage(original)).toBeNull();
+    expect(value.backend.extensions.resolveTranscriptImage(original)).toBeNull();
   });
 
   it("drops obsolete session and disposed assets without invalidating a replacement's shared content", async () => {
@@ -134,8 +134,8 @@ describe("transcript attachment ownership", () => {
     await value.replaceSession(new TranscriptFixtureSession([{ role: "toolResult", timestamp: 2,
       toolCallId: "new", toolName: "unknown", content: [{ type: "image", mimeType: "image/png", data: "AQID" }] }]));
     expect(assetId(value, "new")).toBe(original);
-    expect(value.backend.resolveTranscriptImage(original)).not.toBeNull();
-    await value.backend.dispose();
-    expect(value.backend.resolveTranscriptImage(original)).toBeNull();
+    expect(value.backend.extensions.resolveTranscriptImage(original)).not.toBeNull();
+    await value.backend.session.dispose();
+    expect(value.backend.extensions.resolveTranscriptImage(original)).toBeNull();
   });
 });
