@@ -8,7 +8,7 @@ export type {
   PiEngineAdapterOptions,
   PiEngineRuntimeFactory,
   PiEngineRuntimeFactoryInput,
-  PiPinnedPresentationPort,
+  PiSessionPresentationSource,
 } from "./adapter.js";
 export {
   bindPiRuntimeSession,

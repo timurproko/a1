@@ -5,7 +5,9 @@ import type {
   OwnedUiExtensionSourceSummary,
   OwnedUiPromptSuggestionGeneratorPort,
   OwnedUiSessionBackend,
+  OwnedUiSessionPresenters,
   OwnedUiSessionViewModel,
+  OwnedUiTranscriptRendererPort,
   OwnedUiWorkflowMessage,
   OwnedUiWorkflowResult,
   OwnedUiViewportSettings,
@@ -81,7 +83,6 @@ import {
   type PiShellClipboardContent,
   type PiShellComponentPort,
   type PiShellEditorPort,
-  type PiShellExtensionRendererResolver,
   type PiShellHeaderOptions,
   type PiShellHeaderPort,
   type PiShellImageAssetResolver,
@@ -236,6 +237,8 @@ export interface OwnedUiShellSkillsOptions {
 /** What composes an owned session shell, grouped by the collaborator that provides each part. */
 export interface OwnedUiSessionShellOptions {
   readonly engine: OwnedUiShellEngineOptions;
+  /** Opens the selectors and resolves the transcript renderers whose inputs are engine objects. */
+  readonly presenters: OwnedUiSessionPresenters;
   readonly presentation?: OwnedUiShellPresentationOptions;
   readonly history?: OwnedUiShellHistoryOptions;
   readonly suggestions?: OwnedUiShellSuggestionOptions;
@@ -263,7 +266,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #status: PiShellStatusPort;
   readonly #footer: PiShellViewComponentPort;
   readonly #queued: PiShellQueuedInputPort;
-  readonly #extensionRenderers: PiShellExtensionRendererResolver;
+  readonly #extensionRenderers: OwnedUiTranscriptRendererPort;
   readonly #imageAssets: PiShellImageAssetResolver | undefined;
   readonly #promptChips: PromptChipStore;
   readonly #editorHyperlinks = new EditorHyperlinkBudget();
@@ -370,9 +373,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     },
     startup: PiShellHeaderOptions = {},
     agentDir?: string,
-    extensionRenderers: PiShellExtensionRendererResolver = {
+    extensionRenderers: OwnedUiTranscriptRendererPort = {
       getMessageRenderer: () => undefined,
       getToolRenderers: () => undefined,
+      getShortcuts: () => [],
     },
     sessionLayout: "pinned" | "custom-viewport" = "pinned",
     imageAssets?: PiShellImageAssetResolver,
@@ -1437,7 +1441,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   hotkeysPresentation(): PiShellHotkeysPresentation {
     return {
       bindings: this.editor.keybindingConfig(),
-      getShortcuts: bindings => this.#extensionRenderers.getShortcuts?.(bindings) ?? [],
+      getShortcuts: bindings => this.#extensionRenderers.getShortcuts(bindings),
       profile: this.#customViewport ? "a1" : "pi",
     };
   }

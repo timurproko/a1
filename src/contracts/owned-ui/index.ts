@@ -98,7 +98,6 @@ export type {
 } from "./model.js";
 export type {
   OwnedUiExtensionPort,
-  OwnedUiPinnedPresentationPort,
   OwnedUiSessionBackend,
   OwnedUiSessionCatalogPort,
   OwnedUiSessionIdentityPort,
@@ -106,6 +105,13 @@ export type {
   OwnedUiSessionSettingsPort,
   OwnedUiWorkflowPort,
 } from "./session-backend.js";
+export type {
+  OwnedUiDialogHost,
+  OwnedUiInputSurface,
+  OwnedUiSessionPresenters,
+  OwnedUiShortcutDescription,
+  OwnedUiTranscriptRendererPort,
+} from "./session-presenters.js";
 export {
   OWNED_UI_HIDDEN_COMMAND_NAMES,
   OWNED_UI_MODELS_COMMAND_NAME,

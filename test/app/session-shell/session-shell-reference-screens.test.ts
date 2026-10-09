@@ -3,6 +3,7 @@ import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { createPiEngineAdapter, type PiWorkflowHost } from "../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import type { UiRouteHost, UiRouteInput, UiRouteSurface } from "../../../src/ui/apps/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
 import { Runtime } from "./session-shell-fixture.js";
@@ -81,6 +82,7 @@ async function shellFixture(options: {
   const terminal = new TestPresentationTerminal();
   const routes = options.routes === undefined ? routeHost() : options.routes;
   const shell = new OwnedUiSessionShell({
+    presenters: createPiSessionPresenters(adapter),
     engine: {
       backend: adapter,
       cwd: "D:/work",

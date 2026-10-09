@@ -11,8 +11,10 @@ import type {
   OwnedUiCommand,
   OwnedUiCommandResult,
   OwnedUiDialog,
+  OwnedUiDialogHost,
   OwnedUiPromptSuggestionIdentity,
   OwnedUiSessionBackend,
+  OwnedUiSessionPresenters,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
   OwnedUiWorkflowInteractionRequest,
@@ -30,7 +32,6 @@ import { ContextualPromptSuggestionController } from "./prompt-suggestion-contro
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../ui/components/mouse.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
 import { workflowCommandNames } from "../../integrations/pi/engine/workflows.js";
-import type { PiPinnedPresentationPort } from "../../integrations/pi/engine/adapter.js";
 import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../../integrations/pi/components/shell-extension-ui.js";
 import type { PiShellLazySelectorLoader } from "../../integrations/pi/components/lazy-selectors.js";
 import { ProgramStatusReporter } from "../../integrations/pi/components/upstream/program-status-reporter.js";
@@ -47,20 +48,12 @@ import {
   createPiShellDialog,
   createPiShellExtensionSelector,
   createPiShellLoginDialog,
-  createPiShellModelSelector,
-  createPiShellModelsDialog,
   createPiShellReloadBox,
-  createPiShellScopedModelsSelector,
   createPiShellSelector,
-  createPiShellSessionSelector,
-  createPiShellSettingsSelector,
   createPiShellSkillsSelector,
-  type PiShellSettingsSelectorOptions,
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
   type PiShellLoginDialogPort,
-  type PiShellModelsDialogPort,
-  type PiShellScopedModelsSelectorPort,
 } from "../../integrations/pi/components/shell-selectors-dialogs.js";
 import {
   renderPiShellStatusText,
@@ -114,6 +107,8 @@ export {
 /** Coordinates backend, owned presentation, and Pi TUI lifecycles for one interactive session. */
 export class OwnedUiSessionShell {
   readonly backend: OwnedUiSessionBackend;
+  readonly #presenters: OwnedUiSessionPresenters;
+  readonly #dialogHost: OwnedUiDialogHost;
   readonly root: OwnedUiSessionShellRoot;
   readonly runtime: PiTuiRuntimeAdapter;
   readonly #cwd: string;
@@ -186,6 +181,7 @@ export class OwnedUiSessionShell {
     const { clipboard, responseCopy, paste: pasteDiagnostics, pastePreparation } = options.diagnostics ?? {};
     const promptHistory = options.history;
     this.backend = backend;
+    this.#presenters = options.presenters;
     this.#sessionGeneration = this.backend.identity.sessionGeneration;
     this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
     this.#suggestionModelKey = modelKey(this.backend.session.view());
@@ -193,6 +189,8 @@ export class OwnedUiSessionShell {
     this.#routeHost = routeHost ?? null;
     this.#startupRoute = options.engine.startupRoute;
     this.#customViewport = sessionLayout === "custom-viewport";
+    // Invariant: the host's optional members follow the layout, so it is built only once the layout is known.
+    this.#dialogHost = this.#createDialogHost();
     this.#lazySelectors = options.diagnostics?.lazySelectors;
     this.#stopped = new Promise(resolve => {
       this.#resolveStopped = resolve;
@@ -320,11 +318,7 @@ export class OwnedUiSessionShell {
     }, {
       ...startup,
       resources: startup?.resources ?? shellResourceEntries(this.backend),
-    }, this.backend.identity.agentDir, {
-      getMessageRenderer: customType => this.#pinned.pinnedMessageRenderer(customType),
-      getToolRenderers: toolName => this.#pinned.pinnedToolRenderers(toolName),
-      getShortcuts: bindings => this.#pinned.pinnedShortcutDescriptions(bindings),
-    }, sessionLayout, {
+    }, this.backend.identity.agentDir, this.#presenters.transcriptRenderers(), sessionLayout, {
       resolve: assetId => this.backend.extensions.resolveTranscriptImage(assetId),
     });
     const initialPiSettings = this.backend.settings.snapshot();
@@ -712,7 +706,7 @@ export class OwnedUiSessionShell {
     this.#promptHistory?.start();
     this.#syncTerminalProgress(this.view());
     if (this.#customViewport) this.#setPointerReporting(true);
-    void this.#pinned.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
+    void this.backend.extensions.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
     this.#syncView();
     // Performance: the spare clipboard helpers fork after the first frame is out, so startup never waits on them.
     setImmediate(() => {
@@ -1007,10 +1001,23 @@ export class OwnedUiSessionShell {
     return handle;
   }
 
-  // Compatibility: the contract types the pinned port's payloads `unknown`; this narrows them for the
-  // Pi components they are forwarded to until extract-pi-session-presenters removes the port.
-  get #pinned(): PiPinnedPresentationPort {
-    return this.backend.pinned as PiPinnedPresentationPort;
+  // Rationale: presenters see the shell only as a dialog host; selectors open in the input dock and run choices as workflows.
+  #createDialogHost(): OwnedUiDialogHost {
+    const isDisposed = () => this.#disposed;
+    return {
+      get disposed() { return isDisposed(); },
+      setInputSurface: surface => this.root.setInputSurface(surface),
+      requestRender: () => this.runtime.requestRender(),
+      viewport: () => this.runtime.viewport(),
+      appendWorkflowStatus: text => this.root.appendWorkflowStatus(text),
+      appendWorkflowResult: result => this.root.appendWorkflowResult(result),
+      runWorkflow: request => this.runWorkflow(request),
+      // Invariant: the custom bare-A1 surface holds frames while optional selectors load and is permanently
+      // fullscreen; the pinned comparison profiles render immediately and keep Pi's TUI mode switch.
+      ...(this.#customViewport
+        ? { beginPresentationHold: () => this.runtime.beginPresentationHold() }
+        : { switchTuiMode: mode => this.runtime.switchMode(mode) }),
+    };
   }
 
   #loadLazySelectors(): Promise<PiShellLazySelectorLoader> {
@@ -1077,31 +1084,7 @@ export class OwnedUiSessionShell {
   }
 
   showModelSelector(initialSearchInput?: string): void {
-    const context = this.#pinned.pinnedModelSelectorContext();
-    const close = () => {
-      this.root.setInputSurface(null);
-      this.runtime.requestRender();
-    };
-    const component = createPiShellModelSelector({
-      ...context,
-      runtime: {
-        getColumns: () => this.runtime.viewport().columns,
-        getRows: () => this.runtime.viewport().rows,
-        requestRender: () => this.runtime.requestRender(),
-      },
-      ...(initialSearchInput === undefined ? {} : { initialSearchInput }),
-      onSelect: model => {
-        close();
-        void this.runWorkflow({ command: "model", argument: "", selection: modelReference(model) });
-      },
-      onSelectAsDefault: model => {
-        close();
-        void this.runWorkflow({ command: "model", argument: "", selection: modelReference(model), persist: true });
-      },
-      onCancel: close,
-    });
-    this.root.setInputSurface(component);
-    this.runtime.requestRender();
+    this.#presenters.openModelSelector(this.#dialogHost, initialSearchInput);
   }
 
   showForkSelector(): void {
@@ -1179,62 +1162,10 @@ export class OwnedUiSessionShell {
     this.runtime.requestRender();
   }
 
-  async showTreeSelector(initialSelectedId?: string): Promise<void> {
-    const context = this.#pinned.pinnedTreeSelectorContext();
-    if (context.tree.length === 0) {
-      this.root.appendWorkflowStatus("No entries in session");
-      this.runtime.requestRender();
-      return;
-    }
-    const close = () => {
-      this.root.setInputSurface(null);
-      this.runtime.requestRender();
-    };
-    const releasePresentation = this.#customViewport ? this.runtime.beginPresentationHold() : undefined;
-    try {
-      const selectors = await this.#loadLazySelectors();
-      const component = await selectors.createTree({
-        tree: context.tree,
-        currentLeafId: context.currentLeafId,
-        terminalHeight: this.runtime.viewport().rows,
-        initialFilterMode: context.filterMode,
-        ...(initialSelectedId === undefined ? {} : { initialSelectedId }),
-        onLabelChange: context.appendLabelChange,
-        onCopy: text => {
-          if (!text) {
-            this.root.appendWorkflowResult({ command: "tree", outcome: "failed", message: "Selected entry has no text to copy" });
-            this.runtime.requestRender();
-            return;
-          }
-          const generation = this.backend.identity.sessionBindingGeneration;
-          void this.backend.workflows.copyWorkflowText(text).then(acknowledged => {
-            if (this.#disposed || generation !== this.backend.identity.sessionBindingGeneration) return;
-            this.root.appendWorkflowStatus(acknowledged ? "Copied selected message to clipboard" : "Submitted selected message to clipboard");
-            this.runtime.requestRender();
-          }).catch(error => {
-            if (this.#disposed || generation !== this.backend.identity.sessionBindingGeneration) return;
-            this.root.appendWorkflowResult({ command: "tree", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
-            this.runtime.requestRender();
-          });
-        },
-        onCancel: close,
-        onSelect: entryId => {
-          if (entryId === context.currentLeafId) {
-            close();
-            this.root.appendWorkflowStatus("Already at this point");
-            this.runtime.requestRender();
-            return;
-          }
-          if (context.skipSummaryPrompt) close();
-          void this.#completeTreeSelection(entryId, context.skipSummaryPrompt);
-        },
-      });
-      if (this.#disposed) return;
-      this.root.setInputSurface(component);
-      this.runtime.requestRender();
-    } finally {
-      releasePresentation?.();
-    }
+  showTreeSelector(initialSelectedId?: string): Promise<void> {
+    return this.#presenters.openTreeSelector(this.#dialogHost, (entryId, skipSummaryPrompt) => {
+      void this.#completeTreeSelection(entryId, skipSummaryPrompt);
+    }, initialSelectedId);
   }
 
   showLoginAuthTypeSelector(): void {
@@ -1278,79 +1209,12 @@ export class OwnedUiSessionShell {
     this.runtime.requestRender();
   }
 
-  async showSessionSelector(): Promise<void> {
-    const context = this.#pinned.pinnedSessionSelectorContext();
-    const close = () => {
-      this.root.setInputSurface(null);
-      this.runtime.requestRender();
-    };
-    const component = await createPiShellSessionSelector({
-      currentSessionsLoader: context.loadCurrentSessions,
-      allSessionsLoader: context.loadAllSessions,
-      currentSessionFilePath: context.currentSessionFilePath,
-      renameSession: context.renameSession,
-      requestRender: () => this.runtime.requestRender(),
-      onSelect: sessionPath => {
-        close();
-        void this.runWorkflow({ command: "resume", argument: sessionPath });
-      },
-      onCancel: close,
-      onExit: () => {
-        close();
-        void this.shutdown();
-      },
-    });
-    this.root.setInputSurface(component);
-    this.runtime.requestRender();
+  showSessionSelector(): Promise<void> {
+    return this.#presenters.openSessionSelector(this.#dialogHost, () => { void this.shutdown(); });
   }
 
   showSettingsSelector(): void {
-    const snapshot = this.backend.settings.snapshot();
-    const { currentModel, availableDefaultModels } = this.#pinned.pinnedSettingsModels();
-    const close = () => {
-      this.root.setInputSurface(null);
-      this.runtime.requestRender();
-    };
-    const component = createPiShellSettingsSelector({
-      config: {
-        ...snapshot,
-        availableThinkingLevels: [...snapshot.availableThinkingLevels],
-        availableThemes: [...snapshot.availableThemes],
-        warnings: { ...snapshot.warnings },
-        modelThinkingLevels: { ...snapshot.modelThinkingLevels } as PiShellSettingsSelectorOptions["config"]["modelThinkingLevels"],
-        ...(currentModel === undefined ? {} : { currentModel: currentModel as NonNullable<PiShellSettingsSelectorOptions["config"]["currentModel"]> }),
-        availableDefaultModels: availableDefaultModels as PiShellSettingsSelectorOptions["config"]["availableDefaultModels"],
-      },
-      onChange: (callback, value) => {
-        if (callback === "onCancel") {
-          close();
-          return;
-        }
-        if (callback === "onTuiModeChange") {
-          // Invariant: the custom bare-A1 surface is permanently fullscreen; this callback
-          // remains available only to pinned comparison profiles.
-          if (this.#customViewport) return;
-          if (value !== "regular" && value !== "fullscreen") return;
-          if (!this.runtime.switchMode(value)) {
-            this.root.appendWorkflowStatus("Close active overlays before changing TUI mode");
-            this.runtime.requestRender();
-            return;
-          }
-          if (this.#customViewport) {
-            this.#pointerReporting = false;
-            this.#setPointerReporting(true);
-          }
-        }
-        void this.#pinned.applyPinnedSettingValue(callback, value).then(result => {
-          if (result.outcome === "failed") this.root.appendWorkflowResult(result);
-          else if (callback === "onTuiModeChange") this.root.appendWorkflowStatus(`TUI mode: ${value}`);
-          this.runtime.requestRender();
-        });
-      },
-      onCancel: close,
-    });
-    this.root.setInputSurface(component);
-    this.runtime.requestRender();
+    this.#presenters.openSettingsSelector(this.#dialogHost);
   }
 
   shutdown(): Promise<OwnedUiCommandResult> {
@@ -1562,76 +1426,7 @@ export class OwnedUiSessionShell {
   }
 
   showScopedModelsSelector(): void {
-    const initial = this.backend.catalog.pinnedScopedModelsContext();
-    let currentEnabledIds = initial.enabledModelIds === null ? null : [...initial.enabledModelIds];
-    let selectionChanged = false;
-    let disposed = false;
-    let timedOut = false;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, 15_000);
-    const close = () => {
-      disposed = true;
-      clearTimeout(timeout);
-      controller.abort();
-      this.root.setInputSurface(null);
-      this.runtime.requestRender();
-    };
-    const selector = createPiShellScopedModelsSelector({
-      models: initial.models,
-      enabledModelIds: currentEnabledIds,
-      refreshStatus: "Refreshing model catalogs…",
-      onChange: enabledIds => {
-        selectionChanged = true;
-        currentEnabledIds = enabledIds === null ? null : [...enabledIds];
-        this.backend.catalog.updateScopedModels(currentEnabledIds);
-        this.runtime.requestRender();
-      },
-      onPersist: enabledIds => {
-        currentEnabledIds = enabledIds === null ? null : [...enabledIds];
-        this.backend.catalog.persistScopedModels(currentEnabledIds);
-        this.root.appendWorkflowStatus("Model selection saved to settings");
-        this.runtime.requestRender();
-      },
-      onCancel: close,
-    });
-    const component: PiShellScopedModelsSelectorPort = {
-      ...selector,
-      dispose: () => {
-        disposed = true;
-        clearTimeout(timeout);
-        controller.abort();
-        selector.dispose?.();
-      },
-    };
-    this.root.setInputSurface(component);
-    this.runtime.requestRender();
-    void this.backend.catalog.refreshScopedModels(controller.signal).then(refreshed => {
-      if (disposed) return;
-      if (!selectionChanged) {
-        currentEnabledIds = refreshed.enabledModelIds === null ? null : [...refreshed.enabledModelIds];
-        component.updateModels(refreshed.models, currentEnabledIds);
-      } else {
-        component.updateModels(refreshed.models);
-        this.backend.catalog.updateScopedModels(currentEnabledIds);
-      }
-      component.setRefreshStatus(
-        timedOut ? "Model refresh timed out; showing cached models." : refreshed.status,
-        timedOut ? "warning" : refreshed.statusKind,
-      );
-      this.runtime.requestRender();
-    }).catch(error => {
-      if (disposed) return;
-      component.setRefreshStatus(
-        timedOut
-          ? "Model refresh timed out; showing cached models."
-          : `Could not refresh model catalogs: ${error instanceof Error ? error.message : String(error)}`,
-        "warning",
-      );
-      this.runtime.requestRender();
-    }).finally(() => clearTimeout(timeout));
+    this.#presenters.openScopedModelsSelector(this.#dialogHost);
   }
 
   // Invariant: bare A1 routes `models`; the comparison profile keeps the pinned `model`/`scoped-models` pair. Hidden routes are shared.
@@ -1642,84 +1437,7 @@ export class OwnedUiSessionShell {
 
   /** The bare-A1 unified Models dialog: switch on Enter, scope on Space, persist on Ctrl+S, all through the engine. */
   showModelsDialog(initialQuery?: string): void {
-    const context = this.backend.catalog.modelsContext();
-    const available = new Set(context.models.map(model => `${model.provider}/${model.id}`));
-    const savedScopeIds = context.persistedScopeIds.filter(id => available.has(id));
-    // Invariant: an explicit session scope wins; otherwise the dialog starts from what is persisted, never from "all rows scoped".
-    const scopeIds = context.sessionScopeIds.length > 0 ? context.sessionScopeIds : savedScopeIds;
-    let disposed = false;
-    let timedOut = false;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, 15_000);
-    const close = () => {
-      disposed = true;
-      clearTimeout(timeout);
-      controller.abort();
-      this.root.setInputSurface(null);
-      this.runtime.requestRender();
-    };
-    const dialog = createPiShellModelsDialog({
-      models: context.models,
-      activeModelId: context.activeModelId,
-      scopeIds,
-      savedScopeIds,
-      ...(initialQuery === undefined ? {} : { initialQuery }),
-      refreshStatus: "Refreshing model catalogs…",
-      requestRender: () => this.runtime.requestRender(),
-      onSelect: modelId => {
-        void this.runWorkflow({ command: "models", argument: "", selection: modelId }).then(result => {
-          if (!disposed && result.outcome === "completed") close();
-        });
-      },
-      onScopeChange: ids => {
-        this.backend.catalog.setSessionModelScope(ids);
-        this.runtime.requestRender();
-      },
-      onSave: ids => {
-        try {
-          this.backend.catalog.persistModelScope(ids);
-        } catch (error) {
-          this.root.appendWorkflowResult({ command: "models", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
-          this.runtime.requestRender();
-          throw error;
-        }
-        this.root.appendWorkflowStatus("Model selection saved to settings");
-        this.runtime.requestRender();
-      },
-      onCancel: close,
-    });
-    const component: PiShellModelsDialogPort = {
-      ...dialog,
-      dispose: () => {
-        disposed = true;
-        clearTimeout(timeout);
-        controller.abort();
-        dialog.dispose?.();
-      },
-    };
-    this.root.setInputSurface(component);
-    this.runtime.requestRender();
-    void this.backend.catalog.refreshModels(controller.signal).then(refreshed => {
-      if (disposed) return;
-      component.updateModels(refreshed.models);
-      component.setRefreshStatus(
-        timedOut ? "Model refresh timed out; showing cached models." : refreshed.status,
-        timedOut ? "warning" : refreshed.statusKind,
-      );
-      this.runtime.requestRender();
-    }).catch(error => {
-      if (disposed) return;
-      component.setRefreshStatus(
-        timedOut
-          ? "Model refresh timed out; showing cached models."
-          : `Could not refresh model catalogs: ${error instanceof Error ? error.message : String(error)}`,
-        "warning",
-      );
-      this.runtime.requestRender();
-    }).finally(() => clearTimeout(timeout));
+    this.#presenters.openModelsDialog(this.#dialogHost, initialQuery);
   }
 
   // Invariant: pointer reporting is disabled on every path that ends the owning screen.
@@ -2393,14 +2111,6 @@ export function quoteCommandArgument(value: string): string {
 
 function dim(value: string): string {
   return `\u001b[2m${value}\u001b[22m`;
-}
-
-function modelReference(model: unknown): string {
-  if (typeof model !== "object" || model === null) return "";
-  const value = model as { provider?: unknown; id?: unknown; modelId?: unknown };
-  const provider = typeof value.provider === "string" ? value.provider : "";
-  const id = typeof value.id === "string" ? value.id : typeof value.modelId === "string" ? value.modelId : "";
-  return provider && id ? `${provider}/${id}` : "";
 }
 
 function rejected(diagnostic: string): OwnedUiCommandResult {

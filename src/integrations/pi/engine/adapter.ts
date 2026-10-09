@@ -7,8 +7,8 @@ import {
   type OwnedUiDiagnostics,
   type OwnedUiEditorState,
   type OwnedUiExtensionPort,
+  type OwnedUiExtensionUiPort,
   type OwnedUiImageAttachment,
-  type OwnedUiPinnedPresentationPort,
   type OwnedUiPromptSuggestionGeneratorPort,
   type OwnedUiPromptSuggestionReasoning,
   type OwnedUiPromptSuggestionRequest,
@@ -75,13 +75,15 @@ export type { AdapterCommandResult } from "./command-dispatch.js";
 export type { OwnedPiVisualExtensionSupport } from "./extension-ui-binding.js";
 
 /**
- * The transitional pinned port with the Pi payload types the contract declares as `unknown`.
- * Only the shell's forwarding sites narrow to it; extract-pi-session-presenters deletes both.
+ * The Pi objects pinned selectors and transcript renderers are built from. They are not part of the
+ * session backend contract; only the session presenters owner reads them.
  */
-export interface PiPinnedPresentationPort extends OwnedUiPinnedPresentationPort {
+export interface PiSessionPresentationSource {
   pinnedModelSelectorContext(): ReturnType<PiWorkflowContexts["pinnedModelSelectorContext"]>;
   pinnedSessionSelectorContext(): PiSessionSelectorContext;
   pinnedTreeSelectorContext(): PiTreeSelectorContext;
+  pinnedMessageRenderer(customType: string): unknown;
+  pinnedToolRenderers(toolName: string): unknown;
   pinnedShortcutDescriptions(bindings: Parameters<AgentSession["extensionRunner"]["getShortcuts"]>[0]): readonly { readonly key: string; readonly description: string }[];
   pinnedSettingsModels(): Pick<PiPinnedSettingsSnapshot, "currentModel" | "availableDefaultModels">;
   applyPinnedSettingValue(callback: PiPinnedSettingsCallback, value: unknown): Promise<PiWorkflowResult>;
@@ -129,7 +131,7 @@ interface PiEngineAdapterPorts {
   readonly settings: OwnedUiSessionSettingsPort;
   readonly catalog: OwnedUiSessionCatalogPort;
   readonly extensions: OwnedUiExtensionPort;
-  readonly pinned: PiPinnedPresentationPort;
+  readonly presentation: PiSessionPresentationSource;
 }
 
 const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
@@ -335,8 +337,8 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
   get settings(): OwnedUiSessionSettingsPort { return this.#ports.settings; }
   get catalog(): OwnedUiSessionCatalogPort { return this.#ports.catalog; }
   get extensions(): OwnedUiExtensionPort { return this.#ports.extensions; }
-  /** Transitional: Pi-typed presentation payloads; removed by extract-pi-session-presenters. */
-  get pinned(): PiPinnedPresentationPort { return this.#ports.pinned; }
+  /** The Pi objects behind pinned selectors and renderers, for the session presenters owner only. */
+  presentationSource(): PiSessionPresentationSource { return this.#ports.presentation; }
 
   setWorkflowInteractionHost(interaction: PiWorkflowInteractionHost): void {
     this.#workflowInteraction = interaction;
@@ -445,7 +447,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     return this.#extensions.support();
   }
 
-  bindExtensionUi(ui: unknown, shutdown?: () => void | Promise<void>): Promise<void> {
+  bindExtensionUi(ui: OwnedUiExtensionUiPort, shutdown?: () => void | Promise<void>): Promise<void> {
     return this.#extensions.bind(ui, shutdown);
   }
 
@@ -457,20 +459,12 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     return this.#workflows.cycleModelWorkflow(direction);
   }
 
-  pinnedModelSelectorContext(): ReturnType<PiWorkflowContexts["pinnedModelSelectorContext"]> {
-    return this.#contexts.pinnedModelSelectorContext();
-  }
-
   pinnedProjectTrustContext(): PiProjectTrustContext {
     return this.#contexts.pinnedProjectTrustContext();
   }
 
   persistProjectTrust(updates: readonly PiProjectTrustUpdate[]): void {
     this.#contexts.persistProjectTrust(updates);
-  }
-
-  pinnedSessionSelectorContext(): PiSessionSelectorContext {
-    return this.#contexts.pinnedSessionSelectorContext();
   }
 
   pinnedScopedModelsContext(): PiScopedModelsContext {
@@ -523,10 +517,6 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
 
   pinnedForkOptions(): readonly PiWorkflowOption[] {
     return this.#contexts.pinnedForkOptions();
-  }
-
-  pinnedTreeSelectorContext(): PiTreeSelectorContext {
-    return this.#contexts.pinnedTreeSelectorContext();
   }
 
   /** Bind the owned UI's clipboard lifecycle without changing the comparison host. True means acknowledged delivery. */
@@ -590,20 +580,16 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     return this.#settings.pinnedSettingsSnapshot();
   }
 
-  applyPinnedSettingValue(callback: PiPinnedSettingsCallback, value: unknown): Promise<PiWorkflowResult> {
-    return this.#settings.applyPinnedSettingValue(callback, value);
-  }
-
-  pinnedMessageRenderer(customType: string): unknown {
+  #pinnedMessageRenderer(customType: string): unknown {
     return this.#requireWorkflowSession().extensionRunner?.getMessageRenderer?.(customType);
   }
 
-  pinnedShortcutDescriptions(bindings: Parameters<AgentSession["extensionRunner"]["getShortcuts"]>[0]): readonly { readonly key: string; readonly description: string }[] {
+  #pinnedShortcutDescriptions(bindings: Parameters<AgentSession["extensionRunner"]["getShortcuts"]>[0]): readonly { readonly key: string; readonly description: string }[] {
     const shortcuts = this.#requireWorkflowSession().extensionRunner?.getShortcuts?.(bindings);
     return shortcuts === undefined ? [] : [...shortcuts].map(([key, shortcut]) => ({ key, description: shortcut.description ?? shortcut.extensionPath }));
   }
 
-  pinnedToolRenderers(toolName: string): unknown {
+  #pinnedToolRenderers(toolName: string): unknown {
     const runner = this.#requireWorkflowSession().extensionRunner;
     if (runner === undefined) return undefined;
     if (typeof runner.resolveToolRenderers === "function") {
@@ -735,7 +721,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       settings: {
         get productMode() { return settings.productMode; },
         snapshot: () => {
-          // Invariant: the selector-only model values travel on the pinned port, not in the neutral snapshot.
+          // Invariant: the selector-only model values travel on the presentation source, not in the neutral snapshot.
           const { currentModel: _currentModel, availableDefaultModels: _availableDefaultModels, ...snapshot } = settings.pinnedSettingsSnapshot();
           return snapshot;
         },
@@ -765,22 +751,22 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
         extensionResources: () => resources.extensionResources(),
         resolveTranscriptImage: assetId => this.resolveTranscriptImage(assetId),
         visualExtensionSupport: () => extensions.support(),
+        bindExtensionUi: (ui, shutdown) => extensions.bind(ui, shutdown),
         unbindExtensionUi: () => extensions.unbind(),
         bindClipboardWriter: writer => workflows.bindClipboardWriter(writer),
         announceReleaseUpdate: release => { this.announceReleaseUpdate(release); },
       },
-      pinned: {
+      presentation: {
         pinnedModelSelectorContext: () => contexts.pinnedModelSelectorContext(),
         pinnedSessionSelectorContext: () => contexts.pinnedSessionSelectorContext(),
         pinnedTreeSelectorContext: () => contexts.pinnedTreeSelectorContext(),
-        pinnedMessageRenderer: customType => this.pinnedMessageRenderer(customType),
-        pinnedToolRenderers: toolName => this.pinnedToolRenderers(toolName),
-        pinnedShortcutDescriptions: bindings => this.pinnedShortcutDescriptions(bindings),
+        pinnedMessageRenderer: customType => this.#pinnedMessageRenderer(customType),
+        pinnedToolRenderers: toolName => this.#pinnedToolRenderers(toolName),
+        pinnedShortcutDescriptions: bindings => this.#pinnedShortcutDescriptions(bindings),
         pinnedSettingsModels: () => {
           const { currentModel, availableDefaultModels } = settings.pinnedSettingsSnapshot();
           return { ...(currentModel === undefined ? {} : { currentModel }), availableDefaultModels };
         },
-        bindExtensionUi: (ui, shutdown) => extensions.bind(ui, shutdown),
         applyPinnedSettingValue: (callback, value) => settings.applyPinnedSettingValue(callback, value),
       },
     };

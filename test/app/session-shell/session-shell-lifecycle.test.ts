@@ -31,6 +31,7 @@ import {
   setPiAccentColor,
 } from "../../../src/integrations/pi/components/index.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { formatSessionResumeCommand, OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
 import { Runtime, fixture, InputImmediateScheduler, nextImmediate } from "./session-shell-fixture.js";
@@ -459,6 +460,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
       onExitRequested: () => {},
     };
     const shell = new OwnedUiSessionShell({
+      presenters: createPiSessionPresenters(adapter),
       engine: { backend: adapter, cwd: "D:/work", routeHost: { claims: (route: string) => route === "pointer", open: () => surface } },
       presentation: { terminal },
     });

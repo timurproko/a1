@@ -25,6 +25,7 @@ vi.mock("node:worker_threads", async importOriginal => {
   } };
 });
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { loadHistoryEditor } from "../../../src/integrations/pi/components/index.js";
 import type { PiShellLazySelectorLoader } from "../../../src/integrations/pi/components/lazy-selectors.js";
 import {
@@ -302,6 +303,7 @@ export async function fixture(
   const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine as unknown as AgentSessionRuntime });
   const terminal = new TestPresentationTerminal();
   const shell = new OwnedUiSessionShell({
+    presenters: createPiSessionPresenters(adapter, lazySelectors === undefined ? {} : { lazySelectors }),
     engine: {
       backend: adapter,
       cwd: "D:/work",

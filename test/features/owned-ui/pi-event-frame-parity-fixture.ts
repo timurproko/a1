@@ -1,6 +1,7 @@
 import { EventFrameClock } from "./event-frame-clock.js";
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { applyPiTheme, applyPiThemeInstance, piTheme } from "../../../src/integrations/pi/components/index.js";
 import type { PiTuiTerminalPort } from "../../../src/integrations/pi/tui-runtime/index.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
@@ -88,7 +89,7 @@ async function captureEventFrames(options: EventFrameCaptureOptions, clock: Even
   let ownedShell: OwnedUiSessionShell | undefined;
   try {
     const physical = new CapturingTerminal(64, 18, options.failTerminalStop);
-    const shell = new OwnedUiSessionShell({ engine: { backend: adapter, cwd: "D:/parity" }, presentation: { terminal: physical } });
+    const shell = new OwnedUiSessionShell({ presenters: createPiSessionPresenters(adapter), engine: { backend: adapter, cwd: "D:/parity" }, presentation: { terminal: physical } });
     ownedShell = shell;
     const states: EventStateParityEntry[] = [];
     const frames: TerminalFrameParityEntry[] = [];

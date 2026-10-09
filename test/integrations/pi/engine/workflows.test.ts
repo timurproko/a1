@@ -367,11 +367,11 @@ describe("pinned Pi command and input workflows", () => {
     expect(snapshot).not.toHaveProperty("availableDefaultModels");
     expect(snapshot).toEqual(Object.fromEntries(Object.entries(adapter.pinnedSettingsSnapshot())
       .filter(([key]) => key !== "currentModel" && key !== "availableDefaultModels")));
-    expect(adapter.pinned.pinnedSettingsModels()).toEqual({
+    expect(adapter.presentationSource().pinnedSettingsModels()).toEqual({
       currentModel: adapter.pinnedSettingsSnapshot().currentModel,
       availableDefaultModels: adapter.pinnedSettingsSnapshot().availableDefaultModels,
     });
-    expect(await adapter.pinned.applyPinnedSettingValue("onImageWidthCellsChange", 96)).toMatchObject({ outcome: "completed" });
+    expect(await adapter.presentationSource().applyPinnedSettingValue("onImageWidthCellsChange", 96)).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("ImageWidthCells")).toBe(96);
     await adapter.dispose();
   });
@@ -379,14 +379,14 @@ describe("pinned Pi command and input workflows", () => {
   it("opens every selector, completes every pinned settings callback, and preserves cancellation", async () => {
     const { adapter, runtime } = await fixture();
     expect(adapter.pinnedSettingsSnapshot().availableThemes.length).toBeGreaterThan(0);
-    expect(adapter.pinnedModelSelectorContext().modelRuntime).toBeDefined();
+    expect(adapter.presentationSource().pinnedModelSelectorContext().modelRuntime).toBeDefined();
     expect(adapter.pinnedScopedModelsContext().models.length).toBeGreaterThan(0);
     expect(adapter.pinnedForkOptions().length).toBeGreaterThan(0);
-    expect(adapter.pinnedTreeSelectorContext().tree).toBeInstanceOf(Array);
+    expect(adapter.presentationSource().pinnedTreeSelectorContext().tree).toBeInstanceOf(Array);
     expect(adapter.pinnedProjectTrustContext().trustOptions.length).toBeGreaterThan(0);
     expect(adapter.pinnedLoginOptions().length).toBeGreaterThan(0);
     expect((await adapter.pinnedLogoutOptions()).length).toBeGreaterThan(0);
-    expect(adapter.pinnedSessionSelectorContext().loadCurrentSessions).toBeTypeOf("function");
+    expect(adapter.presentationSource().pinnedSessionSelectorContext().loadCurrentSessions).toBeTypeOf("function");
     for (const command of ["settings", "model", "scoped-models", "fork", "tree", "trust", "login", "logout", "resume"] as const) {
       await expect(adapter.executeWorkflow({ command, argument: "" })).resolves.toMatchObject({
         outcome: "failed",
@@ -397,11 +397,11 @@ describe("pinned Pi command and input workflows", () => {
       const result = await adapter.executeWorkflow({ command: "settings", argument: "", selection: callback });
       expect(result.outcome, `${callback}: ${result.message}`).toBe(callback === "onCancel" ? "cancelled" : "completed");
     }
-    expect(await adapter.applyPinnedSettingValue("onImageWidthCellsChange", 120)).toMatchObject({ outcome: "completed" });
+    expect(await adapter.presentationSource().applyPinnedSettingValue("onImageWidthCellsChange", 120)).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("ImageWidthCells")).toBe(120);
-    expect(await adapter.applyPinnedSettingValue("onEditorPaddingXChange", 3)).toMatchObject({ outcome: "completed" });
+    expect(await adapter.presentationSource().applyPinnedSettingValue("onEditorPaddingXChange", 3)).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("EditorPaddingX")).toBe(3);
-    expect(await adapter.applyPinnedSettingValue("onWarningsChange", { anthropicExtraUsage: false })).toMatchObject({ outcome: "completed" });
+    expect(await adapter.presentationSource().applyPinnedSettingValue("onWarningsChange", { anthropicExtraUsage: false })).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("Warnings")).toEqual({ anthropicExtraUsage: false });
     await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl" })).resolves.toMatchObject({ outcome: "requires-confirmation" });
     await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl", confirmed: false })).resolves.toMatchObject({ outcome: "cancelled" });
@@ -465,7 +465,7 @@ describe("pinned Pi command and input workflows", () => {
     await port!.writeSetting("doubleEscapeAction", "none");
     await port!.writeSetting("treeFilterMode", "all");
     expect(adapter.pinnedSettingsSnapshot().doubleEscapeAction).toBe("none");
-    expect(adapter.pinnedTreeSelectorContext().filterMode).toBe("all");
+    expect(adapter.presentationSource().pinnedTreeSelectorContext().filterMode).toBe("all");
   });
 
   it("covers resource autocomplete, bash context modes, model controls, queue restoration, and contained failures", async () => {
@@ -679,7 +679,7 @@ describe("pinned Pi command and input workflows", () => {
     });
     expect(adapter.view().activeModel).toBeNull();
     expect(adapter.view().status.footer?.availableProviderCount).toBe(0);
-    expect(adapter.pinnedModelSelectorContext().currentModel).toBeUndefined();
+    expect(adapter.presentationSource().pinnedModelSelectorContext().currentModel).toBeUndefined();
     await adapter.dispose();
   });
 
@@ -702,7 +702,7 @@ describe("pinned Pi command and input workflows", () => {
     expect(runtime.modelRuntime.getAvailableSnapshot()).toEqual([]);
     expect(adapter.view().activeModel).toBeNull();
     expect(adapter.view().status.footer?.availableProviderCount).toBe(0);
-    expect(adapter.pinnedModelSelectorContext().currentModel).toBeUndefined();
+    expect(adapter.presentationSource().pinnedModelSelectorContext().currentModel).toBeUndefined();
     expect(adapter.pinnedScopedModelsContext().models).toEqual([]);
     await expect(adapter.pinnedLogoutOptions()).resolves.toEqual([]);
     await adapter.dispose();

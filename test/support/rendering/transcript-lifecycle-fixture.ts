@@ -1,5 +1,6 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { RecordingRenderingTerminal } from "./recording-rendering-terminal.js";
 
@@ -70,7 +71,7 @@ export async function transcriptLifecycleFixture(options: {
   });
   await backend.flushEvents();
   const terminal = new RecordingRenderingTerminal(options.width ?? 80, options.height ?? 30);
-  const shell = new OwnedUiSessionShell({ engine: { backend, cwd: process.cwd(), sessionLayout: "custom-viewport" }, presentation: { terminal } });
+  const shell = new OwnedUiSessionShell({ presenters: createPiSessionPresenters(backend), engine: { backend, cwd: process.cwd(), sessionLayout: "custom-viewport" }, presentation: { terminal } });
   terminal.observeDamageDecisions(() => shell.damagePresentationDecision());
   shell.start();
   await backend.flushEvents();

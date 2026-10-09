@@ -188,7 +188,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       },
     };
     const { adapter, shell, terminal } = await fixtureWithLazySelectors(lazySelectors);
-    vi.spyOn(adapter.pinned, "pinnedTreeSelectorContext").mockReturnValue({
+    vi.spyOn(adapter.presentationSource(), "pinnedTreeSelectorContext").mockReturnValue({
       tree: [{
         entry: {
           type: "message",
@@ -396,7 +396,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       firstMessage: "First prompt",
       allMessagesText: "First prompt response",
     };
-    vi.spyOn(adapter.pinned, "pinnedSessionSelectorContext").mockReturnValue({
+    vi.spyOn(adapter.presentationSource(), "pinnedSessionSelectorContext").mockReturnValue({
       currentSessionFilePath: "D:/sessions/current.jsonl",
       loadCurrentSessions: async () => [session],
       loadAllSessions: async progress => {
@@ -460,7 +460,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       },
       children: [],
     }];
-    vi.spyOn(adapter.pinned, "pinnedTreeSelectorContext").mockReturnValue({
+    vi.spyOn(adapter.presentationSource(), "pinnedTreeSelectorContext").mockReturnValue({
       tree,
       currentLeafId: null,
       filterMode: "default",
@@ -567,7 +567,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       },
       children: [],
     }];
-    vi.spyOn(adapter.pinned, "pinnedTreeSelectorContext").mockReturnValue({
+    vi.spyOn(adapter.presentationSource(), "pinnedTreeSelectorContext").mockReturnValue({
       tree,
       currentLeafId: null,
       filterMode: "default",
@@ -609,7 +609,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       },
       children: [],
     }));
-    vi.spyOn(adapter.pinned, "pinnedTreeSelectorContext").mockReturnValue({
+    vi.spyOn(adapter.presentationSource(), "pinnedTreeSelectorContext").mockReturnValue({
       tree: [{
         entry: {
           type: "message",

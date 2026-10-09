@@ -20,6 +20,7 @@ vi.mock("node:worker_threads", async importOriginal => {
   } };
 });
 import { createPiEngineAdapter, PINNED_PI_HIDDEN_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { piTheme } from "../../../src/integrations/pi/components/index.js";
 import { readVisibleHyperlinks } from "../../../src/ui/components/visible-hyperlinks.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
@@ -578,6 +579,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     });
     const terminal = new TestPresentationTerminal();
     const shell = new OwnedUiSessionShell({
+      presenters: createPiSessionPresenters(adapter),
       engine: { backend: adapter, cwd: "D:/work", sessionLayout: "custom-viewport" },
       presentation: { terminal },
     });
@@ -614,6 +616,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       createRuntime: async () => engine as unknown as AgentSessionRuntime,
     });
     const shell = new OwnedUiSessionShell({
+      presenters: createPiSessionPresenters(adapter),
       engine: { backend: adapter, cwd: "D:/work" },
       presentation: { terminal: new TestPresentationTerminal() },
     });
@@ -924,7 +927,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(true);
     });
     const terminal = new TestPresentationTerminal();
-    const shell = new OwnedUiSessionShell({ engine: { backend: adapter, cwd: "D:/work" }, presentation: { terminal } });
+    const shell = new OwnedUiSessionShell({ presenters: createPiSessionPresenters(adapter), engine: { backend: adapter, cwd: "D:/work" }, presentation: { terminal } });
     shell.start();
     shell.runtime.renderNow();
 
@@ -963,6 +966,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     adapter.announceReleaseUpdate({ version: "0.3.1", command: "a1 update", changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.3.1" });
     const terminal = new TestPresentationTerminal();
     const shell = new OwnedUiSessionShell({
+      presenters: createPiSessionPresenters(adapter),
       engine: { backend: adapter, cwd: "D:/work", ...(sessionLayout === undefined ? {} : { sessionLayout }) },
       presentation: { terminal },
     });
@@ -989,7 +993,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       createRuntime: async () => new Runtime() as unknown as AgentSessionRuntime,
     });
     const terminal = new TestPresentationTerminal();
-    const shell = new OwnedUiSessionShell({ engine: { backend: adapter, cwd: "D:/work" }, presentation: { terminal } });
+    const shell = new OwnedUiSessionShell({ presenters: createPiSessionPresenters(adapter), engine: { backend: adapter, cwd: "D:/work" }, presentation: { terminal } });
     shell.start();
     shell.runtime.renderNow();
     terminal.input("draft prompt");

@@ -1,7 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type {
   OwnedUiExtensionPort,
-  OwnedUiPinnedPresentationPort,
   OwnedUiSessionBackend,
   OwnedUiSessionCatalogPort,
   OwnedUiSessionIdentityPort,
@@ -24,13 +23,21 @@ const PORT_MEMBERS = {
     "pinnedProjectTrustContext", "persistProjectTrust",
     "pinnedLoginOptions", "pinnedLoginMethodOptions", "pinnedAmbientAuthentication", "pinnedLogoutOptions", "pinnedForkOptions",
   ],
-  extensions: ["nonVisualResources", "extensionResources", "resolveTranscriptImage", "visualExtensionSupport", "unbindExtensionUi", "bindClipboardWriter", "announceReleaseUpdate"],
-  pinned: [
-    "pinnedModelSelectorContext", "pinnedSessionSelectorContext", "pinnedTreeSelectorContext",
-    "pinnedMessageRenderer", "pinnedToolRenderers", "pinnedShortcutDescriptions",
-    "pinnedSettingsModels", "bindExtensionUi", "applyPinnedSettingValue",
+  extensions: [
+    "nonVisualResources", "extensionResources", "resolveTranscriptImage", "visualExtensionSupport",
+    "bindExtensionUi", "unbindExtensionUi", "bindClipboardWriter", "announceReleaseUpdate",
   ],
 } as const satisfies { readonly [Port in keyof OwnedUiSessionBackend]: readonly (keyof OwnedUiSessionBackend[Port])[] };
+
+/** True for `unknown` and `any`, the types that stand in for a payload the contract cannot name. */
+type IsOpaque<T> = unknown extends T ? true : false;
+
+/** The members of a port whose value, a parameter, or the (awaited) result is opaque. */
+type OpaqueMembers<Port> = {
+  [Member in keyof Port]: Port[Member] extends (...args: infer Args) => infer Result
+    ? true extends IsOpaque<Awaited<Result>> | { [Index in keyof Args]: IsOpaque<Args[Index]> }[number] ? Member : never
+    : IsOpaque<Port[Member]> extends true ? Member : never;
+}[keyof Port];
 
 describe("Pi engine adapter as the owned-UI session backend", () => {
   it("is assignable to the declared port and to each sub-port", () => {
@@ -43,7 +50,13 @@ describe("Pi engine adapter as the owned-UI session backend", () => {
     expectTypeOf(backend.settings).toEqualTypeOf<OwnedUiSessionSettingsPort>();
     expectTypeOf(backend.catalog).toEqualTypeOf<OwnedUiSessionCatalogPort>();
     expectTypeOf(backend.extensions).toEqualTypeOf<OwnedUiExtensionPort>();
-    expectTypeOf(backend.pinned).toEqualTypeOf<OwnedUiPinnedPresentationPort>();
+  });
+
+  it("declares no member whose value, parameter, or result is opaque", () => {
+    expectTypeOf<OpaqueMembers<{ forward(value: unknown): void; read(): Promise<unknown>; named(): string }>>()
+      .toEqualTypeOf<"forward" | "read">();
+    expectTypeOf<{ [Port in keyof OwnedUiSessionBackend]: OpaqueMembers<OwnedUiSessionBackend[Port]> }[keyof OwnedUiSessionBackend]>()
+      .toEqualTypeOf<never>();
   });
 
   it("serves each sub-port with exactly the contract's members, built once", () => {
