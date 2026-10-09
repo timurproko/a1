@@ -5,10 +5,10 @@
 ## What Changes
 
 - Unsubscribe from backend events as the first teardown step so no event is delivered during history close, outro capture, or runtime disposal.
-- Make a failed constructor release what it already bound (event subscription, three settings owners, workflow interaction host, clipboard writer), and make composition dispose a partially built shell.
-- Bound the wait on the `quit` workflow in `shutdown()` so the terminal is restored even if the engine hangs.
-- Make a second `dispose()` await the in-flight disposal instead of resolving immediately.
-- Defer `#settleStoppedLifecycle`'s self-dispose out of the event listener's synchronous call path.
+- Make a failed constructor release what it already bound (event subscription, three settings owners, workflow interaction host, clipboard writer, root, and the other presentation subscriptions) and rethrow.
+- Bound how long the `quit` workflow in `shutdown()` can hold the terminal, so the terminal is restored even if the engine hangs; the outcome still waits for the engine.
+- Mark the shell disposed as soon as disposal is requested and drop engine events from then on.
+- Detach the workflow interaction host on disposal so the engine keeps no reference to the shell.
 - Have the shell, not only the runtime, own disposal of the root's theme subscription and helper clients.
 
 ## Capabilities
@@ -23,4 +23,4 @@ None. The `owned-pi-ui-foundation` requirement that the session shell restores t
 
 ## Impact
 
-Behavior-preserving on the happy path. Touches `src/app/session-shell/session-shell.ts` construction and `#dispose`/`shutdown`, `src/composition/owned-ui.ts` error handling, and `test/app/session-shell/session-shell-lifecycle.test.ts`.
+Behavior-preserving on the happy path. Touches `src/app/session-shell/session-shell.ts` construction, `dispose`/`#dispose`, and `shutdown`, `test/app/session-shell/session-shell-lifecycle.test.ts`, and the startup graph baseline.
