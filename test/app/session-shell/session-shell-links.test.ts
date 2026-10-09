@@ -88,20 +88,20 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
     };
     engine.session.emit({ type: "message_start", message: completedReply });
     engine.session.emit({ type: "message_end", message: completedReply });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Ctrl+End) ↓"))).toBe(true);
 
     engine.session.emit({ type: "message_end", message: { role: "tool", content: [{ type: "text", text: "tool result" }] } });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Ctrl+End) ↓"))).toBe(true);
 
     // Compatibility: v2 resumes follow at the exact agent_start boundary, which also clears
     // the completed-message count on the next frame.
     engine.session.emit({ type: "agent_start" });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("new message (Ctrl+End) ↓"))).toBe(true);
     engine.session.emit({ type: "agent_settled" });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
 
     shell.root.editor.setText("submitted while detached");
     terminal.input("\r");

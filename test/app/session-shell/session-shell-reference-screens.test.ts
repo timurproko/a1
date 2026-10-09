@@ -100,7 +100,7 @@ function feed(shell: OwnedUiSessionShell, width = 100): string {
 describe("bare A1 reference command screens", () => {
   it.each(["session", "changelog", "hotkeys"])("opens /%s as an owned screen without a feed document and restores the viewport on Esc", async route => {
     const { shell, terminal, routes, adapter, engine } = await shellFixture({ customViewport: true });
-    const workflow = vi.spyOn(adapter, "executeWorkflow");
+    const workflow = vi.spyOn(adapter.workflows, "executeWorkflow");
     shell.start();
     shell.runtime.renderNow();
     const before = feed(shell);
@@ -168,7 +168,7 @@ describe("bare A1 reference command screens", () => {
 
   it("keeps the in-feed documents in the pinned layout without a route host", async () => {
     const { shell, adapter } = await shellFixture({ customViewport: false, routes: null });
-    vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => request.command === "session"
+    vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(async request => request.command === "session"
       ? {
           command: request.command, outcome: "completed", message: "Session Info",
           presentation: {

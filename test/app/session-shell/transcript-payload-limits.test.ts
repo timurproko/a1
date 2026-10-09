@@ -30,11 +30,11 @@ describe("renderer payload delivery limits", () => {
         value.session.emit({ type: "tool_execution_update", toolCallId: "payload", toolName: "payload", partialResult: result });
       }
       if (final) value.session.emit({ type: "tool_execution_end", toolCallId: "payload", toolName: "payload", result, isError: false });
-      await value.backend.flushEvents();
+      await value.backend.session.flushEvents();
       expect(result.toJSON).not.toHaveBeenCalled();
       expect(stringify.mock.calls.some(([input]) => input === text || input === result || input === result.content)).toBe(false);
     } finally { stringify.mockRestore(); }
-    const block = value.backend.view().transcript.at(-1)!;
+    const block = value.backend.session.view().transcript.at(-1)!;
     expect(block.text).toBe(text);
     expect(block.toolRendering?.arguments).toEqual(args);
     expect(block.toolRendering?.result?.details).toEqual(details);
@@ -54,7 +54,7 @@ describe("renderer payload delivery limits", () => {
     const value = await fixture();
     await value.emit({ type: "tool_execution_end", toolCallId: "payload", toolName: "payload", args: {}, isError: true,
       result: { content: [{ type: "text", text: "x".repeat(300_000) }, { type: "text", text: "KEEP_RESULT" }], details: { errorCode: 7 } } });
-    const block = value.backend.snapshot().view.transcript.at(-1)!;
+    const block = value.backend.session.snapshot().view.transcript.at(-1)!;
     expect(block.text).toBe("KEEP_RESULT");
     expect(block.toolState?.execution).toBe("failed");
     expect(block.toolRendering?.result?.details).toEqual({ errorCode: 7 });

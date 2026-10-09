@@ -8,18 +8,10 @@ import {
   OWNED_UI_EXTENSION_UI_PROPERTIES,
   assertOwnedUiExtensionUiPort,
   type OwnedUiDiagnostics,
+  type OwnedUiVisualExtensionSupport,
 } from "../../../contracts/owned-ui/index.js";
 
-export interface OwnedPiVisualExtensionSupport {
-  readonly available: boolean;
-  readonly contractComplete: true;
-  readonly contractVersion: typeof OWNED_UI_EXTENSION_CONTRACT_VERSION;
-  readonly binding: "bound" | "unbound";
-  readonly uiCallbacks: typeof OWNED_UI_EXTENSION_UI_CALLBACKS;
-  readonly uiProperties: typeof OWNED_UI_EXTENSION_UI_PROPERTIES;
-  readonly renderCallbacks: typeof OWNED_UI_EXTENSION_RENDER_CALLBACKS;
-  readonly diagnostic: string;
-}
+export type OwnedPiVisualExtensionSupport = OwnedUiVisualExtensionSupport;
 
 export interface PiExtensionUiBindingPorts {
   session(): AgentSession | undefined;

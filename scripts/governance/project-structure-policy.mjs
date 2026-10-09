@@ -123,9 +123,10 @@ export function inspectPiFeatureBoundaryImports(files) {
 }
 
 /**
- * The three layer boundaries that hold regardless of the owner DAG: contracts import nothing, vendor-neutral UI
- * components import only contracts, and only the Pi adapters (and the shipped `bin/` entries, checked elsewhere)
- * import the pinned Pi packages.
+ * The layer boundaries that hold regardless of the owner DAG: contracts import nothing, vendor-neutral UI
+ * components import only contracts, only the Pi adapters (and the shipped `bin/` entries, checked elsewhere)
+ * import the pinned Pi packages, and the application layer reaches the engine through the declared
+ * `OwnedUiSessionBackend` port rather than the `PiEngineAdapter` class.
  */
 export function inspectLayerBoundaries(files) {
   const errors = [];
@@ -144,7 +145,12 @@ export function inspectLayerBoundaries(files) {
         errors.push(`${path}: ui/components import only contracts ('${specifier}')`);
       } else if (/^@earendil-works\//.test(specifier) && !path.startsWith("src/integrations/pi/")) {
         errors.push(`${path}: only the Pi adapters import '${specifier}'`);
+      } else if (path.startsWith("src/app/") && /\bPiEngineAdapter\b/.test(record.clause ?? "")) {
+        errors.push(`${path}: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class`);
       }
+    }
+    if (path.startsWith("src/app/") && /\bimport\s*\(\s*["'][^"']+["']\s*\)\s*\.\s*PiEngineAdapter\b/.test(source)) {
+      errors.push(`${path}: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class`);
     }
   }
   return errors;

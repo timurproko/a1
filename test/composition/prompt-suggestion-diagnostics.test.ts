@@ -28,7 +28,7 @@ vi.mock("../../src/app/session-shell/session-shell.js", () => ({
 afterEach(() => { observed.options = undefined; vi.unstubAllEnvs(); });
 
 async function compose(options: { ownedSurfaces?: "off"; profileId?: string; suggestionDiagnosticsPath?: string }) {
-  return composeOwnedUi({ ...options, createPiAdapter: async () => ({ cwd: process.cwd(), agentDir: "synthetic-agent", configuredTheme: () => "dark" }) as never });
+  return composeOwnedUi({ ...options, createPiAdapter: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, settings: { configuredTheme: () => "dark" } }) as never });
 }
 
 describe("suggestion diagnostic launch composition", () => {

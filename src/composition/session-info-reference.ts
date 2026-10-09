@@ -1,10 +1,10 @@
 import type { ReferenceDocumentProvider } from "../features/owned-ui/reference-screen-app.js";
-import type { PiEngineAdapter } from "../integrations/pi/engine/adapter.js";
+import type { OwnedUiSessionBackend } from "../contracts/owned-ui/index.js";
 import { renderPiShellSessionInfoReferenceDocument } from "../integrations/pi/components/shell-session-info-reference.js";
 
 /** Captures one current session snapshot and adapts it to the neutral reference document. */
-export async function loadSessionInfoReference(adapter: PiEngineAdapter): Promise<ReferenceDocumentProvider> {
-  const result = await adapter.executeWorkflow({ command: "session", argument: "" });
+export async function loadSessionInfoReference(backend: OwnedUiSessionBackend): Promise<ReferenceDocumentProvider> {
+  const result = await backend.workflows.executeWorkflow({ command: "session", argument: "" });
   if (result.outcome !== "completed") throw new Error(result.message);
   if (result.presentation?.kind !== "session-info") throw new Error("Session workflow returned no structured information");
   const presentation = result.presentation;

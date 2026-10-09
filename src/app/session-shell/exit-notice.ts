@@ -9,9 +9,13 @@ import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { formatSessionResumeCommand, type SessionResumeCommandMetadata } from "./session-shell.js";
 
 export interface ExitNoticeSource {
-  readonly sessionGeneration: number;
-  currentSessionResumeMetadata(): SessionResumeCommandMetadata | null;
-  onEvent(listener: (event: { readonly type: string }) => void): () => void;
+  readonly identity: {
+    readonly sessionGeneration: number;
+    currentSessionResumeMetadata(): SessionResumeCommandMetadata | null;
+  };
+  readonly session: {
+    onEvent(listener: (event: { readonly type: string }) => void): () => void;
+  };
 }
 
 export interface ArmedExitNotice {
@@ -29,11 +33,11 @@ export function uncleanExitNoticeLines(resume: SessionResumeCommandMetadata | nu
 export function armExitNotice(source: ExitNoticeSource, path: string): ArmedExitNotice {
   let current: string | null = null;
   let cleared = false;
-  let generation = source.sessionGeneration;
+  let generation = source.identity.sessionGeneration;
   const write = () => {
     if (cleared) return;
     // Protocol: plain text only; the guardian strips control characters, so styling would be lost.
-    const text = `${uncleanExitNoticeLines(source.currentSessionResumeMetadata()).join("\n")}\n`;
+    const text = `${uncleanExitNoticeLines(source.identity.currentSessionResumeMetadata()).join("\n")}\n`;
     if (text === current) return;
     try {
       // Invariant: the guardian may read at any instant, so it sees the previous or the next notice, never half of one.
@@ -44,12 +48,12 @@ export function armExitNotice(source: ExitNoticeSource, path: string): ArmedExit
     } catch {}
   };
   write();
-  const unsubscribe = source.onEvent(event => {
+  const unsubscribe = source.session.onEvent(event => {
     // Rationale: a session is persisted by its first response and replaced by /new or /resume;
     // these events cover both without touching the per-chunk stream.
-    const replaced = source.sessionGeneration !== generation;
+    const replaced = source.identity.sessionGeneration !== generation;
     if (!replaced && event.type !== "session-lifecycle" && event.type !== "assistant-message-completed") return;
-    generation = source.sessionGeneration;
+    generation = source.identity.sessionGeneration;
     write();
   });
   return {

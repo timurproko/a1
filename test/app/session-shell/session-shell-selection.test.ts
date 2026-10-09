@@ -119,7 +119,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
         invalidate() {}, handleInput: (data: string) => received.push(data) };
       const overlay = shell.runtime.showOverlay(component, { width: 20, row: 5, col: 10 });
       engine.session.emit({ type: "agent_start" });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       shell.runtime.renderNow();
       terminal.input("\u001b[<64;3;3M");
       shell.runtime.renderNow();
@@ -127,7 +127,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const selectedRow = shell.root.render(80).findIndex(row => stripTerminalSequences(row).includes("alpha")) + 1;
       terminal.input(`\u001b[<0;2;${selectedRow}M\u001b[<32;15;8M`);
       engine.session.emit({ type: "message_start", message: { role: "assistant", content: [{ type: "text", text: "new streamed output" }], timestamp: 5 } });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       shell.runtime.renderNow();
       expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
       const replay = await replayTerminalPaint(terminal.writes.map(data => ({ data, atMs: 0 })), { columns: 80, rows: 40, synchronizedUpdates: "honor" });
@@ -314,8 +314,8 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
 
   it.each(["exit-render", "unbind-error", "unbind-stall"])("restores the terminal despite %s during disposal", async failure => {
     const { shell, terminal, adapter } = await fixture([], [], true);
-    if (failure === "exit-render") vi.spyOn(adapter, "currentSessionResumeMetadata").mockImplementation(() => { throw new Error("render failed"); });
-    else vi.spyOn(adapter, "unbindExtensionUi").mockImplementation(() => failure === "unbind-stall" ? new Promise(() => {}) : Promise.reject(new Error("unbind failed")));
+    if (failure === "exit-render") vi.spyOn(adapter.identity, "currentSessionResumeMetadata").mockImplementation(() => { throw new Error("render failed"); });
+    else vi.spyOn(adapter.extensions, "unbindExtensionUi").mockImplementation(() => failure === "unbind-stall" ? new Promise(() => {}) : Promise.reject(new Error("unbind failed")));
     await expect(shell.dispose()).rejects.toThrow("disposal failed");
     expect(terminal.active).toBe(false);
     expect(terminal.writes.join("")).toContain("\u001b[?1049l");
@@ -590,7 +590,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const appended = { role: "assistant", content: [{ type: "text", text: "new followed output" }], timestamp: 100 };
       engine.session.emit({ type: "message_start", message: appended });
       engine.session.emit({ type: "message_end", message: appended });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       shell.runtime.renderNow();
       const shiftedPlain = shell.root.render(60).map(stripTerminalSequences);
       const shiftedRow = shiftedPlain.findIndex(row => row.includes("surface-anchor-18"));
@@ -606,7 +606,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const next = { role: "assistant", content: [{ type: "text", text: "another followed output" }], timestamp: 101 };
       engine.session.emit({ type: "message_start", message: next });
       engine.session.emit({ type: "message_end", message: next });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       shell.runtime.renderNow();
       expect(shell.root.render(60)[footerRow]).toContain("\u001b[48;2;38;79;120m");
       expect(shell.root.viewportFrameDescriptor()!.followingEnd).toBe(true);
@@ -806,7 +806,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
           engine.session.emit({ type: "message_start", message: {
             role: "assistant", content: [{ type: "text", text: "new streamed content" }], timestamp: 50,
           } });
-          await shell.backend.flushEvents();
+          await shell.backend.session.flushEvents();
           shell.root.render(60);
           expect(shell.root.viewportFrameDescriptor()!.nextDocumentRange.start).toBe(0);
           expect(shell.root.viewportFrameDescriptor()!.followingEnd).toBe(false);
@@ -1109,7 +1109,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
         terminal.resize(60, 12);
         shell.root.setFullscreenCopyOnSelect(false);
         engine.session.emit({ type: "agent_start" });
-        await shell.backend.flushEvents();
+        await shell.backend.session.flushEvents();
         shell.runtime.renderNow();
         const plain = shell.root.render(60).map(stripTerminalSequences);
         const contentRow = plain.findIndex(row => row.includes("content boundary")) + 1;
@@ -1160,7 +1160,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.resize(60, 12);
       shell.root.setFullscreenCopyOnSelect(false);
       engine.session.emit({ type: "agent_start" });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       shell.runtime.renderNow();
       const before = shell.root.render(60).map(stripTerminalSequences);
       const contentRow = before.findIndex(row => row.includes("animated boundary")) + 1;
@@ -1202,7 +1202,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
         type: "message_start",
         message: { id: "live-selection", role: "assistant", content: [{ type: "text", text: "partial tail" }], timestamp: Date.now() },
       });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       shell.runtime.renderNow();
       let rows = shell.root.render(60).map(stripTerminalSequences);
       const originRow = rows.findIndex(row => row.includes("selection origin")) + 1;
@@ -1217,7 +1217,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
         message: { id: "live-selection", role: "assistant", content: [{ type: "text", text: "partial tail extended\nnew live row" }], timestamp: Date.now() },
         assistantMessageEvent: { type: "text_delta", delta: " extended\nnew live row" },
       });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       shell.runtime.renderNow();
       expect(shell.root.hasActiveSelection()).toBe(true);
 
@@ -1230,7 +1230,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
         message: { id: "live-selection", role: "assistant", content: [{ type: "text", text: "partial tail extended again\nnew live row growing" }], timestamp: Date.now() },
         assistantMessageEvent: { type: "text_delta", delta: " growing" },
       });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       shell.runtime.renderNow();
       expect(shell.root.hasActiveSelection()).toBe(true);
 
@@ -1341,7 +1341,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     terminal.input(`\u001b[<0;${jumpColumn};${jumpRow + 1}M`);
     expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("Jump to bottom"))).toBe(false);
 
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     await shell.dispose();
   });
 

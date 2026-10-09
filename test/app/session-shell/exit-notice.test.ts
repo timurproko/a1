@@ -18,11 +18,19 @@ async function noticePath(): Promise<string> {
 
 function fakeSource() {
   const listeners = new Set<(event: { readonly type: string }) => void>();
+  const state = { sessionGeneration: 1, resume: null as SessionResumeCommandMetadata | null };
   const source = {
-    sessionGeneration: 1,
-    resume: null as SessionResumeCommandMetadata | null,
-    currentSessionResumeMetadata() { return this.resume; },
-    onEvent(listener: (event: { readonly type: string }) => void) { listeners.add(listener); return () => listeners.delete(listener); },
+    get sessionGeneration() { return state.sessionGeneration; },
+    set sessionGeneration(value: number) { state.sessionGeneration = value; },
+    get resume() { return state.resume; },
+    set resume(value: SessionResumeCommandMetadata | null) { state.resume = value; },
+    identity: {
+      get sessionGeneration() { return state.sessionGeneration; },
+      currentSessionResumeMetadata: () => state.resume,
+    },
+    session: {
+      onEvent(listener: (event: { readonly type: string }) => void) { listeners.add(listener); return () => listeners.delete(listener); },
+    },
     emit(type: string) { for (const listener of listeners) listener({ type }); },
     get listenerCount() { return listeners.size; },
   };

@@ -360,6 +360,22 @@ describe("pinned Pi command and input workflows", () => {
     await adapter.dispose();
   });
 
+  it("keeps the selector-only model values out of the neutral settings snapshot", async () => {
+    const { adapter, runtime } = await fixture();
+    const snapshot = adapter.settings.snapshot();
+    expect(snapshot).not.toHaveProperty("currentModel");
+    expect(snapshot).not.toHaveProperty("availableDefaultModels");
+    expect(snapshot).toEqual(Object.fromEntries(Object.entries(adapter.pinnedSettingsSnapshot())
+      .filter(([key]) => key !== "currentModel" && key !== "availableDefaultModels")));
+    expect(adapter.pinned.pinnedSettingsModels()).toEqual({
+      currentModel: adapter.pinnedSettingsSnapshot().currentModel,
+      availableDefaultModels: adapter.pinnedSettingsSnapshot().availableDefaultModels,
+    });
+    expect(await adapter.pinned.applyPinnedSettingValue("onImageWidthCellsChange", 96)).toMatchObject({ outcome: "completed" });
+    expect(runtime.settingsValues.get("ImageWidthCells")).toBe(96);
+    await adapter.dispose();
+  });
+
   it("opens every selector, completes every pinned settings callback, and preserves cancellation", async () => {
     const { adapter, runtime } = await fixture();
     expect(adapter.pinnedSettingsSnapshot().availableThemes.length).toBeGreaterThan(0);

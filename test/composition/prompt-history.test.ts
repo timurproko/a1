@@ -60,7 +60,7 @@ async function compose(options: { profileId?: string; ownedSurfaces?: "off" } = 
   return composeOwnedUi({
     ...options,
     cwd: root,
-    createPiAdapter: async () => ({ cwd: root, agentDir: profileRoot, configuredTheme: () => "dark" }) as never,
+    createPiAdapter: async () => ({ identity: { cwd: root, agentDir: profileRoot }, settings: { configuredTheme: () => "dark" } }) as never,
   });
 }
 
