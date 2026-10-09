@@ -26,7 +26,7 @@ The maintainer integration decision accepts these scenarios:
     "Pi session commands keep their outcomes through the Pi-owned `PiSessionCommandOutcome` type.",
     "The transient-tail selection test composes its tailed input and still excludes steering and working rows from the copy."
   ],
-  "archiveDigest": "9497496d65aaee1045c88ef915f7407d3fc7e4915ba28a53495d39b186977cfc",
+  "archiveDigest": "ae4976f9e4cbbc12cc1fe647f046babddc75b0a47f74786bc90539be98a8f501",
   "specDigest": "4529be4f185a38df92b4dfb7739b0bc329a354f324323c9adc103648fa4c2986",
   "tasksDigest": "27d7c243c3523a68289dd8a49f71dc2c477c22a7caf0530049f3e06cf87b7384",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
