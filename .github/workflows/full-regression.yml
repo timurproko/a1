@@ -2,7 +2,8 @@ name: Full regression
 
 on:
   schedule:
-    - cron: '47 2 * * *'
+    # Keep complete regression ahead of publication without scheduling on the busiest top-of-hour boundary.
+    - cron: '47 23 * * *'
   workflow_dispatch:
 
 permissions:

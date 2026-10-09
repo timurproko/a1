@@ -17,7 +17,7 @@ describe("deliberate publication pipeline", () => {
     const source = await workflow();
     expect(source).toContain("workflow_call:");
     expect(source).not.toContain("workflow_dispatch:");
-    expect(source).toContain('cron: "17 3 * * *"');
+    expect(source).toContain('cron: "17 0 * * *"');
     expect(source).not.toMatch(/^\s*push:/m);
     expect(await readFile(".github/workflows/develop.yml", "utf8")).toContain("workflow_dispatch:");
     expect(await readFile(".github/workflows/release-candidate.yml", "utf8")).toContain("workflow_dispatch:");

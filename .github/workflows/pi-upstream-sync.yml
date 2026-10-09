@@ -11,8 +11,8 @@ name: Pi upstream sync
 
 on:
   schedule:
-    # 01:23 UTC is 03:23 in Central European Summer Time and 02:23 in winter, so the proposal is ready by the European morning.
-    - cron: '23 1 * * *'
+    # Start the staggered nightly sequence before UTC midnight so delayed runs are more likely to finish by the European morning.
+    - cron: '23 23 * * *'
   workflow_dispatch:
     inputs:
       version:

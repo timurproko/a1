@@ -5,7 +5,8 @@ on:
     branches: [develop]
     types: [closed, synchronize, reopened, ready_for_review]
   schedule:
-    - cron: '23 4 * * *'
+    # Reconcile archives after the midnight publication slot, staggered away from the top of the hour.
+    - cron: '43 0 * * *'
   workflow_dispatch:
     inputs:
       pr:
