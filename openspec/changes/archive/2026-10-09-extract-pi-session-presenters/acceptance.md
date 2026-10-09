@@ -26,7 +26,7 @@ The maintainer integration decision accepts these scenarios:
     "The models dialog and scoped-models selector share one refresh helper that times out after fifteen seconds with a cached-models notice and drops results after the dialog closes.",
     "Extension UI binding goes through `extensions.bindExtensionUi` with `OwnedUiExtensionUiPort`, and bare `a1` and `a1 pi` sessions start, render transcripts, and quit as before."
   ],
-  "archiveDigest": "c80f9d2e11f4506dbcf48e0572fb43f94f09a51ba395409bb104921aa19093ca",
+  "archiveDigest": "8629c0b527f767693776b271affff8db5edf304df546b35b9b5cb64c0f2ac088",
   "specDigest": "5b77c058d5b4077031815d61163c624873520bfd015c67265196b3bf37c8e565",
   "tasksDigest": "f9a976bf7b0eb6c72569f34a4d320f7c57aff720afb0c452c3d5ccada83aba46",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
