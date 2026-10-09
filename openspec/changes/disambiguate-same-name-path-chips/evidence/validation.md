@@ -14,7 +14,7 @@
 - `npx vitest run test/app/session-shell/session-shell-paste.test.ts -t "shows distinguishing paths for same-name folders|bounds path-list presentation"` — 13 selected integration cases passed for native/terminal path-list bounds and exact same-name-folder submission.
 - `npm run build` — passed and produced the interactive candidate plus current emitted paste helpers.
 - `npm run typecheck` — passed after the required build generated the declarations consumed by bin typechecking.
-- `npm run check:architecture` — passed after refreshing the generated startup graph to 159 files / 1,597,166 source bytes; product identity, package identity, pinned Pi source, and terminal-host provenance checks also passed.
+- `npm run check:architecture` — passed after reconciling current `develop` and refreshing the generated startup graph to 155 files / 1,573,425 source bytes; product identity, package identity, pinned Pi source, and terminal-host provenance checks also passed.
 - `npm run check:code-documentation:changed` — passed.
 - `npx openspec validate disambiguate-same-name-path-chips --strict` — passed.
 - `git diff --check` — passed.
