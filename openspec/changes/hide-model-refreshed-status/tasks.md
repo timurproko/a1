@@ -11,4 +11,4 @@
 
 ## 3. Confirm the Physical Result
 
-- [ ] 3.1 Build the interactive candidate and hand off `/models` for physical-terminal review; verify `(refreshing)` remains readable for at least one second, then disappears without showing `(refreshed)`, while failures remain visible.
+- [x] 3.1 Build the interactive candidate and hand off `/models` for physical-terminal review; verify `(refreshing)` remains readable for at least one second, then disappears without showing `(refreshed)`, while failures remain visible.

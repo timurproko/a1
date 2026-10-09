@@ -15,6 +15,6 @@
 - `npm run check:code-documentation:changed` — passed with no violations.
 - `npx openspec validate hide-model-refreshed-status --type change --strict --no-interactive` and `git diff --check` — passed.
 
-## Remaining Review
+## Physical Review
 
-Physical-terminal review of `/models` remains pending under task 3.1. No implementation gap is known; the runnable handoff asks the reviewer to confirm that success goes directly from `(refreshing)` to no suffix while warning details remain visible.
+The maintainer tested the built interactive candidate through `/models` and confirmed the new behavior works: successful refresh goes directly from `(refreshing)` to no suffix without showing `(refreshed)`. No implementation gap is known.
