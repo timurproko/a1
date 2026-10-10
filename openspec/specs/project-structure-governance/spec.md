@@ -7,7 +7,7 @@ Defines enforceable repository ownership, dependency, testing, documentation, an
 ## Requirements
 
 ### Requirement: Every production module has one current owner
-Each production source file SHALL belong to one named foundation area or feature and SHALL implement a current contract exercised by production entry points or an explicitly retained public boundary. Code SHALL NOT remain solely for historical reference, speculative reuse, superseded architecture, or a deferred change. A subsystem whose OpenSpec change is on hold SHALL be removed from the active tree and preserved at a commit recorded in that change, optionally on a named archive branch, and the owner registry, validation registries, control-store schema, and documentation SHALL stop describing it as present. A probe or fixture that only tests consume SHALL live under `test/support/` rather than in the production tree, and the architecture gate's unreachable-module allowlist SHALL be empty.
+Each production source file SHALL belong to one named foundation area or feature and SHALL implement a current contract exercised by production entry points or an explicitly retained public boundary. Code SHALL NOT remain solely for historical reference, speculative reuse, superseded architecture, or a deferred change. A subsystem whose OpenSpec change is on hold SHALL be removed from the active tree and preserved on a named archive branch recorded in that change, and the owner registry, validation registries, control-store schema, and documentation SHALL stop describing it as present. A probe or fixture that only tests consume SHALL live under `test/support/` rather than in the production tree, and the architecture gate's unreachable-module allowlist SHALL be empty.
 
 #### Scenario: Audit finds an unreachable module
 - **WHEN** a production module has no current entry-point reachability, public consumer, or active contract
@@ -20,16 +20,11 @@ Each production source file SHALL belong to one named foundation area or feature
 #### Scenario: A deferred subsystem is archived
 - **WHEN** an OpenSpec change is placed on hold with its implementation already in the tree
 - **THEN** the implementation, its tests, its owner and validation registry entries, and its persisted schema SHALL be removed from `develop`
-- **AND** the change SHALL record the commit holding the removed copy, and any archive branch, so resumption starts from the current codebase with that copy available for reference
+- **AND** the change SHALL record the archive branch and commit so resumption starts from the current codebase with that copy available for reference
 
 #### Scenario: A production module exists only for a test
 - **WHEN** a module under `src/` is reached by no production entry point and its only consumer is a test
 - **THEN** it SHALL move under `test/support/` and import the code it exercises through the owner's public entry, and the unreachable-module allowlist SHALL NOT retain an entry for it
-
-#### Scenario: A held plan is retired
-- **WHEN** the maintainer retires a held OpenSpec change instead of resuming it
-- **THEN** the change SHALL be archived with an acceptance record that certifies none of its tasks
-- **AND** evidence that current documentation or governance still references SHALL move to a scanned documentation path rather than into the archive
 
 ### Requirement: Features are cohesive and expose one public entry
 Each product feature SHALL own its implementation, tests, settings contract, and feature documentation under a recognizable feature name. Cross-feature production imports SHALL use the provider's public entry or an explicit foundation contract; consumers SHALL NOT deep-import another feature's private internals. Every owner's public entry SHALL list its exports by name rather than re-export whole modules, so the contract is readable in one place. Only the composition root MAY reach past a provider's public entry, with one further case: a module on the eager startup path MAY import a leaf of a provider whose public entry is a prohibited startup entry, because loading that barrel would pull the provider's whole graph into startup. The interactive session shell SHALL be an application-layer owner under `src/app` that composes the contracts, the vendor-neutral UI foundations, the Pi adapters, and the feature owners, and only composition SHALL import it. Three layer boundaries SHALL hold regardless of the owner dependency graph: contracts import nothing outside their own contract, vendor-neutral UI components import only contracts, and only the Pi adapters and the shipped entry scripts import the pinned Pi packages.
