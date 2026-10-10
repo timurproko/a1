@@ -141,6 +141,29 @@ describe("version-3 maintainer integration authority", () => {
       .toMatchObject({ kind: "human-auto-merge", actor: "reviewer" });
   });
 
+  // Provenance: GitHub's timeline names an enable by merge method; PR #742 recorded only `auto_squash_enabled`.
+  it.each(["auto_squash_enabled", "auto_rebase_enabled"])("reads %s as a human enable", name => {
+    const methodEnabled = { ...enabled, event: name };
+    expect(assertVersion3AcceptanceMerge(pull({ enabled_by: actor }), "write", [committed, methodEnabled, merged]))
+      .toEqual({ kind: "human-auto-merge", actor: "reviewer", enabledAt: enabled.created_at });
+    expect(assertHumanAutoMergeArm({ ...pull({ enabled_by: actor }), state: "open", merged: false }, "write", [committed, methodEnabled]))
+      .toMatchObject({ kind: "human-auto-merge", actor: "reviewer" });
+    expect(() => assertVersion3AcceptanceMerge(pull({ enabled_by: actor }), "write", [methodEnabled, committed, merged]))
+      .toThrow("acceptance-merge-provenance");
+    expect(() => assertVersion3AcceptanceMerge(pull({ enabled_by: actor }), "write",
+      [committed, { ...methodEnabled, actor: { type: "Bot", login: "github-actions[bot]" } }, merged])).toThrow();
+    expect(() => assertManualAcceptanceMerge(pull(), "write", [methodEnabled, merged]))
+      .toThrow("acceptance-merge-provenance");
+  });
+
+  it("accepts PR #742's manual merge after three policy-disarmed squash enables", () => {
+    const at = (created_at: string) => ({ ...enabled, event: "auto_squash_enabled", created_at });
+    const off = (created_at: string) => ({ ...disabled, created_at });
+    const timeline = [{ event: "committed", sha: "c".repeat(40) }, at("2026-09-15T05:50:00Z"), off("2026-09-15T05:50:14Z"),
+      committed, at("2026-09-15T05:55:00Z"), off("2026-09-15T05:55:13Z"), at("2026-09-15T05:58:00Z"), off("2026-09-15T05:58:14Z"), merged];
+    expect(assertVersion3AcceptanceMerge(pull(), "admin", timeline)).toEqual({ kind: "manual", actor: "reviewer" });
+  });
+
   it("rejects stale, automated, differently authored, disabled, queued, and unauthorized arms", () => {
     const automatic = { ...enabled, actor: { type: "Bot", login: "github-actions[bot]" } };
     const appEnabled = { ...enabled, performed_via_github_app: { slug: "github-actions" } };
