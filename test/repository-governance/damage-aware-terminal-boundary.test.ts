@@ -27,12 +27,12 @@ describe("damage-aware terminal public boundary", () => {
   });
 
   it("activates the decorator only for the custom viewport branch", async () => {
-    const source = await readFile(new URL("../../src/app/session-shell/session-shell.ts", import.meta.url), "utf8");
+    const source = await readFile(new URL("../../src/app/session-shell/shell-host.ts", import.meta.url), "utf8");
     const optionsStart = source.indexOf("const runtimeOptions");
-    const optionsEnd = source.indexOf("runtime = new PiTuiRuntimeAdapter", optionsStart);
+    const optionsEnd = source.indexOf("this.runtime = new PiTuiRuntimeAdapter", optionsStart);
     const options = source.slice(optionsStart, optionsEnd);
     expect(options).toContain("this.#customViewport ? {");
     expect(options).toContain("decorateTerminal:");
-    expect(options).toContain(": { layoutRoot: this.root.layoutRoot() }");
+    expect(options).toContain(": { layoutRoot: pinnedLayoutRoot(this.#delegatingLayoutParts()) }");
   });
 });

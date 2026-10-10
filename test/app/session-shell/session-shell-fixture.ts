@@ -29,6 +29,7 @@ import { createPiSessionPresenters } from "../../../src/integrations/pi/session-
 import { loadHistoryEditor } from "../../../src/integrations/pi/components/index.js";
 import type { PiShellLazySelectorLoader } from "../../../src/integrations/pi/components/lazy-selectors.js";
 import {
+  OwnedUiSessionPresenter,
   OwnedUiSessionShell,
   type OwnedUiShellDiagnosticOptions,
   type OwnedUiShellHistoryOptions,
@@ -345,6 +346,30 @@ export async function fixture(
   shell.start();
   shell.runtime.renderNow();
   return { engine, adapter, terminal, shell };
+}
+
+/** Another session presenter on an existing shell's terminal host, over its own engine double; it starts detached. */
+export async function secondPresenter(
+  shell: OwnedUiSessionShell,
+  terminal: TestPresentationTerminal,
+  messages: readonly unknown[] = [],
+  customViewport = true,
+) {
+  const engine = new Runtime(messages);
+  const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell-second", createRuntime: async () => engine as unknown as AgentSessionRuntime });
+  const presenter = new OwnedUiSessionPresenter(shell.terminalHost, {
+    presenters: createPiSessionPresenters(adapter),
+    engine: { backend: adapter, cwd: "D:/work", ...(customViewport ? { sessionLayout: "custom-viewport" as const } : {}) },
+    presentation: { terminal, reload: { minVisibleMs: 0 } },
+    diagnostics: {
+      pastePreparation: { execute: inProcessPasteExecutor },
+      responseCopy: { execute: () => {
+        const result = Promise.resolve({ outcome: "submitted-unverified" as const });
+        return { result, stopped: result.then(() => {}), cancel() {} };
+      } },
+    },
+  });
+  return { engine, adapter, presenter };
 }
 
 export async function observedPasteFixture(clipboard: NonNullable<Parameters<typeof fixture>[4]>) {

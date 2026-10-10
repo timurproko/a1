@@ -664,8 +664,12 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
       expect(disposeRoot).toHaveBeenCalledTimes(1);
       expect(terminal.active).toBe(false);
 
-      // Invariant: a failure before the runtime exists still releases the root it already built.
-      vi.spyOn(adapter.settings, "snapshot").mockImplementationOnce(() => { throw new Error("settings unavailable"); });
+      // Invariant: a failure right after the root is built still releases it; the terminal host reads the
+      // settings first, so the presenter's own read is the second.
+      const snapshot = adapter.settings.snapshot.bind(adapter.settings);
+      vi.spyOn(adapter.settings, "snapshot")
+        .mockImplementationOnce(snapshot)
+        .mockImplementationOnce(() => { throw new Error("settings unavailable"); });
       expect(() => new OwnedUiSessionShell({
         presenters: createPiSessionPresenters(adapter),
         engine: { backend: adapter, cwd: "D:/work", sessionLayout: "custom-viewport" },

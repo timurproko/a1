@@ -24,12 +24,16 @@ vi.mock("../../src/app/session-shell/clipboard-diagnostics.js", async importOrig
   } };
 });
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({
-  OwnedUiSessionShell: class {
-    constructor(options: OwnedUiSessionShellOptions) {
+  sessionTerminalHostOptions: () => ({}),
+  OwnedUiTerminalHost: class {
+    attach() {}
+    async dispose() { if (observed.failure === "dispose") throw new Error("synthetic disposal failure"); }
+  },
+  OwnedUiSessionPresenter: class {
+    constructor(_host: unknown, options: OwnedUiSessionShellOptions) {
       observed.options = options;
       if (observed.failure === "construct") throw new Error("synthetic construction failure");
     }
-    async dispose() { if (observed.failure === "dispose") throw new Error("synthetic disposal failure"); }
   },
 }));
 beforeEach(() => {

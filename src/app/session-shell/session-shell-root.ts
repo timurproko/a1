@@ -1063,54 +1063,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
   }
 
-  layoutRoot(): PiTuiLayoutNode {
-    const document = layoutPort(width => this.#renderDocument(width), () => this.invalidate());
-    const queued = layoutPort(width => this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width), () => this.#queued.invalidate());
-    const aboveWidgets = layoutPort(width => this.#renderWidgets("aboveEditor", width), () => this.#invalidateExtensions());
-    const status = layoutPort(width => this.#renderStatus(width), () => this.#status.invalidate());
-    const editor = layoutPort(width => this.#inputSurface.render(width), () => this.#inputSurface.invalidate(), data => this.#inputSurface.handleInput?.(data));
-    const belowWidgets = layoutPort(width => this.#renderWidgets("belowEditor", width), () => this.#invalidateExtensions());
-    const footer = layoutPort(width => this.#renderFooter(width), () => (this.#extensionFooter ?? this.#footer).invalidate());
+  /** The pinned-profile layout regions of this session; the terminal host arranges them with `pinnedLayoutRoot`. */
+  layoutParts(): PinnedLayoutParts {
     return {
-      type: "stack",
-      direction: "vertical",
-      children: [
-        {
-          basis: 0,
-          grow: 1,
-          shrink: 1,
-          minSize: 1,
-          node: {
-            type: "scroll",
-            id: "transcript",
-            follow: "end",
-            primary: true,
-            overscroll: "chain",
-            scrollbar: "auto",
-            scrollbarTrackStyle: text => piTheme().fg("scrollbarTrack", text),
-            scrollbarThumbStyle: text => piTheme().fg("scrollbarThumb", text),
-            child: { type: "component", component: document },
-          },
-        },
-        {
-          basis: "auto",
-          grow: 0,
-          shrink: 1,
-          minSize: 1,
-          node: {
-            type: "stack",
-            direction: "vertical",
-            children: [
-              { shrink: 1, minSize: 0, node: { type: "component", component: queued } },
-              { shrink: 1, minSize: 0, node: { type: "component", component: status } },
-              { shrink: 1, minSize: 0, node: { type: "component", component: aboveWidgets } },
-              { shrink: 1, minSize: 3, node: { type: "component", component: editor } },
-              { shrink: 1, minSize: 0, node: { type: "component", component: belowWidgets } },
-              { shrink: 1, minSize: 1, node: { type: "component", component: footer } },
-            ],
-          },
-        },
-      ],
+      document: layoutPort(width => this.#renderDocument(width), () => this.invalidate()),
+      queued: layoutPort(width => this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width), () => this.#queued.invalidate()),
+      aboveWidgets: layoutPort(width => this.#renderWidgets("aboveEditor", width), () => this.#invalidateExtensions()),
+      status: layoutPort(width => this.#renderStatus(width), () => this.#status.invalidate()),
+      editor: layoutPort(width => this.#inputSurface.render(width), () => this.#inputSurface.invalidate(), data => this.#inputSurface.handleInput?.(data)),
+      belowWidgets: layoutPort(width => this.#renderWidgets("belowEditor", width), () => this.#invalidateExtensions()),
+      footer: layoutPort(width => this.#renderFooter(width), () => (this.#extensionFooter ?? this.#footer).invalidate()),
     };
   }
 
@@ -1773,6 +1735,57 @@ function pinnedPromptSourceRow(
     rowWidth,
     paintPiSubmittedPromptTimestamp(timestamp),
   );
+}
+
+export type PinnedLayoutPart = "document" | "queued" | "aboveWidgets" | "status" | "editor" | "belowWidgets" | "footer";
+export type PinnedLayoutParts = Readonly<Record<PinnedLayoutPart, PiTuiComponentPort>>;
+
+/**
+ * The pinned-profile screen: a followed transcript scroll above the dock. The runtime mounts one such layout,
+ * so its single `transcript` scroll view is shared by whichever session the parts currently resolve to.
+ */
+export function pinnedLayoutRoot(parts: PinnedLayoutParts): PiTuiLayoutNode {
+  return {
+    type: "stack",
+    direction: "vertical",
+    children: [
+      {
+        basis: 0,
+        grow: 1,
+        shrink: 1,
+        minSize: 1,
+        node: {
+          type: "scroll",
+          id: "transcript",
+          follow: "end",
+          primary: true,
+          overscroll: "chain",
+          scrollbar: "auto",
+          scrollbarTrackStyle: text => piTheme().fg("scrollbarTrack", text),
+          scrollbarThumbStyle: text => piTheme().fg("scrollbarThumb", text),
+          child: { type: "component", component: parts.document },
+        },
+      },
+      {
+        basis: "auto",
+        grow: 0,
+        shrink: 1,
+        minSize: 1,
+        node: {
+          type: "stack",
+          direction: "vertical",
+          children: [
+            { shrink: 1, minSize: 0, node: { type: "component", component: parts.queued } },
+            { shrink: 1, minSize: 0, node: { type: "component", component: parts.status } },
+            { shrink: 1, minSize: 0, node: { type: "component", component: parts.aboveWidgets } },
+            { shrink: 1, minSize: 3, node: { type: "component", component: parts.editor } },
+            { shrink: 1, minSize: 0, node: { type: "component", component: parts.belowWidgets } },
+            { shrink: 1, minSize: 1, node: { type: "component", component: parts.footer } },
+          ],
+        },
+      },
+    ],
+  };
 }
 
 function layoutPort(

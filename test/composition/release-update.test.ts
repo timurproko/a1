@@ -52,9 +52,13 @@ vi.mock("../../src/ui/settings/manager.js", () => ({
   },
 }));
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({
-  OwnedUiSessionShell: class {
-    start() { observed.started += 1; }
+  sessionTerminalHostOptions: () => ({}),
+  OwnedUiTerminalHost: class {
+    attach() {}
     async dispose() {}
+  },
+  OwnedUiSessionPresenter: class {
+    start() { observed.started += 1; }
   },
 }));
 

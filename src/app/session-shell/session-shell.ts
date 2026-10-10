@@ -27,11 +27,8 @@ import type {
   SuggestionDecision,
 } from "../../contracts/owned-ui/index.js";
 import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
-import type { QuitOutroEffect } from "./quit-outro-effects.js";
 import type { SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
 import { ContextualPromptSuggestionController } from "./prompt-suggestion-controller.js";
-import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../ui/components/mouse.js";
-import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
 import { workflowCommandNames } from "../../integrations/pi/engine/workflows.js";
 import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../../integrations/pi/components/shell-extension-ui.js";
 import type { PiShellLazySelectorLoader } from "../../integrations/pi/components/lazy-selectors.js";
@@ -61,19 +58,25 @@ import {
   type PiShellHotkeysPresentation,
 } from "../../integrations/pi/components/shell-presenters-info.js";
 import type {
-  PiShellComponentPort,
   PiShellClipboardContent,
   PiShellSelectorOption,
 } from "../../integrations/pi/components/shell-shared-facade.js";
-import { piCanvasBackgroundAnsi } from "../../integrations/pi/components/theme.js";
-import { DamageAwareTerminalAdapter, type PiTuiDamageDecision } from "../../integrations/pi/tui-runtime/damage-aware-terminal.js";
-import { PiTuiRuntimeAdapter } from "../../integrations/pi/tui-runtime/adapter.js";
-import { classifyPiTuiInput } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
+import type { PiTuiDamageDecision } from "../../integrations/pi/tui-runtime/damage-aware-terminal.js";
+import type { PiTuiRuntimeAdapter } from "../../integrations/pi/tui-runtime/adapter.js";
+import type { PiTuiInputSurfaceKind } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
 import type {
+  PiTuiComponentPort,
+  PiTuiInputListenerResult,
   PiTuiOverlayHandle,
-  PiTuiRuntimeAdapterOptions,
-  PiTuiTerminalPort,
+  PiTuiPointerSurface,
 } from "../../integrations/pi/tui-runtime/contracts.js";
+import {
+  OwnedUiTerminalHost,
+  sessionTerminalHostOptions,
+  type OwnedUiHostedPresenter,
+  type OwnedUiPresenterRelease,
+  type OwnedUiPresenterTerminal,
+} from "./shell-host.js";
 
 
 import { runImageWorker } from "./image-preparation-client.js";
@@ -92,6 +95,8 @@ import {
   type OwnedUiShellPresentationOptions,
   type OwnedUiShellPromptImagesOptions,
   type OwnedUiShellSkillsOptions,
+  type PinnedLayoutPart,
+  type PinnedLayoutParts,
 } from "./session-shell-root.js";
 
 // Invariant: a disposed shell leaves the engine a host that holds no reference back to it.
@@ -109,14 +114,19 @@ export {
   type OwnedUiShellSkillsOptions,
   type OwnedUiShellSuggestionOptions,
 } from "./session-shell-root.js";
+export { OwnedUiTerminalHost, sessionTerminalHostOptions, type OwnedUiTerminalHostOptions } from "./shell-host.js";
 
-/** Coordinates backend, owned presentation, and Pi TUI lifecycles for one interactive session. */
-export class OwnedUiSessionShell {
+/**
+ * Presents one engine session: its transcript root, editor, controllers, submission, workflows, and dialogs.
+ * It reaches the terminal only through its terminal host's handle, and paints only while it is attached.
+ */
+export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly backend: OwnedUiSessionBackend;
   readonly #presenters: OwnedUiSessionPresenters;
   readonly #dialogHost: OwnedUiDialogHost;
   readonly root: OwnedUiSessionShellRoot;
-  readonly runtime: PiTuiRuntimeAdapter;
+  readonly #host: OwnedUiTerminalHost;
+  readonly #terminal: OwnedUiPresenterTerminal;
   readonly #cwd: string;
   readonly #listeners = new Set<(view: OwnedUiSessionViewModel) => void>();
   readonly #unsubscribe: () => void;
@@ -137,14 +147,16 @@ export class OwnedUiSessionShell {
   readonly #routeHost: UiRouteHost | null;
   #startupRoute: NonNullable<OwnedUiSessionShellOptions["engine"]["startupRoute"]> | undefined;
   #startupRouteTimer: ReturnType<typeof setTimeout> | undefined;
-  #dialogHandle: PiTuiOverlayHandle | undefined;
+  #dialogHandle: { hide(): void } | undefined;
   #sequence = 0;
   #editorRevision = 0;
   #started = false;
   #disposed = false;
+  #released: OwnedUiPresenterRelease | undefined;
   #shutdownPromise: Promise<OwnedUiCommandResult> | undefined;
   #disposePromise: Promise<void> | undefined;
-  #pointerReporting = false;
+  #layoutParts: PinnedLayoutParts | undefined;
+  #pendingClipboardWrite: Promise<void> = Promise.resolve();
   // Invariant: translated startup diagnostics create at most one dock notice per kind per shell.
   #startupTrustHandled = false;
   readonly #customViewport: boolean;
@@ -155,13 +167,10 @@ export class OwnedUiSessionShell {
   #copyExecutor: OwnedResponseCopyExecutor | undefined;
   #copyIntentSequence = 0;
   readonly #unbindClipboardWriter: () => void;
-  readonly #damageTerminal: DamageAwareTerminalAdapter | null;
-  readonly #quitOutro: OwnedUiShellPresentationOptions["quitOutro"];
   readonly #reloadPresentation: OwnedUiShellPresentationOptions["reload"];
   readonly #streamPresentation: StreamPresentationCoalescer;
-  readonly #removeViewportPreInput: () => void;
+  readonly #inputCoordination: boolean;
   readonly #unsubscribeSettings: () => void;
-  readonly #unsubscribeBackgroundSettings: () => void;
   readonly #unbindPiSettings: () => void;
   readonly #unbindTerminalSettings: () => void;
   readonly #unbindShutdownSettings: () => void;
@@ -178,10 +187,10 @@ export class OwnedUiSessionShell {
   #sessionBindingGeneration: number;
   #suggestionModelKey: string;
 
-  constructor(options: OwnedUiSessionShellOptions) {
+  constructor(host: OwnedUiTerminalHost, options: OwnedUiSessionShellOptions) {
     const { backend, cwd, routeHost, sessionLayout } = options.engine;
     const {
-      terminal, startup, viewportSettings, backgroundSettings, quitOutro,
+      terminal, startup, viewportSettings,
       reload: reloadPresentation, stream: streamPresentationOptions, input: inputPresentation,
     } = options.presentation ?? {};
     const { clipboard, responseCopy, paste: pasteDiagnostics, pastePreparation } = options.diagnostics ?? {};
@@ -196,23 +205,22 @@ export class OwnedUiSessionShell {
     this.#routeHost = routeHost ?? null;
     this.#startupRoute = options.engine.startupRoute;
     this.#customViewport = sessionLayout === "custom-viewport";
+    this.#inputCoordination = inputPresentation?.coordination !== false;
+    this.#host = host;
+    this.#terminal = host.connect(this);
     // Invariant: the host's optional members follow the layout, so it is built only once the layout is known.
     this.#dialogHost = this.#createDialogHost();
     this.#lazySelectors = options.diagnostics?.lazySelectors;
     this.#stopped = new Promise(resolve => {
       this.#resolveStopped = resolve;
     });
-    let runtime: PiTuiRuntimeAdapter | undefined;
-    let damageTerminal: DamageAwareTerminalAdapter | undefined;
-    let streamPresentation: StreamPresentationCoalescer | undefined;
-    let pendingClipboardWrite: Promise<void> = Promise.resolve();
     let promptSuggestionController: ContextualPromptSuggestionController | null = null;
     // Invariant: owned prompt limits and collapsed skills are bare-A1 replacements; comparison profiles keep pinned behavior.
     this.#promptImages = this.#customViewport ? options.promptImages ?? null : null;
     this.#skills = this.#customViewport ? options.skills ?? null : null;
     // Invariant: construction is transactional. Each binding registers its release as it is made, and a
     // throw releases them in reverse, so a shell that never finished constructing holds nothing.
-    const constructed: (() => void)[] = [];
+    const constructed: (() => void)[] = [() => host.disconnect(this)];
     try {
       const terminalCopy = terminal !== undefined || hasAsyncClipboardOutput();
       this.#responseCopy = this.#customViewport ? new ResponseCopyCoordinator({
@@ -221,21 +229,21 @@ export class OwnedUiSessionShell {
           ...(terminal === undefined && clipboard === undefined ? {} : { destination: "terminal" }),
           ...(clipboard?.writeText === undefined ? {} : { writeText: (text, signal) => clipboard!.writeText!(text, signal) }),
           ...(terminalCopy ? { terminal: { submit: async (control, signal) => {
-            if (signal.aborted || this.#disposed || !runtime?.active) throw new Error("Copy canceled");
+            if (signal.aborted || this.#disposed || !this.#terminal.running) throw new Error("Copy canceled");
             // Performance: never grow the real terminal's pending buffer with another clipboard payload.
             if (terminal === undefined && process.stdout.writableLength + control.length > MAX_COPY_CONTROL_BYTES) {
               throw new Error("Clipboard terminal is busy");
             }
-            runtime.writeControl(control);
+            this.#terminal.writeControl(control);
           } } } : {}),
         })),
         ...(responseCopy?.onEvent === undefined ? {} : { onEvent: responseCopy.onEvent }),
         onFailure: result => {
-          if (this.#disposed || !runtime?.active) return;
+          if (this.#disposed || !this.#terminal.running) return;
           this.root.appendWorkflowStatus(result.outcome === "timed-out" ? "Copy timed out; the clipboard did not respond."
             : result.failure === "size" ? "Selection exceeds this clipboard route's size limit."
             : "Could not copy the selection; the clipboard is unavailable.");
-          runtime.requestRender();
+          this.#terminal.requestRender();
         },
       }) : null;
       constructed.push(() => { this.#responseCopy?.dispose(); this.#copyExecutor?.dispose(); });
@@ -256,12 +264,12 @@ export class OwnedUiSessionShell {
         return text === null ? null : { kind: "text", text };
       };
       this.root = new OwnedUiSessionShellRoot(this.backend.session.view(), cwd, {
-        getColumns: () => runtime?.viewport().columns ?? terminal?.columns ?? 80,
-        getRows: () => runtime?.viewport().rows ?? terminal?.rows ?? 24,
-        requestRender: force => runtime?.requestRender(force),
-        requestHyperlinkCleanup: rows => damageTerminal?.requestHyperlinkCleanup(rows),
-        onViewportFrame: frame => damageTerminal?.arm(frame.descriptor, {
-          overlayActive: runtime?.hasOverlay() ?? false,
+        getColumns: () => this.#terminal.viewport().columns,
+        getRows: () => this.#terminal.viewport().rows,
+        requestRender: force => this.#terminal.requestRender(force),
+        requestHyperlinkCleanup: rows => this.#terminal.requestHyperlinkCleanup(rows),
+        onViewportFrame: frame => this.#terminal.armFrame(frame.descriptor, {
+          overlayActive: this.#terminal.hasOverlay(),
           selectionActive: this.root.hasActiveSelection(),
           replacementSurfaceActive: !this.root.usesDefaultInputSurface(),
         }),
@@ -278,7 +286,7 @@ export class OwnedUiSessionShell {
         onThinkingCycle: () => { void this.cycleThinkingLevel(); },
         onThinkingToggle: () => {
           this.root.toggleThinkingVisibility();
-          this.runtime.requestRender();
+          this.#terminal.requestRender();
         },
         onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
         onFollowUp: () => { void this.queueFollowUp().catch(() => this.#reportSubmissionError()); },
@@ -305,15 +313,15 @@ export class OwnedUiSessionShell {
           if (this.#responseCopy !== null) { void this.#responseCopy.submitText(text); return; }
           const write = () => {
             if (this.#disposed) return Promise.resolve();
-            runtime?.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
+            this.#terminal.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
             return clipboard === undefined ? writeSystemClipboardText(text)
               : clipboard.writeText?.(text) ?? Promise.resolve();
           };
           // Compatibility: comparison profiles retain their existing clipboard path.
-          pendingClipboardWrite = write().catch(() => {});
+          this.#pendingClipboardWrite = write().catch(() => {});
         },
         readClipboardContent: async (signal = new AbortController().signal) => {
-          await pendingClipboardWrite;
+          await this.#pendingClipboardWrite;
           return readClipboard(signal);
         },
         captureClipboardPaste: () => {
@@ -337,80 +345,23 @@ export class OwnedUiSessionShell {
       }, this.backend.identity.agentDir, this.#presenters.transcriptRenderers(), sessionLayout, {
         resolve: assetId => this.backend.extensions.resolveTranscriptImage(assetId),
       });
-      // Invariant: the runtime owns the root (its theme subscription and helper clients) once constructed;
-      // stopping an idle runtime disposes it synchronously.
-      constructed.push(() => {
-        if (runtime === undefined) this.root.dispose();
-        else void runtime.dispose().catch(() => {});
-      });
+      // Invariant: the presenter owns its root (theme subscription and helper clients) and disposes it once the
+      // terminal no longer renders it.
+      constructed.push(() => this.root.dispose());
       const initialPiSettings = this.backend.settings.snapshot();
-      // Invariant: bare A1 owns a bounded viewport and therefore always runs on the alternate
-      // fullscreen surface. The pinned comparison profiles still honor Pi's mode.
-      const tuiMode = this.#customViewport
-        ? "fullscreen"
-        : this.backend.identity.disposed ? "regular" : initialPiSettings.tuiMode;
-      const runtimeOptions: PiTuiRuntimeAdapterOptions = {
-        root: this.root,
-        mode: tuiMode,
-        ...(this.#customViewport ? {
-          // Invariant: the owned shell enables and routes mouse reports itself. Pi's
-          // enclosing fullscreen renderer must never establish a competing white selection.
-          mouse: false,
-          consumeUnhandledMouse: true,
-          onOverlayGeometry: surfaces => this.root.setViewportOverlaySurfaces(surfaces),
-          decorateTerminal: (terminal: PiTuiTerminalPort) => {
-            damageTerminal = new DamageAwareTerminalAdapter(terminal, {
-              regionalScroll: process.env.TERM !== "dumb",
-              inspectHyperlinks: readVisibleHyperlinks,
-              onResize: () => streamPresentation?.noteImmediatePresentation(),
-              onHyperlinkCleanupRequired: () => runtime?.requestRender(true),
-            });
-            return damageTerminal;
-          },
-          ...(inputPresentation?.coordination === false ? {} : {
-            inputCoordination: {
-              classify: (data: string, focusedOverlay) => classifyPiTuiInput(
-                data,
-                focusedOverlay ?? this.root.inputCoordinationSurface(),
-              ),
-              onReceipt: () => streamPresentation?.noteImmediatePresentation(),
-              ...(inputPresentation?.scheduler === undefined
-                ? {}
-                : { scheduler: inputPresentation.scheduler }),
-            },
-          }),
-        } : { layoutRoot: this.root.layoutRoot() }),
-        ...(inputPresentation?.onEvent === undefined ? {} : {
-          inputDiagnostics: {
-            onEvent: inputPresentation.onEvent,
-            ...(inputPresentation.now === undefined ? {} : { now: inputPresentation.now }),
-          },
-        }),
-        ...(terminal === undefined ? {} : { terminal: terminal }),
-        hardwareCursor: this.backend.session.view().terminal.hardwareCursor,
-        ...(this.#customViewport ? {} : { wheelScrollLines: initialPiSettings.fullscreenWheelScrollLines }),
-      };
-      runtime = new PiTuiRuntimeAdapter(runtimeOptions);
-      this.runtime = runtime;
       this.#programStatus = new ProgramStatusReporter(
-        status => { if (this.runtime.active) this.runtime.setProgramStatus(status); },
+        status => this.#terminal.setProgramStatus(status),
         () => this.view().status.footer?.sessionName ?? undefined,
       );
-      this.#damageTerminal = damageTerminal ?? null;
-      if (this.#customViewport && backgroundSettings !== undefined && damageTerminal !== undefined) {
-        damageTerminal.setCanvasBackground(piCanvasBackgroundAnsi(backgroundSettings.snapshot()));
-      }
-      this.#quitOutro = quitOutro;
       this.#reloadPresentation = reloadPresentation;
       const presentationInterval = streamPresentationOptions?.intervalMs ?? STREAM_PRESENTATION_INTERVAL_MS;
-      streamPresentation = streamPresentationOptions?.scheduler === undefined
-        ? new StreamPresentationCoalescer(() => this.runtime.requestRender(), presentationInterval)
+      this.#streamPresentation = streamPresentationOptions?.scheduler === undefined
+        ? new StreamPresentationCoalescer(() => this.#terminal.requestRender(), presentationInterval)
         : new StreamPresentationCoalescer(
-            () => this.runtime.requestRender(),
+            () => this.#terminal.requestRender(),
             presentationInterval,
             streamPresentationOptions.scheduler,
           );
-      this.#streamPresentation = streamPresentation;
       constructed.push(() => this.#streamPresentation.dispose());
       const promptSuggestionOptions = this.#customViewport ? options.suggestions : undefined;
       promptSuggestionController = promptSuggestionOptions === undefined ? null : new ContextualPromptSuggestionController({
@@ -426,7 +377,7 @@ export class OwnedUiSessionShell {
             return true;
           },
           clear: () => this.root.setPromptSuggestion(null),
-          requestRender: () => this.runtime.requestRender(),
+          requestRender: () => this.#terminal.requestRender(),
         },
       });
       this.#promptSuggestions = promptSuggestionController;
@@ -436,7 +387,7 @@ export class OwnedUiSessionShell {
         : promptSuggestionOptions.onChange(enabled => this.#promptSuggestions?.setEnabled(enabled));
       constructed.push(this.#unsubscribePromptSuggestions);
       this.#unsubscribePromptImages = this.#promptImages === null ? () => {} : this.#promptImages.onChange(() => {
-        if (!this.#disposed && this.root.reconcilePromptImageLimitNotice()) this.runtime.requestRender();
+        if (!this.#disposed && this.root.reconcilePromptImageLimitNotice()) this.#terminal.requestRender();
       });
       constructed.push(this.#unsubscribePromptImages);
       // Rationale: the same listener refreshes the menu for the A1 presentation choice and for the engine's
@@ -445,11 +396,11 @@ export class OwnedUiSessionShell {
         // Invariant: reinstalling drops extension provider wrappers, so an unrelated setting change leaves the list alone.
         if (this.#disposed || this.#commandListSignature() === this.#installedCommandSignature) return;
         this.#installAutocompleteCommands();
-        this.runtime.requestRender();
+        this.#terminal.requestRender();
       });
       constructed.push(this.#unsubscribeSkills);
-      this.runtime.setHardwareCursor(initialPiSettings.showHardwareCursor);
-      this.runtime.setClearOnShrink(initialPiSettings.clearOnShrink);
+      this.#terminal.setHardwareCursor(initialPiSettings.showHardwareCursor);
+      this.#terminal.setClearOnShrink(initialPiSettings.clearOnShrink);
       this.#terminalProgressEnabled = initialPiSettings.showTerminalProgress;
       this.#fullscreenExitOutput = initialPiSettings.fullscreenExitOutput;
       // Invariant: bare A1 prints only the resume hint at exit, so the pinned exit-output
@@ -461,11 +412,11 @@ export class OwnedUiSessionShell {
       this.#unbindTerminalSettings = this.backend.settings.bindOwner("terminal", {
         showHardwareCursor: { apply: value => {
           if (typeof value !== "boolean") throw new TypeError("Hardware cursor setting is invalid");
-          this.runtime.setHardwareCursor(value);
+          this.#terminal.setHardwareCursor(value);
         } },
         clearOnShrink: { apply: value => {
           if (typeof value !== "boolean") throw new TypeError("Clear-on-shrink setting is invalid");
-          this.runtime.setClearOnShrink(value);
+          this.#terminal.setClearOnShrink(value);
         } },
         showTerminalProgress: { apply: value => {
           if (typeof value !== "boolean") throw new TypeError("Terminal progress setting is invalid");
@@ -474,52 +425,6 @@ export class OwnedUiSessionShell {
         } },
       });
       constructed.push(this.#unbindTerminalSettings);
-      this.#removeViewportPreInput = this.#customViewport
-        ? this.runtime.addPreInputListener(data => {
-            if (inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
-            // Compatibility: route modal paging and boundary keys before Pi's fullscreen handlers.
-            const isDefault = this.root.usesDefaultInputSurface();
-            if (!this.runtime.hasOverlay() && !isDefault
-              && (this.root.editor.matchesTerminalKey(data, "pageUp")
-                || this.root.editor.matchesTerminalKey(data, "pageDown"))) {
-              this.root.handleInput(data);
-              this.runtime.requestRender();
-              return { consume: true };
-            }
-            if (!this.runtime.hasOverlay() && (this.root.editor.matchesTerminalKey(data, "home")
-              || this.root.editor.matchesTerminalKey(data, "end")
-              || !isDefault && (this.root.editor.matchesTerminalKey(data, "ctrl+home")
-                || this.root.editor.matchesTerminalKey(data, "ctrl+end")))) {
-              if (isDefault) this.root.handleViewportPreInput(data, true);
-              this.root.handleInput(data);
-              this.runtime.requestRender();
-              return { consume: true };
-            }
-            // Invariant: geometry must belong to the painted frame, including newly opened/nested
-            // surfaces. Steady pointer input does not trigger a synchronous composition.
-            const viewport = this.runtime.viewport();
-            if (data.includes("\u001b[<") && !this.root.viewportInputGeometryReady(viewport.columns, viewport.rows)) {
-              this.runtime.renderNow();
-            }
-            const routed = this.root.handleViewportPreInput(data, true, Date.now(),
-              this.root.usesDefaultInputSurface() && !this.runtime.hasFocusedOverlay());
-            if (routed.copySelection !== undefined) {
-              const snapshot = routed.copySelection;
-              const acknowledgement = copyAcknowledgement(snapshot);
-              const intent = ++this.#copyIntentSequence;
-              void this.#responseCopy?.submit(snapshot, pendingClipboardWrite).then(result => {
-                if (this.#disposed || !this.runtime.active || intent !== this.#copyIntentSequence
-                  || result.outcome !== "delivered" && result.outcome !== "submitted-unverified") return;
-                if (acknowledgement.hasNonWhitespace) {
-                  this.root.showCopyAcknowledgement(`copied ${acknowledgement.characters} chars to clipboard`);
-                }
-              });
-            }
-            if (!routed.consumed) return routed.data === data ? undefined : { data: routed.data };
-            return routed.data.length === 0 ? { consume: true } : { data: routed.data };
-          })
-        : () => {};
-      constructed.push(this.#removeViewportPreInput);
       const applyViewportSettings = () => {
         const snapshot = viewportSettings?.snapshot();
         this.root.setViewportConfig(snapshot ?? {
@@ -533,14 +438,6 @@ export class OwnedUiSessionShell {
         ? viewportSettings.onChange(settings => this.root.setViewportConfig(settings))
         : () => {};
       constructed.push(this.#unsubscribeSettings);
-      this.#unsubscribeBackgroundSettings = this.#customViewport && backgroundSettings
-        ? backgroundSettings.onChange(style => {
-            if (this.#damageTerminal?.setCanvasBackground(piCanvasBackgroundAnsi(style))) {
-              this.runtime.requestRender(true);
-            }
-          })
-        : () => {};
-      constructed.push(this.#unsubscribeBackgroundSettings);
       this.root.setEditorPaddingX(initialPiSettings.editorPaddingX);
       this.root.setAutocompleteMaxVisible(initialPiSettings.autocompleteMaxVisible);
       this.root.setOutputPad(initialPiSettings.outputPad);
@@ -589,7 +486,7 @@ export class OwnedUiSessionShell {
             if (value !== "auto" && (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > 100)) {
               throw new TypeError("Fullscreen wheel-scroll distance is invalid");
             }
-            this.runtime.setWheelScrollLines(value);
+            this.#terminal.setWheelScrollLines(value);
           } },
         }),
       });
@@ -603,29 +500,29 @@ export class OwnedUiSessionShell {
           limit: promptHistory.limit,
           fallback: this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []),
           active: () => this.root.usesDefaultInputSurface(),
-          render: () => this.runtime.requestRender(),
+          render: () => this.#terminal.requestRender(),
           rehydrate: value => this.root.rehydrateHistoryText(value, id => sidecar?.readAttachment(id) ?? null),
         });
         constructed.push(() => { void this.#promptHistory?.close().catch(() => false); });
       }
       this.#extensionBridge = createPiExtensionUiBridge({
         runtime: {
-          getColumns: () => this.runtime.viewport().columns,
-          getRows: () => this.runtime.viewport().rows,
-          requestRender: () => this.runtime.requestRender(),
+          getColumns: () => this.#terminal.viewport().columns,
+          getRows: () => this.#terminal.viewport().rows,
+          requestRender: () => this.#terminal.requestRender(),
         },
         agentDir: this.backend.identity.agentDir,
         setInputSurface: component => this.root.setInputSurface(component, true, "opaque"),
         setProgramStatusBlocked: status => this.#programStatus.setBlocked("extension-dialog", status),
-        showOverlay: (component, overlayOptions) => this.runtime.showOverlay(component, overlayOptions),
-        listenInput: handler => this.runtime.addInputListener(handler),
+        showOverlay: (component, overlayOptions) => this.#terminal.showOverlay(component, overlayOptions),
+        listenInput: handler => this.#terminal.addInputListener(handler),
         replaceWidget: (key, component, placement) => this.root.setExtensionWidget(key, component, placement),
         replaceHeader: component => this.root.setExtensionHeader(component),
         replaceFooter: component => this.root.setExtensionFooter(component),
         setStatus: (key, text) => this.root.setExtensionStatus(key, text),
         setWorking: (message, visible) => this.root.setExtensionWorking(message, visible),
         notify: (message, type) => this.root.addExtensionNotification(message, type),
-        setTitle: title => this.runtime.setTitle(title),
+        setTitle: title => this.#terminal.setTitle(title),
         getEditorText: () => this.root.editor.getText(),
         setEditorText: text => this.root.editor.setText(text),
         pasteToEditor: text => this.root.editor.insertText(text),
@@ -643,7 +540,7 @@ export class OwnedUiSessionShell {
         notify: event => this.#notifyWorkflowLogin(event),
         publish: message => {
           this.root.appendWorkflowMessage(message);
-          this.runtime.requestRender();
+          this.#terminal.requestRender();
         },
         finishLogin: () => this.#finishWorkflowLogin(),
       });
@@ -736,6 +633,91 @@ export class OwnedUiSessionShell {
     return this.backend.session.view();
   }
 
+  get terminalHost(): OwnedUiTerminalHost {
+    return this.#host;
+  }
+
+  render(width: number): readonly string[] {
+    return this.root.render(width);
+  }
+
+  handleInput(data: string): void {
+    this.root.handleInput(data);
+  }
+
+  invalidate(): void {
+    this.root.invalidate();
+  }
+
+  setFocused(focused: boolean): void {
+    this.root.setFocused(focused);
+  }
+
+  inputCoordinationSurface(): PiTuiInputSurfaceKind {
+    return this.root.inputCoordinationSurface();
+  }
+
+  setOverlaySurfaces(surfaces: readonly PiTuiPointerSurface[] | null): void {
+    this.root.setViewportOverlaySurfaces(surfaces);
+  }
+
+  noteImmediatePresentation(): void {
+    this.#streamPresentation.noteImmediatePresentation();
+  }
+
+  layoutPart(part: PinnedLayoutPart): PiTuiComponentPort {
+    this.#layoutParts ??= this.root.layoutParts();
+    return this.#layoutParts[part];
+  }
+
+  activated(): void {
+    this.#syncTerminalProgress(this.view());
+  }
+
+  handleViewportInput(data: string): PiTuiInputListenerResult | undefined {
+    if (!this.#inputCoordination) this.#streamPresentation.noteImmediatePresentation();
+    // Compatibility: route modal paging and boundary keys before Pi's fullscreen handlers.
+    const isDefault = this.root.usesDefaultInputSurface();
+    if (!this.#terminal.hasOverlay() && !isDefault
+      && (this.root.editor.matchesTerminalKey(data, "pageUp")
+        || this.root.editor.matchesTerminalKey(data, "pageDown"))) {
+      this.root.handleInput(data);
+      this.#terminal.requestRender();
+      return { consume: true };
+    }
+    if (!this.#terminal.hasOverlay() && (this.root.editor.matchesTerminalKey(data, "home")
+      || this.root.editor.matchesTerminalKey(data, "end")
+      || !isDefault && (this.root.editor.matchesTerminalKey(data, "ctrl+home")
+        || this.root.editor.matchesTerminalKey(data, "ctrl+end")))) {
+      if (isDefault) this.root.handleViewportPreInput(data, true);
+      this.root.handleInput(data);
+      this.#terminal.requestRender();
+      return { consume: true };
+    }
+    // Invariant: geometry must belong to the painted frame, including newly opened/nested
+    // surfaces. Steady pointer input does not trigger a synchronous composition.
+    const viewport = this.#terminal.viewport();
+    if (data.includes("\u001b[<") && !this.root.viewportInputGeometryReady(viewport.columns, viewport.rows)) {
+      this.#terminal.renderNow();
+    }
+    const routed = this.root.handleViewportPreInput(data, true, Date.now(),
+      this.root.usesDefaultInputSurface() && !this.#terminal.hasFocusedOverlay());
+    if (routed.copySelection !== undefined) {
+      const snapshot = routed.copySelection;
+      const acknowledgement = copyAcknowledgement(snapshot);
+      const intent = ++this.#copyIntentSequence;
+      void this.#responseCopy?.submit(snapshot, this.#pendingClipboardWrite).then(result => {
+        if (this.#disposed || !this.#terminal.running || intent !== this.#copyIntentSequence
+          || result.outcome !== "delivered" && result.outcome !== "submitted-unverified") return;
+        if (acknowledgement.hasNonWhitespace) {
+          this.root.showCopyAcknowledgement(`copied ${acknowledgement.characters} chars to clipboard`);
+        }
+      });
+    }
+    if (!routed.consumed) return routed.data === data ? undefined : { data: routed.data };
+    return routed.data.length === 0 ? { consume: true } : { data: routed.data };
+  }
+
   #promptSuggestionPresentationBlockReason(identity: OwnedUiPromptSuggestionIdentity): SuggestionDecision {
     const view = this.view();
     if (this.#disposed) return "disposed";
@@ -744,17 +726,12 @@ export class OwnedUiSessionShell {
     return this.root.promptSuggestionPresentationBlockReason();
   }
 
-  damagePresentationDecision(): PiTuiDamageDecision | null {
-    return this.#damageTerminal?.lastDecision ?? null;
-  }
-
   start(): void {
     if (this.#started) return;
     this.#started = true;
-    this.runtime.start();
+    this.#terminal.start();
     this.#promptHistory?.start();
     this.#syncTerminalProgress(this.view());
-    if (this.#customViewport) this.#setPointerReporting(true);
     void this.backend.extensions.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
     this.#syncView();
     // Performance: the spare clipboard helpers fork after the first frame is out, so startup never waits on them.
@@ -807,7 +784,7 @@ export class OwnedUiSessionShell {
       render: width => [...renderPiShellStatusText(`Waiting for images (${count} submission${count === 1 ? "" : "s"}) — Esc cancels; dequeue restores`, width)],
       invalidate: () => {},
     }, "aboveEditor");
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
   }
 
   #cancelWaitingImages(): void {
@@ -858,12 +835,12 @@ export class OwnedUiSessionShell {
             ...(result.output ? { detail: result.output } : {}),
           };
           this.root.appendWorkflowResult(workflow);
-          this.runtime.requestRender();
+          this.#terminal.requestRender();
           return workflow.outcome === "failed" ? rejected(workflow.message) : { outcome: "completed", diagnostic: null };
         } catch (error) {
           const message = `Bash command failed: ${error instanceof Error ? error.message : String(error)}`;
           this.root.appendWorkflowResult({ command: "debug", outcome: "failed", message });
-          this.runtime.requestRender();
+          this.#terminal.requestRender();
           return rejected(message);
         }
       }
@@ -892,7 +869,7 @@ export class OwnedUiSessionShell {
     if (now - this.#lastClearTime < 500) return this.shutdown();
     this.root.editor.setText("");
     this.#lastClearTime = now;
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
     return { outcome: "completed", diagnostic: null };
   }
 
@@ -980,7 +957,7 @@ export class OwnedUiSessionShell {
   async cycleModel(direction: "forward" | "backward"): Promise<OwnedUiCommandResult> {
     const result = await this.backend.workflows.cycleModelWorkflow(direction);
     this.root.appendWorkflowResult(result);
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
     return workflowAdapterResult(result);
   }
 
@@ -1012,7 +989,7 @@ export class OwnedUiSessionShell {
     this.#cancelWaitingImages();
     if (queued.length === 0) return;
     this.root.editor.setText(queued.join("\n"));
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
   }
 
   showSelector(
@@ -1040,7 +1017,7 @@ export class OwnedUiSessionShell {
         onCancel?.();
       },
     });
-    const handle = this.runtime.showOverlay(component, {
+    const handle = this.#terminal.showOverlay(component, {
       width: "70%",
       maxHeight: "80%",
       anchor: "center",
@@ -1056,16 +1033,16 @@ export class OwnedUiSessionShell {
     return {
       get disposed() { return isDisposed(); },
       setInputSurface: surface => this.root.setInputSurface(surface),
-      requestRender: () => this.runtime.requestRender(),
-      viewport: () => this.runtime.viewport(),
+      requestRender: () => this.#terminal.requestRender(),
+      viewport: () => this.#terminal.viewport(),
       appendWorkflowStatus: text => this.root.appendWorkflowStatus(text),
       appendWorkflowResult: result => this.root.appendWorkflowResult(result),
       runWorkflow: request => this.runWorkflow(request),
       // Invariant: the custom bare-A1 surface holds frames while optional selectors load and is permanently
       // fullscreen; the pinned comparison profiles render immediately and keep Pi's TUI mode switch.
       ...(this.#customViewport
-        ? { beginPresentationHold: () => this.runtime.beginPresentationHold() }
-        : { switchTuiMode: mode => this.runtime.switchMode(mode) }),
+        ? { beginPresentationHold: () => this.#terminal.beginPresentationHold() }
+        : { switchTuiMode: mode => this.#terminal.switchMode(mode) }),
     };
   }
 
@@ -1082,13 +1059,13 @@ export class OwnedUiSessionShell {
     const close = () => {
       this.root.setFooterLevel(true);
       this.root.setInputSurface(null);
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
     };
     const select = (level: string) => {
       close();
       void this.runWorkflow({ command: "thinking", argument: "", selection: level });
     };
-    const releasePresentation = this.#customViewport ? this.runtime.beginPresentationHold() : undefined;
+    const releasePresentation = this.#customViewport ? this.#terminal.beginPresentationHold() : undefined;
     try {
       const selectors = await this.#loadLazySelectors();
       const component = await selectors.createThinking({
@@ -1108,7 +1085,7 @@ export class OwnedUiSessionShell {
       if (this.#disposed) return;
       this.root.setFooterLevel(false);
       this.root.setInputSurface(component);
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
     } finally {
       releasePresentation?.();
     }
@@ -1118,7 +1095,7 @@ export class OwnedUiSessionShell {
   showSkillsSelector(skills: readonly PiShellSkillSummary[] = this.#skillSummaries()): void {
     const close = () => {
       this.root.setInputSurface(null);
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
     };
     const component = createPiShellSkillsSelector({
       skills,
@@ -1129,7 +1106,7 @@ export class OwnedUiSessionShell {
       onCancel: close,
     });
     this.root.setInputSurface(component);
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
   }
 
   showModelSelector(initialSearchInput?: string): void {
@@ -1140,19 +1117,19 @@ export class OwnedUiSessionShell {
     const options = this.backend.catalog.pinnedForkOptions();
     if (options.length === 0) {
       this.root.appendWorkflowResult({ command: "fork", outcome: "completed", message: "No messages to fork from", messageKind: "status" });
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
       return;
     }
     const close = () => {
       this.root.setInputSurface(null);
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
     };
     const component = createPiShellUserMessageSelector(options, selection => {
       close();
       void this.runWorkflow({ command: "fork", argument: "", selection });
     }, close);
     this.root.setInputSurface(component);
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
   }
 
   async showLogoutSelector(): Promise<void> {
@@ -1165,24 +1142,24 @@ export class OwnedUiSessionShell {
         outcome: "failed",
         message: `Could not read stored credentials: ${error instanceof Error ? error.message : String(error)}`,
       });
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
       return;
     }
     if (options.length === 0) {
       this.root.appendWorkflowStatus("No stored credentials to remove. /logout only removes credentials saved by /login; environment variables and models.json config are unchanged.");
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
       return;
     }
     const close = () => {
       this.root.setInputSurface(null);
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
     };
     const component = createPiShellAuthProviderSelector("logout", options, selection => {
       close();
       void this.runWorkflow({ command: "logout", argument: "", selection });
     }, close);
     this.root.setInputSurface(component);
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
   }
 
   showLoginMethodSelector(providerReference: string): void {
@@ -1198,7 +1175,7 @@ export class OwnedUiSessionShell {
     }
     const close = () => {
       this.root.setInputSurface(null);
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
     };
     const labels = method.options.map(option => option.label);
     const component = createPiShellExtensionSelector(method.title, labels, label => {
@@ -1208,7 +1185,7 @@ export class OwnedUiSessionShell {
       void this.runWorkflow({ command: "login", argument: "", selection });
     }, close);
     this.root.setInputSurface(component);
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
   }
 
   showTreeSelector(initialSelectedId?: string): Promise<void> {
@@ -1220,7 +1197,7 @@ export class OwnedUiSessionShell {
   showLoginAuthTypeSelector(): void {
     const close = () => {
       this.root.setInputSurface(null);
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
     };
     const labels = ["Sign in with an account", "Sign in with an API key"];
     const component = createPiShellExtensionSelector(
@@ -1233,19 +1210,19 @@ export class OwnedUiSessionShell {
       close,
     );
     this.root.setInputSurface(component);
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
   }
 
   showLoginProviderSelector(authType?: "oauth" | "api_key", initialSearchInput?: string): void {
     const options = this.backend.catalog.pinnedLoginOptions(authType);
     if (options.length === 0) {
       this.root.appendWorkflowStatus(authType === "oauth" ? "No account providers available." : authType === "api_key" ? "No API key providers available." : "No login providers available.");
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
       return;
     }
     const close = () => {
       this.root.setInputSurface(null);
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
     };
     const component = createPiShellAuthProviderSelector("login", options, id => {
       close();
@@ -1255,7 +1232,7 @@ export class OwnedUiSessionShell {
       if (authType !== undefined) this.showLoginAuthTypeSelector();
     }, initialSearchInput);
     this.root.setInputSurface(component);
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
   }
 
   showSessionSelector(): Promise<void> {
@@ -1295,7 +1272,7 @@ export class OwnedUiSessionShell {
       }).catch(error => {
         if (this.#disposed) return;
         this.root.appendWorkflowResult({ command: "name", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
-        this.runtime.requestRender();
+        this.#terminal.requestRender();
       });
       return { outcome: "completed", diagnostic: null };
     }
@@ -1305,16 +1282,16 @@ export class OwnedUiSessionShell {
       if (setup) {
         const close = () => {
           this.root.setInputSurface(null);
-          this.runtime.requestRender();
+          this.#terminal.requestRender();
         };
         const dialog = createPiShellLoginDialog({
-          getColumns: () => this.runtime.viewport().columns,
-          getRows: () => this.runtime.viewport().rows,
-          requestRender: () => this.runtime.requestRender(),
+          getColumns: () => this.#terminal.viewport().columns,
+          getRows: () => this.#terminal.viewport().rows,
+          requestRender: () => this.#terminal.requestRender(),
         }, setup.providerId, close, setup.providerName, setup.title);
         dialog.showInfo(setup.message, [], true);
         this.root.setInputSurface(dialog);
-        this.runtime.requestRender();
+        this.#terminal.requestRender();
         return { outcome: "completed", diagnostic: null };
       }
     }
@@ -1367,7 +1344,7 @@ export class OwnedUiSessionShell {
       const blocked = this.backend.workflows.reloadBlockedResult();
       if (blocked) {
         this.root.appendWorkflowResult(blocked);
-        this.runtime.requestRender();
+        this.#terminal.requestRender();
         return workflowAdapterResult(blocked);
       }
       this.root.resetExtensionUi();
@@ -1377,16 +1354,16 @@ export class OwnedUiSessionShell {
       : undefined;
     const shareSurface = shareDialog === undefined ? undefined
       : (this.#customViewport ? shareDialog.createPiShellShareOperationDialog : shareDialog.createPiShellOperationLoader)({
-        getColumns: () => this.runtime.viewport().columns,
-        getRows: () => this.runtime.viewport().rows,
-        requestRender: () => this.runtime.requestRender(),
+        getColumns: () => this.#terminal.viewport().columns,
+        getRows: () => this.#terminal.viewport().rows,
+        requestRender: () => this.#terminal.requestRender(),
       }, "Creating gist…");
     const operationSurface = shareSurface ?? (request.command === "reload" ? createPiShellReloadBox() : undefined);
     const now = this.#reloadPresentation?.now ?? Date.now;
     const shownAt = now();
     if (operationSurface) {
       this.root.setInputSurface(operationSurface);
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
     }
     let result: OwnedUiWorkflowResult;
     try {
@@ -1397,7 +1374,7 @@ export class OwnedUiSessionShell {
         // briefly keeps the reload legible regardless of how fast the resources actually load.
         if (request.command === "reload") await this.#holdReloadSurface(now() - shownAt);
         this.root.setInputSurface(null);
-        this.runtime.requestRender();
+        this.#terminal.requestRender();
       }
     }
     if (copyGeneration !== undefined && (this.#disposed || copyGeneration !== this.backend.identity.sessionBindingGeneration)) {
@@ -1425,7 +1402,7 @@ export class OwnedUiSessionShell {
     }
     if (result.outcome === "requires-selection" || result.outcome === "requires-confirmation") {
       this.root.appendWorkflowResult({ command: request.command, outcome: "failed", message: `Owned controller missing for ${request.command}` });
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
       return { outcome: "failed", diagnostic: `Owned controller missing for ${request.command}` };
     }
     if (request.command === "reload" && result.outcome === "completed") {
@@ -1442,7 +1419,7 @@ export class OwnedUiSessionShell {
     } else {
       this.root.appendWorkflowResult(result);
     }
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
     return workflowAdapterResult(result);
   }
 
@@ -1458,7 +1435,7 @@ export class OwnedUiSessionShell {
     const context = this.backend.catalog.pinnedProjectTrustContext();
     const close = () => {
       this.root.setInputSurface(null);
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
     };
     const component = createPiShellTrustSelector({
       ...context,
@@ -1471,12 +1448,12 @@ export class OwnedUiSessionShell {
           close();
           this.root.appendWorkflowResult({ command: "trust", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
         }
-        this.runtime.requestRender();
+        this.#terminal.requestRender();
       },
       onCancel: close,
     });
     this.root.setInputSurface(component);
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
   }
 
   showScopedModelsSelector(): void {
@@ -1494,36 +1471,28 @@ export class OwnedUiSessionShell {
     this.#presenters.openModelsDialog(this.#dialogHost, initialQuery);
   }
 
-  // Invariant: pointer reporting is disabled on every path that ends the owning screen.
-  #setPointerReporting(enabled: boolean, forceOff = false): void {
-    const effective = forceOff ? false : this.#customViewport || enabled;
-    if (this.#pointerReporting === effective) return;
-    this.#pointerReporting = effective;
-    if (!this.runtime.active) return;
-    this.runtime.writeControl(effective ? MOUSE_TRACKING_ON : MOUSE_TRACKING_OFF);
-  }
-
-  // Invariant: one teardown per shell, starting on a microtask so never inside the event listener that
-  // requested it. Callers during the teardown share its outcome; a later call finds it done.
+  // Invariant: one teardown per presenter, starting on a microtask so never inside the event listener that
+  // requested it. Callers during the teardown share its outcome; a later call finds it done. Closing the
+  // terminal host's last presenter ends the terminal.
   dispose(): Promise<void> {
     if (this.#disposePromise !== undefined) return this.#disposePromise;
     if (this.#disposed) return Promise.resolve();
     this.#disposed = true;
-    const pending = Promise.resolve().then(() => this.#dispose());
+    const pending = Promise.resolve().then(() => this.#host.close(this));
     this.#disposePromise = pending;
     const clear = () => { if (this.#disposePromise === pending) this.#disposePromise = undefined; };
     void pending.then(clear, clear);
     return pending;
   }
 
-  async #dispose(): Promise<void> {
+  release(terminal: { readonly mode: "regular" | "fullscreen"; readonly columns: number }): OwnedUiPresenterRelease {
+    if (this.#released !== undefined) return { exitText: "", failures: [], settle: async () => [] };
+    this.#disposed = true;
     const failures: unknown[] = [];
     const attempt = (action: () => void) => { try { action(); } catch (error) { failures.push(error); } };
     // Invariant: events stop first, so nothing re-enters the view during history close, outro, or restoration.
     attempt(() => this.#unsubscribe());
     this.#copyIntentSequence += 1;
-    // Invariant: the outro frame is what the terminal shows now, before any cleanup writes.
-    const outroFrame = this.#captureQuitOutroFrame();
     this.#responseCopy?.dispose();
     this.#copyExecutor?.dispose();
     this.#cancelWaitingImages();
@@ -1532,8 +1501,6 @@ export class OwnedUiSessionShell {
     attempt(() => { historyCleanup = this.#promptHistory?.close() ?? Promise.resolve(true); });
     attempt(() => { pasteCleanup = this.root.disposePendingPastes(); });
     attempt(() => this.root.clearViewportPointerState());
-    attempt(() => this.#setPointerReporting(false, true));
-    attempt(() => this.#removeViewportPreInput());
     attempt(() => this.#streamPresentation.dispose());
     attempt(() => {
       if (this.#startupRouteTimer !== undefined) clearTimeout(this.#startupRouteTimer);
@@ -1544,17 +1511,16 @@ export class OwnedUiSessionShell {
     attempt(() => this.#unsubscribePromptImages());
     attempt(() => this.#unsubscribeSkills());
     attempt(() => this.#unsubscribeSettings());
-    attempt(() => this.#unsubscribeBackgroundSettings());
-    let fullscreenExitText = "";
+    let exitText = "";
     attempt(() => {
       const exitMode = this.backend.identity.disposed ? this.#fullscreenExitOutput : this.backend.settings.snapshot().fullscreenExitOutput;
       const resume = this.backend.identity.currentSessionResumeMetadata();
       const resumeHint = resume === null ? "" : `${dim("To resume this session:")} ${formatSessionResumeCommand(resume)}`;
       // Invariant: bare A1 leaves only the hint behind; the pinned comparison profile still
       // honors fullscreenExitOutput, including the styled transcript.
-      fullscreenExitText = this.runtime.mode !== "fullscreen" ? ""
+      exitText = terminal.mode !== "fullscreen" ? ""
         : this.#customViewport || exitMode === "resume-hint" ? resumeHint
-        : [this.root.exitTranscript(this.runtime.viewport().columns), resumeHint].filter(Boolean).join("\n\n");
+        : [this.root.exitTranscript(terminal.columns), resumeHint].filter(Boolean).join("\n\n");
     });
     attempt(() => this.#unbindClipboardWriter());
     attempt(() => this.#unbindPiSettings());
@@ -1564,69 +1530,17 @@ export class OwnedUiSessionShell {
     attempt(() => this.#dialogHandle?.hide());
     attempt(() => this.#extensionBridge.dispose());
     attempt(() => this.#programStatus.clear());
-    // Invariant: from here to the leave nothing but the outro paints. A throttled frame the
-    // renderer still has queued would otherwise land during the stop-time input drain and
-    // flash the prompt and footer, whether or not an effect plays.
-    attempt(() => this.#freezeQuitPresentation());
-    await this.#playQuitOutro(outroFrame);
-    // Invariant: terminal restoration precedes any potentially stalled backend teardown. The
-    // fullscreen leave preserves the screen: the pinned runtime never dumps its final document
-    // into the parent terminal, so only the configured exit text follows the leave.
-    await this.runtime.dispose({ preserveScreen: this.runtime.mode === "fullscreen" }).catch(error => failures.push(error));
-    await historyCleanup.catch(() => false); // Security: background durability outcomes never enter terminal output.
-    await boundedCleanup(() => pasteCleanup).catch(error => failures.push(error));
-    await boundedCleanup(() => this.backend.extensions.unbindExtensionUi()).catch(error => failures.push(error));
-    if (failures.length > 0) throw new AggregateError(failures, "Owned UI disposal failed");
-    if (fullscreenExitText.length > 0) this.runtime.writeAfterStop(`${fullscreenExitText}\n`);
-  }
-
-  // Invariant: the snapshot is synchronous; the outro module itself loads only at quit.
-  #captureQuitOutroFrame(): QuitOutroCapture | null {
-    const outro = this.#quitOutro;
-    if (outro === undefined || !outro.interactive || !this.#customViewport || this.#damageTerminal === null) return null;
-    if (!this.runtime.active || this.runtime.mode !== "fullscreen") return null;
-    try {
-      if (!outro.snapshot().enabled) return null;
-      const viewport = this.runtime.viewport();
-      return {
-        rows: this.#damageTerminal.presentedRows(), columns: viewport.columns, height: viewport.rows,
-        settings: {
-          effect: QUIT_OUTRO_EFFECT,
-          durationMs: QUIT_OUTRO_DURATION_MS,
-          canvasBackgroundAnsi: this.#damageTerminal.canvasBackgroundAnsi,
-        },
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  #freezeQuitPresentation(): void {
-    if (!this.#customViewport || !this.runtime.active || this.runtime.mode !== "fullscreen") return;
-    this.runtime.freezePresentation();
-  }
-
-  // Rationale: any failure here only skips the effect; restoration always follows.
-  async #playQuitOutro(capture: QuitOutroCapture | null): Promise<void> {
-    const outro = this.#quitOutro;
-    if (capture === null || outro === undefined || !this.runtime.active) return;
-    try {
-      // Rationale: the effects stay off the startup graph; quit is the only time they load.
-      const { captureQuitOutroFrame, playQuitOutro } = await import("./quit-outro.js");
-      const frame = captureQuitOutroFrame(capture.rows, capture.columns, capture.height);
-      if (frame === null || !this.runtime.active) return;
-      await playQuitOutro(frame, capture.settings.effect, capture.settings.durationMs, {
-        write: data => this.runtime.writeControl(data),
-        ...(capture.settings.canvasBackgroundAnsi === null
-          ? {}
-          : { canvasBackgroundAnsi: capture.settings.canvasBackgroundAnsi }),
-        ...(outro.now === undefined ? {} : { now: outro.now }),
-        ...(outro.sleep === undefined ? {} : { sleep: outro.sleep }),
-        ...(outro.seed === undefined ? {} : { seed: outro.seed }),
-      });
-    } catch {
-      // Rationale: a failed or interrupted effect must never hold the terminal; restoration follows.
-    }
+    // Invariant: the host settles a presenter only once the terminal is restored, so these never stall it.
+    const settle = async (): Promise<readonly unknown[]> => {
+      const settled: unknown[] = [];
+      try { this.root.dispose(); } catch (error) { settled.push(error); }
+      await historyCleanup.catch(() => false); // Security: background durability outcomes never enter terminal output.
+      await boundedCleanup(() => pasteCleanup).catch(error => settled.push(error));
+      await boundedCleanup(() => this.backend.extensions.unbindExtensionUi()).catch(error => settled.push(error));
+      return settled;
+    };
+    this.#released = { exitText, failures, settle };
+    return this.#released;
   }
 
   #settleStoppedLifecycle(): void {
@@ -1658,8 +1572,8 @@ export class OwnedUiSessionShell {
   }
 
   #syncTerminalProgress(view: OwnedUiSessionViewModel): void {
-    if (!this.runtime.active) return;
-    this.runtime.setTerminalProgress(this.#terminalProgressEnabled && view.lifecycle === "busy");
+    if (!this.#terminal.running) return;
+    this.#terminal.setTerminalProgress(this.#terminalProgressEnabled && view.lifecycle === "busy");
     if (view.lifecycle === "stopped" || view.lifecycle === "stopping") {
       this.#programStatus.clear();
       return;
@@ -1697,7 +1611,6 @@ export class OwnedUiSessionShell {
       this.#dialogHandle = undefined;
       this.#dialogId = undefined;
       this.#dialogSource = undefined;
-      this.#setPointerReporting(false);
       this.root.setInputSurface(null);
       this.root.resetExtensionUi();
       this.root.resetWorkflowPresentation();
@@ -1705,7 +1618,7 @@ export class OwnedUiSessionShell {
     this.root.update(view);
     this.#syncDialog(view.dialog);
     this.#presentStartupTrustWarning(view);
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
     for (const listener of this.#listeners) listener(view);
     return view;
   }
@@ -1715,15 +1628,15 @@ export class OwnedUiSessionShell {
   #presentStartupTrustWarning(view: OwnedUiSessionViewModel): void {
     if (this.#startupTrustHandled || !this.#customViewport) return;
     const diagnostic = view.diagnostics.find(candidate => candidate.code === "project-trust");
-    if (diagnostic === undefined || !this.runtime.active) return;
+    if (diagnostic === undefined || !this.#terminal.running) return;
     this.#startupTrustHandled = true;
     this.root.appendWorkflowMessage({ kind: "warning", message: diagnostic.message });
   }
 
   #presentStartupRoute(): void {
     const pending = this.#startupRoute;
-    if (pending === undefined || this.#disposed || !this.runtime.active) return;
-    if (this.runtime.hasOverlay() || !this.root.usesDefaultInputSurface()) {
+    if (pending === undefined || this.#disposed || !this.#terminal.running) return;
+    if (this.#terminal.hasOverlay() || !this.root.usesDefaultInputSurface()) {
       this.#startupRouteTimer = setTimeout(() => {
         this.#startupRouteTimer = undefined;
         this.#presentStartupRoute();
@@ -1738,111 +1651,31 @@ export class OwnedUiSessionShell {
   #openOwnedRoute(route: string, input?: UiRouteInput, onClosed?: () => void | Promise<void>): OwnedUiCommandResult {
     const surface = this.#routeHost?.open(route, input) ?? null;
     if (surface === null) return { outcome: "failed", diagnostic: `route is unavailable: ${route}` };
-    if (!this.runtime.active) return { outcome: "failed", diagnostic: "runtime is not active" };
+    if (!this.#terminal.running) return { outcome: "failed", diagnostic: "runtime is not active" };
 
     this.root.dismissNotice();
     this.#dialogHandle?.hide();
     this.#dialogSource = "route";
-    // Protocol: any-event reporting: hover and drag are what the screen is driven by, and
-    // it also stops the terminal treating a drag as a text selection.
-    this.#setPointerReporting(true);
-    // Protocol: the interrupt chord is global, so it is watched on raw input rather than
-    // through the overlay: the pinned shell handles that key before an overlay
-    // ever sees it, which is why an owned screen must not rely on being asked.
-    let armedAt = 0;
-    const removeInterruptWatch = this.runtime.addInputListener(data => {
-      if (!data.includes(INTERRUPT)) return undefined;
-      // Protocol: route hosts decide whether one interrupt closes their app. Raw-input forwarding
-      // is required because Pi handles Ctrl+C before the fullscreen overlay receives normal input.
-      const consumedBySurface = surface.handleInput(INTERRUPT);
-      if (surface.isClosed()) {
-        armedAt = 0;
-        closeSurface();
-        return { consume: true };
-      }
-      if (consumedBySurface) {
-        armedAt = 0;
-        this.runtime.requestRender();
-        return { consume: true };
-      }
-      const now = Date.now();
-      if (armedAt !== 0 && now - armedAt <= INTERRUPT_CHORD_MS) {
-        armedAt = 0;
-        closeSurface();
-        void this.shutdown();
-        return { consume: true };
-      }
-      armedAt = now;
-      this.runtime.requestRender();
-      // Invariant: the presented screen owns the chord, so the pinned shell never sees a
-      // stray interrupt while it is up.
-      return { consume: true };
-    });
-    let removeSurfacePreInput = () => {};
-    let rendered = false;
-    let closed = false;
-    const closeSurface = () => {
-      if (closed) return;
-      closed = true;
-      removeSurfacePreInput();
-      removeInterruptWatch();
-      this.#setPointerReporting(false);
-      this.#dialogHandle?.hide();
-      this.#dialogHandle = undefined;
-      this.#dialogId = undefined;
-      this.#dialogSource = undefined;
-      if (rendered) {
-        try { void onClosed?.()?.catch(() => undefined); } catch { /* Rationale: a failed acknowledgement stays pending. */ }
-      }
-    };
-    // Compatibility: fullscreen Pi owns a fallback text-selection layer before focused overlay
-    // components see pointer input. Route every mouse report to the owned screen
-    // at the pre-input boundary so dropdowns, value hover, and numeric +/- work,
-    // and consume even unhandled reports so settings content is never selected.
-    removeSurfacePreInput = this.runtime.addPreInputListener(data => {
-      const { events, rest } = parseMouseInput(data);
-      if (events.length === 0) return undefined;
-      for (const event of events) surface.handleMouse(event);
-      if (surface.isClosed()) closeSurface();
-      else this.runtime.requestRender();
-      return rest.length === 0 ? { consume: true } : { data: rest };
-    });
-    const rows = () => Math.max(1, this.runtime.viewport().rows);
-    const component: PiShellComponentPort = {
-      render: (width: number) => {
-        const frame = [...surface.render(Math.max(1, width), rows())];
-        rendered = true;
-        return frame;
-      },
-      handleInput: (data: string) => {
-        const { events, rest } = parseMouseInput(data);
-        for (const event of events) surface.handleMouse(event);
-        if (rest.length > 0) surface.handleInput(rest);
-        if (surface.isClosed()) {
-          closeSurface();
-          return;
+    const handle = this.#terminal.openRoute(surface, {
+      exit: () => { void this.shutdown(); },
+      closed: rendered => {
+        if (this.#dialogHandle === handle) {
+          this.#dialogHandle = undefined;
+          this.#dialogId = undefined;
+          this.#dialogSource = undefined;
         }
-        this.runtime.requestRender();
+        if (rendered) {
+          try { void onClosed?.()?.catch(() => undefined); } catch { /* Rationale: a failed acknowledgement stays pending. */ }
+        }
       },
-      invalidate: () => this.runtime.requestRender(),
-    };
-    surface.onRenderRequested(() => this.runtime.requestRender());
-    surface.onExitRequested(() => {
-      closeSurface();
-      void this.shutdown();
     });
-    this.#dialogHandle = this.runtime.showOverlay(component, {
-      width: "100%",
-      maxHeight: "100%",
-      anchor: "top-left",
-      inputCoordination: "owned",
-    });
+    this.#dialogHandle = handle;
     this.#dialogId = surface.id;
     return { outcome: "completed", diagnostic: null };
   }
 
   #syncDialog(dialog: OwnedUiDialog | null): void {
-    if (!this.runtime.active) return;
+    if (!this.#terminal.running) return;
     if (dialog === null) {
       // Invariant: locally owned routes (notably /settings) are independent of backend
       // lifecycle/status events and remain open while an agent is working.
@@ -1870,7 +1703,7 @@ export class OwnedUiSessionShell {
         this.#dialogSource = undefined;
       },
     });
-    this.#dialogHandle = this.runtime.showOverlay(component, {
+    this.#dialogHandle = this.#terminal.showOverlay(component, {
       width: "70%",
       maxHeight: "80%",
       anchor: "center",
@@ -1939,7 +1772,7 @@ export class OwnedUiSessionShell {
     if (skill === undefined) {
       const message = "Unknown skill: " + token;
       this.root.appendWorkflowMessage({ kind: "error", message });
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
       return { outcome: "failed", diagnostic: message };
     }
     return this.#submitSkillPrompt(skillPrompt(skill.name, separator < 0 ? "" : trimmed.slice(separator + 1)), text);
@@ -1965,7 +1798,7 @@ export class OwnedUiSessionShell {
         resolve,
         () => resolve(undefined),
       ), true, "opaque");
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
     });
   }
 
@@ -1988,7 +1821,7 @@ export class OwnedUiSessionShell {
       }
     }
     this.root.setInputSurface(null);
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
     const result = await this.runWorkflow({
       command: "tree",
       argument: "",
@@ -2004,9 +1837,9 @@ export class OwnedUiSessionShell {
   #startWorkflowLogin(request: OwnedUiWorkflowLoginStart): void {
     this.#finishWorkflowLogin();
     const dialog = createPiShellLoginDialog({
-      getColumns: () => this.runtime.viewport().columns,
-      getRows: () => this.runtime.viewport().rows,
-      requestRender: () => this.runtime.requestRender(),
+      getColumns: () => this.#terminal.viewport().columns,
+      getRows: () => this.#terminal.viewport().rows,
+      requestRender: () => this.#terminal.requestRender(),
     }, request.providerId, success => {
       if (!success) this.#finishWorkflowLogin();
     }, request.providerName);
@@ -2017,7 +1850,7 @@ export class OwnedUiSessionShell {
       message: `Log in to ${request.providerName}`,
     });
     this.#syncTerminalProgress(this.view());
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
   }
 
   #requestWorkflowInput(request: OwnedUiWorkflowInteractionRequest): Promise<string | null> {
@@ -2029,7 +1862,7 @@ export class OwnedUiSessionShell {
         const labels = options.map(option => option.label);
         const restoreDialog = () => {
           if (this.#activeLoginDialog === dialog) this.root.setInputSurface(dialog);
-          this.runtime.requestRender();
+          this.#terminal.requestRender();
         };
         const selector = createPiShellExtensionSelector(request.message, labels, label => {
           const id = options.find(option => option.label === label)?.id;
@@ -2040,13 +1873,13 @@ export class OwnedUiSessionShell {
           resolve(null);
         });
         this.root.setInputSurface(selector, false);
-        this.runtime.requestRender();
+        this.#terminal.requestRender();
       });
     }
     const response = request.type === "manual-code"
       ? dialog.showManualInput(request.message)
       : dialog.showPrompt(request.message, request.placeholder);
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
     return response.then(value => value, () => null);
   }
 
@@ -2060,7 +1893,7 @@ export class OwnedUiSessionShell {
     } else if (event.type === "info") dialog.showInfo(event.message, event.links);
     else if (event.type === "waiting") dialog.showWaiting(event.message);
     else dialog.showProgress(event.message);
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
   }
 
   #finishWorkflowLogin(): void {
@@ -2069,7 +1902,7 @@ export class OwnedUiSessionShell {
     this.root.setInputSurface(null);
     this.#programStatus.setBlocked("authentication", undefined);
     this.#syncTerminalProgress(this.view());
-    this.runtime.requestRender();
+    this.#terminal.requestRender();
   }
 
   async #execute(command: OwnedUiCommand, draft?: string): Promise<OwnedUiCommandResult> {
@@ -2120,7 +1953,7 @@ export class OwnedUiSessionShell {
       this.root.appendWorkflowResult({ command: "debug", outcome: "failed", message: message
         ?? (error instanceof ImageAttachmentError ? error.message : "Submission failed. Check the prompt and try again.") },
       error instanceof ImageAttachmentError ? error.code : undefined);
-      this.runtime.requestRender();
+      this.#terminal.requestRender();
     } catch { /* Security: error presentation cannot create another rejected submission callback. */ }
   }
 
@@ -2131,6 +1964,31 @@ export class OwnedUiSessionShell {
   #correlation(prefix: string): string {
     this.#sequence += 1;
     return `pi-shell-${prefix}-${this.#sequence}`;
+  }
+}
+
+/**
+ * One session on a terminal of its own: a terminal host with this presenter attached. Disposing it ends the
+ * terminal, as quitting the single-session product does.
+ */
+export class OwnedUiSessionShell extends OwnedUiSessionPresenter {
+  constructor(options: OwnedUiSessionShellOptions) {
+    const host = new OwnedUiTerminalHost(sessionTerminalHostOptions(options));
+    try {
+      super(host, options);
+    } catch (error) {
+      void host.dispose().catch(() => {});
+      throw error;
+    }
+    host.attach(this);
+  }
+
+  get runtime(): PiTuiRuntimeAdapter {
+    return this.terminalHost.runtime;
+  }
+
+  damagePresentationDecision(): PiTuiDamageDecision | null {
+    return this.terminalHost.damagePresentationDecision;
   }
 }
 
@@ -2185,22 +2043,4 @@ function workflowAdapterResult(result: OwnedUiWorkflowResult): OwnedUiCommandRes
   return { outcome: "rejected", diagnostic: result.message };
 }
 
-const INTERRUPT = "\u0003";
-const INTERRUPT_CHORD_MS = 1_500;
 const RELOAD_SURFACE_MIN_VISIBLE_MS = 400;
-// Rationale: the outro is not configurable; the switch only decides whether this plan plays.
-const QUIT_OUTRO_EFFECT: QuitOutroEffect = "fall";
-const QUIT_OUTRO_DURATION_MS = 800;
-
-interface QuitOutroCapture {
-  readonly rows: readonly string[];
-  readonly columns: number;
-  readonly height: number;
-  readonly settings: {
-    readonly effect: QuitOutroEffect;
-    readonly durationMs: number;
-    readonly canvasBackgroundAnsi: string | null;
-  };
-}
-
-

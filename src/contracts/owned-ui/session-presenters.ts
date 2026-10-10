@@ -13,18 +13,48 @@ export interface OwnedUiInputSurface {
   dispose?(): void;
 }
 
+/**
+ * The terminal as one session presenter sees it. A render request from a presenter that is not the host's
+ * active presenter paints nothing; the presenter keeps its state current and paints once it is attached.
+ */
+export interface OwnedUiPresenterHost {
+  requestRender(force?: boolean): void;
+  viewport(): { readonly columns: number; readonly rows: number };
+  /** Present only where the shell holds frames while an optional selector module loads. */
+  beginPresentationHold?(): () => void;
+}
+
+/** One engine session's presentation: its transcript, editor, controllers, and dialogs, and nothing terminal-wide. */
+export interface OwnedUiSessionPresenter {
+  render(width: number): readonly string[];
+  handleInput(data: string): void;
+  invalidate(): void;
+  setFocused(focused: boolean): void;
+  start(): void;
+  waitUntilStopped(): Promise<void>;
+  dispose(): Promise<void>;
+}
+
+/** Owns the process terminal and shows exactly one active presenter. */
+export interface OwnedUiTerminalHost<Presenter extends OwnedUiSessionPresenter = OwnedUiSessionPresenter> {
+  /** Makes the presenter active; its first frame is a full paint. */
+  attach(presenter: Presenter): void;
+  active(): Presenter | null;
+  /** No-op unless `from` is the active presenter. */
+  requestRender(from: Presenter, force?: boolean): void;
+  start(): void;
+  /** Ends the terminal: every presenter is released, the quit presentation plays, and the terminal is restored. */
+  dispose(): Promise<void>;
+}
+
 /** The shell's side of a presenter: where the selector is shown and how its choices reach the session. */
-export interface OwnedUiDialogHost {
+export interface OwnedUiDialogHost extends OwnedUiPresenterHost {
   /** True once the shell is disposed; a presenter that awaited stops before showing anything. */
   readonly disposed: boolean;
   setInputSurface(surface: OwnedUiInputSurface | null): void;
-  requestRender(): void;
-  viewport(): { readonly columns: number; readonly rows: number };
   appendWorkflowStatus(text: string): void;
   appendWorkflowResult(result: OwnedUiWorkflowResult): void;
   runWorkflow(request: OwnedUiWorkflowRequest): Promise<OwnedUiCommandResult>;
-  /** Present only where the shell holds frames while an optional selector module loads. */
-  beginPresentationHold?(): () => void;
   /** Present only where the surface can change TUI mode; false means overlays block the switch. */
   switchTuiMode?(mode: "regular" | "fullscreen"): boolean;
 }
