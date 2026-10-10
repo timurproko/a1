@@ -27,8 +27,8 @@ This is milestone 1 of 6. It adds native primitives and tests only; no product p
 
 ### Modified Capabilities
 
-None.
+- `continuous-integration`: the terminal-host owner builds and tests the crate on macOS and Linux as well as Windows x64.
 
 ## Impact
 
-`native/terminal-host` gains platform, protocol, and core modules, tests, and a fuzz target; the existing 2×2 proof binary keeps working until milestone 2 replaces it. CI builds and tests the crate on three platforms. No TypeScript source, launch path, setting, or user-visible behavior changes. `tabs.resident` does not exist until milestone 2.
+`native/terminal-host` gains platform, protocol, and core modules, tests, and a fuzz target; the existing 2×2 proof binary keeps working until milestone 2 replaces it. CI builds and tests the crate on three platforms. No TypeScript source, launch path, setting, or user-visible behavior changes. `residentTabs` does not exist until milestone 2.

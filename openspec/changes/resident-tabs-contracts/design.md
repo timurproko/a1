@@ -16,7 +16,7 @@ The product design, decisions, and roadmap live in [`docs/architecture/resident-
 
 **Non-Goals:**
 
-- Server, holder, or attach roles; any product wiring; the `tabs.resident` setting; packaging the terminal host in releases.
+- Server, holder, or attach roles; any product wiring; the `residentTabs` setting; packaging the terminal host in releases.
 - Removing the 2×2 proof (milestone 2).
 
 ## Decisions
@@ -27,7 +27,7 @@ Add `platform` (with `windows`, `unix`, `macos`, and `linux` submodules), `proto
 
 ### 2. Process and boot identity
 
-A process is identified by pid plus its native start time (Windows creation time, Linux `/proc/<pid>/stat` start ticks, macOS `proc_pidinfo` start time). A mismatch means the pid was reused. Boot identity is the Windows boot sequence or `LastBootUpTime`, Linux `/proc/sys/kernel/random/boot_id`, and macOS `kern.boottime` at full precision.
+A process is identified by pid plus its native start time (Windows creation time, Linux `/proc/<pid>/stat` start ticks, macOS `proc_pidinfo` start time). A mismatch means the pid was reused. Boot identity is the Windows boot sequence or `LastBootUpTime`, Linux `/proc/sys/kernel/random/boot_id`, and macOS `kern.boottime` at full precision. Milestone 4 must also tell a logout from a crash without a reboot, so this milestone adds an OS-session identity: the Windows logon session id plus its logon time, the systemd login session id (falling back to the session leader's start time) on Linux, and the audit session id on macOS.
 
 ### 3. Owner-only endpoints
 
@@ -44,7 +44,7 @@ Every launch returns the observed detachment mode and is verified by process ide
 
 ### 5. Session-writer lock held by the writer
 
-The process that writes the session takes the lock, so the kernel releases it exactly when that process is gone: `LockFileEx` on Windows, open-file-description `fcntl` locks on Linux, and `flock` on macOS. The lock target is a sidecar keyed by the session file's canonical identity (resolved path plus volume and file id), so case, symlink, junction, and hard-link aliases share one lock. A not-yet-created session reserves its canonical parent and name first, then binds the file identity after creation without releasing. Milestone 1 provides this as a native primitive with a small command surface for the Node side to call later; wiring it into every launch mode is milestone 3.
+The process that writes the session takes the lock, so the kernel releases it exactly when that process is gone: `LockFileEx` on Windows, open-file-description `fcntl` locks on Linux, and `flock` on macOS. The lock target is a sidecar keyed by the session file's canonical identity (resolved path plus volume and file id), so case, symlink, junction, and hard-link aliases share one lock. A not-yet-created session reserves its canonical parent and name first, then binds the file identity after creation without releasing. Because Windows and POSIX locks belong to the process that takes them, a helper process cannot hold the lock for the Node writer. Milestone 1 therefore ships the primitive twice from one Rust source: inside the terminal host, and as a small Node-API addon (`a1-session-lock`, built with the same toolchain and provenance) that the Node writer loads in-process. Wiring the addon into every launch and switch route is milestone 3.
 
 ### 6. Durable atomic replacement
 
@@ -58,7 +58,7 @@ Supported filesystems (NTFS, ext4, xfs, btrfs, APFS) are documented; network fil
 
 ### 7. Protocol generation 1
 
-Frames are a u32 little-endian length plus a typed payload, capped at 2 MiB per frame and 1 MiB per input message; the handshake times out after 4 s. Messages belong to a generation, and changes within a generation are additive only. Every message shape has a frozen fixture, and CI checks the recorded digest of the fixture set. A `cargo-fuzz` target decodes arbitrary bytes and must never panic or allocate past the caps.
+Frames are a u32 little-endian length plus a typed payload, capped at 2 MiB per frame and 1 MiB per input message; the handshake times out after 4 s. Messages belong to a generation, and changes within a generation are additive only. Every message shape has a frozen fixture, and CI checks the recorded digest of the fixture set. A `cargo-fuzz` target decodes arbitrary bytes and must never panic or allocate past the caps. Milestones 2–5 add messages under generation 1 additively; each adds fixtures and re-records the digest, so the digest changes in merge order and a rebase re-records it rather than merging it by hand.
 
 ### 8. Controller-transfer barrier
 

@@ -11,10 +11,10 @@ Milestone 1 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). I
 
 Each task adds the primitive with tests that run on Windows x64, macOS, and Linux.
 
-- [ ] 2.1 Process identity by pid plus native start time, pid-reuse detection, and current boot identity.
+- [ ] 2.1 Process identity by pid plus native start time, pid-reuse detection, current boot identity, and current OS-session identity (to tell a logout from a crash).
 - [ ] 2.2 Owner-only endpoints: a named pipe with an owner-only ACL and first-instance protection, and a Unix socket in a `0700` directory with peer-credential checks; a connection from another user is refused.
 - [ ] 2.3 Fixed-role detached launch: refuse unapproved executables and roles; leave the caller's containment (Windows job with WMI fallback, Unix `setsid` with no controlling terminal, macOS per-user bootstrap namespace); verify and report the observed mode; prove survival when the launching tree is killed or hung up, and prove that ordinary contained children still die with their tree.
-- [ ] 2.4 Session-writer lock held by the writer process, keyed by canonical file identity across case, symlink, junction, and hard-link aliases, with new-file reservation and a command surface Node can call later; prove it is released only when the writer exits.
+- [ ] 2.4 Session-writer lock held by the writer process, keyed by canonical file identity across case, symlink, junction, and hard-link aliases, with new-file reservation; ship it both inside the terminal host and as an in-process Node-API addon (`a1-session-lock`) built from the same source, with Node-side tests on each platform; prove it is released only when the writer exits.
 - [ ] 2.5 Durable atomic replacement with per-platform flush semantics and documented supported filesystems; prove complete-old-or-new content after a kill at each step.
 
 ## 3. Protocol and core

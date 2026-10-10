@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Resident host primitives identify processes and boots exactly
-The native terminal host SHALL identify a process by its pid together with its native start time on Windows x64, macOS, and Linux, and SHALL treat a process whose start time differs from the recorded one as unrelated. It SHALL report a boot identity that changes on every reboot and never changes within one boot.
+The native terminal host SHALL identify a process by its pid together with its native start time on Windows x64, macOS, and Linux, and SHALL treat a process whose start time differs from the recorded one as unrelated. It SHALL report a boot identity that changes on every reboot and never changes within one boot, and an OS-session identity that changes on every logon.
 
 #### Scenario: Process identifier reuse
 - **WHEN** a recorded pid now belongs to a process with a different start time
@@ -38,7 +38,7 @@ The native terminal host SHALL start resident roles only through a launch primit
 - **THEN** that child SHALL end with the tree
 
 ### Requirement: Session-writer locks belong to the writing process
-The native terminal host SHALL provide a session-writer lock that the writing process itself holds through an operating-system lock, so that the lock is released when, and only when, that process has exited. The lock SHALL be keyed by the session file's canonical identity so that case, symbolic-link, junction, and hard-link aliases of one file contend for one lock, and SHALL allow reserving a not-yet-created session by its canonical location and binding the created file without a gap in exclusivity.
+The native terminal host SHALL provide a session-writer lock, usable both natively and in-process from Node, that the writing process itself holds through an operating-system lock, so that the lock is released when, and only when, that process has exited. The lock SHALL be keyed by the session file's canonical identity so that case, symbolic-link, junction, and hard-link aliases of one file contend for one lock, and SHALL allow reserving a not-yet-created session by its canonical location and binding the created file without a gap in exclusivity.
 
 #### Scenario: Two writers select aliases of one file
 - **WHEN** two processes request the writer lock for two different paths that name the same file
