@@ -6,6 +6,8 @@ import {
   type OwnedUiCommand,
   type OwnedUiDiagnostics,
   type OwnedUiEditorState,
+  type OwnedUiExtensionPort,
+  type OwnedUiExtensionUiPort,
   type OwnedUiImageAttachment,
   type OwnedUiPromptSuggestionGeneratorPort,
   type OwnedUiPromptSuggestionReasoning,
@@ -13,6 +15,12 @@ import {
   type OwnedUiPromptSuggestionResult,
   type OwnedUiEvent,
   type OwnedUiModelInfo,
+  type OwnedUiReleaseUpdate,
+  type OwnedUiSessionBackend,
+  type OwnedUiSessionCatalogPort,
+  type OwnedUiSessionIdentityPort,
+  type OwnedUiSessionPort,
+  type OwnedUiSessionSettingsPort,
   type OwnedUiSessionViewModel,
   type OwnedUiSnapshot,
   type OwnedUiStatusView,
@@ -20,6 +28,7 @@ import {
   type OwnedUiThinkingLevel,
   type OwnedUiTranscriptBlock,
   type OwnedUiUsageView,
+  type OwnedUiWorkflowPort,
 } from "../../../contracts/owned-ui/index.js";
 import type {
   PiAuthenticationProviderOption,
@@ -53,6 +62,7 @@ import { PiExtensionUiBinding, type OwnedPiVisualExtensionSupport } from "./exte
 import { PiPromptSuggestions } from "./prompt-suggestions.js";
 import { PiResourceCatalog, type OwnedPiExtensionResourceSummary, type OwnedPiResourceSummary } from "./resource-catalog.js";
 import { PiEngineRuntime, type PiEnginePackageUpdateProbe, type PiEngineRuntimeFactory, type PiRepositoryContextReader } from "./session-runtime.js";
+import { detachedEngineHostPorts, type PiEngineHostSessionPorts } from "./host-ports.js";
 import { PiEngineSettings } from "./settings-port.js";
 import { PiSessionEvents } from "./session-events.js";
 import { readUsageView } from "./usage-view.js";
@@ -65,6 +75,21 @@ export type { PiEngineRuntimeFactory, PiEngineRuntimeFactoryInput } from "./sess
 export type { AdapterCommandResult } from "./command-dispatch.js";
 export type { OwnedPiVisualExtensionSupport } from "./extension-ui-binding.js";
 
+/**
+ * The Pi objects pinned selectors and transcript renderers are built from. They are not part of the
+ * session backend contract; only the session presenters owner reads them.
+ */
+export interface PiSessionPresentationSource {
+  pinnedModelSelectorContext(): ReturnType<PiWorkflowContexts["pinnedModelSelectorContext"]>;
+  pinnedSessionSelectorContext(): PiSessionSelectorContext;
+  pinnedTreeSelectorContext(): PiTreeSelectorContext;
+  pinnedMessageRenderer(customType: string): unknown;
+  pinnedToolRenderers(toolName: string): unknown;
+  pinnedShortcutDescriptions(bindings: Parameters<AgentSession["extensionRunner"]["getShortcuts"]>[0]): readonly { readonly key: string; readonly description: string }[];
+  pinnedSettingsModels(): Pick<PiPinnedSettingsSnapshot, "currentModel" | "availableDefaultModels">;
+  applyPinnedSettingValue(callback: PiPinnedSettingsCallback, value: unknown): Promise<PiWorkflowResult>;
+}
+
 /** Explicit flush failure when required delivery was interrupted rather than completed. */
 export class EngineDeliveryError extends Error {
   constructor() { super("Engine delivery did not complete"); this.name = "EngineDeliveryError"; }
@@ -76,7 +101,13 @@ type PiSessionApi = AgentSession;
 export interface PiEngineAdapterOptions {
   readonly cwd?: string;
   readonly agentDir?: string;
-  readonly sessionId?: string;
+  /** Unique within the process; the engine host assigns one when the caller has none. */
+  readonly sessionId: string;
+  /**
+   * The process-level host this session belongs to. Absent only for adapters built directly in
+   * tests and tools: then no process dispatcher is installed and nothing is announced.
+   */
+  readonly engineHost?: PiEngineHostSessionPorts;
   readonly sessionPath?: string;
   readonly sessionSelection?: PiSessionSelection;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
@@ -95,9 +126,17 @@ export interface PiEngineAdapterOptions {
    * mode. Returns display names of packages with updates available.
    */
   readonly checkPackageUpdates?: PiEnginePackageUpdateProbe;
-  /** Comparison profiles preserve Pi's startup changelog; bare A1 owns release-note startup. */
-  readonly announceStartupChangelog?: boolean;
   readonly repositoryContextReader?: PiRepositoryContextReader;
+}
+
+interface PiEngineAdapterPorts {
+  readonly identity: OwnedUiSessionIdentityPort;
+  readonly session: OwnedUiSessionPort;
+  readonly workflows: OwnedUiWorkflowPort;
+  readonly settings: OwnedUiSessionSettingsPort;
+  readonly catalog: OwnedUiSessionCatalogPort;
+  readonly extensions: OwnedUiExtensionPort;
+  readonly presentation: PiSessionPresentationSource;
 }
 
 const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
@@ -107,10 +146,11 @@ const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
   hardwareCursor: false,
 };
 
-/** Owns the pinned Pi session lifecycle and translates its events into the neutral agent-engine contract. */
-export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
+/** Owns the pinned Pi session lifecycle and serves it to the owned shell as the neutral session backend. */
+export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSuggestionGeneratorPort {
   readonly #agentDir: string;
   readonly #sessionId: string;
+  readonly #engineHost: PiEngineHostSessionPorts;
   readonly #workflowHost: PiWorkflowHost;
   readonly #engine: PiEngineRuntime;
   #workflowInteraction: PiWorkflowInteractionHost;
@@ -199,9 +239,12 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     emitView: () => { this.#emitView(); },
   });
   #disposed = false;
-  constructor(options: PiEngineAdapterOptions = {}) {
+  readonly #ports: PiEngineAdapterPorts;
+  constructor(options: PiEngineAdapterOptions) {
+    if (typeof options.sessionId !== "string" || options.sessionId.length === 0) throw new TypeError("engine session id is required");
     this.#agentDir = options.agentDir ?? getAgentDir();
-    this.#sessionId = options.sessionId ?? "owned-session-1";
+    this.#sessionId = options.sessionId;
+    this.#engineHost = options.engineHost ?? detachedEngineHostPorts();
     this.#workflowHost = options.workflowHost ?? defaultWorkflowHost();
     this.#workflowInteraction = { prompt: async () => null, notify() {} };
     this.#engine = new PiEngineRuntime({
@@ -214,7 +257,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       projectTrustPrompt: options.projectTrustPrompt,
       createRuntime: options.createRuntime,
       checkPackageUpdates: options.checkPackageUpdates,
-      ...(options.announceStartupChangelog === undefined ? {} : { announceStartupChangelog: options.announceStartupChangelog }),
+      signal: this.#engineHost.signal,
+      markStartupPhase: phase => this.#engineHost.markStartupPhase(phase),
       ...(options.repositoryContextReader === undefined ? {} : { repositoryContextReader: options.repositoryContextReader }),
       host: this.#workflowHost,
     }, {
@@ -224,6 +268,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
           ...this.#terminal,
           hardwareCursor: runtime.services.settingsManager?.getShowHardwareCursor?.() ?? this.#terminal.hardwareCursor,
         };
+        const httpIdleTimeoutMs = runtime.services.settingsManager?.getHttpIdleTimeoutMs?.();
+        if (typeof httpIdleTimeoutMs === "number") this.#engineHost.httpPolicyLoaded(httpIdleTimeoutMs, this.#sessionId);
       },
       rebindBlocked: () => this.#delivery.overloaded || this.#admissionStopped || this.#disposed,
       sessionReplacing: () => { this.#commands.cancelPending(["new-session", "resume-session"]); },
@@ -284,6 +330,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       runtime: () => this.#engine.runtime,
       requireSession: () => this.#requireWorkflowSession(),
       thinkingLevelChanged: level => { this.#thinkingLevel = level; this.#emitView(); },
+      httpPolicyChanged: timeoutMs => { this.#engineHost.httpPolicyChanged(timeoutMs, this.#sessionId); },
       emitView: () => { this.#emitView(); },
     });
     this.#suggestions = new PiPromptSuggestions({
@@ -293,7 +340,17 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       identity: () => ({ sessionId: this.#sessionId, sessionGeneration: this.#engine.generation, runSequence: this.#events.runSequence, responseSequence: this.#events.responseSequence }),
       unavailable: () => this.#disposed || this.#delivery.overloaded || this.#admissionStopped,
     });
+    this.#ports = this.#createPorts();
   }
+
+  get identity(): OwnedUiSessionIdentityPort { return this.#ports.identity; }
+  get session(): OwnedUiSessionPort { return this.#ports.session; }
+  get workflows(): OwnedUiWorkflowPort { return this.#ports.workflows; }
+  get settings(): OwnedUiSessionSettingsPort { return this.#ports.settings; }
+  get catalog(): OwnedUiSessionCatalogPort { return this.#ports.catalog; }
+  get extensions(): OwnedUiExtensionPort { return this.#ports.extensions; }
+  /** The Pi objects behind pinned selectors and renderers, for the session presenters owner only. */
+  presentationSource(): PiSessionPresentationSource { return this.#ports.presentation; }
 
   setWorkflowInteractionHost(interaction: PiWorkflowInteractionHost): void {
     this.#workflowInteraction = interaction;
@@ -334,6 +391,18 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#disposed;
   }
 
+  /**
+   * Report a newer A1 release found by the startup check. The shell renders the diagnostic as
+   * pinned Pi's `Update Available` notice; it arrives whenever the check resolves, so a late
+   * result is appended to the transcript like Pi's own fire-and-forget version check.
+   */
+  announceReleaseUpdate(release: OwnedUiReleaseUpdate): void {
+    if (this.#disposed) return;
+    const changelog = release.changelogUrl === null ? "" : `\nChangelog: ${release.changelogUrl}`;
+    this.#addDiagnostic("info", "release-update", `New version ${release.version} is available. Run ${release.command}${changelog}`, true);
+    this.#emitView();
+  }
+
   suggestionReasoningPolicy(): OwnedUiPromptSuggestionReasoning {
     return this.#suggestions.reasoningPolicy();
   }
@@ -353,8 +422,17 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#editor = { ...this.#editor, submitEnabled: true };
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "ready", reason: null });
     this.#emitView();
-    void this.#engine.announcePackageUpdates();
     return this.view();
+  }
+
+  /** Announce pinned Pi's changelog since the profile's last seen version; the host calls this once per process. */
+  announceStartupChangelog(): Promise<void> {
+    return this.#engine.announceChangelog();
+  }
+
+  /** Probe extension packages for updates and announce them; the host calls this once per process. */
+  announcePackageUpdates(): Promise<void> {
+    return this.#engine.announcePackageUpdates();
   }
 
   onEvent(listener: (event: OwnedUiEvent) => void): () => void {
@@ -390,7 +468,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#extensions.support();
   }
 
-  bindExtensionUi(ui: unknown, shutdown?: () => void | Promise<void>): Promise<void> {
+  bindExtensionUi(ui: OwnedUiExtensionUiPort, shutdown?: () => void | Promise<void>): Promise<void> {
     return this.#extensions.bind(ui, shutdown);
   }
 
@@ -402,20 +480,12 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#workflows.cycleModelWorkflow(direction);
   }
 
-  pinnedModelSelectorContext(): ReturnType<PiWorkflowContexts["pinnedModelSelectorContext"]> {
-    return this.#contexts.pinnedModelSelectorContext();
-  }
-
   pinnedProjectTrustContext(): PiProjectTrustContext {
     return this.#contexts.pinnedProjectTrustContext();
   }
 
   persistProjectTrust(updates: readonly PiProjectTrustUpdate[]): void {
     this.#contexts.persistProjectTrust(updates);
-  }
-
-  pinnedSessionSelectorContext(): PiSessionSelectorContext {
-    return this.#contexts.pinnedSessionSelectorContext();
   }
 
   pinnedScopedModelsContext(): PiScopedModelsContext {
@@ -470,10 +540,6 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#contexts.pinnedForkOptions();
   }
 
-  pinnedTreeSelectorContext(): PiTreeSelectorContext {
-    return this.#contexts.pinnedTreeSelectorContext();
-  }
-
   /** Bind the owned UI's clipboard lifecycle without changing the comparison host. True means acknowledged delivery. */
   bindClipboardWriter(writer: (text: string) => Promise<boolean>): () => void {
     return this.#workflows.bindClipboardWriter(writer);
@@ -496,8 +562,12 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#workflows.reloadBlockedResult();
   }
 
-  executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
-    return this.#workflows.executeWorkflow(request);
+  async executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
+    const result = await this.#workflows.executeWorkflow(request);
+    if (request.command === "tree" && result.outcome === "completed" && request.selection !== undefined) {
+      this.#refreshNavigatedSession(result.detail);
+    }
+    return result;
   }
 
   /**
@@ -531,21 +601,22 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#settings.pinnedSettingsSnapshot();
   }
 
-  applyPinnedSettingValue(callback: PiPinnedSettingsCallback, value: unknown): Promise<PiWorkflowResult> {
-    return this.#settings.applyPinnedSettingValue(callback, value);
-  }
-
-  pinnedMessageRenderer(customType: string): unknown {
+  #pinnedMessageRenderer(customType: string): unknown {
     return this.#requireWorkflowSession().extensionRunner?.getMessageRenderer?.(customType);
   }
 
-  pinnedShortcutDescriptions(bindings: Parameters<AgentSession["extensionRunner"]["getShortcuts"]>[0]): readonly { readonly key: string; readonly description: string }[] {
+  #pinnedShortcutDescriptions(bindings: Parameters<AgentSession["extensionRunner"]["getShortcuts"]>[0]): readonly { readonly key: string; readonly description: string }[] {
     const shortcuts = this.#requireWorkflowSession().extensionRunner?.getShortcuts?.(bindings);
     return shortcuts === undefined ? [] : [...shortcuts].map(([key, shortcut]) => ({ key, description: shortcut.description ?? shortcut.extensionPath }));
   }
 
-  pinnedToolDefinition(toolName: string): unknown {
-    return this.#requireWorkflowSession().extensionRunner?.getToolDefinition?.(toolName);
+  #pinnedToolRenderers(toolName: string): unknown {
+    const runner = this.#requireWorkflowSession().extensionRunner;
+    if (runner === undefined) return undefined;
+    if (typeof runner.resolveToolRenderers === "function") {
+      return runner.resolveToolRenderers(toolName, () => runner.getToolDefinition?.(toolName));
+    }
+    return runner.getToolDefinition?.(toolName);
   }
 
   clearQueuedWorkflows(): readonly string[] {
@@ -557,6 +628,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   }
 
   view(): OwnedUiSessionViewModel {
+    const routed = this.#engine.session?.routedModel;
+    const routedModel = routed === undefined ? null : readModel(routed.model);
     return {
       contractVersion: 1,
       sessionId: this.#sessionId,
@@ -580,6 +653,10 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       },
       terminal: { ...this.#terminal },
       activeModel: this.#activeModel === null ? null : { ...this.#activeModel },
+      routedModel: routedModel === null ? null : {
+        model: routedModel,
+        ...(routed?.thinkingLevel === undefined ? {} : { thinkingLevel: readThinkingLevel(routed.thinkingLevel) }),
+      },
       thinkingLevel: this.#thinkingLevel,
       activeCommandIds: [...this.#commands.activeCommandIds],
       dialog: null,
@@ -620,6 +697,100 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "stopped", reason: null });
     this.#emitView();
     try { await this.flushEvents(); } catch (error) { if (!(error instanceof EngineDeliveryError)) throw error; }
+  }
+
+  // Invariant: every sub-port member delegates at call time, so ports built once follow session replacement.
+  #createPorts(): PiEngineAdapterPorts {
+    const engine = this.#engine;
+    const contexts = this.#contexts;
+    const workflows = this.#workflows;
+    const settings = this.#settings;
+    const resources = this.#resources;
+    const extensions = this.#extensions;
+    const isDisposed = () => this.#disposed;
+    const sessionId = this.#sessionId;
+    const agentDir = this.#agentDir;
+    return {
+      identity: {
+        sessionId,
+        agentDir,
+        get cwd() { return engine.cwd; },
+        get sessionGeneration() { return engine.generation; },
+        get sessionBindingGeneration() { return engine.bindingGeneration; },
+        get disposed() { return isDisposed(); },
+        currentSessionResumeMetadata: () => engine.currentSessionResumeMetadata(),
+      },
+      session: {
+        start: () => this.start(),
+        view: () => this.view(),
+        snapshot: () => this.snapshot(),
+        onEvent: listener => this.onEvent(listener),
+        execute: command => this.execute(command),
+        flushEvents: () => this.flushEvents(),
+        dispose: () => this.dispose(),
+      },
+      workflows: {
+        executeWorkflow: request => this.executeWorkflow(request),
+        executeBashWorkflow: (command, excludeFromContext) => workflows.executeBashWorkflow(command, excludeFromContext),
+        cycleModelWorkflow: direction => workflows.cycleModelWorkflow(direction),
+        workflowAutocompleteCommands: () => resources.workflowAutocompleteCommands(),
+        clearQueuedWorkflows: () => this.clearQueuedWorkflows(),
+        reloadBlockedResult: () => workflows.reloadBlockedResult(),
+        copyWorkflowText: text => workflows.copyWorkflowText(text),
+        setWorkflowInteractionHost: interaction => { this.setWorkflowInteractionHost(interaction); },
+      },
+      settings: {
+        get productMode() { return settings.productMode; },
+        snapshot: () => {
+          // Invariant: the selector-only model values travel on the presentation source, not in the neutral snapshot.
+          const { currentModel: _currentModel, availableDefaultModels: _availableDefaultModels, ...snapshot } = settings.pinnedSettingsSnapshot();
+          return snapshot;
+        },
+        bindOwner: (owner, handlers) => settings.bindSettingsOwner(owner, handlers),
+        setDefaultThinkingLevel: level => { settings.setDefaultThinkingLevel(level); },
+        configuredTheme: () => settings.configuredTheme(),
+      },
+      catalog: {
+        modelsContext: () => contexts.modelsContext(),
+        setSessionModelScope: scopeIds => { contexts.setSessionModelScope(scopeIds); },
+        persistModelScope: scopeIds => { contexts.persistModelScope(scopeIds); },
+        refreshModels: signal => contexts.refreshModels(signal),
+        pinnedScopedModelsContext: () => contexts.pinnedScopedModelsContext(),
+        updateScopedModels: enabledModelIds => { contexts.updateScopedModels(enabledModelIds); },
+        persistScopedModels: enabledModelIds => { contexts.persistScopedModels(enabledModelIds); },
+        refreshScopedModels: signal => contexts.refreshScopedModels(signal),
+        pinnedProjectTrustContext: () => contexts.pinnedProjectTrustContext(),
+        persistProjectTrust: updates => { contexts.persistProjectTrust(updates); },
+        pinnedLoginOptions: authType => contexts.loginOptions(authType),
+        pinnedLoginMethodOptions: providerReference => contexts.pinnedLoginMethodOptions(providerReference),
+        pinnedAmbientAuthentication: selection => contexts.pinnedAmbientAuthentication(selection),
+        pinnedLogoutOptions: () => contexts.logoutOptions(),
+        pinnedForkOptions: () => contexts.pinnedForkOptions(),
+      },
+      extensions: {
+        nonVisualResources: () => resources.nonVisualResources(),
+        extensionResources: () => resources.extensionResources(),
+        resolveTranscriptImage: assetId => this.resolveTranscriptImage(assetId),
+        visualExtensionSupport: () => extensions.support(),
+        bindExtensionUi: (ui, shutdown) => extensions.bind(ui, shutdown),
+        unbindExtensionUi: () => extensions.unbind(),
+        bindClipboardWriter: writer => workflows.bindClipboardWriter(writer),
+        announceReleaseUpdate: release => { this.announceReleaseUpdate(release); },
+      },
+      presentation: {
+        pinnedModelSelectorContext: () => contexts.pinnedModelSelectorContext(),
+        pinnedSessionSelectorContext: () => contexts.pinnedSessionSelectorContext(),
+        pinnedTreeSelectorContext: () => contexts.pinnedTreeSelectorContext(),
+        pinnedMessageRenderer: customType => this.#pinnedMessageRenderer(customType),
+        pinnedToolRenderers: toolName => this.#pinnedToolRenderers(toolName),
+        pinnedShortcutDescriptions: bindings => this.#pinnedShortcutDescriptions(bindings),
+        pinnedSettingsModels: () => {
+          const { currentModel, availableDefaultModels } = settings.pinnedSettingsSnapshot();
+          return { ...(currentModel === undefined ? {} : { currentModel }), availableDefaultModels };
+        },
+        applyPinnedSettingValue: (callback, value) => settings.applyPinnedSettingValue(callback, value),
+      },
+    };
   }
 
   #requireWorkflowSession(): PiSessionApi {
@@ -688,6 +859,21 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       case "remove-customization":
         throw new Error("owned UI state commands belong to the owned UI layer, not the Pi engine adapter");
     }
+  }
+
+  // Invariant: in-place tree navigation rebuilds derived content without clearing the editor draft.
+  #refreshNavigatedSession(editorText?: string): void {
+    const session = this.#engine.session;
+    if (!session) return;
+    if (editorText && !this.#editor.text.trim()) {
+      this.#editor = { ...this.#editor, text: editorText, selection: null, cursorOffset: editorText.length };
+    }
+    this.#activeModel = readModel(session.model);
+    this.#reconcileActiveModelAvailability();
+    this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
+    this.#projection.assets.clear();
+    this.#setTranscript(this.#projection.rebuild(session.messages, "finalized"));
+    this.#emitView();
   }
 
   // Invariant: the runtime already advanced the generation and subscribed; this rebuilds what the view derives from a session.
@@ -812,7 +998,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
 }
 
 export async function createPiEngineAdapter(
-  options: PiEngineAdapterOptions = {},
+  options: PiEngineAdapterOptions,
 ): Promise<PiEngineAdapter> {
   const adapter = new PiEngineAdapter(options);
   await adapter.start();

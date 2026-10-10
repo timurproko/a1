@@ -9,17 +9,18 @@ Read [project workflow](../../../openspec/config.yaml) and [delivery runbook](..
 
 ## Deliver
 
-1. Keep primary on `develop`. Run `local-worktree-cleanup.mjs sweep --repo <primary>` first; relay `lines`; results never delay. From fresh `origin/develop`, create one task worktree. Before any planning or implementation edit, run `a1 session link-worktree <absolute-worktree>` in the owning session; continue only after it confirms the exact path, otherwise stop edits and report the blocker. Relink before resuming or switching streams. This changes footer/PR context, not tool cwd; address the worktree explicitly. Use one branch/draft PR with `## Proposal` containing one or two sentences of intent, two to five `## Implementation` bullets, and final explained/collapsed `## Automation` link JSON. Omit routine validation commands; do not add a quoted phase line.
-2. Planning authorizes artifacts only; no code, synchronization, finalization, or merge until the maintainer approves the plan and explicitly requests implementation.
-3. Continue approved work in the same worktree, branch, history, and PR; keep it draft and reconcile approved planning refinements before code.
-4. Complete implementation, evidence, gaps, and substantive tasks. Add one to ten implementation-specific result bullets under `## Acceptance`, never checkboxes or generic items.
-5. Reconcile `origin/develop` and mark the phase-free PR ready. The trusted `OpenSpec finalization` workflow synchronizes deltas, archive, manifest, and fence. Pull before pushing; push fixes on top and let it re-finalize; never revert a finalization commit. A `BEHIND` PR: merge `origin/develop`, push, re-finalize, hand off again.
-6. One exact-head CI run validates finalization and selected scopes, including selected PR Full regression. After the stable aggregate succeeds, hand off unchanged for manual merge, then run `local-worktree-cleanup.mjs handoff` from primary with exact worktree, change, and PR (again after repairs). Do not add a lifecycle body edit, rerun unchanged validation, wait for merge, or watch; changed head, acceptance, or target requires revalidation.
-7. Only CI-created failed-Full-regression repairs select PR Full regression; all others retain bounded validation.
-8. Never enable auto-merge, merge queue, App/bot merge, or documentation integration; only manual merge of the exact validated head accepts implementation.
-9. Create no acceptance, spec-only, or archive-only follow-up PR. After merge, report `Archived` only after verifying archive, specs, acceptance provenance, and remote cleanup; never edit the accepted body.
+1. Keep primary on `develop`; run `local-worktree-cleanup.mjs sweep --repo <primary>`, relay `lines`, then run `a1 session worktrees`. Never use `busy`/`unverifiable`; reuse `available` only for an exact branch/change/PR after atomic `a1 session link-worktree <absolute-worktree>` succeeds, else create a fresh worktree. Before any planning or implementation edit, continue only after link confirms the exact path; on failure report the blocker and stop feature edits. Relink when resuming or switching streams. Linking claims live editing and changes footer/PR context, not tool cwd or cleanup authority. Use one branch/draft PR with `## Proposal` containing one or two sentences of intent, two to five `## Implementation` bullets, and final collapsed `## Automation` link JSON. Omit routine validation commands; do not add a quoted phase line.
+2. Put agent scratch (PR bodies, output, patches, logs) in the owning worktree's ignored `.artifacts/`, never OS temp, home/desktop, primary, or another worktree. Keep it unstaged, non-authoritative, secret-free; tool/runtime/test-internal temp is out of scope.
+3. Planning permits artifacts only; no delivery until the maintainer approves the plan and explicitly requests implementation.
+4. Continue in the same worktree, branch, history, and PR; keep it draft and reconcile refinements before code.
+5. Complete implementation, evidence, gaps, and tasks. Add one to ten implementation-specific result bullets under `## Acceptance`, never checkboxes or generic items.
+6. Reconcile `origin/develop` and mark ready. The `OpenSpec finalization` workflow synchronizes deltas, archive, manifest, and fence. Pull before pushing; push fixes on top and never revert a finalization commit. A `BEHIND` PR: merge `origin/develop`, push, re-finalize, hand off again.
+7. Exact-head CI validates finalization and selected scopes. After success, hand off unchanged; run `local-worktree-cleanup.mjs handoff` from primary with exact worktree/change/PR and after repairs. Do not add a lifecycle body edit, rerun unchanged validation, wait, or watch; changes require revalidation and a new human arm.
+8. Only CI-created failed-Full repairs select PR Full regression; others retain bounded validation.
+9. Agents, Apps, bots, merge queue, and automation never enable or invoke implementation integration. Only an authorized maintainer may manually merge or personally arm native auto-merge for the exact validated head; never create that arm for them.
+10. Create no acceptance, spec-only, or archive-only follow-up PR. After merge, report `Archived` only after verifying archive, specs, acceptance provenance, and remote cleanup; never edit the accepted body.
 
-Standalone README/docs/OpenSpec updates inside the documentation allowlist may keep CI-gated auto-merge; legacy delivery records keep their documented path.
+Allowlisted docs/OpenSpec and verified release reopening may keep automated CI-gated integration. Documentation policy preserves, but never creates or exercises, a valid human-owned finalized arm; legacy records retain their path.
 
 ## Reject or refine
 
@@ -30,8 +31,8 @@ Standalone README/docs/OpenSpec updates inside the documentation allowlist may k
 
 ## Handoff
 
-Provide exact worktree, branch/commit, commands, expected behavior, known gaps. Interactive repository tests: build, then launch only with `./scripts/dev` or `./scripts/dev pi`. Every reply reporting a pushed head, ready PR, CI result, or merge ends with `🧪 Manual test:` plus one forward-slash inline-code shell command; omit only when nothing is runnable.
+Provide worktree, commit, commands, behavior, and gaps. Build interactive tests; launch only with `./scripts/dev` or `./scripts/dev pi`. Runnable replies end with `🧪 Manual test:` plus one forward-slash inline-code command.
 
 ## Cleanup
 
-Never remove open, unverifiable, dirty, or unowned work; PR closure alone authorizes nothing. Follow [local cleanup](../../../docs/local-worktree-cleanup.md): `local-worktree-cleanup.mjs sweep` at session start and on merge, `local-worktree-cleanup.mjs complete` for one named integrated candidate, and `discard --confirm-closed-unmerged` for explicitly rejected work. Exact maintainer authorization permits `retire-redundant --confirm-redundant` only for a clean unregistered no-PR/no-remote checkout contained by fresh `origin/develop`; sweep never adopts it. All run from primary and own their authority; never delete those ad hoc or bypass blockers.
+Never remove open, unverifiable, dirty, or unowned work; PR closure alone authorizes nothing. Follow [local cleanup](../../../docs/local-worktree-cleanup.md): `local-worktree-cleanup.mjs sweep`, exact-candidate `local-worktree-cleanup.mjs complete`, or rejected-work `discard --confirm-closed-unmerged`. Exact maintainer authorization permits `retire-redundant --confirm-redundant` only for clean unregistered no-PR/no-remote work contained by fresh `origin/develop`; sweep never adopts it. Run from primary; never delete those ad hoc or bypass blockers.

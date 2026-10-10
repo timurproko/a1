@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { describePublicationFailure, dispatchPublication } from "../../scripts/release/publication-client.mjs";
+import { describePublicationFailure, dispatchPublication, dispatchStableValidation, waitForStableValidation } from "../../scripts/release/publication-client.mjs";
 
 type Call = { executable: string; args: string[] };
 
@@ -74,23 +74,75 @@ describe("publication failure reporting", () => {
     expect(calls.some(call => call.args[0] === "run" && call.args[1] === "watch" && call.args.includes("--exit-status"))).toBe(true);
   });
 
-  it.each([
-    ["develop", "0.1.8-dev.10", []],
-    ["stable", "0.1.8", ["-f", "version=0.1.8"]],
-  ] as const)("names the version to the workflow only for a %s publication", async (channel, version, extra) => {
+  it("dispatches development publication only through the dedicated wrapper", async () => {
     const { run, calls } = fakeRunner(({ args }) => {
-      if (args[0] === "run" && args[1] === "list") return JSON.stringify([{ databaseId: 44, displayTitle: `${channel} publication fixture-request` }]);
+      if (args[0] === "run" && args[1] === "list") return JSON.stringify([{ databaseId: 44, displayTitle: "develop publication fixture-request" }]);
       if (args[0] === "run" && args[1] === "view") return "https://github.com/owner/app/actions/runs/44";
       return "";
     });
-    await expect(dispatchPublication(channel, "a".repeat(40), version, {
+    await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
       run, repository: "owner/app", requestId: "fixture-request", write: () => {}, sleep: async () => {},
     })).resolves.toBe(44);
     const dispatch = calls.find(call => call.args[0] === "workflow" && call.args[1] === "run")!;
     expect(dispatch.args).toEqual([
-      "workflow", "run", "publish.yml", "--ref", "develop",
-      "-f", `channel=${channel}`, "-f", `source_sha=${"a".repeat(40)}`, "-f", "request_id=fixture-request", ...extra,
+      "workflow", "run", "develop.yml", "--ref", "develop",
+      "-f", `source_sha=${"a".repeat(40)}`, "-f", "request_id=fixture-request",
     ]);
+  });
+
+  it("refuses stable publication through the development dispatcher", async () => {
+    await expect(dispatchPublication("stable" as never, "a".repeat(40), "0.1.8", { run: () => "" }))
+      .rejects.toThrow(/publishes the prepared draft Release/i);
+  });
+
+  const source = "a".repeat(40);
+  const validationRun = (id: number, requestId: string, change: Record<string, unknown> = {}) => ({
+    id, path: ".github/workflows/release-candidate.yml", event: "workflow_dispatch", head_branch: "develop", head_sha: source,
+    display_title: `Stable candidate v0.1.8 ${requestId}`, status: "in_progress", conclusion: null,
+    html_url: `https://github.com/owner/app/actions/runs/${id}`, ...change,
+  });
+  const validationRunner = (existing: unknown[], started: unknown) => {
+    let dispatched = false;
+    return fakeRunner(({ args }) => {
+      if (args[0] === "auth") return "";
+      if (args[0] === "api" && String(args[1]).startsWith("repos/owner/app/actions/workflows/release-candidate.yml/runs?")) {
+        return JSON.stringify({ workflow_runs: dispatched ? [...existing, started] : existing });
+      }
+      if (args[0] === "workflow" && args[1] === "run") { dispatched = true; return ""; }
+      throw new Error(`unexpected call ${args.join(" ")}`);
+    });
+  };
+
+  it("starts candidate validation of the prepared source and returns without watching it", async () => {
+    const { run, calls } = validationRunner([], validationRun(51, "fixture-request"));
+    await expect(dispatchStableValidation({ repository: "owner/app", source, version: "0.1.8" }, { run, requestId: "fixture-request", sleep: async () => {} }))
+      .resolves.toEqual({ runId: 51, url: "https://github.com/owner/app/actions/runs/51", reused: false });
+    const dispatch = calls.find(call => call.args[0] === "workflow" && call.args[1] === "run")!;
+    expect(dispatch.args).toEqual(["workflow", "run", "release-candidate.yml", "--ref", "develop",
+      "-f", `source_sha=${source}`, "-f", "version=0.1.8", "-f", "request_id=fixture-request"]);
+    expect(calls.some(call => call.args[0] === "run" && call.args[1] === "watch")).toBe(false);
+  });
+
+  it.each([
+    ["running", {}],
+    ["successful", { status: "completed", conclusion: "success" }],
+  ])("reuses a %s validation of the same source and version", async (_name, change) => {
+    const { run, calls } = validationRunner([validationRun(50, "earlier", change)], null);
+    await expect(dispatchStableValidation({ repository: "owner/app", source, version: "0.1.8" }, { run, sleep: async () => {} }))
+      .resolves.toEqual({ runId: 50, url: "https://github.com/owner/app/actions/runs/50", reused: true });
+    expect(calls.some(call => call.args[0] === "workflow")).toBe(false);
+  });
+
+  it("starts a new validation when the previous one failed", async () => {
+    const { run } = validationRunner([validationRun(50, "earlier", { status: "completed", conclusion: "failure" })], validationRun(51, "fixture-request"));
+    await expect(dispatchStableValidation({ repository: "owner/app", source, version: "0.1.8" }, { run, requestId: "fixture-request", sleep: async () => {} }))
+      .resolves.toMatchObject({ runId: 51, reused: false });
+  });
+
+  it("rejects a correlated run that validates another source or branch", async () => {
+    const { run } = validationRunner([], validationRun(52, "fixture-request", { head_branch: "feature" }));
+    await expect(dispatchStableValidation({ repository: "owner/app", source, version: "0.1.8" }, { run, requestId: "fixture-request", sleep: async () => {} }))
+      .rejects.toThrow(/does not match/);
   });
 
   it("returns the run identifier unchanged when the watch succeeds", async () => {
@@ -124,9 +176,41 @@ describe("publication failure reporting", () => {
     expect(summary.run).toContain("budgetViolations");
     expect(require.if).toBeUndefined();
     expect(require.run).toContain('test "$VALIDATE" = success');
-    expect(require.run).toContain('if [ "$BUILD" = true ] || [ "$INSTALLER_BUILD" = true ]; then');
+    expect(require.run).toContain('if [ "$MODE" != candidate ] && { [ "$BUILD" = true ] || [ "$INSTALLER_BUILD" = true ]; }; then');
     expect(require.run).toContain('test "$PUBLISH" = success');
     expect(require.run).toContain('test "$POST_PUBLISH" = success');
     expect(require.run).toContain('test "$COMPLETE" = success');
+    expect(require.run).not.toContain("REOPEN");
+  });
+});
+
+describe("stable candidate validation waiting", () => {
+  const watched = (watch: "success" | Error, status: string, conclusion: string | null) => fakeRunner(({ args }) => {
+    if (args[0] === "run" && args[1] === "watch") return watch === "success" ? "" : watch;
+    if (args[0] === "api" && args[1] === "repos/owner/app/actions/runs/51") return JSON.stringify({ id: 51, status, conclusion });
+    if (args[0] === "api" && String(args[1]).includes("/jobs")) return JSON.stringify([{ id: 7, name: "Validate linux-node24", conclusion: "failure" }]);
+    if (args[0] === "api" && String(args[1]).includes("/annotations")) return JSON.stringify(["expected 1 to be 2"]);
+    throw new Error(`unexpected call ${args.join(" ")}`);
+  });
+
+  it("shows the live job list through gh run watch, like npm run develop, and returns the successful run", async () => {
+    const { run, calls } = watched("success", "completed", "success");
+    await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, { run })).resolves.toMatchObject({ conclusion: "success" });
+    expect(calls[0]).toEqual({
+      executable: "gh",
+      args: ["run", "watch", "51", "--repo", "owner/app", "--exit-status", "--interval", "10"],
+    });
+  });
+
+  it("throws the failed jobs and reasons when validation fails", async () => {
+    const { run } = watched(new Error("exit status 1"), "completed", "failure");
+    await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, { run }))
+      .rejects.toThrow(/Validate linux-node24: expected 1 to be 2/);
+  });
+
+  it("reports that validation keeps running when watching stops early", async () => {
+    const { run } = watched(new Error("interrupted"), "in_progress", null);
+    await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, { run }))
+      .rejects.toThrow(/stopped watching validation run 51 while it is in progress; it keeps running/);
   });
 });

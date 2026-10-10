@@ -77,6 +77,19 @@ describe("transcript content retention across renderer boundaries", () => {
     expect(backend.view().transcript.at(-1)?.toolState).toEqual({ argsComplete: true, execution: "running" });
   });
 
+  it("renders extension-resolved presentations for tools without definitions", async () => {
+    const { emit, shell } = await fixture({ renderers: new Map([["remote-tool", {
+      renderCall: () => new Text("REMOTE_TOOL_CALL", 0, 0),
+      renderResult: () => new Text("REMOTE_TOOL_RESULT", 0, 0),
+    }]]) });
+    await emit(
+      { type: "message_end", message: assistantCall("remote", "remote-tool", { query: "fixture" }) },
+      { type: "tool_execution_end", toolCallId: "remote", toolName: "remote-tool", args: { query: "fixture" },
+        result: { content: [{ type: "text", text: "fallback" }] }, isError: false },
+    );
+    expect(textRows(shell.root.render(80))).toContain("REMOTE_TOOL_RESULT");
+  });
+
   it.each(["aborted", "error"])("settles a pending invocation on assistant %s and rejects late execution", async stopReason => {
     const { emit, backend, shell } = await fixture();
     const message = assistantCall();

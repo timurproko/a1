@@ -101,7 +101,7 @@ for (const theme of ["dark", "light"]) {
             let rows;
             if (pinned) rows = chatContainer.render(width);
             else {
-              const layout = root.layoutRoot();
+              const layout = owned.pinnedLayoutRoot(root.layoutParts());
               const transcript = layout.type === "stack" ? layout.children[0]?.node : undefined;
               if (transcript?.type !== "scroll" || transcript.id !== "transcript" || transcript.child.type !== "component") throw new Error("Missing semantic transcript region");
               rows = transcript.child.component.render(width);

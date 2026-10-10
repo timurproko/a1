@@ -7,7 +7,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
-import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const DEQUEUE_HINT = `${process.platform === "darwin" ? "Option" : "Alt"}+Up to edit all queued messages`;
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
@@ -28,7 +28,7 @@ vi.mock("node:worker_threads", async importOriginal => {
   } };
 });
 import { screenshotPng } from "../../fixtures/image-sources.js";
-import { applyPiTheme } from "../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, piTheme, setPiAccentColor } from "../../../src/integrations/pi/components/index.js";
 import { Session, fixture, nextImmediate } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell viewport and streaming", () => {
@@ -249,6 +249,64 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     } finally { await shell.dispose(); }
   });
 
+  it("docks the release notice above Working and dismisses it for the session from its close control", async () => {
+    const messages = Array.from({ length: 4 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: [{ type: "text", text: `Release transcript ${index}` }],
+      timestamp: Date.now() + index,
+    }));
+    const { adapter, engine, terminal, shell } = await fixture(messages, [], true);
+    try {
+      terminal.resize(80, 30);
+      adapter.announceReleaseUpdate({ version: "0.2.1", command: "a1 update", changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.2.1" });
+      await shell.backend.session.flushEvents();
+      const idleRows = shell.root.render(80).map(row => stripTerminalSequences(row));
+      const idleEditorBorderRow = idleRows.findIndex((row, index) => index > 0 && /^─+$/.test(row.trim()));
+      const idleBannerEnd = idleRows.findIndex(row => row.includes("Changelog:")) + 1;
+      engine.session.emit({ type: "agent_start" });
+      await shell.backend.session.flushEvents();
+      const rows = shell.root.render(80).map(row => stripTerminalSequences(row));
+      const titleRow = rows.findIndex(row => row.includes("Update Available"));
+      const workingRow = rows.findIndex(row => row.includes("Working"));
+      const lastTranscriptRow = rows.findLastIndex(row => row.includes("Release transcript 3"));
+      const editorBorderRow = rows.findIndex((row, index) => index > workingRow && /^─+$/.test(row.trim()));
+      expect(lastTranscriptRow).toBeGreaterThanOrEqual(0);
+      expect(titleRow).toBeGreaterThan(lastTranscriptRow);
+      expect(workingRow).toBeGreaterThan(titleRow);
+      expect(editorBorderRow).toBeGreaterThan(workingRow);
+      // Invariant: idle, the banner's last row sits on the line Working occupies while a turn runs.
+      expect(editorBorderRow - workingRow).toBe(idleEditorBorderRow - idleBannerEnd);
+      expect(rows.join("\n")).toContain("New version 0.2.1 is available. Run a1 update");
+      // Invariant: the notice is chrome, not transcript content, so the transcript keeps its rows.
+      expect(rows.filter(row => row.includes("Release transcript"))).toHaveLength(4);
+      const closeColumn = rows[titleRow]!.indexOf("✕") + 1;
+      expect(closeColumn).toBeGreaterThan(rows[titleRow]!.indexOf("Update Available") + 1);
+      expect(rows[titleRow]!.slice(closeColumn - 2, closeColumn + 1)).toBe(" ✕ ");
+      expect(closeColumn).toBe(rows[titleRow]!.trimEnd().length);
+
+      const idleTitle = shell.root.render(80)[titleRow];
+      // Invariant: nearby cells outside the control neither highlight it nor close the notice.
+      shell.root.handleViewportPreInput(`\u001b[<35;${closeColumn};${titleRow}M`);
+      expect(shell.root.render(80)[titleRow]).toBe(idleTitle);
+      shell.root.handleViewportPreInput(`\u001b[<35;${closeColumn - 2};${titleRow + 1}M`);
+      expect(shell.root.render(80)[titleRow]).toBe(idleTitle);
+      shell.root.handleViewportPreInput(`\u001b[<35;${closeColumn - 1};${titleRow + 1}M`);
+      const hoveredTitle = shell.root.render(80)[titleRow];
+      expect(stripTerminalSequences(hoveredTitle ?? "")).toBe(stripTerminalSequences(idleTitle ?? ""));
+      expect(hoveredTitle).not.toBe(idleTitle);
+      // Invariant: the highlighted cells are the clickable ones: the glyph and one cell either side.
+      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn + 1};${titleRow + 1}M`);
+      shell.root.handleViewportPreInput(`\u001b[<0;${closeColumn + 1};${titleRow + 1}m`);
+
+      const dismissed = shell.root.render(80).map(row => stripTerminalSequences(row)).join("\n");
+      expect(dismissed).not.toContain("Update Available");
+      expect(dismissed).toContain("Working");
+      expect(shell.root.viewportFrameDescriptor()?.transcript).not.toBeNull();
+    } finally {
+      await shell.dispose();
+    }
+  });
+
   it("keeps an overflowing Working status in the scrollable tail while transcript text scrolls", async () => {
     const messages = Array.from({ length: 18 }, (_, index) => ({
       role: index % 2 === 0 ? "user" : "assistant",
@@ -259,7 +317,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     try {
       terminal.resize(60, 12);
       engine.session.emit({ type: "agent_start" });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const workingFrame = shell.root.render(60);
       const workingRowIndex = workingFrame.findIndex(row => stripTerminalSequences(row).includes("Working"));
       const workingColumn = stripTerminalSequences(workingFrame[workingRowIndex] ?? "").indexOf("Working") + 1;
@@ -300,7 +358,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       terminal.resize(60, 18);
       engine.session.emit({ type: "agent_start" });
       engine.session.emit({ type: "queue_update", steering: ["first", "second"], followUp: [] });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
 
       const rows = shell.root.render(60).map(row => stripTerminalSequences(row));
       const first = rows.findIndex(row => row.includes("Steering: first"));
@@ -330,6 +388,42 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     }
   });
 
+  it("moves a fitting queued screenshot chip intact through the transient viewport tail", async () => {
+    const messages = Array.from({ length: 18 }, (_, index) => ({
+      role: "assistant",
+      content: [{ type: "text", text: `chip-transcript-${index}` }],
+      timestamp: Date.now() + index,
+    }));
+    const { engine, terminal, shell } = await fixture(messages, [], true);
+    const marker = "[📷 screenshot-0123456789]";
+    try {
+      terminal.resize(50, 18);
+      engine.session.emit({ type: "agent_start" });
+      engine.session.emit({ type: "queue_update", steering: [`${"x".repeat(120)}${marker}`, "second"], followUp: [] });
+      await shell.backend.session.flushEvents();
+
+      let rows = shell.root.render(50).map(row => stripTerminalSequences(row));
+      const chipRows = rows.filter(row => row.includes("[📷") || row.includes("screenshot-0123456789]"));
+      expect(chipRows).toHaveLength(1);
+      expect(chipRows[0]).toContain(marker);
+      const chip = rows.findIndex(row => row.includes(marker));
+      const second = rows.findIndex(row => row.includes("Steering: second"));
+      const hint = rows.findIndex(row => row.includes(DEQUEUE_HINT));
+      const working = rows.findIndex(row => row.includes("Working"));
+      expect(second).toBeGreaterThan(chip);
+      expect(hint).toBeGreaterThan(second);
+      expect(working).toBeGreaterThan(hint);
+
+      for (let index = 0; index < 6; index += 1) terminal.input("\u001b[<64;25;1M");
+      rows = shell.root.render(50).map(row => stripTerminalSequences(row));
+      expect(rows.some(row => row.includes("screenshot-0123456789]"))).toBe(false);
+      expect(rows.some(row => row.includes("Steering: second"))).toBe(false);
+      expect(rows.some(row => row.includes(DEQUEUE_HINT))).toBe(false);
+    } finally {
+      await shell.dispose();
+    }
+  });
+
   it("bottom-aligns steering above Working while fitting and keeps true dock rows stable at overflow", async () => {
     const { engine, terminal, shell } = await fixture([
       { role: "assistant", content: [{ type: "text", text: "fitting transcript" }], timestamp: 1 },
@@ -340,7 +434,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       const settledTranscriptRow = settledRows.findIndex(row => row.includes("fitting transcript"));
       engine.session.emit({ type: "agent_start" });
       engine.session.emit({ type: "queue_update", steering: ["stable queue"], followUp: [] });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
 
       const positions = () => {
         const rows = shell.root.render(60).map(row => stripTerminalSequences(row));
@@ -369,7 +463,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
         type: "message_start",
         message: { role: "assistant", content: [{ type: "text", text: "another fitting row" }], timestamp: 2 },
       });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const grownButFitting = positions();
       expect(grownButFitting.queue).toBe(fitting.queue);
       expect(grownButFitting.hint).toBe(fitting.hint);
@@ -383,7 +477,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
           message: { role: "user", content: [{ type: "text", text: `overflow prompt ${index}` }], timestamp: 10 + index },
         });
       }
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const overflowing = positions();
       expect(overflowing.dockStart).toBe(fitting.dockStart);
       expect(overflowing.alignmentGap).toBe(0);
@@ -394,7 +488,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       expect(overflowing.rows.filter(row => row.includes("Working"))).toHaveLength(1);
 
       engine.session.emit({ type: "queue_update", steering: [], followUp: [] });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const cleared = positions();
       expect(cleared.queue).toBe(-1);
       expect(cleared.hint).toBe(-1);
@@ -415,13 +509,17 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     try {
       terminal.resize(60, 12);
       engine.session.emit({ type: "agent_start" });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const plainRows = () => shell.root.render(60).map(row => stripTerminalSequences(row));
       expect(plainRows().some(row => row.includes("Working…"))).toBe(true);
       shell.root.setExtensionWorking("Indexing sources");
       shell.runtime.renderNow();
       expect(plainRows().some(row => row.includes("Indexing sources…"))).toBe(true);
       expect(plainRows().some(row => row.includes("Working…"))).toBe(false);
+      const finishSending = shell.root.beginImageSubmissionStatus();
+      expect(plainRows().some(row => row.includes("Sending…"))).toBe(true);
+      finishSending();
+      expect(plainRows().some(row => row.includes("Indexing sources…"))).toBe(true);
 
       terminal.input("\u001b[<64;30;1M");
       shell.runtime.renderNow();
@@ -442,7 +540,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
         timestamp: Date.now(),
       } });
       engine.session.emit({ type: "agent_settled" });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       const completed = plainRows();
       expect(completed.some(row => row.includes("Still indexing"))).toBe(false);
       expect(completed.some(row => row.includes("Working"))).toBe(false);
@@ -607,6 +705,31 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     expect(shell.root.render(80).join("\n")).toContain("final");
     await shell.dispose();
   }, 15_000);
+
+  it("repaints retained ordered-list markers when the semantic accent changes", async () => {
+    const { shell, terminal, engine, adapter } = await fixture();
+    const assistant = (text: string, stopReason = "pending") => ({
+      role: "assistant", content: [{ type: "text", text }], stopReason, timestamp: 5,
+    });
+    terminal.writes.length = 0;
+    try {
+      setPiAccentColor("pink");
+      engine.session.emit({ type: "message_end", message: assistant("1. one\n2. two", "stop") });
+      await adapter.flushEvents();
+      const pinkMarker = piTheme().fg("mdListBullet", "1. ");
+      expect(shell.root.render(80).join("\n")).toContain(pinkMarker);
+
+      setPiAccentColor("green");
+      await new Promise(resolve => setTimeout(resolve, 25));
+      const repainted = shell.root.render(80).join("\n");
+      expect(terminal.writes.length).toBeGreaterThan(0);
+      expect(repainted).toContain(piTheme().fg("mdListBullet", "1. "));
+      expect(repainted).not.toContain(pinkMarker);
+    } finally {
+      setPiAccentColor("purple");
+      await shell.dispose();
+    }
+  });
 
   it("reuses a finalized block's rows until its revision, the width, the theme, or expansion changes", async () => {
     const { engine, adapter, shell } = await fixture();

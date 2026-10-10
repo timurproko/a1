@@ -378,10 +378,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:96:391",
+      "id": "openspec/specs/a1-shell/spec.md:101:391",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 96,
+      "line": 101,
       "column": 391,
       "value": "addone",
       "context": "The official npm distribution SHALL be named `@timurproko/a1`, SHALL begin its independent stable version lineage at `0.1.0`, and SHALL declare only `a1` as a public executable. Internal process entry files MAY remain in the package payl...",
@@ -393,10 +393,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:108:52",
+      "id": "openspec/specs/a1-shell/spec.md:113:52",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 108,
+      "line": 113,
       "column": 52,
       "value": "addone",
       "context": "- **THEN** every published version of `@timurproko/addone` SHALL carry an npm deprecation directing users to `@timurproko/a1`, and current product behavior SHALL continue to reject the obsolete identity",
@@ -409,10 +409,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:111:322",
+      "id": "openspec/specs/a1-shell/spec.md:116:322",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 111,
+      "line": 116,
       "column": 322,
       "value": "addone",
       "context": "Version discovery, self-update, installed metadata lookup, immutable release derivation, release validation, publication evidence, and registry verification SHALL use `@timurproko/a1` as the sole accepted package identity. The product SH...",
@@ -423,10 +423,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:115:84",
+      "id": "openspec/specs/a1-shell/spec.md:120:84",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 115,
+      "line": 120,
       "column": 84,
       "value": "addone",
       "context": "- **THEN** it SHALL accept `@timurproko/a1` metadata and SHALL reject `@timurproko/addone` as an unexpected package identity",
@@ -785,10 +785,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-install.integration.test.ts:47:70",
+      "id": "test/foundation/release/package-install.integration.test.ts:48:70",
       "path": "test/foundation/release/package-install.integration.test.ts",
       "locationKind": "content",
-      "line": 47,
+      "line": 48,
       "column": 70,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",
@@ -801,10 +801,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-install.integration.test.ts:47:85",
+      "id": "test/foundation/release/package-install.integration.test.ts:48:85",
       "path": "test/foundation/release/package-install.integration.test.ts",
       "locationKind": "content",
-      "line": 47,
+      "line": 48,
       "column": 85,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",
@@ -1266,5 +1266,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-09-23T13:32:03.616Z"
+  "generatedAt": "2026-10-01T16:37:56.216Z"
 }

@@ -113,6 +113,7 @@ describe("PiEngineSettings", () => {
       runtime: () => current,
       requireSession: () => session(),
       thinkingLevelChanged: level => { levels.push(level); },
+      httpPolicyChanged: () => {},
       emitView: () => {},
     });
     expect(settings.settingsPort()).toBeNull();

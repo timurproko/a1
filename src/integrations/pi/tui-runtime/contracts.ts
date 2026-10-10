@@ -1,4 +1,5 @@
 import type { PresentationComponentPort, PresentationPointerSurface } from "../../../contracts/presentation/index.js";
+import type { ProgramStatus, WheelScrollLines } from "@earendil-works/pi-tui";
 import type {
   PiTuiInputCoordinationDecision,
   PiTuiInputCoordinationScheduler,
@@ -41,6 +42,8 @@ export interface PiTuiTerminalPort {
   clearScreen(): void;
   setTitle(title: string): void;
   setProgress(active: boolean): void;
+  /** Optional for neutral test/decorator ports; the Pi-facing adapter always supplies it. */
+  setProgramStatus?(status: ProgramStatus): void;
 }
 
 export type PiTuiSizeValue = number | `${number}%`;
@@ -181,7 +184,7 @@ export interface PiTuiRuntimeAdapterOptions {
   readonly mouse?: boolean;
   /** Consume residual SGR mouse reports after every pre-input listener has run. */
   readonly consumeUnhandledMouse?: boolean;
-  readonly wheelScrollLines?: number;
+  readonly wheelScrollLines?: WheelScrollLines;
   readonly openUrl?: (url: string) => void;
   readonly onRightClickPaste?: () => void;
   readonly logDirectory?: string;

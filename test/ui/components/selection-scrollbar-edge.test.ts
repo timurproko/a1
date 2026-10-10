@@ -7,6 +7,8 @@ import { classifyTerminalPaint, type TimedTerminalWrite } from "../../support/re
 const RAIL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";
 const SELECTED = (38 << 16) | (79 << 8) | 120;
 const SOURCE = (11 << 16) | (22 << 8) | 33;
+const CONTROL = (48 << 16) | (52 << 8) | 58;
+const CONTROL_HOVER = (65 << 16) | (72 << 8) | 82;
 const theme = {
   track: (text: string) => `${RAIL_RESET}\u001b[38;2;90;90;90m${text}\u001b[39m`,
   thumb: (text: string, hovered: boolean) => `${RAIL_RESET}\u001b[38;2;${hovered ? "100;200;255" : "80;180;230"}m${text}\u001b[39m`,
@@ -56,8 +58,11 @@ describe("truthful selection beside the scrollbar gutter", () => {
     expect(viewport.selectedText()).toBe([plain, plain, plain].join("\n"));
   });
 
-  it.each([4, 12, 192])("keeps content and gutter cells truthful at width %i", async width => {
-    for (const appearance of ["auto", "always", "hidden"] as const) {
+  // Rationale: one case per width and rail appearance keeps each exhaustive terminal replay
+  // within its own deadline on loaded Windows runners without dropping a combination.
+  it.each([4, 12, 192].flatMap(width => (["auto", "always", "hidden"] as const).map(appearance => [width, appearance] as const)))(
+    "keeps content and gutter cells truthful at width %i with %s rails",
+    async (width, appearance) => {
       for (const style of ["thin", "thick"] as const) {
         for (const suffix of ["Z", "e\u0301", "界"]) {
           for (const included of [false, true]) {
@@ -121,8 +126,9 @@ describe("truthful selection beside the scrollbar gutter", () => {
           }
         }
       }
-    }
-  }, 30_000);
+    },
+    30_000,
+  );
 
   it.each([false, true])("extends only boundary-reaching selection beneath the rail (included=%s)", async included => {
     const { viewport, compose, contentWidth } = fixture(12, "always", "thin");
@@ -140,5 +146,47 @@ describe("truthful selection beside the scrollbar gutter", () => {
       expect(viewport.selectedText()).toBe(included ? "aaaaaaaaaaZ" : "aaaaaaaaaa");
       expect(hyperlinkTargetAtColumn(compose().rows[1]!, 11)).toBeUndefined();
     } finally { terminal.dispose(); }
+  });
+
+  it.each(["auto", "always"] as const)("bounds the bottom-control background beside an %s rail", async appearance => {
+    for (const hovered of [false, true]) {
+      for (const selected of [false, true]) {
+        const width = 40;
+        const height = 5;
+        const viewport = new TranscriptViewport();
+        viewport.setConfig({ scrollbarAppearance: appearance, scrollbarStyle: "thin" });
+        const controlTheme = {
+          ...theme,
+          bottomControl: (text: string, pointedAt: boolean) => `\u001b[48;2;${pointedAt ? "65;72;82" : "48;52;58"}m${text}\u001b[49m`,
+        };
+        const input = { documentRows: Array.from({ length: 12 }, (_value, index) => `row ${index}`), dockRows: [], promptAnchors: [], width, height, theme: controlTheme };
+        viewport.compose({ ...input, now: 100 });
+        viewport.scrollTo(0, 101);
+        let frame = viewport.compose({ ...input, now: 2_000 });
+        const hit = frame.hits.bottom!;
+        if (selected) {
+          viewport.pressSelection(1, hit.row - 1, 2_001);
+          viewport.extendSelection(frame.contentWidth, hit.row, 2_002, false);
+          viewport.releaseSelection();
+        }
+        const pointerPosition = { column: hovered ? hit.columnStart : 1, row: hit.row };
+        frame = viewport.compose({ ...input, pointerPosition, now: 2_003 });
+        const repeated = viewport.compose({ ...input, pointerPosition, now: 2_003 });
+        expect(repeated.rows[hit.row - 1]).toBe(frame.rows[hit.row - 1]);
+        expect(repeated.selectionDamage.recomputedRows).toEqual([]);
+
+        const terminal = new HeadlessXterm.Terminal({ cols: width, rows: height, allowProposedApi: true, scrollback: 0 });
+        try {
+          await new Promise<void>(resolve => terminal.write(frame.rows.map((row, index) => `\u001b[${index + 1};1H\u001b[0m\u001b[2K${row}`).join(""), resolve));
+          const line = terminal.buffer.active.getLine(hit.row - 1)!;
+          const control = line.getCell(hit.columnStart - 1)!;
+          const gutter = line.getCell(width - 1)!;
+          expect(control.getBgColor()).toBe(hovered ? CONTROL_HOVER : CONTROL);
+          expect(gutter.isBgDefault()).toBe(!selected);
+          if (selected) expect(gutter.getBgColor()).toBe(SELECTED);
+          expect(gutter.getChars() || " ").toBe(appearance === "always" ? "│" : " ");
+        } finally { terminal.dispose(); }
+      }
+    }
   });
 });

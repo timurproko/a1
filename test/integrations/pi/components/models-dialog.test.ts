@@ -4,6 +4,7 @@ import { applyPiTheme, applyPiThemeInstance, piTheme } from "../../../../src/int
 import { KeybindingsManager, type KeybindingsConfig } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { ModelsDialogComponent, type ModelsDialogConfig } from "../../../../src/integrations/pi/components/models-dialog.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
+import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
 import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
 
 const models = [
@@ -15,6 +16,7 @@ const ids = { claude: "anthropic/claude", gpt5: "openai/gpt-5", mini: "openai/gp
 const SPACE = " ";
 const ENTER = "\r";
 const TAB = "\t";
+const REVERSE_TABS = ["\u001b[Z", "\u001b[9;2u", "\u001b[27;2;9~"] as const;
 const ESCAPE = "\u001b";
 const CTRL_S = "\u0013";
 const DOWN = "\u001b[B";
@@ -28,7 +30,7 @@ function text(dialog: ModelsDialogComponent, width = 200): string {
 }
 
 function rows(dialog: ModelsDialogComponent, width = 200): readonly string[] {
-  return dialog.render(width).map(stripTerminalSequences).filter(line => /^ (?:(?:→ |  )[●○] )/u.test(line));
+  return dialog.render(width).map(line => stripTerminalSequences(line).trimEnd()).filter(line => /^ (?:(?:→ |  )[●○] )/u.test(line));
 }
 
 /** Scope only synchronous presentation under owned bindings; native platform CI remains the independent authority. */
@@ -79,6 +81,8 @@ describe("unified Models dialog", () => {
       const stripped = lines.map(stripTerminalSequences);
       expect(stripped[1]).toBe(" Models");
       expect(stripped[2]).toBe(" Filter: all | scoped");
+      expect(lines[2]).toContain(piTheme().fg("mdHeading", "all"));
+      expect(lines[2]).not.toContain(piTheme().fg("accent", "all"));
       expect(rows(dialog)).toEqual([
         "   ○ claude [anthropic]",
         " → ○ gpt-5 [openai] ✓",
@@ -87,11 +91,23 @@ describe("unified Models dialog", () => {
       const active = lines.find(line => stripTerminalSequences(line).startsWith(" → "))!;
       expect(active).toContain(`${piTheme().fg("muted", "[openai]")} ${piTheme().fg("success", "✓")}`);
       expect(active).toContain(piTheme().fg("dim", "○"));
-      expect(active).toContain(piTheme().fg("accent", "gpt-5"));
+      expect(active).toContain(piTheme().fg("accent", "→ "));
+      expect(active).toContain(piTheme().fg("text", "gpt-5"));
+      const activeText = stripTerminalSequences(active);
+      expect(activeText).toBe(" → ○ gpt-5 [openai] ✓");
+      const selectionBackground = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
+      expect(cellBackgroundAt(active, 1)).toBe(selectionBackground);
+      expect(cellBackgroundAt(active, activeText.length - 1)).toBe(selectionBackground);
+      expect(cellStyle(active, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
+      expect(cellStyle(active, "g")).toEqual(cellStyle(piTheme().fg("text", "g"), "g"));
+      expect(cellStyle(active, "[")).toEqual(cellStyle(piTheme().fg("muted", "["), "["));
+      expect(active).not.toContain("\u001b[1m");
       expect(stripped).toContain("   Model Name: GPT-5");
-      expect(stripped.at(-2)).toBe(" type to search  ↑↓ navigate  Tab filter  Enter switch  Space scope  Ctrl+S save  Esc close");
+      expect(stripped.at(-2)).toBe(" Type search  ↑↓ navigate  Tab filter  Enter switch  Space scope  Ctrl+S save  Esc close");
       const footer = lines.at(-2)!;
       expect(firstVisibleTextColumn(footer)).toBe(firstVisibleTextColumn(lines[1]!));
+      expect(footer).toContain(piTheme().fg("dim", "Type"));
+      expect(footer).toContain(piTheme().fg("muted", "search"));
       expect(firstVisibleTextColumn(stripped.find(line => line.includes("○ claude"))!)).toBe(3);
       expect(footer).toContain(piTheme().fg("dim", "↑↓"));
       expect(footer).toContain(piTheme().fg("muted", "navigate"));
@@ -101,17 +117,35 @@ describe("unified Models dialog", () => {
     });
   });
 
+  it("uses the model text color for filled scope markers independently of row focus", () => {
+    withDialog(dialog => {
+      const lines = dialog.render(200);
+      const unselectedScoped = lines.find(line => stripTerminalSequences(line).includes("● claude"))!;
+      const selectedScoped = lines.find(line => stripTerminalSequences(line).includes("● gpt-5 "))!;
+      const unselectedEmpty = lines.find(line => stripTerminalSequences(line).includes("○ gpt-5-mini"))!;
+
+      const textMarker = cellStyle(piTheme().fg("text", "●"), "●");
+      expect(cellStyle(unselectedScoped, "●")).toEqual(textMarker);
+      expect(cellStyle(selectedScoped, "●")).toEqual(textMarker);
+      expect(cellStyle(selectedScoped, "●")).toEqual(cellStyle(selectedScoped, "g"));
+      expect(cellStyle(unselectedEmpty, "○")).toEqual(cellStyle(piTheme().fg("dim", "○"), "○"));
+      expect(cellStyle(selectedScoped, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
+    }, { scopeIds: [ids.claude, ids.gpt5], savedScopeIds: [ids.claude, ids.gpt5] });
+  });
+
   it("truncates every row to the width and keeps narrow frames free of wrapped fragments", () => {
     withDialog(dialog => {
       for (const width of [28, 12]) {
-        for (const line of dialog.render(width)) expect(stripTerminalSequences(line).length).toBeLessThanOrEqual(width);
+        const rendered = dialog.render(width);
+        for (const line of rendered) expect(stripTerminalSequences(line).length).toBeLessThanOrEqual(width);
+        expect(stripTerminalSequences(rendered.join("\n"))).toContain("Esc close");
       }
       expect(rows(dialog, 28)).toEqual(["   ○ claude [anthropic]", " → ○ gpt-5 [openai] ✓", "   ○ gpt-5-mini [openai]"]);
     });
   });
 
-  it("filters by search while keeping catalog order and retains the selection where the row survives", () => {
-    withDialog(dialog => {
+  it("filters by search, retains surviving selection, and closes immediately on Ctrl+C", () => {
+    withDialog((dialog, callbacks) => {
       for (const character of "mini") dialog.handleInput(character);
       expect(rows(dialog)).toEqual([" → ○ gpt-5-mini [openai]"]);
       expect(dialog.selectedModelId).toBe(ids.mini);
@@ -120,10 +154,25 @@ describe("unified Models dialog", () => {
       for (const character of "nothing here") dialog.handleInput(character);
       expect(text(dialog)).toContain("  No matching models");
       dialog.handleInput("\u0003");
-      expect(dialog.query).toBe("");
-      expect(rows(dialog)).toHaveLength(3);
-      dialog.handleInput("\u0003");
+      expect(callbacks.onCancel).toHaveBeenCalledOnce();
+      expect(dialog.query).toBe("nothinghere");
+      expect(callbacks.onSelect).not.toHaveBeenCalled();
     }, { initialQuery: "" });
+  });
+
+  it.each(REVERSE_TABS)("cycles the filter backward for reverse Tab %j without advertising it", reverseTab => {
+    withDialog(dialog => {
+      expect(dialog.filter).toBe("all");
+      expect(dialog.query).toBe("gpt");
+      expect(dialog.selectedModelId).toBe(ids.gpt5);
+      dialog.handleInput(reverseTab);
+      expect(dialog.filter).toBe("scoped");
+      expect(dialog.query).toBe("gpt");
+      expect(dialog.selectedModelId).toBe(ids.gpt5);
+      expect(text(dialog)).not.toContain("Shift+Tab");
+      dialog.handleInput(TAB);
+      expect(dialog.filter).toBe("all");
+    }, { scopeIds: [ids.gpt5, ids.mini], initialQuery: "gpt" });
   });
 
   it("seeds the query from the initial argument and switches only on Enter", () => {
@@ -251,9 +300,9 @@ describe("unified Models dialog", () => {
         expect(dialog.dirty).toBe(true);
         expect(text(dialog)).toContain("Models (unsaved) (refreshing)");
         await vi.advanceTimersByTimeAsync(1_000);
-        const refreshedLines = dialog.render(200);
-        expect(stripTerminalSequences(refreshedLines[1]!)).toBe(" Models (unsaved) (refreshed)");
-        expect(refreshedLines[1]).toContain(piTheme().fg("success", " (refreshed)"));
+        const completedLines = dialog.render(200);
+        expect(stripTerminalSequences(completedLines[1]!)).toBe(" Models (unsaved)");
+        expect(text(dialog)).not.toContain("(refreshed)");
         expect(text(dialog)).not.toContain("Model catalogs refreshed.");
         dialog.updateModels([models[0]!]);
         dialog.setRefreshStatus("Model refresh timed out; showing cached models.", "warning");
@@ -270,7 +319,7 @@ describe("unified Models dialog", () => {
     }
   });
 
-  it("holds refreshing for one second and refreshed for two seconds without late rendering", async () => {
+  it("holds refreshing for one second then clears success without late rendering", async () => {
     vi.useFakeTimers();
     try {
       await withDialog(async (dialog, callbacks) => {
@@ -281,20 +330,22 @@ describe("unified Models dialog", () => {
         expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models (refreshing)");
         expect(callbacks.requestRender).not.toHaveBeenCalled();
         await vi.advanceTimersByTimeAsync(1);
-        expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models (refreshed)");
+        expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models");
+        expect(text(dialog)).not.toContain("(refreshed)");
+        expect(text(dialog)).not.toContain("Model catalogs refreshed.");
         expect(callbacks.requestRender).toHaveBeenCalledOnce();
 
         callbacks.requestRender.mockClear();
         dialog.handleInput(SPACE);
-        await vi.advanceTimersByTimeAsync(1_999);
-        expect(text(dialog)).toContain("Models (unsaved) (refreshed)");
-        expect(callbacks.requestRender).not.toHaveBeenCalled();
+        dialog.setRefreshStatus("Refreshing model catalogs…", "muted");
+        await vi.advanceTimersByTimeAsync(500);
         dialog.setRefreshStatus("Model catalogs refreshed.", "success");
-        await vi.advanceTimersByTimeAsync(1);
-        expect(text(dialog)).toContain("Models (unsaved) (refreshed)");
+        await vi.advanceTimersByTimeAsync(499);
+        expect(text(dialog)).toContain("Models (unsaved) (refreshing)");
         expect(callbacks.requestRender).not.toHaveBeenCalled();
-        await vi.advanceTimersByTimeAsync(1_999);
+        await vi.advanceTimersByTimeAsync(1);
         expect(text(dialog)).toContain("Models (unsaved)");
+        expect(text(dialog)).not.toContain("(refreshing)");
         expect(text(dialog)).not.toContain("(refreshed)");
         expect(callbacks.requestRender).toHaveBeenCalledOnce();
 

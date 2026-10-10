@@ -322,3 +322,72 @@ When the selected Pi package lacks suitable documented narrow entry points, A1 M
 #### Scenario: Another Pi terminal identity would be introduced
 - **WHEN** a narrow entry point or generated artifact would resolve a different terminal module instance from the one exposed to extensions
 - **THEN** compatibility validation SHALL reject the candidate before publication
+
+### Requirement: The generated public Pi context retains one validated runtime package identity
+
+When A1 configures its generated public Pi startup context, it SHALL validate and retain the selected public package root as process-lifetime runtime state before any rewritten lazy import can use it. Subsequent public Pi module URL and documented dependency-export resolution SHALL use that retained identity rather than mutable process environment state. A1 SHALL continue to expose the selected root through the upstream-compatible environment value, but deleting, clearing, or replacing that value after configuration SHALL NOT break or redirect the running context.
+
+Configuration of the same package root SHALL be idempotent. An attempt to configure a different package root after the context is active SHALL fail before changing the retained identity. Resolution without successful configuration, or after the retained package becomes unavailable, SHALL fail with a bounded diagnostic rather than falling back to another installed or ambient Pi package.
+
+#### Scenario: Submit a screenshot after environment state changes
+
+- **WHEN** the generated startup context has validated its pinned Pi package, later in-process code deletes, clears, or replaces `PI_PACKAGE_DIR`, and the user submits a screenshot attachment
+- **THEN** the lazy Pi image modules and documented dependency exports SHALL still resolve from the originally validated package root
+- **AND** attachment submission SHALL NOT adopt the replacement environment path or fail because that path is unconfigured
+
+#### Scenario: The same package is configured again
+
+- **WHEN** the active generated startup context is configured again with the same validated public package root
+- **THEN** configuration SHALL succeed without changing module identity
+
+#### Scenario: A different package is configured after startup
+
+- **WHEN** the active generated startup context is configured with a different public package root
+- **THEN** configuration SHALL fail before changing the retained package identity or its resolution results
+
+#### Scenario: Lazy resolution occurs without a usable retained package
+
+- **WHEN** lazy public-module resolution runs before successful configuration or the retained package manifest is no longer available
+- **THEN** resolution SHALL fail with a bounded configuration or availability diagnostic
+- **AND** SHALL NOT search for or select another Pi installation
+
+### Requirement: The session shell depends on a declared backend port
+The application layer under `src/app` SHALL depend on the `OwnedUiSessionBackend` interface declared in `src/contracts/owned-ui`, never on the `PiEngineAdapter` class or a type alias to it. The Pi engine adapter SHALL declare that it implements the interface. Payload types crossing the interface SHALL be declared in the contract owner and SHALL reference no pinned Pi package type.
+
+#### Scenario: A shell file names the adapter class
+- **WHEN** a file under `src/app` imports `PiEngineAdapter` as a type or value
+- **THEN** the architecture check SHALL fail and name the file
+
+#### Scenario: The adapter stops satisfying the port
+- **WHEN** a member required by `OwnedUiSessionBackend` is removed from or retyped in the adapter
+- **THEN** the type check SHALL fail at the adapter's `implements` declaration
+
+### Requirement: Pi-typed presentation payloads never cross the application layer
+Values typed by a pinned Pi package, or declared `unknown` because they stand in for one, SHALL NOT be returned to or forwarded by the application layer under `src/app`. Code that needs both the Pi engine adapter and the Pi component adapter SHALL live in the `pi-session-presenters` owner and SHALL expose only ports declared in `src/contracts/owned-ui`.
+
+#### Scenario: A selector needs an engine object
+- **WHEN** a Pi component selector requires an engine-owned object such as a model runtime or session tree
+- **THEN** the session presenters owner SHALL obtain it from the engine adapter and construct the selector, and the shell SHALL call only the neutral presenter port
+
+#### Scenario: A new member on the backend port carries an opaque payload
+- **WHEN** a member typed `unknown` or by a pinned Pi type is added to `OwnedUiSessionBackend`
+- **THEN** the contract test SHALL fail
+
+### Requirement: Process-wide engine state has one host and sessions come only from its factory
+Everything in the Pi engine integration that is process-wide SHALL be owned by one process-level engine host with one lifecycle: the global HTTP dispatcher, the theme singletons, the one-time changelog and package-update announcements, and the startup trace. Engine sessions SHALL be created only through the host's session factory, which SHALL require each session id to be unique among the sessions it has live and SHALL assign a unique id when the caller supplies none. A session SHALL NOT install the dispatcher, apply a theme singleton, announce the changelog, or probe for package updates on its own.
+
+#### Scenario: A second session is created in the same process
+- **WHEN** composition creates a second engine session through the host
+- **THEN** the dispatcher SHALL stay installed as it was, the theme singletons SHALL be unchanged, no second changelog or package-update announcement SHALL appear, no startup phase SHALL be traced again, and the two sessions SHALL have different ids
+
+#### Scenario: A session writes the HTTP idle timeout
+- **WHEN** any session writes the HTTP idle timeout setting
+- **THEN** the host SHALL re-install the process dispatcher with that value and SHALL record which session changed it
+
+#### Scenario: A session id is already live
+- **WHEN** a caller asks the factory for a session id that names a live session
+- **THEN** the factory SHALL reject the request and SHALL create no session
+
+#### Scenario: The host is disposed
+- **WHEN** the host is disposed
+- **THEN** its signal SHALL abort so host-level probes and timers stop, and every session still live SHALL be disposed

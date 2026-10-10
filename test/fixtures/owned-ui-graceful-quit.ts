@@ -4,6 +4,7 @@ import { join } from "node:path";
 import * as pi from "@earendil-works/pi-coding-agent";
 import { runOwnedUi, terminateOwnedUiProcess } from "../../src/features/owned-ui/index.js";
 import { createPiEngineAdapter } from "../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../src/integrations/pi/session-presenters/index.js";
 import { OwnedUiSessionShell } from "../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../features/owned-ui/neutral-port-doubles.js";
 import { createCommandOutcomeState } from "../app/session-shell/command-outcome-state.mjs";
@@ -23,6 +24,7 @@ await new Promise<void>((resolve, reject) => {
 });
 const state = createCommandOutcomeState(home, { command: "quit", condition: "success" }, pi);
 const adapter = await createPiEngineAdapter({
+  sessionId: "owned-test",
   cwd: home,
   agentDir: join(home, "agent"),
   createRuntime: async () => state.runtime,
@@ -30,6 +32,7 @@ const adapter = await createPiEngineAdapter({
 });
 const terminal = new TestPresentationTerminal();
 const shell = new OwnedUiSessionShell({
+  presenters: createPiSessionPresenters(adapter),
   engine: { backend: adapter, cwd: home, sessionLayout: "custom-viewport" },
   presentation: { terminal, startup: { quiet: true } },
 });

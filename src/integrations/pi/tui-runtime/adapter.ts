@@ -9,8 +9,10 @@ import {
   type Focusable,
   type OverlayHandle,
   type OverlayOptions,
+  type ProgramStatus,
   type TUI,
   type TuiAltScreenOptions,
+  type WheelScrollLines,
   visibleWidth,
 } from "@earendil-works/pi-tui";
 import { MouseReportInput, stripSgrMouseReports } from "./mouse-report-input.js";
@@ -35,6 +37,8 @@ import type {
   PiTuiTerminalPort,
   PiTuiViewport,
 } from "./contracts.js";
+
+type PiTuiTerminal = PiTuiTerminalPort & { setProgramStatus(status: ProgramStatus): void };
 
 export type PiTuiRuntimeErrorStage = "construction" | "start" | "input-drain" | "restoration";
 
@@ -148,9 +152,8 @@ class OverlayHandleBridge implements PiTuiOverlayHandle {
 /** Bridges neutral presentation ports to one Pi TUI instance and owns terminal restoration on stop. */
 export class PiTuiRuntimeAdapter {
   readonly #terminal: PiTuiTerminalPort;
-  readonly #tuiTerminal: PiTuiTerminalPort;
+  readonly #tuiTerminal: PiTuiTerminal;
   #tui: TUI;
-  readonly #root: PiTuiComponentPort;
   readonly #layoutRoot: PiTuiLayoutNode | undefined;
   readonly #tuiOptions: TuiAltScreenOptions;
   readonly #logDirectory: string | undefined;
@@ -173,9 +176,9 @@ export class PiTuiRuntimeAdapter {
   #rootDisposed = false;
   #terminalProgress = false;
   #presentationFrozen = false;
+  readonly #presentationHolds = new Set<symbol>();
 
   constructor(options: PiTuiRuntimeAdapterOptions) {
-    this.#root = options.root;
     this.#overlayGeometry = options.onOverlayGeometry === undefined ? undefined : new OverlayGeometryTracker(options.onOverlayGeometry);
     this.#terminal = options.terminal ?? new ProcessTerminal();
     this.#consumeUnhandledMouse = options.consumeUnhandledMouse ?? false;
@@ -184,7 +187,7 @@ export class PiTuiRuntimeAdapter {
     // Invariant: the pinned renderer's frames pass through this gate, while writeControl and
     // the stop sequence reach the terminal directly. Freezing drops frames without touching
     // the renderer, so a scheduled repaint cannot land on top of the quit outro.
-    const gatedTerminal = frozenGateTerminal(this.#terminal, () => this.#presentationFrozen);
+    const gatedTerminal = frozenGateTerminal(this.#terminal, () => this.#presentationFrozen || this.#presentationHolds.size > 0);
     const tracedTerminal = options.inputDiagnostics === undefined
       ? gatedTerminal
       : diagnosticTerminal(gatedTerminal, phase => this.#traceRuntimePhase(phase));
@@ -385,6 +388,24 @@ export class PiTuiRuntimeAdapter {
     return this.#presentationFrozen;
   }
 
+  /**
+   * Keeps asynchronous replacement-surface construction atomic at the terminal. Renderers may
+   * compose while held, but their writes are dropped until the final forced repaint on release.
+   */
+  beginPresentationHold(): () => void {
+    this.#assertRunning("presentation hold");
+    const token = Symbol("presentation-hold");
+    this.#presentationHolds.add(token);
+    return () => {
+      if (!this.#presentationHolds.delete(token) || this.#presentationHolds.size > 0) return;
+      if (this.active && !this.#presentationFrozen) this.#tui.requestRender(true);
+    };
+  }
+
+  get presentationHeld(): boolean {
+    return this.#presentationHolds.size > 0;
+  }
+
   addPreInputListener(listener: PiTuiPreInputListener): () => void {
     if (this.#preInputListeners.has(listener)) throw new TypeError("Pi TUI pre-input listener is already registered");
     this.#preInputListeners.add(listener);
@@ -445,6 +466,11 @@ export class PiTuiRuntimeAdapter {
     this.#tui.setClearOnShrink(enabled);
   }
 
+  setWheelScrollLines(lines: WheelScrollLines): void {
+    this.#tuiOptions.wheelScrollLines = lines;
+    if (this.#tui instanceof TuiAltScreen) this.#tui.setWheelScrollLines(lines);
+  }
+
   getClearOnShrink(): boolean {
     return this.#tui.getClearOnShrink();
   }
@@ -453,6 +479,10 @@ export class PiTuiRuntimeAdapter {
     if (this.#terminalProgress === active) return;
     this.#terminal.setProgress(active);
     this.#terminalProgress = active;
+  }
+
+  setProgramStatus(status: ProgramStatus): void {
+    this.#terminal.setProgramStatus?.(status);
   }
 
   setTitle(title: string): void {
@@ -488,6 +518,7 @@ export class PiTuiRuntimeAdapter {
     if (this.#stopPromise) return this.#stopPromise;
     if (this.#state === "idle") {
       this.#state = "stopped";
+      this.#presentationHolds.clear();
       this.#clearTerminalProgress();
       this.#preInputListeners.clear();
       this.#disposeRoot();
@@ -520,6 +551,7 @@ export class PiTuiRuntimeAdapter {
       // Invariant: the gate opens only for the synchronous stop sequence, so no render
       // scheduled during the outro can slip in before the alternate screen is left.
       this.#presentationFrozen = false;
+      this.#presentationHolds.clear();
       this.#tui.stop(stopOptions);
     } catch (error) {
       failure ??= new PiTuiRuntimeError("restoration", error);
@@ -654,6 +686,7 @@ export class PiTuiRuntimeAdapter {
 
   #restoreAfterFailedStart(): void {
     this.#presentationFrozen = false;
+    this.#presentationHolds.clear();
     try {
       this.#tui.stop();
     } catch {
@@ -670,6 +703,7 @@ export class PiTuiRuntimeAdapter {
 
   #bestEffortTerminalRestore(): void {
     this.#presentationFrozen = false;
+    this.#presentationHolds.clear();
     this.#clearTerminalProgress();
     try { if (this.mode === "fullscreen") this.#terminal.write(EMERGENCY_TERMINAL_RESET); } catch {}
     try {
@@ -704,7 +738,7 @@ function coordinatedInputTerminal(
   coordinator: InputPresentationCoordinator,
   setSink: (sink: ((data: string) => void) | undefined) => void,
   frameMouse: boolean,
-): PiTuiTerminalPort {
+): PiTuiTerminal {
   const mouse = frameMouse ? new MouseReportInput(data => coordinator.accept(data)) : undefined;
   return {
     get columns() { return terminal.columns; },
@@ -734,13 +768,14 @@ function coordinatedInputTerminal(
     clearScreen: () => terminal.clearScreen(),
     setTitle: title => terminal.setTitle(title),
     setProgress: active => terminal.setProgress(active),
+    setProgramStatus: status => terminal.setProgramStatus?.(status),
   };
 }
 
 function diagnosticTerminal(
   terminal: PiTuiTerminalPort,
   trace: (phase: "write-start" | "write-end") => void,
-): PiTuiTerminalPort {
+): PiTuiTerminal {
   return {
     get columns() { return terminal.columns; },
     get rows() { return terminal.rows; },
@@ -764,10 +799,11 @@ function diagnosticTerminal(
     clearScreen: () => terminal.clearScreen(),
     setTitle: title => terminal.setTitle(title),
     setProgress: active => terminal.setProgress(active),
+    setProgramStatus: status => terminal.setProgramStatus?.(status),
   };
 }
 
-function frozenGateTerminal(terminal: PiTuiTerminalPort, frozen: () => boolean): PiTuiTerminalPort {
+function frozenGateTerminal(terminal: PiTuiTerminalPort, frozen: () => boolean): PiTuiTerminal {
   return {
     get columns() { return terminal.columns; },
     get rows() { return terminal.rows; },
@@ -784,10 +820,11 @@ function frozenGateTerminal(terminal: PiTuiTerminalPort, frozen: () => boolean):
     clearScreen: () => { if (!frozen()) terminal.clearScreen(); },
     setTitle: title => terminal.setTitle(title),
     setProgress: active => terminal.setProgress(active),
+    setProgramStatus: status => terminal.setProgramStatus?.(status),
   };
 }
 
-function preInputTerminal(terminal: PiTuiTerminalPort, route: (data: string) => string, frameMouse: boolean): PiTuiTerminalPort {
+function preInputTerminal(terminal: PiTuiTerminalPort, route: (data: string) => string, frameMouse: boolean): PiTuiTerminal {
   let mouse: MouseReportInput | undefined;
   return {
     get columns() { return terminal.columns; },
@@ -815,6 +852,7 @@ function preInputTerminal(terminal: PiTuiTerminalPort, route: (data: string) => 
     clearScreen: () => terminal.clearScreen(),
     setTitle: title => terminal.setTitle(title),
     setProgress: active => terminal.setProgress(active),
+    setProgramStatus: status => terminal.setProgramStatus?.(status),
   };
 }
 

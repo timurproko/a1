@@ -1,6 +1,6 @@
 {
   "name": "@timurproko/a1-install",
-  "version": "0.2.2-dev",
+  "version": "0.2.6-dev",
   "description": "Dependency-free installer for a1",
   "type": "module",
   "bin": {
@@ -8,6 +8,7 @@
   },
   "files": [
     "bin/a1-install.js",
+    "bin/progress-palette.js",
     "README.md",
     "LICENSE"
   ],

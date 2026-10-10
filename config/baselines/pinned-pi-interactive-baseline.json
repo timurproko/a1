@@ -5,18 +5,18 @@
   "recordedAt": "2026-08-16T18:24:43.909Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
+    "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
     "license": "MIT",
     "packages": [
       {
         "name": "@earendil-works/pi-coding-agent",
-        "version": "0.87.1",
-        "integrity": "sha512-m8ArJUtVcQMSe1lLE/Ei7vX/JV7O39sWmWBsXV2NOU70F0qCp8GubA24pT3LnwTmM6LL2xV80/h6sQg85n69ew=="
+        "version": "1.1.0",
+        "integrity": "sha512-SeEi/4hdcHNgA9UWlefZl7ZZpm3dzi2OoxNjDHsBJ9o298LNOtbL4DGKgitlEj6uCTccvtw6f2hlCkTPVJ2RXg=="
       },
       {
         "name": "@earendil-works/pi-tui",
-        "version": "0.87.1",
-        "integrity": "sha512-YEH2vRyOeiO7hhN6j6AE6YwKSq2Kz2f3XR8bj1TbR+aGE/JsnY1hLPMI2pvaZfRM1n9Y00tejxFQ4zbzvF7nkQ=="
+        "version": "1.1.0",
+        "integrity": "sha512-v7wkS0y2ErZvZkSfemqd9RrBZJ5x6p8Ujsv7NdJj01IXJyFM0kNL6rMdcKcvTe7EVTd6ugvDB9VPZSoaBF9QxQ=="
       }
     ]
   },
@@ -26,8 +26,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
       "sourceMap": "modes/interactive/interactive-mode.js.map",
-      "lines": 6852,
-      "sha256": "0af3d03d1af8bbe7672c704aa9414d14bd7f15b511320acc038af7148d214388"
+      "lines": 7110,
+      "sha256": "b38fc2eb1647d702f8bf09c6ba4e69dc6fda6941d6cb2edad214277aef8e8b8d"
     },
     {
       "id": "commands",
@@ -43,7 +43,7 @@
       "path": "packages/coding-agent/src/core/keybindings.ts",
       "sourceMap": "core/keybindings.js.map",
       "lines": 402,
-      "sha256": "38e8b20700e40452acab4c9583d96d9c304bbe15c471e214e50b65ec3b3f1945"
+      "sha256": "e328f1c3b85926efbb42a960ba4b19f9b4a251f77640053659528706a340bd4e"
     },
     {
       "id": "tui-keybindings",
@@ -51,15 +51,15 @@
       "path": "packages/tui/src/keybindings.ts",
       "sourceMap": "keybindings.js.map",
       "lines": 321,
-      "sha256": "eea5e3fe258ad50337595bb5320955a6d97bac0c8f6c0a838f988d75079bcf38"
+      "sha256": "475760dd4e3d02eca46bb5ee8704cd387c397b40d7a1f8967bdac3c481f5f702"
     },
     {
       "id": "startup",
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/cli/startup-ui.ts",
       "sourceMap": "cli/startup-ui.js.map",
-      "lines": 247,
-      "sha256": "109f7896fbc8ec8923ae609a803ef3ab5353413e1b036375e8067247106183b2"
+      "lines": 254,
+      "sha256": "65540b4788ab6a905d199abdaf50e8367222d9619205baf3d2055ec100d8a5fb"
     },
     {
       "id": "editor",
@@ -74,8 +74,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/components/footer.ts",
       "sourceMap": "modes/interactive/components/footer.js.map",
-      "lines": 248,
-      "sha256": "9e0f71e0f405a9f0fdae901de2778834649facd0f78a78b53c682179f8faf693"
+      "lines": 303,
+      "sha256": "494c5dca212af8d895e20810269fd9d46b3b4f8e12435c803ae93049d6eb4ad4"
     },
     {
       "id": "status",
@@ -90,8 +90,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/components/settings-selector.ts",
       "sourceMap": "modes/interactive/components/settings-selector.js.map",
-      "lines": 961,
-      "sha256": "8134b93329c9155bd017df5b6278e2d72b403c8ca1f22c26a81234659ab7e6ea"
+      "lines": 994,
+      "sha256": "a833edbe3851361466cdf0aa66b820620aef1c7a83d5cbd92d8dd60e528e0418"
     },
     {
       "id": "model-selector",
@@ -122,8 +122,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/utils/clipboard.ts",
       "sourceMap": "utils/clipboard.js.map",
-      "lines": 139,
-      "sha256": "1331d3b9ade0eeb3c71500eabad44f2eab52fa4c1cc5154c66cf9aec9c0c811c"
+      "lines": 146,
+      "sha256": "66d336dec60914a40bafde97a32ef1d3bae59fe53281651941c55e97ea4effaf"
     }
   ],
   "requiredCategories": [
@@ -201,8 +201,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          896,
-          1194
+          943,
+          1261
         ],
         "symbol": "init and run",
         "anchors": [
@@ -224,8 +224,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          445,
-          472
+          481,
+          509
         ],
         "symbol": "InteractiveMode state fields",
         "anchors": [
@@ -247,8 +247,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          602,
-          610
+          647,
+          655
         ],
         "symbol": "constructor editor setup",
         "anchors": [
@@ -270,8 +270,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          2962,
-          3031
+          3047,
+          3116
         ],
         "symbol": "setupKeyHandlers",
         "anchors": [
@@ -293,8 +293,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          679,
-          795
+          718,
+          834
         ],
         "symbol": "createBaseAutocompleteProvider and setupAutocompleteProvider",
         "anchors": [
@@ -361,8 +361,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3077,
-          3276
+          3199,
+          3398
         ],
         "symbol": "setupEditorSubmitHandler",
         "anchors": [
@@ -384,8 +384,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3077,
-          3276
+          3199,
+          3398
         ],
         "symbol": "setupEditorSubmitHandler",
         "anchors": [
@@ -407,8 +407,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          6729,
-          6820
+          6987,
+          7078
         ],
         "symbol": "handleBashCommand",
         "anchors": [
@@ -430,8 +430,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4708,
-          4740
+          4873,
+          4905
         ],
         "symbol": "disposeActiveSelector and showSelector",
         "anchors": [
@@ -453,8 +453,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4744,
-          4982
+          4909,
+          5143
         ],
         "symbol": "showSettingsSelector",
         "anchors": [
@@ -476,8 +476,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5549,
-          5627
+          5708,
+          5786
         ],
         "symbol": "showSessionSelector and handleResumeSession",
         "anchors": [
@@ -499,8 +499,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5341,
-          5547
+          5500,
+          5706
         ],
         "symbol": "showUserMessageSelector, handleCloneCommand, showTreeSelector",
         "anchors": [
@@ -522,8 +522,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          6265,
-          6433
+          6525,
+          6694
         ],
         "symbol": "session utility command handlers",
         "anchors": [
@@ -546,8 +546,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5062,
-          5268
+          5222,
+          5427
         ],
         "symbol": "model handlers and selectors",
         "anchors": [
@@ -569,8 +569,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4367,
-          4434
+          4527,
+          4594
         ],
         "symbol": "cycleThinkingLevel and toggleThinkingBlockVisibility",
         "anchors": [
@@ -592,8 +592,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3278,
-          3663
+          3400,
+          3792
         ],
         "symbol": "subscribeToAgent and handleEvent",
         "anchors": [
@@ -615,8 +615,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3579,
-          3886
+          3805,
+          4143
         ],
         "symbol": "addMessageToChat, renderSessionItems, renderInitialMessages",
         "anchors": [
@@ -638,8 +638,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3427,
-          3501
+          3551,
+          3628
         ],
         "symbol": "handleEvent tool and message cases",
         "anchors": [
@@ -661,8 +661,8 @@
       "provenance": {
         "source": "footer",
         "lines": [
-          44,
-          87
+          59,
+          157
         ],
         "symbol": "FooterComponent",
         "anchors": [
@@ -707,8 +707,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3038,
-          3057
+          3143,
+          3171
         ],
         "symbol": "clipboard input handlers",
         "anchors": [
@@ -730,8 +730,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          827,
-          894
+          862,
+          930
         ],
         "symbol": "mountInteractiveTui and switchTuiMode",
         "anchors": [
@@ -753,8 +753,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          2047,
-          2060
+          2109,
+          2123
         ],
         "symbol": "handleFatalRuntimeError",
         "anchors": [
@@ -775,8 +775,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4138,
-          4221
+          4291,
+          4378
         ],
         "symbol": "shutdown, emergencyTerminalExit, uncaughtCrash, signal handlers, suspend",
         "anchors": [
@@ -798,8 +798,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          6832,
-          6850
+          7090,
+          7108
         ],
         "symbol": "stop",
         "anchors": [
@@ -1004,6 +1004,7 @@
       "onFullscreenExitOutputChange",
       "onFullscreenScrollbarChange",
       "onFullscreenCopyOnSelectChange",
+      "onFullscreenWheelScrollLinesChange",
       "onWarningsChange",
       "onCancel"
     ],

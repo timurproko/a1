@@ -35,6 +35,7 @@ const adjacentCodingAgentMaps = [
   "core/extensions/runner.js.map",
   "core/extensions/types.js.map",
   "core/footer-data-provider.js.map",
+  "core/http-dispatcher.js.map",
   "core/keybindings.js.map",
   "core/model-runtime.js.map",
   "core/prompt-templates.js.map",

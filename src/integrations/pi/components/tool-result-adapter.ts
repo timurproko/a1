@@ -19,7 +19,12 @@ export function updatePiToolResult(component: Pick<ToolExecutionComponent, "upda
     ? [{ type: "text", text: block.text }, ...(block.imageReferences ?? []).map((_, index) => image(index))]
     : result.content.map(part => part.type === "text"
       ? { type: "text", text: block.text.slice(part.start, part.end) } : image(part.imageIndex));
-  component.updateResult({ content, details: result?.details, isError: payload.isError === true }, block.status === "live");
+  component.updateResult({
+    content,
+    details: result?.details,
+    isError: payload.isError === true,
+    ...(typeof payload.durationMs === "number" ? { durationMs: payload.durationMs } : {}),
+  }, block.status === "live");
 }
 
 export function piToolArguments(block: OwnedUiTranscriptBlock): unknown {

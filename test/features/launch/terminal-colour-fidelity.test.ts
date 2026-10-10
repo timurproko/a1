@@ -15,9 +15,9 @@ describe("terminal colour fidelity", () => {
     const theme = loadPiTheme("dark", "truecolor");
 
     expect(theme.getColorMode()).toBe("truecolor");
-    expect(theme.fg("accent", "x")).toBe(`${ESCAPE}[38;2;138;190;183mx${ESCAPE}[39m`);
-    expect(theme.fg("border", "x")).toBe(`${ESCAPE}[38;2;95;135;255mx${ESCAPE}[39m`);
-    expect(theme.fg("mdHeading", "x")).toBe(`${ESCAPE}[38;2;240;198;116mx${ESCAPE}[39m`);
+    expect(theme.fg("accent", "x")).toBe(`${ESCAPE}[38;2;167;152;215mx${ESCAPE}[39m`);
+    expect(theme.fg("border", "x")).toBe(`${ESCAPE}[38;2;95;168;204mx${ESCAPE}[39m`);
+    expect(theme.fg("mdHeading", "x")).toBe(`${ESCAPE}[38;2;205;154;34mx${ESCAPE}[39m`);
   });
 
   it("keeps a 256-colour terminal on indices rather than silently sending 24-bit colour", () => {

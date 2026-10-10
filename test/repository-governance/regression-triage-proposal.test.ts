@@ -123,7 +123,7 @@ describe("nightly regression fix proposal", () => {
     expect(gh.calls.filter(call => call[1] === "download").map(call => call[2])).toEqual(["9001", "8995", "8990"]);
     expect(result.startup).toMatchObject({ window: 3, summary: "startup: no measurements", persistent: [] });
     expect(git.calls.find(call => call[0] === "checkout")).toEqual(["checkout", "-B", "fix/nightly-regression-2026-09-19", head]);
-    expect(gh.calls.find(call => call[1] === "create")).toEqual(["pr", "create", "--draft", "--base", "develop", "--head", "fix/nightly-regression-2026-09-19", "--title", "fix(regression): repair the 2026-09-19 full regression failure", "--body-file", `${output}/body.md`.replaceAll("/", process.platform === "win32" ? "\\" : "/")]);
+    expect(gh.calls.find(call => call[1] === "create")).toEqual(["pr", "create", "--draft", "--base", "develop", "--head", "fix/nightly-regression-2026-09-19", "--title", "chore(regression): repair the 2026-09-19 full regression failure", "--body-file", `${output}/body.md`.replaceAll("/", process.platform === "win32" ? "\\" : "/")]);
     expect([...files.files.keys()].filter(path => path.includes("openspec/changes/"))).toEqual([
       "D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/.openspec.yaml",
       "D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/regression-provenance.json",
@@ -257,5 +257,46 @@ describe("nightly regression fix proposal", () => {
     expect(result.summary!.failures.map(failure => failure.id)).toEqual(["vitest-package-startup", "startup-budget"]);
     expect(result.startup).toMatchObject({ persistent: ["windows-2025-node24/pi/warm"] });
     expect(result.startup!.entries.find(entry => entry.key === "windows-2025-node22/pi/warm")).toMatchObject({ verdict: "insufficient-overrun" });
+  });
+
+  it("maps a failed Windows shard to its canonical lane and shard job without a duplicate collector failure", async () => {
+    const shardJob = "Complete non-physical regression (windows-2025, node 24, package)";
+    const view = runView({ jobs: [
+      { name: "Complete non-physical regression (windows-2025, node 24, core)", conclusion: "success" },
+      { name: shardJob, conclusion: "failure" },
+      { name: "Complete non-physical regression (windows-2025, node 24, resource)", conclusion: "failure" },
+      { name: "Complete non-physical regression (windows-2025, node 24)", conclusion: "failure" },
+      { name: "Complete non-physical regression (windows-2025, node 22)", conclusion: "failure" },
+    ] });
+    const gh = recorder(args => args.includes("--log-failed")
+      ? `${shardJob}\tRun complete non-physical validation shard\t2026-09-19T03:12:02Z  FAIL  test/foundation/release/package-startup.integration.test.ts > warm launch\n`
+      : ghAnswers({ view })(args));
+    const git = recorder(gitAnswers());
+    const shardResult = JSON.stringify({ ...JSON.parse(tierResult(true)), fullShard: { schema: "a1-full-regression-shard-v1", id: "package" } });
+    const files = memoryFiles({
+      [`${output}/artifacts/full-regression-${head}-9001-1-windows-2025-node24-package/.artifacts/validation/full-regression.json`]: shardResult,
+      [`${output}/artifacts/full-regression-${head}-9001-1-windows-2025-node24-core/.artifacts/validation/full-regression.json`]: tierResult(false),
+    });
+    const result = await proposeRegressionFix({ runId: 9001, repository, output, gh: gh.executor, git: git.executor, files, today, dryRun: true });
+    expect(result.summary!.failures).toEqual([expect.objectContaining({ id: "vitest-package-startup", lanes: [expect.objectContaining({
+      id: "windows-2025-node24", shard: "package", excerpt: [" FAIL  test/foundation/release/package-startup.integration.test.ts > warm launch"] })] })]);
+    // Invariant: the node 24 collector restates its failed shards; node 22 failed with no shard evidence and stays orchestration.
+    expect(result.summary!.orchestration).toEqual([
+      { lane: "windows-2025-node24", shard: "resource", job: "Complete non-physical regression (windows-2025, node 24, resource)", excerpt: [] },
+      { lane: "windows-2025-node22", job: "Complete non-physical regression (windows-2025, node 22)", excerpt: [] },
+    ]);
+    const body = files.files.get(`${output}/body.md`)!;
+    expect(body).toContain("failed on windows-2025-node24 (package shard) with exit 1");
+    expect(body).toContain("Lane windows-2025-node24 (resource shard) failed in job `Complete non-physical regression (windows-2025, node 24, resource)`");
+  });
+
+  it("fails closed when one lane carries more than one startup evidence source", async () => {
+    const gh = recorder(ghAnswers({ view: runView({ conclusion: "success", jobs: [] }) }));
+    const git = recorder(gitAnswers());
+    const files = memoryFiles({
+      [startupArtifact(9001, "windows-2025-node24-package")]: startupEvidence([shell, "warm", 1400]),
+      [startupArtifact(9001, "windows-2025-node24-core")]: startupEvidence([shell, "warm", 1500]),
+    });
+    await expect(proposeRegressionFix({ runId: 9001, repository, output, gh: gh.executor, git: git.executor, files, today })).rejects.toThrow("duplicate startup evidence for lane windows-2025-node24");
   });
 });

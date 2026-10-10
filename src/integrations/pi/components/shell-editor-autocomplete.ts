@@ -1,13 +1,10 @@
-import { getSelectListTheme } from "../startup-public.js";
 import {
   CombinedAutocompleteProvider,
   matchesKey,
-  setKeybindings,
   visibleWidth,
   type AutocompleteProvider,
 } from "@earendil-works/pi-tui";
 import { PROMPT_HISTORY_EDITOR_REPLACEMENT, type OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js";
-import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { OwnedEditor, type ShellEditorInstance } from "./upstream/components/owned-editor.js";
 import {
   OwnedEditorUxInterception,
@@ -16,9 +13,12 @@ import {
 } from "./owned-editor-ux.js";
 import {
   PINNED_PI_LAYOUT,
+  getPiSelectListTheme,
   piTheme,
+  renderPiListSelection,
 } from "./theme.js";
 import {
+  createPiKeybindingsHost,
   createTuiFacade,
   ensureTheme,
   isAutocompleteProvider,
@@ -34,8 +34,21 @@ import {
   type PiShellSkillSummary,
 } from "./skills-command.js";
 
-/** A selected autocomplete row: the accent primary column, then the aligned description. */
+/** A selected autocomplete row: its arrow/primary column, then the aligned description. */
 const SELECTED_DESCRIBED_ROW = /^(→ .*?\S)(\s{2,}.*)$/u;
+const INPUT_COUNTER_INSET = 3;
+const INPUT_COUNTER_PREFIX = "── ";
+
+function renderOwnedAutocompleteSelection(text: string): string {
+  const theme = piTheme();
+  const row = SELECTED_DESCRIBED_ROW.exec(text);
+  const primary = row?.[1] ?? text;
+  const hasArrow = primary.startsWith("→ ");
+  const arrow = hasArrow ? theme.fg("accent", "→ ") : "";
+  const label = theme.fg("text", hasArrow ? primary.slice(2) : primary);
+  const description = row === null ? "" : theme.fg("muted", row[2]!);
+  return renderPiListSelection(arrow + label + description);
+}
 const PINNED_THINKING_SLASH_COMMAND = { name: "thinking", description: "Set thinking level", argumentHint: "<level>" } as const;
 const OWNED_THINKING_SLASH_COMMAND = { name: "thinking", description: "Set thinking level" } as const;
 const OWNED_LOGIN_SLASH_COMMAND = { name: "login", description: "Configure provider authentication" } as const;
@@ -80,15 +93,18 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   ensureTheme();
   const tui = createTuiFacade(options);
   const inputPresentation = options.keybindingProfile === "a1" ? options.promptPresentation?.input : undefined;
-  const keybindings = options.keybindingProfile === "a1"
-    ? KeybindingsManager.createForOwnedInput(options.agentDir)
-    : KeybindingsManager.create(options.agentDir);
-  setKeybindings(keybindings);
+  // Invariant: the process shares one manager; a standalone editor gets its own host for its profile.
+  const host = options.keybindings ?? createPiKeybindingsHost({
+    profile: options.keybindingProfile ?? "pi",
+    ...(options.agentDir === undefined ? {} : { agentDir: options.agentDir }),
+  });
+  host.ensureActive();
+  const keybindings = host.manager;
   if (options.persistentHistory === true && options.keybindingProfile === "a1" && options.historyEditor === undefined) {
     throw new Error("Persistent history requires the loaded owned editor");
   }
   const scrollInfo: { emitted: boolean; counter: string | undefined } = { emitted: false, counter: undefined };
-  const selectListTheme = getSelectListTheme();
+  const selectListTheme = getPiSelectListTheme();
   let tunnelSkills: readonly PiShellSkillSummary[] = [];
   const EditorClass = options.keybindingProfile === "a1" && options.persistentHistory === true ? options.historyEditor! : OwnedEditor;
   const editor: ShellEditorInstance = new EditorClass(tui, {
@@ -102,10 +118,9 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
         return selectListTheme.scrollInfo(text);
       },
       selectedText: text => {
-        // Rationale: the pinned list styles a whole selected row at once. Bare A1 keeps the
-        // actionable primary column accented while every aligned description remains muted.
-        const row = SELECTED_DESCRIBED_ROW.exec(text);
-        return row === null ? selectListTheme.selectedText(text) : selectListTheme.selectedText(row[1]!) + selectListTheme.description(row[2]!);
+        // Rationale: bare A1 keeps the arrow accented, the actionable label readable, and descriptions muted
+        // on the same item-bounded blue surface used by its standard modal selectors.
+        return renderOwnedAutocompleteSelection(text);
       },
     },
   }, keybindings, {
@@ -180,11 +195,15 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     const resources = commands
       .filter(command => command.name !== collapsed.collapsedCommand?.name && command.source !== "builtin" && !builtInNames.has(command.name))
       .map(command => autocompleteCommand(command));
+    const catalog = [...builtIns, ...resources];
     const combined = new CombinedAutocompleteProvider(
-      [...builtIns, ...resources],
+      catalog,
       options.cwd ?? process.cwd(),
     );
-    autocompleteProvider = tunnelSkills.length === 0 ? combined : createSkillsTunnelProvider(combined, tunnelSkills);
+    const tunnelAware = tunnelSkills.length === 0 ? combined : createSkillsTunnelProvider(combined, tunnelSkills);
+    autocompleteProvider = options.keybindingProfile === "a1"
+      ? createDelimiterReadyCommandProvider(tunnelAware, catalog)
+      : tunnelAware;
     editor.setAutocompleteProvider(autocompleteProvider);
   };
   setAutocompleteCommands(options.autocompleteCommands ?? []);
@@ -240,10 +259,10 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       const rowCount = editor.getRenderedBodyRowCount();
       const menu = rows.slice(rowCount, scrollInfo.emitted ? -1 : undefined);
       const label = scrollInfo.counter === undefined ? "" : `${scrollInfo.counter} `;
-      // Compatibility: match the history border's four-cell inset and dim label style.
-      const counterBorder = label.length > 0 && 4 + visibleWidth(label) <= width
-        ? editor.borderColor("─── ") + piTheme().fg("dim", label)
-          + editor.borderColor("─".repeat(width - 4 - visibleWidth(label)))
+      // Compatibility: share the history counter's three-cell inset and dim label style.
+      const counterBorder = label.length > 0 && INPUT_COUNTER_INSET + visibleWidth(label) <= width
+        ? editor.borderColor(INPUT_COUNTER_PREFIX) + piTheme().fg("dim", label)
+          + editor.borderColor("─".repeat(width - INPUT_COUNTER_INSET - visibleWidth(label)))
         : editor.borderColor("─".repeat(width));
       // Rationale: when the menu is open, drop the plain top border above the
       // menu and instead show the counter on the border directly above the input
@@ -256,9 +275,9 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       // Completion state, sizing, styles, and pagination still belong to the editor.
       return [...menu, ...bodyRows];
     },
-    activateKeybindings: () => setKeybindings(keybindings),
+    activateKeybindings: () => host.ensureActive(),
     keybindingConfig: () => keybindings.getEffectiveConfig(),
-    reloadKeybindings: () => { keybindings.reload(); setKeybindings(keybindings); },
+    reloadKeybindings: () => host.reload(),
     matchesTerminalKey: (data, key) => matchesKey(data, key),
     handleInput: data => {
       // Compatibility: an unassigned reverse Tab must not clear selection or reach autocomplete fallback.
@@ -342,6 +361,43 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   };
 }
 
+
+/** Bare A1 leaves an applied catalog command ready for `:`, a user-entered space, or submission. */
+function createDelimiterReadyCommandProvider(
+  base: AutocompleteProvider,
+  commands: readonly PiShellAutocompleteCommand[],
+): AutocompleteProvider {
+  const commandNames = new Set(commands.map(command => command.name));
+  return {
+    ...(base.triggerCharacters === undefined ? {} : { triggerCharacters: base.triggerCharacters }),
+    getSuggestions: (lines, cursorLine, cursorCol, options) => base.getSuggestions(lines, cursorLine, cursorCol, options),
+    applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
+      const result = base.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
+      const currentLine = lines[cursorLine] ?? "";
+      const textBeforeCursor = currentLine.slice(0, cursorCol);
+      const beforePrefix = currentLine.slice(0, cursorCol - prefix.length);
+      const completedLine = result.lines[result.cursorLine] ?? "";
+      const spacerIndex = result.cursorCol - 1;
+      const expectedCommand = `${beforePrefix}/${item.value}`;
+      const isCatalogCommand = commandNames.has(item.value)
+        && prefix.startsWith("/")
+        && !prefix.slice(1).includes("/")
+        && !prefix.includes(" ")
+        && textBeforeCursor.trimStart() === prefix;
+      if (!isCatalogCommand
+        || result.cursorLine !== cursorLine
+        || spacerIndex < 0
+        || completedLine[spacerIndex] !== " "
+        || completedLine.slice(0, spacerIndex) !== expectedCommand) return result;
+      const nextLines = [...result.lines];
+      nextLines[result.cursorLine] = completedLine.slice(0, spacerIndex) + completedLine.slice(spacerIndex + 1);
+      return { ...result, lines: nextLines, cursorCol: spacerIndex };
+    },
+    ...(base.shouldTriggerFileCompletion === undefined ? {} : {
+      shouldTriggerFileCompletion: (lines, cursorLine, cursorCol) => base.shouldTriggerFileCompletion!(lines, cursorLine, cursorCol),
+    }),
+  };
+}
 
 function autocompleteCommand(
   command: PiShellAutocompleteCommand,

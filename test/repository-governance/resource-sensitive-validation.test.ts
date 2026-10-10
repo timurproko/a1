@@ -29,6 +29,7 @@ const resourceSensitiveTests = [
   ...originalResourceSensitiveTests.slice(2, 4),
   "test/foundation/release/release-gc.test.ts",
   ...originalResourceSensitiveTests.slice(4, 5),
+  "test/features/prompt-history/concurrency.integration.test.ts",
   "test/features/prompt-history/store.test.ts",
   "test/app/session-shell/command-message-parity.test.ts",
   "test/app/session-shell/command-outcome-parity.test.ts",

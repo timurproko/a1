@@ -42,22 +42,32 @@ export async function readPackagedReleaseNotes(
   const frozen = Object.freeze(releases);
   return Object.freeze({
     releases: frozen,
-    completeMarkdown: frozen.length === 0 ? "No A1 release notes found." : frozen.map(release => release.markdown).join("\n\n"),
+    completeMarkdown: frozen.length === 0 ? "No A1 release notes found."
+      : frozen.map(release => release.markdown.startsWith(`## [${release.version}] - `)
+        ? release.markdown : `## [${release.version}]\n\n${release.markdown}`).join("\n\n"),
     current: (version: string) => STABLE.test(version) ? frozen.find(release => release.version === version) ?? null : null,
   });
 }
 
 function validMarkdown(markdown: string, version: string): boolean {
-  if (Buffer.byteLength(markdown, "utf8") > MAX_NOTE_BYTES || !markdown.startsWith(`# A1 ${version}\n`)
+  if (Buffer.byteLength(markdown, "utf8") > MAX_NOTE_BYTES
     || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(markdown)
-    || [...markdown.matchAll(/^# A1 \d+\.\d+\.\d+$/gmu)].length !== 1
-    || markdown.split("\n").slice(1).every(line => line.trim() === "")
+    || [...markdown.matchAll(/^# A1 \d+\.\d+\.\d+$/gmu)].length !== 0
+    || markdown.trim() === ""
     || /<\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^>]*)?\/?>|\b(?:href|src)\s*=/iu.test(markdown)) return false;
+  const headings = [...markdown.matchAll(/^## \[((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))\] - (\d{4}-\d{2}-\d{2})$/gmu)];
+  if (headings.length > 1 || (headings.length === 1 && (headings[0]?.[1] !== version || !validDate(headings[0]?.[2])))) return false;
   const links = [
     ...[...markdown.matchAll(/\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)/gu)].map(match => match[1] ?? ""),
     ...[...markdown.matchAll(/<([^>\s]+:[^>]*)>/gu)].map(match => match[1] ?? ""),
   ];
   return links.every(safeLink);
+}
+
+function validDate(value: string | undefined): boolean {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
 }
 
 function safeLink(target: string): boolean {

@@ -101,12 +101,12 @@ describe("Pi settings inventory governance", () => {
       const values = (entry as { values?: readonly string[] }).values;
       const descriptor = descriptors.find(candidate => candidate.key === key);
       if (values === undefined || descriptor === undefined || descriptor.valueType !== "enum") continue;
-      // Protocol: a boolean is offered as true/false by the engine but is a boolean here,
-      // and a number the engine accepts by range keeps the range rather than the
-      // few values its own menu offers as shortcuts.
-      if (values.every(value => value === "true" || value === "false")) continue;
+      // Protocol: boolean tokens offered by the engine are booleans here, including
+      // when they appear alongside an enum value, while numeric menu shortcuts do
+      // not replace the range accepted by the engine.
       if (values.every(value => /^\d+$/.test(value))) continue;
-      expect(descriptor.choices, `${key} offers something other than what Pi offers`).toEqual(values);
+      const expected = values.map(value => value === "true" ? true : value === "false" ? false : value);
+      expect(descriptor.choices, `${key} offers something other than what Pi offers`).toEqual(expected);
     }
   });
 });

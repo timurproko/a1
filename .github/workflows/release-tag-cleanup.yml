@@ -1,0 +1,52 @@
+name: Release tag cleanup
+run-name: Release tag cleanup v${{ inputs.version || github.event.release.tag_name }}
+
+# The tag ruleset lets only the release-automation App delete release tags. Deleting a Release
+# leaves its tag behind; this removes that tag only while no Release uses it and npm serves
+# neither package. A release deletion runs this file from the tag, so dispatch covers tags
+# created before this workflow existed.
+on:
+  release:
+    types: [deleted]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable version whose unconsumed tag to delete, such as 0.2.2
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-tag-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Delete an unconsumed release tag
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Mint the tag-cleanup identity
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.OPENSPEC_ARCHIVE_APP_ID }}
+          private-key: ${{ secrets.OPENSPEC_ARCHIVE_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - name: Delete the tag only while no Release uses it and npm is untouched
+        env:
+          # Rationale: draft Releases are listed only to writers, so the App token also reads them.
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TAG_TOKEN: ${{ steps.app.outputs.token }}
+          RELEASE_VERSION: ${{ inputs.version || github.event.release.tag_name }}
+        run: node scripts/release/delete-orphan-tag.mjs

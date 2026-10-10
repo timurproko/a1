@@ -15,7 +15,7 @@ export interface ResponseCopyJob {
 }
 export type CopyPhaseObserver = (phase: "extracted" | "encoded" | "submitting", bytes: number, transport: "native" | "terminal" | "injected") => void;
 export type ResponseCopyExecutor = (snapshot: SelectionCopySnapshot, phase: CopyPhaseObserver) => ResponseCopyJob;
-/** The production executor also owns a spare helper; the owner warms it at start and disposes it at shutdown. */
+/** The production executor also holds a spare helper; the owner warms it at start and disposes it at shutdown unless the pool is shared. */
 export interface OwnedResponseCopyExecutor extends ResponseCopyExecutor {
   warm(): void;
   dispose(): void;
@@ -51,8 +51,11 @@ export function createResponseCopyExecutor(options: {
   readonly helper?: URL;
   /** Idle bound for the spare helper; production keeps the default. */
   readonly spareIdleMs?: number;
+  /** Process-wide spare pool shared across sessions; the executor warms it but never disposes it. */
+  readonly pool?: HelperPool;
 } = {}): OwnedResponseCopyExecutor {
-  const pool = new HelperPool({ fork: () => forkCopyHelper(options.helper), stop: stopCopyHelper, ...(options.spareIdleMs === undefined ? {} : { idleMs: options.spareIdleMs }) });
+  const pool = options.pool ?? createCopyHelperPool(options.helper, options.spareIdleMs);
+  const ownsPool = options.pool === undefined;
   const execute: ResponseCopyExecutor = (snapshot, phase) => {
     const controller = new AbortController();
     let active: ReturnType<typeof startHelper> | undefined;
@@ -95,9 +98,14 @@ export function createResponseCopyExecutor(options: {
   // Rationale: `Object.assign` would copy the getter's value once; the accessor must read the pool each time.
   return Object.defineProperties(execute, {
     warm: { value: () => pool.warm() },
-    dispose: { value: () => pool.dispose() },
+    dispose: { value: () => { if (ownsPool) pool.dispose(); } },
     warmed: { get: () => pool.warmed },
   }) as OwnedResponseCopyExecutor;
+}
+
+/** A spare-of-one pool of copy helpers; `createResponseCopyExecutor` takes its child and warms the next one after each copy. */
+export function createCopyHelperPool(helper?: URL, idleMs?: number): HelperPool {
+  return new HelperPool({ fork: () => forkCopyHelper(helper), stop: stopCopyHelper, ...(idleMs === undefined ? {} : { idleMs }) });
 }
 
 /** Forks one copy helper: bounded IPC only, no clipboard payload in argv or temp files, no inherited terminal descriptors. */

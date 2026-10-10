@@ -1,5 +1,7 @@
 import {
+  getKeybindings,
   hyperlink,
+  matchesKey,
   setKeybindings,
   visibleWidth,
   truncateToWidth,
@@ -64,12 +66,12 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   bodyGeometry?(): PiShellEditorBodyGeometry;
   readonly recall?: EditorRecallPort;
   readonly historyReplacement?: typeof import("../../../contracts/owned-ui/index.js").PROMPT_HISTORY_EDITOR_REPLACEMENT;
-  /** Restores this editor's profile after another Pi component changed the global manager. */
+  /** Restores the shared manager if anything replaced pi-tui's registry; a no-op when it is already active. */
   activateKeybindings(): void;
   keybindingConfig(): KeybindingsConfig;
   reloadKeybindings(): void;
   /** Uses Pi's terminal decoder rather than assuming one terminal escape spelling. */
-  matchesTerminalKey(data: string, key: "home" | "end" | "ctrl+home" | "ctrl+end" | "alt+home" | "ctrl+v"): boolean;
+  matchesTerminalKey(data: string, key: "home" | "end" | "pageUp" | "pageDown" | "ctrl+home" | "ctrl+end" | "alt+home" | "ctrl+v"): boolean;
   getText(): string;
   setText(text: string): void;
   insertText(text: string): void;
@@ -118,7 +120,8 @@ export interface PiShellProgressStatusPresentation {
 }
 
 export interface PiShellStatusPort extends PiShellViewComponentPort {
-  setWorkingOverride(message: string | undefined): void;
+  /** `active` owns a live operation before the engine lifecycle itself becomes busy. */
+  setWorkingOverride(message: string | undefined, active?: boolean): void;
   setOutputPad(padding: 0 | 1): void;
   /** Bare A1 shows engine-measured progress beside the working word; the pinned route keeps the bare word. */
   setProgressPresentation(presentation: PiShellProgressPresentationMode): void;
@@ -156,7 +159,7 @@ export interface PiShellImageAssetResolver {
 
 export interface PiShellExtensionRendererResolver {
   getMessageRenderer(customType: string): unknown;
-  getToolDefinition(toolName: string): unknown;
+  getToolRenderers(toolName: string): unknown;
   getShortcuts?(bindings: KeybindingsConfig): readonly { readonly key: string; readonly description: string }[];
 }
 
@@ -198,6 +201,8 @@ export interface PiShellEditorOptions {
   readonly historyEditor?: HistoryEditorConstructor;
   /** Bare A1 adds ergonomic aliases while comparison profiles retain Pi defaults. */
   readonly keybindingProfile?: "pi" | "a1";
+  /** The process's shared keybindings; its profile must match `keybindingProfile`. */
+  readonly keybindings?: PiKeybindingsHost;
   readonly getColumns: () => number;
   readonly getRows: () => number;
   readonly requestRender: () => void;
@@ -272,7 +277,7 @@ export function createTuiFacade(options: Pick<PiShellEditorOptions, "getColumns"
     get columns() { return Math.max(1, options.getColumns()); },
     get rows() { return Math.max(1, options.getRows()); },
     get kittyProtocolActive() { return false; },
-    moveBy() {}, hideCursor() {}, showCursor() {}, clearLine() {}, clearFromCursor() {}, clearScreen() {}, setTitle() {}, setProgress() {},
+    moveBy() {}, hideCursor() {}, showCursor() {}, clearLine() {}, clearFromCursor() {}, clearScreen() {}, setTitle() {}, setProgress() {}, setProgramStatus() {},
   };
   return {
     mode: "regular",
@@ -303,8 +308,7 @@ export function createTuiFacade(options: Pick<PiShellEditorOptions, "getColumns"
     removeInputListener() {},
     onTerminalColorSchemeChange: () => () => {},
     setTerminalColorSchemeNotifications() {},
-    queryTerminalBackgroundColor: async () => undefined,
-    queryTerminalColorScheme: async () => undefined,
+    queryTerminalColors: async () => ({}),
   };
 }
 
@@ -318,6 +322,17 @@ export function componentPort(component: Component, handleInput?: (data: string)
     invalidate: () => component.invalidate(),
     ...("focused" in focusable ? { setFocused: (focused: boolean) => { focusable.focused = focused; } } : {}),
     ...(typeof disposable.dispose === "function" ? { dispose: () => disposable.dispose?.() } : {}),
+  };
+}
+
+/** Gives an extension-hosted dialog the shell's implicit close alias without rewriting its component. */
+export function withPiDialogCancel(port: PiShellComponentPort, onCancel: () => void): PiShellComponentPort {
+  return {
+    ...port,
+    handleInput: data => {
+      if (matchesKey(data, "ctrl+c")) onCancel();
+      else port.handleInput?.(data);
+    },
   };
 }
 
@@ -346,7 +361,32 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+let fallbackKeybindings: KeybindingsManager | undefined;
+
+/**
+ * Applies theme state. The keybinding registry belongs to the process's `PiKeybindingsHost`; only when no
+ * A1 manager was ever applied (a presenter built outside composition) does this install Pi's defaults once.
+ */
 export function ensureTheme(): void {
   ensurePiTheme();
-  setKeybindings(KeybindingsManager.create());
+  if (!(getKeybindings() instanceof KeybindingsManager)) setKeybindings(fallbackKeybindings ??= KeybindingsManager.create());
+}
+
+/** The process's one keybinding manager and the only writer of pi-tui's global keybinding registry. */
+export interface PiKeybindingsHost {
+  readonly manager: KeybindingsManager;
+  /** Installs the manager in the registry unless it is already the active one. */
+  ensureActive(): void;
+  /** Re-reads the user's keybindings file into the shared manager and keeps it active. */
+  reload(): void;
+}
+
+/** Composition creates one host per process; bare A1 uses the owned-input aliases, comparison profiles keep Pi's. */
+export function createPiKeybindingsHost(options: { readonly profile: "pi" | "a1"; readonly agentDir?: string }): PiKeybindingsHost {
+  const manager = options.profile === "a1"
+    ? KeybindingsManager.createForOwnedInput(options.agentDir)
+    : KeybindingsManager.create(options.agentDir);
+  const ensureActive = () => { if (getKeybindings() !== manager) setKeybindings(manager); };
+  ensureActive();
+  return { manager, ensureActive, reload: () => { manager.reload(); setKeybindings(manager); } };
 }

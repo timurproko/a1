@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
  * Modifications: Retain pinned shell and actual public tool-definition renderers. Replace private
  * index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and
@@ -12,19 +12,27 @@ import { stripVTControlCharacters } from "node:util";
 import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { createReadToolDefinition, createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition,
   createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, keyHint, type ToolDefinition,
+  type ToolRenderers,
 } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";
 import { ToolImagePresentation } from "../../tool-image-presentation.js";
 
 type ToolRenderContext = Parameters<NonNullable<ToolDefinition["renderCall"]>>[2];
-type ToolPresentationResult = Parameters<NonNullable<ToolDefinition["renderResult"]>>[0] & { isError: boolean };
+type ToolPresentationResult = Parameters<NonNullable<ToolDefinition["renderResult"]>>[0] & {
+	isError: boolean;
+	durationMs?: number;
+};
 /** The caller-side merge 0.85.1 performs before handing a definition to the component: built-in renderers fill the gaps. */
-export function mergeBuiltInRenderers(definition: ToolDefinition<any, any, any> | undefined, builtIn: ToolDefinition<any, any, any> | undefined): ToolDefinition<any, any, any> | undefined {
+type ToolRendererInput = ToolRenderers | ToolDefinition<any, any, any>;
+
+export function mergeBuiltInRenderers(definition: ToolRendererInput | undefined, builtIn: ToolRendererInput | undefined): ToolRenderers | undefined {
 	if (definition === undefined) return builtIn;
 	if (builtIn === undefined) return definition;
-	const merged: ToolDefinition<any, any, any> = { ...definition };
-	if (definition.renderCall === undefined && builtIn.renderCall !== undefined) merged.renderCall = builtIn.renderCall;
-	if (definition.renderResult === undefined && builtIn.renderResult !== undefined) merged.renderResult = builtIn.renderResult;
+	const selected: ToolRenderers = definition;
+	const fallback: ToolRenderers = builtIn;
+	const merged: ToolRenderers = { ...selected };
+	if (selected.renderCall === undefined && fallback.renderCall !== undefined) merged.renderCall = fallback.renderCall;
+	if (selected.renderResult === undefined && fallback.renderResult !== undefined) merged.renderResult = fallback.renderResult;
 	return merged;
 }
 
@@ -32,10 +40,33 @@ const definitions = { read: createReadToolDefinition, bash: createBashToolDefini
   write: createWriteToolDefinition, grep: createGrepToolDefinition, find: createFindToolDefinition, ls: createLsToolDefinition };
 
 const FALLBACK_PREVIEW_LINES = 10;
+const COLLAPSED_ARGS_CHARS = 100;
+
+/** Locally attributed equivalent of pinned Pi's private generic tool-call formatter. */
+function formatToolCallWithArgs(title: string, args: unknown, expanded: boolean): string {
+  const theme = piTheme();
+  const header = theme.fg("toolTitle", theme.bold(title));
+  if (args === null || args === undefined) return header;
+  const entries = typeof args === "object" && !Array.isArray(args)
+    ? Object.entries(args)
+    : [["args", args] as const];
+  if (entries.length === 0) return header;
+  if (expanded) {
+    const lines = entries.map(([key, value]) => {
+      const text = typeof value === "string" ? value : JSON.stringify(value, null, 2) ?? String(value);
+      return `  ${key}: ${text.replace(/\t/g, "   ").replace(/\r/g, "").split("\n").join("\n    ")}`;
+    });
+    return `${header}\n${theme.fg("muted", lines.join("\n"))}`;
+  }
+  const pairs = entries.map(([key, value]) => `${key}=${JSON.stringify(value) ?? String(value)}`).join(" ");
+  const preview = pairs.length > COLLAPSED_ARGS_CHARS ? `${pairs.slice(0, COLLAPSED_ARGS_CHARS - 3)}...` : pairs;
+  return `${header} ${theme.fg("muted", preview)}`;
+}
 
 export interface ToolExecutionOptions {
 	showImages?: boolean;
 	imageWidthCells?: number;
+	outputPad?: number;
 }
 
 export class ToolExecutionComponent extends Container {
@@ -58,8 +89,9 @@ export class ToolExecutionComponent extends Container {
 	private expanded = false;
 	private showImages: boolean;
 	private imageWidthCells: number;
+	private outputPad: number;
 	private isPartial = true;
-	private toolDefinition: ToolDefinition<any, any> | undefined;
+	private toolDefinition: ToolRenderers | undefined;
 	private builtInToolDefinition: ToolDefinition<any, any> | undefined;
 	private ui: TUI;
 	private cwd: string;
@@ -73,7 +105,7 @@ export class ToolExecutionComponent extends Container {
 		toolCallId: string,
 		args: any,
 		options: ToolExecutionOptions = {},
-		toolDefinition: ToolDefinition<any, any, any> | undefined,
+		toolDefinition: ToolRenderers | ToolDefinition<any, any, any> | undefined,
 		ui: TUI,
 		cwd: string,
 	) {
@@ -88,6 +120,7 @@ export class ToolExecutionComponent extends Container {
 		this.toolDefinition = mergeBuiltInRenderers(toolDefinition, this.builtInToolDefinition);
 		this.showImages = options.showImages ?? true;
 		this.imageWidthCells = options.imageWidthCells ?? 60;
+		this.outputPad = options.outputPad ?? 1;
 		this.ui = ui;
 		this.cwd = cwd;
     this.images = new ToolImagePresentation(() => {
@@ -149,12 +182,13 @@ export class ToolExecutionComponent extends Container {
 			expanded: this.expanded,
 			showImages: this.showImages,
 			isError: this.result?.isError ?? false,
+			durationMs: this.isPartial ? undefined : this.result?.durationMs,
+			outputPad: this.outputPad,
 		};
 	}
 
 	private createCallFallback(): Component {
-    const theme = piTheme();
-		return new Text(theme.fg("toolTitle", theme.bold(this.toolName)), 0, 0);
+		return new Text(formatToolCallWithArgs(this.toolName, this.args, this.expanded), 0, 0);
 	}
 
 	private createResultFallback(): Component | undefined {
@@ -223,6 +257,11 @@ export class ToolExecutionComponent extends Container {
 
 	setExpanded(expanded: boolean): void {
 		this.expanded = expanded;
+		this.updateDisplay();
+	}
+
+	setOutputPad(outputPad: number): void {
+		this.outputPad = outputPad;
 		this.updateDisplay();
 	}
 
@@ -304,6 +343,7 @@ export class ToolExecutionComponent extends Container {
 			const renderContainer = this.getRenderShell() === "self" ? this.selfRenderContainer : this.contentBox;
 			if (renderContainer instanceof Box) {
 				renderContainer.setBgFn(bgFn);
+				renderContainer.setPaddingX(this.outputPad);
 			}
 			renderContainer.clear();
 
@@ -355,6 +395,7 @@ export class ToolExecutionComponent extends Container {
 			}
 		} else {
 			this.contentText.setCustomBgFn(bgFn);
+			this.contentText.setPaddingX(this.outputPad);
 			this.contentText.setText(this.formatToolExecution());
 			hasContent = true;
 		}

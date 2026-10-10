@@ -160,7 +160,18 @@ export async function reconcileFinalization({ reader, publisher, number, toolRoo
       await git([...identity, "commit", "--quiet", "-m", `docs(openspec): ${refinalized ? "refinalize" : "finalize"} ${change}`]);
       commits.push({ kind: refinalized ? "refinalize" : "finalize", sha: await git(["rev-parse", "HEAD"]) });
     }
-    const finalBody = result.body;
+    const prospectiveHead = commits.at(-1)?.sha ?? head;
+    const finalizedImplementation = parseImplementation(result.body);
+    if (finalizedImplementation?.version !== 3 || !finalizedImplementation.archive || !finalizedImplementation.acceptanceManifest) {
+      throw archiveFailure("delivery-not-finalized");
+    }
+    const finalBody = replaceImplementationMetadata(result.body, {
+      version: 3,
+      change,
+      archive: finalizedImplementation.archive,
+      acceptanceManifest: finalizedImplementation.acceptanceManifest,
+      finalizedHead: prospectiveHead,
+    });
     if (!commits.length && finalBody === (pull.body ?? "")) {
       return { disposition: "already-finalized", head, pushedHead: head, commits: [], bodyUpdated: false };
     }
@@ -193,6 +204,7 @@ export async function reconcileFinalization({ reader, publisher, number, toolRoo
     if (finalBody !== (pull.body ?? "")) {
       const current = await reader.get(`${prefix}/pulls/${number}`);
       if (current.body !== pull.body) return { disposition: "retry", reason: "body-changed-before-update", head, pushedHead, commits, bodyUpdated };
+      if (current.head?.sha !== pushedHead) return { disposition: "retry", reason: "head-changed-before-body-update", head, pushedHead, commits, bodyUpdated };
       await publisher.mutate(`${prefix}/pulls/${number}`, "PATCH", { body: finalBody });
       bodyUpdated = true;
     }

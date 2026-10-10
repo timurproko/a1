@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   compareRepositoryGovernance,
   inspectLocalWorkflows,
+  inspectWorkflowSource,
   validateRepositoryGovernanceDefinition,
   type RepositoryGovernanceDefinition,
 } from "../../scripts/governance/github-repository-governance.mjs";
@@ -80,12 +81,35 @@ describe("declarative GitHub repository governance", () => {
     expect(inspected.find(workflow => workflow.name === "Merged branch cleanup")).toMatchObject({
       triggers: ["pull_request_target:closed"], trustedSource: "default-branch", permissions: ["contents: write"],
     });
+    expect(inspected.find(workflow => workflow.name === "Ready pull-request refresh")).toMatchObject({
+      triggers: ["pull_request_target:closed", "workflow_run"], trustedSource: "default-branch", permissions: ["contents: read"],
+      authority: ["ready-pull-request-branch-refresh"], concurrency: "ready-pull-request-refresh",
+    });
     expect(inspected.find(workflow => workflow.name === "Nightly regression triage")).toMatchObject({
       triggers: ["workflow_dispatch", "workflow_run"], trustedSource: "default-branch", permissions: ["actions: read", "contents: write", "pull-requests: write"], authority: ["nightly-regression-triage"], artifactRetentionDays: [30],
     });
-    expect(inspected.find(workflow => workflow.name === "Publish")).toMatchObject({
-      triggers: ["schedule", "workflow_dispatch"], trustedSource: "authoritative-develop", environments: ["npm-publish"], artifactRetentionDays: [1, 30],
+    expect(inspected.find(workflow => workflow.name === "Stable candidate validation")).toMatchObject({
+      triggers: ["workflow_dispatch"], trustedSource: "default-branch", authority: ["stable-release-candidate-validation"],
     });
+    expect(inspected.find(workflow => workflow.name === "Publish stable release")).toMatchObject({
+      triggers: ["release:published"], trustedSource: "published-release-tag",
+      authority: ["release-reopening-proposal", "stable-release-publication", "unconsumed-release-tag-rollback"], artifactRetentionDays: [],
+    });
+    expect(inspected.find(workflow => workflow.name === "Development publication")).toMatchObject({
+      triggers: ["workflow_dispatch"], trustedSource: "default-branch", authority: ["npm-next"],
+    });
+    expect(inspected.find(workflow => workflow.name === "Publish")).toMatchObject({
+      triggers: ["schedule", "workflow_call"], trustedSource: "authoritative-develop", environments: ["npm-publish"], artifactRetentionDays: [1, 30],
+      authority: expect.arrayContaining(["master-fast-forward", "npm-latest"]),
+    });
+  });
+
+  it("recognizes tag rollback only through a contents-scoped App token", async () => {
+    const source = await readFile(".github/workflows/release.yml", "utf8");
+    expect(inspectWorkflowSource(".github/workflows/release.yml", source).authority).toContain("unconsumed-release-tag-rollback");
+    const unscoped = inspectWorkflowSource(".github/workflows/release.yml", source.replace(/^\s+permission-contents: write\n/m, ""));
+    expect(unscoped.authority).toContain("unscoped-release-tag-rollback");
+    expect(unscoped.authority).not.toContain("unconsumed-release-tag-rollback");
   });
 
   it("requires every third-party action reference to use an immutable commit", async () => {
@@ -93,7 +117,8 @@ describe("declarative GitHub repository governance", () => {
       const source = await readFile(`.github/workflows/${name}`, "utf8");
       for (const match of source.matchAll(/^\s*uses:\s*([^\s#]+)(?:\s+#.*)?$/gm)) {
         const reference = match[1]!;
-        if (reference.startsWith("./") || reference.startsWith("docker://")) continue;
+        if (reference.startsWith("./") || reference.startsWith("docker://")
+          || reference === "timurproko/a1/.github/workflows/publish.yml@develop") continue;
         expect(reference, `${name}: ${reference}`).toMatch(/@[0-9a-f]{40}$/);
       }
     }

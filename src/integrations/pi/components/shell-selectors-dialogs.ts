@@ -1,9 +1,6 @@
 import {
   ArminComponent,
-  BorderedLoader,
   DynamicBorder,
-  ExtensionSelectorComponent,
-  getSelectListTheme,
   LoginDialogComponent,
   ModelSelectorComponent,
   OAuthSelectorComponent,
@@ -16,12 +13,8 @@ import {
   ThemeSelectorComponent,
   UserMessageSelectorComponent,
 } from "../startup-public.js";
-import {
-  DaxnutsComponent,
-} from "./upstream/components/daxnuts.js";
-import {
-  EarendilAnnouncementComponent,
-} from "./upstream/components/earendil-announcement.js";
+import { EarendilAnnouncementComponent } from "./upstream/components/earendil-announcement.js";
+import { ExtensionSelectorComponent } from "./upstream/components/extension-selector.js";
 import {
   Box,
   Container,
@@ -30,27 +23,19 @@ import {
   Text,
   type SelectItem,
 } from "@earendil-works/pi-tui";
-import type {
-  OwnedUiDialog,
-} from "../../../contracts/owned-ui/index.js";
+import type { OwnedUiDialog } from "../../../contracts/owned-ui/index.js";
+import { ScopedModelsSelectorComponent } from "./upstream/components/scoped-models-selector.js";
+import { addPiModalSelectFooter, adoptPiModalFrame, adoptPiModalHeader } from "./modal-frame.js";
+import { ModelsDialogComponent, type ModelsDialogCallbacks, type ModelsDialogConfig } from "./models-dialog.js";
+import { TrustSelectorComponent, type TrustDecision, type TrustOption, type TrustUpdate } from "./upstream/components/trust-selector.js";
 import {
-  ScopedModelsSelectorComponent,
-} from "./upstream/components/scoped-models-selector.js";
-import { adoptPiModalFrame, adoptPiModalHeader } from "./modal-frame.js";
-import {
-  ModelsDialogComponent,
-  type ModelsDialogCallbacks,
-  type ModelsDialogConfig,
-} from "./models-dialog.js";
-import {
-  TrustSelectorComponent,
-  type TrustDecision,
-  type TrustOption,
-  type TrustUpdate,
-} from "./upstream/components/trust-selector.js";
-import {
+  canonicalizePiSettingsHint,
+  DIALOG_CLOSE_SHORTCUT_HINT,
   PINNED_PI_LAYOUT,
+  getPiSelectListTheme,
+  paintPiBorder,
   piTheme,
+  renderPiModalShortcutHints,
 } from "./theme.js";
 import {
   componentFromPort,
@@ -69,13 +54,21 @@ export { createPiShellSkillsSelector, type PiShellSkillsSelectorOptions } from "
 export function createPiShellSelector(options: PiShellSelectorOptions): PiShellComponentPort {
   ensureTheme();
   const items = options.options.map(toSelectItem);
-  const list = new SelectList(items, options.maxVisible ?? Math.min(PINNED_PI_LAYOUT.selectorMaxVisible, Math.max(1, items.length)), getSelectListTheme());
+  const list = new SelectList(items, options.maxVisible ?? Math.min(PINNED_PI_LAYOUT.selectorMaxVisible, Math.max(1, items.length)), getPiSelectListTheme());
   if (options.onSelect !== undefined) list.onSelect = item => options.onSelect?.(item.value);
   if (options.onCancel !== undefined) list.onCancel = options.onCancel;
-  if (!options.title) return componentPort(list);
+  if (!options.title && options.onCancel === undefined) return componentPort(list);
   const container = new Container();
-  container.addChild(new Text(piTheme().fg("accent", piTheme().bold(options.title)), PINNED_PI_LAYOUT.contentPaddingX, 0));
+  if (options.title) container.addChild(new Text(piTheme().fg("accent", piTheme().bold(options.title)), PINNED_PI_LAYOUT.contentPaddingX, 0));
   container.addChild(list);
+  if (options.onCancel !== undefined) {
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(renderPiModalShortcutHints([
+      { key: "↑↓", action: "navigate" },
+      { key: "enter", action: "select" },
+      DIALOG_CLOSE_SHORTCUT_HINT,
+    ]), 0, 0));
+  }
   return componentPort(container, data => list.handleInput(data));
 }
 
@@ -124,12 +117,24 @@ export function createPiShellSettingsSelector(options: PiShellSettingsSelectorOp
     onFullscreenExitOutputChange: change("onFullscreenExitOutputChange"),
     onFullscreenScrollbarChange: change("onFullscreenScrollbarChange"),
     onFullscreenCopyOnSelectChange: change("onFullscreenCopyOnSelectChange"),
+    onFullscreenWheelScrollLinesChange: change("onFullscreenWheelScrollLinesChange"),
     onWarningsChange: change("onWarningsChange"),
     onCancel: options.onCancel,
   };
   const selector = new SettingsSelectorComponent(options.config, callbacks);
   const settingsList = selector.getSettingsList();
-  return componentPort(selector, data => settingsList.handleInput(data));
+  const port = componentPort(selector, data => settingsList.handleInput(data));
+  return {
+    ...port,
+    // Rationale: Pi's nested settings components own their hint rows and do not expose hint entries.
+    // Rebuild only the footer row so the canonical close entry survives narrow clipping.
+    render(width) {
+      const rows = [...port.render(width)];
+      const hintIndex = rows.length - 2;
+      if (rows[hintIndex] !== undefined) rows[hintIndex] = canonicalizePiSettingsHint(rows[hintIndex], width);
+      return rows;
+    },
+  };
 }
 
 type PiModelSelectorArguments = ConstructorParameters<typeof ModelSelectorComponent>;
@@ -320,6 +325,7 @@ export function createPiShellUserMessageSelector(
     initialSelectedId,
   );
   const list = selector.getMessageList();
+  addPiModalSelectFooter(selector);
   adoptPiModalFrame(selector, { topIndex: 4, bottomIndex: selector.children.length - 1 });
   return componentPort(selector, data => list.handleInput(data));
 }
@@ -345,6 +351,12 @@ export function createPiShellLoginDialog(
   ensureTheme();
   const dialog = new LoginDialogComponent(createTuiFacade(runtime), providerId, onComplete, providerName, title);
   const preInsetTitle = dialog.children[1]!;
+  const content = dialog.children[2] as Container;
+  dialog.children.splice(dialog.children.length - 1, 0,
+    new Spacer(1),
+    new Text(renderPiModalShortcutHints([DIALOG_CLOSE_SHORTCUT_HINT]), 0, 0),
+  );
+  const removeDependencyHint = (): void => { content.children.pop(); };
   const header = adoptPiModalHeader(dialog, 0, 1);
   adoptPiModalFrame(dialog, {
     topIndex: 0,
@@ -356,11 +368,23 @@ export function createPiShellLoginDialog(
     ...componentPort(dialog),
     showAuth: (url, instructions) => dialog.showAuth(url, instructions),
     showDeviceCode: info => dialog.showDeviceCode(info),
-    showManualInput: message => dialog.showManualInput(message),
-    showPrompt: (message, placeholder) => dialog.showPrompt(message, placeholder),
+    showManualInput(message) {
+      const result = dialog.showManualInput(message);
+      removeDependencyHint();
+      return result;
+    },
+    showPrompt(message, placeholder) {
+      const result = dialog.showPrompt(message, placeholder);
+      removeDependencyHint();
+      return result;
+    },
     showDetails: lines => dialog.showDetails([...lines]),
-    showInfo: (message, links = [], showCloseHint = false) => dialog.showInfo(message, [...links], showCloseHint),
-    showWaiting: message => dialog.showWaiting(message),
+    // Rationale: The persistent canonical footer replaces the dependency's optional close hint.
+    showInfo: (message, links = []) => dialog.showInfo(message, [...links], false),
+    showWaiting(message) {
+      dialog.showWaiting(message);
+      removeDependencyHint();
+    },
     showProgress: message => dialog.showProgress(message),
   };
 }
@@ -372,45 +396,19 @@ export function createPiShellArmin(
   return componentPort(new ArminComponent(createTuiFacade(runtime)));
 }
 
-export function createPiShellDaxnuts(
-  runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
-): PiShellComponentPort {
-  ensureTheme();
-  return componentPort(new DaxnutsComponent(createTuiFacade(runtime)));
-}
-
 export function createPiShellEarendilAnnouncement(): PiShellComponentPort {
   ensureTheme();
   return componentPort(new EarendilAnnouncementComponent());
 }
 
-export interface PiShellOperationLoaderPort extends PiShellComponentPort {
-  readonly signal: AbortSignal;
-}
-
-export function createPiShellOperationLoader(
-  runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
-  message: string,
-): PiShellOperationLoaderPort {
-  ensureTheme();
-  const loader = new BorderedLoader(createTuiFacade(runtime), piTheme(), message, { cancellable: true });
-  adoptPiModalFrame(loader, {
-    topIndex: 0,
-    bottomIndex: loader.children.length - 1,
-    preInsetContent: loader.children[3] === undefined ? [] : [loader.children[3]],
-  });
-  return { ...componentPort(loader), signal: loader.signal };
-}
-
 export function createPiShellReloadBox(): PiShellComponentPort {
   ensureTheme();
   const container = new Container();
-  const borderColor = (text: string) => piTheme().fg("border", text);
-  container.addChild(new DynamicBorder(borderColor));
+  container.addChild(new DynamicBorder(paintPiBorder));
   container.addChild(new Spacer(1));
   container.addChild(new Text(piTheme().fg("muted", "Reloading keybindings, extensions, skills, prompts, themes, and context files..."), 0, 0));
   container.addChild(new Spacer(1));
-  container.addChild(new DynamicBorder(borderColor));
+  container.addChild(new DynamicBorder(paintPiBorder));
   adoptPiModalFrame(container, { topIndex: 0, bottomIndex: container.children.length - 1 });
   return componentPort(container);
 }
@@ -441,6 +439,7 @@ export function createPiShellAuthProviderSelector(
     const selected = providers.find(provider => provider.providerId === providerId && provider.authType === authType);
     if (selected) onSelect(selected.id);
   }, onCancel, initialSearchInput);
+  addPiModalSelectFooter(selector);
   const preInsetContent = [selector.children[2]!, selector.children[6]!];
   const header = adoptPiModalHeader(selector, 0, 2);
   adoptPiModalFrame(selector, {
@@ -459,16 +458,7 @@ export function createPiShellExtensionSelector(
   onCancel: () => void,
 ): PiShellComponentPort {
   ensureTheme();
-  const selector = new ExtensionSelectorComponent(title, [...options], onSelect, onCancel);
-  const preInsetContent = [selector.children[2]!, selector.children[4]!, selector.children[6]!];
-  const header = adoptPiModalHeader(selector, 0, 2);
-  adoptPiModalFrame(selector, {
-    topIndex: 0,
-    bottomIndex: selector.children.length - 1,
-    header,
-    preInsetContent,
-  });
-  return componentPort(selector);
+  return componentPort(new ExtensionSelectorComponent(title, [...options], onSelect, onCancel));
 }
 
 export function createPiShellThemeSelector(
@@ -480,6 +470,7 @@ export function createPiShellThemeSelector(
   ensureTheme();
   const selector = new ThemeSelectorComponent(currentTheme, onSelect, onCancel, onPreview);
   const list = selector.getSelectList();
+  addPiModalSelectFooter(selector);
   adoptPiModalFrame(selector, { topIndex: 0, bottomIndex: selector.children.length - 1 });
   return componentPort(selector, data => list.handleInput(data));
 }
@@ -492,6 +483,7 @@ export function createPiShellShowImagesSelector(
   ensureTheme();
   const selector = new ShowImagesSelectorComponent(currentValue, onSelect, onCancel);
   const list = selector.getSelectList();
+  addPiModalSelectFooter(selector);
   adoptPiModalFrame(selector, { topIndex: 0, bottomIndex: selector.children.length - 1 });
   return componentPort(selector, data => list.handleInput(data));
 }

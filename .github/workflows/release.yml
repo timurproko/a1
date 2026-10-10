@@ -1,0 +1,136 @@
+name: Publish stable release
+run-name: Publish stable release ${{ github.event.release.tag_name }}
+
+# Choosing native Publish release on the prepared draft is the only stable npm trigger.
+# GitHub creates the tag at the draft's bound source and runs this file from that tag;
+# the trusted publisher re-derives and verifies every identity from develop code.
+on:
+  release:
+    types: [published]
+
+permissions:
+  actions: read
+  contents: write
+  id-token: write
+
+jobs:
+  identify:
+    name: Identify the published stable Release
+    if: github.event.release.prerelease == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.identify.outputs.version }}
+      release_id: ${{ steps.identify.outputs.release_id }}
+    steps:
+      - name: Derive the version from the published tag
+        id: identify
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+          RELEASE_ID: ${{ github.event.release.id }}
+        run: |
+          set -euo pipefail
+          # Invariant: BASH_REMATCH belongs to the last =~ test, so the version is captured before the id is checked.
+          if [[ ! "$TAG_NAME" =~ ^v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]]; then
+            echo "::error::published Release $RELEASE_ID tag '$TAG_NAME' is not a stable vX.Y.Z tag" >&2
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}"
+          if [[ ! "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::published Release id '$RELEASE_ID' is invalid" >&2
+            exit 1
+          fi
+          printf 'version=%s\nrelease_id=%s\n' "$version" "$RELEASE_ID" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish the exact stable release
+    needs: identify
+    uses: timurproko/a1/.github/workflows/publish.yml@develop
+    with:
+      channel: stable
+      version: ${{ needs.identify.outputs.version }}
+      release_id: ${{ needs.identify.outputs.release_id }}
+    secrets: inherit
+
+  rollback:
+    name: Return an unpublished Release to draft
+    needs: [identify, publish]
+    if: always() && needs.identify.result == 'success' && needs.publish.result != 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Mint the tag-rollback identity
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.OPENSPEC_ARCHIVE_APP_ID }}
+          private-key: ${{ secrets.OPENSPEC_ARCHIVE_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: develop
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - name: Return to draft and delete the unconsumed tag only while npm is untouched
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_TOKEN: ${{ steps.app.outputs.token }}
+          RELEASE_ID: ${{ needs.identify.outputs.release_id }}
+          RELEASE_VERSION: ${{ needs.identify.outputs.version }}
+        run: node scripts/release/rollback-publication.mjs
+
+  reopen:
+    name: Prepare manual development reopening
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Mint the proposal identity
+        id: proposal-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.OPENSPEC_ARCHIVE_APP_ID }}
+          private-key: ${{ secrets.OPENSPEC_ARCHIVE_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: develop
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ steps.proposal-token.outputs.token }}
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: approved-release-note-${{ github.run_id }}
+          path: .artifacts/release-finalization
+      - name: Create or verify the exact reopening pull request
+        id: reopen
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.proposal-token.outputs.token }}
+          RELEASE_VERSION: ${{ needs.publish.outputs.version }}
+          SOURCE_SHA: ${{ needs.publish.outputs.source }}
+          RELEASE_NOTES_SHA256: ${{ needs.publish.outputs.release_notes_sha256 }}
+          APPROVED_NOTE_PATH: .artifacts/release-finalization/approved-note.md
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node scripts/release/prepare-reopening.mjs
+      - name: Report reopening integration
+        shell: bash
+        env:
+          PR_URL: ${{ steps.reopen.outputs.url }}
+        run: echo "Stable publication is complete. $PR_URL auto-merges once required CI passes on its current head; merge it manually only if documentation auto-merge reports it ineligible." >> "$GITHUB_STEP_SUMMARY"

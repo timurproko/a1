@@ -1,10 +1,15 @@
-import { acceptsTranscriptUpdate } from "../../contracts/owned-ui/index.js";
+import { acceptsTranscriptUpdate, ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type {
-  OwnedUiCommand,
-  OwnedUiDialog,
+  OwnedUiBackgroundSettingsPort,
+  OwnedUiExtensionResourceSummary,
+  OwnedUiExtensionSourceSummary,
   OwnedUiPromptSuggestionGeneratorPort,
+  OwnedUiSessionBackend,
+  OwnedUiSessionPresenters,
   OwnedUiSessionViewModel,
-  OwnedUiThinkingLevel,
+  OwnedUiTranscriptRendererPort,
+  OwnedUiWorkflowMessage,
+  OwnedUiWorkflowResult,
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
   OwnedUiQuitOutroSettingsPort,
@@ -36,23 +41,7 @@ import type {
   TranscriptViewportFrameInput,
   TranscriptViewportTheme,
 } from "../../ui/components/transcript-viewport.js";
-import { PINNED_PI_HIDDEN_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../integrations/pi/engine/workflows.js";
-import type {
-  AdapterCommandResult,
-  OwnedPiExtensionResourceSummary,
-  OwnedPiExtensionSourceSummary,
-  PiEngineAdapter,
-} from "../../integrations/pi/engine/adapter.js";
-import type {
-  PiWorkflowInteractionRequest,
-  PiWorkflowLoginNotification,
-  PiWorkflowLoginStart,
-  PiWorkflowMessage,
-  PiWorkflowRequest,
-  PiWorkflowResult,
-  PiWorkflowRoute,
-} from "../../integrations/pi/engine/workflows.js";
-import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../../integrations/pi/components/shell-extension-ui.js";
+import type { PiShellLazySelectorLoader } from "../../integrations/pi/components/lazy-selectors.js";
 import { createPiShellEditor } from "../../integrations/pi/components/shell-editor-autocomplete.js";
 import {
   createPiQueuedInputStatus,
@@ -63,24 +52,7 @@ import {
 } from "../../integrations/pi/components/shell-footer-status.js";
 import {
   createPiShellArmin,
-  createPiShellAuthProviderSelector,
-  createPiShellDaxnuts,
-  createPiShellDialog,
   createPiShellEarendilAnnouncement,
-  createPiShellExtensionSelector,
-  createPiShellLoginDialog,
-  createPiShellModelSelector,
-  createPiShellOperationLoader,
-  createPiShellReloadBox,
-  createPiShellScopedModelsSelector,
-  createPiShellSelector,
-  createPiShellSessionSelector,
-  createPiShellSettingsSelector,
-  createPiShellTreeSelector,
-  createPiShellTrustSelector,
-  createPiShellUserMessageSelector,
-  type PiShellLoginDialogPort,
-  type PiShellScopedModelsSelectorPort,
 } from "../../integrations/pi/components/shell-selectors-dialogs.js";
 import {
   createPiShellChangelog,
@@ -88,14 +60,17 @@ import {
   createPiShellHotkeys,
   createPiShellSessionInfo,
   renderPiShellCommandMessage,
+  renderPiShellPackageUpdateNotice,
+  renderPiShellReleaseUpdateBanner,
+  renderPiShellReleaseUpdateNotice,
   renderPiShellStatusText,
+  type PiShellReleaseUpdateBanner,
   type PiShellHotkeysPresentation,
 } from "../../integrations/pi/components/shell-presenters-info.js";
 import {
   createPiShellTranscriptComponent,
   isPiPromptStyleCompaction,
   paintPiSubmittedPromptTimestamp,
-  renderPiShellPackageUpdateNotice,
   renderPiShellStartupDiagnostic,
   renderPiShellTranscriptBlock,
   type PiShellSubmittedPromptComposer,
@@ -107,15 +82,14 @@ import {
   piShellVisibleWidth,
   type PiShellClipboardContent,
   type PiShellComponentPort,
+  type PiKeybindingsHost,
   type PiShellEditorPort,
-  type PiShellExtensionRendererResolver,
   type PiShellHeaderOptions,
   type PiShellHeaderPort,
   type PiShellImageAssetResolver,
   type PiShellLoadedResourcesPort,
   type PiShellQueuedInputPort,
   type PiShellResourceEntry,
-  type PiShellSelectorOption,
   type PiShellStatusPort,
   type PiShellTranscriptComponentPort,
   type PiShellViewComponentPort,
@@ -129,20 +103,19 @@ import type {
   PiTuiComponentPort,
   PiTuiInputDiagnosticsEvent,
   PiTuiLayoutNode,
-  PiTuiOverlayHandle,
   PiTuiTerminalPort,
 } from "../../integrations/pi/tui-runtime/contracts.js";
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
 import type { PastePreparationClientOptions } from "./paste-preparation-client.js";
+import type { OwnedUiClipboardServices } from "./clipboard-services.js";
 import { EditorHyperlinkBudget } from "./editor-hyperlink-budget.js";
-import { SessionViewportController, type SessionViewportInputResult } from "./session-viewport-controller.js";
+import { SessionViewportController, type SessionViewportInputResult, type TailControlRegion } from "./session-viewport-controller.js";
 import type { ResponseCopyExecutor } from "./response-copy-transport.js";
 import type { ResponseCopyEvent } from "./response-copy-protocol.js";
 import type { PasteEvent, PasteSource } from "./paste-protocol.js";
 import { canPreparePasteInline } from "./paste-text-preparation.js";
 import type { StreamPresentationScheduler } from "./stream-presentation-coalescer.js";
 
-export type OwnedUiBackendPort = PiEngineAdapter;
 export type OwnedUiTerminalPort = PiTuiTerminalPort;
 type OwnedUiStartupOptions = PiShellHeaderOptions;
 
@@ -154,7 +127,7 @@ export interface OwnedUiClipboardPort {
 
 /** The engine session the shell presents and the composition's decisions about it. */
 export interface OwnedUiShellEngineOptions {
-  readonly backend: OwnedUiBackendPort;
+  readonly backend: OwnedUiSessionBackend;
   readonly cwd: string;
   /**
    * Declared A1-owned routes. A route this host claims resolves to its app;
@@ -177,6 +150,8 @@ export interface OwnedUiShellPresentationOptions {
   readonly startup?: OwnedUiStartupOptions;
   /** Live profile-local settings, supplied only to the bare-A1 composition. */
   readonly viewportSettings?: OwnedUiViewportSettingsPort;
+  /** Live fullscreen canvas choice, supplied only to the bare-A1 composition. */
+  readonly backgroundSettings?: OwnedUiBackgroundSettingsPort;
   /** Deterministic scheduling seam for presentation-cadence tests. */
   readonly stream?: {
     readonly intervalMs?: number;
@@ -245,6 +220,14 @@ export interface OwnedUiShellDiagnosticOptions {
   readonly paste?: (event: PasteEvent) => void;
   /** Test seams for isolated paste preparation: an in-process starter, or the forked helper's entry. */
   readonly pastePreparation?: Omit<PastePreparationClientOptions, "onEvent" | "spareIdleMs">;
+  /** Test seam for pending and failed optional selector-module preparation. */
+  readonly lazySelectors?: PiShellLazySelectorLoader;
+}
+
+/** Live prompt-image admission policy supplied only by the bare-A1 profile. */
+export interface OwnedUiShellPromptImagesOptions {
+  readonly limit: () => number;
+  readonly onChange: (listener: () => void) => () => void;
 }
 
 /** The skills presentation choice: collapse the per-skill commands into one skills command or expand them. */
@@ -253,15 +236,27 @@ export interface OwnedUiShellSkillsOptions {
   readonly onChange: (listener: () => void) => () => void;
 }
 
+/** Process-wide services composition creates once and every session shell borrows; absent, a shell keeps private ones. */
+export interface OwnedUiShellSharedServices {
+  readonly clipboard?: OwnedUiClipboardServices;
+  /** Must match the shell's layout: the owned-input profile for the custom viewport, Pi's otherwise. */
+  readonly keybindings?: PiKeybindingsHost;
+}
+
 /** What composes an owned session shell, grouped by the collaborator that provides each part. */
 export interface OwnedUiSessionShellOptions {
   readonly engine: OwnedUiShellEngineOptions;
+  /** Opens the selectors and resolves the transcript renderers whose inputs are engine objects. */
+  readonly presenters: OwnedUiSessionPresenters;
   readonly presentation?: OwnedUiShellPresentationOptions;
   readonly history?: OwnedUiShellHistoryOptions;
   readonly suggestions?: OwnedUiShellSuggestionOptions;
+  /** Supplied only to bare A1; absent retains the fixed eight-image comparison policy. */
+  readonly promptImages?: OwnedUiShellPromptImagesOptions;
   /** Supplied only to the bare-A1 composition; absent keeps the pinned per-skill command list. */
   readonly skills?: OwnedUiShellSkillsOptions;
   readonly diagnostics?: OwnedUiShellDiagnosticOptions;
+  readonly shared?: OwnedUiShellSharedServices;
 }
 
 /** Composes backend session state into the owned transcript, viewport, editor, and dock presentation. */
@@ -281,7 +276,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #status: PiShellStatusPort;
   readonly #footer: PiShellViewComponentPort;
   readonly #queued: PiShellQueuedInputPort;
-  readonly #extensionRenderers: PiShellExtensionRendererResolver;
+  readonly #extensionRenderers: OwnedUiTranscriptRendererPort;
   readonly #imageAssets: PiShellImageAssetResolver | undefined;
   readonly #promptChips: PromptChipStore;
   readonly #editorHyperlinks = new EditorHyperlinkBudget();
@@ -293,6 +288,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #viewportTheme: TranscriptViewportTheme;
   readonly #onViewportFrame: ((frame: TranscriptViewportFrame) => void) | undefined;
   readonly #onInputSurfaceChanged: (() => void) | undefined;
+  readonly #onPromptSuggestionEligibilityChanged: (() => void) | undefined;
   readonly #componentRuntime: {
     readonly getColumns: () => number;
     readonly getRows: () => number;
@@ -310,7 +306,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #workflowStatusMessages = new Map<string, string>();
   #lastWorkflowStatusId: string | undefined;
   // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.
-  #dockNotice: { readonly kind: "status" | "warning" | "error"; readonly message: string } | undefined;
+  #dockNotice: {
+    readonly kind: "status" | "warning" | "error" | "new-session";
+    readonly message: string;
+    readonly errorCode?: ImageAttachmentError["code"];
+  } | undefined;
+  // Invariant: bare A1 docks the release notice above the live status; closing it lasts for this session only.
+  #releaseNoticeDismissed = false;
+  #releaseCloseTarget: TailControlRegion | undefined;
   #copyAcknowledgement: string | undefined;
   #copyAcknowledgementTimer: ReturnType<typeof setTimeout> | undefined;
   #inputSurface: PiShellComponentPort;
@@ -340,6 +343,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #extensionStatuses = new Map<string, string>();
   #extensionWorkingMessage: string | undefined;
   #extensionWorkingVisible = true;
+  #imageSubmissionsSending = 0;
 
   constructor(
     view: OwnedUiSessionViewModel,
@@ -368,18 +372,22 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly onEditorChange?: (text: string) => void;
       readonly onPromptSuggestionAccepted?: (text: string) => void;
       readonly onInputSurfaceChanged?: () => void;
+      readonly onPromptSuggestionEligibilityChanged?: () => void;
       readonly onCopyText?: (text: string) => void;
       readonly readClipboardContent?: (signal?: AbortSignal) => Promise<PiShellClipboardContent | null>;
       readonly captureClipboardPaste?: () => PasteSource;
       readonly pasteDiagnostics?: (event: PasteEvent) => void;
       readonly pastePreparation?: Omit<PastePreparationClientOptions, "onEvent">;
+      readonly keybindings?: PiKeybindingsHost;
+      readonly promptImageLimit?: () => number;
       readonly skillsPresentation?: () => "collapse" | "expand";
     },
     startup: PiShellHeaderOptions = {},
     agentDir?: string,
-    extensionRenderers: PiShellExtensionRendererResolver = {
+    extensionRenderers: OwnedUiTranscriptRendererPort = {
       getMessageRenderer: () => undefined,
-      getToolDefinition: () => undefined,
+      getToolRenderers: () => undefined,
+      getShortcuts: () => [],
     },
     sessionLayout: "pinned" | "custom-viewport" = "pinned",
     imageAssets?: PiShellImageAssetResolver,
@@ -388,7 +396,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#customViewport = sessionLayout === "custom-viewport";
     this.#promptChips = new PromptChipStore({ isolated: this.#customViewport,
       ...(handlers.pasteDiagnostics === undefined ? {} : { onEvent: handlers.pasteDiagnostics }),
-      ...(handlers.pastePreparation === undefined ? {} : { preparation: handlers.pastePreparation }) });
+      ...(handlers.pastePreparation === undefined ? {} : { preparation: handlers.pastePreparation }),
+      ...(handlers.promptImageLimit === undefined ? {} : { imageLimit: handlers.promptImageLimit }) });
     this.#submittedPromptComposer = this.#customViewport
       ? {
           layout: submittedPromptLayout,
@@ -402,6 +411,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#componentRuntime = handlers;
     this.#onViewportFrame = handlers.onViewportFrame;
     this.#onInputSurfaceChanged = handlers.onInputSurfaceChanged;
+    this.#onPromptSuggestionEligibilityChanged = handlers.onPromptSuggestionEligibilityChanged;
     this.#dockInputReuseEnabled = handlers.enableDockInputReuse ?? true;
     this.header = createPiShellHeader({
       ...startup,
@@ -417,6 +427,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.editor = createPiShellEditor({
       ...handlers,
       keybindingProfile: this.#customViewport ? "a1" : "pi",
+      ...(handlers.keybindings === undefined ? {} : { keybindings: handlers.keybindings }),
       paintEditorSelection: (line, from, to, atomic) => backgroundSgrSpan(
         line,
         from,
@@ -459,14 +470,22 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       decorateEditorRow: (row, width, rowIndex) => {
         if (rowIndex === 0) this.#editorHyperlinks.reset();
         const plain = stripAnsi(row);
+        const dimmed = this.#promptChips.unsentRanges(plain).reduce((result, range) => backgroundSgrSpan(
+          result,
+          piShellVisibleWidth(plain.slice(0, range.start)),
+          piShellVisibleWidth(plain.slice(0, range.end)),
+          "\u001b[2m",
+          "\u001b[22m",
+          piShellVisibleWidth,
+        ), row);
         const ranges = this.#promptChips.hyperlinkRanges(plain);
-        if (ranges.length === 0 || !this.#editorHyperlinks.takeCleanup()) return row;
-        const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(row)))}`;
+        if (ranges.length === 0 || !this.#editorHyperlinks.takeCleanup()) return dimmed;
+        const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(dimmed)))}`;
         // Platform: VS15 is zero-column and default-ignorable. It breaks Windows Terminal's
         // plain-text URL detector only in the held-button paint; semantic text stays exact.
         const paintRow = this.#viewportController.editorPointerSelecting
-          ? row.replaceAll("https://", "https:\uFE0E//").replaceAll("http://", "http:\uFE0E//")
-          : row;
+          ? dimmed.replaceAll("https://", "https:\uFE0E//").replaceAll("http://", "http:\uFE0E//")
+          : dimmed;
         const decorated = this.#viewportController.editorPointerSelecting
           ? ranges.reduce((result, range) => backgroundSgrSpan(
               result,
@@ -482,7 +501,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
               piShellVisibleWidth(plain.slice(0, range.end)),
               range.target,
               piShellVisibleWidth,
-            ), row);
+            ), dimmed);
         // Platform: Windows Terminal can retain stale native dotted-link cells when a mutable
         // prompt replaces a longer URL. Explicit non-link spaces overwrite that tail.
         return `${decorated}${linkResetAndTail}`;
@@ -533,7 +552,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         piTheme().fg("text", withoutTerminalBackground(text)),
       ),
       quietSticky: text => `\u001b[2m${text.replace(/\u001b\[(?:0|22)m/g, "$&\u001b[2m")}\u001b[22m`,
-      bottomControl: (text, hovered) => piTheme().bg(hovered ? "selectedBg" : "toolPendingBg", piTheme().fg("text", text)),
+      bottomControl: (text, hovered) => piTheme().bg(
+        hovered ? "selectedBg" : "toolPendingBg",
+        piTheme().fg("text", text),
+      ),
       selection: (line, from, to) => backgroundSgrSpan(
         line,
         from,
@@ -551,8 +573,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     // Invariant: colours come from the active theme, so rendered rows outlive their revision only
     // until the theme under them changes.
     this.#themeUnsubscribe = onPiThemeChange(() => {
-      this.#renderedRows.clear();
-      this.#documentLayouts.clear();
+      this.invalidate();
+      this.#componentRuntime.requestRender(true);
     });
   }
 
@@ -599,6 +621,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#promptChips.prepareHistoryText(text);
   }
 
+  omitUnsentPromptImages(text: string): string {
+    return this.#promptChips.omitUnsentImages(text);
+  }
+
   rehydrateHistoryText(text: string, resolveImage: (id: string) => import("../../contracts/owned-ui/index.js").PromptHistoryImageSidecarAttachment | null): string {
     return this.#promptChips.rehydrateHistoryText(text, resolveImage);
   }
@@ -609,6 +635,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   preparePromptSubmission(text: string): PreparedPrompt {
     return this.#promptChips.prepareSubmission(text);
+  }
+
+  reconcilePromptImageLimitNotice(text: string = this.editor.getText()): boolean {
+    if (this.#dockNotice?.errorCode !== "image-count" || !this.#promptChips.imageLimitState(text).corrected) return false;
+    this.dismissNotice();
+    return true;
   }
 
   hasPendingPastes(text: string): boolean { return this.#promptChips.hasPending(text); }
@@ -654,11 +686,20 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   update(view: OwnedUiSessionViewModel): void {
+    const becameReady = this.#view.lifecycle !== "ready" && view.lifecycle === "ready";
     if (view.diagnostics.length !== this.#view.diagnostics.length
       || view.diagnostics.some((diagnostic, index) => diagnostic.sequence !== this.#view.diagnostics[index]?.sequence)) {
       this.#documentLayouts.clear();
     }
+    const promptAccepted = this.#view.lifecycle !== "busy" && view.lifecycle === "busy";
     this.#view = view;
+    // Invariant: the idle new-session confirmation yields to the first truthful live status;
+    // ordinary dock notices deliberately remain visible below Working during a run.
+    if (promptAccepted && this.#dockNotice?.kind === "new-session") this.#dockNotice = undefined;
+    if (promptAccepted && this.#imageSubmissionsSending > 0) {
+      this.#imageSubmissionsSending = 0;
+      this.#syncWorkingOverride();
+    }
     this.#status.update(view);
     this.#footer.update(this.#viewWithExtensionStatuses(view));
     this.#queued.update(view.editor.queuedSubmissions);
@@ -667,6 +708,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.editor.setThinkingLevel(view.thinkingLevel);
     // Performance: semantic updates already invalidate affected transcript blocks. Chrome is a separate authority.
     this.#invalidateChrome();
+    if (becameReady) this.#onPromptSuggestionEligibilityChanged?.();
   }
 
   /**
@@ -696,7 +738,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #mountTranscript(block: OwnedUiSessionViewModel["transcript"][number]): PiShellTranscriptComponentPort {
     // Invariant: the notice answers the reader's last command, so only their next prompt or
     // shell command retires it; assistant, tool, and compaction blocks streaming in keep it.
-    if (block.kind === "user" || block.kind === "bash") this.#dismissDockNotice();
+    if (block.kind === "user" || block.kind === "bash") this.dismissNotice();
     const created = createPiShellTranscriptComponent(
       block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
       this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
@@ -731,7 +773,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       : Math.max(1, width - 1);
     const document = this.#renderDocumentLayout(documentWidth);
     const steeringRows = this.#renderQueued(documentWidth);
-    const statusRows = this.#renderStatus(documentWidth);
+    const releaseBanner = this.#renderReleaseBanner(documentWidth);
+    // Rationale: the release notice rides the bottom-aligned tail directly above Working, so it
+    // never displaces transcript content and scrolls away with the live status.
+    // Invariant: when idle the banner's last row sits on the line Working would occupy.
+    const statusRows = [...releaseBanner?.rows ?? [], ...this.#renderStatus(documentWidth)];
     const transientSignature = transientRowsSignature(steeringRows, statusRows);
     const snapshot = this.#visibleViewportSnapshot;
     // Invariant: paint-only feedback may cover either viewport or dock cells, so
@@ -777,13 +823,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     if (frame === null) {
       frame = this.#viewportController.compose({
         // Performance: do not copy the complete document on unchanged dock-only input.
-        // Steering and Working retain their one non-selectable viewport-tail ownership.
+        // Steering and Working retain their one non-persistent viewport-tail ownership.
         documentRows: [...document.rows, ...steeringRows, ...statusRows],
         ...(this.#viewportController.transcriptPointerSelecting
           ? { paintDocumentRow: heldNativeHyperlinkStyle }
           : {}),
-        // Invariant: selection and copying stop at the real document tail; Steering,
-        // fitting alignment, and live Working remain transient presentation chrome.
+        // Invariant: this boundary tracks persistent transcript rows for streaming and
+        // geometry; transient Steering and Working rows remain complete-frame selectable.
         selectableDocumentRowCount,
         ...(document.liveTailStartRow === undefined ? {} : { liveTailStartRow: document.liveTailStartRow }),
         bottomAlignedTailRowCount: steeringRows.length + statusRows.length,
@@ -804,6 +850,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       });
       this.#fullViewportCompositions += 1;
     } else this.#dockOnlyViewportCompositions += 1;
+    this.#locateReleaseClose(frame, releaseBanner, document.rows.length + steeringRows.length + statusRows.length, statusRows.length);
     this.#visibleViewportSnapshot = {
       width,
       height,
@@ -846,7 +893,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     };
   }
 
-  /** Visible non-selectable Steering, alignment, and Working rows, for rendering evidence. */
+  /** Visible non-persistent Steering, alignment, and Working rows, for rendering evidence. */
   viewportTransientTailRowCount(): number {
     return this.#viewportController.frame?.hits.transientTail.length ?? 0;
   }
@@ -962,6 +1009,37 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     if (requestRender) this.#componentRuntime.requestRender();
   }
 
+  #renderReleaseBanner(width: number): PiShellReleaseUpdateBanner | undefined {
+    if (this.#releaseNoticeDismissed) return undefined;
+    const diagnostic = this.#view.diagnostics.findLast(item => item.code === "release-update");
+    const release = diagnostic === undefined ? null : parseReleaseUpdateDiagnostic(diagnostic.message);
+    if (release === null) return undefined;
+    return renderPiShellReleaseUpdateBanner(release, width, this.#viewportController.tailControlHovered(this.#releaseCloseTarget));
+  }
+
+  #locateReleaseClose(
+    frame: TranscriptViewportFrame,
+    banner: PiShellReleaseUpdateBanner | undefined,
+    tailEnd: number,
+    tailLength: number,
+  ): void {
+    // Invariant: the tail is the document suffix, so the control's document row is fixed relative to its
+    // end; alignment gap rows precede it and the viewport scroll decides whether it is on screen.
+    const bannerStart = tailEnd + frame.descriptor.transientAlignmentGapRows - tailLength - frame.scrollTop + 1;
+    const rowStart = banner === undefined ? 0 : Math.max(1, bannerStart + banner.close.rowStart);
+    const rowEnd = banner === undefined ? 0 : Math.min(frame.hits.viewportHeight, bannerStart + banner.close.rowEnd);
+    this.#releaseCloseTarget = banner !== undefined && rowStart <= rowEnd
+      ? { rowStart, rowEnd, columnStart: banner.close.columnStart, columnEnd: banner.close.columnEnd }
+      : undefined;
+    this.#viewportController.setTailControl(this.#releaseCloseTarget === undefined ? undefined : {
+      ...this.#releaseCloseTarget,
+      activate: () => {
+        this.#releaseNoticeDismissed = true;
+        this.#releaseCloseTarget = undefined;
+      },
+    });
+  }
+
   #renderDockNotice(width: number): readonly string[] {
     const notice = this.#dockNotice;
     if (notice === undefined) return [];
@@ -969,10 +1047,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       // Compatibility: Pi pads its status text by one cell regardless of the output pad setting.
       return ["", ...renderPiShellStatusText(notice.message, width, PINNED_PI_LAYOUT.outputPad)];
     }
-    return renderPiShellCommandMessage({ kind: notice.kind, message: notice.message }, width, this.#outputPad);
+    return renderPiShellCommandMessage({
+      kind: notice.kind === "new-session" ? "accent" : notice.kind,
+      message: notice.message,
+    }, width, this.#outputPad);
   }
 
-  #dismissDockNotice(): void {
+  dismissNotice(): void {
     if (this.#dockNotice === undefined) return;
     this.#dockNotice = undefined;
     this.#invalidateChrome();
@@ -982,54 +1063,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
   }
 
-  layoutRoot(): PiTuiLayoutNode {
-    const document = layoutPort(width => this.#renderDocument(width), () => this.invalidate());
-    const queued = layoutPort(width => this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width), () => this.#queued.invalidate());
-    const aboveWidgets = layoutPort(width => this.#renderWidgets("aboveEditor", width), () => this.#invalidateExtensions());
-    const status = layoutPort(width => this.#renderStatus(width), () => this.#status.invalidate());
-    const editor = layoutPort(width => this.#inputSurface.render(width), () => this.#inputSurface.invalidate(), data => this.#inputSurface.handleInput?.(data));
-    const belowWidgets = layoutPort(width => this.#renderWidgets("belowEditor", width), () => this.#invalidateExtensions());
-    const footer = layoutPort(width => this.#renderFooter(width), () => (this.#extensionFooter ?? this.#footer).invalidate());
+  /** The pinned-profile layout regions of this session; the terminal host arranges them with `pinnedLayoutRoot`. */
+  layoutParts(): PinnedLayoutParts {
     return {
-      type: "stack",
-      direction: "vertical",
-      children: [
-        {
-          basis: 0,
-          grow: 1,
-          shrink: 1,
-          minSize: 1,
-          node: {
-            type: "scroll",
-            id: "transcript",
-            follow: "end",
-            primary: true,
-            overscroll: "chain",
-            scrollbar: "auto",
-            scrollbarTrackStyle: text => piTheme().fg("scrollbarTrack", text),
-            scrollbarThumbStyle: text => piTheme().fg("scrollbarThumb", text),
-            child: { type: "component", component: document },
-          },
-        },
-        {
-          basis: "auto",
-          grow: 0,
-          shrink: 1,
-          minSize: 1,
-          node: {
-            type: "stack",
-            direction: "vertical",
-            children: [
-              { shrink: 1, minSize: 0, node: { type: "component", component: queued } },
-              { shrink: 1, minSize: 0, node: { type: "component", component: status } },
-              { shrink: 1, minSize: 0, node: { type: "component", component: aboveWidgets } },
-              { shrink: 1, minSize: 3, node: { type: "component", component: editor } },
-              { shrink: 1, minSize: 0, node: { type: "component", component: belowWidgets } },
-              { shrink: 1, minSize: 1, node: { type: "component", component: footer } },
-            ],
-          },
-        },
-      ],
+      document: layoutPort(width => this.#renderDocument(width), () => this.invalidate()),
+      queued: layoutPort(width => this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width), () => this.#queued.invalidate()),
+      aboveWidgets: layoutPort(width => this.#renderWidgets("aboveEditor", width), () => this.#invalidateExtensions()),
+      status: layoutPort(width => this.#renderStatus(width), () => this.#status.invalidate()),
+      editor: layoutPort(width => this.#inputSurface.render(width), () => this.#inputSurface.invalidate(), data => this.#inputSurface.handleInput?.(data)),
+      belowWidgets: layoutPort(width => this.#renderWidgets("belowEditor", width), () => this.#invalidateExtensions()),
+      footer: layoutPort(width => this.#renderFooter(width), () => (this.#extensionFooter ?? this.#footer).invalidate()),
     };
   }
 
@@ -1096,6 +1139,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         });
       }
     }
+    // Invariant: the A1 release notice precedes the extension-package notice, matching pinned Pi's order.
+    // Bare A1 docks it in the viewport tail instead of the document.
+    rows.push(...diagnostics
+      .filter(diagnostic => !this.#customViewport && diagnostic.code === "release-update")
+      .flatMap(diagnostic => {
+        const release = parseReleaseUpdateDiagnostic(diagnostic.message);
+        return release === null ? [] : renderPiShellReleaseUpdateNotice(release, width);
+      }));
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code === "package-updates")
       .flatMap(diagnostic => renderPiShellPackageUpdateNotice(
@@ -1113,6 +1164,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           : createPiShellChangelog(diagnostic.message).render(width)));
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "project-trust"
+        && diagnostic.code !== "release-update"
         && diagnostic.code !== "package-updates" && diagnostic.code !== "changelog-collapsed"
         && diagnostic.code !== "changelog-expanded")
       .slice(-3)
@@ -1205,13 +1257,17 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#lastWorkflowStatusId = id;
   }
 
-  appendWorkflowMessage(message: PiWorkflowMessage): void {
+  appendWorkflowMessage(message: OwnedUiWorkflowMessage, errorCode?: ImageAttachmentError["code"]): void {
     if (message.kind === "status") {
       this.appendWorkflowStatus(message.message);
       return;
     }
     if (this.#customViewport && (message.kind === "warning" || message.kind === "error")) {
-      this.#dockNotice = { kind: message.kind, message: message.message };
+      this.#dockNotice = {
+        kind: errorCode === "image-count" ? "warning" : message.kind,
+        message: message.message,
+        ...(errorCode === undefined ? {} : { errorCode }),
+      };
       this.#invalidateChrome();
       return;
     }
@@ -1220,9 +1276,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#appendAnchoredWorkflowComponent(width => renderPiShellCommandMessage(presentation, width, this.#outputPad));
   }
 
-  appendWorkflowResult(result: PiWorkflowResult): void {
+  appendWorkflowResult(result: OwnedUiWorkflowResult, errorCode?: ImageAttachmentError["code"]): void {
     if (result.messages !== undefined) {
-      for (const message of result.messages) this.appendWorkflowMessage(message);
+      for (const message of result.messages) this.appendWorkflowMessage(message, errorCode);
       return;
     }
     if (result.messageKind === "silent" || (result.outcome === "cancelled" && result.messageKind === undefined)) return;
@@ -1253,10 +1309,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       this.appendWorkflowMessage({
         kind: result.messageKind === "warning" ? "warning" : "error",
         message: result.message,
-      });
+      }, errorCode);
       return;
     }
     if (result.outcome === "completed" && (result.command === "quit" || result.command === "compact")) return;
+    if (result.outcome === "completed" && result.command === "new" && this.#customViewport) {
+      // Rationale: bare A1 keeps the replacement session visually empty while preserving Pi's accent notice shape.
+      this.#dockNotice = { kind: "new-session", message: result.message };
+      this.#invalidateChrome();
+      return;
+    }
     if (result.outcome === "completed" && (result.command === "new" || result.command === "name" || result.command === "debug")) {
       this.#lastWorkflowStatusId = undefined;
       const presentation = { kind: result.command, message: result.message, ...(result.detail === undefined ? {} : { detail: result.detail }) };
@@ -1280,12 +1342,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ? `${linkShareUrl(result.message)}\nGist: ${piShellHyperlink(result.detail)}`
       : result.message;
     this.appendWorkflowStatus(message);
-  }
-
-  appendDaxnuts(): void {
-    this.#lastWorkflowStatusId = undefined;
-    const daxnuts = createPiShellDaxnuts(this.#componentRuntime);
-    this.#appendAnchoredWorkflowComponent(width => ["", ...daxnuts.render(width)], () => daxnuts.dispose?.());
   }
 
   toggleThinkingVisibility(): void {
@@ -1331,14 +1387,35 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   setExtensionWorking(message: string | undefined, visible = this.#extensionWorkingVisible): void {
     this.#extensionWorkingMessage = message;
     this.#extensionWorkingVisible = visible;
-    this.#status.setWorkingOverride(visible ? message : undefined);
+    this.#syncWorkingOverride();
     this.invalidate();
+  }
+
+  beginImageSubmissionStatus(): () => void {
+    this.#imageSubmissionsSending++;
+    this.#syncWorkingOverride();
+    this.invalidate();
+    let active = true;
+    return () => {
+      if (!active) return;
+      active = false;
+      this.#imageSubmissionsSending = Math.max(0, this.#imageSubmissionsSending - 1);
+      this.#syncWorkingOverride();
+      this.invalidate();
+    };
+  }
+
+  #syncWorkingOverride(): void {
+    const sending = this.#imageSubmissionsSending > 0;
+    this.#status.setWorkingOverride(sending
+      ? "Sending…"
+      : this.#extensionWorkingVisible ? this.#extensionWorkingMessage : undefined, sending);
   }
 
   hotkeysPresentation(): PiShellHotkeysPresentation {
     return {
       bindings: this.editor.keybindingConfig(),
-      getShortcuts: bindings => this.#extensionRenderers.getShortcuts?.(bindings) ?? [],
+      getShortcuts: bindings => this.#extensionRenderers.getShortcuts(bindings),
       profile: this.#customViewport ? "a1" : "pi",
     };
   }
@@ -1367,7 +1444,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#extensionWidgets.clear();
     this.#extensionStatuses.clear();
     this.#extensionWorkingMessage = undefined;
-    this.#status.setWorkingOverride(undefined);
+    this.#syncWorkingOverride();
     this.#footer.update(this.#viewWithExtensionStatuses(this.#view));
     // Invariant: an extension renderer may have drawn transcript blocks that are now unrendered by it.
     this.#renderedRows.clear();
@@ -1464,6 +1541,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   setFocused(focused: boolean): void {
     this.#inputSurface.setFocused?.(focused);
+    if (focused) this.#onPromptSuggestionEligibilityChanged?.();
   }
 
   dispose(): void {
@@ -1539,7 +1617,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   #appendAnchoredWorkflowComponent(render: (width: number) => readonly string[], dispose?: () => void): string {
     // Invariant: transcript-bound workflow output supersedes a pending acknowledgement.
-    this.#dismissDockNotice();
+    this.dismissNotice();
     this.#workflowTranscriptSequence += 1;
     const id = `workflow-status-${this.#workflowTranscriptSequence}`;
     const component: PiShellTranscriptComponentPort = {
@@ -1659,6 +1737,57 @@ function pinnedPromptSourceRow(
   );
 }
 
+export type PinnedLayoutPart = "document" | "queued" | "aboveWidgets" | "status" | "editor" | "belowWidgets" | "footer";
+export type PinnedLayoutParts = Readonly<Record<PinnedLayoutPart, PiTuiComponentPort>>;
+
+/**
+ * The pinned-profile screen: a followed transcript scroll above the dock. The runtime mounts one such layout,
+ * so its single `transcript` scroll view is shared by whichever session the parts currently resolve to.
+ */
+export function pinnedLayoutRoot(parts: PinnedLayoutParts): PiTuiLayoutNode {
+  return {
+    type: "stack",
+    direction: "vertical",
+    children: [
+      {
+        basis: 0,
+        grow: 1,
+        shrink: 1,
+        minSize: 1,
+        node: {
+          type: "scroll",
+          id: "transcript",
+          follow: "end",
+          primary: true,
+          overscroll: "chain",
+          scrollbar: "auto",
+          scrollbarTrackStyle: text => piTheme().fg("scrollbarTrack", text),
+          scrollbarThumbStyle: text => piTheme().fg("scrollbarThumb", text),
+          child: { type: "component", component: parts.document },
+        },
+      },
+      {
+        basis: "auto",
+        grow: 0,
+        shrink: 1,
+        minSize: 1,
+        node: {
+          type: "stack",
+          direction: "vertical",
+          children: [
+            { shrink: 1, minSize: 0, node: { type: "component", component: parts.queued } },
+            { shrink: 1, minSize: 0, node: { type: "component", component: parts.status } },
+            { shrink: 1, minSize: 0, node: { type: "component", component: parts.aboveWidgets } },
+            { shrink: 1, minSize: 3, node: { type: "component", component: parts.editor } },
+            { shrink: 1, minSize: 0, node: { type: "component", component: parts.belowWidgets } },
+            { shrink: 1, minSize: 1, node: { type: "component", component: parts.footer } },
+          ],
+        },
+      },
+    ],
+  };
+}
+
 function layoutPort(
   render: (width: number) => readonly string[],
   invalidate: () => void,
@@ -1671,8 +1800,8 @@ function layoutPort(
   };
 }
 
-export function shellResourceEntries(backend: OwnedUiBackendPort): readonly PiShellResourceEntry[] {
-  const resources: PiShellResourceEntry[] = backend.nonVisualResources().map(resource => ({
+export function shellResourceEntries(backend: OwnedUiSessionBackend): readonly PiShellResourceEntry[] {
+  const resources: PiShellResourceEntry[] = backend.extensions.nonVisualResources().map(resource => ({
     section: resource.kind === "skill"
       ? "Skills"
       : resource.kind === "prompt-template"
@@ -1688,7 +1817,7 @@ export function shellResourceEntries(backend: OwnedUiBackendPort): readonly PiSh
     sourcePath: resource.sourcePath,
     diagnostic: resource.diagnostic,
   }));
-  const extensions = backend.extensionResources().filter(extension => !extension.hidden);
+  const extensions = backend.extensions.extensionResources().filter(extension => !extension.hidden);
   const loadedExtensions = extensions.filter(extension => extension.diagnostic === null);
   const extensionLabels = compactExtensionLabels(loadedExtensions);
   for (const extension of extensions) {
@@ -1715,7 +1844,7 @@ function compactResourceLabel(path: string): string {
  * 914cf1472e715297caa30db4b9535d534a9eb718. The source metadata crosses an
  * A1-owned boundary first; the owned shell never inspects Pi's private root.
  */
-function compactExtensionLabels(extensions: readonly OwnedPiExtensionResourceSummary[]): readonly string[] {
+function compactExtensionLabels(extensions: readonly OwnedUiExtensionResourceSummary[]): readonly string[] {
   const localExtensions = extensions
     .filter(extension => !isPackageExtensionSource(extension.sourceInfo))
     .map(extension => {
@@ -1743,7 +1872,7 @@ function compactExtensionLabels(extensions: readonly OwnedPiExtensionResourceSum
   });
 }
 
-function compactPackageExtensionLabel(resourcePath: string, sourceInfo: OwnedPiExtensionSourceSummary): string {
+function compactPackageExtensionLabel(resourcePath: string, sourceInfo: OwnedUiExtensionSourceSummary): string {
   const sourceLabel = compactPackageSourceLabel(sourceInfo.source);
   if (!sourceLabel) return compactResourceLabel(resourcePath);
   const shortPath = shortPackagePath(resourcePath, sourceInfo).replaceAll("\\", "/");
@@ -1781,7 +1910,7 @@ function compactPackageSourceLabel(source: string): string {
   return withoutRef.replace(/\.git$/, "") || source;
 }
 
-function shortPackagePath(resourcePath: string, sourceInfo: OwnedPiExtensionSourceSummary): string {
+function shortPackagePath(resourcePath: string, sourceInfo: OwnedUiExtensionSourceSummary): string {
   const fullPath = normalizeResourcePath(resourcePath);
   const baseDir = sourceInfo.baseDir === null ? undefined : normalizeResourcePath(sourceInfo.baseDir).replace(/\/$/, "");
   if (baseDir) {
@@ -1814,7 +1943,7 @@ function normalizeResourcePath(path: string): string {
   return path.replaceAll("\\", "/");
 }
 
-function isPackageExtensionSource(sourceInfo: OwnedPiExtensionSourceSummary | null): sourceInfo is OwnedPiExtensionSourceSummary {
+function isPackageExtensionSource(sourceInfo: OwnedUiExtensionSourceSummary | null): sourceInfo is OwnedUiExtensionSourceSummary {
   const source = sourceInfo?.source ?? "";
   return source.startsWith("npm:") || source.startsWith("git:");
 }
@@ -1824,6 +1953,15 @@ function transientRowsSignature(
   statusRows: readonly string[],
 ): string {
   return `${steeringRows.length}\u0000${steeringRows.join("\u0000")}\u0001${statusRows.length}\u0000${statusRows.join("\u0000")}`;
+}
+
+/** The release, command, and optional changelog carried by the adapter's `release-update` diagnostic. */
+function parseReleaseUpdateDiagnostic(message: string): { version: string; command: string; changelogUrl: string | null } | null {
+  const [instruction, changelog] = message.split("\n");
+  const match = /^New version (\S+) is available\. Run (.+)$/.exec(instruction ?? "");
+  if (match === null) return null;
+  const url = changelog === undefined ? null : /^Changelog: (\S+)$/.exec(changelog)?.[1] ?? null;
+  return { version: match[1]!, command: match[2]!, changelogUrl: url };
 }
 
 /** "Share URL: <url>" with the URL made clickable; other share wordings pass through unchanged. */

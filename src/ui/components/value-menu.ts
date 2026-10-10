@@ -4,13 +4,15 @@ import type { UiTheme } from "./theme.js";
 
 /**
  * The menu a value opens: anchored to the row it was opened from, marking what
- * is in effect, highlighting nothing until something is picked, and flipping
- * above its anchor only when it would otherwise run off the bottom.
+ * is in effect, highlighting nothing until something is picked, and laid over
+ * its anchor so the value in effect stays where it was read.
  */
 
 export interface ValueMenuState {
   /** Values offered, as they should read. */
   readonly choices: readonly string[];
+  /** Optional already-painted square previews, aligned before each choice label. */
+  readonly previews?: readonly string[];
   /** The value in effect, marked rather than highlighted. */
   readonly current: string | null;
   /** The entry picked by a key or the pointer, or -1 while none is. */
@@ -43,7 +45,10 @@ export interface ValueMenuLayout {
   readonly reservedRight: number;
 }
 
-/** Where the menu is placed: below its anchor where there is room, else above. */
+/**
+ * Where the menu is placed: over its anchor, so the value in effect sits on the very
+ * row it was read from, shifted only as far as the body edges require.
+ */
 export function valueMenuFrame(
   state: ValueMenuState,
   anchor: ValueMenuAnchor,
@@ -51,12 +56,14 @@ export function valueMenuFrame(
 ): ValueMenuFrame {
   const bodyTop = layout.bodyTop ?? 0;
   const bodyBottom = bodyTop + layout.bodyHeight;
-  const below = anchor.screenRow + 1;
-  const top = below + state.choices.length <= bodyBottom
-    ? below
-    : Math.max(bodyTop, anchor.screenRow - state.choices.length);
-  const width = Math.max(...state.choices.map(choice => displayWidth(choice) + 4), 6);
-  const column = Math.min(anchor.valueColumn, Math.max(0, layout.surfaceWidth - width - layout.reservedRight));
+  const currentIndex = Math.max(0, state.current === null ? 0 : state.choices.indexOf(state.current));
+  const top = Math.max(bodyTop, Math.min(anchor.screenRow - currentIndex, bodyBottom - state.choices.length));
+  const previewWidth = Math.max(0, ...(state.previews ?? []).map(displayWidth));
+  const previewColumns = previewWidth === 0 ? 0 : previewWidth + 1;
+  const width = Math.max(...state.choices.map(choice => displayWidth(choice) + previewColumns + 4), 6);
+  // Invariant: rows reserve two cells for the effective-value mark and, when present,
+  // a preview plus one gap. Choice text remains aligned with the source value column.
+  const column = Math.min(Math.max(0, anchor.valueColumn - 2 - previewColumns), Math.max(0, layout.surfaceWidth - width - layout.reservedRight));
   return { top, column, width, rows: state.choices.length };
 }
 
@@ -74,11 +81,14 @@ export function renderValueMenu(
     const active = index === state.index;
     const paint = active ? theme.highlight : theme.panel;
     const current = choice === state.current;
-    const tail = padToWidth(`${current ? " " : "  "}${choice} `, frame.width - (current ? 1 : 0));
-    // Invariant: the effective-value check uses the same accent as modal marks, while
-    // the rest of an active row keeps its highlighted foreground and background.
+    const previews = state.previews ?? [];
+    const previewWidth = Math.max(0, ...previews.map(displayWidth));
+    const preview = previewWidth === 0 ? "" : `${padToWidth(previews[index] ?? "", previewWidth)} `;
+    // Invariant: the current-value check stays on ordinary text while the optional
+    // square carries the palette color; the row treatment supplies only its surface.
+    const tail = padToWidth(`${current ? " " : "  "}${preview}${choice} `, frame.width - (current ? 1 : 0));
     const painted = current
-      ? `${paint(theme.fg("accent", "✓"))}${paint(tail)}`
+      ? `${paint(theme.fg("text", "✓"))}${paint(tail)}`
       : paint(tail);
     output[target] = overlaySpan(output[target] ?? "", frame.column, frame.column + frame.width, painted);
   });

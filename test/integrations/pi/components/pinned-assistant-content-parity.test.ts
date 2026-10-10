@@ -1,7 +1,8 @@
-import { AssistantMessageComponent, getMarkdownTheme, initTheme } from "@earendil-works/pi-coding-agent";
+import { AssistantMessageComponent, initTheme } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import type { OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import { applyPiTheme, createPiShellTranscriptComponent } from "../../../../src/integrations/pi/components/index.js";
+import { getPiMarkdownTheme } from "../../../../src/integrations/pi/components/theme.js";
 
 const usage = { input: 7, output: 11, cacheRead: 2, cacheWrite: 1, totalTokens: 21, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 
@@ -44,7 +45,7 @@ function owned(id: string, content: Content, status: "live" | "finalized", revis
 }
 
 function producer(content: Content, streaming: boolean, stopReason: string, errorMessage?: string) {
-  const component = new AssistantMessageComponent(undefined, false, getMarkdownTheme(), undefined, 1);
+  const component = new AssistantMessageComponent(undefined, false, getPiMarkdownTheme(), undefined, 1);
   component.updateContent(message(content, stopReason, errorMessage) as never, streaming);
   return component;
 }

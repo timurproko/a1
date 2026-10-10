@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.23",
   "pinned": {
-    "version": "0.87.1",
-    "commit": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
+    "version": "1.1.0",
+    "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
     "source": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
     "packageArtifact": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/interactive-mode.js"
   },
@@ -130,10 +130,10 @@
       "plane": "persistent-document",
       "owner": "InteractiveMode.showStatus",
       "container": "chatContainer",
-      "insertion": "Spacer(1) then dim Text with padding 1",
+      "insertion": "Spacer(1) then invalidation-aware ThemedText with padding 1",
       "siblingOrder": "exact call order among transcript and command presenters",
       "spacing": "one leading blank row; no generic checkmark",
-      "style": "theme.fg(dim, message)",
+      "style": "theme.fg(dim, latest message), rebuilt after theme invalidation",
       "chronology": "latest append is latest chat child and therefore closest persistent row to dock",
       "coalescing": "replace text only when the prior two children are the tracked status spacer/text",
       "scrollFollow": "primary transcript follows chronological insertion",
@@ -141,8 +141,8 @@
       "sourceAnchors": [
         "showStatus(message)",
         "const spacer = new Spacer(1)",
-        "const text = new Text(theme.fg(\"dim\", message), 1, 0)",
-        "this.lastStatusText.setText"
+        "const text = new ThemedText(() => theme.fg(\"dim\", this.lastStatusMessage), 1, 0)",
+        "this.lastStatusText.invalidate()"
       ],
       "destination": "src/app/session-shell/session-shell.ts",
       "implementationStatus": "known-divergence"
@@ -210,7 +210,7 @@
         "Package Updates Available"
       ],
       "destination": "src/app/session-shell/session-shell.ts",
-      "implementationStatus": "requires-revalidation"
+      "implementationStatus": "implemented"
     },
     {
       "id": "document.session-info",
@@ -232,7 +232,10 @@
         "theme.bold(\"Tokens\")",
         "theme.bold(\"Cost\")"
       ],
-      "destination": "src/integrations/pi/components/shell-components.ts",
+      "destination": "src/features/owned-ui/reference-screen-app.ts",
+      "comparisonDestination": "src/app/session-shell/session-shell-root.ts",
+      "bareA1Presentation": "on-demand full-screen Session Info reference screen opened through the owned route host with shared grouped headings; no session report is appended to the feed; the pinned in-feed document is retained for the a1 pi comparison profile",
+      "deviation": "bare-a1-session-reference-screen",
       "implementationStatus": "known-divergence"
     },
     {
@@ -256,7 +259,7 @@
       ],
       "destination": "src/features/owned-ui/reference-screen-app.ts",
       "comparisonDestination": "src/app/session-shell/session-shell-root.ts",
-      "bareA1Presentation": "on-demand full-screen reference screen opened through the owned route host (What's New, Keyboard Shortcuts); startup changelog diagnostics use the one-line transient dock notice; the pinned in-feed documents are retained for the a1 pi comparison profile",
+      "bareA1Presentation": "on-demand full-screen reference screen opened through the owned route host (Changelog, Keyboard Shortcuts); the automatic post-update release note uses the What's New title; the pinned in-feed documents are retained for the a1 pi comparison profile",
       "deviation": "bare-a1-reference-screens",
       "implementationStatus": "known-divergence"
     },
@@ -289,7 +292,7 @@
       "plane": "persistent-document",
       "owner": "InteractiveMode hidden/easter-egg handlers",
       "container": "chatContainer",
-      "insertion": "Spacer then specialized debug, Armin, Earendil, or Daxnuts presenter",
+      "insertion": "Spacer then specialized debug, Armin fallback, or Earendil presenter; fullscreen Pi may replace Armin with its package-private 3D overlay",
       "siblingOrder": "invocation/event order",
       "spacing": "one source spacer plus component-owned rows",
       "style": "accent/muted debug output or specialized component styling",
@@ -300,8 +303,7 @@
       "sourceAnchors": [
         "handleDebugCommand()",
         "handleArminSaysHi()",
-        "handleDementedDelves()",
-        "handleDaxnuts()"
+        "handleDementedDelves()"
       ],
       "destination": "src/app/session-shell/session-shell.ts",
       "implementationStatus": "requires-revalidation"

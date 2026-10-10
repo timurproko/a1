@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "0.87.1",
+      "version": "1.1.0",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -39,7 +39,7 @@
         {
           "name": "AgentSession",
           "kind": "class",
-          "hash": "17599d47bb1ac03df7d2845abded88ebea9d1954ecfcfcfafd7b5845da4b9d9d",
+          "hash": "ed54d4c4e0bd31af13328f4793bae4892c0e45f1f1383592bdfd960874d61467",
           "consumers": [
             "src/integrations/pi/engine/adapter.ts",
             "src/integrations/pi/engine/compaction-progress.ts",
@@ -59,16 +59,14 @@
         {
           "name": "AgentSessionConfig",
           "kind": "interface",
-          "hash": "dd0e254ca8caf088a1efbfa2ea60e5123d2b57e5ba5e0d5376a4715935f59d70",
+          "hash": "7b9172b639ac05c6ad9f172311ee3bfbc4437d6ca1e9882ca75a2eb38e5aea59",
           "consumers": []
         },
         {
           "name": "AgentSessionEvent",
           "kind": "type",
-          "hash": "cb5fe6d9ca834ca928091d1ce685ed6c94dd12856159a6d1f18f899b6ac0d75b",
-          "consumers": [
-            "src/integrations/pi/engine/session-integration.ts"
-          ]
+          "hash": "6851c0ab591026cfbae321aa427faf08a4177654b9349dff61ae528dedcb4881",
+          "consumers": []
         },
         {
           "name": "AgentSessionEventListener",
@@ -111,7 +109,7 @@
         {
           "name": "AgentSettledEvent",
           "kind": "interface",
-          "hash": "3d256dfc55eb175ffd05100f8ac268261fa86c627c027d738e50f5a3f459e500",
+          "hash": "03165165d5ba11718ff8609755d6b06db0f47c4a720f07defcc8de83a0da3da3",
           "consumers": []
         },
         {
@@ -123,7 +121,7 @@
         {
           "name": "AgentToolResult",
           "kind": "interface",
-          "hash": "87b0de80511e95cdbcefb078da1eb055bef58081d4c76f0bf19cb6b89e3839fa",
+          "hash": "8b6f9808b35441e3c6bf76b63b5ba31db301c6cb321e5da725e61dc08df5070f",
           "consumers": []
         },
         {
@@ -141,7 +139,7 @@
         {
           "name": "Args",
           "kind": "interface",
-          "hash": "5806413bd3277e55000bbb69a0e69e7868d8a471ceb56ef7fb469f8be661fc79",
+          "hash": "806a8b9e848e7fe13f6b921ebbc37c7d465c848d3052684fcadd3adb25a45d1c",
           "consumers": []
         },
         {
@@ -173,7 +171,7 @@
         {
           "name": "BashExecutionComponent",
           "kind": "class",
-          "hash": "eaedd9629934b698a03bfc89c1bba6c176de700c1f478b9e9a5a7e0dc299fe17",
+          "hash": "ebdb3f9dc1ad0694719bd859d9b4f47b4088ecf7cd80e2915e4db9d5ba3e536b",
           "consumers": [
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/startup-public.ts"
@@ -256,7 +254,7 @@
           "kind": "class",
           "hash": "a7ccce3316a746fca12d4b5734fcfeda630c9120c8fb0e31615ba49b714d2580",
           "consumers": [
-            "src/integrations/pi/components/shell-selectors-dialogs.ts",
+            "src/integrations/pi/components/share-operation-dialog.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -293,7 +291,7 @@
         {
           "name": "BranchSummaryMessageComponent",
           "kind": "class",
-          "hash": "e79c80f0df163d4c7564f836cc3f9c4a33297ffc8cd182c7e72fa4394e8ed042",
+          "hash": "7e994adae89d95ff4f6c8779250138c909b5e40eb257c6c48d66f5bb52a8d415",
           "consumers": []
         },
         {
@@ -323,7 +321,7 @@
         {
           "name": "BuildSystemPromptOptions",
           "kind": "interface",
-          "hash": "89456f766780703c481efe1d2be2bf13522189778468342ee552623fc78354ab",
+          "hash": "e96f855e0d1d4772a6377845b673ffdb61e14f8cb0eab4b2e53c2b8e4b7d3f44",
           "consumers": []
         },
         {
@@ -360,6 +358,24 @@
           "name": "calculateContextTokens",
           "kind": "function",
           "hash": "c50bf48a50828907c3688e2138ece7718c89bbb36e8fbd150e7e9376e13e1a8c",
+          "consumers": []
+        },
+        {
+          "name": "CodemodeExtensionOptions",
+          "kind": "interface",
+          "hash": "7ae481a8ddaa3f699daa92ae06c8049a0fb89c2d4398f3c5869717222be22760",
+          "consumers": []
+        },
+        {
+          "name": "CodemodeStoreEntryData",
+          "kind": "interface",
+          "hash": "9c5da5a5c72db7e37c36017d5789cccf5db2e3daa1430ed00b2b5c29b7c6076b",
+          "consumers": []
+        },
+        {
+          "name": "CodemodeToolDetails",
+          "kind": "interface",
+          "hash": "eeddeb994eeb32db7c0789f107bc269ba0d519038aa9091d37e084f6d82ef926",
           "consumers": []
         },
         {
@@ -413,7 +429,7 @@
         {
           "name": "CompactionSummaryMessageComponent",
           "kind": "class",
-          "hash": "da86c565ce689a5241844e8c6b4098f6f519f5cdbc0295fead68a5131f56d279",
+          "hash": "bbf46218758dd072e2bbf8f958c165f8dd42121ed61df3d2c508335481c6af74",
           "consumers": [
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/startup-public.ts"
@@ -587,6 +603,12 @@
           ]
         },
         {
+          "name": "createCodemodeExtension",
+          "kind": "function",
+          "hash": "134970551367da4d6dc9934dcc76d1866ba556c1efdb1dd944494cd5bfc8425e",
+          "consumers": []
+        },
+        {
           "name": "createCodingTools",
           "kind": "function",
           "hash": "bf7a99f3a577bff345a64ce45ac323da9c2ab16a1042a08438d6e4854ae7afa6",
@@ -677,6 +699,12 @@
           ]
         },
         {
+          "name": "createMcpExtension",
+          "kind": "function",
+          "hash": "b39793727d0bdb62bc0ac8ec86055819c96a5d862f2bc31f1f9fb937ab2906b4",
+          "consumers": []
+        },
+        {
           "name": "CreateModelRuntimeOptions",
           "kind": "interface",
           "hash": "17b35f8ac89544f6252c946aa38e8db40dee8b597b2aa50f7b448ea0be79603b",
@@ -719,6 +747,12 @@
           "name": "createSyntheticSourceInfo",
           "kind": "function",
           "hash": "69af79ae218800e12fbe07cd19ebbf33376714c7cb7df2354fb443279dbe4679",
+          "consumers": []
+        },
+        {
+          "name": "createToolSearchExtension",
+          "kind": "function",
+          "hash": "178cf57118871d5b334517128092feafe6b5e74e843fc336c1435102242cc49e",
           "consumers": []
         },
         {
@@ -835,7 +869,7 @@
         {
           "name": "DefaultPackageManager",
           "kind": "class",
-          "hash": "cdd15643d4d371825f6b9fe7083355cd45a4d1b98493c97ea04ceaa20ddf99d7",
+          "hash": "b3de57498b3ee9a18a151b62580a6035318d2039b9a4bf1b575544a2747247ab",
           "consumers": [
             "src/integrations/pi/engine/package-integration.ts",
             "src/integrations/pi/engine/session-runtime.ts",
@@ -851,7 +885,7 @@
         {
           "name": "DefaultResourceLoader",
           "kind": "class",
-          "hash": "ef718496d64cdd3654c807ab6dbc8e886384f642f1a3efb59709e06d63bba882",
+          "hash": "4db8990f60805350b42c37b2d06a5153c6e6223e47b1ab68a66bdaf24683ab4c",
           "consumers": []
         },
         {
@@ -877,9 +911,10 @@
           "kind": "class",
           "hash": "28f38c59e96228d11c6f911c2af92d8163694cc860f21317b41efd6dcf1989cf",
           "consumers": [
+            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/models-dialog.ts",
+            "src/integrations/pi/components/share-operation-dialog.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
-            "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/earendil-announcement.ts",
@@ -973,21 +1008,27 @@
           "consumers": []
         },
         {
+          "name": "ExecuteToolOptions",
+          "kind": "interface",
+          "hash": "5b91029f982de3ea1b0e4b907bdaa16a966460f3941488c7657a8981a4254e50",
+          "consumers": []
+        },
+        {
           "name": "Extension",
           "kind": "interface",
-          "hash": "272c1da08c671ff8ca1b50c611c31d9a55424be46749959e16629ed0376c83cf",
+          "hash": "3af7f0020bc8e25731aea96beb45df1f1aa5126713028047b362063b65ad5a90",
           "consumers": []
         },
         {
           "name": "ExtensionActions",
           "kind": "interface",
-          "hash": "0fe4ce56b67005cb9f73acdfdbf1a561826e4ec9b8765d4e9ebc209e7c90b4d6",
+          "hash": "01d8e0155d9ebfd26b4aefc7a083609ce5cbfc5ae425abee0a7ed466c3b037ab",
           "consumers": []
         },
         {
           "name": "ExtensionAPI",
           "kind": "interface",
-          "hash": "8ab33830db979aacac202fd552b60e5f7619ad2418ecd19174c4829fe567b33a",
+          "hash": "c5d70f18b2dd12fba4a8ada21a2c51330c1deab279a8212d93986baef693efd6",
           "consumers": [
             "src/integrations/pi/engine/windows-filesystem-hygiene.ts"
           ]
@@ -1013,7 +1054,7 @@
         {
           "name": "ExtensionContextActions",
           "kind": "interface",
-          "hash": "e4d6a12ba1dc45173f00eb16810654c2e022a6abd2d26a0c415f33ca7cfac5c4",
+          "hash": "596f1601bb845da895bc49a732f7a81857fa6c57d3f8c8746641ab483572fbe3",
           "consumers": []
         },
         {
@@ -1031,7 +1072,7 @@
         {
           "name": "ExtensionEvent",
           "kind": "type",
-          "hash": "a65cd544467b9acc2966a4002ae5c9ee243d873e5dd21d0a61a5d57aec67515d",
+          "hash": "0240db2abb377eda7fdc3ae9f6efce61f28e466c8018c3a33784c576199655cd",
           "consumers": []
         },
         {
@@ -1063,7 +1104,7 @@
         {
           "name": "ExtensionRunner",
           "kind": "class",
-          "hash": "bb37ab15a0cd6dc8d65c463c3010333f92ca59745a9afaab9808bc8f7f52807f",
+          "hash": "679aa4ec0fd61e93a02df32dba6f962a2758ccfa7668d08afdb85df2ee351589",
           "consumers": []
         },
         {
@@ -1078,7 +1119,6 @@
           "hash": "b4a845b4055a50486312a5b2e4b073b9c494d00d77921ed5e46163c1baba2361",
           "consumers": [
             "src/integrations/pi/components/conformance.ts",
-            "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -1086,6 +1126,12 @@
           "name": "ExtensionShortcut",
           "kind": "interface",
           "hash": "11e5bde4dfe7c3558dd507d36a4792633d9d6698e8e137b008f5fc75812f62f6",
+          "consumers": []
+        },
+        {
+          "name": "ExtensionToolContext",
+          "kind": "interface",
+          "hash": "36c1b23cc889025b87b4b676bb790ab2197198ab7e3f47fcd2f12bee093c30da",
           "consumers": []
         },
         {
@@ -1101,6 +1147,12 @@
           "name": "ExtensionUIDialogOptions",
           "kind": "interface",
           "hash": "501db499a93f45f9b9a8628348456f19f00c3d07ed4f72464b382e9be6a87ad2",
+          "consumers": []
+        },
+        {
+          "name": "ExtensionVirtualModel",
+          "kind": "interface",
+          "hash": "1dfff6c16d5b19ef57d57bb48c6b1538bebfb0ccb042732e44b5e4a8b26d1e52",
           "consumers": []
         },
         {
@@ -1166,7 +1218,7 @@
         {
           "name": "FooterComponent",
           "kind": "class",
-          "hash": "551e59a0ab2bf2b7444069f249f74aec7cc66062458f2000f9d8a7068f9f82ed",
+          "hash": "fd81ced5b0d057fb8e86e9efd06eded884de722c24cd1fa06ad36c41d6cefdd0",
           "consumers": []
         },
         {
@@ -1184,7 +1236,7 @@
         {
           "name": "formatSkillsForPrompt",
           "kind": "function",
-          "hash": "c3c68b2df75d47cb185fc9a4992bd6932df9569b036bb2fa99552512b23c98d0",
+          "hash": "18443f0ec227fe250ceb306e397799734013da23df19f6cfc5c23a50c836136f",
           "consumers": []
         },
         {
@@ -1275,10 +1327,7 @@
           "kind": "function",
           "hash": "24a181cf61600283625f75434a2590009e53f8a165718654ceb1beaa7182b0b8",
           "consumers": [
-            "src/integrations/pi/components/shell-hotkey-sections.ts",
-            "src/integrations/pi/components/shell-presenters-info.ts",
-            "src/integrations/pi/components/shell-presenters-transcript.ts",
-            "src/integrations/pi/components/submitted-prompt-adapter.ts",
+            "src/integrations/pi/components/theme.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -1305,10 +1354,6 @@
           "kind": "function",
           "hash": "92c5389cec6b29dfe0da57c5dec49364a5f1926dd77df64998692c2ee54f66bf",
           "consumers": [
-            "src/integrations/pi/components/shell-editor-autocomplete.ts",
-            "src/integrations/pi/components/shell-extension-ui.ts",
-            "src/integrations/pi/components/shell-selectors-dialogs.ts",
-            "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -1387,7 +1432,7 @@
         {
           "name": "InlineExtension",
           "kind": "type",
-          "hash": "eb5e223caed41695f45ab1e803cca8c622395d3b6218c9e2edac0bb3ce0fb0a4",
+          "hash": "12d37ccda499bc08a4189b4adc0c1cddc4ed0b8c1068dd29df46515beb6dbdcb",
           "consumers": [
             "src/integrations/pi/engine/windows-filesystem-hygiene.ts"
           ]
@@ -1413,7 +1458,7 @@
         {
           "name": "InteractiveMode",
           "kind": "class",
-          "hash": "f71a95b6148a4526c460605ae9fbe461faa15f497842026a77643d9894d2a0f0",
+          "hash": "708c13f74cb6569cfdf24050389e1ecbfe4f21222ad4d027f2010f6b6ec11ecf",
           "consumers": []
         },
         {
@@ -1516,9 +1561,15 @@
           ]
         },
         {
+          "name": "LoadedMcpConfig",
+          "kind": "interface",
+          "hash": "83a5de2a7029879f36de08512f3889720bf40c1304934621003d20dc34e7e71a",
+          "consumers": []
+        },
+        {
           "name": "LoadExtensionsResult",
           "kind": "interface",
-          "hash": "0a0df02bccfbf871cb7ba2e35f7a1243c44311858eab9e2b47169b61574b5f01",
+          "hash": "88c2913dc892ab18d4ee9168f12d5912203d8809218408327742500d095bf91f",
           "consumers": []
         },
         {
@@ -1554,7 +1605,7 @@
         {
           "name": "LoginDialogComponent",
           "kind": "class",
-          "hash": "4cf53ebd35ae3348adb33a086ebf2d824f70eb59de78dc31484f356f0a7ba1f3",
+          "hash": "7d0ab8d59515e1eb02ff9446ce7644df54577999df426df0526ec5604bf41c9a",
           "consumers": [
             "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
@@ -1620,6 +1671,42 @@
           ]
         },
         {
+          "name": "McpExposure",
+          "kind": "type",
+          "hash": "8f8d84fe89c018d43e28edbf25a1e3738c58cdb4d057de5ac8b898b17f229c7d",
+          "consumers": []
+        },
+        {
+          "name": "McpExtensionOptions",
+          "kind": "interface",
+          "hash": "229aa5a8710ada5201beda4d86403ee39acb7670a7ead11f7da8d07cc6fd80fa",
+          "consumers": []
+        },
+        {
+          "name": "McpServerConfig",
+          "kind": "type",
+          "hash": "92db4041350398bad6b6b9635e128659c57adb8c54d5977b193b270fa8a27631",
+          "consumers": []
+        },
+        {
+          "name": "McpServerEntry",
+          "kind": "interface",
+          "hash": "31dc86e41eb5a5554659141156e4db7a6ab4e6385c38ac6bc06f1aba7324f861",
+          "consumers": []
+        },
+        {
+          "name": "McpServersChangeEvent",
+          "kind": "interface",
+          "hash": "2b5e15b173d2b1edde20e0cfd49a8a4e8ae3362c1a507d8362a5807d108d9ea0",
+          "consumers": []
+        },
+        {
+          "name": "McpTransportFactory",
+          "kind": "type",
+          "hash": "d03217c63638d84ba8388da7011f69a848262612b8f528b7850f561ec3307f28",
+          "consumers": []
+        },
+        {
           "name": "MessageEndEvent",
           "kind": "interface",
           "hash": "421716c75115b194b310a2dac9c6bbd4eed142178396fdae34db20994063ce7a",
@@ -1682,13 +1769,31 @@
         {
           "name": "ModelRegistry",
           "kind": "class",
-          "hash": "6358302348dfa548c33209f67ccc3634e3141fee48cc0ea911e6ca2272ab684f",
+          "hash": "55e150aa8396392c2e29f326d99d10d9282c874aef4c0b9ccfd145865b96fd3a",
+          "consumers": []
+        },
+        {
+          "name": "ModelRoute",
+          "kind": "interface",
+          "hash": "3a37a448dc6e9dd34aa61e9e8f696ab177f049636e9655dff407388465969ee3",
+          "consumers": []
+        },
+        {
+          "name": "ModelRouteReason",
+          "kind": "type",
+          "hash": "1c655e06c98a667460e160a6f0dbfca4d65955f02802290c32c4fe9340c08ca5",
+          "consumers": []
+        },
+        {
+          "name": "ModelRouteRequest",
+          "kind": "interface",
+          "hash": "5de738b323d452a1527881ecc90f972d898f75f8213db5dce35eede1d5e6b96b",
           "consumers": []
         },
         {
           "name": "ModelRuntime",
           "kind": "class",
-          "hash": "28b67908454f235579b330ad5ca0b5943044afe2f30172ae1720d362790a8605",
+          "hash": "1ee488c4a039273e7ae67193a6cbf8a1a8a5173248f398eaf633b72351cf31b7",
           "consumers": [
             "src/integrations/pi/engine/conformance.ts",
             "src/integrations/pi/engine/package-integration.ts",
@@ -1738,13 +1843,13 @@
         {
           "name": "NormalizedBuildSystemPromptOptions",
           "kind": "type",
-          "hash": "dc338b28224841fa06ca1f9c1dce7a894582463d41b1aeed16db9740411613c9",
+          "hash": "1b9d62afc9e1da68f18b32b16090d04506334a1f47e66f963909d39a42b7250e",
           "consumers": []
         },
         {
           "name": "OAuthSelectorComponent",
           "kind": "class",
-          "hash": "7db2ae1d77eb7b5b4f85061454e3f34f22ff4c7e8c9dbd4bcd473d000d3541b6",
+          "hash": "7db7ed36afb423857d1bff0839a7f06edabc5b1050e5dfcbf3d9b0e383be0cd8",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/startup-public.ts"
@@ -1798,7 +1903,7 @@
         {
           "name": "PathMetadata",
           "kind": "interface",
-          "hash": "cdc2949f49d21bf0ea683ad376f7117fad4c5b557be3e757d83bfa11b9b1b38b",
+          "hash": "3f793a01fc6aa2dc380f2dd20c84be6c9aad8a047983107a5e852fc4b3f58d3b",
           "consumers": []
         },
         {
@@ -1934,7 +2039,7 @@
         {
           "name": "PromptOptions",
           "kind": "interface",
-          "hash": "23a7d6eef1ac2ef0a6b68b20d9e066189dfc254fbd0b4a8eab96b6dd0c2e7565",
+          "hash": "ce589b74b5aa6fecc33c90682e48807ae317747200dd86eff4d8d79e5e31fc21",
           "consumers": [
             "src/integrations/pi/engine/session-integration.ts"
           ]
@@ -1948,13 +2053,25 @@
         {
           "name": "ProviderConfig",
           "kind": "interface",
-          "hash": "fb8c837a92335abc06b41673751e099d6a6aa4174b2b74950ae25dfd272f9f50",
+          "hash": "6b2c99488311f62a74ad249d8769f4a4b6c5046d73468c33bf833ef43210bb6b",
           "consumers": []
         },
         {
           "name": "ProviderModelConfig",
+          "kind": "type",
+          "hash": "de796d0b9d71482eaeb991990d9b6896486aba8d9213865e22c3be71008a3ee6",
+          "consumers": []
+        },
+        {
+          "name": "ProviderStreamEvent",
           "kind": "interface",
-          "hash": "596bdfabb47cf4e964cbe2c9c535f1ef149ddee996bf7809fe2256096e55f27b",
+          "hash": "3cd8e51b9a0dbf7622aaa0c74866da808187b61b28f14d16daf13f18d75bd08b",
+          "consumers": []
+        },
+        {
+          "name": "QuietStartup",
+          "kind": "type",
+          "hash": "701ed7c2984ab8e64ed1430a3462f8f143a9872ff19e9d7b09c36291accc5219",
           "consumers": []
         },
         {
@@ -2012,6 +2129,12 @@
           "name": "RegisteredCommand",
           "kind": "interface",
           "hash": "389fa49edc560f0cbf43140795c8e5f5f107ed0f7bce525053c25fee7342d046",
+          "consumers": []
+        },
+        {
+          "name": "RegisteredMcpServer",
+          "kind": "interface",
+          "hash": "9c0c543ae30341792f22c79248c6c858df2a6327eaa33696df605615f20edb59",
           "consumers": []
         },
         {
@@ -2128,7 +2251,7 @@
         {
           "name": "RpcClient",
           "kind": "class",
-          "hash": "7e4837d1a5d72b967d3979fa8b353e39f3fe0df384b8796376e9ca0ed023a937",
+          "hash": "cf62079e7c43c0f1b8f9b16aa0c326c373a7a624d69f83ed3a139fede5f5a4c4",
           "consumers": []
         },
         {
@@ -2164,7 +2287,7 @@
         {
           "name": "RpcResponse",
           "kind": "type",
-          "hash": "bf0b1784cd2dd719fd8b52b802da6996aa454cd2a0b2b810397bce92fc9fd19b",
+          "hash": "a5801589581b7a57f7cdc8aa237387ae33dde18e657e618e9887d000088ef959",
           "consumers": []
         },
         {
@@ -2322,7 +2445,7 @@
         {
           "name": "SessionManager",
           "kind": "class",
-          "hash": "a510740621453676ab4078c217cb21607b3bcef3b0d36392ecc5d44af2497db4",
+          "hash": "db05633432f9bf6dcdcf6067933d119d86a1775b120586f9190d31ac2b0b5931",
           "consumers": [
             "src/integrations/pi/engine/conformance.ts",
             "src/integrations/pi/engine/runtime-integration.ts",
@@ -2378,6 +2501,7 @@
           "kind": "interface",
           "hash": "f935798786a5493267d7434d04e2d1ccb466b65832b1f7f4e28ecd976cffe7c5",
           "consumers": [
+            "src/integrations/pi/components/lazy-selectors.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts"
           ]
@@ -2385,7 +2509,7 @@
         {
           "name": "SettingsCallbacks",
           "kind": "interface",
-          "hash": "160fabff08c55da17aa1c9288d0b728b9b6f96b3a069fd590c5b62b13c83ce91",
+          "hash": "fadc657070cc68c5e811619effe43e3eb7229f986d901ce9a8d3dee12dc57d2f",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts"
           ]
@@ -2393,7 +2517,7 @@
         {
           "name": "SettingsConfig",
           "kind": "interface",
-          "hash": "5a241da070914b9682a4fca3d6bc04a0f1d5cf54345861c1b214cd885dff4870",
+          "hash": "c2fe2c4c29ff60d8f4f0ab28251df03384d845bfbe05579f8356483892137da3",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts"
           ]
@@ -2401,7 +2525,7 @@
         {
           "name": "SettingsManager",
           "kind": "class",
-          "hash": "b2b03f6c1e5695ea2409297a7ccbefef698a5716e9e283c9d7332607d66b3420",
+          "hash": "1f803efde767896d621e8d67264d190217af3902c206957a4f19811240006fa5",
           "consumers": [
             "src/integrations/pi/engine/package-integration.ts",
             "src/integrations/pi/engine/project-trust-preflight.ts",
@@ -2456,7 +2580,7 @@
         {
           "name": "SkillInvocationMessageComponent",
           "kind": "class",
-          "hash": "48b528f377970d356c26115498ab6ba3f65b5f6913a5e2301a11ea85383e79dd",
+          "hash": "ddb91f1a9da74191ec2d4e3e195e3482850db9cd2cda084195cf856f2bc5481e",
           "consumers": []
         },
         {
@@ -2492,13 +2616,25 @@
         {
           "name": "Theme",
           "kind": "class",
-          "hash": "f14873b2af2329586014e16b5781599a99999e73fdad1507416623117749e08e",
+          "hash": "2e3f2a8c183517fe7416c58149d4976631db875fa4bc2b82c488f007208ac493",
           "consumers": [
             "src/integrations/pi/components/upstream/components/mermaid.ts",
             "src/integrations/pi/components/upstream/theme/theme-controller.ts",
             "src/integrations/pi/components/upstream/theme/theme.ts",
             "src/integrations/pi/startup-public.ts"
           ]
+        },
+        {
+          "name": "ThemeAppearance",
+          "kind": "type",
+          "hash": "da9dac9f4347e7722ef9f5ef643a7590c0e2246fcc69463ac9def27d3faf28fd",
+          "consumers": []
+        },
+        {
+          "name": "ThemeBg",
+          "kind": "type",
+          "hash": "e8e771e2464f86dfda4ee2d492250025bc6fbde8dc630902e94eb0746d07ea4b",
+          "consumers": []
         },
         {
           "name": "ThemeColor",
@@ -2517,6 +2653,18 @@
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/startup-public.ts"
           ]
+        },
+        {
+          "name": "ThemeStyle",
+          "kind": "interface",
+          "hash": "711a42fcc1deba569efec5570292141bc766f7a62217c4857658bddf1912c682",
+          "consumers": []
+        },
+        {
+          "name": "ThemeToken",
+          "kind": "type",
+          "hash": "f68fd158136731f5cbdfd502bf3327d89b61f425e96a566aee2095e50e618e8d",
+          "consumers": []
         },
         {
           "name": "ThinkingLevelChangeEntry",
@@ -2541,6 +2689,12 @@
           ]
         },
         {
+          "name": "ToolAnnotations",
+          "kind": "interface",
+          "hash": "4c1c3c6f7d2de766d6875216847a6cad1f5ab99f93fb28f15f9381306da7dd3d",
+          "consumers": []
+        },
+        {
           "name": "ToolCallEvent",
           "kind": "type",
           "hash": "c4e7c0eabadd87847d6ce445bd01d57f0eaa74a5febd2767ea8b6fd06fc68bb0",
@@ -2555,7 +2709,7 @@
         {
           "name": "ToolDefinition",
           "kind": "interface",
-          "hash": "96f3a7ac66980658a4245d3c6860e6ab493f4487a90334e49b425529e7a5a4d9",
+          "hash": "be12421087c1a29c59b310003c163d3637c196a66d1dd10a861b177c94c049bb",
           "consumers": [
             "src/integrations/pi/components/upstream/components/tool-execution.ts"
           ]
@@ -2563,7 +2717,7 @@
         {
           "name": "ToolExecutionComponent",
           "kind": "class",
-          "hash": "3506a7791e4944734b9ed710ce5983105614909626201d4f787ad69e79a4a867",
+          "hash": "5cc01372a4c689415f429d850f5b01c95683bc4bc82977d4373f991cbfe25b13",
           "consumers": [
             "src/integrations/pi/components/components.ts",
             "src/integrations/pi/components/conformance.ts",
@@ -2573,7 +2727,7 @@
         {
           "name": "ToolExecutionEndEvent",
           "kind": "interface",
-          "hash": "b4c8a3e7e272df8e63fddbf461f4aec42ad91dd0b4fe8290cc7a2608727bd928",
+          "hash": "5af48fb88653e695d5056ff40221dd1d0e928f27079cc3b11d6546630560828b",
           "consumers": []
         },
         {
@@ -2585,26 +2739,64 @@
         {
           "name": "ToolExecutionOptions",
           "kind": "interface",
-          "hash": "0dd7365d7fd6af7ad012e09b98765d35b732013b781c6ff0fcb57af0d4ad8bd2",
+          "hash": "a77b8d5ab1d71368cd73748d9b3b1cea6d6e74a6fd248672ddc9931c397d738f",
           "consumers": []
         },
         {
           "name": "ToolExecutionStartEvent",
           "kind": "interface",
-          "hash": "66341955fd82b7ce631bae6456d95dc507b2e416eb0ad6710c60deb890d40256",
+          "hash": "ec2ae67256d6a8785674bc719d16af638e29fd10ccdc3d0ebee497762a075d3d",
           "consumers": []
         },
         {
           "name": "ToolExecutionUpdateEvent",
           "kind": "interface",
-          "hash": "e00ce7c077705f3c453ead796ed0f011e0fbd7da43f638dcee7a752db6c643aa",
+          "hash": "8b74f0a77e80f16c2a639c4e1dd84c2d5a54aaaf1031f0300fa176332846b0a3",
+          "consumers": []
+        },
+        {
+          "name": "ToolExposure",
+          "kind": "type",
+          "hash": "804d87de51257c887f26c9a56353a4c2a62035269479c20b07d3ed8274b1a7ee",
           "consumers": []
         },
         {
           "name": "ToolInfo",
           "kind": "type",
-          "hash": "4dedad1477553b52af2c512f1b7345f440e8e0fb55965c885e6aea312bcac1a6",
+          "hash": "2cc7fd11a2f363130aba8aea7a80b7074b7ed8943e922b57ab4ade46e4df65dd",
           "consumers": []
+        },
+        {
+          "name": "ToolLoadout",
+          "kind": "interface",
+          "hash": "d501e066fd7ce5622ba2dfdc24b15650bfcfb85ec6123312eae3a86493aa3407",
+          "consumers": []
+        },
+        {
+          "name": "ToolLoadoutChanges",
+          "kind": "interface",
+          "hash": "19c4ea4edbc439fd94781eddd25cb7835ff1fbc471407a3df7c82bcd8b0051e4",
+          "consumers": []
+        },
+        {
+          "name": "ToolNamespace",
+          "kind": "interface",
+          "hash": "e404097b35bdffecd0cd2eebf4b5c88808679fd09cc925e0b3034bd31715a0a1",
+          "consumers": []
+        },
+        {
+          "name": "ToolRendererResolver",
+          "kind": "type",
+          "hash": "2e98ed0dc3360a3152e1176a91443648da98529f10b4ea35f6a5838ab03593fe",
+          "consumers": []
+        },
+        {
+          "name": "ToolRenderers",
+          "kind": "type",
+          "hash": "6f9b937331c8730844c9328b3a786a6bbe4942fe764ed85d83be90e7e94f4be1",
+          "consumers": [
+            "src/integrations/pi/components/upstream/components/tool-execution.ts"
+          ]
         },
         {
           "name": "ToolRenderResultOptions",
@@ -2621,7 +2813,7 @@
         {
           "name": "ToolResultEventResult",
           "kind": "interface",
-          "hash": "86465fc28562a3d5d4c0fc17a8c6dbd967fd742608eec8cf49bd3bd07bacd5b3",
+          "hash": "5f48fe64f2cca018003d4735a7a0385baf26259b95ab11533fed22390ec70fc8",
           "consumers": []
         },
         {
@@ -2657,7 +2849,7 @@
         {
           "name": "truncateToVisualLines",
           "kind": "function",
-          "hash": "33112872ed1da882d0a7ef7fff4827cf743710a9fe29a316cefd2086dceb4f70",
+          "hash": "2a1f54b00e7b06612c61d66195f83c19f75c74b4aacb2269c8f1e0b04dc6f7dc",
           "consumers": []
         },
         {
@@ -2760,6 +2952,24 @@
           ]
         },
         {
+          "name": "VIRTUAL_MODEL_STATE_ENTRY",
+          "kind": "const",
+          "hash": "a372aca54c43002fe7f81c85c462ea17e50623fb468f2141e3c0cd94378bd916",
+          "consumers": []
+        },
+        {
+          "name": "VirtualModelDefinition",
+          "kind": "interface",
+          "hash": "2f1d47de5b93ea019101cdde7206021c6055820a5b34b502fd25dbdf4565073a",
+          "consumers": []
+        },
+        {
+          "name": "VirtualModelStateData",
+          "kind": "interface",
+          "hash": "0cd6d9d0601656a0664e6609a630e3f217fe75a24bc58f79e54f3364c431f438",
+          "consumers": []
+        },
+        {
           "name": "VisualTruncateResult",
           "kind": "interface",
           "hash": "9ccceb5d7a001b90d63c7cb378b762b43d7a6b9c91780691edf6bea5b6ceb1a1",
@@ -2823,7 +3033,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "0.87.1",
+      "version": "1.1.0",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -2860,9 +3070,18 @@
           ]
         },
         {
+          "name": "backgroundAnsi",
+          "kind": "function",
+          "hash": "5e5978b7f1847127024e789b4fb81223a212b895ef52ecfba2a3716f5ca88c5c",
+          "consumers": [
+            "src/integrations/pi/components/upstream/components/pi-logo.ts",
+            "src/integrations/pi/components/upstream/theme/theme.ts"
+          ]
+        },
+        {
           "name": "Box",
           "kind": "class",
-          "hash": "b3759ea28b5777089cd8b1ae59b8d999b6427feef4e24926f4e7bc124d1eba62",
+          "hash": "ea1463f6edcefcbc9e72af3831a1b215618c4bbae1097f2d436183501195b50d",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/components/submitted-prompt-adapter.ts",
@@ -2880,7 +3099,10 @@
           "name": "CancellableLoader",
           "kind": "class",
           "hash": "9b99c0d166f012df02fbfeb5b19c4b07459daa57770e502d6497fbf100ecac82",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/modal-frame.ts",
+            "src/integrations/pi/components/share-operation-dialog.ts"
+          ]
         },
         {
           "name": "CellDimensions",
@@ -2889,9 +3111,49 @@
           "consumers": []
         },
         {
+          "name": "Color",
+          "kind": "type",
+          "hash": "687485ee7a8fd71c1965cddf1100c256f8ec8b2537738e6f69a0344e354b6cda",
+          "consumers": [
+            "src/integrations/pi/components/upstream/theme/theme.ts"
+          ]
+        },
+        {
+          "name": "ColorMixSpace",
+          "kind": "type",
+          "hash": "e500c739f8f9695e9b5b2c5c52218c4e6ad35a87f8ca64849590eee1ab35c9b4",
+          "consumers": []
+        },
+        {
+          "name": "colorToHex",
+          "kind": "function",
+          "hash": "3729a27c868972c02c44a5564cb7f943e1c5509db8535e1726776d927ef1310a",
+          "consumers": []
+        },
+        {
+          "name": "colorToOkhsl",
+          "kind": "function",
+          "hash": "c91ff69b08837570d236ef1973dce4258b7d4ab5f9b42ac0811d26d5b8f50dfd",
+          "consumers": [
+            "src/integrations/pi/components/upstream/theme/theme.ts"
+          ]
+        },
+        {
+          "name": "colorToOklch",
+          "kind": "function",
+          "hash": "15d7b08ac4da39fcbdac02a82eb6012631da6f7ebc389f2938edd33bbd3c4861",
+          "consumers": []
+        },
+        {
+          "name": "colorToRgb",
+          "kind": "function",
+          "hash": "c5788525c1929171e37195a9abe1d140fec3fde8905380cccf1d391fe9cf6f65",
+          "consumers": []
+        },
+        {
           "name": "CombinedAutocompleteProvider",
           "kind": "class",
-          "hash": "aa99396239b0e983638ac5a1c73d7daa538ca0c43a1f84cf64a192abf324d3a8",
+          "hash": "0f5de01548ffa7b980e62e900009cacab9b322245916cbefb79e45b7ddf1afb3",
           "consumers": [
             "src/integrations/pi/components/shell-editor-autocomplete.ts"
           ]
@@ -2903,16 +3165,18 @@
           "consumers": [
             "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/models-dialog.ts",
+            "src/integrations/pi/components/share-operation-dialog.ts",
             "src/integrations/pi/components/shell-extension-ui.ts",
             "src/integrations/pi/components/shell-footer-status.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
+            "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/submitted-prompt-adapter.ts",
             "src/integrations/pi/components/tool-image-presentation.ts",
-            "src/integrations/pi/components/upstream/components/daxnuts.ts",
             "src/integrations/pi/components/upstream/components/session-footer.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/status-indicator.ts",
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts",
@@ -3053,6 +3317,21 @@
           ]
         },
         {
+          "name": "foregroundAnsi",
+          "kind": "function",
+          "hash": "a893102b8e4044cfd16f7254dea8bdbb17be1f563f7b1e688cf7452cb2bff26c",
+          "consumers": [
+            "src/integrations/pi/components/upstream/components/pi-logo.ts",
+            "src/integrations/pi/components/upstream/theme/theme.ts"
+          ]
+        },
+        {
+          "name": "formatProgramStatus",
+          "kind": "function",
+          "hash": "5bdb99ae8c62e28282631500342d5a321cd90d0808f7f0424286449d2774100b",
+          "consumers": []
+        },
+        {
           "name": "fuzzyFilter",
           "kind": "function",
           "hash": "2c370c44434c0cecb387fb2da676e63c2731ab2580a603d6f2b8f9020b2150fc",
@@ -3080,6 +3359,7 @@
           "kind": "function",
           "hash": "1f29a1dae7775f9d051bbb458b1a2b0d147275b80948ad028afed6299bb1308c",
           "consumers": [
+            "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/tool-image-presentation.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/theme/theme.ts"
@@ -3117,6 +3397,7 @@
           "hash": "0f98403d2c6a96329ba879315081e07f1a0f87d4aefab71b870526095b82b23f",
           "consumers": [
             "src/integrations/pi/components/models-dialog.ts",
+            "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/extension-input.ts",
             "src/integrations/pi/components/upstream/components/extension-selector.ts",
@@ -3147,6 +3428,12 @@
           "consumers": []
         },
         {
+          "name": "getTerminalColorMode",
+          "kind": "function",
+          "hash": "89393eb7984d4d14734b0cc40b6b91f15fc811f198ec3db646878d9df2325b6b",
+          "consumers": []
+        },
+        {
           "name": "getWebpDimensions",
           "kind": "function",
           "hash": "5e9acc90876f33a6357a406e4d2400c5cfa02bf3d186358d47d80b1a4c6b38de",
@@ -3165,6 +3452,7 @@
           "kind": "function",
           "hash": "9730bac132a52ab615493cbfc14ba9bf158b9f5e4402851fb9305e8711bc438b",
           "consumers": [
+            "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/components/session-footer.ts"
           ]
@@ -3172,7 +3460,7 @@
         {
           "name": "Image",
           "kind": "class",
-          "hash": "d8ec214775b24ac2b388c60d417ec8df0929a7a2888e8e04a69d6189430021ed",
+          "hash": "568667c98d03ddb68788131e753978fb1c1f4aac5acaee3c98796270e72fe58c",
           "consumers": [
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/tool-image-presentation.ts",
@@ -3218,6 +3506,24 @@
           "consumers": []
         },
         {
+          "name": "ImageTranscoder",
+          "kind": "type",
+          "hash": "83e00970a1319dbbf12a52f5a49fe3f88c7d9acb3a24cd7bfc2b6a80f972bfe9",
+          "consumers": []
+        },
+        {
+          "name": "indexedColor",
+          "kind": "function",
+          "hash": "ed2bcdaa354c21a78cfbbc68faf3fa083380f44089add86c14aa669bc52a7f28",
+          "consumers": []
+        },
+        {
+          "name": "IndexedColor",
+          "kind": "interface",
+          "hash": "ec5a804f49949358323eae993d084694b9f3de85a3c455de0c2c4025fa98ab45",
+          "consumers": []
+        },
+        {
           "name": "Input",
           "kind": "class",
           "hash": "52019438b4fcc4eabf7c0d96a19377996b2a2632542798e24aa38f84d5a5fc48",
@@ -3229,6 +3535,14 @@
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts"
+          ]
+        },
+        {
+          "name": "isAppleTerminalSession",
+          "kind": "function",
+          "hash": "6998ae3b5b3fd438cdbae177718e1d32d8bcbb122df292456163ad12dd765a0c",
+          "consumers": [
+            "src/integrations/pi/components/upstream/components/pi-logo.ts"
           ]
         },
         {
@@ -3267,11 +3581,7 @@
           "name": "Key",
           "kind": "const",
           "hash": "847a96b66a8fb66c38b648e4d33dd711165320f56e5f5dc3a9c4fcb2cbcecf1c",
-          "consumers": [
-            "src/integrations/pi/components/models-dialog.ts",
-            "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
-            "src/integrations/pi/components/upstream/components/thinking-selector.ts"
-          ]
+          "consumers": []
         },
         {
           "name": "Keybinding",
@@ -3305,7 +3615,7 @@
         {
           "name": "Keybindings",
           "kind": "interface",
-          "hash": "d0386fd9c7e030bbc5d9dccd588c0f2678d37e54702d0e6482c25c5d4a21f777",
+          "hash": "940c101dd778908594bc610767d537d094c8cf52c2a39e309745bdf4d172dae3",
           "consumers": []
         },
         {
@@ -3359,7 +3669,7 @@
         {
           "name": "Markdown",
           "kind": "class",
-          "hash": "cfcf9f200919675b3e834e09430594ee3399be20de28c9b2abadc423094680d2",
+          "hash": "35075cf737f8f2b2b56c0327c068d25f594b0b57d41901344e623f0929a7f6eb",
           "consumers": [
             "src/integrations/pi/components/shell-hotkey-sections.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
@@ -3378,6 +3688,7 @@
           "kind": "interface",
           "hash": "3ddb10d5382b2fa679439c5c9e19a52d55cc45e1a631b150f3e12b840257290c",
           "consumers": [
+            "src/integrations/pi/components/theme.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts"
           ]
         },
@@ -3396,10 +3707,18 @@
           "consumers": [
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/shell-editor-autocomplete.ts",
-            "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
-            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
+            "src/integrations/pi/components/shell-shared-facade.ts",
+            "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts",
+            "src/integrations/pi/components/upstream/components/session-selector.ts",
+            "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
+        },
+        {
+          "name": "mixColors",
+          "kind": "function",
+          "hash": "2daec359865930d263b30a0d6fc1b7cce9676039782acf83a8193342e3546a50",
+          "consumers": []
         },
         {
           "name": "MouseRegion",
@@ -3419,7 +3738,45 @@
         {
           "name": "NativeClipboard",
           "kind": "interface",
-          "hash": "3ae9315c96cb2c24b76d9e588a8422a78fd2308f5aa15a325dfc65cabc779b4f",
+          "hash": "bf78acbcd019498da6b6eebcba7447e496c75afdf2155a4167de9bfe034d3ac3",
+          "consumers": []
+        },
+        {
+          "name": "OkhslChannels",
+          "kind": "interface",
+          "hash": "c36568c079d53d1071e3f76e03ec6e301ace098d244d5b2b6785f701b222e283",
+          "consumers": []
+        },
+        {
+          "name": "okhslColor",
+          "kind": "function",
+          "hash": "8f48b835e317de4e155421dd0bff642057205f8fe0225a7ac529cc8a7109d82c",
+          "consumers": [
+            "src/integrations/pi/components/upstream/theme/theme.ts"
+          ]
+        },
+        {
+          "name": "oklabToOkhslLightness",
+          "kind": "const",
+          "hash": "42df0babdaa36d02edad1a071aa3d6d3edb0dca7a898fe2fcad84eaf3c7c6606",
+          "consumers": []
+        },
+        {
+          "name": "OklchChannels",
+          "kind": "interface",
+          "hash": "780e607d73e0f3f48ebd09d032dcb9e390608f636b49a4bf91c15204984ebaff",
+          "consumers": []
+        },
+        {
+          "name": "oklchColor",
+          "kind": "function",
+          "hash": "66becc386a5d51d5689ad6970c692426acac02f5802055e1caf7e43bf3bbb404",
+          "consumers": []
+        },
+        {
+          "name": "OklchColorValue",
+          "kind": "interface",
+          "hash": "e57c3123ff1a2ddeb6fa34cf0ea4b1ca42b4e246225564556509ccef4d1daf15",
           "consumers": []
         },
         {
@@ -3466,15 +3823,15 @@
           "consumers": []
         },
         {
-          "name": "parseKey",
+          "name": "parseColor",
           "kind": "function",
-          "hash": "864418405cfea81a719e95a35d1761e1fad5a9d56b42e32eb885ac9d6b46ef5b",
+          "hash": "0eceb1fbefc99e1533ab3fae63aaa3f50285ccb6b2f8cbcd63737eabc5d91335",
           "consumers": []
         },
         {
-          "name": "parseOsc11BackgroundColor",
+          "name": "parseKey",
           "kind": "function",
-          "hash": "e2a0389b166fc0d26418cd4eceb2c7a0fe43e29679a343a8fa07e38bb09b1765",
+          "hash": "864418405cfea81a719e95a35d1761e1fad5a9d56b42e32eb885ac9d6b46ef5b",
           "consumers": []
         },
         {
@@ -3486,9 +3843,19 @@
         {
           "name": "ProcessTerminal",
           "kind": "class",
-          "hash": "37cf4a073edc361b00ded53b70465bb85f1685c5bdf582996d33684fc85aa9b5",
+          "hash": "eb3bb6ad7aae9c17e2ce74dfa83d1ce1e08d397d0158e1d101e155cf2419c059",
           "consumers": [
             "src/integrations/pi/tui-runtime/adapter.ts"
+          ]
+        },
+        {
+          "name": "ProgramStatus",
+          "kind": "interface",
+          "hash": "03dab00d02f38af98cfbf13fbe6ee26fd14cfc0b209cc2a278d82b22442139a6",
+          "consumers": [
+            "src/integrations/pi/components/upstream/program-status-reporter.ts",
+            "src/integrations/pi/tui-runtime/adapter.ts",
+            "src/integrations/pi/tui-runtime/contracts.ts"
           ]
         },
         {
@@ -3516,12 +3883,26 @@
           "consumers": []
         },
         {
+          "name": "rgbColor",
+          "kind": "function",
+          "hash": "ffbb22907fb7ad96c1664d731635d11a9910c2d37e06c494b9ec6bcdbe7e6039",
+          "consumers": [
+            "src/integrations/pi/components/upstream/components/pi-logo.ts"
+          ]
+        },
+        {
           "name": "RgbColor",
           "kind": "interface",
           "hash": "76806809a1cbd49faabbfa2bcae9d75cca16771b9d7b82297747776cf4086b79",
           "consumers": [
             "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
+        },
+        {
+          "name": "RgbColorValue",
+          "kind": "interface",
+          "hash": "c04b1be7e10a3fb65ab9d4138318a02a2fbd506c2115357152a7e7bd34a8e5ac",
+          "consumers": []
         },
         {
           "name": "ScrollView",
@@ -3582,6 +3963,7 @@
           "kind": "interface",
           "hash": "06c8143d81c57c02f8536c1e90ffc6d7d09fa46e1dde999a97ab6ca6d61ed6e5",
           "consumers": [
+            "src/integrations/pi/components/theme.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
         },
@@ -3610,12 +3992,16 @@
           "consumers": []
         },
         {
+          "name": "setImageTranscoder",
+          "kind": "function",
+          "hash": "9662624165a69ef51d67b7e7e28e6fa42ed575f41e6a98d37c21a429eddf5add",
+          "consumers": []
+        },
+        {
           "name": "setKeybindings",
           "kind": "function",
           "hash": "c92dde39880f816eb9106f767d43f060e9c3bc984f2a71bd30c12026121811e4",
           "consumers": [
-            "src/integrations/pi/components/shell-editor-autocomplete.ts",
-            "src/integrations/pi/components/shell-extension-ui.ts",
             "src/integrations/pi/components/shell-shared-facade.ts"
           ]
         },
@@ -3660,6 +4046,8 @@
           "kind": "function",
           "hash": "f81e15732dc355a21592f6377fa88189b46003b8837fd275705671c0ea9484e2",
           "consumers": [
+            "src/integrations/pi/components/shell-session-info-reference.ts",
+            "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
@@ -3670,6 +4058,7 @@
           "hash": "f4da5befc73d33073373e2206cfd5fbaa99fbc121103b4e08452cf7d52789d69",
           "consumers": [
             "src/integrations/pi/components/modal-frame.ts",
+            "src/integrations/pi/components/share-operation-dialog.ts",
             "src/integrations/pi/components/shell-footer-status.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
@@ -3733,18 +4122,44 @@
           "name": "stripTerminalSequences",
           "kind": "function",
           "hash": "89b4812bb095249f5021630133c2a1a896e6499583a4ec871b8b44d426f5e908",
+          "consumers": [
+            "src/integrations/pi/components/theme.ts"
+          ]
+        },
+        {
+          "name": "styleText",
+          "kind": "function",
+          "hash": "4c8403fc2290c53fba5af21225f2628b5f9a69bf7736a17552e55d2396b05d72",
+          "consumers": []
+        },
+        {
+          "name": "styleTextWithAnsi",
+          "kind": "function",
+          "hash": "0872e1eb10edfc53454508480efdf0fd138d0197392c88583ec955119737ba93",
           "consumers": []
         },
         {
           "name": "Terminal",
           "kind": "interface",
-          "hash": "5f6e89a744bb6f3b64fa2724b62590eb832b76358f2fe0bfcf6230d08959fe47",
+          "hash": "b80c615b069142c403cb0a2f404fdda3711c66aad4fb4a00f72d9bf88be87e6a",
           "consumers": []
         },
         {
           "name": "TerminalCapabilities",
           "kind": "interface",
           "hash": "a3cf608e5632425b82e27d2141a6496cc0ed598677a7062500d188b0fd2678c5",
+          "consumers": []
+        },
+        {
+          "name": "TerminalColorMode",
+          "kind": "type",
+          "hash": "ac998bdd6182579da4058f6be767aeaea9d11bf647b3a8cde9517478101dfe12",
+          "consumers": []
+        },
+        {
+          "name": "TerminalColors",
+          "kind": "interface",
+          "hash": "ede11846b3dd9cf2536aea8678f0a171bbaa15f319a64009baf1d755ad3f8c75",
           "consumers": []
         },
         {
@@ -3756,13 +4171,16 @@
         {
           "name": "Text",
           "kind": "class",
-          "hash": "256bdefed48634626a832802b714cf6c35670d2c29eb0fb536f9eb79bd014eb4",
+          "hash": "20b16a193dccf6331affd3d0ce66aa54ba3caf40b7fd9e93b62bcb54c6ab4da3",
           "consumers": [
+            "src/integrations/pi/components/modal-frame.ts",
+            "src/integrations/pi/components/share-operation-dialog.ts",
             "src/integrations/pi/components/shell-extension-ui.ts",
             "src/integrations/pi/components/shell-footer-status.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
+            "src/integrations/pi/components/shell-session-info-reference.ts",
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/submitted-prompt-adapter.ts",
             "src/integrations/pi/components/tool-image-presentation.ts",
@@ -3773,11 +4191,24 @@
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
+            "src/integrations/pi/components/upstream/components/themed-text.ts",
             "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/components/trust-selector.ts"
           ]
+        },
+        {
+          "name": "TextAttributes",
+          "kind": "interface",
+          "hash": "c339bbe93a82b0d997fbb9076ab7fae920cad0d902002ff8d7f6c5f030dc1d02",
+          "consumers": []
+        },
+        {
+          "name": "TextStyle",
+          "kind": "interface",
+          "hash": "5facd7c514a2b095df180154652dd7379c334c6573b94672d3ad2091ba211e03",
+          "consumers": []
         },
         {
           "name": "Token",
@@ -3805,7 +4236,9 @@
           "hash": "ac6c365fc166deafebb35bc7b2aba128865652bd20d137e341dc18c7f6338c8d",
           "consumers": [
             "src/integrations/pi/components/models-dialog.ts",
+            "src/integrations/pi/components/prompt-chip-presentation.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
+            "src/integrations/pi/components/theme.ts",
             "src/integrations/pi/components/upstream/components/session-footer.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/status-indicator.ts",
@@ -3816,13 +4249,13 @@
         {
           "name": "TUI",
           "kind": "interface",
-          "hash": "1280ca87862adb0c07ccf02c6488c35c82dcfbedae7f5018c94531e3b0a3b9fa",
+          "hash": "52d2d32c396d513b18cde72f1e45718baae8d489e7fce12e86a2169281f9631e",
           "consumers": [
             "src/integrations/pi/components/history-editor-loader.ts",
+            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/shell-footer-status.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/components/countdown-timer.ts",
-            "src/integrations/pi/components/upstream/components/daxnuts.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/extension-input.ts",
             "src/integrations/pi/components/upstream/components/extension-selector.ts",
@@ -3836,7 +4269,7 @@
         {
           "name": "TUI_KEYBINDINGS",
           "kind": "const",
-          "hash": "2c0a74d99f4aba9648ccf0344988ed8abd72410c3714c41beca3f008280549f3",
+          "hash": "a594b4685855d3a723a10e903295f171719df75118f0282bbf6d99f2883fb5e3",
           "consumers": [
             "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts"
           ]
@@ -3844,7 +4277,7 @@
         {
           "name": "TuiAltScreen",
           "kind": "class",
-          "hash": "41cfd2d929956623ba2743573e40eda0c0463907ca5267e124b25fffc75b3905",
+          "hash": "bd3209aa786cb15c193e98c12ded8c13772d5a4b4d42548692d450ee09340a54",
           "consumers": [
             "src/integrations/pi/tui-runtime/adapter.ts",
             "src/integrations/pi/tui-runtime/overlay-geometry.ts"
@@ -3853,7 +4286,7 @@
         {
           "name": "TuiAltScreenOptions",
           "kind": "interface",
-          "hash": "99e53226776b4af517bb06dfa6911fd58c578e6e27adad06d166ee8e6003eb57",
+          "hash": "2727b8207f05071d38f6d990e24be5d782a039393391c2da07e51c1dd5a76022",
           "consumers": [
             "src/integrations/pi/tui-runtime/adapter.ts"
           ]
@@ -3901,6 +4334,7 @@
           "kind": "interface",
           "hash": "71b68579b4a3a3c7825351b6fae6d31a4048fbc6fc9e9d858156d0f2698ed7e9",
           "consumers": [
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
@@ -3910,6 +4344,7 @@
           "kind": "interface",
           "hash": "07978917403b2f2168b40685670a08eed5929fffe6067b4ef33ce8b3e0fa5e36",
           "consumers": [
+            "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
         },
@@ -3936,8 +4371,12 @@
           "kind": "function",
           "hash": "ff5227d927901971eb77bb5d5ce67d87420d9090a4e05ff230fd6d685348d457",
           "consumers": [
+            "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/owned-editor-ux.ts",
+            "src/integrations/pi/components/prompt-chip-presentation.ts",
             "src/integrations/pi/components/shell-editor-autocomplete.ts",
+            "src/integrations/pi/components/shell-presenters-info.ts",
+            "src/integrations/pi/components/shell-session-info-reference.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/components/owned-editor.ts",
             "src/integrations/pi/components/upstream/components/session-footer.ts",
@@ -3953,6 +4392,15 @@
           "hash": "2a7f5f9e1aba70f1c2052cb7104a5b090ff8a90a08d0611bd92de7d73090929c",
           "consumers": [
             "src/integrations/pi/tui-runtime/adapter.ts"
+          ]
+        },
+        {
+          "name": "WheelScrollLines",
+          "kind": "type",
+          "hash": "7ad2df3118c95062c50a2af9fadba0dcd141a23d94ff6882e8981c0f2ff001d1",
+          "consumers": [
+            "src/integrations/pi/tui-runtime/adapter.ts",
+            "src/integrations/pi/tui-runtime/contracts.ts"
           ]
         },
         {

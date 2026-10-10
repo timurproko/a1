@@ -7,16 +7,10 @@ import type {
   AgentSettingOwner,
   AgentSettingsPort,
 } from "../../../contracts/agent-engine/index.js";
+import type { OwnedUiSessionSettingKey } from "../../../contracts/owned-ui/index.js";
 import { loadPiSettingsMetadata, type PiSettingsMetadata } from "./settings-metadata.js";
 
-export type PiSettingKey =
-  | "autoCompact" | "showImages" | "imageWidthCells" | "autoResizeImages" | "blockImages"
-  | "enableSkillCommands" | "steeringMode" | "followUpMode" | "transport" | "httpIdleTimeoutMs" | "cacheWarmingMode"
-  | "modelThinkingLevels" | "theme" | "hideThinkingBlock" | "mermaidRenderingMode" | "showCacheMissNotices"
-  | "collapseChangelog" | "enableInstallTelemetry" | "quietStartup" | "defaultProjectTrust"
-  | "doubleEscapeAction" | "treeFilterMode" | "showHardwareCursor" | "editorPaddingX" | "outputPad"
-  | "autocompleteMaxVisible" | "clearOnShrink" | "showTerminalProgress" | "tuiMode"
-  | "fullscreenExitOutput" | "fullscreenScrollbar" | "fullscreenCopyOnSelect" | "warnings";
+export type PiSettingKey = OwnedUiSessionSettingKey;
 
 export type PiSettingVisualClass =
   | "none"
@@ -93,6 +87,7 @@ export const PI_SETTING_EFFECTS: Readonly<Record<PiSettingKey, PiSettingEffectDe
   fullscreenExitOutput: hiddenEffect("current-exit", "shutdown", "pinned styled transcript and compact dim resume hint", "pinned-fullscreen-exit-parity"),
   fullscreenScrollbar: hiddenEffect("live", "shell", "pinned fullscreen scrollbar reservation", "pi-terminal-operation-parity"),
   fullscreenCopyOnSelect: effect("live", "shell", "terminal-status", "pinned fullscreen copy-on-select toggle and copy acknowledgement", "pi-terminal-operation-parity"),
+  fullscreenWheelScrollLines: effect("live", "shell", "terminal-frame", "pinned fullscreen wheel distance and acceleration", "pi-terminal-operation-parity"),
   warnings: effect("live", "agent", "transcript-notice", "pinned warning rows by warning part", "pinned-transcript-lifecycle-parity"),
 });
 
@@ -439,9 +434,7 @@ export class PiSettingsBridge implements AgentSettingsPort {
   readonly #providers: PiSettingsProviders;
   readonly #coordinator: PiSettingsCoordinator;
 
-  private readonly settings: SettingsManager;
   constructor(settings: SettingsManager, providers: PiSettingsProviders = {}) {
-    this.settings = settings;
     this.#providers = providers;
     const mapped = operations(settings, providers);
     this.#operations = new Map(mapped.map(operation => [operation.key, operation]));
@@ -563,7 +556,7 @@ function operations(settings: SettingsManager, providers: PiSettingsProviders): 
     bool("showCacheMissNotices", () => settings.getShowCacheMissNotices(), value => settings.setShowCacheMissNotices(value)),
     bool("collapseChangelog", () => settings.getCollapseChangelog(), value => settings.setCollapseChangelog(value)),
     bool("enableInstallTelemetry", () => settings.getEnableInstallTelemetry(), value => settings.setEnableInstallTelemetry(value)),
-    bool("quietStartup", () => settings.getQuietStartup(), value => settings.setQuietStartup(value)),
+    quietStartupSetting(settings),
     choice("defaultProjectTrust", offered("defaultProjectTrust"), () => settings.getDefaultProjectTrust(), value => settings.setDefaultProjectTrust(value as ReturnType<SettingsManager["getDefaultProjectTrust"]>)),
     choice("doubleEscapeAction", offered("doubleEscapeAction"), () => settings.getDoubleEscapeAction(), value => settings.setDoubleEscapeAction(value as ReturnType<SettingsManager["getDoubleEscapeAction"]>)),
     choice("treeFilterMode", offered("treeFilterMode"), () => settings.getTreeFilterMode(), value => settings.setTreeFilterMode(value as ReturnType<SettingsManager["getTreeFilterMode"]>)),
@@ -577,6 +570,7 @@ function operations(settings: SettingsManager, providers: PiSettingsProviders): 
     choice("fullscreenExitOutput", offered("fullscreenExitOutput"), () => settings.getFullscreenExitOutput(), value => settings.setFullscreenExitOutput(value as ReturnType<SettingsManager["getFullscreenExitOutput"]>)),
     choice("fullscreenScrollbar", offered("fullscreenScrollbar"), () => settings.getFullscreenScrollbar(), value => settings.setFullscreenScrollbar(value as ReturnType<SettingsManager["getFullscreenScrollbar"]>)),
     bool("fullscreenCopyOnSelect", () => settings.getFullscreenCopyOnSelect(), value => settings.setFullscreenCopyOnSelect(value)),
+    wheelScrollLinesSetting(settings),
     jsonObject("warnings", () => settings.getWarnings(), value => settings.setWarnings(value as ReturnType<SettingsManager["getWarnings"]>)),
   ];
 }
@@ -615,6 +609,17 @@ function bool(key: PiSettingKey, read: () => boolean, write: (value: boolean) =>
   return operation(key, "boolean", read, value => { if (typeof value !== "boolean") invalid(key); }, value => write(value as boolean));
 }
 
+function quietStartupSetting(settings: SettingsManager): Operation {
+  const key = "quietStartup";
+  const choices = [true, "header", false] as const;
+  return choice(
+    key,
+    choices,
+    () => settings.getQuietStartup(),
+    value => settings.setQuietStartup(value as ReturnType<SettingsManager["getQuietStartup"]>),
+  );
+}
+
 function numberSetting(key: PiSettingKey, read: () => number, write: (value: number) => void, minimum: number): Operation {
   const declared = PRESENTATION.bounds[key];
   const low = declared?.minimum ?? minimum;
@@ -622,6 +627,13 @@ function numberSetting(key: PiSettingKey, read: () => number, write: (value: num
   return operation(key, "number", read, value => {
     if (typeof value !== "number" || !Number.isSafeInteger(value) || value < low || (high !== undefined && value > high)) invalid(key);
   }, value => write(value as number));
+}
+
+function wheelScrollLinesSetting(settings: SettingsManager): Operation {
+  const key = "fullscreenWheelScrollLines";
+  return operation(key, "json", () => settings.getFullscreenWheelScrollLines(), value => {
+    if (value !== "auto" && (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > 100)) invalid(key);
+  }, value => settings.setFullscreenWheelScrollLines(value as ReturnType<SettingsManager["getFullscreenWheelScrollLines"]>));
 }
 
 function jsonObject(key: PiSettingKey, read: () => object, write: (value: AgentJsonValue) => void): Operation {

@@ -26,8 +26,23 @@ export { resolveCohortEndpoint, resolveProductPaths } from "./paths.js";
 export type { CohortEndpointPaths, ProductPaths } from "./paths.js";
 export { parseSessionSelection, sessionSelectionArguments } from "./session-selection.js";
 export type { SessionSelection } from "./session-selection.js";
-export { clearSessionRepositoryContext, readSessionRepositoryContext, setSessionRepositoryContext } from "./session-repository-context.js";
-export type { SessionRepositoryContext, SessionRepositoryContextOptions, SessionRepositoryIdentity } from "./session-repository-context.js";
+export {
+  PRIMARY_SESSION_AGENT_ID,
+  activateSessionRepositoryContext,
+  clearSessionRepositoryContext,
+  listSessionRepositoryWorktrees,
+  readSessionRepositoryContext,
+  registerSessionRepositoryRuntime,
+  releaseSessionRepositoryRuntime,
+  setSessionRepositoryContext,
+} from "./session-repository-context.js";
+export type {
+  SessionRepositoryContext,
+  SessionRepositoryContextOptions,
+  SessionRepositoryIdentity,
+  SessionWorktreeInventoryEntry,
+  SessionWorktreeStatus,
+} from "./session-repository-context.js";
 export {
   createSupervisorStartupAttempt,
   publishSupervisorStartupResult,

@@ -186,6 +186,7 @@ await step("matrix", async () => {
 });
 await step("startup-graph", async () => {
   await run(process.execPath, ["scripts/pi/update-startup-graph-baseline.mjs"]);
+  await run(npm, ["exec", "--", "tsx", "scripts/pi/sync-progress-palette.ts"]);
   const build = steps.find(candidate => candidate.name === "build");
   if (build?.status === "failed") {
     // Rationale: the build validates the baseline it just moved; a build that failed only on the old totals passes now.
@@ -193,14 +194,15 @@ await step("startup-graph", async () => {
     build.status = "passed";
     build.detail = "failed against the previous startup baseline; passed after the startup-graph re-pin";
   }
-  return "startup graph and Pi artifact totals re-pinned";
+  return "startup graph, Pi artifact totals, and progress accent re-pinned";
 });
 await step("parity", async () => { await run(npm, ["run", "sync:pi-ui"]); return "component and event-frame evidence regenerated"; });
 await step("typecheck", async () => { await run(npm, ["run", "typecheck"]); return "clean"; });
 await step("architecture", async () => { await run(npm, ["run", "check:architecture"]); return "clean"; });
 await step("engine-conformance", async () => { await run(process.execPath, ["scripts/pi/run-pi-engine-conformance.mjs"]); return "passed"; });
 await step("parity-suites", async () => {
-  await run("npx", ["vitest", "run", "test/features/owned-ui", "test/integrations/pi/components", "test/repository-governance"]);
+  // Concurrency: bound workers so repository-governance Git fixtures do not contend for Windows file handles.
+  await run("npx", ["vitest", "run", "test/features/owned-ui", "test/integrations/pi/components", "test/repository-governance", "--maxWorkers=4", "--minWorkers=1"]);
   return "passed";
 });
 report.changelog = await upstreamChangelog(version).catch(() => null);

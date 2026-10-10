@@ -18,13 +18,14 @@ src/
     prompt-history/                profile-isolated prompt retention and bounded SQLite worker lifecycle
     prompt-suggestions/            opt-in bounded metadata capture and local diagnostic snapshots
   contracts/
-    agent-engine/                  dependency-free agent engine, session, package, and capability ports
+    agent-engine/                  dependency-free agent settings and package contracts
     owned-ui/                      dependency-free owned-session and extension UI contracts
     presentation/                  dependency-free component, terminal, and runtime ports
   integrations/
     pi/
       components/                  pinned Pi component and theme adaptation
       engine/                      pinned Pi engine, settings, resource, package, and workflow integration
+      session-presenters/          pinned Pi selectors and transcript renderers built from engine objects
       tui-runtime/                 neutral presentation runtime over pinned Pi TUI
   foundation/
     launch-guardian/               authenticated launch-instance coordination
@@ -42,7 +43,7 @@ src/
 
 Each directory owner exposes `index.ts`, which lists its named exports; `export *` is rejected there so a public contract is readable in one place. Imports within one owner may use private files. Imports crossing owners must use the provider's public entry and follow the dependency DAG declared by `PROJECT_OWNERS`. Two exceptions exist: `src/composition` is the dependency-injection root and may reach past any public entry, and a module on the eager startup path may import a leaf of a provider whose public entry is a prohibited startup entry (`PROHIBITED_STARTUP_ENTRIES` in `startup-graph-policy.mjs`), because loading that barrel would pull the provider's whole graph into startup. `product-identity` is the sole exception to the directory-entry convention because its public entry is `src/product-identity.ts`.
 
-Three layer boundaries hold regardless of the DAG: `src/contracts/*` import nothing outside their own contract; `src/ui/components` imports only contracts; only `src/integrations/pi/*` and the shipped `bin/` entries import the pinned Pi packages. The session shell under `src/app` is the application layer: it may import the contracts, the UI foundations, the three Pi adapters, and the feature owners, and only composition imports it.
+Three layer boundaries hold regardless of the DAG: `src/contracts/*` import nothing outside their own contract; `src/ui/components` imports only contracts; only `src/integrations/pi/*` and the shipped `bin/` entries import the pinned Pi packages. The session shell under `src/app` is the application layer: it may import the contracts, the UI foundations, the three Pi adapters, and the feature owners, and only composition imports it. The shell never holds a Pi engine object: selectors and transcript renderers built from one live in `src/integrations/pi/session-presenters`, the only owner besides composition that may import both the engine and the component adapters, and the shell opens them through the `OwnedUiSessionPresenters` contract.
 
 `src/cli` contains command policy but delegates runtime work. `src/composition` is the concrete dependency-injection boundary: it may know both neutral contracts and Pi implementations, while product features receive vendor-neutral ports. Foundation modules never import product features. Pi package knowledge remains inside the Pi adapter owners.
 
@@ -86,24 +87,27 @@ Prefer the smallest independent boundary that proves the observable result. Do n
 
 The repository has one root `package.json`, `package-lock.json`, TypeScript configuration, Vitest configuration, and dependency installation. Nested manifests, lockfiles, `node_modules`, vendored package caches, logs, sessions, browser profiles, generated output, and runtime state are forbidden under production and feature trees.
 
-Build output mirrors the production namespaces directly under ignored `dist/`, without an intermediate `src/` directory; release and test evidence belongs in ignored `.artifacts/`; temporary agent work belongs in ignored `.worktrees/` and `.builds/`. Repository tooling is grouped under `scripts/governance`, `scripts/release`, `scripts/pi`, and `scripts/development`; the few root scripts are standalone maintenance or build commands. Package contents are selected by the root manifest. The Rust process guardian and console terminal-host proof live under `native/`; Cargo output is ignored. Third-party terminal parser sources are isolated under `native/terminal-host/vendor/` and are not owned application modules.
+Build output mirrors the production namespaces directly under ignored `dist/`, without an intermediate `src/` directory; generated release/test evidence and agent-selected scratch files belong in ignored `.artifacts/`; task worktrees and local package outputs belong in ignored `.worktrees/` and `.builds/`. Repository tooling is grouped under `scripts/governance`, `scripts/release`, `scripts/pi`, and `scripts/development`; the few root scripts are standalone maintenance or build commands. Package contents are selected by the root manifest. The Rust process guardian and console terminal-host proof live under `native/`; Cargo output is ignored. Third-party terminal parser sources are isolated under `native/terminal-host/vendor/` and are not owned application modules.
 
 ## Development worktrees
 
 Every task worktree must be created at `{working-dir}/.worktrees/<task-id>`, where `{working-dir}` is the agent session's initial working directory. The `.worktrees` directory is inside that working directory, not beside it. For working directory `D:/Git/a1`, `D:/Git/a1/.worktrees/<task-id>` is correct and `D:/Git/a1-<task-id>` is forbidden.
 
-From the initial working directory, create the task branch and worktree, run `a1 session link-worktree <absolute-worktree>` from the owning A1 session, and continue to address it explicitly:
+From the initial working directory, run `a1 session worktrees` to inspect cooperative live ownership before selecting an existing checkout. A `busy` or `unverifiable` worktree is unavailable. An `available` checkout may be reused only when its exact branch, OpenSpec change, and pull request match the requested stream and atomic `a1 session link-worktree <absolute-worktree>` succeeds; names, similar files, recency, cleanliness, and ancestry are not ownership evidence. Otherwise create a fresh task branch/worktree, link it from the owning A1 session, and continue to address it explicitly:
 
 ```sh
+a1 session worktrees
 git fetch origin develop
 git worktree add -b <type>/<short-description> .worktrees/<task-id> origin/develop
 a1 session link-worktree <absolute-worktree>
 git -C .worktrees/<task-id> status
 ```
 
-A successful link response confirming the exact canonical worktree is required before planning, implementation, test, or delivery-documentation edits. If linking fails or confirms another path, stop task edits and report the blocker instead of continuing with primary-checkout footer metadata. A session resuming an existing delivery or switching streams links the exact owned worktree before editing it.
+Inventory is read-only and advisory because another runtime may win a later race. A successful link response confirming the exact canonical worktree is required before planning, implementation, test, or delivery-documentation edits. If inventory or linking fails, reports a live/unverifiable owner, loses a race, or confirms another path, stop task edits and report the blocker; use a separate fresh worktree rather than overriding, unlinking, or recovering that owner. A session resuming an existing delivery or switching streams atomically claims and links the exact worktree before editing it.
 
-The association switches bare A1's footer repository context and pull-request discovery; it does not change process or tool cwd and does not register, claim, release, or authorize cleanup of the worktree. Repository commands therefore keep an explicit worktree path. The primary worktree stays on `develop` for integration and must not be used for task edits. Do not edit, adopt, move, or remove another session's worktree.
+The link acquires a cooperative live-session editing claim and switches bare A1's footer repository context and pull-request discovery. It does not change process or tool cwd, create a Git worktree lock, or register, release, or authorize cleanup. Clean unlink/disposal releases live editing authority; a crashed owner becomes reusable only after exact process death is verified. Repository commands therefore keep an explicit worktree path. The primary worktree stays on `develop` for integration and must not be used for task edits. Do not edit, adopt, move, or remove another session's worktree.
+
+An agent that directly chooses a transient file path for a PR/comment body, command payload, captured output, temporary patch/diff, or ad hoc log must place it beneath the linked worktree's exact `.artifacts/` root, never the primary checkout, another worktree, OS temp, home/desktop, or a sibling path. Such scratch remains ignored, unstaged, uncommitted, disposable, non-authoritative, and secret-free. This repository path rule does not relocate storage internally selected by tools, product runtime code, or hermetic tests.
 
 ## Documentation and comments
 

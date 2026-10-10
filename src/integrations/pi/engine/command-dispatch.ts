@@ -1,10 +1,7 @@
-import { assertOwnedUiCommand, type OwnedUiCommand, type OwnedUiCommandOutcome, type OwnedUiDiagnostics } from "../../../contracts/owned-ui/index.js";
+import { assertOwnedUiCommand, type OwnedUiCommand, type OwnedUiCommandOutcome, type OwnedUiCommandResult, type OwnedUiDiagnostics } from "../../../contracts/owned-ui/index.js";
 import type { PiEmittedEvent } from "./event-delivery.js";
 
-export interface AdapterCommandResult {
-  readonly outcome: OwnedUiCommandOutcome;
-  readonly diagnostic: string | null;
-}
+export type AdapterCommandResult = OwnedUiCommandResult;
 
 /** How many commands and workflows may be admitted together before new work is rejected. */
 const MAX_PENDING_WORK = 32;

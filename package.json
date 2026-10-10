@@ -1,6 +1,6 @@
 {
   "name": "@timurproko/a1",
-  "version": "0.2.2-dev",
+  "version": "0.2.6-dev",
   "description": "Standalone terminal workspace for supervised native and managed agents",
   "type": "module",
   "privateLaunchContract": "neutral-launch-v1",
@@ -40,6 +40,7 @@
     "check": "npm run test:fast",
     "develop": "node scripts/development/develop.mjs",
     "doctor": "node scripts/development/check-environment.mjs --report",
+    "preview:readme": "node scripts/development/preview-readme.mjs",
     "release": "node scripts/release/release.mjs",
     "test": "npm run test:fast",
     "test:pr-core": "node scripts/release/run-validation-tier.mjs pr-core",
@@ -64,8 +65,8 @@
     "typecheck:bin": "tsgo -p tsconfig.bin.json"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "0.87.1",
-    "@earendil-works/pi-tui": "0.87.1",
+    "@earendil-works/pi-coding-agent": "1.1.0",
+    "@earendil-works/pi-tui": "1.1.0",
     "@silvia-odwyer/photon-node": "0.3.4",
     "chalk": "5.6.2",
     "cross-spawn": "7.0.6",

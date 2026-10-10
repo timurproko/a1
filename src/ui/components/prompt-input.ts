@@ -22,6 +22,8 @@ export interface PromptInputBody {
   readonly topRule?: string | undefined;
   readonly bottomRule?: string | undefined;
   readonly after?: readonly string[];
+  /** Outer indentation for after-body rows; defaults to the prompt prefix width. */
+  readonly afterIndent?: number;
 }
 
 export interface PromptInputMetrics {
@@ -40,8 +42,8 @@ export class PromptInput {
 
   styleRule(text: string): string { return promptRuleText(text); }
 
-  geometry(width: number, padding = 0) {
-    const prefixWidth = Math.min(PROMPT_PREFIX_WIDTH, Math.max(0, width));
+  geometry(width: number, padding = 0, promptGlyph = PROMPT_GLYPH) {
+    const prefixWidth = Math.min(this.metrics.measure(promptGlyph), Math.max(0, width));
     // Compatibility: editor wrapping needs room for a two-cell grapheme plus its cursor cell.
     // Lay out against a safe virtual width, then clip only at the shared frame boundary.
     const innerWidth = Math.max(3 + padding * 2, width - prefixWidth);
@@ -50,16 +52,26 @@ export class PromptInput {
     return { prefixWidth, innerWidth, paddingX, contentWidth, layoutWidth: Math.max(1, contentWidth - (paddingX ? 0 : 1)) };
   }
 
-  render(width: number, renderBody: (innerWidth: number) => PromptInputBody, ruled = true, padding = 0): string[] {
+  render(
+    width: number,
+    renderBody: (innerWidth: number) => PromptInputBody,
+    ruled = true,
+    padding = 0,
+    promptGlyph = PROMPT_GLYPH,
+  ): string[] {
     if (width <= 0) return [];
-    const { prefixWidth, innerWidth } = this.geometry(width, padding);
+    const { prefixWidth, innerWidth } = this.geometry(width, padding, promptGlyph);
     const body = renderBody(innerWidth);
+    const requestedAfterIndent = body.afterIndent ?? prefixWidth;
+    const afterIndent = Number.isFinite(requestedAfterIndent)
+      ? Math.min(width, Math.max(0, Math.floor(requestedAfterIndent)))
+      : prefixWidth;
     const fit = (row: string): string => {
       const clipped = this.metrics.truncate(row, width);
       return clipped + " ".repeat(Math.max(0, width - this.metrics.measure(clipped)));
     };
     const rows = body.rows.map((row, index) => fit(`${index === 0
-      ? promptArrow(PROMPT_GLYPH, this.theme)
+      ? promptArrow(promptGlyph, this.theme)
       : " ".repeat(prefixWidth)}${row}`));
     const rule = (fragment?: string): string => fragment === undefined
       ? promptRule(width)
@@ -68,7 +80,7 @@ export class PromptInput {
       ...(ruled ? [rule(body.topRule)] : []),
       ...rows,
       ...(ruled ? [rule(body.bottomRule)] : []),
-      ...(body.after ?? []).map(row => fit(`${" ".repeat(prefixWidth)}${row}`)),
+      ...(body.after ?? []).map(row => fit(`${" ".repeat(afterIndent)}${row}`)),
     ];
   }
 }

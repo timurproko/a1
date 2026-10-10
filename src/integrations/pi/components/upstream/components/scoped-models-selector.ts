@@ -1,12 +1,13 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/coding-agent/src/modes/interactive/components/scoped-models-selector.ts.
  * Modifications: Source-synchronized scoped-model selector port: preserve session-only toggles,
  * search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status,
  * cancellation, and focus while remapping theme and public helper imports; local key labels preserve
  * pinned platform formatting before layout without changing binding identities, and bare A1 uses the
- * shared semantic modal shortcut row and compact padded modal frame.
- * Deviations: owned-modal-shortcut-hints.
+ * shared semantic modal shortcut row and compact padded modal frame while immediately closing on the
+ * implicit Ctrl+C selection-cancel alias without advertising it.
+ * Deviations: owned-modal-shortcut-hints, owned-dialog-ctrl-c-cancel.
  */
 interface ScopedModel {
 	readonly provider: string;
@@ -19,15 +20,13 @@ import {
 	fuzzyFilter,
 	getKeybindings,
 	Input,
-	Key,
-	matchesKey,
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { getModelSearchText } from "../model-search.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 // Rationale: upstream's capitalized hint formatter is private to the package; the same mapping lives here.
 function keyDisplayText(keybinding: Parameters<ReturnType<typeof getKeybindings>["getKeys"]>[0]): string {
@@ -166,7 +165,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 		this.filteredItems = this.buildItems();
 
 		// Header
-		const header = addPiModalHeader(this, new DynamicBorder(), new Text(theme.fg("accent", theme.bold("Model Configuration")), 0, 0));
+		const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), new Text(theme.fg("accent", theme.bold("Model Configuration")), 0, 0));
 		const saveKey = keyDisplayText("app.models.save");
 		this.addChild(new Text(theme.fg("muted", "Session-only.")
 			+ (saveKey ? ` ${renderPiModalShortcutHints([{ key: saveKey, action: "to save to settings." }])}` : ""), 0, 0));
@@ -190,7 +189,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 		this.footerText = new Text(this.getFooterText(), 0, 0);
 		this.addChild(this.footerText);
 
-		this.addChild(new DynamicBorder());
+		this.addChild(new DynamicBorder(paintPiBorder));
 		adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
 		this.updateList();
 	}
@@ -241,6 +240,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 			{ key: reorderKeys, action: "reorder" },
 			{ key: keyDisplayText("app.models.save"), action: "save" },
 			{ action: countText },
+			DIALOG_CLOSE_SHORTCUT_HINT,
 		]);
 		return this.isDirty ? `${hint} ${theme.fg("warning", "(unsaved)")}` : hint;
 	}
@@ -409,19 +409,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 			return;
 		}
 
-		// Ctrl+C - clear search or cancel if empty
-		if (matchesKey(data, Key.ctrl("c"))) {
-			if (this.searchInput.getValue()) {
-				this.searchInput.setValue("");
-				this.refresh();
-			} else {
-				this.callbacks.onCancel();
-			}
-			return;
-		}
-
-		// Escape - cancel
-		if (matchesKey(data, Key.escape)) {
+		if (kb.matches(data, "tui.select.cancel")) {
 			this.callbacks.onCancel();
 			return;
 		}

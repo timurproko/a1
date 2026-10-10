@@ -5,7 +5,7 @@
  * listed shortcut is one dispatch would actually invoke.
  */
 
-import type { ShortcutHintEntry } from "./shortcut-hints.js";
+import { assertOwnedShortcutHintConventions, type ShortcutHintEntry } from "./shortcut-hints.js";
 
 export interface ShortcutDeclaration {
   /** Key token, for example `up`, `shift+down`, `ctrl+c`, or a literal character. */
@@ -81,6 +81,9 @@ export class ShortcutRegistry<Action extends string = string> {
   readonly #actions = new Map<string, Action>();
 
   declare(declaration: ShortcutDeclaration, action: Action): void {
+    if (declaration.hint !== undefined) {
+      assertOwnedShortcutHintConventions([{ key: declaration.hint.keys, action: declaration.hint.does }]);
+    }
     this.#declarations.push(declaration);
     this.#actions.set(`${declaration.scope}\u0000${declaration.key}`, action);
   }

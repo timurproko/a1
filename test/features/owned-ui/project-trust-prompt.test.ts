@@ -52,6 +52,12 @@ class TtyOutput extends Writable {
   }
 }
 
+/** Each synchronized frame's rows, without the in-place erase controls. */
+function frames(text: string): string[] {
+  return text.split("\u001b[?2026h\u001b[H").slice(1)
+    .map(frame => frame.split("\u001b[?2026l")[0]!.replace(/\u001b\[J$/u, "").replaceAll("\u001b[K", ""));
+}
+
 describe("bounded project trust terminal preflight", () => {
   it.each([
     ["\r", "trust"],
@@ -76,21 +82,25 @@ describe("bounded project trust terminal preflight", () => {
     expect(output.text).toContain("Trust (this session only)");
     expect(output.text).toContain("Do not trust");
     expect(output.text).toContain("Do not trust (this session only)");
-    expect(output.text).toContain("\u001b[38;2;102;102;102m↑/↓\u001b[38;2;128;128;128m to navigate  \u001b[38;2;102;102;102mEnter\u001b[38;2;128;128;128m to select");
-    expect(output.text).toContain("Esc\u001b[38;2;128;128;128m to exit");
-    expect(output.text).not.toContain("Ctrl+C\u001b[38;2;128;128;128m to exit");
+    expect(output.text).toContain("\u001b[38;2;126;136;142m↑↓\u001b[38;2;157;165;169m navigate  \u001b[38;2;126;136;142mEnter\u001b[38;2;157;165;169m select");
+    expect(output.text).toContain("Esc\u001b[38;2;157;165;169m close");
+    expect(output.text).not.toContain("Ctrl+C\u001b[38;2;157;165;169m exit");
     expect(output.text).not.toMatch(/[·•]/u);
-    const lastFrame = output.text.split("\u001b[2J\u001b[H").reverse()
+    const lastFrame = frames(output.text).reverse()
       .find(frame => frame.includes("Trust project folder?"))!.split("\n");
     const heading = lastFrame.find(line => line.includes("Trust project folder?"))!;
-    const hint = lastFrame.find(line => line.includes("↑/↓"))!;
+    const hintIndex = lastFrame.findIndex(line => line.includes("↑↓"));
+    const hint = lastFrame[hintIndex]!;
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
+    expect(heading).toContain("\u001b[38;2;167;152;215mTrust project folder?");
+    expect(lastFrame.find(line => line.includes("→ "))).toContain("\u001b[38;2;167;152;215m→ ");
     expect(lastFrame.findIndex(line => line.includes("─"))).toBeGreaterThanOrEqual(0);
     expect(lastFrame.findLastIndex(line => line.includes("─"))).toBe(17);
     const rules = lastFrame.filter(line => line.includes("─"));
     expect(rules).toHaveLength(2);
-    expect(rules.every(line => line.startsWith("\u001b[38;2;95;135;255m"))).toBe(true);
+    expect(rules.every(line => line.startsWith("\u001b[38;2;97;133;204m"))).toBe(true);
     expect(rules.every(line => line.replace(/\u001b\[[0-9;:]*m/gu, "").length === output.columns)).toBe(true);
+    expect(lastFrame[hintIndex + 1]).toBe(rules[1]);
     expect(input.rawTransitions).toEqual([true, false]);
   });
 
@@ -121,11 +131,11 @@ describe("bounded project trust terminal preflight", () => {
     const output = new TtyOutput(30, 5);
     const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("\t\t\t\r"), output });
     await prompt(request());
-    const frame = output.text.split("\u001b[2J\u001b[H").reverse().find(part => part.includes("Trust project folder?"))!;
+    const frame = frames(output.text).reverse().find(part => part.includes("Trust project folder?"))!;
     expect(frame.split("\n")).toHaveLength(5);
     expect(frame).toContain("→ Do not trust");
     expect(frame).toContain("this session only");
-    expect(frame).toContain("↑/↓");
+    expect(frame).toContain("↑↓");
     expect(frame).not.toContain("─");
   });
 
@@ -143,7 +153,7 @@ describe("bounded project trust terminal preflight", () => {
       input: new TtyInput("\u001b"), output, presentation: "comparison",
     });
     await prompt(request());
-    const frame = output.text.split("\u001b[2J\u001b[H").find(part => part.includes("Trust project folder?"))!;
+    const frame = frames(output.text).find(part => part.includes("Trust project folder?"))!;
     expect(frame.startsWith("\u001b[1m\u001b[38;2;138;190;183mTrust project folder?")).toBe(true);
     expect(frame).not.toContain("─");
   });
@@ -156,6 +166,33 @@ describe("bounded project trust terminal preflight", () => {
     expect(output.text.lastIndexOf("\u001b[2J\u001b[H")).toBeLessThan(output.text.lastIndexOf("\u001b[?1049l"));
     expect(output.text.endsWith(`\u001b[2J\u001b[H${EMERGENCY_TERMINAL_RESET}`)).toBe(true);
     expect(output.text.lastIndexOf("\u001b[?1049l")).toBeLessThan(output.text.lastIndexOf("\u001b[?25h"));
+  });
+
+  it("redraws in place without clearing the selector between frames", async () => {
+    const output = new TtyOutput();
+    const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("\u001b[B\u001b[B\r"), output });
+    await prompt(request());
+    const beforeRestore = output.text.slice(0, output.text.lastIndexOf("\u001b[2J"));
+    expect(beforeRestore).not.toContain("\u001b[2J");
+    expect(frames(output.text).filter(frame => frame.includes("Trust project folder?"))).toHaveLength(3);
+  });
+
+  it("hands the alternate screen to the shell with the parent cursor parked after a selection", async () => {
+    const input = new TtyInput("\u001b[12;7R\u001b[B\r");
+    const output = new TtyOutput();
+    const prompt = createConsoleProjectTrustPrompt({ input, output });
+    await expect(prompt(request())).resolves.toBe("trust-parent");
+    expect(output.text.startsWith("\u001b[?1049h\u001b[?25l\u001b[6n")).toBe(true);
+    expect(output.text).not.toContain("\u001b[?1049l");
+    expect(output.text.endsWith("\u001b[?2026h\u001b[2J\u001b[H\u001b[12;7H\u001b[?2026l")).toBe(true);
+    expect(input.rawTransitions).toEqual([true, false]);
+  });
+
+  it("leaves the alternate screen on Escape even after a cursor report", async () => {
+    const output = new TtyOutput();
+    const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("\u001b[12;7R\u001b"), output });
+    await expect(prompt(request())).rejects.toMatchObject({ name: "ProjectTrustPromptExitError" });
+    expect(output.text.endsWith(`\u001b[2J\u001b[H${EMERGENCY_TERMINAL_RESET}`)).toBe(true);
   });
 
   it("reports unavailable interaction instead of inventing trust or writing a frame", async () => {

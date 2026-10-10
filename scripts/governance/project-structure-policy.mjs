@@ -4,7 +4,7 @@ import { PROHIBITED_STARTUP_ENTRIES } from "./startup-graph-policy.mjs";
 export const PROJECT_OWNERS = Object.freeze({
   "product-identity": Object.freeze({ id: "product-identity", layer: "foundation", sourceRoot: "src", testRoot: "test/product-identity", publicEntry: "src/product-identity.ts", mayImport: Object.freeze([]) }),
   cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release", "agent-engine-contracts"]),
-  composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "session-shell", "ui-apps", "ui-components", "owned-ui", "prompt-history", "prompt-suggestions", "launch"]),
+  composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "release", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters", "session-shell", "ui-apps", "ui-components", "owned-ui", "prompt-history", "prompt-suggestions", "launch"]),
   "session-shell": owner("session-shell", "app", "src/app/session-shell", "test/app/session-shell", [
     "owned-ui-contracts", "agent-engine-contracts", "presentation-contracts", "ui-components", "ui-apps", "owned-ui-settings",
     "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "terminal-cleanup", "owned-ui", "prompt-history", "prompt-suggestions", "launch",
@@ -33,6 +33,9 @@ export const PROJECT_OWNERS = Object.freeze({
   "pi-engine-adapter": owner("pi-engine-adapter", "foundation", "src/integrations/pi/engine", "test/integrations/pi/engine", ["owned-ui-contracts", "agent-engine-contracts", "startup"]),
   "pi-component-adapter": owner("pi-component-adapter", "foundation", "src/integrations/pi/components", "test/integrations/pi/components", ["owned-ui-contracts", "presentation-contracts"]),
   "pi-tui-runtime-adapter": owner("pi-tui-runtime-adapter", "foundation", "src/integrations/pi/tui-runtime", "test/integrations/pi/tui-runtime", ["presentation-contracts", "terminal-cleanup"]),
+  "pi-session-presenters": owner("pi-session-presenters", "foundation", "src/integrations/pi/session-presenters", "test/integrations/pi/session-presenters", [
+    "owned-ui-contracts", "pi-engine-adapter", "pi-component-adapter",
+  ]),
   supervision: owner("supervision", "foundation", "src/foundation/supervision", "test/foundation/supervision", ["lifecycle", "protocol", "release", "storage", "launch-context"]),
 });
 
@@ -123,9 +126,11 @@ export function inspectPiFeatureBoundaryImports(files) {
 }
 
 /**
- * The three layer boundaries that hold regardless of the owner DAG: contracts import nothing, vendor-neutral UI
- * components import only contracts, and only the Pi adapters (and the shipped `bin/` entries, checked elsewhere)
- * import the pinned Pi packages.
+ * The layer boundaries that hold regardless of the owner DAG: contracts import nothing, vendor-neutral UI
+ * components import only contracts, only the Pi adapters (and the shipped `bin/` entries, checked elsewhere)
+ * import the pinned Pi packages, and the application layer reaches the engine through the declared
+ * `OwnedUiSessionBackend` port rather than the `PiEngineAdapter` class, and Pi engine objects only through
+ * the session presenters port.
  */
 export function inspectLayerBoundaries(files) {
   const errors = [];
@@ -144,7 +149,14 @@ export function inspectLayerBoundaries(files) {
         errors.push(`${path}: ui/components import only contracts ('${specifier}')`);
       } else if (/^@earendil-works\//.test(specifier) && !path.startsWith("src/integrations/pi/")) {
         errors.push(`${path}: only the Pi adapters import '${specifier}'`);
+      } else if (path.startsWith("src/app/") && /\bPiEngineAdapter\b/.test(record.clause ?? "")) {
+        errors.push(`${path}: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class`);
+      } else if (path.startsWith("src/app/") && /\bPiSessionPresentationSource\b/.test(record.clause ?? "")) {
+        errors.push(`${path}: the application layer opens Pi selectors through OwnedUiSessionPresenters, not the engine's presentation source`);
       }
+    }
+    if (path.startsWith("src/app/") && /\bimport\s*\(\s*["'][^"']+["']\s*\)\s*\.\s*PiEngineAdapter\b/.test(source)) {
+      errors.push(`${path}: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class`);
     }
   }
   return errors;

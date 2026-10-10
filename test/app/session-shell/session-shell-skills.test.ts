@@ -100,10 +100,12 @@ describe("OwnedUiSessionShell skills command", () => {
       expect(shell.root.usesDefaultInputSurface()).toBe(false);
       let shown = frame();
       expect(shown).toContain("Skills");
-      expect(shown).toContain("→ skill:framer");
-      expect(shown).toContain("  skill:code-review");
+      expect(shown).toContain("→ framer");
+      expect(shown).toContain("  code-review");
+      expect(shown).not.toContain("skill:framer");
       expect(shown).toContain("Design, edit, and publish Framer sites");
-      expect(shown).toContain("↑↓ navigate  Enter select  Escape/Ctrl+C cancel");
+      expect(shown).toContain("Type search  ↑↓ navigate  Enter select  Esc close");
+      expect(shown).not.toContain("Ctrl+C");
       terminal.input("\u001b");
       await settle();
       expect(shell.root.usesDefaultInputSurface()).toBe(true);
@@ -125,7 +127,7 @@ describe("OwnedUiSessionShell skills command", () => {
       terminal.resize(60, 20);
       shell.runtime.renderNow();
       await shell.submit("/skills");
-      expect(stripTerminalSequences(shell.root.render(60).join("\n"))).toContain("→ skill:framer");
+      expect(stripTerminalSequences(shell.root.render(60).join("\n"))).toContain("→ framer");
       terminal.input("\u001b");
       await settle();
       expect(shell.root.usesDefaultInputSurface()).toBe(true);

@@ -1,7 +1,8 @@
-import { DynamicBorder, getMarkdownTheme } from "../startup-public.js";
-import { Container, Markdown, Spacer, Text, type KeybindingsConfig } from "@earendil-works/pi-tui";
+import { DynamicBorder } from "../startup-public.js";
+import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleWidth, type KeybindingsConfig } from "@earendil-works/pi-tui";
+import { PRODUCT_TEXT } from "../../../product-identity.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
-import { PINNED_PI_LAYOUT, piTheme } from "./theme.js";
+import { getPiHotkeysMarkdownTheme, getPiMarkdownTheme, paintPiBorder, PINNED_PI_LAYOUT, piTheme } from "./theme.js";
 import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";
 
 export interface PiShellSessionInfoPresentation {
@@ -99,7 +100,7 @@ function formatWarmingDecisionTime(nextWarmAt: number | undefined, now: number):
 }
 
 /** The one-line warming status the pinned session report shows; a decision is attached once warming acted. */
-function formatCacheWarmingStatus(status: NonNullable<PiShellCacheWarmingPresentation["status"]>, now = Date.now()): string {
+export function formatCacheWarmingStatus(status: NonNullable<PiShellCacheWarmingPresentation["status"]>, now = Date.now()): string {
   const decision = status.decision;
   if (!decision || (status.state === "inactive" && !decision.economicsAvailable && !status.extensionOverride)) {
     return `Inactive (${status.reason ?? "unknown reason"})`;
@@ -151,16 +152,16 @@ export function createPiShellSessionInfo(presentation: PiShellSessionInfoPresent
 
 export function createPiShellCollapsedChangelog(): PiShellComponentPort {
   ensureTheme();
-  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder());
+  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder(paintPiBorder));
   container.addChild(new Text(`${piTheme().bold(piTheme().fg("accent", "What's New"))}\n${piTheme().fg("muted", "Run /changelog to view the full release notes.")}`, 1, 0));
-  container.addChild(new DynamicBorder()); return componentPort(container);
+  container.addChild(new DynamicBorder(paintPiBorder)); return componentPort(container);
 }
 
 export function createPiShellChangelog(markdown: string): PiShellComponentPort {
   ensureTheme();
-  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder());
+  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder(paintPiBorder));
   container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "What's New")), 1, 0)); container.addChild(new Spacer(1));
-  container.addChild(changelogMarkdown(markdown)); container.addChild(new DynamicBorder());
+  container.addChild(changelogMarkdown(markdown)); container.addChild(new DynamicBorder(paintPiBorder));
   return componentPort(container);
 }
 
@@ -171,7 +172,7 @@ export function renderPiShellChangelogLines(markdown: string, width: number): re
 }
 
 function changelogMarkdown(markdown: string): Markdown {
-  return new Markdown(markdown.trim() || "No changelog entries found.", 1, 1, getMarkdownTheme());
+  return new Markdown(markdown.trim() || "No changelog entries found.", 1, 1, getPiMarkdownTheme());
 }
 
 function shortcutDisplay(key: string): string {
@@ -196,7 +197,7 @@ export function createPiShellHotkeys(
 ): PiShellComponentPort {
   ensureTheme();
   const markdown = hotkeysMarkdown(bindings, getShortcuts, profile);
-  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder()); container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "Keyboard Shortcuts")), 1, 0)); container.addChild(new Spacer(1)); container.addChild(hotkeysMarkdownComponent(markdown)); container.addChild(new DynamicBorder());
+  const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder(paintPiBorder)); container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "Keyboard Shortcuts")), 1, 0)); container.addChild(new Spacer(1)); container.addChild(hotkeysMarkdownComponent(markdown)); container.addChild(new DynamicBorder(paintPiBorder));
   return componentPort(container);
 }
 
@@ -207,7 +208,7 @@ export function renderPiShellHotkeysLines(presentation: PiShellHotkeysPresentati
 }
 
 function hotkeysMarkdownComponent(markdown: string): Markdown {
-  return new Markdown(markdown, 1, 1, getMarkdownTheme());
+  return new Markdown(markdown, 1, 1, getPiHotkeysMarkdownTheme());
 }
 
 export function hotkeysMarkdown(
@@ -226,11 +227,109 @@ export function hotkeysMarkdown(
       ? action === "app.model.select" ? "Unbound (`/models`)" : "Unbound"
       : `\`${label}\``;
   }).join(" / ")} | ${description} |`;
-  let markdown = ["**Navigation**", "| Key | Action |", "|-----|--------|", row(["tui.editor.cursorUp", "tui.editor.cursorDown", "tui.editor.cursorLeft", "tui.editor.cursorRight"], "Move cursor / browse history"), row(["tui.editor.cursorWordLeft", "tui.editor.cursorWordRight"], "Move by word"), row(["tui.editor.cursorLineStart"], profile === "a1" ? "Start of prompt line" : "Start of line"), row(["tui.editor.cursorLineEnd"], profile === "a1" ? "End of prompt line" : "End of line"), ...(profile === "a1" ? ["| `Ctrl+Home` | Start of content |", "| `Ctrl+End` | End of content / follow output |"] : []), row(["tui.editor.jumpForward"], "Jump forward to character"), row(["tui.editor.jumpBackward"], "Jump backward to character"), row(["tui.editor.pageUp", "tui.editor.pageDown"], "Scroll by page"), "", "**Editing**", "| Key | Action |", "|-----|--------|", row(["tui.input.submit"], "Send message"), row(["tui.input.newLine"], `New line${process.platform === "win32" ? " (Ctrl+Enter on Windows Terminal)" : ""}`), row(["tui.editor.deleteWordBackward"], "Delete word backwards"), row(["tui.editor.deleteWordForward"], "Delete word forwards"), row(["tui.editor.deleteToLineStart"], "Delete to start of line"), row(["tui.editor.deleteToLineEnd"], "Delete to end of line"), row(["tui.editor.yank"], "Paste the most-recently-deleted text"), row(["tui.editor.yankPop"], "Cycle through the deleted text after pasting"), row(["tui.editor.undo"], "Undo"), "", "**Other**", "| Key | Action |", "|-----|--------|", row(["tui.input.tab"], "Path completion / accept autocomplete"), row(["app.interrupt"], "Cancel autocomplete / abort streaming"), row(["app.clear"], "Clear editor (first) / exit (second)"), row(["app.exit"], "Exit (when editor is empty)"), row(["app.suspend"], "Suspend to background"), row(["app.thinking.cycle"], "Cycle thinking level"), row(["app.model.cycleForward", "app.model.cycleBackward"], "Cycle models"), row(["app.model.select"], profile === "a1" ? "Open the Models dialog" : "Open model selector"), row(["app.tools.expand"], "Toggle tool output expansion"), row(["app.thinking.toggle"], "Toggle thinking block visibility"), row(["app.editor.external"], "Edit message in external editor"), row(["app.message.copy"], "Copy selection or last assistant message"), row(["app.message.followUp"], "Queue follow-up message"), row(["app.message.dequeue"], "Restore queued messages"), row(["app.clipboard.pasteImage"], "Paste image or text from clipboard"), "| `/` | Slash commands |", "| `!` | Run bash command |", "| `!!` | Run bash command (excluded from context) |", ...(profile === "a1" ? ["", "**Models dialog**", "| Key | Action |", "|-----|--------|", "| `Space` | Toggle the selected model in the cycling scope |", "| `Tab` | Switch the all/scoped filter |", row(["app.models.save"], "Save the scope to settings"), row(["app.models.enableAll"], "Scope every listed model"), row(["app.models.clearAll"], "Clear the listed models from the scope"), row(["app.models.toggleProvider"], "Toggle the selected model's provider"), row(["app.models.reorderUp", "app.models.reorderDown"], "Reorder the cycling scope")] : [])].join("\n");
+  let markdown = ["**Navigation**", "| Key | Action |", "|-----|--------|", row(["tui.editor.cursorUp", "tui.editor.cursorDown", "tui.editor.cursorLeft", "tui.editor.cursorRight"], "Move cursor / browse history"), row(["tui.editor.cursorWordLeft", "tui.editor.cursorWordRight"], "Move by word"), row(["tui.editor.cursorLineStart"], profile === "a1" ? "Start of prompt line" : "Start of line"), row(["tui.editor.cursorLineEnd"], profile === "a1" ? "End of prompt line" : "End of line"), ...(profile === "a1" ? ["| `Ctrl+Home` | Start of content |", "| `Ctrl+End` | End of content / follow output |"] : []), row(["tui.editor.jumpForward"], "Jump forward to character"), row(["tui.editor.jumpBackward"], "Jump backward to character"), row(["tui.editor.pageUp", "tui.editor.pageDown"], "Scroll by page"), "", "**Editing**", "| Key | Action |", "|-----|--------|", row(["tui.input.submit"], "Send message"), row(["tui.input.newLine"], `New line${process.platform === "win32" ? " (Ctrl+Enter on Windows Terminal)" : ""}`), row(["tui.editor.deleteWordBackward"], "Delete word backwards"), row(["tui.editor.deleteWordForward"], "Delete word forwards"), row(["tui.editor.deleteToLineStart"], "Delete to start of line"), row(["tui.editor.deleteToLineEnd"], "Delete to end of line"), row(["tui.editor.yank"], "Paste the most-recently-deleted text"), row(["tui.editor.yankPop"], "Cycle through the deleted text after pasting"), row(["tui.editor.undo"], "Undo"), "", "**Other**", "| Key | Action |", "|-----|--------|", row(["tui.input.tab"], "Path completion / accept autocomplete"), row(["app.interrupt"], "Cancel autocomplete / abort streaming"), row(["app.clear"], "Clear editor (first) / exit (second)"), row(["app.exit"], "Exit (when editor is empty)"), row(["app.suspend"], "Suspend to background"), row(["app.thinking.cycle"], "Cycle thinking level"), row(["app.model.cycleForward", "app.model.cycleBackward"], "Cycle models"), row(["app.model.select"], profile === "a1" ? "Open the Models dialog" : "Open model selector"), row(["app.tools.expand"], "Toggle tool output expansion"), row(["app.thinking.toggle"], "Toggle thinking block visibility"), row(["app.editor.external"], "Edit message in external editor"), row(["app.message.copy"], "Copy selection or last assistant message"), row(["app.message.followUp"], "Queue follow-up message"), row(["app.message.dequeue"], "Restore queued messages"), row(["app.clipboard.pasteImage"], profile === "a1" ? "Paste image or text from clipboard" : "Paste files on macOS, images, or text from clipboard"), "| `/` | Slash commands |", "| `!` | Run bash command |", "| `!!` | Run bash command (excluded from context) |", ...(profile === "a1" ? ["", "**Models dialog**", "| Key | Action |", "|-----|--------|", "| `Space` | Toggle the selected model in the cycling scope |", "| `Tab` | Switch the all/scoped filter |", row(["app.models.save"], "Save the scope to settings"), row(["app.models.enableAll"], "Scope every listed model"), row(["app.models.clearAll"], "Clear the listed models from the scope"), row(["app.models.toggleProvider"], "Toggle the selected model's provider"), row(["app.models.reorderUp", "app.models.reorderDown"], "Reorder the cycling scope")] : [])].join("\n");
   const shortcuts = getShortcuts(bindings ?? keys.getEffectiveConfig());
   if (shortcuts.length > 0) {
     markdown += "\n\n**Extensions**\n| Key | Action |\n|-----|--------|\n";
     markdown += shortcuts.map(shortcut => `| \`${shortcutDisplay(shortcut.key)}\` | ${shortcut.description} |`).join("\n");
   }
   return markdown;
+}
+
+/**
+ * Pinned Pi's `showPackageUpdateNotification` banner: warning-coloured dynamic
+ * borders around a bold warning title, the muted update instruction with the
+ * accent command, and the package list.
+ */
+export function renderPiShellPackageUpdateNotice(packages: readonly string[], width: number): readonly string[] {
+  ensureTheme();
+  const theme = piTheme();
+  const container = new Container();
+  container.addChild(new Spacer(1));
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  container.addChild(new Text(
+    `${theme.bold(theme.fg("warning", "Package Updates Available"))}\n`
+    + `${theme.fg("muted", "Package updates are available. Run ")}${theme.fg("accent", `${PRODUCT_TEXT.commandName} pi update --extensions`)}\n`
+    + `${theme.fg("muted", "Packages:")}\n`
+    + packages.map(name => `- ${name}`).join("\n"),
+    1, 0,
+  ));
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  return container.render(width);
+}
+
+/**
+ * Pinned Pi's `showNewVersionNotification` banner, naming A1's update command: warning-coloured
+ * dynamic borders around a bold warning title, the muted instruction with the accent command, and
+ * for stable releases the muted changelog label with an accent hyperlink.
+ */
+export function renderPiShellReleaseUpdateNotice(
+  release: { readonly version: string; readonly command: string; readonly changelogUrl: string | null },
+  width: number,
+): readonly string[] {
+  ensureTheme();
+  const theme = piTheme();
+  const container = new Container();
+  container.addChild(new Spacer(1));
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  container.addChild(new Text(
+    `${theme.bold(theme.fg("warning", "Update Available"))}\n`
+    + `${theme.fg("muted", `New version ${release.version} is available. Run `)}${theme.fg("accent", release.command)}`,
+    1, 0,
+  ));
+  if (release.changelogUrl !== null) {
+    const link = getCapabilities().hyperlinks
+      ? hyperlink(theme.fg("accent", release.changelogUrl), release.changelogUrl)
+      : theme.fg("accent", release.changelogUrl);
+    container.addChild(new Text(`${theme.fg("muted", "Changelog: ")}${link}`, 1, 0));
+  }
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  return container.render(width);
+}
+
+export interface PiShellReleaseUpdateBanner {
+  readonly rows: readonly string[];
+  /** Clickable close area: zero-based rows within `rows`, one-based inclusive columns. */
+  readonly close: { readonly rowStart: number; readonly rowEnd: number; readonly columnStart: number; readonly columnEnd: number };
+}
+
+const BANNER_PADDING_X = 2;
+
+/**
+ * Bare A1's docked variant of the release notice: Pi's notice wording and colours on the prompt
+ * band's background instead of borders, so it spans the same width as the editor rules, with a
+ * minimal close glyph at the right end of the title row, matching the settings screen's controls.
+ */
+export function renderPiShellReleaseUpdateBanner(
+  release: { readonly version: string; readonly command: string; readonly changelogUrl: string | null },
+  width: number,
+  closeHovered: boolean,
+): PiShellReleaseUpdateBanner {
+  ensureTheme();
+  const theme = piTheme();
+  const bandBg = (text: string) => theme.bg("userMessageBg", text);
+  const title = theme.bold(theme.fg("warning", "Update Available"));
+  // Compatibility: paints like the settings stepper controls: dim at rest, plain text under the pointer.
+  const close = closeHovered ? "✕" : theme.fg("dim", "✕");
+  // Rationale: a glyph looks inset by its own side bearing, so one trailing cell after it reads the same
+  // as the text's two leading cells.
+  const gap = Math.max(1, width - BANNER_PADDING_X - visibleWidth(title) - 2);
+  const closeColumn = BANNER_PADDING_X + visibleWidth(title) + gap + 1;
+  const titleRow = bandBg(`${" ".repeat(BANNER_PADDING_X)}${title}${" ".repeat(gap)}${close} `);
+  const body = [
+    `${theme.fg("muted", `New version ${release.version} is available. Run `)}${theme.fg("accent", release.command)}`,
+  ];
+  if (release.changelogUrl !== null) {
+    const link = getCapabilities().hyperlinks
+      ? hyperlink(theme.fg("accent", release.changelogUrl), release.changelogUrl)
+      : theme.fg("accent", release.changelogUrl);
+    body.push(`${theme.fg("muted", "Changelog: ")}${link}`);
+  }
+  const padding = bandBg(" ".repeat(width));
+  // Invariant: rows are a leading spacer, the band's top padding, then the title row. Hover and click
+  // share one area, the glyph and one cell either side, so what lights up is exactly what closes.
+  return {
+    rows: ["", padding, titleRow, ...new Text(body.join("\n"), BANNER_PADDING_X, 0, bandBg).render(width), padding],
+    close: { rowStart: 2, rowEnd: 2, columnStart: closeColumn - 1, columnEnd: Math.min(width, closeColumn + 1) },
+  };
 }

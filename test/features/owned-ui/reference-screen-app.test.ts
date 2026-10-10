@@ -102,20 +102,44 @@ describe("ReferenceScreenApp frame", () => {
     expect(lines.slice(5, RECT.height - 2).every(line => line.trim() === "")).toBe(true);
     expect(lines.at(-2)).toBe(`<border>${RULE}</border>`);
     expect(REFERENCE_SCREEN_SHORTCUTS.hintEntries("reference-screen")).toEqual([
-      { key: "esc", action: "close" },
       { key: "↑↓", action: "scroll" },
+      { key: "esc", action: "close" },
     ]);
     // Invariant: dialog chrome uses the same one-cell inset as the title.
     const wideFooter = screen(target, { ...HOST, theme: NAMING_THEME }, { width: 100, height: RECT.height }).at(-1) ?? "";
-    expect(wideFooter.startsWith(" <dim>Esc</dim> <muted>close</muted>  <dim>↑↓</dim> <muted>scroll</muted> ")).toBe(true);
+    expect(wideFooter.startsWith(" <dim>↑↓</dim> <muted>scroll</muted>  <dim>Esc</dim> <muted>close</muted> ")).toBe(true);
     expect(wideFooter.indexOf("<dim>")).toBe(lines[1]!.indexOf("<b>"));
     expect(wideFooter).not.toMatch(/[·•]/u);
+    expect(screen(target, HOST, { width: 10, height: RECT.height }).at(-1)).toContain("Esc close");
     // Invariant: a fitting document does not move and reserves the rail columns under auto.
     target.onInput?.(DOWN, HOST);
     target.onInput?.(END, HOST);
     expect(body(target)).toEqual(["Reference", "", "alpha", "beta", ...Array(BODY - 4).fill("")]);
     expect(screen(target).slice(TOP, TOP + BODY).every(line => line.length === RECT.width)).toBe(true);
     expect(railCells(target).every(cell => cell === " ")).toBe(true);
+  });
+
+  it("places preamble rows between the title and shared section headers", () => {
+    const target = new ReferenceScreenApp({
+      id: "reference",
+      title: "Session Info",
+      document: {
+        preamble: () => [" Name: Example", " File: session.jsonl", " ID: session-1"],
+        sections: () => [
+          { title: "Messages", rows: [" Total: 3"] },
+          { title: "Tokens", rows: [" Input: 10"] },
+        ],
+      },
+      scrollSettings: settings(),
+    });
+    const lines = screen(target, { ...HOST, theme: NAMING_THEME });
+    expect(lines[1]?.startsWith(" <b><accent>Session Info</accent></b>")).toBe(true);
+    expect(lines[2]?.trim()).toBe("");
+    expect(lines[3]?.trimEnd()).toBe(" Name: Example");
+    expect(lines[4]?.trimEnd()).toBe(" File: session.jsonl");
+    expect(lines[5]?.trimEnd()).toBe(" ID: session-1");
+    expect(lines[6]?.trim()).toBe("");
+    expect(lines[7]?.startsWith(renderGroupHeader("Messages", RECT.width - RAIL_COLUMNS, NAMING_THEME))).toBe(true);
   });
 
   it("uses shared accent headers directly above section rows and pins the active section", () => {
@@ -341,7 +365,7 @@ describe("ReferenceScreenApp scrolling", () => {
 });
 
 describe("ReferenceScreenApp in the app host", () => {
-  it("renders through the host, closes on Escape, and exits on the interrupt chord", () => {
+  it("renders through the host and closes on either Ctrl+C or Escape", () => {
     const registry = new UiAppRegistry();
     registry.register({
       id: "reference",
@@ -360,13 +384,12 @@ describe("ReferenceScreenApp in the app host", () => {
     expect(frame![1]?.startsWith(" Hosted")).toBe(true);
     expect(frame![2]?.startsWith("hosted row")).toBe(true);
     expect(frame![RECT.height - 2]).toBe(RULE);
-    expect(host.handleInput(INTERRUPT)).toEqual({ consumed: true, render: true });
-    expect(host.isPresenting).toBe(true);
-    host.render();
-    expect(frame!.at(-1)).toContain("press ctrl+c again to exit a1");
+    expect(frame!.at(-1)).toContain("Esc close");
+    expect(frame!.at(-1)).not.toContain("Ctrl+C");
     expect(host.handleInput(INTERRUPT)).toEqual({ consumed: true, render: true });
     expect(host.isPresenting).toBe(false);
-    expect(exit).toHaveBeenCalledTimes(1);
+    expect(frame).toBeNull();
+    expect(exit).not.toHaveBeenCalled();
 
     host.open("reference");
     expect(host.handleInput(ESC).consumed).toBe(true);

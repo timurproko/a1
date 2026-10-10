@@ -2,7 +2,7 @@ import { loadPullRequestAcceptance } from "./openspec-acceptance-github.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
 import { archiveFailure, assertMergedImplementation, inspectTasks, parseImplementation, parseAcceptance, selectAcceptance, SHA } from "./openspec-archive-policy.mjs";
 import { parseImplementationAcceptanceScenarios } from "./openspec-acceptance-checklist.mjs";
-import { assertManualAcceptanceMerge, digest, requireAcceptance } from "./openspec-acceptance-policy.mjs";
+import { assertManualAcceptanceMerge, assertVersion3AcceptanceMerge, digest, requireAcceptance } from "./openspec-acceptance-policy.mjs";
 import { parseAssociationRepair } from "./openspec-association-repair.mjs";
 import { parseConditionalAcceptance, verifyConditionalAcceptance } from "./openspec-delivery-policy.mjs";
 
@@ -129,6 +129,7 @@ export async function validateVersion3Candidate(reader, number) {
   const pull = await reader.get(`${reader.prefix}/pulls/${number}`);
   const implementation = parseImplementation(pull.body ?? "");
   requireAcceptance(implementation?.version === 3, "delivery-version");
+  requireAcceptance(implementation.finalizedHead === pull.head?.sha, "delivery-head-stale");
   const files = await reader.pages(`/pulls/${number}/files`, 3000);
   requireAcceptance(pull.number === number && pull.state === "open" && pull.draft === false && pull.base?.ref === "develop"
     && pull.base?.repo?.full_name === reader.repository && pull.head?.repo?.full_name === reader.repository
@@ -157,7 +158,7 @@ export async function validateVersion3Candidate(reader, number) {
     }
     if (path.startsWith("openspec/specs/") && !specPaths.has(path)) throw archiveFailure("delivery-unexpected-openspec-path", path);
   }
-  return { disposition: "ready-for-manual-merge", pull, implementation, targetSha: target.object.sha, ...value };
+  return { disposition: "ready-for-maintainer-integration", pull, implementation, targetSha: target.object.sha, ...value };
 }
 
 export async function loadImplementationEvidence(reader, number) {
@@ -170,7 +171,9 @@ export async function loadImplementationEvidence(reader, number) {
   if (implementation.version === 3 && pull.merged !== true) {
     if (pull.state === "closed") return { disposition: "closed", pull, implementation };
     if (pull.draft !== false) return { disposition: "draft", pull, implementation };
-    if (!implementation.archive || !implementation.acceptanceManifest) return { disposition: "needs-finalization", pull, implementation };
+    if (!implementation.archive || !implementation.acceptanceManifest || implementation.finalizedHead !== pull.head?.sha) {
+      return { disposition: "needs-finalization", pull, implementation };
+    }
     return await validateVersion3Candidate(reader, number);
   }
   try {
@@ -216,7 +219,7 @@ export async function loadVersion3Acceptance(reader, source) {
   requireAcceptance(/^[a-zA-Z0-9-]{1,39}$/.test(actor ?? ""), "acceptance-manual-authority");
   const permission = await reader.get(`${reader.prefix}/collaborators/${actor}/permission`);
   const events = await reader.pages(`/issues/${pull.number}/timeline`, 1000);
-  assertManualAcceptanceMerge(pull, permission.permission, events);
+  const integration = assertVersion3AcceptanceMerge(pull, permission.permission, events);
   const delivery = await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha, { allowLegacyVersion3Phase: true });
   await verifyAssociationRepairSource(reader, pull, delivery.associationRepair);
   const validation = await findImplementationValidation(reader, pull);
@@ -227,18 +230,19 @@ export async function loadVersion3Acceptance(reader, source) {
     && ![...target.entries.keys()].some(path => path.startsWith(`openspec/changes/${implementation.change}/`)),
   "delivery-archive-drift");
   const manifestText = (await delivery.snapshot.blob(implementation.acceptanceManifest)).toString();
-  const acceptance = { kind: "single-pr", id: pull.number, author: actor, createdAt: pull.merged_at,
+  const action = integration.kind === "manual" ? "manual merge" : "human-enabled native auto-merge";
+  const acceptance = { kind: "single-pr", id: pull.number, author: actor, createdAt: integration.enabledAt ?? pull.merged_at,
     bodyDigest: digest(manifestText), checklistDigest: delivery.checklistDigest, checklistComplete: true,
     checks: delivery.scenarios, headSha: pull.head.sha, mergeSha: pull.merge_commit_sha, manifest: delivery.manifest,
     value: { version: 1, change: implementation.change, headSha: pull.head.sha, specBaseSha: delivery.manifest.specBaseSha,
       verdict: "accepted", implementationComplete: true, manualReview: "passed", specSyncReviewed: true,
-      evidence: `Authorized manual merge of single delivery PR #${pull.number}; manifest SHA-256 ${digest(manifestText)}.` } };
-  return { ...source, disposition: "eligible", acceptance, validation, delivery };
+      evidence: `Authorized ${action} of single delivery PR #${pull.number}; manifest SHA-256 ${digest(manifestText)}.` } };
+  return { ...source, disposition: "eligible", acceptance, validation, delivery, integration };
 }
 
 export async function loadArchiveEvidence(reader, number, { allowMissing = false } = {}) {
   const source = await loadImplementationEvidence(reader, number);
-  if (["unlinked", "closed", "draft", "needs-finalization", "ready-for-manual-merge"].includes(source.disposition)) return source;
+  if (["unlinked", "closed", "draft", "needs-finalization", "ready-for-maintainer-integration"].includes(source.disposition)) return source;
   const { implementation, pull } = source;
   if (implementation.version === 3) {
     try { return await loadVersion3Acceptance(reader, source); }

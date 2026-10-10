@@ -1,12 +1,11 @@
-import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type { PromptOptions } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import {
   PiSessionCommandIntegration,
-  subscribeToPiSessionEvents,
   type PiDocumentedSessionCommands,
 } from "../../../../src/integrations/pi/engine/index.js";
 
-type PromptCall = { text: string; options?: { streamingBehavior?: "steer" | "followUp"; images?: readonly unknown[]; preflightResult?: (success: boolean) => void } };
+type PromptCall = { text: string; options?: PromptOptions };
 
 class Commands implements PiDocumentedSessionCommands {
   isStreaming = false;
@@ -22,10 +21,10 @@ class Commands implements PiDocumentedSessionCommands {
     this.calls.push(`prompt:${text}${options?.streamingBehavior ? `:${options.streamingBehavior}` : ""}`);
     this.prompts.push({ text, ...(options === undefined ? {} : { options }) });
     if (this.promptFailure !== undefined) {
-      options?.preflightResult?.(this.promptFailure.accepted);
+      if (this.promptFailure.accepted) options?.preflightResult?.("started");
       throw this.promptFailure.error;
     }
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
   }
   async steer(text: string, images?: readonly unknown[]): Promise<void> {
     this.calls.push(`steer:${text}`);
@@ -163,20 +162,5 @@ describe("documented Pi session integration", () => {
     const session = new Commands();
     session.executeBash = async () => ({ exitCode: "zero" });
     await expect(new PiSessionCommandIntegration(session).execute({ type: "bash", command: "bad", excludeFromContext: true })).rejects.toThrow(/malformed/);
-  });
-
-  it("converts supported events in subscription order and bounds malformed events", () => {
-    let listener: ((event: AgentSessionEvent) => void) | undefined;
-    const session = { subscribe(callback: (event: AgentSessionEvent) => void) { listener = callback; return () => { listener = undefined; }; } };
-    const events: unknown[] = [];
-    const diagnostics: string[] = [];
-    const subscription = subscribeToPiSessionEvents(session, "session-1", event => events.push(event), diagnostic => diagnostics.push(diagnostic));
-    listener?.({ type: "agent_start" } as AgentSessionEvent);
-    listener?.({ type: "message_start", message: null } as unknown as AgentSessionEvent);
-    listener?.({ type: "agent_settled" } as AgentSessionEvent);
-    expect(events).toMatchObject([{ sequence: 1, type: "lifecycle", lifecycle: "busy" }, { sequence: 3, type: "lifecycle", lifecycle: "ready" }]);
-    expect(diagnostics).toEqual([expect.stringMatching(/event 2 is malformed/)]);
-    subscription.dispose();
-    expect(listener).toBeUndefined();
   });
 });

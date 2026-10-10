@@ -162,7 +162,7 @@ user's intent for a renamed or restructured setting rather than resetting it to 
 - **THEN** A1 SHALL resolve declared defaults, report the condition, and preserve the original file
 
 ### Requirement: A changed setting applies to the running session
-A1 SHALL apply a changed setting at the application boundary declared by its resolved entry and SHALL keep effective values consistent across every surface that reads them. Each presented setting SHALL declare one of `live`, `next-session`, `next-start`, or `current-exit`. A live setting SHALL take effect before the change reports success. A deferred setting SHALL state its boundary when changed rather than appearing live. A setting unavailable in the active product mode or environment SHALL be omitted from the settings UI without an unavailable placeholder row. These rules SHALL apply equally to A1 settings and settings supplied through the engine settings port.
+A1 SHALL apply a changed setting at the application boundary declared by its resolved entry and SHALL keep effective values consistent across every surface that reads them. Each presented setting SHALL declare one of `live`, `next-session`, `next-start`, or `current-exit`. A live setting SHALL take effect before the change reports success. A deferred setting SHALL store the selected value while the running owner retains its previous value until the declared boundary. A setting unavailable in the active product mode or environment SHALL be omitted from the settings UI without an unavailable placeholder row. These rules SHALL apply equally to A1 settings and settings supplied through the engine settings port.
 
 #### Scenario: Change a live-applicable setting
 - **WHEN** the user accepts a change to a setting declared as `live`
@@ -171,7 +171,8 @@ A1 SHALL apply a changed setting at the application boundary declared by its res
 
 #### Scenario: Change a restart-required setting
 - **WHEN** the user accepts a change declared as `next-session`, `next-start`, or `current-exit`
-- **THEN** the value SHALL be stored, the surface SHALL state the exact application boundary, and the running owner SHALL retain the previous value until that boundary
+- **THEN** the value SHALL be stored and the running owner SHALL retain the previous value until that boundary
+- **AND** the Settings row SHALL show the selected stored value without inline effective-value or application-boundary text
 
 #### Scenario: Setting is unavailable
 - **WHEN** the active product mode or environment cannot provide a setting's effect
@@ -473,8 +474,8 @@ The owned settings screen SHALL jump to the first setting on `Ctrl+Home` and to 
 - **WHEN** a terminal delivers the xterm modifier or rxvt Ctrl encoding of `Ctrl+Home` or `Ctrl+End`
 - **THEN** the settings screen SHALL perform the same boundary jump
 
-### Requirement: Generic settings lead the screen with the exit-animation toggle
-A1 SHALL declare `quitAnimation` as a boolean defaulting to `true`, labeled `Quit animation`, in a `Generic` section that SHALL be the first section of bare A1's owned settings screen, ahead of `Scroll`, `History`, and `Agent`. It SHALL be the only owned setting governing the quit outro: no `Quit` section, `quitEffect`, or `quitEffectDurationMs` SHALL be declared, and the outro SHALL always play the `fall` effect for 800 ms when the switch is `true`. It SHALL use existing shared settings controls, profile-local A1 settings persistence, validation, and migration, and SHALL declare a live application boundary: the value stored when the session quits SHALL govern that quit. A settings document from a version that stored `quitEffect` or `quitEffectDurationMs` SHALL migrate with those keys removed. No Pi settings document SHALL be used, and `a1 pi` SHALL neither expose nor apply this setting.
+### Requirement: Appearance settings own the exit-animation toggle
+A1 SHALL declare `quitAnimation` as a boolean defaulting to `true`, labeled `Quit animation`, in the `Appearance` section immediately after `Background`; `Generic` SHALL remain the first section and contain `Update check`. `quitAnimation` SHALL be the only owned setting governing the quit outro: no `Quit` section, `quitEffect`, or `quitEffectDurationMs` SHALL be declared, and the outro SHALL always play the `fall` effect for 800 ms when the switch is `true`. It SHALL use existing shared settings controls, profile-local A1 settings persistence, validation, and migration, and SHALL declare a live application boundary: the value stored when the session quits SHALL govern that quit. A settings document from a version that stored `quitEffect` or `quitEffectDurationMs` SHALL migrate with those keys removed. No Pi settings document SHALL be used, and `a1 pi` SHALL neither expose nor apply this setting.
 
 #### Scenario: Resolve the default
 - **WHEN** the active A1 profile has no stored `quitAnimation` value
@@ -483,7 +484,7 @@ A1 SHALL declare `quitAnimation` as a boolean defaulting to `true`, labeled `Qui
 #### Scenario: Inspect the Generic settings section
 - **WHEN** the owned settings screen is presented
 - **THEN** its first section SHALL be `Generic`
-- **AND** that section SHALL offer `quitAnimation` as an on/off choice labeled `Quit animation`
+- **AND** `Appearance` SHALL offer `Accent color`, `Background`, and then `quitAnimation` as an on/off choice labeled `Quit animation`
 - **AND** no `Quit` section, `Effect` row, or `Duration` row SHALL be presented
 
 #### Scenario: Migrate stored effect and duration values away
@@ -579,19 +580,382 @@ The list, changing visible title offset, sticky-header calculation, scrollbar, p
 
 ### Requirement: The Agent section exposes Pi's fullscreen copy preference
 
-When bare A1 provides application-owned fullscreen frame selection, the owned settings screen SHALL expose pinned Pi's `fullscreenCopyOnSelect` setting exactly once in the existing Agent section. The entry SHALL use Pi's generated `Fullscreen copy on select` label and generated description, SHALL show the value persisted by Pi's settings manager, and SHALL remain an Agent-backend boolean rather than an A1-owned setting. It SHALL be writable through the engine settings port and SHALL declare live application.
+When bare A1 provides application-owned fullscreen frame selection, the owned settings screen SHALL expose pinned Pi's `fullscreenCopyOnSelect` setting exactly once in the existing Agent section. The entry SHALL use the concise bare-A1 label `Copy on select` and Pi's generated description, SHALL show the value persisted by Pi's settings manager, and SHALL remain an Agent-backend boolean rather than an A1-owned setting. It SHALL be writable through the engine settings port and SHALL declare live application.
+
+Bare A1 SHALL NOT expose or bind Pi's `fullscreenWheelScrollLines` setting because the custom viewport's global A1-owned `scrollbarSpeed` setting is its sole wheel-distance and acceleration authority. The pinned comparison profile SHALL retain Pi's original `Fullscreen copy on select` and `Fullscreen wheel scrolling` wording, settings, persistence, and effects.
 
 #### Scenario: Inspect the Agent section
-- **WHEN** bare A1 opens the owned settings screen with its selection owner attached
-- **THEN** the Agent section SHALL contain one `Fullscreen copy on select` boolean entry using Pi's generated wording
+
+- **WHEN** bare A1 opens the owned settings screen with its selection owner and custom viewport attached
+- **THEN** the Agent section SHALL contain one `Copy on select` boolean entry backed by Pi's `fullscreenCopyOnSelect` key
 - **AND** its displayed value SHALL match the persisted Pi setting
+- **AND** no `Fullscreen wheel scrolling` entry SHALL appear
 
 #### Scenario: Change automatic copy
-- **WHEN** the reader changes `Fullscreen copy on select`
+
+- **WHEN** the reader changes `Copy on select`
 - **THEN** the change SHALL be written through the engine settings port and applied live to the active bare-A1 selection owner
 - **AND** no A1 settings document SHALL receive a duplicate value
 
+#### Scenario: Use global owned scrolling
+
+- **WHEN** bare A1's custom viewport handles wheel input
+- **THEN** its distance and acceleration SHALL come from the global A1-owned Scroll settings
+- **AND** Pi's `fullscreenWheelScrollLines` value SHALL NOT be bound as a competing bare-A1 shell effect
+
 #### Scenario: Keep comparison settings behavior unchanged
+
 - **WHEN** the reader uses the `a1 pi` comparison profile
-- **THEN** its pinned settings presentation and fullscreen copy behavior SHALL remain owned by pinned Pi
-- **AND** the bare-A1 Agent-section integration SHALL NOT insert a second setting or selection owner
+- **THEN** its pinned settings presentation SHALL retain `Fullscreen copy on select` and `Fullscreen wheel scrolling`
+- **AND** their fullscreen behavior SHALL remain owned by pinned Pi without a bare-A1 label override or duplicate setting
+
+### Requirement: The prompt image limit is an Agent-section owned setting
+
+Bare A1 SHALL expose the persisted A1 setting `promptImageLimit`, labeled `Prompt image limit`, exactly once in the owned settings screen's existing `Agent` section after `Prompt suggestions` and `Skills`. It SHALL accept every integer from 1 through 16, default to 8, and declare live application. The value SHALL be stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage or presented as an engine descriptor. Introducing it SHALL advance the stored settings version with a forward migration that preserves existing and unknown values, so a profile without the key resolves to 8.
+
+The setting SHALL remain visible and editable when engine settings are absent, unreadable, or not writable. `a1 pi` SHALL neither expose nor apply this A1-owned setting and SHALL retain its existing eight-image prompt policy.
+
+#### Scenario: Present the Agent section
+- **WHEN** bare A1 opens the owned settings screen
+- **THEN** the existing Agent section SHALL contain one `Prompt image limit` numeric entry after `Prompt suggestions` and `Skills`
+- **AND** it SHALL offer values from 1 through 16 without creating another Agent section
+
+#### Scenario: Resolve an older profile
+- **WHEN** a profile written before `promptImageLimit` is loaded
+- **THEN** migration SHALL preserve its existing and unknown settings values
+- **AND** `promptImageLimit` SHALL resolve to 8
+
+#### Scenario: Change the limit live
+- **WHEN** the user changes `Prompt image limit` to an allowed value
+- **THEN** the value SHALL be persisted in the A1 settings document
+- **AND** subsequent image admission and prompt validation in the running bare-A1 session SHALL use that value without restart or reload
+- **AND** no Pi settings document SHALL change
+
+#### Scenario: Reject an invalid stored limit
+- **WHEN** the stored `promptImageLimit` is not an integer from 1 through 16
+- **THEN** existing settings validation SHALL reject that value and resolve 8 without blocking startup
+
+#### Scenario: Engine settings cannot be presented
+- **WHEN** the engine is absent, reading its settings fails, or it advertises no settings write capability
+- **THEN** `Prompt image limit` SHALL remain visible and editable in the single Agent section through its A1 backend
+
+#### Scenario: Use the comparison profile
+- **WHEN** the user opens or runs `a1 pi`
+- **THEN** its pinned settings presentation SHALL contain no A1 `Prompt image limit` entry
+- **AND** its prompt image count policy SHALL remain eight
+
+### Requirement: The startup update check is a Generic-section owned setting
+
+Bare A1 SHALL declare the persisted A1 setting `updateCheck` as a boolean defaulting to `true`, labeled `Update check`, as the sole entry in the first `Generic` section. When `false`, bare A1 SHALL skip the startup release check entirely. The value SHALL be stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage. Introducing it SHALL advance the stored settings version with a forward migration that preserves existing and unknown values. The setting SHALL take effect at the next launch. `a1 pi` SHALL neither expose nor apply it.
+
+#### Scenario: Resolve an older profile
+- **WHEN** a profile written before `updateCheck` is loaded
+- **THEN** migration SHALL preserve existing and unknown values and `updateCheck` SHALL resolve to `true`
+
+#### Scenario: Present the Generic section
+- **WHEN** bare A1 opens the owned settings screen
+- **THEN** the `Generic` section SHALL offer only `Update check`
+- **AND** `Appearance` SHALL follow it
+
+#### Scenario: Disable the check
+- **WHEN** the user sets `Update check` to off and restarts bare A1
+- **THEN** A1 SHALL neither read the release cache nor contact the registry for the startup check
+
+#### Scenario: Reject an invalid value
+- **WHEN** a stored `updateCheck` value is not a boolean
+- **THEN** existing settings validation SHALL reject it and resolve `true` without blocking startup
+
+### Requirement: Pending setting values remain visually stable
+
+The owned Settings screen SHALL show a requested scalar value immediately while its save is unresolved and SHALL continue to render the selected stored value after success. A scalar row SHALL NOT append effective-value or application-boundary text, whether the change is pending, live, or deferred. A failed setting SHALL restore the prior authoritative value and report the failure.
+
+#### Scenario: Save a live scalar value
+
+- **WHEN** the user changes a live scalar setting and its backend save has not settled
+- **THEN** the value cell SHALL show only the requested value using its normal value formatting
+- **AND** it SHALL NOT flash an effective-value or application-boundary suffix derived from the prior snapshot
+- **WHEN** the save succeeds and the source reflects that live value
+- **THEN** the same value SHALL remain visually stable without an intermediate replacement string
+
+#### Scenario: Save a deferred scalar value
+
+- **WHEN** the user changes a deferred scalar setting
+- **THEN** the value cell SHALL show the selected stored value while the save is pending and after it succeeds
+- **AND** it SHALL NOT append the current effective value or application boundary
+
+#### Scenario: Reopen Settings with a deferred value
+
+- **WHEN** Settings opens while a deferred stored value differs from the value currently in effect
+- **THEN** the value cell SHALL show only the selected stored value
+
+#### Scenario: Pending scalar save fails
+
+- **WHEN** the optimistic scalar save fails or is unavailable
+- **THEN** the row SHALL restore the authoritative source value
+- **AND** the Settings screen SHALL report the failure rather than leaving the optimistic value displayed as saved
+
+### Requirement: Settings edits can be undone within the open screen
+
+The owned Settings screen SHALL retain transient reverse-order undo history for successful scalar and structured-setting edits made during that screen instance. `Ctrl+Z` SHALL restore the exact value that preceded the newest successful edit through the same backend and application boundary as an ordinary change. Each successful invocation SHALL remove one undo step, so repeated invocations restore earlier edits in reverse user-action order. An undo restoration SHALL NOT create a redo or another undo step, and closing the Settings screen SHALL discard its history.
+
+Failed forward changes SHALL NOT become undoable. If restoration fails or is unavailable, the current authoritative value SHALL remain in effect, the failure SHALL be reported, and that undo step SHALL remain available for retry. For a structured setting, one step SHALL restore the preceding whole object and an open structured dialog SHALL show that restored object.
+
+#### Scenario: Undo one scalar edit
+
+- **WHEN** a scalar setting change succeeds and the user presses `Ctrl+Z`
+- **THEN** the setting SHALL be changed through its owning backend to the scalar value that preceded that edit
+- **AND** the restored value SHALL be shown without creating a redo step
+
+#### Scenario: Undo multiple edits
+
+- **WHEN** multiple setting changes succeed during one Settings screen instance
+- **AND** the user presses `Ctrl+Z` repeatedly
+- **THEN** each press SHALL restore one prior value in reverse user-action order
+- **AND** asynchronous completion order SHALL NOT reorder those undo steps
+
+#### Scenario: Undo a structured edit
+
+- **WHEN** a structured-setting part change succeeds and the user presses `Ctrl+Z`
+- **THEN** the preceding whole structured value SHALL be written through the owning backend
+- **AND** an open structured dialog SHALL show the restored part values
+
+#### Scenario: Forward change fails
+
+- **WHEN** a setting change fails before it is successfully stored or applied
+- **THEN** that attempted change SHALL NOT add an undo step
+- **AND** `Ctrl+Z` SHALL NOT treat the failed optimistic value as saved history
+
+#### Scenario: Undo restoration fails
+
+- **WHEN** restoring the newest undo step fails or becomes unavailable
+- **THEN** the Settings screen SHALL retain the current authoritative value and report the failure
+- **AND** a later `Ctrl+Z` SHALL be able to retry that same undo step
+
+#### Scenario: Close and reopen Settings
+
+- **WHEN** the user closes a Settings screen that has undo history and later opens a new Settings screen
+- **THEN** the new screen SHALL have no undo history from the prior screen
+
+### Requirement: A structured-setting dialog has one upper boundary rule
+
+When the owned Settings screen opens a structured-setting dialog, the dialog's own standard top rule SHALL replace the ordinary divider between Settings content and footer guidance. The frame SHALL show exactly one full-width boundary rule above the dialog title rather than stacking the Settings divider with the dialog rule. A generic structured dialog SHALL then show its setting title, the selected part's muted description, its menu rows, concise shortcut/action hints, and its standard bottom rule.
+
+#### Scenario: Open a structured setting
+
+- **WHEN** the user opens a setting whose value is edited through the structured dialog
+- **THEN** exactly one full-width rule SHALL separate the Settings list from the dialog title
+- **AND** no second Settings footer-divider rule SHALL be rendered above that dialog rule
+
+#### Scenario: Use the structured dialog after removing the redundant divider
+
+- **WHEN** the user navigates in the open structured dialog
+- **THEN** its title SHALL remain one row below the sole top rule
+- **AND** the selected part's muted description SHALL appear below the title and above the menu rows
+- **AND** the dialog's shortcut guidance and bottom rule SHALL remain visible
+
+### Requirement: The per-model thinking setting uses the pinned stepped selector
+
+The owned Settings screen SHALL present the Agent `modelThinkingLevels` structured setting through a keyboard-only two-step selector matching A1's modal hierarchy rather than through the generic object-part panel. Both steps SHALL use the title `Thinking Level` followed on the same line by a muted `(step N/2)` marker. Step 1 SHALL show the muted next-line description `Select a model to configure`, a focused searchable input using the ASCII `> ` prompt marker, and the models supplied by the setting descriptor. A bracketed provider suffix such as `[openai-codex]` SHALL use the muted role on selected and unselected model rows, matching the Models dialog. A selected model or thinking-level row SHALL place exactly one space between its arrow cursor and visible label; unselected levels SHALL NOT reserve hidden checkmark spacing. Typing SHALL filter model labels, Up/Down SHALL move the selected model, Enter SHALL advance to that model's supported level choices, and Escape SHALL close from step 1.
+
+Step 2 SHALL retain the `Thinking Level` title with `(step 2/2)`, show the muted next-line description `Select default thinking level for {model label}`, offer only the supported levels declared for that model, and add pinned Pi's clear-override choice when that model has an override. The model label SHALL NOT replace or extend the title. Enter on clear override SHALL remove that model's override; Enter on a level SHALL write the whole updated object through the Agent backend and return to step 1 so another model can be configured. Escape SHALL return to step 1 without writing. The footer SHALL describe only the active step's keyboard behavior, including `Type search`, `Enter select`, and `Esc close` on step 1 and `Esc back` on step 2, rather than showing the main Settings adjustment or undo hints.
+
+#### Scenario: Open per-model thinking levels
+
+- **WHEN** the user opens the `modelThinkingLevels` setting
+- **THEN** the dialog SHALL show `Thinking Level` with a muted `(step 1/2)`, the muted next-line description `Select a model to configure`, a focused search input beginning with ASCII `> `, and descriptor-supplied model rows
+- **AND** bracketed provider suffixes SHALL be muted as they are in the Models dialog
+- **AND** its footer SHALL show `Type search`, `Enter select`, and `Esc close` rather than generic Settings guidance
+
+#### Scenario: Filter and choose a model
+
+- **WHEN** the user types a query in step 1
+- **THEN** only matching descriptor-supplied model labels SHALL remain
+- **WHEN** the user navigates and presses Enter on a model
+- **THEN** step 2 SHALL keep the `Thinking Level` title with muted `(step 2/2)`
+- **AND** the next line SHALL say `Select default thinking level for {model label}` in the muted role
+- **AND** the model label SHALL NOT appear in the title
+- **AND** the menu SHALL show its declared supported levels plus clear override when an override exists
+- **AND** the selected row's arrow SHALL be followed by exactly one space before its visible label
+
+#### Scenario: Save a model level
+
+- **WHEN** the user selects a supported level in step 2
+- **THEN** the whole override object SHALL be written through the Agent backend with that model set to the selected level
+- **AND** the dialog SHALL return to step 1 for another selection
+
+#### Scenario: Restore the model default
+
+- **WHEN** the user selects clear override in step 2
+- **THEN** that model key SHALL be absent from the whole object written through the Agent backend
+- **AND** other model overrides SHALL remain unchanged
+
+#### Scenario: Go back without changing
+
+- **WHEN** the user presses Escape in step 2 while its footer shows `Esc back`
+- **THEN** the dialog SHALL return to step 1 without writing
+- **WHEN** the user presses Escape in step 1 while its footer shows `Esc close`
+- **THEN** the structured dialog SHALL close and restore the Settings list
+
+### Requirement: Structured-setting dialogs are keyboard-only
+
+While any structured-setting dialog is open, pointer motion, presses, and releases SHALL be consumed without moving its selection, changing a part, advancing a step, writing a value, or acting on Settings rows. Wheel input over the Settings content SHALL continue to scroll the list behind the fixed dialog. All dialog navigation and changes SHALL occur through the dialog's advertised keyboard shortcuts.
+
+#### Scenario: Point or click in a structured dialog
+
+- **WHEN** the user moves or presses the pointer over an open structured-setting dialog
+- **THEN** the report SHALL be consumed without changing dialog selection or settings state
+
+#### Scenario: Point outside a structured dialog
+
+- **WHEN** a non-wheel pointer report lands outside the visible structured rows while the dialog is open
+- **THEN** it SHALL NOT act on the Settings list, scrollbar, or values behind the dialog
+
+#### Scenario: Scroll Settings content with a structured dialog open
+
+- **WHEN** the user sends mouse-wheel input over the Settings content while a structured-setting dialog is open
+- **THEN** the Settings list SHALL scroll by the configured wheel distance
+- **AND** the structured dialog SHALL remain open and unchanged
+
+### Requirement: Scalar value menus align choices with the source value
+
+When the owned Settings screen opens a scalar value menu, the menu SHALL shift its frame one cell left of the source value column so the visible choice text aligns with the value text in the setting row. The effective-value mark SHALL occupy the preceding menu cells without pushing choice labels one cell to the right.
+
+#### Scenario: Open a scalar value menu
+
+- **WHEN** the user opens an enumerated setting's value menu
+- **THEN** each choice label SHALL begin in the same terminal column as the source setting value
+- **AND** the effective-value mark SHALL remain visible immediately before the current choice
+
+### Requirement: Successful setting changes preserve standing guidance
+
+The owned Settings screen SHALL keep its standing shortcut guidance visible after a successful scalar or structured change, including deferred changes and successful undo restorations. Only actionable conditions such as a save or restoration failure or an interrupt warning SHALL replace that guidance.
+
+#### Scenario: Successfully change a setting
+
+- **WHEN** a setting change succeeds at any application boundary
+- **THEN** the standing shortcut guidance SHALL remain visible
+- **AND** no successful-save notice SHALL replace it
+
+#### Scenario: Successfully restore a setting
+
+- **WHEN** an undo restoration succeeds
+- **THEN** the standing shortcut guidance SHALL remain visible
+- **AND** no successful-restoration notice SHALL replace it
+
+#### Scenario: Setting operation fails
+
+- **WHEN** a setting change or undo restoration fails
+- **THEN** the Settings screen SHALL replace the standing shortcut guidance with the failure notice
+
+### Requirement: The UI accent is a live Appearance setting
+
+Bare A1 SHALL expose one persisted A1 setting `accentColor`, labeled `Accent color`, in an `Appearance` section after `Generic`, followed by the `Background` and `Quit animation` settings. It SHALL offer `purple`, `blue`, `cyan`, `green`, `orange`, and `pink` in that order, SHALL default to `purple`, and SHALL declare live application. Every displayed value SHALL name an explicit A1 palette color and receive the same semantic-family projection behavior. The setting SHALL be stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage or presented as an engine descriptor.
+
+Introducing the setting SHALL advance the owned settings version with forward migrations that preserve existing and unknown values, while an earlier stored `default` accent value SHALL migrate to `purple`. A missing, malformed, or unsupported stored value SHALL resolve to `purple` without blocking startup. The setting SHALL remain visible and editable when engine settings are absent or unavailable. `a1 pi` SHALL neither expose nor apply it.
+
+#### Scenario: Present the Appearance section
+- **WHEN** bare A1 opens the owned settings screen
+- **THEN** one `Appearance` section after `Generic` SHALL contain `Accent color`, `Background`, and `Quit animation` in that order
+- **AND** the accent value menu SHALL offer `purple`, `blue`, `cyan`, `green`, `orange`, and `pink` in order
+- **AND** each accent choice SHALL show a square preview of its effective accent while the current-value check remains in the standard text color
+
+#### Scenario: Resolve an older or invalid profile
+- **WHEN** a profile predates `accentColor`, omits it, or stores a value outside the declared choices
+- **THEN** migration and validation SHALL preserve every other existing and unknown value
+- **AND** an earlier `default` accent value SHALL become `purple`
+- **AND** `accentColor` SHALL resolve to `purple` without blocking startup
+
+#### Scenario: Change the accent live
+- **WHEN** the reader selects another accent color
+- **THEN** the A1 profile SHALL persist that value
+- **AND** the active bare-A1 interface SHALL repaint with the selected semantic accent before the change reports success
+- **AND** an accent-derived canvas SHALL repaint from that same selected accent
+- **AND** keyboard-shortcut key spans SHALL use the same derived secondary tone as active filters
+- **AND** no Pi settings document SHALL change
+
+#### Scenario: Select the initial purple palette
+- **WHEN** the reader selects `purple` or has no stored accent preference
+- **THEN** the active interface SHALL project A1's purple palette across the same semantic family as every other choice
+- **AND** every family tone SHALL be derived from the selected primary purple by the same transform used for every named or future custom accent
+- **AND** dialog bars SHALL use its darker neighboring-hue border tone rather than the base Pi border
+- **AND** secondary headings and active dialog-filter values SHALL use its brighter complementary palette variation, with blue and purple using stronger sector-derived hue separation
+- **AND** filled scope/default state markers SHALL match the neutral item text color
+- **AND** selected rows SHALL use a half-strength, low-chroma background tint closer to the terminal background
+
+#### Scenario: Use the comparison profile
+- **WHEN** the reader starts or configures `a1 pi`
+- **THEN** no A1 `Accent color` or `Background` entry SHALL be presented
+- **AND** Pi's configured theme, accent, and background behavior SHALL remain unchanged
+
+### Requirement: The fullscreen background is a live Appearance setting
+
+Bare A1 SHALL expose one persisted A1 setting `backgroundStyle`, labeled `Background`, in the existing `Appearance` section immediately after `Accent color` and before `Quit animation`. It SHALL offer exactly `transparent`, `accent`, and `dark` in that order, SHALL default to `transparent`, and SHALL declare live application. The setting SHALL use profile-local A1 settings persistence and SHALL NOT be written to Pi settings storage or presented as an engine descriptor.
+
+`transparent` SHALL leave unpainted fullscreen cells on the terminal's own background as before. `accent` SHALL use a dark, low-saturation, greyish background derived from the selected accent hue. `dark` SHALL use a fixed neutral dark background independent of the accent. Introducing the setting SHALL advance the owned settings version with a forward migration that preserves existing and unknown values. A missing, malformed, or unsupported stored value SHALL resolve to `transparent` without blocking startup. `a1 pi` SHALL neither expose nor apply the setting.
+
+#### Scenario: Present the background choices
+- **WHEN** bare A1 opens the Background value menu
+- **THEN** it SHALL offer `transparent`, `accent`, and `dark` in that order
+- **AND** the Appearance section SHALL contain only one Background entry between Accent color and Quit animation
+
+#### Scenario: Preserve the current default
+- **WHEN** a profile predates `backgroundStyle` or omits it
+- **THEN** `backgroundStyle` SHALL resolve to `transparent`
+- **AND** bare A1 SHALL continue to use the terminal's configured background for unpainted cells
+
+#### Scenario: Reject an invalid stored background
+- **WHEN** a stored `backgroundStyle` value is not one of the declared choices
+- **THEN** existing settings validation SHALL reject it and resolve `transparent` without blocking startup
+- **AND** every other existing and unknown stored value SHALL remain preserved
+
+#### Scenario: Change the background live
+- **WHEN** the reader selects another Background value
+- **THEN** the A1 profile SHALL persist that value
+- **AND** the complete visible bare-A1 canvas SHALL repaint to the selected behavior before the change reports success
+- **AND** no cell from the previous canvas SHALL remain after the repaint
+- **AND** no Pi settings document SHALL change
+
+#### Scenario: Change the accent behind an accent background
+- **WHEN** Background is `accent` and the reader changes Accent color
+- **THEN** the complete visible canvas SHALL repaint to the dark greyish tint derived from the new accent in the same session
+- **AND** Background SHALL remain selected as `accent`
+
+#### Scenario: Use a fixed dark background
+- **WHEN** Background is `dark` and the reader changes Accent color
+- **THEN** the neutral dark canvas SHALL remain unchanged
+- **AND** accent-controlled foregrounds and component surfaces SHALL still update normally
+
+#### Scenario: Use the comparison profile
+- **WHEN** the reader starts or configures `a1 pi`
+- **THEN** no A1 Background entry SHALL be presented
+- **AND** Pi and the terminal SHALL retain their existing background behavior
+
+### Requirement: Enter opens an enumerated setting menu before changing its value
+
+When an editable enumerated scalar row has focus in the owned Settings screen, Enter SHALL open its existing value menu without changing the setting. A keyboard-opened menu SHALL make the current effective choice active immediately, with its effective-value mark retained, and SHALL render the source row's value in the terminal foreground used when the pointer rests over that value. While the menu is open, Up and Down SHALL navigate from that choice, Escape SHALL close it without a write, and Enter SHALL apply the active choice and close the menu. Closing a keyboard-opened menu SHALL restore the source value's ordinary selected-row role. Closed-menu Left and Right adjustment, numeric steppers, structured-setting dialogs, menu placement, and pointer interaction SHALL retain their existing behavior.
+
+#### Scenario: Open a scalar menu with Enter
+
+- **WHEN** an editable enumerated scalar Settings row has focus and the user presses Enter
+- **THEN** its value menu SHALL open with the current effective choice active
+- **AND** that choice SHALL retain the effective-value mark
+- **AND** the source row's value SHALL use the same bright foreground as a pointer-opened value
+- **AND** no setting value SHALL be written
+
+#### Scenario: Navigate and confirm a keyboard-opened menu
+
+- **WHEN** a scalar value menu was opened with Enter
+- **THEN** Up and Down SHALL move the active choice within the menu's existing bounds
+- **AND** pressing Enter SHALL apply the active choice through the setting's owning backend and close the menu
+
+#### Scenario: Cancel a keyboard-opened menu
+
+- **WHEN** a scalar value menu was opened with Enter and the user presses Escape
+- **THEN** the menu SHALL close without changing or writing the setting
+- **AND** the source row's value SHALL return to its ordinary selected-row presentation
+
+#### Scenario: Retain specialized setting controls
+
+- **WHEN** the focused setting is numeric or structured rather than an enumerated scalar
+- **THEN** Enter SHALL retain that setting's existing stepper or structured-dialog behavior
+- **AND** Left and Right on a closed enumerated row SHALL retain direct value adjustment

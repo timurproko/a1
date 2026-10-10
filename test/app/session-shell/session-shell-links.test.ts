@@ -1,8 +1,7 @@
 import HeadlessXterm from "@xterm/headless";
-import { join } from "node:path";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { getOsc8LinkAtColumn as getPinnedPiTuiLinkAtColumn } from "@earendil-works/pi-tui";
-import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
 vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal => {
   const actual = await importOriginal<typeof import("../../../src/app/session-shell/paste-executor.js")>();
@@ -24,7 +23,16 @@ import { applyPiTheme, piTheme } from "../../../src/integrations/pi/components/i
 import { classifyTerminalPaint, replayTerminalBackgroundCells, replayTerminalCheckpoints, replayTerminalPaint } from "../../support/rendering/terminal-paint-evidence.js";
 import { withPiParityColorMode } from "../../support/pi-terminal-capabilities.js";
 import { BottomHoverEvidence, classifyBottomHoverFinding, type BottomHoverState } from "../../support/rendering/bottom-hover-evidence.js";
+import { cellBackgroundAt } from "../../support/ansi-cell-style.js";
 import { withPinnedHyperlinks, fixture, InputImmediateScheduler, nextImmediate } from "./session-shell-fixture.js";
+
+function truecolorBackground(token: "selectedBg" | "toolPendingBg"): number {
+  const channels = cellBackgroundAt(piTheme().bg(token, "x"), 0).split(";").map(Number);
+  if (channels.length !== 3 || channels.some(channel => !Number.isInteger(channel))) {
+    throw new Error(`Expected a truecolor ${token} background`);
+  }
+  return channels[0]! * 0x10000 + channels[1]! * 0x100 + channels[2]!;
+}
 
 describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
   it("preserves repository path and linked PR metadata while merging extension footer status", async () => {
@@ -80,20 +88,20 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
     };
     engine.session.emit({ type: "message_start", message: completedReply });
     engine.session.emit({ type: "message_end", message: completedReply });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Ctrl+End) ↓"))).toBe(true);
 
     engine.session.emit({ type: "message_end", message: { role: "tool", content: [{ type: "text", text: "tool result" }] } });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Ctrl+End) ↓"))).toBe(true);
 
     // Compatibility: v2 resumes follow at the exact agent_start boundary, which also clears
     // the completed-message count on the next frame.
     engine.session.emit({ type: "agent_start" });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("new message (Ctrl+End) ↓"))).toBe(true);
     engine.session.emit({ type: "agent_settled" });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
 
     shell.root.editor.setText("submitted while detached");
     terminal.input("\r");
@@ -108,6 +116,8 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
   it.each([true, false])("paints the first editor-then-hover frame with hovered=%s", async hovered => {
     await withPiParityColorMode("truecolor", async () => {
       applyPiTheme("dark", false, "truecolor");
+      const hoverBackground = truecolorBackground("selectedBg");
+      const restingBackground = truecolorBackground("toolPendingBg");
       const messages = Array.from({ length: 20 }, (_, index) => ({
         role: "assistant", content: [{ type: "text", text: `hover-row-${index}` }], timestamp: index + 1,
       }));
@@ -128,9 +138,9 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
         expect(firstPaint).toBeGreaterThanOrEqual(before);
         const writes = terminal.writes.slice(0, firstPaint + 1).map((data, atMs) => ({ data, atMs }));
         const cells = await replayTerminalBackgroundCells(writes, { columns: 60, rows: 16 });
-        // Provenance: the oracle is the pinned dark truecolor palette, not the production hover predicate.
+        // Provenance: semantic theme roles are the oracle, independent of the production hover predicate.
         expect(cells.find(cell => cell.row === row && cell.column === 30)).toMatchObject({
-          mode: "rgb", color: hovered ? 0x3a3a4a : 0x282832,
+          mode: "rgb", color: hovered ? hoverBackground : restingBackground,
         });
         const [painted] = await replayTerminalCheckpoints(writes, [{ columns: 60, rows: 16, writeEnd: writes.length }]);
         expect(painted!.rows.slice(row).some(line => line.includes("x"))).toBe(true);
@@ -145,7 +155,8 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
         expect(dockPaint.fullScreenClears).toBe(0);
         expect(dockPaint.addressedRowWrites.every(paintedRow => paintedRow > row)).toBe(true);
         const nextCells = await replayTerminalBackgroundCells(terminal.writes.map((data, atMs) => ({ data, atMs })), { columns: 60, rows: 16 });
-        expect(nextCells.find(cell => cell.row === row && cell.column === 30)?.color).toBe(hovered ? 0x3a3a4a : 0x282832);
+        expect(nextCells.find(cell => cell.row === row && cell.column === 30)?.color)
+          .toBe(hovered ? hoverBackground : restingBackground);
       } finally { await shell.dispose(); }
     }, { hyperlinks: false });
   });
@@ -155,6 +166,8 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
   }))))("paints scroll-only hover checkpoints at $columns x $rows during $stream output", async ({ columns, rows, stream }) => {
     await withPiParityColorMode("truecolor", async () => {
       applyPiTheme("dark", false, "truecolor");
+      const hoverBackground = truecolorBackground("selectedBg");
+      const restingBackground = truecolorBackground("toolPendingBg");
       const messages = Array.from({ length: 80 }, (_, index) => ({
         role: "assistant", content: [{ type: "text", text: `settled-hover-${index}` }], timestamp: index + 1,
       }));
@@ -255,8 +268,10 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
         const cells = await replayTerminalBackgroundCells(prefix, { columns, rows });
         const target = cells.find(cell => cell.row === point.state.bottom?.row && cell.column === Math.floor(columns / 2));
         if (point.expected === null) expect(point.state.bottom, point.name).toBeNull();
-        else expect(target, point.name).toMatchObject({ mode: "rgb", color: point.expected ? 0x3a3a4a : 0x282832 });
-        trace.paint(point.state, point.expected === null ? null : target?.color === 0x3a3a4a);
+        else expect(target, point.name).toMatchObject({
+          mode: "rgb", color: point.expected ? hoverBackground : restingBackground,
+        });
+        trace.paint(point.state, point.expected === null ? null : target?.color === hoverBackground);
         const damage = classifyTerminalPaint(writes.slice(point.start, point.end));
         if (point.name.startsWith("hover-")) {
           expect(damage.fullScreenClears, point.name).toBe(0);

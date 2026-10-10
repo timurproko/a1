@@ -1,8 +1,8 @@
 # Atomic OpenSpec delivery and legacy archival
 
-New OpenSpec deliveries use one ordinary development pull request from draft planning through implementation, validation, acceptance, specification synchronization, and archival. The only integration action is an authorized maintainer's manual merge. Automation never auto-merges implementation-bound work and never creates a version-3 acceptance or archive follow-up PR.
+New OpenSpec deliveries use one ordinary development pull request from draft planning through implementation, validation, acceptance, specification synchronization, and archival. An authorized maintainer chooses integration by manually merging the exact validated head or personally enabling GitHub native auto-merge for that unchanged head. Agents, Apps, bots, merge queue, and repository automation never arm or invoke implementation integration and never create a version-3 acceptance or archive follow-up PR.
 
-Unrelated standalone documentation remains separate: a non-draft unassociated PR changing only `openspec/**`, `docs/**`, and/or root `README.md` retains the existing CI-gated automatic route. A new active change, implementation association, malformed lifecycle data, or mixed path keeps the manual hold.
+Unrelated standalone documentation remains separate: a non-draft unassociated PR changing only `openspec/**`, `docs/**`, and/or root `README.md` retains the existing CI-gated automatic route. A new active change, implementation association, malformed lifecycle data, or mixed path remains outside documentation-owned integration. Before finalization or without valid human provenance, any arm is disabled; a finalized version-3 human arm remains a separate maintainer-owned route.
 
 Version-1 and version-2 deliveries and their existing comments, acceptance PRs, archive PRs, receipts, retries, and bounded catch-up remain supported under [Legacy delivery](#legacy-delivery). Do not silently convert an in-flight legacy delivery.
 
@@ -14,7 +14,7 @@ Version-1 and version-2 deliveries and their existing comments, acceptance PRs, 
 4. **Plain acceptance list:** keep the body phase-free and add final `## Acceptance` with one to ten concise implementation-specific behavior-and-result bullets. Do not use checkboxes, generic review/CI/approval/archive statements, URLs, mentions, or automated-test inventory.
 5. **Ready and automated finalization:** mark the PR ready. The trusted `OpenSpec finalization` workflow reconciles current `develop`, conservatively synchronizes all deltas, moves the active change into its dated archive, stages the conditional acceptance manifest, commits that to the same branch with the archive App identity, and writes the emitted paths into the body's implementation fence. Running the [finalization command](#finalization-command) locally first is optional and yields the same bytes.
 6. **Validate:** one normal exact-head workflow validates the finalized head: implementation, synchronized specs, archive, manifest, tasks/evidence, exact PR-body list, and every selected product/governance scope before emitting the stable protected aggregate. A new commit or acceptance-list change re-finalizes automatically when needed and requires full renewed validation; no lifecycle body edit or second workflow run is required.
-7. **Manual merge accepts:** after the stable protected aggregate succeeds, an authorized human reviews and manually merges the exact validated head. That single action means the listed scenarios are accepted and explicitly authorizes integration. Auto-merge, merge queue, Apps, bots, and documentation reconciliation are forbidden.
+7. **Maintainer integration accepts:** after reviewing the finalized candidate, an authorized human either manually merges the exact validated head after the stable protected aggregate succeeds or personally enables GitHub native auto-merge for that unchanged head so protected integration waits for the aggregate. That human action means the listed scenarios are accepted. Agents, Apps, bots, merge queue, automation-owned implementation arms, and documentation integration remain forbidden. A changed head, acceptance list, or finalization invalidates the earlier arm and requires the maintainer to choose again.
 8. **Verify and clean:** trusted post-merge policy derives `Archived` and reports `accepted-and-archived` from committed bytes and immutable GitHub provenance without editing the accepted PR body. It publishes no lifecycle branch or PR. Shared exact-head remote cleanup may delete the unchanged topic ref; local cleanup remains separately ownership-controlled: the agent parks the worktree with `handoff` at step 7, and the next session's `sweep` removes it once the merge, archive, and remote-ref evidence verify (see [local cleanup](local-worktree-cleanup.md)).
 
 ### Complete-regression evidence ordering
@@ -38,7 +38,7 @@ Replace the multi-PR OpenSpec handoff with one manually merged development PR wh
 
 - Keep planning and implementation in the same draft PR.
 - Integrate implementation, synchronized specs, acceptance, and archive atomically.
-- Preserve standalone documentation auto-merge while forbidding implementation auto-merge.
+- Preserve standalone documentation auto-merge while forbidding automation-owned implementation auto-merge.
 
 ## Automation
 
@@ -75,7 +75,15 @@ Do not add a quoted phase line or a routine `Validation` section listing command
 </details>
 ```
 
-Keep acceptance absent during proposal review so unfinished intent is not mistaken for final acceptance criteria. The finalization workflow rewrites only the implementation fence; keep the rest of the phase-free body unchanged through exact-head validation, maintainer review, and authorized manual merge. The same workflow run validates its finalized delivery record and applicable product/governance scopes before the stable protected aggregate succeeds. Do not add a lifecycle body edit or start a second validation run. After manual merge, trusted verification derives `Archived`; do not rewrite the accepted body.
+Keep acceptance absent during proposal review so unfinished intent is not mistaken for final acceptance criteria. The finalization workflow rewrites only the implementation fence; keep the rest of the phase-free body unchanged through exact-head validation, maintainer review, and authorized integration. The same workflow run validates its finalized delivery record and applicable product/governance scopes before the stable protected aggregate succeeds. Do not add a lifecycle body edit or start a second validation run. After integration, trusted verification derives `Archived`; do not rewrite the accepted body.
+
+## Agent scratch files
+
+When an agent chooses a path for a transient repository-delivery file—such as a PR/comment body, command payload, captured output, temporary patch/diff, or ad hoc log—it must use a purpose-specific descendant of the exact `.artifacts/` root in the worktree that owns the operation. A linked delivery uses its linked task worktree, not the primary checkout, another worktree, the operating-system temporary directory, home/desktop, or a sibling path. Address the worktree path explicitly because session linking does not change tool cwd.
+
+Keep these files ignored, unstaged, uncommitted, disposable, non-authoritative, and free of credentials or other prohibited sensitive data. Required durable evidence belongs in its declared tracked OpenSpec location. This rule governs paths selected by the agent; it does not relocate temporary storage internally selected by Git, GitHub CLI, OpenSpec, language/package tooling, product runtime code, test frameworks, or hermetic fixtures.
+
+For example, create `.artifacts/agent/pr-body.md` in the linked worktree before passing it to `gh pr create --body-file` or `gh pr edit --body-file`. The exact `.artifacts/` root remains subject to the existing guarded generated-content cleanup policy; this guidance does not authorize deletion outside that root or through unsafe filesystem boundaries.
 
 ## Version-3 implementation metadata
 
@@ -110,14 +118,15 @@ After finalization, replace it with the exact emitted paths:
   "version": 3,
   "change": "example-change",
   "archive": "openspec/changes/archive/2026-09-15-example-change/",
-  "acceptanceManifest": "openspec/changes/archive/2026-09-15-example-change/acceptance.md"
+  "acceptanceManifest": "openspec/changes/archive/2026-09-15-example-change/acceptance.md",
+  "finalizedHead": "0123456789abcdef0123456789abcdef01234567"
 }
 ```
 
 </details>
 ````
 
-Version 3 forbids `specificationPr` and `archivePreparationTasks`. Both final paths must be absent for a draft or present and mutually consistent for a finalized candidate. Unknown fields, duplicate fences/JSON keys, unsafe paths, mismatched dates/change identities, and partial finalization fail closed.
+Version 3 forbids `specificationPr` and `archivePreparationTasks`. The archive path, acceptance-manifest path, and exact `finalizedHead` binding must be absent for a draft or mutually consistent for a finalized candidate. Existing finalized records without the head binding are readable only for trusted normalization and cannot satisfy current-head validation. Unknown fields, duplicate fences/JSON keys, unsafe paths, mismatched dates/change identities, malformed SHAs, and partial finalization fail closed.
 
 ## Acceptance list
 
@@ -131,7 +140,7 @@ Use plain bullets:
 - Finalized specs and archive match the implementation.
 ```
 
-The committed conditional manifest contains the same ordered text. Trusted policy validates membership but never checks or edits it and never claims that the scenarios passed. Manual merge is the acceptance decision; no acceptance comment, checkbox edit, review-approval requirement, JSON edit, acceptance PR, archive PR, or later command is needed.
+The committed conditional manifest contains the same ordered text. Trusted policy validates membership but never checks or edits it and never claims that the scenarios passed. The authorized maintainer's manual merge or personal native auto-merge arm for the unchanged exact head is the acceptance decision; no acceptance comment, checkbox edit, review-approval requirement, JSON edit, acceptance PR, archive PR, or later command is needed.
 
 If the body list changes, candidate validation reruns and compares it with the committed manifest. If the head changes, all prior exact-head CI is stale. If only the body changes to disagree with the manifest, integration remains blocked until the list and committed candidate agree again. No lifecycle body edit is needed after green CI.
 
@@ -144,29 +153,30 @@ The `OpenSpec finalization` workflow (`.github/workflows/openspec-finalization.y
 - **Finalized but drifted:** a later commit edited the archived tasks, evidence, design, or deltas, or the acceptance list changed. Finalization reruns from the archived form under the same archive date; one `docs(openspec): refinalize <change>` commit replaces the manifest and resynchronized specs.
 - **Behind `develop`:** a restore commit returns the archive to its active form with the merge-base's spec bytes, a merge of `develop` follows, and finalization runs against the new tip. A merge conflict outside `openspec/` stops the run with `finalization-merge-conflict`; rebase or merge `develop` yourself and push.
 
-The commit is pushed with a lease on the head the run read, so a developer push in between makes the run report `retry` and the next event finishes the work. Only after the push does the workflow `PATCH` the body fence, and only when the body is unchanged since it was read. The workflow's own push and body edit trigger further runs that report `already-finalized`. Every pushed commit is either a merge of the exact `develop` tip or confined to the change's active path, its archive path, and its declared canonical specs.
+The commit is pushed with a lease on the head the run read, so a developer push in between makes the run report `retry` and the next event finishes the work. Only after the push does the workflow `PATCH` the body fence with `finalizedHead` equal to that exact commit, and only when both the body and PR head still match the operation's expected values. The guaranteed head-binding change triggers native `pull_request: edited` validation even when a re-finalization reuses the same archive paths. The workflow's own body edit triggers further runs that report `already-finalized`; an intermediate run with a missing or stale binding defers before product suites and emits no protected aggregate. Every pushed commit is either a merge of the exact `develop` tip or confined to the change's active path, its archive path, and its declared canonical specs.
 
 Because the branch gains commits from the archive App, pull before pushing. A rebase that drops them is harmless: the next push is reconciled from whatever the head contains. Do not revert a finalization commit to make a fix; push the fix and let the workflow re-finalize. When the workflow fails, its summary names the finalization code (`tasks-incomplete`, `acceptance-*`, `delivery-known-gaps`, `openspec-operation`, `finalization-merge-conflict`, ...), nothing is pushed, and `Finalized delivery validation` on the unfinalized head reports that automated finalization is pending.
 
 A missing fence is not an ordinary ready PR when immutable base/head evidence shows that the candidate introduces or restores an active change, or mixes active-change edits with code or operational paths. Base-controlled readiness and finalization both fail with `missing-implementation-association`; deleting editable body metadata cannot bypass finalization. Existing active-change documentation-only revisions and ordinary code PRs without active delivery paths retain their established routes.
 
-If an unassociated implementation has already integrated, do not edit its merged body or publish an archive-only follow-up. A corrective implementation-bound PR for the same still-active change must add the prevention fix and an exact `association-repair.json` record naming the original PR/head/merge/validation and the corrective PR. Normal version-3 finalization then synchronizes and archives the change; the corrective PR's authorized manual merge accepts that repair without pretending the original PR was finalized retroactively.
+If an unassociated implementation has already integrated, do not edit its merged body or publish an archive-only follow-up. A corrective implementation-bound PR for the same still-active change must add the prevention fix and an exact `association-repair.json` record naming the original PR/head/merge/validation and the corrective PR. Normal version-3 finalization then synchronizes and archives the change; the corrective PR's authorized maintainer integration accepts that repair without pretending the original PR was finalized retroactively.
 
 ## Finalization command
 
-The local command remains available for inspection or when a developer prefers to finalize before marking the PR ready; the workflow then verifies the head and pushes nothing. It has inspection mode by default and an explicit `--write` mode. It never commits, pushes, edits GitHub, marks a PR ready, or merges. Use a temporary body file so the operation can update exact version-3 paths without mutating remote PR state:
+The local command remains available for inspection or when a developer prefers to finalize before marking the PR ready; the workflow then verifies the head and pushes nothing. It has inspection mode by default and an explicit `--write` mode. It never commits, pushes, edits GitHub, marks a PR ready, or merges. Run from the linked worktree and use an ignored artifact body file so the operation can update exact version-3 paths without mutating remote PR state:
 
 ```bash
 git fetch origin develop
 git rebase origin/develop
-gh pr view <pr> --json body --jq .body > "$TMPDIR/openspec-pr-body.md"
+mkdir -p .artifacts/agent
+gh pr view <pr> --json body --jq .body > .artifacts/agent/openspec-pr-body.md
 node scripts/governance/finalize-openspec-delivery.mjs \
   --change example-change \
   --repository owner/repo \
   --pr <pr> \
   --date YYYY-MM-DD \
   --target "$(git rev-parse origin/develop)" \
-  --body-file "$TMPDIR/openspec-pr-body.md"
+  --body-file .artifacts/agent/openspec-pr-body.md
 ```
 
 Inspect the reported paths. Then rerun with `--write` and update the existing PR body from the emitted file:
@@ -178,20 +188,20 @@ node scripts/governance/finalize-openspec-delivery.mjs \
   --pr <pr> \
   --date YYYY-MM-DD \
   --target "$(git rev-parse origin/develop)" \
-  --body-file "$TMPDIR/openspec-pr-body.md" \
+  --body-file .artifacts/agent/openspec-pr-body.md \
   --write
-gh pr edit <pr> --body-file "$TMPDIR/openspec-pr-body.md"
+gh pr edit <pr> --body-file .artifacts/agent/openspec-pr-body.md
 ```
 
 Use repeated `--known-gap "exact disposition"` only for an actually reviewed explicit gap. Gaps remain visible in the committed manifest and do not become test results. Missing or ambiguous disposition blocks finalization.
 
-The operation validates the active change strictly, requires complete substantive tasks, runs the pinned OpenSpec archive/synchronization engine in isolation, verifies the resulting canonical specs, retains every archive artifact, computes deterministic content digests, writes `acceptance.md`, and applies only the allowed OpenSpec diff. Repeating it against identical finalized inputs is verification-only and byte-stable.
+The operation validates the active change strictly, requires complete substantive tasks, runs the pinned OpenSpec archive/synchronization engine in isolation, verifies the resulting canonical specs, retains every archive artifact, computes deterministic content digests, writes `acceptance.md`, and applies only the allowed OpenSpec diff. Local preparation cannot know the eventual commit SHA, so trusted finalization normalizes the body with `finalizedHead` after the commit is present on the branch. Repeating the trusted operation against identical finalized inputs and a matching head binding is verification-only and byte-stable.
 
 Before a first finalization, canonical specs must still equal the selected target. On an already finalized head the command re-finalizes from the archived form: it resets the synchronized specs to the target's bytes, reapplies the deltas, and rewrites the manifest under the same archive path, reporting `refinalized` (or `would-refinalize` without `--write`). If `develop` advances, merge or rebase onto it and rerun; the archive engine, not a hand edit, must produce the synchronized spec and archive copy.
 
 ## Conditional acceptance and derived receipt
 
-`acceptance.md` truthfully says its verdict activates only when the containing exact head is manually merged by an authorized human after required current-head checks. Its `openspec-delivery` block records stable pre-merge facts:
+`acceptance.md` truthfully says its verdict activates only when an authorized human manually merges the containing exact head after required current-head checks or personally arms native auto-merge for that unchanged head and GitHub integrates it after those checks. Its `openspec-delivery` block records stable pre-merge facts:
 
 - schema version, repository, change, and source PR;
 - archive and manifest paths and finalization date;
@@ -200,7 +210,7 @@ Before a first finalization, canonical specs must still equal the selected targe
 - archive, canonical-spec, task, and evidence digests; and
 - explicit known-gap dispositions.
 
-It does not predict source head, merge commit, merger, or merge time. The PR head contains the manifest, so required CI binds those bytes without a recursive self-hash. After merge, the shared reader combines the manifest with immutable GitHub source head, successful required run, authorized human actor, absence of automatic/queue/App provenance, merge commit/time, and `develop` ancestry. That derived result is the durable version-3 receipt used by audit and cleanup.
+It does not predict source head, merge commit, merger, or merge time. The PR head contains the manifest, so required CI binds those bytes without a recursive self-hash. After merge, the shared reader combines the manifest with immutable GitHub source head, successful required run, authorized human actor and permission, integration route, merge commit/time, and `develop` ancestry. Direct manual integration requires no active automatic authority. Human-enabled native auto-merge additionally requires a matching final-head enable event and `auto_merge.enabled_by`, with no later candidate commit or disable event. Queue, App/Bot, automation-owned, stale, malformed, or differently authored authority remains invalid. A human enable followed by disable before a valid manual merge is an abandoned attempt, not contradictory provenance. That shared result is the durable version-3 receipt used by audit and cleanup.
 
 Unavailable, stale, automatic, unauthorized, conflicting, or contradictory provenance produces `invalid-provenance`/`blocked`, not acceptance. Post-merge code does not repair it by pushing `develop` or publishing another PR.
 
@@ -208,7 +218,7 @@ Unavailable, stale, automatic, unauthorized, conflicting, or contradictory prove
 
 Normal Development CI remains complete for the implementation once its reviewable candidate exists. An archive-shaped final diff does not select documentation-only validation because the authoritative version-3 association remains implementation-bound. Base-controlled readiness defers a ready head that still holds the active change without running test suites or emitting `Development validation required`. The finalization workflow pushes the finalized head and updates its implementation fence; that update starts one complete selected validation, while PR-level concurrency cancels any superseded eligible run.
 
-`pull_request` body edits rerun required CI. The ordinary finalized phase-free run exposes the stable protected aggregate directly; it does not wait for a lifecycle body edit. Documentation auto-merge's trusted owner also reevaluates lifecycle association and disables any armed merge. Every publication entry point explicitly refuses version 3.
+The trusted post-push `finalizedHead` body edit reruns required CI as a native pull-request event. The ordinary finalized phase-free run exposes every selected lane and the stable protected aggregate on the PR checks page. Manual `workflow_dispatch` remains branch diagnostic evidence: it lacks authoritative PR payload and cannot replace finalized-delivery, acceptance, selection, visibility, or protected aggregate evidence. Documentation auto-merge's trusted owner also reevaluates lifecycle association. It preserves only an authorized human arm for the exact finalized version-3 head, never creates or exercises that arm, and disables stale, automated, malformed, draft, edited, or otherwise ineligible arms. Every publication entry point explicitly refuses version 3.
 
 The OpenSpec archive workflow remains default-branch trusted. For version 3 it uses read-only contents, PR, and Actions access to report the integrated result; App credentials are unnecessary and are not minted for post-merge verification. For legacy candidates it retains its existing scoped App publication behavior. The OpenSpec finalization workflow is the one version-3 user of the archive App: it mints a short-lived installation token with `contents: write` and `pull_requests: write`, pushes only to the candidate's own branch under a lease, edits only the body fence, and revokes the token when the run ends.
 
@@ -220,7 +230,7 @@ Read-only inspection remains:
 GH_TOKEN="$(gh auth token)" node scripts/governance/reconcile-openspec-archive.mjs --dry-run --pr <implementation-pr>
 ```
 
-For version 3, status distinguishes `needs-finalization`, `ready-for-manual-merge`, `accepted-and-archived`, `closed`, `blocked`, and `invalid-provenance`. A successful workflow invocation does not imply acceptance while the PR is open. Dry run never mutates refs, PRs, body text, tasks, evidence, specs, or acceptance.
+For version 3, status distinguishes `needs-finalization`, `ready-for-maintainer-integration`, `accepted-and-archived`, `closed`, `blocked`, and `invalid-provenance`. A successful workflow invocation does not imply acceptance while the PR is open. Dry run never mutates refs, PRs, body text, tasks, evidence, specs, or acceptance.
 
 Scheduled scans continue to serve legacy catch-up. Version-3 candidates are verification-only and do not consume publication slots or block the legacy queue.
 
@@ -228,7 +238,7 @@ Scheduled scans continue to serve legacy catch-up. Version-3 candidates are veri
 
 After version-3 merge, verify:
 
-- the source PR is merged with the exact reviewed head by an authorized human;
+- the source PR is merged with the exact reviewed head through a verified authorized-human integration route;
 - required exact-head CI succeeded;
 - current `develop` descends from the merge;
 - the active change is absent;
@@ -254,16 +264,16 @@ This bootstrap policy itself finishes under deployed version-2 authority. The fi
 - draft planning remaining unmerged;
 - explicit plan approval and same-PR implementation;
 - automated current-target finalization and exact-head CI;
-- authorized human manual merge with plain acceptance scenarios;
+- authorized human integration, including manual merge and personally enabled exact-head native auto-merge, with plain acceptance scenarios;
 - integrated canonical specs/archive and no generated acceptance/archive PR;
 - read-only `accepted-and-archived` verification and exact-head branch cleanup;
-- stale head/body/base, incomplete tasks/evidence, malformed manifest, and automatic-merge refusal fixtures; and
+- stale head/body/base/arm, incomplete tasks/evidence, malformed manifest, and automated or unauthorized auto-merge refusal fixtures; and
 - an unrelated standalone spec/docs PR retaining auto-merge.
 
 Unit tests or API success alone are not live acceptance. Until this evidence exists, version 3 is deployable but documented as awaiting its operational canary.
 
 ## Disable or roll back
 
-Before a version-3 merge, disable new version-3 authoring and continue using legacy version 2. After a version-3 merge, preserve its integrated archive and provenance and use an ordinary explicit corrective PR. Never direct-push a rewritten receipt, delete historical evidence, relax branch protection, or reinterpret an automatic merge as human acceptance.
+Before a version-3 merge, disable new version-3 authoring and continue using legacy version 2. After a version-3 merge, preserve its integrated archive and provenance and use an ordinary explicit corrective PR. Never direct-push a rewritten receipt, delete historical evidence, relax branch protection, or reinterpret automation-owned, stale, App/Bot, or queue-backed integration as human acceptance.
 
 Disabling the OpenSpec archive workflow stops legacy publication and version-3 post-merge reporting, but does not change existing acceptance records, documentation auto-merge, remote branch cleanup, or release authority.

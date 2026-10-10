@@ -102,9 +102,9 @@ describe("PiTranscriptProjection", () => {
   it("does not emit or bump a block that repeats itself and does not let a late update reopen a settled tool", () => {
     const { target, changes } = projection();
     target.upsertToolExecution({ type: "tool_execution_start", toolCallId: "call-1", toolName: "read", args: { path: "a" } });
-    target.upsertToolExecution({ type: "tool_execution_end", toolCallId: "call-1", toolName: "read", result: { content: [{ type: "text", text: "done" }] }, isError: false });
+    target.upsertToolExecution({ type: "tool_execution_end", toolCallId: "call-1", toolName: "read", result: { content: [{ type: "text", text: "done" }] }, isError: false, durationMs: 321 });
     const settled = target.block("tool-call-1")!;
-    expect(settled).toMatchObject({ kind: "tool-result", status: "finalized", toolState: { execution: "succeeded" } });
+    expect(settled).toMatchObject({ kind: "tool-result", status: "finalized", toolState: { execution: "succeeded" }, payload: { durationMs: 321 } });
     const before = changes.length;
     target.upsertToolExecution({ type: "tool_execution_update", toolCallId: "call-1", toolName: "read", partialResult: { content: [] } });
     target.upsertToolExecution({ type: "tool_execution_start", toolCallId: "call-1", toolName: "read", args: { path: "a" } });

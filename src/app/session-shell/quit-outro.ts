@@ -6,6 +6,7 @@
  * terminal cannot delay restoration past the configured clamp.
  */
 import { displayWidth, truncateToWidth } from "../../ui/components/index.js";
+import { rebaseTerminalDefaultBackground } from "../../integrations/pi/tui-runtime/index.js";
 import { createQuitOutroPlan, type QuitOutroEffect } from "./quit-outro-effects.js";
 
 export interface QuitOutroFrame {
@@ -25,6 +26,8 @@ export interface QuitOutroPlayback {
   sleep?(ms: number): Promise<void>;
   /** Plan seed; defaults to a time- and geometry-derived value. */
   readonly seed?: number;
+  /** Active bare-A1 canvas; omitted preserves transparent playback bytes. */
+  readonly canvasBackgroundAnsi?: string;
 }
 
 export const QUIT_OUTRO_MIN_MS = 300;
@@ -66,13 +69,24 @@ export function captureQuitOutroFrame(presented: readonly string[], columns: num
 }
 
 /** The clear-and-repaint block that seeds the animation surface with the captured frame. */
-export function createQuitOutroSurfaceFrame(frame: QuitOutroFrame): string {
-  let output = `${SYNC_BEGIN}${HIDE_CURSOR}${CLEAR_SCREEN}${HOME}${RESET}`;
+export function createQuitOutroSurfaceFrame(frame: QuitOutroFrame, canvasBackgroundAnsi?: string): string {
+  if (canvasBackgroundAnsi === undefined) {
+    let output = `${SYNC_BEGIN}${HIDE_CURSOR}${CLEAR_SCREEN}${HOME}${RESET}`;
+    for (let row = 0; row < frame.rows; row++) {
+      const line = frame.lines[row] ?? "";
+      if (frame.rowWidths[row]! > 0) output += `${cursorAt(row, 0)}${line}${RESET}`;
+    }
+    return `${output}${SYNC_END}`;
+  }
+  let output = `${SYNC_BEGIN}${HIDE_CURSOR}${RESET}${canvasBackgroundAnsi}${CLEAR_SCREEN}${HOME}`;
   for (let row = 0; row < frame.rows; row++) {
     const line = frame.lines[row] ?? "";
-    if (frame.rowWidths[row]! > 0) output += `${cursorAt(row, 0)}${line}${RESET}`;
+    if (frame.rowWidths[row]! > 0) {
+      output += `${cursorAt(row, 0)}${canvasBackgroundAnsi}`
+        + `${rebaseTerminalDefaultBackground(line, canvasBackgroundAnsi)}${RESET}${canvasBackgroundAnsi}`;
+    }
   }
-  return `${output}${SYNC_END}`;
+  return `${output}${RESET}${SYNC_END}`;
 }
 
 /**
@@ -96,20 +110,23 @@ export async function playQuitOutro(
   let clearIndex = 0;
   let ticks = 0;
 
-  playback.write(createQuitOutroSurfaceFrame(frame));
+  const canvas = playback.canvasBackgroundAnsi;
+  playback.write(createQuitOutroSurfaceFrame(frame, canvas));
   const startedAt = now();
   for (;;) {
     ticks += 1;
     const elapsed = now() - startedAt;
     const progress = Math.min(1, elapsed / duration);
-    let output = `${SYNC_BEGIN}${RESET}`;
+    let output = canvas === undefined ? `${SYNC_BEGIN}${RESET}` : `${SYNC_BEGIN}${RESET}${canvas}`;
     while (sparkleIndex < plan.sparkles.length && plan.sparkles[sparkleIndex]!.start <= progress) {
       const cell = plan.sparkles[sparkleIndex++]!;
       output += `${cursorAt(cell.row, cell.col)}${cell.color}${cell.glyph}`;
     }
     while (clearIndex < plan.clears.length && plan.clears[clearIndex]!.end <= progress) {
       const cell = plan.clears[clearIndex++]!;
-      output += `${cursorAt(cell.row, cell.col)}${RESET} `;
+      output += canvas === undefined
+        ? `${cursorAt(cell.row, cell.col)}${RESET} `
+        : `${cursorAt(cell.row, cell.col)}${RESET}${canvas} `;
     }
     const finished = clearIndex >= plan.clears.length || progress >= 1
       || elapsed > duration + QUIT_OUTRO_GUARD_MS || ticks >= QUIT_OUTRO_MAX_TICKS;

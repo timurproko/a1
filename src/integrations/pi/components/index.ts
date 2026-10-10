@@ -3,6 +3,11 @@ export { loadHistoryEditor, type HistoryEditorConstructor } from "./history-edit
 export { PiComponentConformanceError, runPiComponentConformance } from "./conformance.js";
 export type { PiComponentConformanceReport, PiComponentConformanceResult } from "./conformance.js";
 export {
+  createPiShellOperationLoader,
+  createPiShellShareOperationDialog,
+  type PiShellOperationLoaderPort,
+} from "./share-operation-dialog.js";
+export {
   OWNED_BUILTIN_SLASH_COMMANDS,
   PINNED_PI_BUILTIN_SLASH_COMMANDS,
   componentFromPort,
@@ -13,7 +18,6 @@ export {
   createPiShellAuthProviderSelector,
   createPiShellChangelog,
   createPiShellCollapsedChangelog,
-  createPiShellDaxnuts,
   createPiShellDialog,
   createPiShellEarendilAnnouncement,
   createPiShellEditor,
@@ -25,7 +29,6 @@ export {
   createPiShellLoginDialog,
   createPiShellModelSelector,
   createPiShellModelsDialog,
-  createPiShellOperationLoader,
   createPiShellReloadBox,
   createPiShellScopedModelsSelector,
   createPiShellSelector,
@@ -41,6 +44,7 @@ export {
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
   createTuiFacade,
+  createPiKeybindingsHost,
   ensureTheme,
   formatSessionTokens,
   isAutocompleteProvider,
@@ -54,6 +58,8 @@ export {
   renderPiShellCommandMessage,
   renderPiShellHotkeysLines,
   renderPiShellPackageUpdateNotice,
+  renderPiShellReleaseUpdateBanner,
+  renderPiShellReleaseUpdateNotice,
   renderPiShellStartupDiagnostic,
   renderPiShellStatusText,
   renderPiShellTranscriptBlock,
@@ -72,6 +78,7 @@ export type {
   PiShellEditorBodyGeometry,
   PiShellEditorOptions,
   PiShellEditorPointerEvent,
+  PiKeybindingsHost,
   PiShellEditorPort,
   PiShellEditorTextRange,
   PiShellExtensionRendererResolver,
@@ -84,7 +91,6 @@ export type {
   PiShellModelSelectorOptions,
   PiShellModelsDialogOptions,
   PiShellModelsDialogPort,
-  PiShellOperationLoaderPort,
   PiShellPasteReservation,
   PiShellQueuedInputPort,
   PiShellResourceEntry,
@@ -108,20 +114,27 @@ export {
   applyConfiguredPiTheme,
   applyPiTheme,
   applyPiThemeInstance,
+  currentPiAccentColor,
   currentPiThemeName,
+  derivePiAccentProjection,
+  derivePiCanvasBackground,
   detectPiTerminalBackgroundFromEnv,
   detectPiTerminalBackgroundTheme,
   detectPiTerminalThemeForAuto,
   ensurePiTheme,
   getAvailablePiThemes,
+  getPiSelectListTheme,
   loadPiTheme,
   onPiThemeChange,
   parsePiAutoThemeSetting,
+  piCanvasBackgroundAnsi,
   piTheme,
   resolvePiThemeSetting,
+  setPiAccentColor,
+  setPiPackageBorderProjectionEnabled,
   stopPiThemeWatcher,
 } from "./theme.js";
-export type { PiColorMode, PiTerminalTheme, PiTerminalThemeDetection, PiTerminalThemeDetector, PiThemeBackground, PiThemeResult } from "./theme.js";
+export type { PiAccentProjection, PiColorMode, PiTerminalTheme, PiTerminalThemeDetection, PiTerminalThemeDetector, PiThemeBackground, PiThemeResult } from "./theme.js";
 export { OwnedPiThemeController } from "./upstream/theme/theme-controller.js";
 export type { PiThemeRuntimePort, PiThemeSettingsPort } from "./upstream/theme/theme-controller.js";
 export {

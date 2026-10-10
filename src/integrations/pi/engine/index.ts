@@ -8,7 +8,19 @@ export type {
   PiEngineAdapterOptions,
   PiEngineRuntimeFactory,
   PiEngineRuntimeFactoryInput,
+  PiSessionPresentationSource,
 } from "./adapter.js";
+export { createPiEngineHost } from "./host.js";
+export type {
+  PiEngineHost,
+  PiEngineHostOptions,
+  PiEngineHostTheme,
+  PiEngineHostThemeApplier,
+  PiEngineHttpPolicy,
+  PiEngineSessionRequest,
+} from "./host.js";
+export { detachedEngineHostPorts } from "./host-ports.js";
+export type { PiEngineHostSessionPorts } from "./host-ports.js";
 export {
   bindPiRuntimeSession,
   createPiRuntimeIntegration,
@@ -17,11 +29,11 @@ export {
   replacePiRuntimeSession,
   resolveConfiguredModelScope,
 } from "./runtime-integration.js";
-export type { PiRuntimeIntegrationOptions, PiRuntimePreflightDependencies, PiSessionReplacement } from "./runtime-integration.js";
+export type { PiRuntimeIntegrationOptions, PiRuntimePreflightDependencies, PiSessionReplacement, PiStartupPhaseMarker } from "./runtime-integration.js";
 export { PiSessionSelectionError, openSelectedPiSession, resolveSessionArgumentPath } from "./session-selection.js";
 export type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
-export { PiSessionCommandIntegration, convertPiSessionEvent, subscribeToPiSessionEvents } from "./session-integration.js";
-export type { PiDocumentedSessionCommands, PiOrderedEventIntegration, PiSessionCommand, PiSessionCommandResult } from "./session-integration.js";
+export { PiSessionCommandIntegration } from "./session-integration.js";
+export type { PiDocumentedSessionCommands, PiSessionCommand, PiSessionCommandResult } from "./session-integration.js";
 export {
   AUTOMATIC_THEME,
   EXPOSED_SETTING_KEYS,

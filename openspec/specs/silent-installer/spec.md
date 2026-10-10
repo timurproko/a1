@@ -1,33 +1,33 @@
 # silent-installer Specification
 
 ## Purpose
-TBD - created by archiving change add-silent-a1-installer. Update Purpose after archive.
+Defines the dependency-free `@timurproko/a1-install` bootstrap that installs or safely updates one exact A1 release while controlling package-manager output, reporting bounded progress and truthful failures, and verifying activation and launcher ownership before success.
 
 ## Requirements
 
 ### Requirement: The official installer bootstrap is minimal before custom installation begins
-The preferred stable installation command SHALL be `npx -y @timurproko/a1-install`. The development form SHALL append `--develop`, and an exact development form SHALL append `--develop <preview-or-version>`. Bare forms without `-y` SHALL also work and MAY show npm's first-use confirmation. The installer package SHALL expose exactly one `a1-install` executable, SHALL use only supported Node built-ins at runtime, and SHALL declare no production, optional, peer, or runtime-required development dependency, funding metadata, or npm installation lifecycle script.
+The preferred stable installation command SHALL be `npm x -y -- @timurproko/a1-install`. The development form SHALL append `--develop`, and an exact development form SHALL append `--develop <preview-or-version>`. Every preferred form SHALL retain the explicit `--` boundary between npm-owned options and the package executable so installer selectors are forwarded unchanged. Forms without `-y` SHALL also work and MAY show npm's first-use confirmation. The installer package SHALL expose exactly one `a1-install` executable, SHALL use only supported Node built-ins at runtime, and SHALL declare no production, optional, peer, or runtime-required development dependency, funding metadata, or npm installation lifecycle script.
 
 The dependency-free outer acquisition SHALL introduce no package-originated deprecation, lifecycle-script, dependency-funding, or audit transcript. npm MAY show its own minor bootstrap/version notice or acquisition error before installer execution; those outer messages are not part of the installer-owned transcript. The corresponding direct global npm commands for `@latest`, `@next`, and an exact numbered development version MAY remain documented as explicit manual or recovery fallbacks but SHALL NOT be presented as the preferred controlled paths after installer availability is accepted.
 
 #### Scenario: A user starts the preferred installation
-- **WHEN** the user runs `npx -y @timurproko/a1-install`
+- **WHEN** the user runs `npm x -y -- @timurproko/a1-install`
 - **THEN** npm SHALL acquire the dependency-free installer without a first-use confirmation
 - **AND** the installer SHALL own subsequent main-install terminal presentation
 
 #### Scenario: A user omits automatic confirmation
-- **WHEN** the user runs `npx @timurproko/a1-install`
+- **WHEN** the user runs `npm x -- @timurproko/a1-install`
 - **THEN** the same installer SHALL run after any npm-owned first-use confirmation
 - **AND** minor outer npm bootstrap text SHALL NOT permit the main A1 child transcript to leak
 
 #### Scenario: A user selects the development channel
 - **WHEN** the user appends `--develop` after `@timurproko/a1-install`
-- **THEN** `npx` SHALL forward the selector to the installer
+- **THEN** `npm x` SHALL forward the selector to the installer across the explicit argument boundary
 - **AND** the installer SHALL resolve A1's `next` channel rather than changing the installer package channel
 
 #### Scenario: A user selects an exact development version
 - **WHEN** the user appends `--develop 107` or `--develop 0.1.8-dev.107` after `@timurproko/a1-install`
-- **THEN** `npx` SHALL forward the selector and value to the installer
+- **THEN** `npm x` SHALL forward the selector and value to the installer across the explicit argument boundary
 - **AND** the installer SHALL select only the uniquely matching immutable published A1 preview
 
 #### Scenario: Installer acquisition fails
@@ -41,7 +41,7 @@ The dependency-free outer acquisition SHALL introduce no package-originated depr
 - **AND** its manifest SHALL contain no funding metadata, install lifecycle script, or runtime dependency graph capable of producing transitive warning output
 
 ### Requirement: Successful installation shows controlled progress and one success message
-In an interactive terminal, the installer SHALL display one carriage-return progress row conforming exactly to A1 self-update's 40-cell bar width, glyphs, blue/teal `#8abeb7` completed segment, grey remaining track, grey percentage treatment, and style reset. Progress SHALL be non-decreasing, SHALL use measured activation progress where available, and MAY creep toward but SHALL NOT render an unreached milestone during opaque npm work. The visible row SHALL end at the numeric `<percentage>%` treatment and SHALL contain no phase, status, package, or other wording after it. Every redraw SHALL erase terminal content to the right of the current frame so no suffix from an earlier longer row remains visible. Internal child-event classification MAY continue without becoming terminal text.
+In an interactive terminal, the installer SHALL display one carriage-return progress row conforming exactly to A1 self-update's 40-cell bar width, glyphs, shared semantic-accent completed segment, grey remaining track, grey percentage treatment, and style reset. The completed segment SHALL consume the dependency-free installer form of the same release-owned palette contract as self-update, derived from the pinned Pi theme's semantic `accent` role and byte-equivalent to the main-package form. Progress SHALL be non-decreasing, SHALL use measured activation progress where available, and MAY creep toward but SHALL NOT render an unreached milestone during opaque npm work. The visible row SHALL end at the numeric `<percentage>%` treatment and SHALL contain no phase, status, package, or other wording after it. Every redraw SHALL erase terminal content to the right of the current frame so no suffix from an earlier longer row remains visible. Internal child-event classification MAY continue without becoming terminal text.
 
 Every main-install child process SHALL have stdout and stderr captured rather than inherit the terminal. The installer MAY run npm verbosely into a private temporary log and classify recognized events internally. Output from a successful child SHALL otherwise be discarded, including deprecation warnings, funding text, audit summaries, lifecycle-script policy warnings, package counts, and npm version notices. After all installation and verification work succeeds, the progress row SHALL be completed and removed or replaced, and stdout SHALL contain exactly `a1 successfully installed` followed by one newline in the terminal's unstyled default foreground, matching update success and appearing white under the maintainer's current terminal theme. It SHALL NOT use green or another fixed success color.
 
@@ -70,6 +70,11 @@ Normal installer output SHALL NOT disclose the npm prefix, package root, launche
 - **WHEN** the installer succeeds without an interactive output terminal
 - **THEN** stdout SHALL contain exactly `a1 successfully installed` followed by one newline
 - **AND** SHALL contain no carriage-return progress frames or ANSI styling
+
+#### Scenario: The installer package is inspected
+- **WHEN** the exact installer artifact is unpacked
+- **THEN** its executable and one declared shared palette asset SHALL remain dependency-free
+- **AND** the palette asset SHALL export the same accent value as the corresponding A1 release
 
 ### Requirement: Installation resolves and verifies one exact target
 The installer SHALL use the active npm executable and configuration to resolve the stable `latest` channel by default, the development `next` channel for bare `--develop`, or one immutable published numbered development version for `--develop <preview-or-version>`. It SHALL validate the authoritative `@timurproko/a1` identity and one exact semantic version and SHALL pass that exact version rather than a moving tag to the global mutating command. A numeric preview SHALL resolve only when exactly one published application version ends in that development number; a full preview SHALL resolve only when that exact version is published. It SHALL use cross-platform fixed argument arrays, SHALL NOT construct an interpolated shell command, and SHALL NOT persistently change npm configuration. Zero-numbered or malformed previews, duplicate selectors, unsupported options, ambiguous preview numbers, and extra arguments SHALL fail before installation mutation.
@@ -116,6 +121,8 @@ A fresh installation SHALL report success only after npm exits successfully, the
 ### Requirement: Existing installations retain cancellation-safe replacement
 Before starting direct global installation, the installer SHALL distinguish an absent A1 package from a canonical valid existing installation. It MAY directly install only when no existing global A1 package owns the target location. When a valid supported A1 installation and complete launcher set already exist, the installer SHALL map stable, development-channel, and exact-development-version selection to that installation's cancellation-safe update forms while capturing its streams behind the installer presentation.
 
+Before delegation, the installer SHALL resolve its active npm JavaScript entry, canonicalize it, require a regular file, and supply that exact identity to the installed updater as npm execution context. An `npx-cli.js` acquisition context MAY normalize only to its fixed sibling `npm-cli.js` after the same validation. This context SHALL affect npm acquisition only: package destination, target, launcher set, transaction, replacement, cancellation, activation, and rollback authority SHALL remain with the verified installed updater. A delegated failure SHALL NOT fall through to direct package installation or overwrite.
+
 A linked, foreign, malformed, partial, unsupported, mismatched, or ambiguously owned existing package or launcher set SHALL be refused before mutation. The installer SHALL NOT delete, rename, adopt, or directly overwrite such a tree.
 
 #### Scenario: A1 is not installed
@@ -124,12 +131,22 @@ A linked, foreign, malformed, partial, unsupported, mismatched, or ambiguously o
 
 #### Scenario: A1 is already installed validly
 - **WHEN** a supported canonical A1 package and complete launcher set are present
-- **THEN** the installer SHALL use the installed cancellation-safe update path rather than an unguarded direct overwrite
+- **THEN** the installer SHALL resolve canonical npm execution context and use the installed cancellation-safe update path rather than an unguarded direct overwrite
 - **AND** successful child output SHALL remain hidden behind the installer transcript
+
+#### Scenario: Existing installation receives npm through npx
+- **WHEN** npm acquired the installer with an `npx-cli.js` execution context and the fixed sibling `npm-cli.js` is a canonical regular file
+- **THEN** the installer SHALL supply that npm entry to the delegated updater
+- **AND** SHALL NOT treat the npx entry, a shell wrapper, or a searched arbitrary file as replacement authority
 
 #### Scenario: An existing installation receives an exact target
 - **WHEN** a supported existing installation is valid and the installer selected `0.1.8-dev.107`
-- **THEN** the installer SHALL delegate through the installed updater's exact development-preview form rather than directly overwrite the package
+- **THEN** the installer SHALL delegate through `a1 update --develop <full-development-version>` with validated npm execution context rather than directly overwrite the package
+
+#### Scenario: Delegated update fails
+- **WHEN** the verified installed updater returns an unsuccessful result before or after replacement begins
+- **THEN** the installer SHALL preserve that unsuccessful verdict and the updater's recovery/rollback disposition
+- **AND** SHALL NOT retry through its fresh global installation path or print installation success
 
 #### Scenario: Existing ownership is ambiguous
 - **WHEN** the package path or launcher set is linked, foreign, partial, mismatched, unsupported, or cannot be verified
@@ -208,25 +225,25 @@ The installer SHALL use the same release-target grammar as A1 self-update. Bare 
 
 The published application version list SHALL remain authoritative for requested previews. An absent or ambiguous numeric preview, absent exact preview, stable version after `--develop`, zero or malformed preview, repeated selector, missing usable selector value, unsupported option, or extra argument SHALL fail before installation mutation. The installer SHALL NOT support `--version`, `--latest`, or `--next` as compatibility aliases. npm package suffixes on `@timurproko/a1-install` SHALL remain installer-acquisition selectors and SHALL NOT be interpreted as application-target syntax.
 
-When an existing valid installation receives an exact preview request, the installer SHALL delegate through `a1 update --develop <full-development-version>`. Documentation and help SHALL present only this aligned grammar.
+When an existing valid installation receives an exact preview request, the installer SHALL delegate through `a1 update --develop <full-development-version>`. Documentation and help SHALL present only this aligned grammar through the preferred `npm x -y -- @timurproko/a1-install` invocation.
 
 #### Scenario: A user selects stable installation
-- **WHEN** the user runs `npx -y @timurproko/a1-install`
+- **WHEN** the user runs `npm x -y -- @timurproko/a1-install`
 - **THEN** the installer SHALL resolve and install the application package's `latest` channel
 - **AND** the form SHALL match bare `a1 update` for an existing installation
 
 #### Scenario: A user selects the development head
-- **WHEN** the user runs `npx -y @timurproko/a1-install --develop`
+- **WHEN** the user runs `npm x -y -- @timurproko/a1-install --develop`
 - **THEN** the installer SHALL resolve and install the application package's `next` channel
 - **AND** the form SHALL match `a1 update --develop`
 
 #### Scenario: A user selects a numbered preview
-- **WHEN** the user runs `npx -y @timurproko/a1-install --develop 107`
+- **WHEN** the user runs `npm x -y -- @timurproko/a1-install --develop 107`
 - **THEN** the installer SHALL inspect published application versions and select the unique version ending in `-dev.107`
 - **AND** it SHALL fail rather than guess when that number is absent or ambiguous
 
 #### Scenario: A user selects an exact preview
-- **WHEN** the user runs `npx -y @timurproko/a1-install --develop 0.1.8-dev.107`
+- **WHEN** the user runs `npm x -y -- @timurproko/a1-install --develop 0.1.8-dev.107`
 - **THEN** the installer SHALL select that version only when the registry lists it
 - **AND** the form SHALL match `a1 update --develop 0.1.8-dev.107`
 

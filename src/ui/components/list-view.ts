@@ -59,9 +59,9 @@ export function renderGroupHeader(title: string, width: number, theme: UiTheme):
 }
 
 /**
- * One row, painted. The label carries the selection, the value carries the
- * pointer, and the stepper appears only when the pointer is on the value it
- * belongs to — an affordance, not decoration.
+ * One row, painted. The selected item keeps an accent cursor, normal-text label,
+ * muted value, and item-bounded highlight; the value carries the pointer, and the
+ * stepper appears only when the pointer is on the value it belongs to.
  */
 export function renderListRow(
   row: ListViewRow,
@@ -75,14 +75,12 @@ export function renderListRow(
   const labelPadded = `${row.label}${" ".repeat(Math.max(0, labelColumn - displayWidth(row.label)))}`;
   const leftRaw = `${cursor}${labelPadded}`;
   const left = state.selected
-    ? `${theme.fg("accent", cursor)}${theme.fg("accent", labelPadded)}`
+    ? `${theme.fg("accent", cursor)}${theme.fg("text", labelPadded)}`
     : `${cursor}${theme.plain(labelPadded)}`;
   const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
 
-  // Rationale: a declared difference from pinned SettingsList, which paints the selected
-  // value in the accent too. Here only the cursor and label carry the selection; the
-  // value reads the same on every row, and pointer hover brightens it without moving
-  // the keyboard selection.
+  // Rationale: the value keeps the same semantic foreground on selected and unselected
+  // rows; pointer hover brightens it without moving keyboard selection.
   const valueHovered = state.hovered && state.region !== "label";
   const stepper = row.stepper !== undefined && valueHovered;
   const value = valueHovered ? theme.plain(row.value) : theme.fg("muted", row.value);
@@ -100,7 +98,8 @@ export function renderListRow(
 
   const indent = Math.max(2, stepper ? gap - STEPPER_RESERVE : gap);
   const suffix = row.suffix === undefined ? "" : theme.fg("dim", `  ${row.suffix}`);
-  return truncateToWidth(`${left}${" ".repeat(indent)}${minus}${value}${plus}${suffix}`, width);
+  const rendered = truncateToWidth(`${left}${" ".repeat(indent)}${minus}${value}${plus}${suffix}`, width);
+  return state.selected ? theme.highlight(rendered) : rendered;
 }
 
 /** A line that stands in for rows: why a group has none, or what it is waiting on. */

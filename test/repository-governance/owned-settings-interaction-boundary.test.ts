@@ -23,15 +23,18 @@ describe("owned settings interaction boundary", () => {
     expect(source).not.toMatch(/wheel-down[^\n]+\?\s*[3698]\s*:/u);
   });
 
-  it("keeps scalar contrast at the shared menu and owned theme boundaries", async () => {
+  it("keeps panel and selected-row contrast at shared owned-theme boundaries", async () => {
     const [host, menu, app] = await Promise.all([
       readFile(SETTINGS_ROUTE_HOST, "utf8"),
       readFile(VALUE_MENU, "utf8"),
       readFile(SETTINGS_APP, "utf8"),
     ]);
     expect(host).toContain("48;2;55;55;55");
-    expect(host).toContain("48;2;82;82;82");
-    expect(menu).toContain('paint(theme.fg("accent", "✓"))');
+    expect(host).toContain('bg("selectedBg", text)');
+    expect(host).not.toContain("48;2;82;82;82");
+    expect(menu).toContain('paint(theme.fg("text", "✓"))');
+    expect(menu).not.toContain('theme.fg("accent", "✓")');
+    expect(app).toContain('theme.accentPreview?.(String(choice), "■")');
     expect(app).not.toContain("48;2;");
   });
 

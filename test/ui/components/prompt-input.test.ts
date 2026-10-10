@@ -29,6 +29,7 @@ describe("shared prompt input presentation", () => {
     expect(cellStyle(search[1]!, "e").faint).toBe(true);
     expect(cellStyle(search[2]!, "─")).toEqual({ foreground: "154;160;166", faint: false });
     expect(renderInputRow(new LineInput("hello"), 20, { ruled: false, theme }).lines).toHaveLength(1);
+    expect(stripAnsi(renderInputRow(new LineInput("model"), 20, { ruled: false, promptGlyph: "> ", theme }).lines[0] ?? "").trimEnd()).toBe("> model");
   });
 
   it("retains semantic annotations and aligns continuation and menu rows", () => {
@@ -42,6 +43,10 @@ describe("shared prompt input presentation", () => {
     expect(rows[2]?.trimEnd()).toBe("  second");
     expect(rows[3]).toContain("↓ 2");
     expect(rows[4]?.trimEnd()).toBe("  menu");
+    const shiftedAfter = input.render(20, () => ({ rows: ["body"], after: ["menu"], afterIndent: 1 })).map(stripAnsi);
+    expect(shiftedAfter[1]?.trimEnd()).toBe("❯ body");
+    expect(shiftedAfter[3]?.trimEnd()).toBe(" menu");
+    expect(shiftedAfter.every(row => displayWidth(row) === 20)).toBe(true);
     expect(input.geometry(10, 2)).toEqual({ prefixWidth: 2, innerWidth: 8, paddingX: 2, contentWidth: 4, layoutWidth: 4 });
     expect(input.geometry(2, 3).contentWidth).toBe(3);
   });

@@ -173,7 +173,7 @@ describe("official Pi runtime integration", () => {
       expect(JSON.stringify(runtime.session.messages)).not.toContain("Earlier archived");
       expect(JSON.stringify(runtime.session.messages)).toContain(saved.marker);
       const prompt = vi.spyOn(runtime.session, "prompt");
-      const adapter = await createPiEngineAdapter({ cwd, agentDir, createRuntime: async () => runtime });
+      const adapter = await createPiEngineAdapter({ sessionId: "owned-test",cwd, agentDir, createRuntime: async () => runtime });
       expect(adapter.cwd).toBe(savedCwd);
       expect(adapter.currentSessionResumeMetadata()?.sessionId).toBe(saved.id);
       expect(JSON.stringify(adapter.view().transcript)).toContain(saved.marker);
@@ -220,7 +220,7 @@ describe("official Pi runtime integration", () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-pi-resume-hint-"));
     roots.push(root);
     const runtime = await createPiRuntimeIntegration({ cwd: root, agentDir: resolve(root, "agent"), sessionDir: resolve(root, "sessions") });
-    const adapter = await createPiEngineAdapter({ cwd: root, createRuntime: async () => runtime });
+    const adapter = await createPiEngineAdapter({ sessionId: "owned-test",cwd: root, createRuntime: async () => runtime });
     expect(adapter.currentSessionResumeMetadata()).toBeNull();
     await adapter.dispose();
   });

@@ -8,6 +8,7 @@ import { fixture, Runtime } from "./session-shell-fixture.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { createPiShellEditor, OWNED_BUILTIN_SLASH_COMMANDS, PINNED_PI_BUILTIN_SLASH_COMMANDS } from "../../../src/integrations/pi/components/index.js";
 import { OWNED_WORKFLOW_COMMAND_NAMES, PINNED_PI_DECLINED_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES, workflowCommandNames } from "../../../src/integrations/pi/engine/index.js";
 
@@ -122,6 +123,7 @@ describe("bare-A1 unified Models dialog", () => {
     const adapter = await createPiEngineAdapter({ cwd: "D:/work", agentDir, sessionId: "owned-shell", createRuntime: async () => engine as unknown as AgentSessionRuntime });
     const terminal = new TestPresentationTerminal();
     const shell = new OwnedUiSessionShell({
+      presenters: createPiSessionPresenters(adapter),
       engine: { backend: adapter, cwd: "D:/work", sessionLayout: "custom-viewport" },
       presentation: { terminal, reload: { minVisibleMs: 0 } },
     });
@@ -281,14 +283,11 @@ describe("bare-A1 unified Models dialog", () => {
         await vi.advanceTimersByTimeAsync(999);
         expect(frame(shell)).toContain("Models (unsaved) (refreshing)");
         await vi.advanceTimersByTimeAsync(1);
-        expect(frame(shell)).toContain("Models (unsaved) (refreshed)");
-        await vi.advanceTimersByTimeAsync(1_999);
-        expect(frame(shell)).toContain("Models (unsaved) (refreshed)");
-        await vi.advanceTimersByTimeAsync(1);
         text = frame(shell);
         expect(text).toContain("Models (unsaved)");
         expect(text).not.toContain("(refreshing)");
         expect(text).not.toContain("(refreshed)");
+        expect(text).not.toContain("Model catalogs refreshed.");
         for (let index = 0; index < 3; index += 1) shell.root.handleInput("\u007f");
         expect(frame(shell)).toContain("  ○ gemini [google]");
         shell.root.handleInput(ESCAPE);

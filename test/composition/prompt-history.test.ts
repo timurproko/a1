@@ -15,22 +15,28 @@ const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true
 
 // Rationale: test composition/storage without starting a terminal, provider, or Pi runtime.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({
-  applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [],
+  applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {},
 }));
 vi.mock("../../src/integrations/pi/components/history-editor-loader.js", () => ({ loadHistoryEditor: observed.loadEditor }));
-vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
+vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
   OwnedSettingsManager: class {
-    value(key: string) { return key === "promptHistoryEnabled" ? observed.enabled : key === "promptHistoryMaxItems" ? 100 : undefined; }
+    value(key: string) { return key === "promptHistoryEnabled" ? observed.enabled : key === "promptHistoryMaxItems" ? 100 : key === "accentColor" ? "purple" : undefined; }
+    onChange() { return () => undefined; }
   },
 }));
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({
-  OwnedUiSessionShell: class {
+  sessionTerminalHostOptions: () => ({}),
+  OwnedUiTerminalHost: class {
+    #presenter: { readonly options: ShellOptions } | undefined;
+    attach(presenter: { readonly options: ShellOptions }) { this.#presenter = presenter; }
+    async dispose() { await this.#presenter?.options.history?.store.close(); }
+  },
+  OwnedUiSessionPresenter: class {
     readonly options: ShellOptions;
-    constructor(options: ShellOptions) { this.options = options; observed.shells.push(options); }
-    async dispose() { await this.options.history?.store.close(); }
+    constructor(_host: unknown, options: ShellOptions) { this.options = options; observed.shells.push(options); }
   },
 }));
 
@@ -59,7 +65,7 @@ async function compose(options: { profileId?: string; ownedSurfaces?: "off" } = 
   return composeOwnedUi({
     ...options,
     cwd: root,
-    createPiAdapter: async () => ({ cwd: root, agentDir: profileRoot, configuredTheme: () => "dark" }) as never,
+    createEngineHost: async () => ({ create: async () => ({ identity: { cwd: root, agentDir: profileRoot }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never,
   });
 }
 

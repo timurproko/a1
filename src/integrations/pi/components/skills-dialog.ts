@@ -1,9 +1,16 @@
 import { DynamicBorder } from "../startup-public.js";
-import { Container, getKeybindings, Input, Spacer, Text } from "@earendil-works/pi-tui";
+import { Container, getKeybindings, Input, Spacer, Text, type Component } from "@earendil-works/pi-tui";
 import { addPiModalHeader, adoptPiModalFrame } from "./modal-frame.js";
-import { PINNED_PI_LAYOUT, piTheme, renderPiModalShortcutHints } from "./theme.js";
+import {
+  DIALOG_CLOSE_SHORTCUT_HINT,
+  paintPiBorder,
+  PINNED_PI_LAYOUT,
+  piTheme,
+  renderPiModalListRow,
+  renderPiModalShortcutHints,
+} from "./theme.js";
 import { componentPort, ensureTheme, piShellTruncateToWidth, piShellVisibleWidth, type PiShellComponentPort } from "./shell-shared-facade.js";
-import { SKILL_COMMAND_PREFIX, skillMatchesQuery, type PiShellSkillSummary } from "./skills-command.js";
+import { skillMatchesQuery, type PiShellSkillSummary } from "./skills-command.js";
 
 export interface PiShellSkillsSelectorOptions {
   /** The skills the engine registered, in its discovery order. */
@@ -23,10 +30,24 @@ class ClippedLine {
   }
 }
 
+class SkillRow implements Component {
+  readonly #content: string;
+  readonly #selected: boolean;
+
+  constructor(content: string, selected: boolean) {
+    this.#content = content;
+    this.#selected = selected;
+  }
+
+  invalidate(): void {}
+  render(width: number): string[] {
+    return [renderPiModalListRow(this.#content, width, this.#selected)];
+  }
+}
+
 /**
- * The A1-owned searchable Skills dialog. Its composition is the model selector's (border, spacer,
- * search input, spacer, list, spacer, hint footer, border) built from public pi-tui components; its
- * content follows the v2 skills extension: an accent bold title, `skill:<name>` rows, the selected
+ * The A1-owned searchable Skills dialog uses the model selector's public pi-tui composition; its
+ * content follows the v2 skills extension: an accent bold title, bare skill-name rows, the selected
  * skill's description cut to one line under the rows, the pinned scroll counter on overflow,
  * and the two empty states. Enter applies the selected skill with no arguments; the query is never appended.
  */
@@ -47,7 +68,7 @@ class SkillsSelectorComponent extends Container {
     this.#onSelect = options.onSelect;
     this.#onCancel = options.onCancel;
     this.#searchInput.onSubmit = () => this.#selectCurrent();
-    const header = addPiModalHeader(this, new DynamicBorder(), new Text(piTheme().fg("accent", piTheme().bold("Skills")), 0, 0));
+    const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), new Text(piTheme().fg("accent", piTheme().bold("Skills")), 0, 0));
     this.addChild(new Spacer(1));
     this.addChild(this.#searchInput);
     this.addChild(new Spacer(1));
@@ -55,11 +76,12 @@ class SkillsSelectorComponent extends Container {
     this.addChild(new Spacer(1));
     const bindings = getKeybindings();
     this.addChild(new Text(renderPiModalShortcutHints([
+      { key: "Type", action: "search" },
       { key: "↑↓", action: "navigate" },
       { key: bindings.getKeys("tui.select.confirm").join("/"), action: "select" },
-      { key: bindings.getKeys("tui.select.cancel").join("/"), action: "cancel" },
+      DIALOG_CLOSE_SHORTCUT_HINT,
     ]), 0, 0));
-    this.addChild(new DynamicBorder());
+    this.addChild(new DynamicBorder(paintPiBorder));
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
     this.#updateList();
   }
@@ -114,8 +136,9 @@ class SkillsSelectorComponent extends Container {
     for (let index = start; index < end; index++) {
       const skill = this.#filtered[index]!;
       const selected = index === this.#selectedIndex;
-      const label = `${SKILL_COMMAND_PREFIX}${skill.name}`;
-      this.#listContainer.addChild(new Text(`${selected ? theme.fg("accent", "→ ") : "  "}${selected ? theme.fg("accent", label) : label}`, 0, 0));
+      const label = skill.name;
+      const content = `${selected ? theme.fg("accent", "→ ") : "  "}${selected ? theme.fg("text", label) : label}`;
+      this.#listContainer.addChild(new SkillRow(content, selected));
     }
     if (start > 0 || end < this.#filtered.length) {
       this.#listContainer.addChild(new Text(theme.fg("muted", `  (${this.#selectedIndex + 1}/${this.#filtered.length})`), 0, 0));

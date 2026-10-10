@@ -27,14 +27,18 @@ export async function discardLocalCleanup({ identity, store, reader, path, chang
   const report = { version: 1, operation: "discard", results: [], coverage: { total: 1, visited: 0, complete: false }, at: now() };
   const row = { path: absolute, sourcePr, disposition: "blocked", steps: [] };
   report.results.push(row);
-  let selected;
+  let selected, releaseResources;
   try {
     if (!confirmed) fail("discard-confirmation-required");
-    await store.locked(async (state, save) => {
+    const known = await store.locked(state => structuredClone(state.entries.find(item => item.path === absolute)));
+    const initialRef = known?.ref ?? (await captureWorktree(identity, absolute, git)).ref;
+    releaseResources = await store.acquireResources([`path:${absolute}`, initialRef ? `ref:${initialRef}` : ""]);
+    await store.session(async (state, save) => {
       if (JSON.stringify(await discoverRepository(identity.primary, git)) !== JSON.stringify(identity)) fail("repository-changed");
       const request = { change, sourcePr };
       let entry = state.entries.find(item => item.path === absolute), candidate, token;
       if (entry) {
+        if (entry.ref !== initialRef) fail("worktree-identity-changed");
         if (!sameCandidate(entry, request)) fail("discard-registration-conflict");
         if (entry.state === "owned") fail("owned-worktree");
         if (entry.state === "released") {
@@ -48,6 +52,7 @@ export async function discardLocalCleanup({ identity, store, reader, path, chang
         }
       } else {
         const snapshot = await captureWorktree(identity, absolute, git);
+        if (snapshot.ref !== initialRef) fail("worktree-identity-changed");
         token = randomBytes(32).toString("hex");
         candidate = { ...snapshot, change, sourcePr, candidatePr: sourcePr, role: "discard",
           disposable: [...COMPLETION_DISPOSABLE_PATHS] };
@@ -109,8 +114,8 @@ export async function discardLocalCleanup({ identity, store, reader, path, chang
     });
   } catch (error) {
     row.reason = reason(error); if (Array.isArray(error.paths)) row.paths = error.paths;
-    row.disposition = selected?.state === "deleting" ? "partial" : "blocked";
-  }
+    row.disposition = selected?.state === "deleting" ? "partial" : error.cleanupCode === "resource-busy" ? "deferred" : "blocked";
+  } finally { if (releaseResources) await releaseResources(); }
   report.coverage.visited = 1; report.coverage.complete = true;
   try { await writeLocalCleanupReport(store, report, now()); } catch { /* Rationale: The mutation result remains authoritative on stdout. */ }
   return report;

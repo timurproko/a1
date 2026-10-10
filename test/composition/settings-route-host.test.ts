@@ -3,13 +3,15 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createOwnedRouteHost } from "../../src/composition/index.js";
-import { applyPiTheme } from "../../src/integrations/pi/components/index.js";
+import { applyPiTheme, piTheme } from "../../src/integrations/pi/components/index.js";
 import {
   OwnedSettingsManager,
   type OwnedUiSettingDeclaration,
 } from "../../src/ui/settings/index.js";
+import { cellBackgroundAt, cellStyle } from "../support/ansi-cell-style.js";
 
 const ESC = "\u001b";
+const INTERRUPT = "\u0003";
 const STYLE = new RegExp(`${ESC}\\[[0-9;]*m`, "gu");
 const DOWN = `${ESC}[B`;
 const DECLARATIONS: readonly OwnedUiSettingDeclaration[] = [{
@@ -50,12 +52,15 @@ describe("owned settings route opening", () => {
     }
     expect(loaded.some(line => line.replace(STYLE, "").includes("Mode"))).toBe(true);
     expect(loaded.join("\n")).not.toContain("Loading settings");
-    surface!.close();
+    expect(surface!.handleInput("/")).toBe(true);
+    expect(surface!.isClosed()).toBe(false);
+    expect(surface!.handleInput(INTERRUPT)).toBe(true);
+    expect(surface!.isClosed()).toBe(true);
   });
 });
 
 describe("owned settings route theme", () => {
-  it("renders a dark floating panel and a lighter white-text active choice", async () => {
+  it("uses the standard selection palette for settings rows and active choices", async () => {
     applyPiTheme("dark", false, "truecolor");
     const root = mkdtempSync(path.join(tmpdir(), "a1-settings-menu-theme-"));
     roots.push(root);
@@ -72,20 +77,35 @@ describe("owned settings route theme", () => {
       await new Promise(resolve => setTimeout(resolve, 10));
       initial = surface!.render(48, 12);
     }
-    expect(initial[0]).toContain(`${ESC}[38;2;95;135;255m`);
+    expect(initial[0]).toBe(piTheme().fg("border", "─".repeat(48)));
     expect(initial[0]?.replace(STYLE, "")).toBe("─".repeat(48));
-    expect(initial[1]).toContain(`${ESC}[38;2;138;190;183mSettings`);
+    expect(initial[1]).toContain(piTheme().fg("accent", "Settings"));
     expect(initial[1]?.replace(STYLE, "").trimEnd()).toBe(" Settings");
-    expect(initial.some(line => line.includes(`${ESC}[38;2;240;198;116m`))).toBe(true);
+    const headingSequence = piTheme().fg("mdHeading", "MARK").split("MARK")[0]!;
+    expect(initial.some(line => line.includes(headingSequence))).toBe(true);
+
+    const selected = initial.find(line => line.replace(STYLE, "").includes("Mode"))!;
+    const selectedText = selected.replace(STYLE, "");
+    const itemStart = selectedText.indexOf("→");
+    const itemEnd = selectedText.indexOf("auto") + "auto".length - 1;
+    const selectionBackground = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
+    expect(cellBackgroundAt(selected, itemStart)).toBe(selectionBackground);
+    expect(cellBackgroundAt(selected, itemEnd)).toBe(selectionBackground);
+    expect(cellBackgroundAt(selected, itemEnd + 1)).toBe("default");
+    expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
+    expect(cellStyle(selected, "M")).toEqual(cellStyle(piTheme().fg("text", "M"), "M"));
 
     const row = initial.findIndex(line => line.replace(STYLE, "").includes("Mode"));
     const column = (initial[row] ?? "").replace(STYLE, "").indexOf("auto") + 1;
     surface!.handleMouse({ kind: "press", button: 0, row: row + 1, column });
     surface!.handleInput(DOWN);
+    surface!.handleInput(DOWN);
 
     const menu = surface!.render(48, 12).join("\n");
-    expect(menu).toContain(`${ESC}[48;2;55;55;55m${ESC}[38;2;138;190;183m✓`);
-    expect(menu).toContain(`${ESC}[48;2;82;82;82m${ESC}[97m  always `);
+    expect(menu).toContain(`${ESC}[48;2;55;55;55m${ESC}[38;2;222;224;225m✓`);
+    expect(menu).not.toContain(`${ESC}[38;2;167;152;215m✓`);
+    const selectionStart = piTheme().bg("selectedBg", "MARK").split("MARK")[0]!;
+    expect(menu).toContain(`${selectionStart}  always `);
     expect(menu).toContain(`${ESC}[39m${ESC}[49m`);
   });
 });
@@ -109,6 +129,11 @@ async function manager(): Promise<OwnedSettingsManager> {
   return session;
 }
 
+const sessionReference = async () => ({
+  preamble: () => [" Name: fixture"],
+  sections: () => [{ title: "Messages", rows: [" Total: 1"] }],
+});
+
 describe("owned reference routes", () => {
   it("claims the reference routes only when their documents are supplied", async () => {
     const session = await manager();
@@ -116,15 +141,18 @@ describe("owned reference routes", () => {
     expect(withoutReferences.claims("settings")).toBe(true);
     expect(withoutReferences.claims("changelog")).toBe(false);
     expect(withoutReferences.claims("hotkeys")).toBe(false);
+    expect(withoutReferences.claims("session")).toBe(false);
     expect(withoutReferences.open("changelog")).toBeNull();
 
     const host = createOwnedRouteHost(session, {
       changelog: async () => ({ rows: () => ["log"] }),
       hotkeys: async () => ({ sections: () => [{ title: "Keys", rows: ["keys"] }] }),
+      session: sessionReference,
     });
     expect(host.claims("settings")).toBe(true);
     expect(host.claims("changelog")).toBe(true);
     expect(host.claims("hotkeys")).toBe(true);
+    expect(host.claims("session")).toBe(true);
     expect(host.claims("unknown")).toBe(false);
     expect(host.open("unknown")).toBeNull();
   });
@@ -138,20 +166,29 @@ describe("owned reference routes", () => {
       const captured = shortcut;
       return { sections: (width: number) => [{ title: `hotkeys ${captured}`, rows: [`table at ${width}`] }] };
     });
-    const host = createOwnedRouteHost(session, { changelog, hotkeys });
+    let total = 0;
+    const sessionInfo = vi.fn(async () => {
+      total += 1;
+      return {
+        preamble: () => [" Name: route fixture", " File: session.jsonl", " ID: route-session"],
+        sections: () => [{ title: "Messages", rows: [` Total: ${total}`] }],
+      };
+    });
+    const host = createOwnedRouteHost(session, { changelog, hotkeys, session: sessionInfo });
 
     const complete = host.open("changelog")!;
     expect(complete.id).toBe("changelog");
     // Invariant: no loading notice: the screen is blank until the document is drawn.
     expect(complete.render(60, 8).map(PLAIN).every(line => line.trim() === "")).toBe(true);
-    let lines = await settled(complete, current => current[1]?.includes("What's New") === true);
+    let lines = await settled(complete, current => current[1]?.includes("Changelog") === true);
     expect(changelog).toHaveBeenCalledWith(undefined);
     // Compatibility: the v2 frame: a rule, the title leading the document, a rule, the hint.
     expect(lines[0]).toBe("─".repeat(60));
-    expect(lines[1]?.startsWith(" What's New")).toBe(true);
+    expect(lines[1]?.startsWith(" Changelog")).toBe(true);
     expect(lines[2]?.startsWith("changelog complete at 58")).toBe(true);
     expect(lines[6]).toBe("─".repeat(60));
-    expect(lines.at(-1)?.startsWith(" Esc close  ↑↓ scroll")).toBe(true);
+    expect(lines.at(-1)?.startsWith(" ↑↓ scroll  Esc close")).toBe(true);
+    expect(lines.at(-1)).not.toContain("Ctrl+C");
     expect(lines.at(-1)).not.toMatch(/[·•]/u);
     complete.close();
     expect(complete.isClosed()).toBe(true);
@@ -159,6 +196,7 @@ describe("owned reference routes", () => {
     const supplied = host.open("changelog", { document: "0.85.2 notes" })!;
     lines = await settled(supplied, current => current[2]?.startsWith("changelog") === true);
     expect(changelog).toHaveBeenLastCalledWith({ document: "0.85.2 notes" });
+    expect(lines[1]?.startsWith(" What's New")).toBe(true);
     expect(lines[2]?.startsWith("changelog 0.85.2 notes at 58")).toBe(true);
     supplied.close();
 
@@ -177,14 +215,28 @@ describe("owned reference routes", () => {
     expect(lines[3]?.trimEnd()).toBe(" hotkeys second");
     expect(lines[4]?.startsWith("table at 58")).toBe(true);
     reopened.close();
+
+    const info = host.open("session")!;
+    expect(info.id).toBe("session");
+    lines = await settled(info, current => current.some(line => line.trimEnd() === " Messages"), 60, 12);
+    expect(lines[1]?.startsWith(" Session Info")).toBe(true);
+    expect(lines.some(line => line.trimEnd() === " Name: route fixture")).toBe(true);
+    expect(lines.some(line => line.trimEnd() === " Messages")).toBe(true);
+    expect(lines.some(line => line.trimEnd() === " Total: 1")).toBe(true);
+    info.close();
+    const refreshed = host.open("session")!;
+    lines = await settled(refreshed, current => current.some(line => line.trimEnd() === " Total: 2"), 60, 12);
+    expect(sessionInfo).toHaveBeenCalledTimes(2);
+    refreshed.close();
   });
 
-  it("forwards keys and pointer reports to the screen and propagates close and exit", async () => {
+  it("forwards keys and pointer reports and closes reference screens on one Ctrl+C", async () => {
     const session = await manager();
     const rows = Array.from({ length: 30 }, (_row, index) => `row ${String(index + 1).padStart(2, "0")}`);
     const host = createOwnedRouteHost(session, {
       changelog: async () => ({ rows: () => rows }),
       hotkeys: async () => ({ sections: () => [{ title: "Keys", rows }] }),
+      session: sessionReference,
     });
     const surface = host.open("changelog")!;
     let renders = 0;
@@ -203,19 +255,17 @@ describe("owned reference routes", () => {
     expect(surface.render(60, 8).map(PLAIN)[1]?.startsWith("row 26")).toBe(true);
     expect(surface.isClosed()).toBe(false);
 
-    expect(surface.handleInput(ESC)).toBe(true);
+    expect(surface.handleInput(INTERRUPT)).toBe(true);
     expect(surface.isClosed()).toBe(true);
     expect(exits).toBe(0);
 
-    const chord = host.open("hotkeys")!;
-    let chordExits = 0;
-    chord.onExitRequested(() => { chordExits += 1; });
-    await settled(chord, current => current[2]?.startsWith("row") === true);
-    chord.handleInput("\u0003");
-    expect(chord.isClosed()).toBe(false);
-    chord.handleInput("\u0003");
-    expect(chord.isClosed()).toBe(true);
-    expect(chordExits).toBe(1);
+    const shortcuts = host.open("hotkeys")!;
+    let shortcutExits = 0;
+    shortcuts.onExitRequested(() => { shortcutExits += 1; });
+    await settled(shortcuts, current => current[2]?.startsWith("row") === true);
+    expect(shortcuts.handleInput(INTERRUPT)).toBe(true);
+    expect(shortcuts.isClosed()).toBe(true);
+    expect(shortcutExits).toBe(0);
   });
 
   it("reports a failing document provider as a loading failure", async () => {
@@ -223,10 +273,11 @@ describe("owned reference routes", () => {
     const host = createOwnedRouteHost(session, {
       changelog: async () => { throw new Error("changelog unreadable"); },
       hotkeys: async () => ({ sections: () => [] }),
+      session: sessionReference,
     });
     const surface = host.open("changelog")!;
     const lines = await settled(surface, current => current[0]?.startsWith("Could not") === true);
-    expect(lines[0]).toBe("Could not load What's New: changelog unreadable");
+    expect(lines[0]).toBe("Could not load Changelog: changelog unreadable");
     expect(surface.isClosed()).toBe(false);
     expect(surface.handleInput(ESC)).toBe(true);
     surface.close();

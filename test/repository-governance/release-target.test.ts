@@ -23,13 +23,22 @@ describe("explicit prerelease-aware release targets", () => {
     expect(resolveReleasePlan(current, [target])).toEqual({ current, version, opening });
   });
 
+  it("rejects retired local approval authority", () => {
+    expect(() => parseReleaseArguments(["patch", "--approve"])).toThrow(/choosing Publish release on that draft publishes npm/);
+  });
+
   it.each([[], [""], ["--patch"], ["prepatch"], ["latest"], ["0.4"], ["v0.4.0"], ["00.4.0"],
-    ["0.4.0-dev"], ["0.4.0+build"], ["patch", "minor"], ["0.4.0", "extra"]])("rejects unsupported arguments %j", (...args) => {
+    ["0.4.0-dev"], ["0.4.0+build"], ["patch", "minor"], ["0.4.0", "extra"], ["patch", "--approve", "extra"]])("rejects unsupported arguments %j", (...args) => {
     expect(() => parseReleaseArguments(args)).toThrow(ReleaseUsageError);
   });
 
   it.each([undefined, null, "", "broken", "v0.1.8", "01.1.8", "0.1", " 0.1.8", "0.1.8 ", "0.1.8-dev.01"])("rejects malformed current version %j", current => {
     expect(() => resolveReleasePlan(current, ["patch"])).toThrow(ReleaseUsageError);
+  });
+
+  it("rejects an exact stable target below the open development core", () => {
+    expect(() => resolveReleasePlan("0.2.2-dev", ["0.2.1"]))
+      .toThrow("Stable target 0.2.1 is below the open development version 0.2.2-dev");
   });
 
   it("keeps concise README commands and detailed runbook gates aligned with release behavior", async () => {
@@ -53,14 +62,22 @@ describe("explicit prerelease-aware release targets", () => {
       .replaceAll("0.1.9-dev", "next-development")
       .replace("Only after verified publication", "Before verified publication")
       .replace("merge it manually", "merge the reopening pull request")
+      .replace("squash-merges it", "merges it")
       .replace("Never republish immutable bytes", "Do not publish casually"));
     expect(missing).toEqual(expect.arrayContaining([
       "docs/ci-release-runbook.md: missing target-required guidance",
       "docs/ci-release-runbook.md: missing next-development reopening example",
       "docs/ci-release-runbook.md: missing publication-before-reopening guidance",
       "docs/ci-release-runbook.md: missing manual reopening merge guidance",
+      "docs/ci-release-runbook.md: missing reopening auto-merge guidance",
       "docs/ci-release-runbook.md: missing immutable publication recovery guidance",
     ]));
+    const unsafe = releaseDocumentationFindings(readme, runbook
+      .replaceAll("returns the Release to draft", "keeps the Release published")
+      .replaceAll("Release returns to draft", "Release stays published"));
+    expect(unsafe).toContain("docs/ci-release-runbook.md: missing native-publication release guidance");
+    expect(releaseDocumentationFindings(`${readme}\nWait for \`npm ready\` before publishing.\n`, runbook))
+      .toContain("release documentation: retired Save-draft staging handoff remains");
   });
 
   it("selects semantic release checks only for the two release documents", async () => {

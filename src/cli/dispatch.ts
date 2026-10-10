@@ -43,6 +43,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "remove <source>",
     "uninstall <source>",
     "list",
+    "session worktrees",
     "session link-worktree <path>",
     "session unlink-worktree",
   ]);
@@ -73,6 +74,7 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} list`,
     "",
     "Session context:",
+    `  ${command} session worktrees`,
     `  ${command} session link-worktree <path>`,
     `  ${command} session unlink-worktree`,
     "",
@@ -161,11 +163,11 @@ function parseSessionContext(rest: readonly string[]): CliCommand {
     if (extra !== undefined) return { kind: "error", message: PRODUCT_TEXT.diagnostic("session link-worktree accepts one path.") };
     return { kind: "session-context", request: { action, path: value } };
   }
-  if (action === "unlink-worktree") {
-    if (value !== undefined) return { kind: "error", message: PRODUCT_TEXT.diagnostic("session unlink-worktree does not accept arguments.") };
+  if (action === "unlink-worktree" || action === "worktrees") {
+    if (value !== undefined) return { kind: "error", message: PRODUCT_TEXT.diagnostic(`session ${action} does not accept arguments.`) };
     return { kind: "session-context", request: { action } };
   }
-  return { kind: "error", message: PRODUCT_TEXT.diagnostic("session accepts link-worktree <path> or unlink-worktree.") };
+  return { kind: "error", message: PRODUCT_TEXT.diagnostic("session accepts worktrees, link-worktree <path>, or unlink-worktree.") };
 }
 
 /**

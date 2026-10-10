@@ -203,10 +203,15 @@ export class PiSessionEvents {
         if (event.type === "agent_settled") {
           const assistants = finalMessages.filter(message => isRecord(message) && message.role === "assistant");
           const lastAssistant = assistants.at(-1);
+          const content: unknown[] = lastAssistant !== undefined && Array.isArray(lastAssistant.content) ? lastAssistant.content : [];
+          const stopReason = lastAssistant === undefined ? null : stringValue(lastAssistant.stopReason) ?? null;
+          const toolContinuation = stopReason === "toolUse"
+            || content.some(item => isRecord(item) && item.type === "toolCall");
           const successful = lastAssistant !== undefined
             && stringValue(lastAssistant.errorMessage) === undefined
-            && stringValue(lastAssistant.stopReason) !== "error"
-            && stringValue(lastAssistant.stopReason) !== "aborted";
+            && stopReason !== "error"
+            && stopReason !== "aborted"
+            && textFromContent(content).trim().length > 0;
           this.#ports.emit({
             type: "agent-run-settled",
             sessionGeneration: this.#ports.sessionGeneration(),
@@ -215,6 +220,9 @@ export class PiSessionEvents {
             model: this.#ports.activeModel(),
             assistantMessageCount: assistants.length,
             successful,
+            stopReason,
+            toolContinuation,
+            aborted: event.aborted === true,
           });
         }
         return;

@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "0.87.1"
+    "version": "1.1.0"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -171,9 +171,9 @@
       "kind": "command",
       "feature": "/session",
       "since": "0.85.1",
-      "disposition": "owned",
-      "behavior": "commands.complete-manifest",
-      "test": "test/integrations/pi/engine/workflows.test.ts"
+      "disposition": "diverged",
+      "deviation": "bare-a1-session-reference-screen",
+      "test": "test/app/session-shell/session-shell-reference-screens.test.ts"
     },
     {
       "id": "command:settings",
@@ -1445,6 +1445,15 @@
       "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
     },
     {
+      "id": "settings-callback:onFullscreenWheelScrollLinesChange",
+      "kind": "settings-callback",
+      "feature": "onFullscreenWheelScrollLinesChange",
+      "since": "0.99.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/integrations/pi/engine/settings-bridge.test.ts"
+    },
+    {
       "id": "settings-callback:onHideThinkingBlockChange",
       "kind": "settings-callback",
       "feature": "onHideThinkingBlockChange",
@@ -1758,6 +1767,15 @@
       "disposition": "owned",
       "behavior": "settings.complete-surface",
       "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
+    },
+    {
+      "id": "setting:fullscreenWheelScrollLines",
+      "kind": "setting",
+      "feature": "fullscreenWheelScrollLines",
+      "since": "0.99.1",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/integrations/pi/engine/settings-bridge.test.ts"
     },
     {
       "id": "setting:hideThinkingBlock",
@@ -2349,6 +2367,292 @@
       "since": "0.87.1",
       "disposition": "pinned",
       "note": "Provider models reached through the pinned engine's model registry: Claude Opus 5.5 for Anthropic and GitHub Copilot, and GPT-6 Sol and GPT-6 Luna for OpenAI API keys, OpenAI Codex subscriptions, and GitHub Copilot. A1's model and scoped-model selectors consume that public registry without a separate catalog."
+    },
+    {
+      "id": "changelog:0.99.0:classifier-models",
+      "kind": "changelog",
+      "feature": "Classifier models",
+      "version": "0.99.0",
+      "summary": "Run Jev classifiers from codemode scripts, or use any llama.cpp model as a classifier.",
+      "since": "0.99.1",
+      "disposition": "pinned",
+      "note": "Classifier catalogs and execution are provided by the pinned model runtime and built-in codemode and llama.cpp extensions loaded through createAgentSessionServices."
+    },
+    {
+      "id": "changelog:0.99.0:codemode-and-mcp",
+      "kind": "changelog",
+      "feature": "Codemode and MCP",
+      "version": "0.99.0",
+      "summary": "Connect MCP servers and let models run JavaScript that calls tools in parallel.",
+      "since": "0.99.1",
+      "disposition": "pinned",
+      "note": "The pinned service factory loads Pi's built-in codemode, tool-search, and MCP extensions; A1 exposes their tools and tunnels their extension commands through the hosted session."
+    },
+    {
+      "id": "changelog:0.99.0:sign-in-with-chatgpt",
+      "kind": "changelog",
+      "feature": "Sign in with ChatGPT",
+      "version": "0.99.0",
+      "summary": "Use a ChatGPT subscription with the OpenAI provider through `/login openai`.",
+      "since": "0.99.1",
+      "disposition": "pinned",
+      "note": "A1's owned login workflow reads the pinned provider registry and delegates OAuth to the pinned model runtime, so OpenAI presents the Sign in with ChatGPT method without a provider-specific fork."
+    },
+    {
+      "id": "changelog:0.99.0:system-theme",
+      "kind": "changelog",
+      "feature": "System theme",
+      "version": "0.99.0",
+      "summary": "Pi's colors now come from your terminal's own palette by default.",
+      "since": "0.99.1",
+      "disposition": "diverged",
+      "deviation": "theme-public-api-boundary",
+      "test": "test/integrations/pi/components/pinned-theme-parity.test.ts"
+    },
+    {
+      "id": "changelog:0.99.0:virtual-models",
+      "kind": "changelog",
+      "feature": "Virtual models",
+      "version": "0.99.0",
+      "summary": "Extensions can route each request to a different physical model.",
+      "since": "0.99.1",
+      "disposition": "owned",
+      "behavior": "footer.complete-state",
+      "test": "test/integrations/pi/components/shell-components.test.ts"
+    },
+    {
+      "id": "changelog:0.99.1:gpt-6-1-sol",
+      "kind": "changelog",
+      "feature": "GPT-6.1 Sol",
+      "version": "0.99.1",
+      "summary": "Available on OpenAI, Azure OpenAI, and OpenAI Codex, and now the default OpenAI Codex model.",
+      "since": "0.99.1",
+      "disposition": "pinned",
+      "note": "Provider catalog and default-model behavior are supplied by the pinned model runtime; A1's model selectors consume that public registry without a separate catalog."
+    },
+    {
+      "id": "changelog:1.0.0:anthropic-copy-code-login",
+      "kind": "changelog",
+      "feature": "Anthropic copy code login",
+      "version": "1.0.0",
+      "summary": "Sign in when the browser runs on another machine.",
+      "since": "1.0.0",
+      "disposition": "owned",
+      "behavior": "commands.complete-manifest",
+      "test": "test/integrations/pi/engine/workflows.test.ts"
+    },
+    {
+      "id": "changelog:1.0.0:fullscreen-by-default",
+      "kind": "changelog",
+      "feature": "Fullscreen by default",
+      "version": "1.0.0",
+      "summary": "The TUI now runs fullscreen. Set `tuiMode` to `\"regular\"` to keep the terminal's normal scrollback.",
+      "since": "1.0.0",
+      "disposition": "pinned",
+      "note": "A1 reads Pi's tuiMode through the pinned SettingsManager, so new profiles inherit fullscreen while an explicit regular setting remains available."
+    },
+    {
+      "id": "changelog:1.0.0:header-only-quiet-startup",
+      "kind": "changelog",
+      "feature": "Header-only quiet startup",
+      "version": "1.0.0",
+      "summary": "`quietStartup: \"header\"` keeps the version and key hints and hides the rest.",
+      "since": "1.0.0",
+      "disposition": "owned",
+      "behavior": "settings.complete-surface",
+      "test": "test/integrations/pi/engine/settings-bridge.test.ts"
+    },
+    {
+      "id": "changelog:1.0.0:image-generation-in-codemode",
+      "kind": "changelog",
+      "feature": "Image generation in codemode",
+      "version": "1.0.0",
+      "summary": "Scripts call `models.generateImages()` with the session's credentials.",
+      "since": "1.0.0",
+      "disposition": "pinned",
+      "note": "The pinned service factory loads Pi's codemode extension and model registry, so generateImages uses the hosted session credentials without an A1-private API."
+    },
+    {
+      "id": "changelog:1.0.0:leaner-codemode",
+      "kind": "changelog",
+      "feature": "Leaner codemode",
+      "version": "1.0.0",
+      "summary": "About 40% fewer prompt tokens, and errors that tell the model how to recover.",
+      "since": "1.0.0",
+      "disposition": "pinned",
+      "note": "Codemode prompt construction and recovery diagnostics stay inside the pinned built-in extension loaded by A1's public session factory."
+    },
+    {
+      "id": "changelog:1.0.0:mcp-oauth-hardening",
+      "kind": "changelog",
+      "feature": "MCP OAuth hardening",
+      "version": "1.0.0",
+      "summary": "`oauth.authServerMetadataUrl`, RFC 9207 `iss` checks, credentials per server, and step-up sign-in that keeps granted scopes.",
+      "since": "1.0.0",
+      "disposition": "pinned",
+      "note": "MCP configuration, OAuth discovery, credential partitioning, issuer validation, and scope retention remain package-owned behind Pi's public service factory."
+    },
+    {
+      "id": "changelog:1.0.0:radius-in-login",
+      "kind": "changelog",
+      "feature": "Radius in `/login`",
+      "version": "1.0.0",
+      "summary": "Sign in with Radius and set up its MCP server in one step.",
+      "since": "1.0.0",
+      "disposition": "declined",
+      "reason": "A1 retains its provider-neutral owned authentication controller and does not couple login success to a Radius-specific animated selector or mutation of the user's MCP configuration; Radius remains available through the pinned model runtime's ordinary OAuth provider flow."
+    },
+    {
+      "id": "changelog:1.0.1:cloudflare-clef-classifiers",
+      "kind": "changelog",
+      "feature": "Cloudflare Clef classifiers",
+      "version": "1.0.1",
+      "summary": "`@cf/cloudflare/clef` and `@cf/cloudflare/clef-flash` are usable from codemode scripts and extensions.",
+      "since": "1.0.2",
+      "disposition": "pinned",
+      "note": "Classifier catalogs and execution are supplied by the pinned model runtime and the built-in codemode extension loaded through A1's public session factory."
+    },
+    {
+      "id": "changelog:1.0.1:mcp-client-id-metadata-documents",
+      "kind": "changelog",
+      "feature": "MCP Client ID Metadata Documents",
+      "version": "1.0.1",
+      "summary": "`oauth.clientRegistration: \"cimd\"` lets authorization servers allow pi by its document URL instead of dynamic registration.",
+      "since": "1.0.2",
+      "disposition": "pinned",
+      "note": "MCP configuration and OAuth client registration remain package-owned behind the built-in MCP extension loaded by A1's public session factory."
+    },
+    {
+      "id": "changelog:1.0.1:nix-flake",
+      "kind": "changelog",
+      "feature": "Nix flake",
+      "version": "1.0.1",
+      "summary": "`nix run github:earendil-works/pi/stable` runs the latest release, and `nix profile add github:earendil-works/pi/stable` installs it.",
+      "since": "1.0.2",
+      "disposition": "declined",
+      "reason": "A1 is distributed through its own npm and native installer flows and does not install or execute the upstream Pi repository through its Nix flake."
+    },
+    {
+      "id": "changelog:1.0.1:project-overrides-for-mcp-servers",
+      "kind": "changelog",
+      "feature": "Project overrides for MCP servers",
+      "version": "1.0.1",
+      "summary": "`.pi/mcp.json` and `/mcp` can enable, disable, or change the exposure of a user-level server for one project.",
+      "since": "1.0.2",
+      "disposition": "pinned",
+      "note": "The built-in MCP extension loaded by A1's public session factory owns global and project configuration merging, and A1 tunnels its extension command through the hosted session."
+    },
+    {
+      "id": "changelog:1.0.1:tool-renderers-for-any-tool",
+      "kind": "changelog",
+      "feature": "Tool renderers for any tool",
+      "version": "1.0.1",
+      "summary": "`pi.registerToolRenderer()` draws calls to tools that are not registered yet, such as MCP tools in resumed sessions.",
+      "since": "1.0.2",
+      "disposition": "owned",
+      "behavior": "tools.streaming-lifecycle",
+      "test": "test/integrations/pi/components/shell-components.test.ts"
+    },
+    {
+      "id": "changelog:1.0.2:sampling-by-thinking-level",
+      "kind": "changelog",
+      "feature": "Sampling by thinking level",
+      "version": "1.0.2",
+      "summary": "`samplingParamsByThinkingLevel` in `models.json` sets sampling parameters such as `temperature` and `top_p` for each thinking level on OpenAI-compatible APIs.",
+      "since": "1.0.2",
+      "disposition": "pinned",
+      "note": "Model configuration parsing, thinking-level selection, and OpenAI-compatible request sampling remain package-owned in the pinned model and provider runtime."
+    },
+    {
+      "id": "changelog:1.0.3:azure-foundry-chat-completions",
+      "kind": "changelog",
+      "feature": "Azure Foundry Chat Completions",
+      "version": "1.0.3",
+      "summary": "The `azure` provider (renamed from `azure-openai-responses`) now also serves Foundry Chat Completions deployments, starting with `azure/deepseek-v4-pro`.",
+      "since": "1.0.4",
+      "disposition": "pinned",
+      "note": "Provider discovery, credentials, and Foundry request routing remain package-owned in the pinned model and provider runtime used by A1's public session factory."
+    },
+    {
+      "id": "changelog:1.0.3:codemode-images-saved-to-files",
+      "kind": "changelog",
+      "feature": "Codemode images saved to files",
+      "version": "1.0.3",
+      "summary": "`image()` also writes each image to a temp file and names the path in the result, so later turns can copy or move generated images.",
+      "since": "1.0.4",
+      "disposition": "pinned",
+      "note": "The pinned built-in codemode extension loaded through A1's public session factory owns generated-image persistence and reports its temporary paths unchanged."
+    },
+    {
+      "id": "changelog:1.0.4:codemode-persists-images",
+      "kind": "changelog",
+      "feature": "Codemode persists images",
+      "version": "1.0.4",
+      "summary": "`tools.read()` on an image file now gives back an image block that `image()` can show.",
+      "since": "1.0.4",
+      "disposition": "pinned",
+      "note": "The pinned read tool and built-in codemode extension loaded through A1's public session factory preserve image blocks without an A1-private adapter."
+    },
+    {
+      "id": "changelog:1.0.4:tool-patterns-and-no-mcp",
+      "kind": "changelog",
+      "feature": "Tool patterns and `--no-mcp`",
+      "version": "1.0.4",
+      "summary": "`--tools` and `--exclude-tools` accept `*` patterns, for example `--tools read,codemode,'mcp__radius__*'` keeps only one MCP server's tools. `--tools` now keeps MCP tools unless an entry starts with `mcp__`, and `--no-mcp` turns off MCP for one run.",
+      "since": "1.0.4",
+      "disposition": "declined",
+      "reason": "A1 owns its command-line grammar and hosted-session tool loadout rather than forwarding Pi CLI filters; ordinary MCP tools remain available through the pinned built-in extension."
+    },
+    {
+      "id": "changelog:1.1.0:adjust-default-tools-with-name-name",
+      "kind": "changelog",
+      "feature": "Adjust default tools with `+name`/`-name`",
+      "version": "1.1.0",
+      "summary": "`--tools` entries like `pi -t +codemode,-write` change the default selection instead of replacing it.",
+      "since": "1.1.0",
+      "disposition": "declined",
+      "reason": "A1 owns its command-line grammar and hosted-session tool loadout rather than forwarding Pi CLI tool-selection modifiers; codemode and the ordinary built-in tools remain available through the pinned service factory."
+    },
+    {
+      "id": "changelog:1.1.0:claude-haiku-5-5",
+      "kind": "changelog",
+      "feature": "Claude Haiku 5.5",
+      "version": "1.1.0",
+      "summary": "`anthropic/claude-haiku-5-5`, with adaptive thinking up to `xhigh`/`max` effort.",
+      "since": "1.1.0",
+      "disposition": "pinned",
+      "note": "The Anthropic catalog, adaptive-thinking metadata, and Bedrock prompt-caching behavior come from the pinned model runtime; A1's model selectors consume that public registry without a separate catalog."
+    },
+    {
+      "id": "changelog:1.1.0:gpt-6-luna-and-image-classification",
+      "kind": "changelog",
+      "feature": "GPT-6 Luna and image classification",
+      "version": "1.1.0",
+      "summary": "OpenAI's GPT-6 Luna is available as a classifier model through the Decisions API, and codemode's `models.classify()` accepts images for classifiers that support them.",
+      "since": "1.1.0",
+      "disposition": "pinned",
+      "note": "Classifier discovery, Decisions API execution, and image-bearing classify calls stay inside the pinned model runtime and built-in codemode extension loaded by A1's public session factory."
+    },
+    {
+      "id": "changelog:1.1.0:native-llama-cpp-decision-models",
+      "kind": "changelog",
+      "feature": "Native llama.cpp decision models",
+      "version": "1.1.0",
+      "summary": "Julia-1, Laya, Kev, lev, and OpenJev served by llama.cpp 0.6.0 or later run natively as classifiers through `/v1/systemone`.",
+      "since": "1.1.0",
+      "disposition": "pinned",
+      "note": "llama.cpp classifier discovery and `/v1/systemone` execution are supplied by the pinned model runtime and built-in codemode extension loaded through A1's public session factory."
+    },
+    {
+      "id": "changelog:1.1.0:program-status-reporting",
+      "kind": "changelog",
+      "feature": "Program status reporting",
+      "version": "1.1.0",
+      "summary": "terminals and agent dashboards that support OSC 7501 see whether Pi is working, blocked on a dialog or login, done, or failed.",
+      "since": "1.1.0",
+      "disposition": "owned",
+      "behavior": "events.complete-manifest",
+      "test": "test/app/session-shell/session-shell-lifecycle.test.ts"
     }
   ]
 }

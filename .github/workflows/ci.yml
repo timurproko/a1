@@ -25,6 +25,7 @@ jobs:
     outputs:
       validate: ${{ steps.readiness.outputs.validate }}
       reason: ${{ steps.readiness.outputs.reason }}
+      release-reopening: ${{ steps.readiness.outputs.release_reopening || 'false' }}
     steps:
       - name: Check out trusted readiness policy
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -104,9 +105,12 @@ jobs:
           fi
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: pr-full-regression-selection-${{ github.run_id }}-${{ github.run_attempt }}
+          # Rationale: run-scoped so re-running only failed jobs reuses the attempt that selected;
+          # --verify recomputes selection for the current head, so a reused record cannot go stale.
+          name: pr-full-regression-selection-${{ github.run_id }}
           path: .artifacts/validation/full-regression-selection.json
           if-no-files-found: error
+          overwrite: true
 
   full-regression:
     name: PR Full regression
@@ -132,21 +136,43 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
-      acceptance-only: ${{ steps.route.outputs.acceptance_only || 'false' }}
-      implementation-bound: "${{ github.event_name == 'pull_request' && (steps.route.outputs.implementation_bound || 'true') || 'false' }}"
-      docs-only: ${{ steps.selection.outputs.docs_only }}
-      version-only: ${{ steps.selection.outputs.version_only }}
-      openspec-touched: ${{ steps.selection.outputs.openspec_touched }}
-      rendering-tier: ${{ steps.selection.outputs.rendering_tier }}
-      documentation-required: ${{ steps.selection.outputs.documentation_required }}
-      naming-required: ${{ steps.selection.outputs.naming_required }}
-      naming-mode: ${{ steps.selection.outputs.naming_mode }}
-      modular-matrix: ${{ steps.matrix.outputs.modular_matrix }}
-      head-sha: ${{ steps.route.outputs.acceptance_only == 'true' && steps.route.outputs.head_sha || steps.selection.outputs.head_sha }}
+      acceptance-only: ${{ steps.reopening.outputs.acceptance_only || steps.route.outputs.acceptance_only || 'false' }}
+      implementation-bound: "${{ github.event_name == 'pull_request' && (steps.reopening.outputs.implementation_bound || steps.route.outputs.implementation_bound || 'true') || 'false' }}"
+      release-reopening: ${{ needs.readiness.outputs.release-reopening || 'false' }}
+      docs-only: ${{ steps.reopening.outputs.docs_only || steps.selection.outputs.docs_only }}
+      version-only: ${{ steps.reopening.outputs.version_only || steps.selection.outputs.version_only }}
+      openspec-touched: ${{ steps.reopening.outputs.openspec_touched || steps.selection.outputs.openspec_touched }}
+      rendering-tier: ${{ steps.reopening.outputs.rendering_tier || steps.selection.outputs.rendering_tier }}
+      documentation-required: ${{ steps.reopening.outputs.documentation_required || steps.selection.outputs.documentation_required }}
+      naming-required: ${{ steps.reopening.outputs.naming_required || steps.selection.outputs.naming_required }}
+      naming-mode: ${{ steps.reopening.outputs.naming_mode || steps.selection.outputs.naming_mode }}
+      modular-matrix: ${{ steps.reopening.outputs.modular_matrix || steps.matrix.outputs.modular_matrix }}
+      head-sha: ${{ steps.reopening.outputs.head_sha || (steps.route.outputs.acceptance_only == 'true' && steps.route.outputs.head_sha) || steps.selection.outputs.head_sha }}
     steps:
+      - name: Record verified release reopening surface
+        id: reopening
+        if: needs.readiness.outputs.release-reopening == 'true'
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          echo 'acceptance_only=false' >> "$GITHUB_OUTPUT"
+          echo 'implementation_bound=false' >> "$GITHUB_OUTPUT"
+          echo 'docs_only=false' >> "$GITHUB_OUTPUT"
+          echo 'version_only=false' >> "$GITHUB_OUTPUT"
+          echo 'openspec_touched=false' >> "$GITHUB_OUTPUT"
+          echo 'rendering_tier=none' >> "$GITHUB_OUTPUT"
+          echo 'documentation_required=false' >> "$GITHUB_OUTPUT"
+          echo 'naming_required=false' >> "$GITHUB_OUTPUT"
+          echo 'naming_mode=none' >> "$GITHUB_OUTPUT"
+          echo 'modular_matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+          echo "head_sha=$EXPECTED_HEAD" >> "$GITHUB_OUTPUT"
+          echo 'Verified post-publication release reopening: generic impact analysis and product lanes are intentionally omitted.' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Route exact acceptance candidate from trusted base
         id: route
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.readiness.outputs.release-reopening != 'true'
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -171,7 +197,7 @@ jobs:
           fi
 
       - name: Check out head
-        if: steps.route.outputs.acceptance_only != 'true'
+        if: steps.route.outputs.acceptance_only != 'true' && needs.readiness.outputs.release-reopening != 'true'
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -179,19 +205,19 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        if: steps.route.outputs.acceptance_only != 'true'
+        if: steps.route.outputs.acceptance_only != 'true' && needs.readiness.outputs.release-reopening != 'true'
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: npm
 
       - name: Install exact analysis dependencies
-        if: steps.route.outputs.acceptance_only != 'true'
+        if: steps.route.outputs.acceptance_only != 'true' && needs.readiness.outputs.release-reopening != 'true'
         run: npm ci --ignore-scripts
 
       - name: Select validation from the complete impact
         id: selection
-        if: steps.route.outputs.acceptance_only != 'true'
+        if: steps.route.outputs.acceptance_only != 'true' && needs.readiness.outputs.release-reopening != 'true'
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -240,7 +266,7 @@ jobs:
 
       - name: Select modular jobs from the trusted selection
         id: matrix
-        if: steps.route.outputs.acceptance_only != 'true'
+        if: steps.route.outputs.acceptance_only != 'true' && needs.readiness.outputs.release-reopening != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -254,7 +280,7 @@ jobs:
           NODE
 
       - name: Upload exact impact selection
-        if: steps.route.outputs.acceptance_only != 'true'
+        if: steps.route.outputs.acceptance_only != 'true' && needs.readiness.outputs.release-reopening != 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: development-validation-impact
@@ -382,7 +408,7 @@ jobs:
           RESULT_PATH="$result" node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import { readFile } from "node:fs/promises";
           const value = JSON.parse(await readFile(process.env.RESULT_PATH, "utf8"));
-          console.log(`delivery_candidate=${value.disposition === "ready-for-manual-merge"}`);
+          console.log(`delivery_candidate=${value.disposition === "ready-for-maintainer-integration"}`);
           NODE
       - name: Preserve legacy implementation validation route
         id: legacy
@@ -533,7 +559,7 @@ jobs:
   modular:
     name: ${{ matrix.label }}
     needs: changes
-    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.release-reopening != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
     strategy:
       fail-fast: false
       # The trusted selection schedules only active entries; declared entries live in
@@ -707,7 +733,7 @@ jobs:
   rendering:
     name: Rendering validation
     needs: changes
-    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true' && needs.changes.outputs.rendering-tier != 'none'
+    if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.release-reopening != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true' && needs.changes.outputs.rendering-tier != 'none'
     runs-on: windows-2025
     timeout-minutes: 20
     steps:
@@ -759,7 +785,7 @@ jobs:
           retention-days: 14
 
   required:
-    name: "${{ needs.readiness.outputs.validate == 'true' && 'Development validation required' || 'Development validation deferred' }}"
+    name: "${{ github.event_name == 'pull_request' && 'Development validation required' || 'Development validation diagnostic' }}"
     if: always() && needs.readiness.result == 'success' && needs.readiness.outputs.validate == 'true'
     needs: [readiness, changes, acceptance, delivery, docs, naming, documentation, modular, rendering, full-selection, full-regression]
     permissions:
@@ -786,7 +812,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          name: pr-full-regression-selection-${{ github.run_id }}-${{ github.run_attempt }}
+          name: pr-full-regression-selection-${{ github.run_id }}
           path: .artifacts/validation
       - name: Require current PR full-regression selection and result
         if: github.event_name == 'pull_request'
@@ -828,6 +854,7 @@ jobs:
           RENDERING_RESULT: ${{ needs.rendering.result }}
           DOCS_ONLY: ${{ needs.changes.outputs.docs-only }}
           VERSION_ONLY: ${{ needs.changes.outputs.version-only }}
+          RELEASE_REOPENING: ${{ needs.changes.outputs.release-reopening }}
           OPENSPEC_TOUCHED: ${{ needs.changes.outputs.openspec-touched }}
           DOCUMENTATION_REQUIRED: ${{ needs.changes.outputs.documentation-required }}
           RENDERING_TIER: ${{ needs.changes.outputs.rendering-tier }}
@@ -841,20 +868,20 @@ jobs:
           DELIVERY_RESULT: ${{ needs.delivery.result }}
         run: test "$DELIVERY_RESULT" = 'success'
       - name: Download exact impact selection
-        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.release-reopening != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: development-validation-impact
           path: .artifacts/validation
       - name: Download all modular outcomes
-        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.release-reopening != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: development-validation-outcome-*
           path: .artifacts/validation/outcomes
           merge-multiple: true
       - name: Require exact selected owner outcomes
-        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.release-reopening != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
         env:
           VALIDATION_HEAD: ${{ needs.changes.outputs.head-sha }}
           VALIDATION_MODULAR_RESULT: ${{ needs.modular.result }}
@@ -862,7 +889,7 @@ jobs:
           VALIDATION_OUTCOMES_DIR: .artifacts/validation/outcomes
         run: node scripts/release/require-modular-validation.mjs
       - name: Report aggregate timing and cadence
-        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.release-reopening != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
         shell: bash
         run: |
           node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
@@ -874,7 +901,7 @@ jobs:
           console.log(`Targets: critical path **${report.targets.criticalPathMet ? "met" : "unmet"}** (≤8m); scope **${report.targets.scopeMet ? "met" : "unmet"}** (≤5m).`);
           NODE
       - name: Upload aggregate evidence
-        if: always() && needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+        if: always() && needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.release-reopening != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: development-validation-aggregate-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}

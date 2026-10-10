@@ -34,10 +34,14 @@ require resolved review threads, require `Development validation required` with
 no bypass actor, and require the pull request head to be up to date with `develop`
 before merge, so that a candidate validated and finalized against a base that has
 since advanced is reconciled, re-finalized, and revalidated before integration.
-`master` SHALL reject deletion and non-fast-forward updates while
+`master` SHALL reject deletion and non-fast-forward updates with no bypass actor while
 remaining writable by a successful stable release fast-forward. `v*` tags SHALL
-reject deletion and movement. Any change to approvals, strict-base policy, merge
-methods, or bypass authority SHALL require an explicit specification decision.
+reject movement for every actor and SHALL reject deletion for every actor except one
+declared release-automation GitHub App with `always` bypass, which exists solely so
+that a failed stable publication can delete its unconsumed tag before npm. No person,
+team, repository role, or other App SHALL bypass any protected ref. Any change to
+approvals, strict-base policy, merge methods, or bypass authority SHALL require an
+explicit specification decision.
 
 #### Scenario: Pull request validation is incomplete
 - **WHEN** a pull request targeting `develop` lacks a successful required check
@@ -49,12 +53,20 @@ methods, or bypass authority SHALL require an explicit specification decision.
 - **AND** the trusted finalization workflow SHALL re-finalize the updated head before that check runs
 
 #### Scenario: Stable release records itself
-- **WHEN** npm serves the verified stable package
-- **THEN** release automation MAY fast-forward `master` and create the matching immutable `v*` tag
+- **WHEN** an authorized human publishes the prepared draft Release and npm serves the verified stable package pair
+- **THEN** GitHub SHALL have created the matching `v*` tag at the bound source and release automation MAY fast-forward `master`
 
 #### Scenario: Protected history is rewritten
 - **WHEN** an actor attempts to delete or non-fast-forward a protected branch or move a release tag
 - **THEN** GitHub SHALL reject the operation without a bypass
+
+#### Scenario: A failed publication removes its unconsumed tag
+- **WHEN** the release-automation App deletes a `v*` tag whose Release returned to draft with both packages absent from npm
+- **THEN** GitHub SHALL permit that deletion and SHALL reject the same deletion by any other actor
+
+#### Scenario: The bypass is widened
+- **WHEN** the declared governance adds a bypass actor to a branch ruleset, a second tag bypass actor, a non-App actor, or a non-`always` bypass mode
+- **THEN** governance validation SHALL reject the definition
 
 ### Requirement: Workflow authority is explicit and least-privileged
 The repository SHALL inventory each workflow's trusted source, triggers, permissions,
@@ -77,9 +89,9 @@ policy SHALL be visible in drift reporting.
 - **THEN** repository governance SHALL reject the workflow
 
 ### Requirement: Documentation auto-merge remains exact and current-head-bound
-Only a non-draft same-repository pull request into `develop` whose complete diff is under `openspec/**`, under `docs/**`, and/or exactly root `README.md`, and which is neither implementation-bound nor acceptance-bound, SHALL be automatically squash-integrated. Both sides of renames SHALL be classified. Required validation SHALL gate the merge, and any direct reconciliation SHALL require successful validation for the current head and enforce that expected SHA through normal branch-protected integration. Eligible validated heads reported as `clean`, or as `unstable` with positive mergeability, SHALL be reconciled without requiring auto-merge to have been armed first.
+Only a non-draft same-repository pull request into `develop` whose complete diff is under `openspec/**`, under `docs/**`, and/or exactly root `README.md`, and which is neither implementation-bound nor acceptance-bound, SHALL be automatically squash-integrated by documentation automation. Both sides of renames SHALL be classified. Required validation SHALL gate the merge, and any direct reconciliation SHALL require successful validation for the current head and enforce that expected SHA through normal branch-protected integration. Eligible validated heads reported as `clean`, or as `unstable` with positive mergeability, SHALL be reconciled without requiring auto-merge to have been armed first.
 
-An implementation association, introduction of a new active OpenSpec change, or dedicated acceptance-record association SHALL exclude a PR from documentation auto-merge, independently of its draft status or currently documentation-only diff. Complete diff and authoritative base/head state SHALL identify newly introduced active changes and reserved acceptance records even when their association is removed. Archived change directories SHALL NOT be mistaken for newly introduced active plans, and verified archive copies of acceptance evidence SHALL NOT be mistaken for new acceptance requests. Missing, malformed, or ambiguous classification inputs SHALL fail closed. Lifecycle association edits SHALL trigger reconciliation, and an excluded PR SHALL have any armed auto-merge disabled. Ordinary standalone documentation, existing-change planning revisions without a manual lifecycle association, and eligible archive follow-ups SHALL retain their automatic path.
+An implementation association, introduction of a new active OpenSpec change, or dedicated acceptance-record association SHALL exclude a PR from documentation auto-merge, independently of its draft status or currently documentation-only diff. Complete diff and authoritative base/head state SHALL identify newly introduced active changes and reserved acceptance records even when their association is removed. Archived change directories SHALL NOT be mistaken for newly introduced active plans, and verified archive copies of acceptance evidence SHALL NOT be mistaken for new acceptance requests. Missing, malformed, or ambiguous classification inputs SHALL fail closed. Lifecycle association edits SHALL trigger reconciliation. An excluded PR SHALL have any automation-armed auto-merge disabled; a finalized version-3 PR's exact-head auto-merge explicitly armed by an authorized human SHALL instead be preserved for that human-owned acceptance route. Ordinary standalone documentation, existing-change planning revisions without a manual lifecycle association, and eligible archive follow-ups SHALL retain their automatic path.
 
 #### Scenario: OpenSpec-only pull request passes
 - **WHEN** an eligible OpenSpec-only standalone revision's current head passes required validation
@@ -99,7 +111,8 @@ An implementation association, introduction of a new active OpenSpec change, or 
 
 #### Scenario: Mixed pull request passes CI
 - **WHEN** any changed or renamed-from path is outside the exact allowlist
-- **THEN** auto-merge SHALL remain disabled and the pull request SHALL await manual acceptance
+- **THEN** documentation automation SHALL NOT arm or directly merge the pull request
+- **AND** a valid human arm MAY remain only for a finalized version-3 candidate
 
 #### Scenario: Successful validation is stale
 - **WHEN** successful validation names a head other than the current pull-request head
@@ -112,11 +125,17 @@ An implementation association, introduction of a new active OpenSpec change, or 
 
 #### Scenario: PR association changes without a new commit
 - **WHEN** a PR body edit introduces an implementation or acceptance association
-- **THEN** repository automation SHALL reconcile the existing head's eligibility and disable any armed auto-merge
+- **THEN** repository automation SHALL reconcile the existing head's eligibility
+- **AND** SHALL disable an inherited arm unless trusted evidence proves an authorized human armed the finalized version-3 candidate after that change
+
+#### Scenario: Human arms a finalized implementation
+- **WHEN** an authorized human enables native auto-merge on the exact finalized version-3 head
+- **THEN** documentation automation SHALL leave that human arm intact without treating the PR as documentation-auto-merge eligible
+- **AND** SHALL NOT invoke an implementation merge or enable mutation itself
 
 #### Scenario: Classification data is ambiguous
-- **WHEN** lifecycle metadata or required base/head or changed-file data cannot be safely classified
-- **THEN** repository automation SHALL leave auto-merge disabled and report the blocker
+- **WHEN** lifecycle metadata or required base/head, arming-actor, timeline, permission, or changed-file data cannot be safely classified
+- **THEN** automation SHALL leave auto-merge disabled and report the blocker
 
 #### Scenario: Archive-only follow-up passes
 - **WHEN** an eligible archive PR moves a completed change out of the active directory and updates its declared main specs
@@ -515,34 +534,55 @@ No specialized documentation or acceptance-only route SHALL skip product, impact
 - **AND** an older successful run SHALL NOT authorize merge
 
 ### Requirement: Manual development merge is the sole version-3 acceptance action
-Every version-3 development PR SHALL remain ineligible for native auto-merge, trusted direct merge reconciliation, merge queue integration, and documentation auto-merge. An authorized human maintainer SHALL manually merge the exact current head after required validation. The merge SHALL mean that maintainer accepts the one to three plain implementation scenarios bound to the committed conditional manifest. Repository automation SHALL NOT edit acceptance state, check boxes, infer human acceptance from CI, or merge on the maintainer's behalf.
+Every version-3 development PR SHALL remain ineligible for trusted direct merge reconciliation, merge queue integration, documentation auto-merge, and automation-armed native auto-merge. An authorized human maintainer SHALL select the exact finalized head after reviewing its acceptance list, either by manually merging it after required validation or by personally arming native auto-merge for that unchanged head. The resulting protected integration SHALL mean that maintainer accepts the one to three plain implementation scenarios bound to the committed conditional manifest. Repository automation SHALL NOT edit acceptance state, check boxes, infer human acceptance from CI, arm implementation auto-merge, or merge on the maintainer's behalf.
+
+A human arm SHALL remain valid only while the PR head and acceptance list remain unchanged. A new commit, finalization update, acceptance-list edit, draft conversion, or ambiguous provenance SHALL disable or invalidate the arm and require a new maintainer action.
 
 #### Scenario: Candidate is green
-- **WHEN** all exact-head required checks succeed for a version-3 PR
-- **THEN** repository automation SHALL leave it open with auto-merge disabled
-- **AND** status SHALL identify manual maintainer merge as the remaining acceptance action
-
-#### Scenario: PR body changes
-- **WHEN** the acceptance list or lifecycle metadata changes without a new commit
-- **THEN** trusted policy SHALL re-evaluate body-to-manifest membership for the current head
-- **AND** an invalid edit SHALL block merge rather than being treated as acceptance
+- **WHEN** all exact-head required checks succeed for a version-3 PR without an authorized human arm
+- **THEN** repository automation SHALL leave it open
+- **AND** status SHALL identify maintainer merge or human-enabled auto-merge as the remaining acceptance action
 
 #### Scenario: Maintainer manually merges
 - **WHEN** an authorized human uses a permitted manual merge method on the exact validated head
 - **THEN** implementation, canonical specs, conditional acceptance record, and archive SHALL integrate in one protected operation
 - **AND** no later repository mutation SHALL be needed to establish acceptance
 
-### Requirement: Post-merge version-3 handling is read-only except safe branch cleanup
-After a version-3 merge, trusted default-branch policy SHALL verify the exact source PR/head, required checks, manual authorized actor, merge method/time, target ancestry, synchronized specs, archive bytes, and conditional manifest. It SHALL report accepted-and-archived only when all evidence agrees. It SHALL NOT push to `develop`, create or update an acceptance/archive branch or PR, rewrite tasks/specs/evidence, or use an App publication credential for that delivery.
+#### Scenario: Maintainer enables native auto-merge
+- **WHEN** an authorized human enables native auto-merge after the finalized head and acceptance list are current
+- **THEN** GitHub MAY integrate that exact head only after required validation succeeds
+- **AND** the human arming action SHALL supply acceptance authority without repository automation arming or merging the PR
 
-Merge-time verification SHALL bind the pull request's single `merged` timeline event to the recorded merge by the same human actor, the absence of an App, and the same merge commit; the event time SHALL agree with the pull request's `merged_at` within a small fixed tolerance of a few seconds so that clock skew between GitHub services does not invalidate a genuine manual merge. An event outside that tolerance, an unparsable time, a second merge event, a different actor or commit, or an App-performed merge SHALL remain contradictory provenance.
+#### Scenario: Candidate changes after arming
+- **WHEN** the head, acceptance list, lifecycle metadata, or finalized body changes after human auto-merge authorization
+- **THEN** the prior arm SHALL be disabled or treated as stale
+- **AND** the maintainer SHALL choose again for the new candidate
+
+#### Scenario: PR body changes
+- **WHEN** the acceptance list or lifecycle metadata changes without a new commit
+- **THEN** trusted policy SHALL re-evaluate body-to-manifest membership for the current head
+- **AND** an invalid edit or stale human arm SHALL block merge rather than being treated as acceptance
+
+### Requirement: Post-merge version-3 handling is read-only except safe branch cleanup
+After a version-3 merge, trusted default-branch policy SHALL verify the exact source PR/head, required checks, authorized human actor and integration choice, merge method/time, target ancestry, synchronized specs, archive bytes, and conditional manifest. It SHALL report accepted-and-archived only when all evidence agrees. It SHALL NOT push to `develop`, create or update an acceptance/archive branch or PR, rewrite tasks/specs/evidence, or use an App publication credential for that delivery.
+
+Merge-time verification SHALL bind the pull request's single `merged` timeline event to the recorded merge by the same human actor, the absence of an App, and the same merge commit; the event time SHALL agree with the pull request's `merged_at` within a small fixed tolerance of a few seconds. Direct manual integration SHALL have no active automatic authority. Human-enabled auto-merge SHALL additionally bind `auto_merge.enabled_by`, the authorized actor's matching enable event, the final committed head, absence of a later candidate commit or disable event, and absence of merge-queue provenance. An enable event followed by a disable event before a valid manual merge SHALL be treated as an abandoned attempt, not contradictory provenance. Missing, malformed, stale, duplicate, differently authored, App/Bot-authored, queue-backed, or commit-mismatched provenance SHALL remain invalid.
 
 Existing exact-head remote-topic-branch cleanup MAY run after verified merge under its current protected/ref/ownership checks. Optional local cleanup SHALL remain separately ownership-controlled and SHALL require verified integration and remote-ref absence. Missing or contradictory post-merge evidence SHALL report a blocker requiring explicit reconciliation; it SHALL NOT be silently repaired with a privileged direct push.
 
 #### Scenario: Integrated delivery verifies
-- **WHEN** the merged candidate and remote provenance satisfy every version-3 invariant
+- **WHEN** the merged candidate and remote provenance satisfy every version-3 invariant through either accepted maintainer route
 - **THEN** status SHALL report the change accepted, synchronized, and archived
 - **AND** safe exact-head remote branch cleanup MAY proceed
+
+#### Scenario: Human-enabled auto-merge verifies
+- **WHEN** the authorized merged actor personally armed native auto-merge after the final head became current and exact-head checks then passed
+- **THEN** verification SHALL accept that immutable arming and merge provenance
+- **AND** SHALL NOT classify GitHub's protected integration as bot or App acceptance
+
+#### Scenario: Disabled attempt precedes manual merge
+- **WHEN** a human auto-merge enable event is followed by a disable event before the same authorized human manually merges the exact validated head
+- **THEN** verification SHALL use the manual route and SHALL NOT reject the abandoned enable attempt
 
 #### Scenario: Merge event time is skewed by a second
 - **WHEN** the single `merged` timeline event by the authorized actor with the recorded merge commit carries a `created_at` one second away from the pull request's `merged_at`
@@ -553,7 +593,7 @@ Existing exact-head remote-topic-branch cleanup MAY run after verified merge und
 - **THEN** verification SHALL report contradictory merge provenance and local cleanup SHALL remain blocked
 
 #### Scenario: Post-merge verification disagrees
-- **WHEN** merge actor, method, checks, archive, specs, manifest, or ancestry is missing or contradictory
+- **WHEN** merge actor, integration route, arming actor, event order, method, checks, archive, specs, manifest, or ancestry is missing or contradictory
 - **THEN** automation SHALL report the exact blocker without mutating `develop` or publishing a follow-up PR
 - **AND** local cleanup SHALL remain blocked
 
@@ -608,3 +648,97 @@ A trusted default-branch workflow SHALL finalize every open, non-draft, same-rep
 - **WHEN** the App credential is not configured for the finalization workflow
 - **THEN** the run SHALL report the setup blocker
 - **AND** SHALL NOT fall back to a workflow-token push that suppresses required validation
+
+### Requirement: Target advances refresh ready pull-request branches
+
+After `develop` advances through pull-request integration, trusted default-branch automation SHALL reconcile every open, non-draft, same-repository pull request targeting `develop` whose head does not contain the current target. Each mutation SHALL use GitHub's branch-update operation bound to the exact head SHA freshly observed and an event-producing least-privilege repository identity, so a successful refresh emits the ordinary `synchronize` lifecycle and starts existing finalization and exact-head validation for the new head.
+
+Reconciliation SHALL be idempotent and serialized across target advances. It SHALL re-read candidate and target identity before mutation, page the complete eligible pull-request set, and execute no pull-request-head code with write authority. Drafts, forks, other bases, closed requests, already-current heads, concurrently changed heads, and merge conflicts SHALL NOT be mutated. A conflicting or concurrently changed candidate SHALL NOT prevent independent candidates from being considered. Authentication, permission, transport, pagination, malformed-response, or other unexpected operational failures SHALL remain visible rather than being reported as a successful refresh.
+
+The refresh authority SHALL NOT merge a pull request, enable auto-merge, bypass branch protection, synthesize checks, approve a review, or infer that CI passed. Existing documentation-only integration and implementation-bound manual acceptance SHALL retain their separate owners.
+
+#### Scenario: Another pull request advances develop
+
+- **WHEN** a pull request merges into `develop` while multiple same-repository non-draft pull requests remain open against the prior target
+- **THEN** trusted automation SHALL update each non-conflicting stale branch against current `develop` using its freshly observed expected head
+- **AND** each successful new head SHALL enter the ordinary `synchronize`-driven finalization and validation lifecycle
+
+#### Scenario: Documentation automation suppresses recursive merge events
+
+- **WHEN** trusted documentation automation integrates an eligible pull request with a token whose merge does not emit a recursive close or push workflow
+- **THEN** completion of that trusted integration workflow SHALL still cause idempotent stale-branch reconciliation
+- **AND** a completion that integrated nothing SHALL produce no branch mutation when all eligible heads are current
+
+#### Scenario: Candidate is draft, forked, or already current
+
+- **WHEN** reconciliation observes a draft, a fork head, a pull request for another base, or a head that already contains current `develop`
+- **THEN** it SHALL leave that head unchanged and report the applicable skipped or current outcome
+
+#### Scenario: Candidate identity changes during refresh
+
+- **WHEN** a contributor, finalizer, or concurrent reconciler changes a candidate head after it was read
+- **THEN** expected-head enforcement SHALL prevent the stale decision from updating the replacement head
+- **AND** automation SHALL defer that candidate for evaluation from fresh state without overwriting its new commit
+
+#### Scenario: Candidate conflicts with develop
+
+- **WHEN** GitHub cannot update one eligible branch because it conflicts with current `develop`
+- **THEN** automation SHALL preserve the branch and report manual conflict resolution as required
+- **AND** it SHALL continue considering independent eligible pull requests without resolving or discarding either side
+
+#### Scenario: Refresh creates a new implementation head
+
+- **WHEN** a successful automatic branch update changes an implementation-bound pull request head
+- **THEN** previous validation SHALL remain stale and existing trusted finalization and CI SHALL evaluate the new head
+- **AND** the pull request SHALL remain ineligible for automated integration and require authorized human manual merge after current-head checks pass
+
+#### Scenario: Refresh authority is unavailable
+
+- **WHEN** the event-producing credential is absent, underprivileged, malformed, or cannot complete the bounded GitHub operation
+- **THEN** the workflow SHALL fail with the affected operation visible
+- **AND** it SHALL NOT fall back to a suppressed-event token, direct branch push, check synthesis, merge bypass, or a claim that CI restarted
+
+### Requirement: Verified release reopening pull requests auto-merge
+Trusted documentation auto-merge automation SHALL treat a pull request as a second eligible class, a release reopening PR, only when every check below passes on its current head. It SHALL be non-draft and same-repository, target `develop`, and come from head `chore/release-X.Y.Z-dev`. It SHALL be opened by the fixed `openspec-ci[bot]` App identity (login, numeric id, and `Bot` type). Its body SHALL carry no implementation or acceptance lifecycle metadata. Its complete diff SHALL be exactly the modified `package.json`, `package-lock.json`, and `packages/a1-install/package.json` plus one added `docs/releases/<released>.md`, with no renames. With version fields removed, the base and head manifests SHALL be identical. The base SHALL consistently declare `<released>-dev`, and the head SHALL declare the patch successor `-dev` named by the branch. GitHub Release `v<released>` SHALL be published and non-prerelease, and the added note SHALL equal the note derived from that Release's body.
+
+An eligible reopening PR SHALL follow the same current-head validation, expected-SHA squash integration, and exact-head branch cleanup as documentation PRs. A failed, missing, malformed, or ambiguous check SHALL make the PR ineligible, disable any armed auto-merge, and leave it for manual merge. `docs/releases/**` SHALL remain outside the documentation allowlist for every other pull request.
+
+#### Scenario: Reopening PR passes validation
+- **WHEN** a release reopening PR satisfying every check has current-head `Development validation required` success
+- **THEN** automation SHALL squash-integrate that exact head without maintainer merge action and reconcile its branch
+
+#### Scenario: Reopening PR changes more than versions
+- **WHEN** a `chore/release-X.Y.Z-dev` PR changes a dependency, adds a path, renames a file, or declares inconsistent versions
+- **THEN** automation SHALL NOT arm or merge it and SHALL disable any armed auto-merge
+
+#### Scenario: Reopening shape from another author
+- **WHEN** a PR with the reopening branch and paths is opened by any identity other than the fixed App
+- **THEN** automation SHALL treat it as ineligible
+
+#### Scenario: Release note does not match the published Release
+- **WHEN** Release `v<released>` is missing, draft, or prerelease, or its derived note differs from the added note
+- **THEN** automation SHALL treat the PR as ineligible and report the note check
+
+#### Scenario: Release note edited in an ordinary PR
+- **WHEN** a pull request that is not a verified reopening PR changes `docs/releases/**`
+- **THEN** it SHALL remain outside documentation auto-merge
+
+### Requirement: Auto-merge provenance recognizes method-specific enable events
+
+Human-arm preservation and merge-time verification SHALL treat the issue-timeline events `auto_merge_enabled`, `auto_squash_enabled`, and `auto_rebase_enabled` as the same native auto-merge enable, and `auto_merge_disabled` as its disable. Recognizing an enable SHALL NOT relax any other provenance rule: the enabling actor SHALL still be an authorized human without an App, the enable SHALL still follow the final committed head with no later candidate change, and legacy manual-only acceptance SHALL still refuse any recognized enable.
+
+#### Scenario: Squash enable on a finalized implementation head is preserved
+
+- **WHEN** an authorized human enables squash auto-merge on the exact finalized version-3 head and the timeline records `auto_squash_enabled`
+- **THEN** documentation automation SHALL leave that arm intact
+- **AND** after GitHub integrates the head, merge-time verification SHALL record human-enabled auto-merge
+
+#### Scenario: Manual merge after policy-disarmed method-specific enables verifies
+
+- **WHEN** a maintainer's `auto_squash_enabled` attempts were each followed by `auto_merge_disabled` and the same maintainer then manually merges the exact validated head
+- **THEN** merge-time verification SHALL record manual integration rather than contradictory provenance
+
+#### Scenario: Method-specific enables keep existing refusals
+
+- **WHEN** a method-specific enable comes from a bot or App, precedes the final commit, or appears on a legacy manual-only acceptance PR
+- **THEN** verification SHALL refuse it as before

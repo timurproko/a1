@@ -83,6 +83,14 @@ export interface OwnedUiViewportSettingsPort {
   onChange(listener: (settings: OwnedUiViewportSettings) => void): () => void;
 }
 
+export type OwnedUiBackgroundStyle = "transparent" | "accent" | "dark";
+
+/** Narrow live canvas setting supplied only to the bare-A1 fullscreen presentation. */
+export interface OwnedUiBackgroundSettingsPort {
+  snapshot(): OwnedUiBackgroundStyle;
+  onChange(listener: (style: OwnedUiBackgroundStyle) => void): () => void;
+}
+
 /** Profile-local quit outro choice, read at the moment bare A1 quits. */
 export interface OwnedUiQuitOutroSettings {
   /** False leaves the terminal immediately; true plays the shell's fixed effect. */
@@ -250,6 +258,8 @@ export interface OwnedUiSessionViewModel {
   readonly status: OwnedUiStatusView;
   readonly terminal: OwnedUiTerminalSurface;
   readonly activeModel: OwnedUiModelInfo | null;
+  /** Latest physical route selected by an active virtual model. */
+  readonly routedModel?: { readonly model: OwnedUiModelInfo; readonly thinkingLevel?: OwnedUiThinkingLevel } | null;
   readonly thinkingLevel: OwnedUiThinkingLevel;
   readonly activeCommandIds: readonly OwnedUiCorrelationId[];
   readonly dialog: OwnedUiDialog | null;
@@ -378,6 +388,10 @@ export type OwnedUiEvent =
     readonly model: OwnedUiModelInfo | null;
     readonly assistantMessageCount: number;
     readonly successful: boolean;
+    readonly stopReason: string | null;
+    readonly toolContinuation: boolean;
+    /** Pi 1.1 distinguishes user cancellation from an ordinary or failed settlement. */
+    readonly aborted: boolean;
   }
   | {
     readonly type: "editor-state";

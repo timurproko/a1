@@ -75,11 +75,18 @@ describe("exact-package startup and non-timing ownership", () => {
     expect(startup).toContain("enforcement,");
     expect(startup).toContain("budgetViolations,");
     expect(contracts).toContain("createPackagedCleanupBacklog(dataDir, 42, 128)");
+    expect(contracts).toContain("const PACKAGE_BACKLOG_WRITE_CONCURRENCY = 8;");
+    expect(contracts).toContain("Math.min(PACKAGE_BACKLOG_WRITE_CONCURRENCY, payloadFilesPerRelease)");
+    expect(contracts).toContain("await writePayloadFiles(releaseRoot, payloadFilesPerRelease)");
+    expect(contracts).toContain("`export default ${file};`");
+    expect(contracts).not.toContain("Promise.all(Array.from({ length: payloadFilesPerRelease }");
+    expect(contracts).toContain("}, 120_000);");
   });
 
   it("keeps atomic plans separate and the public package composition complete", async () => {
-    const [contracts, startup, complete, full] = await Promise.all([
-      createTierPlan(["package-contracts"]), createTierPlan(["package-startup"]), createTierPlan(["package-install"]), createTierPlan(["full-release"]),
+    const [contracts, startup, predecessor, complete, full] = await Promise.all([
+      createTierPlan(["package-contracts"]), createTierPlan(["package-startup"]), createTierPlan(["update-predecessor"]),
+      createTierPlan(["package-install"]), createTierPlan(["full-release"]),
     ]);
     expect(contracts.selected).toEqual(["package-contracts"]);
     expect(startup.selected).toEqual(["package-startup"]);
@@ -90,7 +97,16 @@ describe("exact-package startup and non-timing ownership", () => {
     expect(full.vitest!.invocations).toEqual(expect.arrayContaining([...complete.vitest!.invocations]));
     expect(contracts.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["package-contracts"] });
     expect(startup.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["package-startup"] });
+    expect(predecessor.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["update-predecessor"] });
+    expect(predecessor.vitest!.invocations).toEqual([expect.objectContaining({
+      id: "vitest-explicit-update-predecessor",
+      scopes: ["update-predecessor"],
+      arguments: expect.arrayContaining(["test/foundation/release/update-predecessor.integration.test.ts"]),
+    })]);
     expect(complete.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["package-startup", "package-contracts"] });
+    expect(full.exactPackagePreparation).toMatchObject({ count: 1, consumers: ["package-startup", "package-contracts", "update-predecessor"] });
+    expect(predecessor.requiresBuild).toBe(true);
+    expect(predecessor.consumesPackage).toBe(true);
     for (const plan of [contracts, startup]) {
       expect(plan.requiresBuild).toBe(true);
       expect(plan.consumesPackage).toBe(true);

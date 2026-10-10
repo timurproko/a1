@@ -16,6 +16,7 @@ import {
   skillsTunnelQuery,
 } from "../../../../src/integrations/pi/components/skills-command.js";
 import { piTheme } from "../../../../src/integrations/pi/components/theme.js";
+import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
 
 const settle = async () => { for (let i = 0; i < 4; i++) await new Promise<void>(resolve => setImmediate(resolve)); };
 // Compatibility: the owned input profile binds undo to Ctrl+Z.
@@ -151,6 +152,59 @@ describe("skills command helpers", () => {
 });
 
 describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)", history => {
+  it("leaves completed top-level commands ready for a delimiter or arguments", async () => {
+    const { editor, submitted, dispose } = await fixture(history);
+    try {
+      editor.setAutocompleteCommands([
+        ...COMMANDS,
+        { name: "login", description: "Configure provider authentication", source: "builtin",
+          argumentOptions: [{ id: "openai", label: "OpenAI" }] },
+      ]);
+
+      editor.handleInput?.("/s");
+      await settle();
+      const settingsMenu = menuText(editor);
+      expect(settingsMenu.length).toBeGreaterThan(1);
+      expect(settingsMenu.find(row => row.includes("→"))).toMatch(/→ settings\s+Open settings menu/u);
+      editor.handleInput?.(TAB);
+      expect(editor.getText()).toBe("/settings");
+      expect(menuText(editor)).toEqual(settingsMenu);
+      await settle();
+      expect(menuText(editor)).toHaveLength(1);
+      expect(menuText(editor).find(row => row.includes("→"))).toMatch(/→ settings\s+Open settings menu/u);
+      editor.handleInput?.(":");
+      await settle();
+      expect(editor.getText()).toBe("/settings:");
+      expect(menuText(editor)).toEqual([]);
+
+      editor.setText("/settTAIL");
+      for (let index = 0; index < 4; index++) editor.handleInput?.("\u001b[D");
+      editor.handleInput?.(TAB);
+      await settle();
+      editor.handleInput?.(TAB);
+      expect(editor.getText()).toBe("/settingsTAIL");
+
+      editor.setText("");
+      editor.handleInput?.("/log");
+      await settle();
+      editor.handleInput?.(TAB);
+      expect(editor.getText()).toBe("/login");
+      expect(menuText(editor).find(row => row.includes("→"))).toMatch(/→ login\s+Configure provider authentication/u);
+      editor.handleInput?.(" ");
+      editor.handleInput?.("o");
+      await settle();
+      expect(menuText(editor).join("\n")).toContain("OpenAI");
+      editor.handleInput?.(TAB);
+      expect(editor.getText()).toBe("/login openai");
+
+      editor.setText("");
+      editor.handleInput?.("/sett");
+      await settle();
+      editor.handleInput?.(ENTER);
+      expect(submitted).toEqual(["/settings"]);
+    } finally { await dispose(); }
+  });
+
   it("collapses the menu, lists tunnel rows, and completes the selected skills row with a colon", async () => {
     let presentation: "collapse" | "expand" = "collapse";
     const { editor, submitted, dispose } = await fixture(history, { skillsPresentation: () => presentation, getRows: () => 80 });
@@ -188,13 +242,29 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
       menu = menuText(editor).join("\n");
       expect(menu).toContain("skills");
       expect(menu).not.toContain("model");
+      const skillsMenu = menuText(editor);
+      editor.handleInput?.(TAB);
+      expect(editor.getText()).toBe("/skills");
+      expect(menuText(editor)).toEqual(skillsMenu);
+      expect(menuText(editor).find(row => row.includes("→"))).toMatch(/→ skills\s+Browse, search, and apply a skill/u);
       editor.handleInput?.(":");
       await settle();
       expect(editor.getText()).toBe("/skills:");
-      const rows = menuText(editor);
+      let rows = menuText(editor);
       expect(rows.join("\n")).toContain("skills:framer");
       expect(rows.join("\n")).toContain("skills:code-review");
       expect(rows.join("\n")).toContain("Design, edit, and publish Framer sites");
+      expect(rows[0]!.trimStart()).toMatch(/^→ skills:framer/u);
+      editor.handleInput?.(ESC);
+      editor.setText("");
+
+      // Compatibility: typing the tunnel delimiter while `skills` is selected still completes it directly.
+      editor.handleInput?.("/sk");
+      await settle();
+      editor.handleInput?.(":");
+      await settle();
+      expect(editor.getText()).toBe("/skills:");
+      rows = menuText(editor);
       expect(rows[0]!.trimStart()).toMatch(/^→ skills:framer/u);
       editor.handleInput?.(UNDO);
       expect(editor.getText()).toBe("/sk");
@@ -299,20 +369,18 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
       editor.setAutocompleteCommands(COMMANDS);
       editor.handleInput?.("/skills:");
       await settle();
-      // Rationale: the owned menu paints whitespace cells in reverse video; only the color roles matter here.
-      const rows = editor.render(80).map(row => row.replaceAll(/\u001b\[2?7m/gu, ""));
-      const accentStart = piTheme().fg("accent", "MARK").split("MARK")[0]!;
-      const mutedStart = piTheme().fg("muted", "MARK").split("MARK")[0]!;
+      const rows = editor.render(80);
       const selected = rows.find(row => stripTerminalSequences(row).trimStart().startsWith("→ skills:framer"))!;
       expect(selected).toBeDefined();
-      expect(selected).toContain(`${accentStart}→ skills:framer`);
-      // Invariant: the description keeps the muted role: its color start precedes only spacing before the text.
-      const description = selected.slice(selected.indexOf("→ skills:framer"));
-      expect(description).toContain(mutedStart);
-      expect(stripTerminalSequences(description.slice(description.indexOf(mutedStart)))).toMatch(/^\s+Design, edit, and publish Framer sites/u);
-      expect(description.slice(description.indexOf(mutedStart))).not.toContain(accentStart);
+      expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
+      expect(cellStyle(selected, "s")).toEqual(cellStyle(piTheme().fg("text", "s"), "s"));
+      expect(cellStyle(selected, "D")).toEqual(cellStyle(piTheme().fg("muted", "D"), "D"));
+      const selectedText = stripTerminalSequences(selected);
+      const selectionBackground = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
+      expect(cellBackgroundAt(selected, selectedText.indexOf("→"))).toBe(selectionBackground);
+      expect(cellBackgroundAt(selected, selectedText.indexOf("D"))).toBe(selectionBackground);
       const ordinary = rows.find(row => stripTerminalSequences(row).trim().startsWith("skills:code-review"))!;
-      expect(stripTerminalSequences(ordinary.slice(ordinary.indexOf(mutedStart)))).toMatch(/^\s+Review the current diff/u);
+      expect(cellStyle(ordinary, "R")).toEqual(cellStyle(piTheme().fg("muted", "R"), "R"));
       editor.handleInput?.(ESC);
       editor.setText("");
 
@@ -336,6 +404,20 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
 });
 
 describe("skills tunnel outside collapse", () => {
+  it("keeps pinned trailing-space command completion in the comparison profile", async () => {
+    const root = await mkdtemp(join(tmpdir(), "command-spacing-pi-"));
+    try {
+      const editor = createPiShellEditor({
+        keybindingProfile: "pi", agentDir: root, cwd: root, getColumns: () => 80, getRows: () => 24,
+        requestRender() {}, onSubmit() {},
+      });
+      editor.handleInput?.("/sett");
+      await settle();
+      editor.handleInput?.(TAB);
+      expect(editor.getText()).toBe("/settings ");
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it("installs the pinned per-skill list in the comparison profile and without a presentation", async () => {
     const root = await mkdtemp(join(tmpdir(), "skills-tunnel-pi-"));
     try {

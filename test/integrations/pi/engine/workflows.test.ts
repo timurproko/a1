@@ -26,7 +26,7 @@ class WorkflowSession {
   readonly isIdle = true;
   isRetrying = false;
   isCompacting = false;
-  readonly messages: readonly unknown[] = [];
+  messages: readonly unknown[] = [];
   readonly calls: string[] = [];
   reloadFails = false;
   setModelFails = false;
@@ -80,7 +80,8 @@ class WorkflowSession {
   getUserMessagesForForking(): readonly unknown[] { return [{ entryId: "entry-1", text: "First prompt" }]; }
   async navigateTree(id: string, options?: { summarize?: boolean; customInstructions?: string }): Promise<unknown> {
     this.calls.push(`tree:${id}:${options?.summarize === true ? "summary" : "plain"}:${options?.customInstructions ?? ""}`);
-    return { cancelled: false };
+    this.messages = [{ role: "user", content: [{ type: "text", text: "Selected branch context" }], timestamp: 1 }];
+    return { cancelled: false, editorText: "Selected branch prompt" };
   }
   async reload(): Promise<void> { if (this.reloadFails) throw new Error("reload exploded"); this.calls.push("reload"); }
 }
@@ -90,6 +91,7 @@ class WorkflowRuntime {
   newCancelled = false;
   loginPrompt = false;
   loginSelect = false;
+  loginManualCode = false;
   loginError: unknown;
   logoutError: unknown;
   modelRefreshError: unknown;
@@ -149,6 +151,8 @@ class WorkflowRuntime {
           message: "Select OpenAI Codex login method:",
           options: [{ id: "browser", label: "Browser login" }, { id: "device", label: "Device code login" }],
         });
+      } else if (this.loginManualCode) {
+        await interaction.prompt({ type: "manual_code", message: "Paste the Anthropic authorization code" });
       } else if (this.loginPrompt) {
         await interaction.prompt({ type: "input", message: "API key", placeholder: "secret" });
       }
@@ -221,6 +225,7 @@ async function fixture(workflowHost = host(), configure?: (runtime: WorkflowRunt
   const runtime = new WorkflowRuntime();
   configure?.(runtime);
   const adapter = await createPiEngineAdapter({
+    sessionId: "owned-test",
     cwd: "D:/work",
     agentDir: join(tmpdir(), "a1-workflow-fixture"),
     createRuntime: async () => runtime as unknown as AgentSessionRuntime,
@@ -299,6 +304,9 @@ describe("pinned Pi command and input workflows", () => {
 
     readChangelog.mockClear();
     const update = await fixture(host({ readChangelog }), runtime => runtime.settingsValues.set("LastChangelogVersion", "0.84.1"));
+    // Invariant: startup announces nothing by itself; the engine host asks once per process.
+    expect(readChangelog).not.toHaveBeenCalled();
+    await update.adapter.announceStartupChangelog();
     expect(readChangelog).toHaveBeenCalledWith("0.84.1");
     expect(update.adapter.view().diagnostics).toContainEqual(expect.objectContaining({ code: "changelog-expanded", message: "## 0.84.2\nNew release fixture" }));
     await update.adapter.dispose();
@@ -308,6 +316,7 @@ describe("pinned Pi command and input workflows", () => {
       runtime.settingsValues.set("LastChangelogVersion", "0.84.1");
       Object.defineProperty(runtime.session, "messages", { value: [{ role: "user", content: "resumed fixture", timestamp: 1 }] });
     });
+    await resumed.adapter.announceStartupChangelog();
     expect(readChangelog).not.toHaveBeenCalled();
     await resumed.adapter.dispose();
   });
@@ -356,17 +365,33 @@ describe("pinned Pi command and input workflows", () => {
     await adapter.dispose();
   });
 
+  it("keeps the selector-only model values out of the neutral settings snapshot", async () => {
+    const { adapter, runtime } = await fixture();
+    const snapshot = adapter.settings.snapshot();
+    expect(snapshot).not.toHaveProperty("currentModel");
+    expect(snapshot).not.toHaveProperty("availableDefaultModels");
+    expect(snapshot).toEqual(Object.fromEntries(Object.entries(adapter.pinnedSettingsSnapshot())
+      .filter(([key]) => key !== "currentModel" && key !== "availableDefaultModels")));
+    expect(adapter.presentationSource().pinnedSettingsModels()).toEqual({
+      currentModel: adapter.pinnedSettingsSnapshot().currentModel,
+      availableDefaultModels: adapter.pinnedSettingsSnapshot().availableDefaultModels,
+    });
+    expect(await adapter.presentationSource().applyPinnedSettingValue("onImageWidthCellsChange", 96)).toMatchObject({ outcome: "completed" });
+    expect(runtime.settingsValues.get("ImageWidthCells")).toBe(96);
+    await adapter.dispose();
+  });
+
   it("opens every selector, completes every pinned settings callback, and preserves cancellation", async () => {
     const { adapter, runtime } = await fixture();
     expect(adapter.pinnedSettingsSnapshot().availableThemes.length).toBeGreaterThan(0);
-    expect(adapter.pinnedModelSelectorContext().modelRuntime).toBeDefined();
+    expect(adapter.presentationSource().pinnedModelSelectorContext().modelRuntime).toBeDefined();
     expect(adapter.pinnedScopedModelsContext().models.length).toBeGreaterThan(0);
     expect(adapter.pinnedForkOptions().length).toBeGreaterThan(0);
-    expect(adapter.pinnedTreeSelectorContext().tree).toBeInstanceOf(Array);
+    expect(adapter.presentationSource().pinnedTreeSelectorContext().tree).toBeInstanceOf(Array);
     expect(adapter.pinnedProjectTrustContext().trustOptions.length).toBeGreaterThan(0);
     expect(adapter.pinnedLoginOptions().length).toBeGreaterThan(0);
     expect((await adapter.pinnedLogoutOptions()).length).toBeGreaterThan(0);
-    expect(adapter.pinnedSessionSelectorContext().loadCurrentSessions).toBeTypeOf("function");
+    expect(adapter.presentationSource().pinnedSessionSelectorContext().loadCurrentSessions).toBeTypeOf("function");
     for (const command of ["settings", "model", "scoped-models", "fork", "tree", "trust", "login", "logout", "resume"] as const) {
       await expect(adapter.executeWorkflow({ command, argument: "" })).resolves.toMatchObject({
         outcome: "failed",
@@ -377,11 +402,11 @@ describe("pinned Pi command and input workflows", () => {
       const result = await adapter.executeWorkflow({ command: "settings", argument: "", selection: callback });
       expect(result.outcome, `${callback}: ${result.message}`).toBe(callback === "onCancel" ? "cancelled" : "completed");
     }
-    expect(await adapter.applyPinnedSettingValue("onImageWidthCellsChange", 120)).toMatchObject({ outcome: "completed" });
+    expect(await adapter.presentationSource().applyPinnedSettingValue("onImageWidthCellsChange", 120)).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("ImageWidthCells")).toBe(120);
-    expect(await adapter.applyPinnedSettingValue("onEditorPaddingXChange", 3)).toMatchObject({ outcome: "completed" });
+    expect(await adapter.presentationSource().applyPinnedSettingValue("onEditorPaddingXChange", 3)).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("EditorPaddingX")).toBe(3);
-    expect(await adapter.applyPinnedSettingValue("onWarningsChange", { anthropicExtraUsage: false })).toMatchObject({ outcome: "completed" });
+    expect(await adapter.presentationSource().applyPinnedSettingValue("onWarningsChange", { anthropicExtraUsage: false })).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("Warnings")).toEqual({ anthropicExtraUsage: false });
     await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl" })).resolves.toMatchObject({ outcome: "requires-confirmation" });
     await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl", confirmed: false })).resolves.toMatchObject({ outcome: "cancelled" });
@@ -397,13 +422,21 @@ describe("pinned Pi command and input workflows", () => {
     await expect(adapter.executeWorkflow({ command: "resume", argument: "D:/sessions/missing.jsonl", confirmed: true })).resolves.toMatchObject({ outcome: "completed", message: "Resumed session in current cwd" });
     expect(runtime.calls).toContain("resume:D:/sessions/missing.jsonl:D:/work");
 
+    const editorBeforeTreeNavigation = adapter.view().editor;
     await expect(adapter.executeWorkflow({
       command: "tree",
       argument: "",
       selection: "entry-1",
       treeSummary: { summarize: true, customInstructions: "Preserve decisions" },
-    })).resolves.toMatchObject({ outcome: "completed", message: "Navigated to selected point" });
+    })).resolves.toMatchObject({ outcome: "completed", message: "Navigated to selected point", detail: "Selected branch prompt" });
     expect(runtime.session.calls).toContain("tree:entry-1:summary:Preserve decisions");
+    expect(JSON.stringify(adapter.view().transcript)).toContain("Selected branch context");
+    expect(adapter.view().editor).toEqual({
+      ...editorBeforeTreeNavigation,
+      text: "Selected branch prompt",
+      selection: null,
+      cursorOffset: "Selected branch prompt".length,
+    });
   });
 
   it("applies active agent and dynamic command settings through production owners", async () => {
@@ -437,7 +470,7 @@ describe("pinned Pi command and input workflows", () => {
     await port!.writeSetting("doubleEscapeAction", "none");
     await port!.writeSetting("treeFilterMode", "all");
     expect(adapter.pinnedSettingsSnapshot().doubleEscapeAction).toBe("none");
-    expect(adapter.pinnedTreeSelectorContext().filterMode).toBe("all");
+    expect(adapter.presentationSource().pinnedTreeSelectorContext().filterMode).toBe("all");
   });
 
   it("covers resource autocomplete, bash context modes, model controls, queue restoration, and contained failures", async () => {
@@ -651,7 +684,7 @@ describe("pinned Pi command and input workflows", () => {
     });
     expect(adapter.view().activeModel).toBeNull();
     expect(adapter.view().status.footer?.availableProviderCount).toBe(0);
-    expect(adapter.pinnedModelSelectorContext().currentModel).toBeUndefined();
+    expect(adapter.presentationSource().pinnedModelSelectorContext().currentModel).toBeUndefined();
     await adapter.dispose();
   });
 
@@ -674,7 +707,7 @@ describe("pinned Pi command and input workflows", () => {
     expect(runtime.modelRuntime.getAvailableSnapshot()).toEqual([]);
     expect(adapter.view().activeModel).toBeNull();
     expect(adapter.view().status.footer?.availableProviderCount).toBe(0);
-    expect(adapter.pinnedModelSelectorContext().currentModel).toBeUndefined();
+    expect(adapter.presentationSource().pinnedModelSelectorContext().currentModel).toBeUndefined();
     expect(adapter.pinnedScopedModelsContext().models).toEqual([]);
     await expect(adapter.pinnedLogoutOptions()).resolves.toEqual([]);
     await adapter.dispose();
@@ -731,6 +764,21 @@ describe("pinned Pi command and input workflows", () => {
     runtime.loginSelect = false;
     runtime.loginPrompt = true;
     await expect(adapter.executeWorkflow({ command: "login", argument: "api_key:openai" })).resolves.toMatchObject({ outcome: "cancelled", messageKind: "silent" });
+  });
+
+  it("maps Anthropic copy-code login into the owned manual-code prompt", async () => {
+    const { adapter, runtime } = await fixture();
+    runtime.loginManualCode = true;
+    adapter.setWorkflowInteractionHost({
+      prompt: async request => {
+        expect(request).toMatchObject({ type: "manual-code", message: "Paste the Anthropic authorization code" });
+        return "copied-code";
+      },
+      notify() {},
+    });
+
+    await expect(adapter.executeWorkflow({ command: "login", argument: "oauth:openai" })).resolves.toMatchObject({ outcome: "completed" });
+    await adapter.dispose();
   });
 
   it("reports authentication labels, model selection, partial failures, and delayed catalog warnings", async () => {
@@ -975,6 +1023,7 @@ describe("bare-A1 unified models route", () => {
     const runtime = new WorkflowRuntime();
     configure?.(runtime);
     const adapter = await createPiEngineAdapter({
+      sessionId: "owned-test",
       cwd: "D:/work",
       agentDir: join(tmpdir(), "a1-workflow-fixture"),
       createRuntime: async () => runtime as unknown as AgentSessionRuntime,

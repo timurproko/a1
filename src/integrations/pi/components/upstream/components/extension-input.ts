@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/coding-agent/src/modes/interactive/components/extension-input.ts.
  * Modifications: Mechanical port: remap public imports, use ECMAScript private fields, and route the
  * bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded
@@ -10,7 +10,7 @@
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, getKeybindings, Input, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 import { CountdownTimer } from "./countdown-timer.js";
 
 interface ExtensionInputOptions {
@@ -42,8 +42,8 @@ export class ExtensionInputComponent extends Container {
     this.#onCancel = onCancel;
     this.#baseTitle = title;
     const theme = piTheme();
-    this.#titleText = new Text(theme.fg("accent", title), 0, 0);
-    const header = addPiModalHeader(this, new DynamicBorder(), this.#titleText);
+    this.#titleText = new Text(theme.fg("accent", theme.bold(title)), 0, 0);
+    const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), this.#titleText);
     if (opts?.description) {
       this.addChild(new Spacer(1));
       this.addChild(new Text(theme.fg("text", opts.description), 0, 0));
@@ -52,7 +52,7 @@ export class ExtensionInputComponent extends Container {
     this.#countdown = opts?.timeout !== undefined && opts.timeout > 0 && opts.tui !== undefined
       ? new CountdownTimer(opts.timeout, opts.tui, seconds => {
         const current = piTheme();
-        this.#titleText.setText(current.fg("accent", `${this.#baseTitle} (${seconds}s)`));
+        this.#titleText.setText(current.fg("accent", current.bold(`${this.#baseTitle} (${seconds}s)`)));
       }, () => this.#onCancel())
       : undefined;
     if (opts?.initialValue !== undefined) this.#input.setValue(opts.initialValue);
@@ -61,10 +61,9 @@ export class ExtensionInputComponent extends Container {
     const keys = getKeybindings();
     this.addChild(new Text(renderPiModalShortcutHints([
       { key: keys.getKeys("tui.select.confirm").join("/"), action: "submit" },
-      { key: keys.getKeys("tui.select.cancel").join("/"), action: "cancel" },
+      DIALOG_CLOSE_SHORTCUT_HINT,
     ]), 0, 0));
-    this.addChild(new Spacer(1));
-    this.addChild(new DynamicBorder());
+    this.addChild(new DynamicBorder(paintPiBorder));
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
   }
 

@@ -1,18 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
-import { captureWorktree, exists, gitRunner, statusBlockers } from "./local-cleanup-git.mjs";
+import { captureWorktree, exists, gitRunner, statusBlockers, REPOSITORY_DISPOSABLE_PATHS } from "./local-cleanup-git.mjs";
 import { digest, fail, registerEntry, transitionEntry } from "./local-cleanup-state.mjs";
 import { reconcileLocalCleanup } from "./local-cleanup-reconcile.mjs";
 
-export const COMPLETION_DISPOSABLE_PATHS = Object.freeze([
-  "node_modules",
-  "dist",
-  ".builds",
-  ".artifacts",
-  "native/process-guardian/target",
-  "native/terminal-host/target",
-  "src/integrations/pi/engine/pi-settings-metadata.json",
-]);
+export const COMPLETION_DISPOSABLE_PATHS = REPOSITORY_DISPOSABLE_PATHS;
 
 // Protocol: the head may have moved to an accepted ancestor of the merged PR head; the reconciler judges that, not the binder.
 const sameIdentity = (entry, snapshot) => ["path", "filesystem", "ref"].every(key => entry[key] === snapshot[key]);
@@ -31,10 +23,14 @@ export async function completeLocalCleanup({ identity, store, reader, path, chan
   role = "implementation", cwd = process.cwd(), ownerToken = null, reconcile = reconcileLocalCleanup, reconcileOptions = {} }) {
   const absolute = resolve(path).replaceAll("\\", "/");
   let selected;
-  await store.locked(async (state, save) => {
+  const known = await store.locked(state => structuredClone(state.entries.find(entry => entry.path === absolute)));
+  const initialRef = known?.ref ?? (await exists(absolute) ? (await captureWorktree(identity, absolute)).ref : null);
+  const releaseResources = await store.acquireResources([`path:${absolute}`, initialRef ? `ref:${initialRef}` : ""]);
+  try { await store.session(async (state, save) => {
     const request = { change, sourcePr, candidatePr, role };
     const existing = state.entries.find(entry => entry.path === absolute);
     if (existing) {
+      if (existing.ref !== initialRef) fail("worktree-identity-changed");
       if (!sameCandidate(existing, request)) fail("completion-registration-conflict");
       if (existing.state === "owned") {
         if (!await exists(absolute)) fail("owned-worktree");
@@ -54,13 +50,15 @@ export async function completeLocalCleanup({ identity, store, reader, path, chan
     }
     if (!await exists(absolute)) fail("worktree-absent-unregistered");
     const snapshot = await captureWorktree(identity, absolute);
+    if (snapshot.ref !== initialRef) fail("worktree-identity-changed");
     const token = randomBytes(32).toString("hex");
     selected = registerEntry(state, { ...snapshot, ...request, disposable: [...COMPLETION_DISPOSABLE_PATHS] }, token);
     transitionEntry(selected, "release", token, selected.generation);
     await save(state);
   });
-  return await reconcile({ identity, store, reader, preview: false, cwd, entryIds: [selected.id], requireEnabled: false,
-    includeUnmanaged: false, ...reconcileOptions });
+    return await reconcile({ identity, store, reader, preview: false, cwd, entryIds: [selected.id], heldEntryIds: [selected.id], requireEnabled: false,
+      includeUnmanaged: false, ...reconcileOptions });
+  } finally { await releaseResources(); }
 }
 
 /**
@@ -70,10 +68,13 @@ export async function completeLocalCleanup({ identity, store, reader, path, chan
 export async function handoffLocalCleanup({ identity, store, path, change, sourcePr, candidatePr = sourcePr,
   role = "implementation", ownerToken = null, git = gitRunner() }) {
   const absolute = resolve(path).replaceAll("\\", "/");
-  return await store.locked(async (state, save) => {
+  if (!await exists(absolute)) fail("worktree-absent-unregistered");
+  const initial = await captureWorktree(identity, absolute, git);
+  const releaseResources = await store.acquireResources([`path:${absolute}`, initial.ref ? `ref:${initial.ref}` : ""]);
+  try { return await store.session(async (state, save) => {
     const request = { change, sourcePr, candidatePr, role };
-    if (!await exists(absolute)) fail("worktree-absent-unregistered");
     const snapshot = await captureWorktree(identity, absolute, git);
+    if (snapshot.ref !== initial.ref || snapshot.filesystem !== initial.filesystem) fail("worktree-identity-changed");
     const paths = await statusBlockers(git, absolute, COMPLETION_DISPOSABLE_PATHS, { ignored: false });
     if (paths.length) fail("worktree-content", { paths: paths.slice(0, 100) });
     const token = randomBytes(32).toString("hex");
@@ -97,5 +98,5 @@ export async function handoffLocalCleanup({ identity, store, path, change, sourc
     await save(state);
     return { disposition: "released", id: entry.id, generation: entry.generation, state: entry.state, path: entry.path, head: entry.head, ref: entry.ref,
       sourcePr: entry.sourcePr, candidatePr: entry.candidatePr, change: entry.change };
-  });
+  }); } finally { await releaseResources(); }
 }

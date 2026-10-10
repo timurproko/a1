@@ -479,12 +479,26 @@ Before allowing npm to mutate the globally managed A1 package or its launchers, 
 - **THEN** A1 MAY retain the installed target launchers while leaving activation to the durable transaction recovery path
 
 ### Requirement: Recovery evidence is narrow, durable, and disposable
-Update recovery evidence SHALL bind one transaction identity, canonical npm global root, package root, complete launcher path set, prior verified release identity, target version, recovery payload digest, npm executable, and installation arguments. For a newly created transaction, those arguments SHALL explicitly pin the npm prefix derived from the bound global root. Recovery evidence SHALL be committed before destructive replacement, consumed only within those bounds, and removed after the transaction and launcher disposition are complete. The recovery mechanism SHALL NOT add another public command, trust arbitrary npm temporary paths or prefixes, or weaken immutable release validation. A valid recovery capsule created before explicit-prefix binding SHALL remain readable only with its exact legacy unprefixed installation arguments and all other existing authority checks intact.
+Update recovery evidence SHALL bind one transaction identity, canonical npm global root, package root, complete launcher path set, prior verified release identity, target version, recovery payload digest, npm executable, and installation arguments. For a newly created transaction, those arguments SHALL explicitly pin the npm prefix derived from the bound global root. Before visible progress, ownership release, package-unlock mutation, transaction creation, recovery-owner startup, or package replacement, A1 SHALL resolve npm's JavaScript entry from validated npm execution context, the active npm global root, or the current Node installation's bounded bundled-npm layout and SHALL bind only its canonical regular-file target. Capsule preparation SHALL revalidate the preflight identity when committing recovery authority. Direct invocation SHALL NOT require npm's lifecycle-only `npm_execpath`, and npm's acquisition location MAY differ from the confirmed package destination prefix without granting authority over another destination.
+
+When preflight cannot establish replacement authority, A1 SHALL leave ownership, package files, launchers, active release, and transaction state unchanged, SHALL emit no update progress frame, and SHALL provide the preferred official installer bridge as the bounded recovery action. Recovery evidence SHALL be committed before destructive replacement, consumed only within those bounds, and removed after the transaction and launcher disposition are complete. The recovery mechanism SHALL NOT add another public A1 command, trust arbitrary npm temporary paths or prefixes, or weaken immutable release validation. A valid recovery capsule created before explicit-prefix binding SHALL remain readable only with its exact legacy unprefixed installation arguments and all other existing authority checks intact.
 
 #### Scenario: Recovery capsule is prepared
 - **WHEN** A1 is ready to begin global package replacement
-- **THEN** it SHALL commit the bounded recovery payload and identity before npm can remove a public launcher
+- **THEN** it SHALL have already validated the canonical npm entry without mutating update lifecycle state
+- **AND** it SHALL commit the bounded recovery payload and identity before npm can remove a public launcher
 - **AND** the recorded npm arguments SHALL select the exact package target and prefix bound by the capsule
+
+#### Scenario: Direct Windows invocation uses Node-bundled npm
+- **WHEN** A1 is invoked directly without `npm_execpath`, active npm reports a user-scoped global package root, and the selected npm/current Node installation supplies a canonical regular `node_modules/npm/bin/npm-cli.js` outside that root
+- **THEN** A1 SHALL preflight and bind that JavaScript entry into recovery evidence
+- **AND** package replacement SHALL remain pinned to the independently confirmed user-scoped package prefix and launcher set
+
+#### Scenario: No valid npm JavaScript entry exists
+- **WHEN** every bounded npm-entry candidate is absent, non-regular, or cannot be canonicalized
+- **THEN** A1 SHALL fail before progress, ownership shutdown, transaction creation, recovery-owner startup, or package replacement
+- **AND** SHALL NOT accept an arbitrary shell wrapper, directory, prefix, or searched npm path as replacement authority
+- **AND** SHALL identify the official installer bridge without claiming rollback was needed
 
 #### Scenario: Non-default-prefix replacement is interrupted
 - **WHEN** replacement of a confirmed non-default-prefix installation is canceled or the invoking updater exits
@@ -545,21 +559,26 @@ Where required to satisfy first-launch performance, update SHALL warm the common
 - **WHEN** measured exact-package evidence proves the next launch budget without warmup
 - **THEN** update MAY omit the warmup phase
 
-### Requirement: Update progress uses the scrollbar-aligned accent
-When A1 shows self-update progress in a color-capable terminal, the completed segment SHALL use the fixed teal accent `#8abeb7` that matches the requested scrollbar presentation. The remaining segment SHALL retain its muted track color, and the percentage text SHALL retain its existing neutral treatment.
+### Requirement: Update progress uses the shared semantic accent
+When A1 shows self-update progress in a color-capable terminal, the completed segment SHALL use the release-owned shared progress accent derived from the pinned Pi theme's semantic `accent` role. Self-update and fresh installation SHALL consume byte-equivalent generated forms of the same shared palette contract, and Pi-upgrade synchronization SHALL regenerate and validate them so a changed pinned accent cannot leave progress on an older color. The remaining segment SHALL retain its muted track color, and the percentage text SHALL retain its existing neutral treatment.
 
-The color change SHALL NOT alter the progress bar's glyphs, width, percentage calculation, monotonic movement, or cleanup behavior.
+The color source change SHALL NOT alter the progress bar's glyphs, width, percentage calculation, monotonic movement, or cleanup behavior.
 
 #### Scenario: An update is in progress
 - **WHEN** A1 renders a partially completed self-update progress bar
-- **THEN** the completed segment SHALL render in `#8abeb7`
+- **THEN** the completed segment SHALL render with the release's shared semantic accent
 - **AND** the remaining segment SHALL render in its muted track color
 - **AND** the visible bar geometry and percentage SHALL remain unchanged
 
 #### Scenario: Progress reaches either boundary
 - **WHEN** A1 renders zero or complete self-update progress
-- **THEN** it SHALL preserve the same accent and muted-track color contract for every segment that is present
+- **THEN** it SHALL preserve the same shared-accent and muted-track contract for every segment that is present
 - **AND** it SHALL reset terminal foreground styling after the percentage text
+
+#### Scenario: The pinned Pi accent changes
+- **WHEN** a Pi pin upgrade resolves a different default semantic `accent` presentation
+- **THEN** synchronization SHALL regenerate the shared progress palette from that pinned presentation
+- **AND** conformance SHALL fail if either progress renderer or either committed generated palette form remains on an older color
 
 ### Requirement: Post-activation warmup targets the exact interactive startup artifact
 When update performs post-activation warmup, it SHALL load the same immutable startup artifact, public dependency surfaces, and compile-cache namespace that the next interactive launch will use. Warmup SHALL fail safely when those identities differ and SHALL retain its existing terminal-free, session-free, trust-free, extension-free, and network-free behavior.
@@ -620,3 +639,73 @@ After ownership of the installed package has been released, A1 SHALL verify that
 - **WHEN** the check has moved the tree and a holder appears before it is moved back
 - **THEN** the update SHALL keep trying to restore it for the remainder of the window
 - **AND** if the tree cannot be restored SHALL name both where it is and where it belongs
+
+### Requirement: Interactive startup checks for a newer release on the running channel
+
+When an interactive profile (`a1` or `a1 pi`) starts from a published build, A1 SHALL determine whether a newer release exists on the running version's channel: npm dist-tag `latest` for a version without a prerelease component and `next` for an `X.Y.Z-dev.N` version. A version is newer only when both versions are valid semver and the candidate is greater. The check SHALL NOT delay the first usable frame, SHALL NOT install anything, and SHALL NOT run for noninteractive commands. Any lookup, parse, or cache failure SHALL be silent and SHALL NOT produce a diagnostic.
+
+A1 SHALL query the registry at most once per 24 hours per user. It SHALL keep the last successful result, its channel, and its time in a user-level cache file under the A1 configuration directory, written atomically, and SHALL answer from a fresh cache for the same channel without network access. A missing, unreadable, malformed, stale, or other-channel cache SHALL cause a background query instead of an error.
+
+The check SHALL be skipped when `PI_OFFLINE` is truthy, when `A1_SKIP_VERSION_CHECK` is truthy, when `CI` is truthy, when standard output is not a terminal, when the running version is a source-checkout version without a numeric development suffix, or, for bare `a1`, when the `updateCheck` setting is `false`.
+
+#### Scenario: A newer stable release exists
+- **WHEN** a stable `0.3.0` build starts interactively and the `latest` dist-tag is `0.3.1`
+- **THEN** A1 SHALL report `0.3.1` as available with the command `a1 update`
+
+#### Scenario: A newer development release exists
+- **WHEN** a `0.3.1-dev.640` build starts interactively and the `next` dist-tag is `0.3.1-dev.652`
+- **THEN** A1 SHALL report `0.3.1-dev.652` as available with the command `a1 update --develop`
+- **AND** it SHALL NOT report the `latest` stable release
+
+#### Scenario: The running release is current or newer
+- **WHEN** the channel's dist-tag is equal to or lower than the running version, or either version is not valid semver
+- **THEN** no update SHALL be reported
+
+#### Scenario: A fresh cache exists
+- **WHEN** the cache holds a result for the running channel that is less than 24 hours old
+- **THEN** A1 SHALL use it without querying the registry
+
+#### Scenario: The registry cannot be reached
+- **WHEN** the background query fails, times out, or returns malformed data
+- **THEN** A1 SHALL show no notice and no diagnostic, and SHALL leave any previous cache content unchanged
+
+#### Scenario: The check is disabled
+- **WHEN** any opt-out condition holds
+- **THEN** A1 SHALL neither read the cache nor contact the registry for this check
+
+### Requirement: Channel-head update never downgrades
+
+When `a1 update` or `a1 update --develop` without a named preview resolves a channel head that is lower than the running version on the same channel, A1 SHALL report that it is already current and exit successfully without replacing the installation. An explicitly named development preview, and a move from a development build to the stable channel, SHALL keep their existing resolution and installation behavior.
+
+#### Scenario: The registry tag is lower than the running release
+- **WHEN** the running stable release is `0.3.1` and npm reports `latest` as `0.3.0`
+- **THEN** `a1 update` SHALL report that A1 is current and SHALL NOT start an update transaction
+
+#### Scenario: A named preview is requested
+- **WHEN** the user runs `a1 update --develop 630` while a later development release is running
+- **THEN** A1 SHALL resolve and install preview 630 as it does today
+
+### Requirement: Published releases are reachable through predecessor-owned update behavior
+A release SHALL NOT be considered self-update compatible solely because updater code inside that target works after installation. Exact-package release evidence SHALL drive the supported published predecessor's own protected replacement behavior through package and launcher mutation, recovery postconditions, and target activation. The ordinary immediate predecessor SHALL complete direct update without npm lifecycle-only environment variables in every supported installation layout. If an already-published predecessor is known to lack required acquisition context, the preferred official installer MAY provide a bounded bridge only by supplying canonical npm execution context to that predecessor's existing protected updater; this exception SHALL be explicit and SHALL NOT be described as retroactive direct-update success.
+
+A target-side fix that cannot be reached from the source release SHALL block release readiness until an accepted protected bridge is proven. Candidate-only recovery tests and post-install materialization/warmup tests SHALL remain necessary evidence but SHALL NOT substitute for predecessor-to-target replacement.
+
+#### Scenario: Immediate predecessor installs the candidate
+- **WHEN** release validation exercises the newest supported published predecessor against the exact candidate
+- **THEN** that predecessor's own updater SHALL prepare recovery, replace the package, establish a complete launcher postcondition, and activate the candidate
+- **AND** the resulting command SHALL be callable from the same verified installation prefix
+
+#### Scenario: Candidate contains an updater fix
+- **WHEN** the defect being fixed occurs before the target package can be installed
+- **THEN** validation SHALL require source-release or protected-bridge evidence that reaches the candidate
+- **AND** candidate updater success alone SHALL NOT establish that the fix is deliverable
+
+#### Scenario: A known immutable predecessor needs the installer bridge
+- **WHEN** a valid already-published predecessor cannot establish npm replacement authority during direct invocation but accepts a canonical npm execution context
+- **THEN** the official installer MAY delegate to that predecessor with the validated context
+- **AND** the predecessor SHALL retain ownership of transaction, cancellation, replacement, launcher recovery, activation, and rollback
+- **AND** evidence SHALL distinguish this bridge from ordinary direct update
+
+#### Scenario: Neither direct update nor protected bridge succeeds
+- **WHEN** the supported predecessor cannot reach the exact candidate through either required path
+- **THEN** publication SHALL fail rather than ship an update that affected users cannot install

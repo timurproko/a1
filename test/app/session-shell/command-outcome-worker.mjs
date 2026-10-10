@@ -32,7 +32,8 @@ registerHooks({
     if (url.endsWith("/utils/clipboard.js") && url.includes("/pi-coding-agent/")) return {
       format: "module", shortCircuit: true,
       source: `export async function copyToClipboard(text) { return globalThis[Symbol.for("a1-command-outcome-state")]().host.copyText(text); }
-        export async function readClipboardText() { throw new Error("Clipboard read forbidden in outcome fixture"); }`,
+        export async function readClipboardText() { throw new Error("Clipboard read forbidden in outcome fixture"); }
+        export async function readClipboardFilePaths() { return null; }`,
     };
     if (url.endsWith("/utils/changelog.js") && url.includes("/pi-coding-agent/")) return {
       format: "module", shortCircuit: true,
@@ -95,7 +96,9 @@ const tui = await import("@earendil-works/pi-tui");
 tui.setCapabilities({ ...tui.getCapabilities(), trueColor: mode === "truecolor", hyperlinks: false });
 const themeModule = await import(pathToFileURL(join(repository, "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme.js")).href);
 const owned = producer === "owned" ? await import(pathToFileURL(join(repository, "src/app/session-shell/session-shell.ts")).href) : undefined;
+const ownedRoot = producer === "owned" ? await import(pathToFileURL(join(repository, "src/app/session-shell/session-shell-root.ts")).href) : undefined;
 const engine = producer === "owned" ? await import(pathToFileURL(join(repository, "src/integrations/pi/engine/adapter.ts")).href) : undefined;
+const presenters = producer === "owned" ? await import(pathToFileURL(join(repository, "src/integrations/pi/session-presenters/index.ts")).href) : undefined;
 const terminalModule = producer === "owned" ? await import(pathToFileURL(join(repository, "test/features/owned-ui/neutral-port-doubles.ts")).href) : undefined;
 const ownedTheme = producer === "owned" ? await import(pathToFileURL(join(repository, "src/integrations/pi/components/theme.ts")).href) : undefined;
 const pinnedKeys = producer === "pinned" ? await import(pathToFileURL(join(repository, "node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.js")).href) : undefined;
@@ -137,7 +140,7 @@ for (const theme of ["dark", "light"]) {
       let focused;
       let progressRows;
       const ownedDocument = width => {
-        const layout = shell.root.layoutRoot();
+        const layout = ownedRoot.pinnedLayoutRoot(shell.root.layoutParts());
         const transcript = layout.type === "stack" ? layout.children[0]?.node : undefined;
         if (transcript?.type !== "scroll" || transcript.id !== "transcript" || transcript.child.type !== "component") throw new Error("Missing semantic transcript region");
         return transcript.child.component.render(width);
@@ -159,6 +162,7 @@ for (const theme of ["dark", "light"]) {
             session: state.session, sessionManager: state.manager, settingsManager: state.settingsManager,
             runtimeHost: state.runtime, chatContainer: chat, outputPad: padding,
             editor, defaultEditor: {}, editorContainer: new tui.Container(), footer: { invalidate() {} },
+            programStatus: { setBlocked() {} },
             ui: { mode: "regular", terminal: { columns: 80, rows: 24, drainInput: async () => {} }, requestRender() {}, setFocus(component) {
               if (focused && "focused" in focused) focused.focused = false;
               focused = component;
@@ -227,8 +231,8 @@ for (const theme of ["dark", "light"]) {
           } else if (entry.command === "thinking") owner.handleThinkingCommand(entry.argument);
           else throw new Error(`Unmapped pinned outcome command: ${entry.command}`);
         } else {
-          adapter = await engine.createPiEngineAdapter({ cwd, agentDir, createRuntime: async () => state.runtime, workflowHost: state.host });
-          shell = new owned.OwnedUiSessionShell({ engine: { backend: adapter, cwd }, presentation: { terminal: new terminalModule.TestPresentationTerminal(), startup: { quiet: true } } });
+          adapter = await engine.createPiEngineAdapter({ sessionId: "owned-test",cwd, agentDir, createRuntime: async () => state.runtime, workflowHost: state.host });
+          shell = new owned.OwnedUiSessionShell({ presenters: presenters.createPiSessionPresenters(adapter), engine: { backend: adapter, cwd }, presentation: { terminal: new terminalModule.TestPresentationTerminal(), startup: { quiet: true } } });
           shell.root.editor.setText("preserved draft");
           state.onCancel = () => shell.root.handleInput("\u001b");
           state.onMissingCwd = () => setImmediate(() => shell.root.handleInput(entry.condition === "missing-cwd-declined" ? "\u001b" : "\r"));
@@ -261,7 +265,7 @@ for (const theme of ["dark", "light"]) {
           if (surfaceOpen) {
             if (owner) surfaceRows = owner.editorContainer.render(width);
             else {
-              const layout = shell.root.layoutRoot();
+              const layout = ownedRoot.pinnedLayoutRoot(shell.root.layoutParts());
               const dock = layout.type === "stack" ? layout.children[1]?.node : undefined;
               const input = dock?.type === "stack" ? dock.children[3]?.node : undefined;
               if (input?.type !== "component") throw new Error("Missing semantic input region");

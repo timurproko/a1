@@ -28,12 +28,14 @@ describe("canonical prompt-chip presentation", () => {
       .toBe(`before <7:${canonical[2]}> middle <${secondStart}:${canonical[4]}> after`);
   });
 
-  it("protects internal spaces and adjacent boundaries reversibly", () => {
-    const source = `prefix ${canonical[2]}${canonical[4]} suffix`;
+  it("protects internal spaces and every adjacent boundary reversibly", () => {
+    const source = `prefix${canonical[2]}${canonical[4]}suffix`;
     const protection = protectPromptChipWrapping(source);
     expect(protection.text).not.toBe(source);
+    expect(protection.text).not.toContain("prefix[");
     expect(protection.text).not.toContain("📷 screenshot");
     expect(protection.text).not.toContain("][");
+    expect(protection.text).not.toContain("]suffix");
     expect(protection.restore(protection.text)).toBe(source);
   });
 

@@ -4,6 +4,8 @@ import { readVisibleHyperlinks } from "../../../../src/ui/components/visible-hyp
 import {
   DamageAwareTerminalAdapter,
   PINNED_PI_TUI_DAMAGE_GRAMMAR,
+  paintTerminalCanvasFrame,
+  rebaseTerminalDefaultBackground,
   type PiTuiDamageFrameDescriptor,
   type PiTuiDamageFrameSafety,
   type PiTuiTerminalPort,
@@ -77,6 +79,59 @@ describe("A1-owned damage-aware terminal adapter", () => {
     expect(PINNED_PI_TUI_DAMAGE_GRAMMAR).toBe(`@earendil-works/pi-tui@${(await readPinnedPiIdentity(".")).version}:tui-alt-screen-one-write-v1`);
   });
 
+  it("keeps transparent frames byte-identical and paints an opaque canvas behind explicit surfaces", () => {
+    const { adapter, terminal } = initialized();
+    const canvas = "\u001b[48;2;20;21;22m";
+    expect(adapter.canvasBackgroundAnsi).toBeNull();
+    expect(adapter.setCanvasBackground(canvas)).toBe(true);
+    expect(adapter.presentedRows()).toEqual(initialRows.map(() => ""));
+    expect(adapter.setCanvasBackground(canvas)).toBe(false);
+    const styled = fullscreenWrite([
+      `plain \u001b[44mselected\u001b[49mtail`,
+      `\u001b[1mstrong\u001b[0m normal`,
+      ...initialRows.slice(2),
+    ]);
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(styled);
+    const painted = terminal.writes.at(-1)!;
+    expect(painted).toContain(`\u001b[1;1H${canvas}\u001b[2K${canvas}plain `);
+    expect(painted).toContain(`\u001b[44mselected\u001b[49m${canvas}tail`);
+    expect(painted).toContain(`\u001b[0m${canvas} normal`);
+    expect(painted.endsWith(`\u001b[49m\u001b[?2026l`)).toBe(true);
+    expect(adapter.presentedRows()[0]).toBe("plain \u001b[44mselected\u001b[49mtail");
+
+    expect(adapter.setCanvasBackground(null)).toBe(true);
+    adapter.arm(descriptor(3), SAFE);
+    adapter.write(styled);
+    expect(terminal.writes.at(-1)).toBe(styled);
+  });
+
+  it("rebases only SGR sequences whose final background state is terminal-default", () => {
+    const canvas = "\u001b[48;2;20;21;22m";
+    expect(rebaseTerminalDefaultBackground("a\u001b[49mb\u001b[0mc", canvas))
+      .toBe(`a\u001b[49m${canvas}b\u001b[0m${canvas}c`);
+    expect(rebaseTerminalDefaultBackground("\u001b[0;48;2;1;2;3mcolor", canvas))
+      .toBe("\u001b[0;48;2;1;2;3mcolor");
+    expect(rebaseTerminalDefaultBackground("\u001b[48;2;0;0;0mblack\u001b[39;49mplain", canvas))
+      .toBe(`\u001b[48;2;0;0;0mblack\u001b[39;49m${canvas}plain`);
+    expect(paintTerminalCanvasFrame("\u001b]52;c;YWJj\u0007", canvas))
+      .toBe("\u001b]52;c;YWJj\u0007");
+  });
+
+  it("paints batched erase rows even when their image grammar remains outside damage optimization", () => {
+    const { adapter, terminal } = initialized();
+    const canvas = "\u001b[48;5;234m";
+    adapter.setCanvasBackground(canvas);
+    const rows = ["B", "C", "D", "E", "F", "G"];
+    const erases = rows.map((_content, index) => `\u001b[${index + 1};1H\u001b[2K`).join("");
+    const paints = rows.map((content, index) => `\u001b[${index + 1};1H${content}`).join("");
+    const batched = `\u001b[?2026h${erases}${paints}\u001b[7;1H\u001b[?25l\u001b[?2026l`;
+    adapter.arm(descriptor(2, 1, true), SAFE);
+    adapter.write(batched);
+    expect(terminal.writes.at(-1)).toContain(`\u001b[1;1H${canvas}\u001b[2K${canvas}`);
+    expect(adapter.lastDecision).toMatchObject({ frameId: 2, transformed: false });
+  });
+
   it("forwards a batched-erase frame unchanged instead of reading its paints as one row's content", () => {
     // Compatibility: the pinned engine emits every row erase ahead of the paints for WezTerm frames that
     // place Kitty images. That shape is outside this grammar, so it falls through untransformed.
@@ -123,6 +178,40 @@ describe("A1-owned damage-aware terminal adapter", () => {
     ], { columns: 40, rows: 8, synchronizedUpdates: "honor" });
     expect(actual.final).toEqual(reference.final);
     expect(actual.final.rows.slice(0, 8)).toEqual(["B", "C", "D", "E", "F", "G", "editor", "footer"]);
+  });
+
+  it("restarts frame ids in a new presentation epoch, painting its first frame in full", () => {
+    const { adapter, terminal } = initialized();
+    adapter.arm(descriptor(9), SAFE);
+    adapter.write(fullscreenWrite(initialRows));
+    const epoch = adapter.presentationEpoch;
+
+    adapter.invalidatePresentation();
+    expect(adapter.presentationEpoch).toBe(epoch + 1);
+    expect(adapter.presentedRows()).toEqual(Array.from({ length: 8 }, () => ""));
+    // Invariant: another presenter's ids start over; frame 1 of the new epoch is not stale.
+    const replacement = ["a", "b", "c", "d", "e", "f", "editor", "footer"];
+    const full = fullscreenWrite(replacement);
+    adapter.arm(descriptor(1, 0, false, { epoch: adapter.presentationEpoch }), SAFE);
+    adapter.write(full);
+    expect(adapter.lastDecision.reason).not.toBe("stale-frame");
+    expect(terminal.writes.at(-1)).toBe(full);
+    expect(adapter.presentedRows()).toEqual(replacement);
+
+    adapter.arm(descriptor(2, 1, true, { epoch: adapter.presentationEpoch }), SAFE);
+    adapter.write(fullscreenWrite(["b", "c", "d", "e", "f", "g"]));
+    expect(adapter.lastDecision).toMatchObject({ frameId: 2, reason: "transformed", shiftRows: 1, paintedRows: [6] });
+  });
+
+  it("never forwards a frame armed for an earlier presentation epoch", () => {
+    const { adapter, terminal } = initialized();
+    const earlier = adapter.presentationEpoch;
+    adapter.invalidatePresentation();
+    const count = terminal.writes.length;
+    adapter.arm(descriptor(2, 0, false, { epoch: earlier }), SAFE);
+    adapter.write(fullscreenWrite(["obsolete"]));
+    expect(adapter.lastDecision.reason).toBe("stale-frame");
+    expect(terminal.writes).toHaveLength(count);
   });
 
   it("snapshots the presented rows as written and forgets them after invalidation", () => {

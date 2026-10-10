@@ -12,7 +12,7 @@ import {
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "product-identity", "cli", "composition", "session-shell", "launch", "owned-ui", "prompt-suggestions", "prompt-history", "terminal-cleanup", "launch-context", "startup", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "supervision",
+      "product-identity", "cli", "composition", "session-shell", "launch", "owned-ui", "prompt-suggestions", "prompt-history", "terminal-cleanup", "launch-context", "startup", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters", "supervision",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
       if (owner.id === "product-identity") {
@@ -113,6 +113,25 @@ describe("project structure ownership policy", () => {
     ]);
   });
 
+  it("keeps the application layer on the declared session backend port", () => {
+    expect(inspectLayerBoundaries({
+      "src/app/session-shell/session-shell.ts": "import type { OwnedUiSessionBackend } from '../../contracts/owned-ui/index.js';",
+      "src/app/session-shell/exit-notice.ts": "import { workflowCommandNames } from '../../integrations/pi/engine/workflows.js';",
+      "src/composition/owned-ui.ts": "import { createPiEngineAdapter, type PiEngineAdapter, type PiSessionPresentationSource } from '../integrations/pi/engine/adapter.js';",
+    })).toEqual([]);
+    expect(inspectLayerBoundaries({
+      "src/app/session-shell/session-shell-root.ts": "import type {\n  PiEngineAdapter,\n} from '../../integrations/pi/engine/adapter.js';",
+      "src/app/session-shell/session-shell.ts": "import { PiEngineAdapter } from '../../integrations/pi/engine/index.js';",
+      "src/app/session-shell/quit-outro.ts": "import type { PiSessionPresentationSource } from '../../integrations/pi/engine/index.js';",
+      "src/app/session-shell/exit-notice.ts": "let backend: import('../../integrations/pi/engine/adapter.js').PiEngineAdapter;",
+    })).toEqual([
+      "src/app/session-shell/session-shell-root.ts: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class",
+      "src/app/session-shell/session-shell.ts: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class",
+      "src/app/session-shell/quit-outro.ts: the application layer opens Pi selectors through OwnedUiSessionPresenters, not the engine's presentation source",
+      "src/app/session-shell/exit-notice.ts: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class",
+    ]);
+  });
+
   it("holds the three layer boundaries regardless of the owner DAG", () => {
     expect(inspectLayerBoundaries({
       "src/contracts/owned-ui/index.ts": "export type { PasteEvent } from './paste.js';",
@@ -186,8 +205,8 @@ describe("project structure ownership policy", () => {
 
   it("allows features only neutral integration ports and Pi implementations inward", () => {
     expect(inspectProjectStructureImports({
-      "src/features/owned-ui/new.ts": "import type { AgentEnginePort } from '../../contracts/agent-engine/index.js';",
-      "src/integrations/pi/engine/new.ts": "import type { AgentEnginePort } from '../../../contracts/agent-engine/index.js';",
+      "src/features/owned-ui/new.ts": "import type { AgentSettingsPort } from '../../contracts/agent-engine/index.js';",
+      "src/integrations/pi/engine/new.ts": "import type { AgentSettingsPort } from '../../../contracts/agent-engine/index.js';",
       "src/integrations/pi/components/new.ts": "import type { PresentationComponentPort } from '../../../contracts/presentation/index.js';",
     })).toEqual([]);
     expect(inspectProjectStructureImports({

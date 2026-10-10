@@ -7,10 +7,18 @@ import {
 } from "@earendil-works/pi-tui";
 import type {
   OwnedUiSessionViewModel,
+  PromptChipWrapProtection,
 } from "../../../contracts/owned-ui/index.js";
 import { SessionFooter } from "./upstream/components/session-footer.js";
+import {
+  piLogoLines,
+  piWordmark,
+  supportsPiLogo,
+} from "./upstream/components/pi-logo.js";
+import { ThemedText } from "./upstream/components/themed-text.js";
 import { KeybindingsManager, type KeybindingsConfig } from "./upstream/adjacent/core/keybindings.js";
 import { StatusIndicator, WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
+import { protectPiPromptChipPresentation } from "./prompt-chip-presentation.js";
 import {
   PINNED_PI_LAYOUT,
   piTheme,
@@ -36,15 +44,15 @@ import {
 export function createPiShellHeader(options: PiShellHeaderOptions = {}): PiShellHeaderPort {
   ensureTheme();
   let expanded = options.expanded ?? false;
-  const compact = new Text(compactHeaderText(), 1, 0);
-  const full = new Text(expandedHeaderText(), 1, 0);
-  const notices = (options.notices ?? []).map(notice => new Text(noticeText(notice), 1, 0));
+  const compact = new ThemedText(compactHeaderText, 1, 0);
+  const full = new ThemedText(() => expandedHeaderText(options.getKeybindings?.()), 1, 0);
+  const notices = (options.notices ?? []).map(notice => new ThemedText(() => noticeText(notice), 1, 0));
   return {
     get expanded() { return expanded; },
     setExpanded(value) { expanded = value; },
     render(width) {
       if (options.quiet) return [];
-      if (expanded && options.getKeybindings !== undefined) full.setText(expandedHeaderText(options.getKeybindings()));
+      if (expanded && options.getKeybindings !== undefined) full.invalidate();
       return [
         ...new Spacer(1).render(width),
         ...(expanded ? full : compact).render(width),
@@ -105,14 +113,15 @@ export function createPiShellStatus(
   ensureTheme();
   const statusUi = createTuiFacade(runtime ?? { getColumns: () => 80, getRows: () => 24, requestRender() {} });
   let workingOverride: string | undefined;
+  let workingOverrideActive = false;
   let outputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad;
   let progressPresentation: PiShellProgressPresentationMode = "pinned";
-  let placement: PiShellStatusPlacement = statusPlacement(view, workingOverride);
+  let placement: PiShellStatusPlacement = statusPlacement(view, workingOverride, workingOverrideActive);
   const liveStatusText = () => progressStatus.text(liveWorkingText(view, workingOverride, progressPresentation), progressPresentation);
   let component = statusComponent(view, statusUi, outputPad, liveStatusText, placement, progressPresentation, progressStatus);
   let signature = statusSignature(view, workingOverride, outputPad, placement, progressPresentation);
   const rebuild = () => {
-    const nextPlacement = statusPlacement(view, workingOverride);
+    const nextPlacement = statusPlacement(view, workingOverride, workingOverrideActive);
     const nextSignature = statusSignature(view, workingOverride, outputPad, nextPlacement, progressPresentation);
     if (nextSignature === signature) return;
     // Performance: progress ticks change only the live message; the spinner keeps its frame and timer.
@@ -141,8 +150,9 @@ export function createPiShellStatus(
       view = next;
       rebuild();
     },
-    setWorkingOverride(message) {
+    setWorkingOverride(message, active = false) {
       workingOverride = message;
+      workingOverrideActive = active && message !== undefined;
       rebuild();
     },
     setOutputPad(padding) {
@@ -177,18 +187,26 @@ export function createPiQueuedInputStatus(
   getKeybindings?: () => KeybindingsConfig,
 ): PiShellQueuedInputPort {
   let renderedText = queuedInputText(submissions, presentation, getKeybindings?.());
+  let chipWrapping: PromptChipWrapProtection = { text: renderedText, restore: value => value };
+  let protectedWidth: number | undefined;
   const text = new Text(renderedText, 1, 0);
   const refresh = () => {
     const next = queuedInputText(submissions, presentation, getKeybindings?.());
     if (next === renderedText) return;
     renderedText = next;
-    text.setText(next);
+    protectedWidth = undefined;
   };
   return {
     render(width) {
       if (submissions.length === 0) return [];
       refresh();
-      return text.render(width);
+      const contentWidth = queuedTextContentWidth(width);
+      if (contentWidth !== protectedWidth) {
+        chipWrapping = queuedInputChipWrapping(renderedText, presentation, contentWidth);
+        text.setText(chipWrapping.text);
+        protectedWidth = contentWidth;
+      }
+      return text.render(width).map(row => chipWrapping.restore(row));
     },
     invalidate: () => text.invalidate(),
     update(next) {
@@ -199,10 +217,14 @@ export function createPiQueuedInputStatus(
 }
 
 
-function statusPlacement(view: OwnedUiSessionViewModel, workingOverride: string | undefined): PiShellStatusPlacement {
-  // Invariant: live spinner placement follows semantic lifecycle, not text. An extension
-  // override is visible only when its lifecycle is busy, so a stale override cannot spin
-  // after completion or make an idle informational status scrollable.
+function statusPlacement(
+  view: OwnedUiSessionViewModel,
+  workingOverride: string | undefined,
+  workingOverrideActive: boolean,
+): PiShellStatusPlacement {
+  // Invariant: extension text alone cannot create a live spinner. A shell-owned operation may
+  // explicitly own the brief interval before the engine lifecycle itself becomes busy.
+  if (workingOverrideActive && workingOverride !== undefined) return "live";
   if (view.lifecycle === "busy") return "live";
   if (view.lifecycle === "failed") return "dock";
   return view.status.workingMessage === null ? "hidden" : "dock";
@@ -276,6 +298,21 @@ function statusSignature(
   return `${placement}\u0000${outputPad}\u0000${view.lifecycle}\u0000${progressPresentation}\u0000${message}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
 }
 
+function queuedInputChipWrapping(
+  text: string,
+  presentation: "pinned" | "custom-viewport",
+  width: number,
+): PromptChipWrapProtection {
+  return presentation === "custom-viewport"
+    ? protectPiPromptChipPresentation(text, width)
+    : { text, restore: value => value };
+}
+
+function queuedTextContentWidth(width: number): number {
+  const padding = Math.min(1, Math.max(0, Math.floor((width - 1) / 2)));
+  return Math.max(1, width - padding * 2);
+}
+
 function queuedInputText(
   submissions: readonly string[],
   presentation: "pinned" | "custom-viewport",
@@ -311,10 +348,9 @@ function compactHeaderText(): string {
     rawKeyHint("!", "bash"),
     rawKeyHint("ctrl+o", "more"),
   ].join(theme.fg("muted", " · "));
-  const logo = theme.bold(theme.fg("accent", "pi")) + theme.fg("dim", ` v${VERSION}`);
   const compactOnboarding = theme.fg("dim", "Press ctrl+o to show full startup help and loaded resources.");
   const onboarding = theme.fg("dim", "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.");
-  return `${logo}\n${instructions}\n${compactOnboarding}\n\n${onboarding}`;
+  return `${headerWithLogo(instructions)}\n${compactOnboarding}\n\n${onboarding}`;
 }
 
 function expandedHeaderText(bindings?: KeybindingsConfig): string {
@@ -342,9 +378,15 @@ function expandedHeaderText(bindings?: KeybindingsConfig): string {
     rawKeyHint("drop files", "to attach"),
   ].join("\n");
   const theme = piTheme();
-  const logo = theme.bold(theme.fg("accent", "pi")) + theme.fg("dim", ` v${VERSION}`);
   const onboarding = theme.fg("dim", "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.");
-  return `${logo}\n${instructions}\n\n${onboarding}`;
+  return `${headerWithLogo(instructions)}\n\n${onboarding}`;
+}
+
+function headerWithLogo(hints: string): string {
+  const version = piTheme().fg("dim", `v${VERSION}`);
+  if (!supportsPiLogo()) return `${piWordmark()} ${version}\n${hints}`;
+  const [top, bottom] = piLogoLines();
+  return `${top} ${version}\n${bottom} ${hints}`;
 }
 
 function noticeText(notice: PiShellStartupNotice): string {

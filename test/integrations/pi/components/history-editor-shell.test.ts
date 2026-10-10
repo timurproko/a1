@@ -26,8 +26,8 @@ describe("history editor component boundary", () => {
         const bar = promptRuleText;
         expect(rows[0]).toContain(piTheme().fg("dim", "1/1 "));
         expect(rows[0]).not.toContain("History");
-        expect(stripTerminalSequences(rows[0]!).indexOf("1/1")).toBe(4);
-        expect(rows[0]).toContain(bar("─── "));
+        expect(stripTerminalSequences(rows[0]!).indexOf("1/1")).toBe(3);
+        expect(rows[0]).toContain(bar("── "));
         expect(rows[0]).not.toContain(bar("1/1 "));
         // Rationale: pinned 0.85.1 colors a rule as spans rather than one dash at a time; the owned frame closes the rule with its own span.
         expect(rows[rows.length - 1]).toContain(bar("──"));
@@ -60,7 +60,7 @@ describe("history editor component boundary", () => {
       const bottomPlain = stripTerminalSequences(bottom);
       expect(top).toContain(piTheme().fg("dim", "1/1 "));
       expect(topPlain).not.toContain("·");
-      expect(topPlain).toBe("─── 1/1 " + "─".repeat(25) + " ↑ 10 more " + "─".repeat(36));
+      expect(topPlain).toBe("── 1/1 " + "─".repeat(26) + " ↑ 10 more " + "─".repeat(36));
       expect(bottomPlain).toBe("─".repeat(34) + " ↓ 3 more " + "─".repeat(36));
       expect(Math.abs(topPlain.indexOf(" ↑ 10 more ") * 2 + " ↑ 10 more ".length - 78)).toBeLessThanOrEqual(1);
       expect(bottomPlain.indexOf(" ↓ 3 more ") * 2 + " ↓ 3 more ".length).toBe(78);
@@ -68,10 +68,10 @@ describe("history editor component boundary", () => {
       expect(cellStyle(top, "1")).not.toEqual(cellStyle(top, "↑"));
       const shifted = editor.render(24)[0]!;
       expect(shifted).toContain(piTheme().fg("dim", "1/1 "));
-      expect(stripTerminalSequences(shifted)).toBe("─── 1/1  ↑ 10 more ─────");
-      const historyOnly = editor.render(20)[0]!;
+      expect(stripTerminalSequences(shifted)).toBe("── 1/1  ↑ 10 more ──────");
+      const historyOnly = editor.render(19)[0]!;
       expect(historyOnly).toContain(piTheme().fg("dim", "1/1 "));
-      expect(stripTerminalSequences(historyOnly)).toBe("─── 1/1 " + "─".repeat(12));
+      expect(stripTerminalSequences(historyOnly)).toBe("── 1/1 " + "─".repeat(12));
       expect(historyOnly).not.toContain("↑");
 
       const comparison = createPiShellEditor({ ...options, keybindingProfile: "pi" });

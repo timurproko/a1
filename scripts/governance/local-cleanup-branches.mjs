@@ -28,7 +28,8 @@ export async function remotePresent(reader, name) {
  * remote ref, no checkout, and no live registration; everything else is reported and kept.
  */
 export async function pruneMergedBranches({ identity, state, reader, git = gitRunner(), deadline = Infinity, now = Date.now,
-  ancestorOf, cancelled = () => false, enabled = async () => {}, limit = BRANCH_LIMIT }) {
+  ancestorOf, cancelled = () => false, enabled = async () => {}, limit = BRANCH_LIMIT, acquireResources = null,
+  registeredRef = async () => false }) {
   const result = { results: [], coverage: { total: 0, visited: 0, complete: false } };
   const rows = parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"]));
   const checkedOut = new Set(rows.map(row => row.branch).filter(Boolean));
@@ -41,7 +42,10 @@ export async function pruneMergedBranches({ identity, state, reader, git = gitRu
     if (now() >= deadline || cancelled()) break;
     result.coverage.visited++;
     const name = ref.slice("refs/heads/".length);
+    let releaseResources;
     try {
+      if (acquireResources) releaseResources = await acquireResources([`ref:${ref}`]);
+      if (await registeredRef(ref)) { result.results.push(retained(ref, tip, "branch-live-registration")); continue; }
       if (checkedOut.has(ref)) { result.results.push(retained(ref, tip, "branch-checked-out")); continue; }
       const pulls = await pullRequestsFor(reader, name);
       if (pulls.open.length) { result.results.push(retained(ref, tip, "branch-open-pull-request", { sourcePr: pulls.open[0].number })); continue; }
@@ -62,7 +66,7 @@ export async function pruneMergedBranches({ identity, state, reader, git = gitRu
       const code = error.cleanupCode ?? error.archiveCode ?? "local-operation-failed";
       result.results.push(retained(ref, tip, code));
       if (["pass-deadline", "remote-budget", "remote-backoff", "cancelled", "cleanup-disabled"].includes(code)) { result.deferred = code; break; }
-    }
+    } finally { if (releaseResources) await releaseResources(); }
   }
   result.coverage.complete = result.coverage.visited === branches.length;
   return result;

@@ -46,7 +46,7 @@ describe("asynchronous transcript presentation lifetime", () => {
     const value = await fixture(width, height);
     const before = value.shell.root.viewportFrameDescriptor()!;
     const evidence = value.shell.root.viewportPresentationEvidence();
-    const revision = value.backend.view().transcript.find(block => block.id === "tool-async")!.revision;
+    const revision = value.backend.session.view().transcript.find(block => block.id === "tool-async")!.revision;
     value.terminal.input("x");
     value.change("AFTER_ASYNC\nHEIGHT_TWO\nHEIGHT_THREE\nHEIGHT_FOUR");
     await vi.waitFor(() => expect(value.frames.some(rows => plain(rows).includes("HEIGHT_FOUR"))).toBe(true));
@@ -56,7 +56,7 @@ describe("asynchronous transcript presentation lifetime", () => {
     expect(after.dock).toEqual(before.dock);
     expect(after.nextDocumentRange.end - before.nextDocumentRange.end).toBe(3);
     expect(value.shell.root.viewportPresentationEvidence().maxScroll - evidence.maxScroll).toBe(3);
-    expect(value.backend.view().transcript.find(block => block.id === "tool-async")!.revision).toBe(revision);
+    expect(value.backend.session.view().transcript.find(block => block.id === "tool-async")!.revision).toBe(revision);
     const firstCurrent = value.frames.findIndex(rows => plain(rows).includes("AFTER_ASYNC"));
     value.terminal.input("y");
     await vi.waitFor(() => expect(value.shell.root.editor.getText()).toBe("xy"));
@@ -94,7 +94,7 @@ describe("asynchronous transcript presentation lifetime", () => {
 
   it("coalesces notifications without eagerly rendering history or recursing into renderer invalidation", async () => {
     const value = await fixture();
-    const history = value.backend.view().transcript[0]!;
+    const history = value.backend.session.view().transcript[0]!;
     const stable = vi.spyOn(value.shell.root.transcriptComponent(history.id)!, "render");
     const dirty = vi.spyOn(value.shell.root.transcriptComponent("tool-async")!, "render");
     const request = vi.spyOn(value.shell.runtime, "requestRender");
@@ -115,7 +115,7 @@ describe("asynchronous transcript presentation lifetime", () => {
     value.shell.runtime.renderNow();
     expect(plain(value.shell.root.render(80))).not.toContain("BEFORE_ASYNC");
     const dirty = vi.spyOn(value.shell.root.transcriptComponent("tool-async")!, "render");
-    const stable = value.backend.view().transcript.filter(block => block.id !== "tool-async")
+    const stable = value.backend.session.view().transcript.filter(block => block.id !== "tool-async")
       .map(block => vi.spyOn(value.shell.root.transcriptComponent(block.id)!, "render"));
     value.change("CURRENT_OFFSCREEN");
     expect(dirty).not.toHaveBeenCalled();
@@ -146,7 +146,7 @@ describe("asynchronous transcript presentation lifetime", () => {
     expect(frame.liveTailRows).toBeGreaterThan(0);
     expect(frame.liveTailRows).toBeLessThanOrEqual(3);
     expect(frame.followingEnd).toBe(true);
-    expect(value.backend.view().transcript.at(-1)?.status).toBe("live");
+    expect(value.backend.session.view().transcript.at(-1)?.status).toBe("live");
   });
 
   it.each([[40, 16], [192, 54]])("refreshes behind modal coverage and restores current text/styles without resize at %s x %s", async (width, height) => {

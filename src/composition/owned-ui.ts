@@ -6,27 +6,61 @@ import { PromptImageSidecar } from "../features/prompt-history/image-sidecar.js"
 import { resolvePromptHistoryPath } from "../features/prompt-history/paths.js";
 import { resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
 import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
-import { readSessionRepositoryContext } from "../foundation/lifecycle/session-repository-context.js";
+import type { AvailableRelease, StartupReleaseCheckOptions } from "../foundation/release/latest-release.js";
+import type { NativeProcessIdentity } from "../foundation/lifecycle/model.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
-import { applyConfiguredPiTheme, getAvailablePiThemes } from "../integrations/pi/components/upstream/theme/theme.js";
-import { createPiEngineAdapter } from "../integrations/pi/engine/adapter.js";
-import type { PiEngineAdapter } from "../integrations/pi/engine/adapter.js";
+import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
+import { createPiEngineHost, type PiEngineHostOptions, type PiEngineSessionRequest } from "../integrations/pi/engine/host.js";
+import { createPiSessionPresenters, type PiSessionPresenterBackend } from "../integrations/pi/session-presenters/index.js";
 import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/project-trust-preflight.js";
 import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-selection.js";
 import { ClipboardDiagnosticCapture } from "../app/session-shell/clipboard-diagnostics.js";
-import { OwnedUiSessionShell } from "../app/session-shell/session-shell.js";
+import { createOwnedUiClipboardServices } from "../app/session-shell/clipboard-services.js";
+import { createPiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
+import {
+  OwnedUiSessionPresenter,
+  OwnedUiTerminalHost,
+  sessionTerminalHostOptions,
+  type OwnedUiSessionShellOptions,
+} from "../app/session-shell/session-shell.js";
 import { OwnedSettingsManager } from "../ui/settings/manager.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentation-adapter.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
-import type { OwnedUiQuitOutroSettings, OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../contracts/owned-ui/index.js";
+import type { AgentSettingsPort } from "../contracts/agent-engine/index.js";
+import type {
+  OwnedUiBackgroundSettingsPort,
+  OwnedUiPromptSuggestionGeneratorPort,
+  OwnedUiQuitOutroSettings,
+  OwnedUiViewportSettings,
+  OwnedUiViewportSettingsPort,
+  UiAccentColor,
+} from "../contracts/owned-ui/index.js";
 import { createOwnedRouteHost, type OwnedReferenceProviders } from "./settings-route-host.js";
 import { renderPiShellChangelogLines } from "../integrations/pi/components/shell-presenters-info.js";
 import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
+import { nativeHyperlinkStyle } from "../ui/components/spans.js";
+
+/**
+ * The session backend composition wires: the owned-UI port, the prompt-suggestion generator, and
+ * the agent settings port. `settingsPort` stays outside the owned-UI contract because its type
+ * belongs to the agent-engine contracts, which the owned-UI contract may not import.
+ */
+export interface ComposedSessionBackend extends PiSessionPresenterBackend, OwnedUiPromptSuggestionGeneratorPort {
+  settingsPort(): AgentSettingsPort | null;
+}
+
+/** The process-level engine host as composition drives it: sessions, the live accent, and disposal. */
+export interface ComposedEngineHost {
+  create(request: PiEngineSessionRequest): Promise<ComposedSessionBackend>;
+  setAccentColor(color: UiAccentColor): void;
+  dispose(): Promise<void>;
+}
 
 export interface OwnedUiCompositionOptions {
   readonly cwd?: string;
   readonly terminal?: PresentationTerminalPort;
-  readonly createPiAdapter?: () => Promise<PiEngineAdapter>;
+  /** Test seam standing in for the Pi engine host; receives the options composition resolved. */
+  readonly createEngineHost?: (options: PiEngineHostOptions) => Promise<ComposedEngineHost>;
   /** Explicit file selection retained for SDK callers. Public CLI uses sessionSelection. */
   readonly sessionPath?: string;
   readonly sessionSelection?: SessionSelection;
@@ -49,6 +83,10 @@ export interface OwnedUiCompositionOptions {
   /** Deterministic release-note seams for composition tests. */
   readonly packageVersion?: string;
   readonly releaseNotes?: ReleaseNoteCatalog;
+  /** Startup release-availability seam; defaults to the throttled registry check. */
+  readonly checkForNewerRelease?: (options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>;
+  /** Exact native process inspection injected by the shipped entry; absent SDK seams do not publish claims. */
+  readonly inspectProcess?: (pid: number) => Promise<NativeProcessIdentity | null>;
 }
 
 export interface OwnedUiComposition {
@@ -57,6 +95,8 @@ export interface OwnedUiComposition {
   readonly settings: OwnedSettingsManager | null;
 }
 
+const SESSION_RUNTIME_REFRESH_MS = 30_000;
+
 export async function composeOwnedUiApplication(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiApplicationPort> {
   return (await composeOwnedUi(options)).application;
 }
@@ -64,30 +104,94 @@ export async function composeOwnedUiApplication(options: OwnedUiCompositionOptio
 export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiComposition> {
   const cwd = options.cwd ?? process.cwd();
   const ownedSurfaces = options.ownedSurfaces !== "off";
-  const adapter = options.createPiAdapter
-    ? await options.createPiAdapter()
-    : await createPiEngineAdapter({
-      cwd,
-      availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
-      settingsProductMode: ownedSurfaces ? "bare" : "comparison",
-      announceStartupChangelog: !ownedSurfaces,
-      ...(ownedSurfaces ? {
-        repositoryContextReader: async (sessionId: string, sessionFile: string, signal: AbortSignal) =>
-          await readSessionRepositoryContext({ sessionId, sessionFile }, { signal }),
-      } : {}),
-      ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
-      ...(options.sessionSelection === undefined ? {} : { sessionSelection: options.sessionSelection }),
-      ...(options.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: options.sessionForkPrompt }),
-      ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
-    });
+  const sessionRuntimeId = ownedSurfaces ? process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] : undefined;
+  const inspectSessionProcess = options.inspectProcess;
+  let sessionRuntimeIdentity: Promise<NativeProcessIdentity | null> | null = null;
+  // Invariant: one entry per agent of this runtime; each agent holds its own claim, and the runtime's exit releases all.
+  const activeSessionIdentities = new Map<string | undefined, { readonly sessionId: string; readonly sessionFile: string }>();
+  let sessionRuntimeRefreshTimer: NodeJS.Timeout | null = null;
+  let sessionRuntimeRefresh = Promise.resolve();
+  let sessionRuntimeDisposed = false;
+  const runtimeIdentity = async (): Promise<NativeProcessIdentity | null> => {
+    if (sessionRuntimeId === undefined || inspectSessionProcess === undefined) return null;
+    sessionRuntimeIdentity ??= inspectSessionProcess(process.pid).catch(() => null);
+    return await sessionRuntimeIdentity;
+  };
+  const queueSessionRuntimeRefresh = (): void => {
+    if (sessionRuntimeDisposed || activeSessionIdentities.size === 0 || sessionRuntimeId === undefined || inspectSessionProcess === undefined) return;
+    sessionRuntimeRefresh = sessionRuntimeRefresh.then(async () => {
+      if (sessionRuntimeDisposed) return;
+      const owner = await runtimeIdentity();
+      if (owner === null) return;
+      const { registerSessionRepositoryRuntime } = await import("../foundation/lifecycle/session-repository-context.js");
+      for (const [agentId, identity] of activeSessionIdentities) {
+        if (sessionRuntimeDisposed) return;
+        await registerSessionRepositoryRuntime(identity, sessionRuntimeId, owner, {
+          inspectProcess: inspectSessionProcess,
+          ...(agentId === undefined ? {} : { agentId }),
+        }).catch(() => undefined);
+      }
+    }).catch(() => undefined);
+  };
+  /** The repository context reader for one agent; undefined names the primary agent, the only one composed today. */
+  const repositoryContextReaderFor = (agentId: string | undefined) =>
+    async (sessionId: string, sessionFile: string, signal: AbortSignal) => {
+      const owner = await runtimeIdentity();
+      if (owner === null || sessionRuntimeId === undefined || inspectSessionProcess === undefined) return null;
+      const identity = { sessionId, sessionFile };
+      activeSessionIdentities.set(agentId, identity);
+      const { activateSessionRepositoryContext } = await import("../foundation/lifecycle/session-repository-context.js");
+      const context = await activateSessionRepositoryContext(identity, sessionRuntimeId, owner, {
+        signal,
+        inspectProcess: inspectSessionProcess,
+        ...(agentId === undefined ? {} : { agentId }),
+      });
+      armSessionRuntimeRefresh();
+      return context;
+    };
+  const armSessionRuntimeRefresh = (): void => {
+    if (sessionRuntimeRefreshTimer !== null) return;
+    sessionRuntimeRefreshTimer = setInterval(queueSessionRuntimeRefresh, SESSION_RUNTIME_REFRESH_MS);
+    sessionRuntimeRefreshTimer.unref();
+  };
   const productPaths = resolveProductPaths();
+  // Rationale: the manager reads the engine's settings port lazily, after the session exists.
+  let backend: ComposedSessionBackend;
   const settings = options.profileId === undefined
     ? null
     : new OwnedSettingsManager({
       configDir: resolveProductPaths().configDir,
       profileId: options.profileId,
-      agentProvider: () => adapter.settingsPort(),
+      agentProvider: () => backend.settingsPort(),
+      hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
+      agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
     });
+  // Invariant: process-wide engine state has one owner. The host installs the HTTP dispatcher, applies
+  // the theme singletons, and announces startup notices once; every session is created through it.
+  const host = await (options.createEngineHost ?? (async hostOptions => createPiEngineHost(hostOptions)))({
+    productMode: ownedSurfaces ? "bare" : "comparison",
+    availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
+    announceStartupChangelog: !ownedSurfaces,
+    theme: {
+      base: ownedSurfaces ? "dark" : "engine-configured",
+      accentColor: settings !== null && ownedSurfaces ? settings.value("accentColor") : "purple",
+      packageBorderProjection: ownedSurfaces,
+      apply: { base: applyConfiguredPiTheme, accentColor: setPiAccentColor, packageBorderProjection: setPiPackageBorderProjectionEnabled },
+    },
+    ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
+  });
+  try {
+    backend = await host.create({
+      cwd,
+      ...(ownedSurfaces ? { repositoryContextReader: repositoryContextReaderFor(undefined) } : {}),
+      ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
+      ...(options.sessionSelection === undefined ? {} : { sessionSelection: options.sessionSelection }),
+      ...(options.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: options.sessionForkPrompt }),
+    });
+  } catch (error) {
+    await host.dispose();
+    throw error;
+  }
   let releaseNotes: ReleaseNoteCatalog | null = null;
   let releaseNotesFailure: unknown;
   if (ownedSurfaces) {
@@ -105,38 +209,46 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     : await import("../features/owned-ui/release-note-state.js").then(module => module.claimReleaseNote({
       configDir: productPaths.configDir, profileId: options.profileId!, version: currentReleaseNote.version,
     }));
-  // Compatibility: bare A1 intentionally ships one visual target while its UI is being completed:
-  // dark, regardless of terminal detection or a previously stored Pi theme. The
-  // comparison profile keeps Pi's configured theme behavior and settings surface.
-  applyConfiguredPiTheme(ownedSurfaces ? "dark" : adapter.configuredTheme());
+  const unsubscribeAccent = settings === null || !ownedSurfaces
+    ? () => {}
+    : settings.onChange(current => host.setAccentColor(current.value("accentColor")));
 
-  // Rationale: the reference screens read the shell the composition is about to construct; a route
-  // cannot open before the shell exists, so the closure is settled by the time it runs.
+  // Rationale: Routes open only after shell construction.
   const references: OwnedReferenceProviders = {
     changelog: async input => {
       if (input?.document === undefined && releaseNotesFailure !== undefined) throw releaseNotesFailure;
       const markdown = input?.document ?? releaseNotes?.completeMarkdown ?? "No A1 release notes found.";
-      return { rows: width => renderPiShellChangelogLines(markdown, width) };
+      return { rows: width => renderPiShellChangelogLines(markdown, width).map(row => nativeHyperlinkStyle(row)) };
     },
     hotkeys: async () => {
-      const presentation = shell.hotkeysPresentation();
+      const presentation = presenter.hotkeysPresentation();
       const { renderPiShellHotkeySections } = await import("../integrations/pi/components/shell-hotkey-sections.js");
       return { sections: width => renderPiShellHotkeySections(presentation, width) };
     },
+    session: () => import("./session-info-reference.js").then(m => m.loadSessionInfoReference(backend)),
   };
   const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(settings, references);
   const viewportSettings: OwnedUiViewportSettingsPort | null = settings === null || !ownedSurfaces ? null : {
     snapshot: () => viewportSettingsSnapshot(settings),
     onChange: listener => settings.onChange(() => listener(viewportSettingsSnapshot(settings))),
   };
+  const backgroundSettings: OwnedUiBackgroundSettingsPort | null = settings === null || !ownedSurfaces ? null : {
+    snapshot: () => settings.value("backgroundStyle"),
+    // Rationale: one manager notification also recomputes an accent-derived canvas after accentColor changes.
+    onChange: listener => settings.onChange(current => listener(current.value("backgroundStyle"))),
+  };
   const diagnosticDestination = options.suggestionDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.suggestionDiagnostics];
   const suggestionDiagnostics = settings !== null && ownedSurfaces && diagnosticDestination?.trim()
     ? new SuggestionDiagnosticCapture({ enabled: true, destination: diagnosticDestination }) : null;
   const promptSuggestions = settings === null || !ownedSurfaces ? null : {
     ...(suggestionDiagnostics === null ? {} : { diagnostics: suggestionDiagnostics }),
-    generator: adapter,
+    generator: backend,
     enabled: () => settings.value("promptSuggestions"),
     onChange: (listener: (enabled: boolean) => void) => settings.onChange(() => listener(settings.value("promptSuggestions"))),
+  };
+  const promptImages = settings === null || !ownedSurfaces ? null : {
+    limit: () => settings.value("promptImageLimit"),
+    onChange: (listener: () => void) => settings.onChange(listener),
   };
   const skills = settings === null || !ownedSurfaces ? null : {
     presentation: () => settings.value("skillsPresentation"),
@@ -146,12 +258,12 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const historyLimit = settings?.value("promptHistoryMaxItems");
   const historyProfileLocation = settings === null || !ownedSurfaces || !settings.value("promptHistoryEnabled")
     ? null
-    : resolvePromptHistoryPath(resolvePromptHistoryDataDir(), adapter.agentDir);
+    : resolvePromptHistoryPath(resolvePromptHistoryDataDir(), backend.identity.agentDir);
   const promptHistory = historyProfileLocation === null ? null : {
     limit: typeof historyLimit === "number" ? historyLimit : 100,
     store: new PromptHistoryService({
       dataDir: resolvePromptHistoryDataDir(),
-      profileRoot: adapter.agentDir,
+      profileRoot: backend.identity.agentDir,
       limit: typeof historyLimit === "number" ? historyLimit : 100,
     }),
     imageSidecar: new PromptImageSidecar(historyProfileLocation.imagesDir),
@@ -159,13 +271,20 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const clipboardDestination = options.clipboardDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.clipboardDiagnostics];
   const clipboardDiagnostics = settings !== null && ownedSurfaces && clipboardDestination?.trim()
     ? new ClipboardDiagnosticCapture(clipboardDestination) : null;
-  let shell: OwnedUiSessionShell;
+  // Invariant: process-wide services are created once here and borrowed by every session shell. The
+  // keybinding registry is applied before any presenter is built, so none of them reads Pi's defaults.
+  const keybindings = createPiKeybindingsHost({ profile: ownedSurfaces ? "a1" : "pi", agentDir: backend.identity.agentDir });
+  const clipboardServices = ownedSurfaces ? createOwnedUiClipboardServices() : null;
+  let createdTerminalHost: OwnedUiTerminalHost | undefined;
+  let terminalHost: OwnedUiTerminalHost;
+  let presenter: OwnedUiSessionPresenter;
   let releaseNoteAcknowledgement: Promise<void> | null = null;
   try {
-    shell = new OwnedUiSessionShell({
+    const presenterOptions: OwnedUiSessionShellOptions = {
+      presenters: createPiSessionPresenters(backend),
       engine: {
-        backend: adapter,
-        cwd: adapter.cwd,
+        backend,
+        cwd: backend.identity.cwd,
         ...(routeHost === null ? {} : { routeHost }),
         ...(currentReleaseNote === null || releaseNoteClaim === null ? {} : {
           startupRoute: {
@@ -183,6 +302,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
         ...(clipboardDiagnostics === null ? {} : { input: { onEvent: event => clipboardDiagnostics.runtime(event) } }),
         ...(viewportSettings === null ? {} : { viewportSettings }),
+        ...(backgroundSettings === null ? {} : { backgroundSettings }),
         ...(settings === null || !ownedSurfaces ? {} : {
           quitOutro: { snapshot: () => quitOutroSettingsSnapshot(settings), interactive: process.stdout.isTTY === true },
         }),
@@ -192,29 +312,80 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         paste: event => clipboardDiagnostics.paste(event),
       } }),
       ...(promptSuggestions === null ? {} : { suggestions: promptSuggestions }),
+      ...(promptImages === null ? {} : { promptImages }),
       ...(skills === null ? {} : { skills }),
+      shared: { keybindings, ...(clipboardServices === null ? {} : { clipboard: clipboardServices }) },
       ...(promptHistory === null ? {} : { history: {
         ...promptHistory,
         editor: await import("../integrations/pi/components/history-editor-loader.js").then(module => module.loadHistoryEditor()),
       } }),
-    });
+    };
+    // Invariant: one terminal host owns the process terminal; the session presenter reaches it only through
+    // the host and paints once attached.
+    terminalHost = createdTerminalHost = new OwnedUiTerminalHost(sessionTerminalHostOptions(presenterOptions));
+    presenter = new OwnedUiSessionPresenter(terminalHost, presenterOptions);
+    terminalHost.attach(presenter);
   } catch (error) {
+    await createdTerminalHost?.dispose().catch(() => undefined);
+    unsubscribeAccent();
     await releaseNoteClaim?.release();
-    clipboardDiagnostics?.dispose(); suggestionDiagnostics?.dispose();
+    clipboardDiagnostics?.dispose(); suggestionDiagnostics?.dispose(); clipboardServices?.dispose();
+    await host.dispose();
     throw error;
   }
+  // Rationale: pinned Pi's version check is unreachable because the owned shell never runs its
+  // InteractiveMode, so A1 checks its own channel. The result is never awaited on the startup path;
+  // settings are read here because the runner resolves them only just before start.
+  const announceNewerRelease = async (): Promise<void> => {
+    const check: (input: StartupReleaseCheckOptions) => Promise<AvailableRelease | null> = options.checkForNewerRelease
+      ?? (await import("../foundation/release/latest-release.js")).checkForNewerRelease;
+    const release = await check({
+      runningVersion: packageVersion ?? await readPackageVersion(),
+      configDir: productPaths.configDir,
+      interactive: process.stdout.isTTY === true,
+      ...(settings === null || !ownedSurfaces ? {} : { settingEnabled: settings.value("updateCheck") }),
+    });
+    if (release !== null) backend.extensions.announceReleaseUpdate(release);
+  };
+  const exitNoticePath = process.env[PRODUCT_IDENTITY.environment.exitNoticePath];
+  // Security: tools the agent runs must never see, or rewrite, this instance's notice.
+  delete process.env[PRODUCT_IDENTITY.environment.exitNoticePath];
+  let exitNotice: Promise<{ clear(): void } | null> = Promise.resolve(null);
   const application: OwnedUiApplicationPort = {
-    get disposed() { return adapter.disposed; },
-    start: () => shell.start(),
-    flush: () => adapter.flushEvents(),
-    waitUntilStopped: () => shell.waitUntilStopped(),
+    get disposed() { return backend.identity.disposed; },
+    start: () => {
+      // Performance: the guardian notice loads beside first paint, never on the startup path.
+      if (exitNoticePath) exitNotice = import("../app/session-shell/exit-notice.js")
+        .then(module => module.armExitNotice(backend, exitNoticePath), () => null);
+      presenter.start();
+      void announceNewerRelease().catch(() => undefined);
+    },
+    flush: () => backend.session.flushEvents(),
+    waitUntilStopped: () => presenter.waitUntilStopped(),
     dispose: async () => {
       try {
-        await shell.dispose();
+        await terminalHost.dispose();
+        // Invariant: cleared only once the terminal is restored; a failed dispose leaves it armed.
+        (await exitNotice)?.clear();
         await releaseNoteAcknowledgement?.catch(() => undefined);
       } finally {
+        // Invariant: the shared spares outlive every shell and stop only after the last one is disposed.
+        clipboardServices?.dispose();
+        unsubscribeAccent();
+        sessionRuntimeDisposed = true;
+        if (sessionRuntimeRefreshTimer !== null) clearInterval(sessionRuntimeRefreshTimer);
+        sessionRuntimeRefreshTimer = null;
+        await sessionRuntimeRefresh;
+        const owner = await runtimeIdentity();
+        if (sessionRuntimeId !== undefined && owner !== null) {
+          await import("../foundation/lifecycle/session-repository-context.js")
+            .then(module => module.releaseSessionRepositoryRuntime(sessionRuntimeId, owner))
+            .catch(() => undefined);
+        }
         await releaseNoteClaim?.release();
         suggestionDiagnostics?.dispose(); clipboardDiagnostics?.dispose();
+        // Invariant: the host outlives the application; disposing it cancels host-level probes last.
+        await host.dispose();
       }
     },
   };

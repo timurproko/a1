@@ -51,7 +51,7 @@ class FakeRuntime {
 function harness(overrides: Partial<PiEngineRuntimePorts> = {}, options: {
   updates?: readonly string[];
   changelog?: string;
-  announceStartupChangelog?: boolean;
+  signal?: AbortSignal;
   branch?: string | null;
   pullRequestProbe?: PiPullRequestProbe;
   pullRequestRefreshMs?: number;
@@ -67,7 +67,8 @@ function harness(overrides: Partial<PiEngineRuntimePorts> = {}, options: {
     cwd: "D:/work", agentDir: "D:/agent", sessionId: "owned-1", sessionPath: undefined, sessionSelection: undefined,
     sessionForkPrompt: undefined, projectTrustPrompt: undefined, createRuntime: async () => runtime as unknown as AgentSessionRuntime,
     checkPackageUpdates: options.updates === undefined ? undefined : async () => options.updates!,
-    ...(options.announceStartupChangelog === undefined ? {} : { announceStartupChangelog: options.announceStartupChangelog }),
+    signal: options.signal ?? new AbortController().signal,
+    markStartupPhase: async () => {},
     ...(options.gitBranchReader !== undefined
       ? { gitBranchReader: options.gitBranchReader }
       : options.branch === undefined ? {} : { gitBranchReader: async () => options.branch! }),
@@ -93,7 +94,7 @@ function harness(overrides: Partial<PiEngineRuntimePorts> = {}, options: {
 }
 
 describe("PiEngineRuntime", () => {
-  it("creates the runtime, reports startup diagnostics, binds the first session under generation 1, and announces the changelog", async () => {
+  it("creates the runtime, reports startup diagnostics, and binds the first session under generation 1", async () => {
     const { engine, runtime, calls } = harness({}, { changelog: "## New" });
     expect(engine.started).toBe(false);
     expect(engine.cwd).toBe("D:/work");
@@ -102,16 +103,21 @@ describe("PiEngineRuntime", () => {
     expect(engine.cwd).toBe("D:/resolved");
     expect(engine.session).toBe(runtime.session as unknown as AgentSession);
     expect([engine.generation, engine.bindingGeneration]).toEqual([1, 1]);
-    expect(calls).toEqual(["started", "warning:engine-startup:runtime warning", "error:engine-startup:service error", "replacing", "replaced:D:/sessions/one.jsonl", "info:changelog-collapsed:## New"]);
-    expect(runtime.lastChangelog).not.toBe("0.0.1");
+    expect(calls).toEqual(["started", "warning:engine-startup:runtime warning", "error:engine-startup:service error", "replacing", "replaced:D:/sessions/one.jsonl"]);
+    expect(runtime.lastChangelog).toBe("0.0.1");
     expect(engine.currentSessionFile()).toBe("D:/sessions/one.jsonl");
   });
 
-  it("lets bare A1 disable pinned Pi startup changelog bookkeeping", async () => {
-    const { engine, runtime, calls } = harness({}, { changelog: "## New", announceStartupChangelog: false });
+  it("announces the changelog only when the host asks, and records the version it showed", async () => {
+    const { engine, runtime, calls } = harness({}, { changelog: "## New" });
     await engine.start();
-    expect(calls.some(call => call.includes("changelog"))).toBe(false);
-    expect(runtime.lastChangelog).toBe("0.0.1");
+    calls.length = 0;
+    await engine.announceChangelog();
+    expect(calls).toEqual(["info:changelog-collapsed:## New"]);
+    expect(runtime.lastChangelog).not.toBe("0.0.1");
+    calls.length = 0;
+    await engine.announceChangelog();
+    expect(calls).toEqual([]);
   });
 
   it("forwards events for the current generation only, and a runtime rebind replaces the session unless blocked", async () => {
@@ -276,6 +282,16 @@ describe("PiEngineRuntime", () => {
     expect(calls).toEqual(["info:package-updates:Package updates are available. Run a1 pi update --extensions", "view"]);
     state.disposed = true;
     calls.length = 0;
+    await engine.announcePackageUpdates();
+    expect(calls).toEqual([]);
+  });
+
+  it("announces no package updates once the host signal is aborted", async () => {
+    const abort = new AbortController();
+    const { engine, calls } = harness({}, { updates: ["pi-mcp-adapter"], signal: abort.signal });
+    await engine.start();
+    calls.length = 0;
+    abort.abort();
     await engine.announcePackageUpdates();
     expect(calls).toEqual([]);
   });

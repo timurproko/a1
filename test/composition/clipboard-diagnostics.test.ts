@@ -7,12 +7,15 @@ import type { OwnedUiSessionShellOptions } from "../../src/app/session-shell/ind
 const observed = vi.hoisted(() => ({ options: undefined as OwnedUiSessionShellOptions | undefined,
   captures: [] as ClipboardDiagnosticCapture[], writes: [] as { file: string; data: string }[], failure: "" }));
 // Rationale: exercise real diagnostic capture and launch wiring without provider, terminal, or user-file effects.
-vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [] }));
-vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
+vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {} }));
+vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
-  OwnedSettingsManager: class { value(key: string) { return key === "promptHistoryEnabled" ? false : undefined; } },
+  OwnedSettingsManager: class {
+    value(key: string) { return key === "promptHistoryEnabled" ? false : key === "accentColor" ? "purple" : undefined; }
+    onChange() { return () => undefined; }
+  },
 }));
 vi.mock("../../src/app/session-shell/clipboard-diagnostics.js", async importOriginal => {
   const { ClipboardDiagnosticCapture: Capture } = await importOriginal<typeof import("../../src/app/session-shell/clipboard-diagnostics.js")>();
@@ -21,12 +24,16 @@ vi.mock("../../src/app/session-shell/clipboard-diagnostics.js", async importOrig
   } };
 });
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({
-  OwnedUiSessionShell: class {
-    constructor(options: OwnedUiSessionShellOptions) {
+  sessionTerminalHostOptions: () => ({}),
+  OwnedUiTerminalHost: class {
+    attach() {}
+    async dispose() { if (observed.failure === "dispose") throw new Error("synthetic disposal failure"); }
+  },
+  OwnedUiSessionPresenter: class {
+    constructor(_host: unknown, options: OwnedUiSessionShellOptions) {
       observed.options = options;
       if (observed.failure === "construct") throw new Error("synthetic construction failure");
     }
-    async dispose() { if (observed.failure === "dispose") throw new Error("synthetic disposal failure"); }
   },
 }));
 beforeEach(() => {
@@ -40,7 +47,7 @@ afterEach(() => {
   vi.useRealTimers(); vi.unstubAllEnvs();
 });
 async function compose(options: { ownedSurfaces?: "off"; profileId?: string; clipboardDiagnosticsPath?: string }) {
-  return composeOwnedUi({ ...options, createPiAdapter: async () => ({ cwd: process.cwd(), agentDir: "synthetic-agent", configuredTheme: () => "dark" }) as never });
+  return composeOwnedUi({ ...options, createEngineHost: async () => ({ create: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never });
 }
 
 describe("clipboard diagnostic launch composition", () => {

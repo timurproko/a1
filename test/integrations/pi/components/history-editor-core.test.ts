@@ -104,7 +104,7 @@ describe("typed persistent recall transitions", () => {
     editor.handleInput(older);
     editor.handleInput(older);
     expect(editor.getText()).toBe("middle\nsecond line");
-    expect(editor.render(80)[0]).toContain("─── 2/3 ");
+    expect(editor.render(80)[0]).toContain("── 2/3 ");
 
     editor.handleMouse({
       type: "click", button: "left", x: 0, y: 1, screenX: 0, screenY: 1,
@@ -113,7 +113,7 @@ describe("typed persistent recall transitions", () => {
 
     expect(editor.getHistoryPosition()).toEqual({ index: 1, total: 3 });
     expect(editor.getCursor()).toEqual({ line: 0, col: 0 });
-    expect(editor.render(80)[0]).toContain("─── 2/3 ");
+    expect(editor.render(80)[0]).toContain("── 2/3 ");
   });
 
   it("keeps left history while shifting or omitting overflow at narrow widths", () => {
@@ -128,18 +128,18 @@ describe("typed persistent recall transitions", () => {
     expect(top).toContain("<dim>1/1 </dim>");
     expect(top).not.toContain("·");
     const plain = (row: string) => stripTerminalSequences(row).replaceAll("<dim>", "").replaceAll("</dim>", "");
-    expect(plain(top)).toBe("─── 1/1 " + "─".repeat(26) + " ↑ 10 more " + "─".repeat(35));
+    expect(plain(top)).toBe("── 1/1 " + "─".repeat(27) + " ↑ 10 more " + "─".repeat(35));
     expect(plain(bottom)).toBe("─".repeat(35) + " ↓ 3 more " + "─".repeat(35));
     expect(visibleWidth(plain(top))).toBe(80);
     expect(visibleWidth(plain(bottom))).toBe(80);
 
     const collision = editor.render(24)[0]!;
     expect(collision).toContain("<dim>1/1 </dim>");
-    expect(plain(collision)).toBe("─── 1/1  ↑ 10 more ─────");
-    expect(plain(collision).indexOf(" ↑ 10 more ")).toBe(8);
-    const omitted = editor.render(18)[0]!;
+    expect(plain(collision)).toBe("── 1/1  ↑ 10 more ──────");
+    expect(plain(collision).indexOf(" ↑ 10 more ")).toBe(7);
+    const omitted = editor.render(17)[0]!;
     expect(omitted).toContain("<dim>1/1 </dim>");
-    expect(plain(omitted)).toBe("─── 1/1 " + "─".repeat(10));
+    expect(plain(omitted)).toBe("── 1/1 " + "─".repeat(10));
     expect(omitted).not.toContain("↑");
     const recovered = editor.render(80)[0]!;
     expect(recovered).toContain("<dim>1/1 </dim>");
@@ -152,9 +152,9 @@ describe("typed persistent recall transitions", () => {
     editor.replaceHistoryEntries(Array.from({ length: 100 }, (_, index) => `saved ${index}`));
     editor.setText("draft");
     editor.handleInput(older);
-    expect(stripTerminalSequences(editor.render(80)[0]!)).toBe("─── 100/100 " + "─".repeat(68));
+    expect(stripTerminalSequences(editor.render(80)[0]!)).toBe("── 100/100 " + "─".repeat(69));
     for (let index = 1; index < 100; index++) editor.handleInput(older);
-    expect(stripTerminalSequences(editor.render(80)[0]!)).toBe("─── 1/100 " + "─".repeat(70));
+    expect(stripTerminalSequences(editor.render(80)[0]!)).toBe("── 1/100 " + "─".repeat(71));
     expect(editor.getText()).toBe("saved 99");
     for (let index = 0; index < 100; index++) editor.handleInput(newer);
     expect(editor.getText()).toBe("draft");
@@ -165,11 +165,11 @@ describe("typed persistent recall transitions", () => {
     const editor = create();
     editor.handleInput(older);
     expect(editor.getCursor()).toEqual({ line: 0, col: 6 });
-    expect(editor.render(80)[0]).toContain("─── 3/3 ");
+    expect(editor.render(80)[0]).toContain("── 3/3 ");
     editor.handleInput(older);
     expect(editor.getCursor()).toEqual({ line: 1, col: 11 });
     editor.handleInput(older);
-    expect(editor.render(80)[0]).toContain("─── 1/3 ");
+    expect(editor.render(80)[0]).toContain("── 1/3 ");
     editor.handleInput(older);
     expect(editor.getCursor()).toEqual({ line: 0, col: 6 });
     editor.handleInput(newer);

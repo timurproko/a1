@@ -373,7 +373,8 @@ export class PiTranscriptProjection {
       || event.type === "tool_execution_start" && state.execution === "running")) return;
     const source = ended ? event.result : event.partialResult;
     const payload = { toolCallId, toolName: stringValue(event.toolName) ?? "unknown",
-      partialResult: event.type === "tool_execution_update", argsComplete: true, isError: event.isError === true };
+      partialResult: event.type === "tool_execution_update", argsComplete: true, isError: event.isError === true,
+      ...(typeof event.durationMs === "number" ? { durationMs: event.durationMs } : {}) };
     const rendering = toolRenderingInput({ args: event.args, previousArgs: existing?.toolRendering, result: source,
       payload, image: part => this.imageReferences([part], "tool-result")[0] });
     this.upsert({

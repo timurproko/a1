@@ -2,16 +2,23 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, posix, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+/** @type {string | undefined} */
+let configuredRoot;
+
 /**
  * Bind the generated facade to the package reached through Pi's public entry.
  * @param {string | URL} entryUrl
  */
 export function configurePinnedPiPublicPackageEntry(entryUrl) {
-  const root = dirname(dirname(fileURLToPath(entryUrl)));
+  const root = resolve(dirname(dirname(fileURLToPath(entryUrl))));
   const manifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
   if (manifest.name !== "@earendil-works/pi-coding-agent" || typeof manifest.version !== "string") {
     throw new Error("pinned Pi public package identity is invalid");
   }
+  if (configuredRoot !== undefined && configuredRoot !== root) {
+    throw new Error("pinned Pi public package identity cannot change after configuration");
+  }
+  configuredRoot = root;
   process.env.PI_PACKAGE_DIR = root;
   return { root, version: manifest.version };
 }
@@ -42,9 +49,9 @@ export function resolvePinnedPiImport(specifier) {
   if (match === null) throw new Error(`pinned Pi import is invalid: ${specifier}`);
   const packageName = match[1] ?? "";
   const subpath = match[2]?.slice(1) ?? "";
-  const packageRoot = resolve(root, "node_modules", ...packageName.split("/"));
+  const packageRoot = findDependencyRoot(root, packageName);
+  if (packageRoot === undefined) throw new Error(`pinned Pi dependency is unavailable: ${packageName}`);
   const manifestPath = resolve(packageRoot, "package.json");
-  if (!existsSync(manifestPath)) throw new Error(`pinned Pi dependency is unavailable: ${packageName}`);
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const declaredTarget = exportedTarget(manifest.exports, subpath) ?? (subpath.length === 0 ? manifest.module ?? manifest.main : undefined);
   const target = typeof declaredTarget === "string" && !declaredTarget.startsWith(".") ? `./${declaredTarget}` : declaredTarget;
@@ -54,10 +61,28 @@ export function resolvePinnedPiImport(specifier) {
   return pathToFileURL(path).href;
 }
 
+/**
+ * Follow Node's package lookup shape so npm may either nest a Pi dependency or
+ * deduplicate it into an ancestor node_modules directory.
+ * @param {string} root
+ * @param {string} packageName
+ * @returns {string | undefined}
+ */
+function findDependencyRoot(root, packageName) {
+  let current = root;
+  while (true) {
+    const candidate = resolve(current, "node_modules", ...packageName.split("/"));
+    if (existsSync(resolve(candidate, "package.json"))) return candidate;
+    const parent = dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+}
+
 function pinnedRoot() {
-  const root = process.env.PI_PACKAGE_DIR;
-  if (!root || !existsSync(resolve(root, "package.json"))) throw new Error("pinned Pi public package directory is not configured");
-  return resolve(root);
+  if (configuredRoot === undefined) throw new Error("pinned Pi public package directory is not configured");
+  if (!existsSync(resolve(configuredRoot, "package.json"))) throw new Error("pinned Pi public package directory is unavailable");
+  return configuredRoot;
 }
 
 /**

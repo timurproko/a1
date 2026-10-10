@@ -1,17 +1,33 @@
 import {
   Input,
-  Key,
   getKeybindings,
   matchesKey,
   truncateToWidth,
+  visibleWidth,
   type Component,
   type Focusable,
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "../startup-public.js";
 import { PiModalFrame } from "./modal-frame.js";
-import { piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "./theme.js";
+import {
+  DIALOG_CLOSE_SHORTCUT_HINT,
+  paintPiBorder,
+  piTheme,
+  renderPiModalListRow,
+  renderPiModalShortcutHints,
+  type PiModalShortcutHint,
+} from "./theme.js";
 
 export type ModelsDialogFilter = "all" | "scoped";
+
+function renderHintsWithClose(entries: readonly PiModalShortcutHint[], width: number): string {
+  const body = renderPiModalShortcutHints(entries.slice(0, -1));
+  const close = renderPiModalShortcutHints([DIALOG_CLOSE_SHORTCUT_HINT]);
+  const closeWidth = visibleWidth(close);
+  if (width <= closeWidth) return truncateToWidth(close, width, "");
+  const clippedBody = truncateToWidth(body, Math.max(0, width - closeWidth - 2), "…");
+  return visibleWidth(clippedBody) === 0 ? close : `${clippedBody}  ${close}`;
+}
 
 export interface ModelsDialogModel {
   readonly provider: string;
@@ -47,7 +63,6 @@ export interface ModelsDialogCallbacks {
 const MAX_VISIBLE_ROWS = 10;
 const MODELS_TITLE = "Models";
 const REFRESHING_TITLE_MIN_DURATION_MS = 1_000;
-const REFRESHED_TITLE_DURATION_MS = 2_000;
 
 interface ModelsDialogRow {
   readonly fullId: string;
@@ -95,7 +110,9 @@ export class ModelsDialogComponent implements Component, Focusable {
     invalidate: () => this.#input.invalidate(),
     render: width => this.#renderBody(width),
   };
-  readonly #frame = new PiModalFrame(new DynamicBorder(), [this.#title, this.#body], new DynamicBorder());
+  readonly #frame = new PiModalFrame(
+    new DynamicBorder(paintPiBorder), [this.#title, this.#body], new DynamicBorder(paintPiBorder),
+  );
   readonly #callbacks: ModelsDialogCallbacks;
   #models: ModelsDialogModel[] = [];
   #activeModelId: string | null;
@@ -108,8 +125,6 @@ export class ModelsDialogComponent implements Component, Focusable {
   #refreshing = false;
   #refreshStartedAt: number | undefined;
   #refreshOutcomeTimer: ReturnType<typeof setTimeout> | undefined;
-  #refreshed = false;
-  #refreshDismissalTimer: ReturnType<typeof setTimeout> | undefined;
   #disposed = false;
   #focused = false;
 
@@ -171,11 +186,9 @@ export class ModelsDialogComponent implements Component, Focusable {
     if (this.#disposed) return;
     if (kind === "muted") {
       this.#clearRefreshOutcome();
-      this.#clearRefreshDismissal();
       this.#refreshStatus = undefined;
       this.#refreshing = true;
       this.#refreshStartedAt = Date.now();
-      this.#refreshed = false;
       return;
     }
     const visibleMs = this.#refreshStartedAt === undefined ? REFRESHING_TITLE_MIN_DURATION_MS : Date.now() - this.#refreshStartedAt;
@@ -200,10 +213,8 @@ export class ModelsDialogComponent implements Component, Focusable {
   dispose(): void {
     this.#disposed = true;
     this.#clearRefreshOutcome();
-    this.#clearRefreshDismissal();
     this.#refreshing = false;
     this.#refreshStartedAt = undefined;
-    this.#refreshed = false;
   }
 
   invalidate(): void {
@@ -227,7 +238,7 @@ export class ModelsDialogComponent implements Component, Focusable {
       if (rows.length > 0) this.#selectedIndex = this.#selectedIndex === rows.length - 1 ? 0 : this.#selectedIndex + 1;
       return;
     }
-    if (kb.matches(data, "tui.input.tab")) {
+    if (matchesKey(data, "shift+tab") || kb.matches(data, "tui.input.tab")) {
       this.#filter = this.#filter === "all" ? "scoped" : "all";
       this.#restoreSelection(preferredId);
       return;
@@ -277,15 +288,6 @@ export class ModelsDialogComponent implements Component, Focusable {
       this.#setScope(next, selected.fullId);
       return;
     }
-    if (matchesKey(data, Key.ctrl("c"))) {
-      if (this.#input.getValue().length > 0) {
-        this.#input.setValue("");
-        this.#selectedIndex = 0;
-        return;
-      }
-      this.#callbacks.onCancel();
-      return;
-    }
     if (kb.matches(data, "tui.select.cancel")) {
       this.#callbacks.onCancel();
       return;
@@ -299,39 +301,20 @@ export class ModelsDialogComponent implements Component, Focusable {
     const theme = piTheme();
     this.#title.setText(theme.fg("accent", theme.bold(MODELS_TITLE))
       + (this.dirty ? theme.fg("warning", " (unsaved)") : "")
-      + (this.#refreshing ? theme.fg("muted", " (refreshing)") : "")
-      + (this.#refreshed ? theme.fg("success", " (refreshed)") : ""));
+      + (this.#refreshing ? theme.fg("muted", " (refreshing)") : ""));
     return this.#frame.render(width);
   }
 
   #applyRefreshOutcome(message: string, kind: "success" | "warning"): void {
-    this.#clearRefreshDismissal();
     this.#refreshing = false;
     this.#refreshStartedAt = undefined;
-    this.#refreshed = kind === "success";
     this.#refreshStatus = kind === "warning" ? { message, kind } : undefined;
-    if (kind !== "success") return;
-    const timer = setTimeout(() => {
-      if (this.#refreshDismissalTimer !== timer) return;
-      this.#refreshDismissalTimer = undefined;
-      if (this.#disposed) return;
-      this.#refreshed = false;
-      this.#callbacks.requestRender();
-    }, REFRESHED_TITLE_DURATION_MS);
-    timer.unref?.();
-    this.#refreshDismissalTimer = timer;
   }
 
   #clearRefreshOutcome(): void {
     if (this.#refreshOutcomeTimer === undefined) return;
     clearTimeout(this.#refreshOutcomeTimer);
     this.#refreshOutcomeTimer = undefined;
-  }
-
-  #clearRefreshDismissal(): void {
-    if (this.#refreshDismissalTimer === undefined) return;
-    clearTimeout(this.#refreshDismissalTimer);
-    this.#refreshDismissalTimer = undefined;
   }
 
   #renderBody(width: number): string[] {
@@ -342,9 +325,9 @@ export class ModelsDialogComponent implements Component, Focusable {
     this.#clampSelection(rows);
 
     push(theme.fg("dim", "Filter: ")
-      + theme.fg(this.#filter === "all" ? "accent" : "dim", "all")
+      + theme.fg(this.#filter === "all" ? "mdHeading" : "dim", "all")
       + theme.fg("dim", " | ")
-      + theme.fg(this.#filter === "scoped" ? "accent" : "dim", "scoped"));
+      + theme.fg(this.#filter === "scoped" ? "mdHeading" : "dim", "scoped"));
     push();
     for (const line of this.#input.render(width)) push(line);
     push();
@@ -358,13 +341,13 @@ export class ModelsDialogComponent implements Component, Focusable {
         const row = rows[index]!;
         const selected = index === this.#selectedIndex;
         const scoped = this.#scopeIds.includes(row.fullId);
-        // Invariant: arrow, scope marker, model id, [provider], then the active checkmark, in that order.
+        // Invariant: arrow, scope marker, model id, [provider], then the active checkmark.
         const prefix = selected ? theme.fg("accent", "→ ") : "  ";
-        const marker = scoped ? theme.fg("success", "●") : theme.fg("dim", "○");
-        const label = selected ? theme.fg("accent", row.model.id) : row.model.id;
+        const marker = scoped ? theme.fg("text", "●") : theme.fg("dim", "○");
+        const label = selected ? theme.fg("text", row.model.id) : row.model.id;
         const provider = theme.fg("muted", `[${row.model.provider}]`);
         const active = row.fullId === this.#activeModelId ? ` ${theme.fg("success", "✓")}` : "";
-        push(`${prefix}${marker} ${label} ${provider}${active}`);
+        push(renderPiModalListRow(`${prefix}${marker} ${label} ${provider}${active}`, width, selected));
       }
       if (startIndex > 0 || endIndex < rows.length) push(theme.fg("muted", `  (${this.#selectedIndex + 1}/${rows.length})`));
       const selectedRow = rows[this.#selectedIndex];
@@ -376,7 +359,7 @@ export class ModelsDialogComponent implements Component, Focusable {
 
     push();
     if (this.#refreshStatus !== undefined) push(theme.fg(this.#refreshStatus.kind, `  ${this.#refreshStatus.message}`));
-    push(renderPiModalShortcutHints(this.#hints()));
+    push(renderHintsWithClose(this.#hints(), width));
     return lines;
   }
 
@@ -385,13 +368,13 @@ export class ModelsDialogComponent implements Component, Focusable {
     const confirm = keyLabel("tui.select.confirm");
     const save = keyLabel("app.models.save");
     return [
-      { action: "type to search" },
+      { key: "Type", action: "search" },
       { key: "↑↓", action: "navigate" },
       ...(tab.length === 0 ? [] : [{ key: tab, action: "filter" }]),
       ...(confirm.length === 0 ? [] : [{ key: confirm, action: "switch" }]),
       { key: "space", action: "scope" },
       ...(save.length === 0 ? [] : [{ key: save, action: "save" }]),
-      { key: "esc", action: "close" },
+      DIALOG_CLOSE_SHORTCUT_HINT,
     ];
   }
 

@@ -337,18 +337,6 @@ export class ControlStore {
   close(): void {
     this.database.close();
   }
-
-  #transaction<T>(operation: () => T): T {
-    this.database.exec("BEGIN IMMEDIATE");
-    try {
-      const result = operation();
-      this.database.exec("COMMIT");
-      return result;
-    } catch (error) {
-      this.database.exec("ROLLBACK");
-      throw error;
-    }
-  }
 }
 
 function launchInstanceFromRow(row: LaunchInstanceRow): LaunchInstance {

@@ -1,11 +1,18 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
- * Modifications: Source-synchronized tree selector port: preserve filtering, folding, labels, copying,
- * tree navigation, key hints, focus, and viewport behavior while remapping public types/components
- * plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton;
- * bare A1 uses the shared semantic modal shortcut row and compact padded modal frame.
- * Deviations: owned-modal-shortcut-hints.
+ * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
+ * preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode
+ * Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation
+ * excluding internal bookkeeping, standard search input, blue full-row menu-arrow selection that
+ * preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed
+ * timestamps, numeric result counters without duplicate label-time status, and a stateful time on/off
+ * shortcut, semantic role colors with session naming for the system root, standard
+ * paging/first-last/non-root containing-branch folding keys with a permanently expanded system session
+ * entry even behind hidden metadata, single-character ellipses on both clipped edges with
+ * bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic
+ * Type/search shortcut footers without a redundant select hint.
+ * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
  */
 import {
 	type Component,
@@ -13,6 +20,7 @@ import {
 	type Focusable,
 	Input,
 	type Keybinding,
+	matchesKey,
 	Spacer,
 	sliceByColumn,
 	Text,
@@ -23,7 +31,7 @@ import {
 import { DynamicBorder, type SessionTreeNode } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
 
 const theme = new Proxy({} as ReturnType<typeof piTheme>, {
 	get(_target, property) {
@@ -33,7 +41,7 @@ const theme = new Proxy({} as ReturnType<typeof piTheme>, {
 	},
 });
 
-const treeKeybindings = KeybindingsManager.create();
+const treeKeybindings = KeybindingsManager.createForOwnedInput();
 
 function formatKeyText(key: string): string {
 	return key
@@ -72,6 +80,7 @@ interface HorizontalViewportRow {
 	body: string;
 	anchorCol: number;
 	bodyWidth: number;
+	rightClipSuffix: string;
 	isSelected: boolean;
 }
 
@@ -80,6 +89,20 @@ const MIN_VISIBLE_ANCHOR_CONTENT_WIDTH = 4;
 const MAX_VISIBLE_ANCHOR_CONTENT_WIDTH = 20;
 const MIN_ANCHOR_CONTEXT_WIDTH = 2;
 const MAX_ANCHOR_CONTEXT_WIDTH = 12;
+
+/** Fit and paint a selected viewport row without letting nested SGR changes clear its background. */
+function renderSelectedViewportRow(value: string, width: number): string {
+	const availableWidth = Math.max(0, width);
+	const clipped = truncateToWidth(value, availableWidth, "");
+	const fitted = `${clipped}${" ".repeat(Math.max(0, availableWidth - visibleWidth(clipped)))}`;
+	const marker = "\u0000";
+	const wrapper = theme.bg("selectedBg", marker);
+	const markerIndex = wrapper.indexOf(marker);
+	const on = wrapper.slice(0, markerIndex);
+	const off = wrapper.slice(markerIndex + marker.length);
+	const reasserted = fitted.replace(/\u001b\[[0-?]*[ -/]*m/gu, sequence => `${sequence}${on}`);
+	return `${on}${reasserted}${off}`;
+}
 
 /**
  * Render tree rows into a horizontally clipped viewport.
@@ -112,16 +135,34 @@ function renderHorizontalViewport(rows: HorizontalViewportRow[], width: number):
 
 	// Clip only the body; the fixed-width gutter remains visible as navigation context.
 	return rows.map((row) => {
-		const line =
-			horizontalScroll > 0
-				? `${row.gutter}${sliceByColumn(row.body, horizontalScroll, viewportWidth, true)}\x1b[0m`
-				: row.gutter + row.body;
-		return truncateToWidth(line, width, "");
+		if (viewportWidth === 0) {
+			const gutter = truncateToWidth(row.gutter, width, "");
+			return row.isSelected ? renderSelectedViewportRow(gutter, width) : gutter;
+		}
+		const leftClipped = horizontalScroll > 0;
+		const widthAfterLeftMarker = Math.max(0, viewportWidth - (leftClipped ? 1 : 0));
+		const rightClipped = row.bodyWidth - horizontalScroll > widthAfterLeftMarker;
+		const rightMarkerText = `…${row.rightClipSuffix}`;
+		const rightMarkerWidth = rightClipped ? visibleWidth(rightMarkerText) : 0;
+		const bodyWidth = Math.max(0, widthAfterLeftMarker - rightMarkerWidth);
+		const marker = (text: string) => theme.fg("muted", text);
+		const body = sliceByColumn(row.body, horizontalScroll, bodyWidth, true);
+		const line = `${row.gutter}${leftClipped ? marker("…") : ""}${body}${rightClipped ? marker(rightMarkerText) : ""}\x1b[0m`;
+		return row.isSelected ? renderSelectedViewportRow(line, width) : truncateToWidth(line, width, "");
 	});
 }
 
 /** Filter mode for tree display */
 export type FilterMode = "default" | "no-tools" | "user-only" | "labeled-only" | "all";
+
+const FILTER_MODES: readonly FilterMode[] = ["all", "no-tools", "user-only", "labeled-only"];
+const FILTER_LABELS: Readonly<Record<FilterMode, string>> = {
+	all: "all",
+	default: "all",
+	"no-tools": "no tools",
+	"user-only": "user",
+	"labeled-only": "labeled",
+};
 
 /**
  * Tree list component with selection and ASCII art visualization
@@ -138,14 +179,14 @@ class TreeList implements Component {
 	private selectedIndex = 0;
 	private currentLeafId: string | null;
 	private maxVisibleLines: number;
-	private filterMode: FilterMode = "default";
+	private filterMode: FilterMode = "all";
 	private searchQuery = "";
 	private toolCallMap: Map<string, ToolCallInfo> = new Map();
 	private multipleRoots = false;
 	private showLabelTimestamps = false;
-	private activePathIds: Set<string> = new Set();
 	private visibleParentMap: Map<string, string | null> = new Map();
 	private visibleChildrenMap: Map<string | null, string[]> = new Map();
+	private sessionRootIds: Set<string> = new Set();
 	private lastSelectedId: string | null = null;
 	private foldedNodes: Set<string> = new Set();
 
@@ -163,10 +204,9 @@ class TreeList implements Component {
 	) {
 		this.currentLeafId = currentLeafId;
 		this.maxVisibleLines = maxVisibleLines;
-		this.filterMode = initialFilterMode ?? "default";
+		this.filterMode = initialFilterMode && initialFilterMode !== "default" ? initialFilterMode : "all";
 		this.multipleRoots = tree.length > 1;
 		this.flatNodes = this.flattenTree(tree);
-		this.buildActivePath();
 		this.applyFilter();
 
 		// Start with initialSelectedId if provided, otherwise current leaf
@@ -205,30 +245,10 @@ class TreeList implements Component {
 		return this.filteredNodes.length - 1;
 	}
 
-	/** Build the set of entry IDs on the path from root to current leaf */
-	private buildActivePath(): void {
-		this.activePathIds.clear();
-		if (!this.currentLeafId) return;
-
-		// Build a map of id -> entry for parent lookup
-		const entryMap = new Map<string, FlatNode>();
-		for (const flatNode of this.flatNodes) {
-			entryMap.set(flatNode.node.entry.id, flatNode);
-		}
-
-		// Walk from leaf to root
-		let currentId: string | null = this.currentLeafId;
-		while (currentId) {
-			this.activePathIds.add(currentId);
-			const node = entryMap.get(currentId);
-			if (!node) break;
-			currentId = node.node.entry.parentId ?? null;
-		}
-	}
-
 	private flattenTree(roots: SessionTreeNode[]): FlatNode[] {
 		const result: FlatNode[] = [];
 		this.toolCallMap.clear();
+		this.sessionRootIds.clear();
 
 		// Indentation rules:
 		// - At indent 0: stay at 0 unless parent has >1 children (then +1)
@@ -280,8 +300,11 @@ class TreeList implements Component {
 		while (stack.length > 0) {
 			const [node, indent, justBranched, showConnector, isLast, gutters, isVirtualRootChild] = stack.pop()!;
 
-			// Extract tool calls from assistant messages for later lookup
+			// Extract structural roots and tool calls from messages for later lookup.
 			const entry = node.entry;
+			if (entry.type === "message" && entry.message.role === "system") {
+				this.sessionRootIds.add(entry.id);
+			}
 			if (entry.type === "message" && entry.message.role === "assistant") {
 				const content = (entry.message as { content?: unknown }).content;
 				if (Array.isArray(content)) {
@@ -367,7 +390,7 @@ class TreeList implements Component {
 
 		this.filteredNodes = this.flatNodes.filter((flatNode) => {
 			const entry = flatNode.node.entry;
-			if (entry.type === "usage") return false;
+			if (entry.type === "usage" || entry.type === "model_change" || entry.type === "thinking_level_change") return false;
 			const isCurrentLeaf = entry.id === this.currentLeafId;
 
 			// Skip assistant messages with only tool calls (no text) unless error/aborted
@@ -389,8 +412,6 @@ class TreeList implements Component {
 				entry.type === "label" ||
 				entry.type === "context_edit" ||
 				entry.type === "custom" ||
-				entry.type === "model_change" ||
-				entry.type === "thinking_level_change" ||
 				entry.type === "session_info";
 
 			switch (this.filterMode) {
@@ -407,11 +428,8 @@ class TreeList implements Component {
 					passesFilter = flatNode.node.label !== undefined;
 					break;
 				case "all":
-					// Show everything
-					passesFilter = true;
-					break;
 				default:
-					// Default mode: hide settings/bookkeeping entries
+					// Product "all" omits internal settings/bookkeeping entries.
 					passesFilter = !isSettingsEntry;
 					break;
 			}
@@ -654,6 +672,14 @@ class TreeList implements Component {
 		return this.searchQuery;
 	}
 
+	getFilterMode(): FilterMode {
+		return this.filterMode;
+	}
+
+	isLabelTimestampVisible(): boolean {
+		return this.showLabelTimestamps;
+	}
+
 	getSelectedNode(): SessionTreeNode | undefined {
 		return this.filteredNodes[this.selectedIndex]?.node;
 	}
@@ -678,34 +704,11 @@ class TreeList implements Component {
 		}
 	}
 
-	private getStatusLabels(): string {
-		let labels = "";
-		switch (this.filterMode) {
-			case "no-tools":
-				labels += " [no-tools]";
-				break;
-			case "user-only":
-				labels += " [user]";
-				break;
-			case "labeled-only":
-				labels += " [labeled]";
-				break;
-			case "all":
-				labels += " [all]";
-				break;
-		}
-		if (this.showLabelTimestamps) {
-			labels += " [+label time]";
-		}
-		return labels;
-	}
-
 	render(width: number): string[] {
 		const lines: string[] = [];
 
 		if (this.filteredNodes.length === 0) {
 			lines.push(truncateToWidth(theme.fg("muted", "  No entries found"), width));
-			lines.push(truncateToWidth(theme.fg("muted", `  (0/0)${this.getStatusLabels()}`), width));
 			return lines;
 		}
 
@@ -724,8 +727,8 @@ class TreeList implements Component {
 			const entry = flatNode.node.entry;
 			const isSelected = i === this.selectedIndex;
 
-			// Build line: cursor + prefix + path marker + label + content
-			const cursor = isSelected ? theme.fg("accent", "› ") : "  ";
+			// Build line: menu arrow + tree prefix + path marker + label + content
+			const cursor = isSelected ? theme.fg("accent", "→ ") : "  ";
 
 			// If multiple roots, shift display (roots at 0, not 1)
 			const displayIndent = this.multipleRoots ? Math.max(0, flatNode.indent - 1) : flatNode.indent;
@@ -772,125 +775,108 @@ class TreeList implements Component {
 			const showsFoldInConnector = flatNode.showConnector && !flatNode.isVirtualRootChild;
 			const foldMarker = isFolded && !showsFoldInConnector ? theme.fg("accent", "⊞ ") : "";
 
-			// Active path marker - shown right before the entry text
-			const isOnActivePath = this.activePathIds.has(entry.id);
-			const pathMarker = isOnActivePath ? theme.fg("accent", "• ") : "";
-
-			const label = flatNode.node.label ? theme.fg("warning", `[${flatNode.node.label}] `) : "";
+			const label = flatNode.node.label ? theme.fg("accent", `[${flatNode.node.label}] `) : "";
 			const labelTimestamp =
 				this.showLabelTimestamps && flatNode.node.label && flatNode.node.labelTimestamp
-					? theme.fg("muted", `${this.formatLabelTimestamp(flatNode.node.labelTimestamp)} `)
+					? theme.fg("accent", `[${this.formatLabelTimestamp(flatNode.node.labelTimestamp)}] `)
 					: "";
-			const content = this.getEntryDisplayText(flatNode.node, isSelected);
-			const prefixPart = theme.fg("dim", prefix) + foldMarker + pathMarker;
+			const content = this.getEntryDisplayText(flatNode.node);
+			const prefixPart = theme.fg("dim", prefix) + foldMarker;
 			const anchorCol = visibleWidth(prefixPart);
-			let gutter = cursor;
-			let body = prefixPart + label + labelTimestamp + content;
-			if (isSelected) {
-				gutter = theme.bg("selectedBg", gutter);
-				body = theme.bg("selectedBg", body);
-			}
-			renderedRows.push({ gutter, body, anchorCol, bodyWidth: visibleWidth(body), isSelected });
+			const gutter = cursor;
+			const body = prefixPart + label + labelTimestamp + content;
+			const rightClipSuffix = entry.type === "message" && entry.message.role === "toolResult" ? "]" : "";
+			renderedRows.push({ gutter, body, anchorCol, bodyWidth: visibleWidth(body), rightClipSuffix, isSelected });
 		}
 
 		lines.push(...renderHorizontalViewport(renderedRows, width));
 		lines.push(
-			truncateToWidth(
-				theme.fg("muted", `  (${this.selectedIndex + 1}/${this.filteredNodes.length})${this.getStatusLabels()}`),
-				width,
-			),
+			truncateToWidth(theme.fg("muted", `  (${this.selectedIndex + 1}/${this.filteredNodes.length})`), width),
 		);
 
 		return lines;
 	}
 
-	private getEntryDisplayText(node: SessionTreeNode, isSelected: boolean): string {
+	private getEntryDisplayText(node: SessionTreeNode): string {
 		const entry = node.entry;
 		let result: string;
 
 		const normalize = (s: string) => s.replace(/[\n\t]/g, " ").trim();
+		const primary = (color: Parameters<typeof theme.fg>[0], text: string) => theme.fg(color, text);
+		const description = (text: string, color: Parameters<typeof theme.fg>[0] = "muted") => theme.fg(color, text);
 
 		switch (entry.type) {
 			case "message": {
 				const msg = entry.message;
 				const role = msg.role;
 				if (role === "user") {
-					const msgWithContent = msg as { content?: unknown };
-					const content = normalize(this.extractContent(msgWithContent.content));
-					result = theme.fg("accent", "user: ") + content;
+					const content = normalize(this.extractContent((msg as { content?: unknown }).content));
+					result = primary("success", "user: ") + description(content);
 				} else if (role === "assistant") {
-					const msgWithContent = msg as { content?: unknown; stopReason?: string; errorMessage?: string };
-					const textContent = normalize(this.extractContent(msgWithContent.content));
-					if (textContent) {
-						result = theme.fg("success", "assistant: ") + textContent;
-					} else if (msgWithContent.stopReason === "aborted") {
-						result = theme.fg("success", "assistant: ") + theme.fg("muted", "(aborted)");
-					} else if (msgWithContent.errorMessage) {
-						const errMsg = normalize(msgWithContent.errorMessage).slice(0, 80);
-						result = theme.fg("success", "assistant: ") + theme.fg("error", errMsg);
-					} else {
-						result = theme.fg("success", "assistant: ") + theme.fg("muted", "(no content)");
-					}
+					const assistant = msg as { content?: unknown; stopReason?: string; errorMessage?: string };
+					const textContent = normalize(this.extractContent(assistant.content));
+					const label = primary("warning", "assistant: ");
+					if (textContent) result = label + description(textContent);
+					else if (assistant.stopReason === "aborted") result = label + description("(aborted)", "muted");
+					else if (assistant.errorMessage) result = label + description(normalize(assistant.errorMessage).slice(0, 80), "error");
+					else result = label + description("(no content)", "muted");
 				} else if (role === "toolResult") {
 					const toolMsg = msg as { toolCallId?: string; toolName?: string };
 					const toolCall = toolMsg.toolCallId ? this.toolCallMap.get(toolMsg.toolCallId) : undefined;
-					if (toolCall) {
-						result = theme.fg("muted", this.formatToolCall(toolCall.name, toolCall.arguments));
-					} else {
-						result = theme.fg("muted", `[${toolMsg.toolName ?? "tool"}]`);
-					}
+					result = primary("muted", toolCall
+						? this.formatToolCall(toolCall.name, toolCall.arguments)
+						: `[${toolMsg.toolName ?? "tool"}]`);
 				} else if (role === "bashExecution") {
-					const bashMsg = msg as { command?: string };
-					result = theme.fg("dim", `[bash]: ${normalize(bashMsg.command ?? "")}`);
+					const command = normalize((msg as { command?: string }).command ?? "");
+					result = primary("dim", "[bash]: ") + description(command, "dim");
 				} else {
-					result = theme.fg("dim", `[${role}]`);
+					result = primary("dim", role === "system" ? "session" : `[${role}]`);
 				}
 				break;
 			}
 			case "custom_message": {
-				const content =
-					typeof entry.content === "string"
-						? entry.content
-						: entry.content
-								.filter((c): c is { type: "text"; text: string } => c.type === "text")
-								.map((c) => c.text)
-								.join("");
-				result = theme.fg("customMessageLabel", `[${entry.customType}]: `) + normalize(content);
+				const content = typeof entry.content === "string"
+					? entry.content
+					: entry.content
+							.filter((c): c is { type: "text"; text: string } => c.type === "text")
+							.map((c) => c.text)
+							.join("");
+				result = primary("customMessageLabel", `[${entry.customType}]: `) + description(normalize(content));
 				break;
 			}
 			case "compaction": {
 				const tokens = Math.round(entry.tokensBefore / 1000);
-				result = theme.fg("borderAccent", `[compaction: ${tokens}k tokens]`);
+				result = primary("borderAccent", `[compaction: ${tokens}k tokens]`);
 				break;
 			}
 			case "branch_summary":
-				result = theme.fg("warning", `[branch summary]: `) + normalize(entry.summary);
+				result = primary("warning", "[branch summary]: ") + description(normalize(entry.summary));
 				break;
 			case "model_change":
-				result = theme.fg("dim", `[model: ${entry.modelId}]`);
+				result = primary("dim", `[model: ${entry.modelId}]`);
 				break;
 			case "thinking_level_change":
-				result = theme.fg("dim", `[thinking: ${entry.thinkingLevel}]`);
+				result = primary("dim", `[thinking: ${entry.thinkingLevel}]`);
 				break;
 			case "custom":
-				result = theme.fg("dim", `[custom: ${entry.customType}]`);
+				result = primary("dim", `[custom: ${entry.customType}]`);
 				break;
 			case "context_edit":
-				result = theme.fg("dim", `[context ${entry.replacement === null ? "omit" : "replace"}: ${entry.targetId}]`);
+				result = primary("dim", `[context ${entry.replacement === null ? "omit" : "replace"}: ${entry.targetId}]`);
 				break;
 			case "label":
-				result = theme.fg("dim", `[label: ${entry.label ?? "(cleared)"}]`);
+				result = primary("dim", `[label: ${entry.label ?? "(cleared)"}]`);
 				break;
 			case "session_info":
 				result = entry.name
-					? [theme.fg("dim", "[title: "), theme.fg("dim", entry.name), theme.fg("dim", "]")].join("")
+					? primary("dim", `[title: ${entry.name}]`)
 					: [theme.fg("dim", "[title: "), theme.italic(theme.fg("dim", "empty")), theme.fg("dim", "]")].join("");
 				break;
 			default:
 				result = "";
 		}
 
-		return isSelected ? theme.bold(result) : result;
+		return result;
 	}
 
 	private formatLabelTimestamp(timestamp: string): string {
@@ -1011,7 +997,7 @@ class TreeList implements Component {
 					.replace(/[\n\t]/g, " ")
 					.trim()
 					.slice(0, 50);
-				return `[bash: ${cmd}${rawCmd.length > 50 ? "..." : ""}]`;
+				return `[bash: ${cmd}${rawCmd.length > 50 ? "…" : ""}]`;
 			}
 			case "grep": {
 				const pattern = String(args.pattern || "");
@@ -1030,7 +1016,7 @@ class TreeList implements Component {
 			default: {
 				// Custom tool - show name and truncated JSON args
 				const argsStr = JSON.stringify(args).slice(0, 40);
-				return `[${name}: ${argsStr}${JSON.stringify(args).length > 40 ? "..." : ""}]`;
+				return `[${name}: ${argsStr}${JSON.stringify(args).length > 40 ? "…" : ""}]`;
 			}
 		}
 	}
@@ -1041,6 +1027,19 @@ class TreeList implements Component {
 			this.selectedIndex = this.selectedIndex === 0 ? this.filteredNodes.length - 1 : this.selectedIndex - 1;
 		} else if (kb.matches(keyData, "tui.select.down")) {
 			this.selectedIndex = this.selectedIndex === this.filteredNodes.length - 1 ? 0 : this.selectedIndex + 1;
+		} else if (kb.matches(keyData, "owned.tree.collapse")) {
+			const currentId = this.filteredNodes[this.selectedIndex]?.node.entry.id;
+			const branchId = currentId ? this.findNearestExpandedBranch(currentId) : null;
+			if (branchId) {
+				this.foldedNodes.add(branchId);
+				this.applyFilter();
+			}
+		} else if (kb.matches(keyData, "owned.tree.expand")) {
+			const currentId = this.filteredNodes[this.selectedIndex]?.node.entry.id;
+			if (currentId && this.foldedNodes.has(currentId)) {
+				this.foldedNodes.delete(currentId);
+				this.applyFilter();
+			}
 		} else if (kb.matches(keyData, "app.tree.foldOrUp")) {
 			const currentId = this.filteredNodes[this.selectedIndex]?.node.entry.id;
 			if (currentId && this.isFoldable(currentId) && !this.foldedNodes.has(currentId)) {
@@ -1057,12 +1056,14 @@ class TreeList implements Component {
 			} else {
 				this.selectedIndex = this.findBranchSegmentStart("down");
 			}
-		} else if (kb.matches(keyData, "tui.editor.cursorLeft") || kb.matches(keyData, "tui.select.pageUp")) {
-			// Page up
+		} else if (kb.matches(keyData, "tui.select.pageUp")) {
 			this.selectedIndex = Math.max(0, this.selectedIndex - this.maxVisibleLines);
-		} else if (kb.matches(keyData, "tui.editor.cursorRight") || kb.matches(keyData, "tui.select.pageDown")) {
-			// Page down
+		} else if (kb.matches(keyData, "tui.select.pageDown")) {
 			this.selectedIndex = Math.min(this.filteredNodes.length - 1, this.selectedIndex + this.maxVisibleLines);
+		} else if (kb.matches(keyData, "owned.tree.first")) {
+			this.selectedIndex = 0;
+		} else if (kb.matches(keyData, "owned.tree.last")) {
+			this.selectedIndex = Math.max(0, this.filteredNodes.length - 1);
 		} else if (kb.matches(keyData, "tui.select.confirm")) {
 			const selected = this.filteredNodes[this.selectedIndex];
 			if (selected && this.onSelect) {
@@ -1079,42 +1080,36 @@ class TreeList implements Component {
 				this.onCancel?.();
 			}
 		} else if (kb.matches(keyData, "app.tree.filter.default")) {
-			// Direct filter: default
-			this.filterMode = "default";
+			this.filterMode = "all";
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "app.tree.filter.noTools")) {
-			// Toggle filter: no-tools ↔ default
-			this.filterMode = this.filterMode === "no-tools" ? "default" : "no-tools";
+			// Toggle filter: no-tools ↔ all
+			this.filterMode = this.filterMode === "no-tools" ? "all" : "no-tools";
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "app.tree.filter.userOnly")) {
-			// Toggle filter: user-only ↔ default
-			this.filterMode = this.filterMode === "user-only" ? "default" : "user-only";
+			// Toggle filter: user-only ↔ all
+			this.filterMode = this.filterMode === "user-only" ? "all" : "user-only";
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "app.tree.filter.labeledOnly")) {
-			// Toggle filter: labeled-only ↔ default
-			this.filterMode = this.filterMode === "labeled-only" ? "default" : "labeled-only";
+			// Toggle filter: labeled-only ↔ all
+			this.filterMode = this.filterMode === "labeled-only" ? "all" : "labeled-only";
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "app.tree.filter.all")) {
-			// Toggle filter: all ↔ default
-			this.filterMode = this.filterMode === "all" ? "default" : "all";
+			this.filterMode = "all";
 			this.foldedNodes.clear();
 			this.applyFilter();
-		} else if (kb.matches(keyData, "app.tree.filter.cycleBackward")) {
-			// Cycle filter backwards
-			const modes: FilterMode[] = ["default", "no-tools", "user-only", "labeled-only", "all"];
-			const currentIndex = modes.indexOf(this.filterMode);
-			this.filterMode = modes[(currentIndex - 1 + modes.length) % modes.length]!;
+		} else if (matchesKey(keyData, "shift+tab") || kb.matches(keyData, "app.tree.filter.cycleBackward")) {
+			const currentIndex = FILTER_MODES.indexOf(this.filterMode);
+			this.filterMode = FILTER_MODES[(currentIndex - 1 + FILTER_MODES.length) % FILTER_MODES.length]!;
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "app.tree.filter.cycleForward")) {
-			// Cycle filter forwards: default → no-tools → user-only → labeled-only → all → default
-			const modes: FilterMode[] = ["default", "no-tools", "user-only", "labeled-only", "all"];
-			const currentIndex = modes.indexOf(this.filterMode);
-			this.filterMode = modes[(currentIndex + 1) % modes.length]!;
+			const currentIndex = FILTER_MODES.indexOf(this.filterMode);
+			this.filterMode = FILTER_MODES[(currentIndex + 1) % FILTER_MODES.length]!;
 			this.foldedNodes.clear();
 			this.applyFilter();
 		} else if (kb.matches(keyData, "tui.editor.deleteCharBackward")) {
@@ -1144,11 +1139,14 @@ class TreeList implements Component {
 	}
 
 	/**
-	 * Whether a node can be folded. A node is foldable if it has visible children
-	 * and is either a root (no visible parent) or a segment start (visible parent
-	 * has multiple visible children).
+	 * Whether a node can be folded. The system entry rendered as the session root
+	 * stays expanded even when hidden metadata precedes it; other nodes are
+	 * foldable when they have visible children and either appear at the filtered
+	 * root or begin a segment below a visible branch point.
 	 */
 	private isFoldable(entryId: string): boolean {
+		if (this.sessionRootIds.has(entryId)) return false;
+
 		const children = this.visibleChildrenMap.get(entryId);
 		if (!children || children.length === 0) return false;
 		const parentId = this.visibleParentMap.get(entryId);
@@ -1157,13 +1155,17 @@ class TreeList implements Component {
 		return siblings !== undefined && siblings.length > 1;
 	}
 
-	/**
-	 * Find the index of the next branch segment start in the given direction.
-	 * A segment start is the first child of a branch point.
-	 *
-	 * "up" walks the visible parent chain; "down" walks visible children
-	 * (always following the first child).
-	 */
+	/** Resolve the nearest expanded branch containing the selected entry. */
+	private findNearestExpandedBranch(entryId: string): string | null {
+		let currentId: string | null = entryId;
+		while (currentId !== null) {
+			if (this.isFoldable(currentId) && !this.foldedNodes.has(currentId)) return currentId;
+			currentId = this.visibleParentMap.get(currentId) ?? null;
+		}
+		return null;
+	}
+
+	/** Find the next branch segment start for the retained modified-arrow shortcuts. */
 	private findBranchSegmentStart(direction: "up" | "down"): number {
 		const selectedId = this.filteredNodes[this.selectedIndex]?.node.entry.id;
 		if (!selectedId) return this.selectedIndex;
@@ -1179,25 +1181,68 @@ class TreeList implements Component {
 			}
 		}
 
-		// direction === "up"
 		while (true) {
 			const parentId: string | null = this.visibleParentMap.get(currentId) ?? null;
 			if (parentId === null) return indexByEntryId.get(currentId)!;
 			const children = this.visibleChildrenMap.get(parentId) ?? [];
 			if (children.length > 1) {
 				const segmentStart = indexByEntryId.get(currentId)!;
-				if (segmentStart < this.selectedIndex) {
-					return segmentStart;
-				}
+				if (segmentStart < this.selectedIndex) return segmentStart;
 			}
 			currentId = parentId;
 		}
 	}
 }
 
-/** Component that displays the current search query */
-class SearchLine implements Component {
-	private treeList: TreeList;
+class TreeSearchInput implements Component, Focusable {
+	private readonly treeList: TreeList;
+	private input = new Input();
+	private renderedQuery = "";
+
+	constructor(treeList: TreeList) {
+		this.treeList = treeList;
+	}
+
+	get focused(): boolean {
+		return this.input.focused;
+	}
+
+	set focused(value: boolean) {
+		this.input.focused = value;
+	}
+
+	invalidate(): void {
+		this.input.invalidate();
+	}
+
+	render(width: number): string[] {
+		const query = this.treeList.getSearchQuery();
+		if (query !== this.renderedQuery) {
+			this.input = Object.assign(new Input(), { focused: this.input.focused });
+			this.input.handleInput(query);
+			this.renderedQuery = query;
+		}
+		return this.input.render(width);
+	}
+}
+
+/** Models-style summary of the active tree filter. */
+class TreeFilter implements Component {
+	private readonly treeList: TreeList;
+	constructor(treeList: TreeList) {
+		this.treeList = treeList;
+	}
+	invalidate(): void {}
+	render(width: number): string[] {
+		const active = this.treeList.getFilterMode();
+		const choices = FILTER_MODES.map((mode) => theme.fg(mode === active ? "mdHeading" : "muted", FILTER_LABELS[mode]));
+		return [truncateToWidth(theme.fg("muted", "Filter: ") + choices.join(theme.fg("muted", " | ")), width)];
+	}
+}
+
+/** Component that renders tree help as semantic rows with chunk-aware wrapping */
+class TreeHelp implements Component {
+	private readonly treeList: TreeList;
 
 	constructor(treeList: TreeList) {
 		this.treeList = treeList;
@@ -1206,25 +1251,16 @@ class SearchLine implements Component {
 	invalidate(): void {}
 
 	render(width: number): string[] {
-		const query = this.treeList.getSearchQuery();
-		if (query) {
-			return [truncateToWidth(`  ${theme.fg("muted", "Type to search:")} ${theme.fg("accent", query)}`, width)];
-		}
-		return [truncateToWidth(`  ${theme.fg("muted", "Type to search:")}`, width)];
-	}
-
-	handleInput(_keyData: string): void {}
-}
-
-/** Component that renders tree help as semantic rows with chunk-aware wrapping */
-class TreeHelp implements Component {
-	invalidate(): void {}
-
-	render(width: number): string[] {
-		const items = TREE_HELP_ITEMS.map(({ keys, label, labelFirst }) => {
-			const key = formatHelpKeys(keys);
-			return renderPiModalShortcutHints([key ? { key, action: label, ...(labelFirst === undefined ? {} : { actionFirst: labelFirst }) } : { action: label }]);
-		});
+		const items = [
+			...TREE_HELP_ITEMS.map(({ keys, label, labelFirst, displayKey }) => {
+				const key = displayKey ?? formatHelpKeys(keys);
+				const action = keys.includes("app.tree.toggleLabelTimestamp")
+					? `time (${this.treeList.isLabelTimestampVisible() ? "on" : "off"})`
+					: label;
+				return renderPiModalShortcutHints([key ? { key, action, ...(labelFirst === undefined ? {} : { actionFirst: labelFirst }) } : { action }]);
+			}),
+			renderPiModalShortcutHints([DIALOG_CLOSE_SHORTCUT_HINT]),
+		];
 
 		const availableWidth = Math.max(1, width);
 		// The frame supplies the shared outer cell; help content needs no duplicate chrome inset.
@@ -1256,25 +1292,16 @@ class TreeHelp implements Component {
 	}
 }
 
-const TREE_HELP_ITEMS: Array<{ keys: Keybinding[]; label: string; labelFirst?: boolean }> = [
-	{ keys: ["tui.select.up", "tui.select.down"], label: "move" },
-	{ keys: ["tui.editor.cursorLeft", "tui.editor.cursorRight"], label: "page" },
-	{ keys: ["app.tree.foldOrUp", "app.tree.unfoldOrDown"], label: "branch" },
+const TREE_HELP_ITEMS: Array<{ keys: Keybinding[]; label: string; labelFirst?: boolean; displayKey?: string }> = [
+	{ keys: [], displayKey: "Type", label: "search" },
+	{ keys: ["tui.select.up", "tui.select.down"], label: "navigate" },
+	{ keys: ["app.tree.filter.cycleForward"], label: "filter" },
+	{ keys: ["tui.select.pageUp", "tui.select.pageDown"], label: "page" },
+	{ keys: ["owned.tree.first", "owned.tree.last"], label: "first/last" },
+	{ keys: ["owned.tree.collapse", "owned.tree.expand"], label: "branch" },
 	{ keys: ["app.message.copy"], label: "copy" },
 	{ keys: ["app.tree.editLabel"], label: "label" },
-	{ keys: ["app.tree.toggleLabelTimestamp"], label: "label time" },
-	{
-		keys: [
-			"app.tree.filter.default",
-			"app.tree.filter.noTools",
-			"app.tree.filter.userOnly",
-			"app.tree.filter.labeledOnly",
-			"app.tree.filter.all",
-		],
-		label: "filters",
-		labelFirst: true,
-	},
-	{ keys: ["app.tree.filter.cycleForward", "app.tree.filter.cycleBackward"], label: "cycle", labelFirst: true },
+	{ keys: ["app.tree.toggleLabelTimestamp"], label: "time" },
 ];
 
 function formatHelpKeys(keybindings: Keybinding[]): string {
@@ -1286,6 +1313,7 @@ function formatHelpKeys(keybindings: Keybinding[]): string {
 	if (keys.length === 0) return "";
 
 	return formatKeyText(compactRawKeys(keys))
+		.replace(/\btab\b/gi, "Tab")
 		.replace(/\bpageUp\b/g, "pgup")
 		.replace(/\bpageDown\b/g, "pgdn")
 		.replace(/\bup\b/g, "↑")
@@ -1329,29 +1357,24 @@ class LabelInput implements Component, Focusable {
 	constructor(entryId: string, currentLabel: string | undefined) {
 		this.entryId = entryId;
 		this.input = new Input();
-		if (currentLabel) {
-			this.input.setValue(currentLabel);
-		}
+		if (currentLabel) this.input.handleInput(currentLabel);
 	}
 
-	invalidate(): void {}
+	invalidate(): void {
+		this.input.invalidate();
+	}
 
 	render(width: number): string[] {
-		const lines: string[] = [];
-		const indent = "  ";
-		const availableWidth = width - indent.length;
-		lines.push(truncateToWidth(`${indent}${theme.fg("muted", "Label (empty to remove):")}`, width));
-		lines.push(...this.input.render(availableWidth).map((line) => truncateToWidth(`${indent}${line}`, width)));
-		lines.push(
-			truncateToWidth(
-				renderPiModalShortcutHints([
-					shortcutHint("tui.select.confirm", "save"),
-					shortcutHint("tui.select.cancel", "cancel"),
-				], indent.length),
-				width,
-			),
-		);
-		return lines;
+		return [
+			truncateToWidth(theme.fg("muted", "Empty to remove"), width),
+			"",
+			...this.input.render(width),
+			"",
+			truncateToWidth(renderPiModalShortcutHints([
+				shortcutHint("tui.select.confirm", "save"),
+				DIALOG_CLOSE_SHORTCUT_HINT,
+			]), width),
+		];
 	}
 
 	handleInput(keyData: string): void {
@@ -1372,9 +1395,15 @@ class LabelInput implements Component, Focusable {
  */
 export class TreeSelectorComponent extends Container implements Focusable {
 	private treeList: TreeList;
+	private readonly searchInput: TreeSearchInput;
+	private readonly treeFilter: TreeFilter;
+	private readonly titleText: Text;
+	private readonly searchInputContainer = new Container();
+	private readonly treeContainer = new Container();
+	private readonly labelInputContainer = new Container();
+	private readonly footerContainer = new Container();
+	private readonly treeHelp: TreeHelp;
 	private labelInput: LabelInput | null = null;
-	private labelInputContainer: Container;
-	private treeContainer: Container;
 	private onLabelChangeCallback: ((entryId: string, label: string | undefined) => void) | undefined;
 	public onCopy?: (text: string | undefined) => void;
 
@@ -1385,10 +1414,8 @@ export class TreeSelectorComponent extends Container implements Focusable {
 	}
 	set focused(value: boolean) {
 		this._focused = value;
-		// Propagate to labelInput when it's active
-		if (this.labelInput) {
-			this.labelInput.focused = value;
-		}
+		this.searchInput.focused = value && this.labelInput === null;
+		if (this.labelInput) this.labelInput.focused = value;
 	}
 
 	constructor(
@@ -1411,33 +1438,41 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		this.treeList.onCancel = onCancel;
 		this.treeList.onCopy = (text) => this.onCopy?.(text);
 		this.treeList.onLabelEdit = (entryId, currentLabel) => this.showLabelInput(entryId, currentLabel);
+		this.searchInput = new TreeSearchInput(this.treeList);
+		this.treeFilter = new TreeFilter(this.treeList);
+		this.treeHelp = new TreeHelp(this.treeList);
+		this.titleText = new Text(theme.fg("accent", theme.bold("Session Tree")), 0, 0);
+		this.restoreTreeContent();
 
-		this.treeContainer = new Container();
-		this.treeContainer.addChild(this.treeList);
-
-		this.labelInputContainer = new Container();
-
-		this.addChild(new Spacer(1));
-		const header = addPiModalHeader(this, new DynamicBorder(), new Text(theme.bold("Session Tree"), 0, 0));
-		this.addChild(new TreeHelp());
-		this.addChild(new SearchLine(this.treeList));
-		const separator = new DynamicBorder();
-		this.addChild(separator);
-		this.addChild(new Spacer(1));
+		const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), this.titleText);
+		this.addChild(this.searchInputContainer);
 		this.addChild(this.treeContainer);
 		this.addChild(this.labelInputContainer);
-		this.addChild(new Spacer(1));
-		this.addChild(new DynamicBorder());
+		this.addChild(this.footerContainer);
+		this.addChild(new DynamicBorder(paintPiBorder));
 		adoptPiModalFrame(this, {
-			topIndex: 1,
+			topIndex: 0,
 			bottomIndex: this.children.length - 1,
 			header,
-			fullWidthContent: [separator],
 		});
 
 		if (tree.length === 0) {
 			setTimeout(() => onCancel(), 100);
 		}
+	}
+
+	private restoreTreeContent(): void {
+		this.titleText.setText(theme.fg("accent", theme.bold("Session Tree")));
+		this.searchInputContainer.clear();
+		this.searchInputContainer.addChild(this.treeFilter);
+		this.searchInputContainer.addChild(new Spacer(1));
+		this.searchInputContainer.addChild(this.searchInput);
+		this.searchInputContainer.addChild(new Spacer(1));
+		this.treeContainer.clear();
+		this.treeContainer.addChild(this.treeList);
+		this.footerContainer.clear();
+		this.footerContainer.addChild(new Spacer(1));
+		this.footerContainer.addChild(this.treeHelp);
 	}
 
 	private showLabelInput(entryId: string, currentLabel: string | undefined): void {
@@ -1449,19 +1484,23 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		};
 		this.labelInput.onCancel = () => this.hideLabelInput();
 
-		// Propagate current focused state to the new labelInput
+		// Focus only the active editor.
+		this.searchInput.focused = false;
 		this.labelInput.focused = this._focused;
 
+		this.titleText.setText(theme.fg("accent", theme.bold("Label")));
+		this.searchInputContainer.clear();
 		this.treeContainer.clear();
 		this.labelInputContainer.clear();
 		this.labelInputContainer.addChild(this.labelInput);
+		this.footerContainer.clear();
 	}
 
 	private hideLabelInput(): void {
 		this.labelInput = null;
+		this.searchInput.focused = this._focused;
 		this.labelInputContainer.clear();
-		this.treeContainer.clear();
-		this.treeContainer.addChild(this.treeList);
+		this.restoreTreeContent();
 	}
 
 	handleInput(keyData: string): void {

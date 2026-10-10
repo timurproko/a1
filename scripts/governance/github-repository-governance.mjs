@@ -56,6 +56,9 @@ export function inspectWorkflowSource(path, source) {
     if (line(/^\s+types: \[[^\]\n]*\bedited\b[^\]\n]*\]/m)) triggers.push("pull_request_target:edited");
   }
   if (line(/^  workflow_run:\s*$/m)) triggers.push("workflow_run");
+  if (line(/^  repository_dispatch:\s*$/m)) triggers.push("repository_dispatch");
+  if (line(/^  release:\s*$/m) && line(/^\s+types: \[[^\]\n]*\bpublished\b[^\]\n]*\]/m)) triggers.push("release:published");
+  if (line(/^  release:\s*$/m) && line(/^\s+types: \[[^\]\n]*\bdeleted\b[^\]\n]*\]/m)) triggers.push("release:deleted");
   if (line(/^  workflow_dispatch:\s*/m)) triggers.push("workflow_dispatch");
   if (line(/^  workflow_call:\s*/m)) triggers.push("workflow_call");
   if (line(/^  schedule:\s*$/m)) triggers.push("schedule");
@@ -67,7 +70,12 @@ export function inspectWorkflowSource(path, source) {
   const concurrency = /^\s+group:\s*([^\n$]+?)(?:\$\{\{|\s*$)/m.exec(source)?.[1]?.trim() ?? "";
 
   let trustedSource = "unknown";
-  if (source.includes("ref: ${{ github.event.repository.default_branch }}")) trustedSource = "default-branch";
+  if (source.includes("ref: ${{ github.event.repository.default_branch }}")
+    || (["release-candidate.yml", "develop.yml"].some(name => path.endsWith(name)) && source.includes("uses: timurproko/a1/.github/workflows/publish.yml@develop"))) trustedSource = "default-branch";
+  // Rationale: GitHub runs a release event from the tag it created at the published source;
+  // that wrapper only selects the default-branch publisher, which re-derives every identity.
+  else if (path.endsWith("release.yml") && source.includes("uses: timurproko/a1/.github/workflows/publish.yml@develop")
+    && source.includes("ref: develop")) trustedSource = "published-release-tag";
   else if (path.endsWith("ci.yml") && source.includes("github.event.pull_request.head.sha") && permissions.every(value => value.endsWith("read"))) trustedSource = "pull-request-head-read-only";
   else if (path.endsWith("full-regression.yml") && source.includes("source: ${{ github.sha }}") && source.includes("uses: ./.github/workflows/full-regression-shared.yml")) trustedSource = "dispatch-commit";
   else if (path.endsWith("full-regression-shared.yml") && source.includes("ref: ${{ inputs.source }}") && permissions.every(value => value.endsWith("read"))) trustedSource = "explicit-source-read-only";
@@ -80,6 +88,13 @@ export function inspectWorkflowSource(path, source) {
   if (source.includes("manage-documentation-auto-merge.mjs")) authority.push("documentation-auto-merge", "matching-merged-head-delete", "archive-protected-integration");
   if (source.includes('VALIDATION_SELECTION_JSON: \'["full-release"]\'') || source.includes("uses: ./.github/workflows/full-regression-shared.yml")) authority.push("complete-regression");
   if (source.includes("reconcile-merged-branch.mjs")) authority.push("matching-merged-head-delete");
+  if (source.includes("refresh-ready-pull-requests.mjs")) {
+    // Security: branch refresh is recognized only through a scoped App token; any other credential shape drifts from the inventory.
+    const scopedAppToken = source.includes("actions/create-github-app-token@") && source.includes("BRANCH_REFRESH_TOKEN: ${{ steps.app.outputs.token }}")
+      && /^\s+permission-contents: write\s*$/m.test(source) && /^\s+permission-pull-requests: write\s*$/m.test(source)
+      && !/^\s+permission-(?!contents:|pull-requests:)[a-z-]+:/m.test(source);
+    authority.push(scopedAppToken ? "ready-pull-request-branch-refresh" : "unscoped-branch-refresh");
+  }
   if (source.includes("reconcile-openspec-archive.mjs")) {
     if (source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) {
       authority.push("openspec-archive-app-publication", "archive-read-only-audit");
@@ -91,11 +106,25 @@ export function inspectWorkflowSource(path, source) {
     }
   }
   if (source.includes("publish-openspec-finalization.mjs") && source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) authority.push("single-pr-finalization-publication");
-  if (source.includes('channel = "next"')) authority.push("npm-next");
+  if (path.endsWith("release-candidate.yml") && source.includes("channel: candidate") && line(/^  workflow_dispatch:\s*$/m)) authority.push("stable-release-candidate-validation");
+  if (path.endsWith("release.yml") && source.includes("channel: stable") && line(/^  release:\s*$/m)) authority.push("stable-release-publication");
+  if (source.includes("rollback-publication.mjs")) {
+    // Security: only the release-automation App bypasses tag deletion, through a contents-scoped token.
+    const scopedTagToken = source.includes("TAG_TOKEN: ${{ steps.app.outputs.token }}") && /^\s+permission-contents: write\s*$/m.test(source);
+    authority.push(scopedTagToken ? "unconsumed-release-tag-rollback" : "unscoped-release-tag-rollback");
+  }
+  if (source.includes("delete-orphan-tag.mjs")) {
+    // Security: the same contents-scoped App token is the only identity that may delete a release tag.
+    const scopedTagToken = source.includes("TAG_TOKEN: ${{ steps.app.outputs.token }}") && /^\s+permission-contents: write\s*$/m.test(source);
+    authority.push(scopedTagToken ? "unconsumed-release-tag-cleanup" : "unscoped-release-tag-cleanup");
+  }
+  if ((source.includes('channel = "next"')) || (path.endsWith("develop.yml") && source.includes("channel: develop"))) authority.push("npm-next");
   if (source.includes('channel = "latest"')) authority.push("npm-latest");
   if (source.includes("ref=refs/tags/")) authority.push("release-tag");
-  if (source.includes("gh release create")) authority.push("github-release");
+  if (source.includes("gh release create")
+    || (source.includes('releases/$RELEASE_ID') && source.includes("draft: false"))) authority.push("github-release");
   if (source.includes("git/refs/heads/master")) authority.push("master-fast-forward");
+  if (source.includes("prepare-reopening.mjs")) authority.push("release-reopening-proposal");
   if (source.includes("propose-pi-upgrade.mjs") && source.includes("--draft")) authority.push("pi-upgrade-proposal");
   if (source.includes("propose-regression-fix.mjs")) authority.push("nightly-regression-triage");
 

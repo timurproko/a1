@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/coding-agent/src/modes/interactive/components/extension-editor.ts.
  * Modifications: Mechanical port: remap pi-tui to the root public singleton, use owned
  * keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission,
@@ -14,11 +14,11 @@ import {
   Text,
   type TUI,
 } from "@earendil-works/pi-tui";
-import { DynamicBorder, getSelectListTheme } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import type { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { editInExternalEditor } from "../external-editor.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, getPiSelectListTheme, paintPiBorder, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export class ExtensionEditorComponent extends Container {
   readonly #editor: Editor;
@@ -56,7 +56,7 @@ export class ExtensionEditorComponent extends Container {
       || process.env.EDITOR
       || (process.platform === "win32" ? "notepad" : "nano");
     const { description, ...editorOptions } = options ?? {};
-    const header = addPiModalHeader(this, new DynamicBorder(), new Text(piTheme().fg("accent", title), 0, 0));
+    const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), new Text(piTheme().fg("accent", title), 0, 0));
     if (description) {
       this.addChild(new Spacer(1));
       this.addChild(new Text(piTheme().fg("text", description), 0, 0));
@@ -64,7 +64,7 @@ export class ExtensionEditorComponent extends Container {
     this.addChild(new Spacer(1));
     this.#editor = new Editor(tui, {
       borderColor: text => piTheme().fg("borderMuted", text),
-      selectList: getSelectListTheme(),
+      selectList: getPiSelectListTheme(),
     }, editorOptions);
     if (prefill) this.#editor.setText(prefill);
     this.#editor.onSubmit = onSubmit;
@@ -73,12 +73,12 @@ export class ExtensionEditorComponent extends Container {
     const hint = renderPiModalShortcutHints([
       { key: this.#keybindings.getKeys("tui.select.confirm").join("/"), action: "submit" },
       { key: this.#keybindings.getKeys("tui.input.newLine").join("/"), action: "newline" },
-      { key: this.#keybindings.getKeys("tui.select.cancel").join("/"), action: "cancel" },
       { key: this.#keybindings.getKeys("app.editor.external").join("/"), action: "external editor" },
+      DIALOG_CLOSE_SHORTCUT_HINT,
     ]);
     this.addChild(new Text(hint, 0, 0));
     this.addChild(new Spacer(1));
-    this.addChild(new DynamicBorder());
+    this.addChild(new DynamicBorder(paintPiBorder));
     adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1, header });
   }
 

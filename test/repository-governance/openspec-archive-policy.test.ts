@@ -38,12 +38,17 @@ describe("archive evidence metadata", () => {
     expect(() => parseImplementation(block("openspec-implementation", { ...value, version: 1 }))).toThrow("specification-pr");
     const draft = { version: 3, change: "example-change" };
     expect(parseImplementation(block("openspec-implementation", draft))).toEqual(draft);
-    const finalized = { ...draft, archive: "openspec/changes/archive/2026-09-15-example-change/",
+    const legacyFinalized = { ...draft, archive: "openspec/changes/archive/2026-09-15-example-change/",
       acceptanceManifest: "openspec/changes/archive/2026-09-15-example-change/acceptance.md" };
+    expect(parseImplementation(block("openspec-implementation", legacyFinalized))).toEqual(legacyFinalized);
+    const finalized = { ...legacyFinalized, finalizedHead: "a".repeat(40) };
     expect(parseImplementation(block("openspec-implementation", finalized))).toEqual(finalized);
     expect(() => parseImplementation(block("openspec-implementation", { ...draft, archive: finalized.archive }))).toThrow("delivery-paths");
+    expect(() => parseImplementation(block("openspec-implementation", { ...draft, finalizedHead: finalized.finalizedHead }))).toThrow("delivery-paths");
+    expect(() => parseImplementation(block("openspec-implementation", { ...legacyFinalized, finalizedHead: "short" }))).toThrow("delivery-head");
     expect(() => parseImplementation(block("openspec-implementation", { ...finalized, specificationPr: 10 }))).toThrow("metadata-fields");
     expect(() => parseImplementation(block("openspec-implementation", { ...finalized, archivePreparationTasks: {} }))).toThrow("metadata-fields");
+    expect(() => parseImplementation(block("openspec-implementation", { ...value, finalizedHead: "a".repeat(40) }))).toThrow("metadata-fields");
   });
 
   it("rejects duplicate JSON keys, including escaped aliases", () => {

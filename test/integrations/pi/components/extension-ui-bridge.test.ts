@@ -5,6 +5,7 @@ import {
   type PiExtensionUiBridgeHost,
   type PiShellComponentPort,
 } from "../../../../src/integrations/pi/components/index.js";
+import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 
 function fixture() {
@@ -12,12 +13,14 @@ function fixture() {
   const widgets = new Map<string, PiShellComponentPort>();
   const statuses = new Map<string, string>();
   const notifications: string[] = [];
+  const blockedStatuses: Array<{ readonly kind: "permission" | "question" | "auth"; readonly message: string } | undefined> = [];
   const inputListeners = new Set<(data: string) => { readonly consume?: boolean; readonly data?: string } | undefined>();
   let editorText = "";
   let expanded = false;
   const host: PiExtensionUiBridgeHost = {
     runtime: { getColumns: () => 80, getRows: () => 24, requestRender: vi.fn() },
     setInputSurface: component => { inputSurface = component; },
+    setProgramStatusBlocked: status => blockedStatuses.push(status),
     showOverlay: component => {
       inputSurface = component;
       let hidden = false;
@@ -47,7 +50,7 @@ function fixture() {
     setToolsExpanded: value => { expanded = value; },
   };
   const bridge = createPiExtensionUiBridge(host);
-  return { bridge, host, widgets, statuses, notifications, inputListeners, get inputSurface() { return inputSurface; } };
+  return { bridge, host, widgets, statuses, notifications, blockedStatuses, inputListeners, get inputSurface() { return inputSurface; } };
 }
 
 describe("pinned extension UI bridge", () => {
@@ -60,12 +63,20 @@ describe("pinned extension UI bridge", () => {
     expect(firstVisibleTextColumn(selectorRows.find(row => stripTerminalSequences(row).includes("Choose"))!))
       .toBe(firstVisibleTextColumn(selectorRows.find(row => stripTerminalSequences(row).includes("↑↓ navigate"))!));
     expect(selectorFrame).toContain("alpha");
-    expect(selectorFrame).toContain("↑↓ navigate  Enter select  Escape/Ctrl+C cancel");
+    expect(selectorFrame).toContain("↑↓ navigate  Enter select  Esc close");
+    expect(selectorFrame).not.toContain("Ctrl+C");
     expect(selectorFrame).not.toMatch(/[·•]/u);
+    expect(value.blockedStatuses.at(-1)).toEqual({ kind: "question", message: "Choose" });
     value.inputSurface!.handleInput?.("\x1b[B");
     value.inputSurface!.handleInput?.("\r");
     await expect(selection).resolves.toBe("beta");
     expect(value.inputSurface).toBeNull();
+    expect(value.blockedStatuses.at(-1)).toBeUndefined();
+
+    const confirmation = value.bridge.context.confirm("Permission", "Allow this operation?");
+    expect(value.blockedStatuses.at(-1)).toEqual({ kind: "permission", message: "Permission" });
+    value.inputSurface!.handleInput?.("\r");
+    await expect(confirmation).resolves.toBe(true);
 
     const input = value.bridge.context.input("Name", "placeholder");
     const inputRows = value.inputSurface!.render(60);
@@ -73,7 +84,8 @@ describe("pinned extension UI bridge", () => {
     expect(stripTerminalSequences(inputRows[1]!)).toContain("Name");
     expect(firstVisibleTextColumn(inputRows.find(row => stripTerminalSequences(row).includes("Name"))!))
       .toBe(firstVisibleTextColumn(inputRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!));
-    expect(inputFrame).toContain("Enter submit  Escape/Ctrl+C cancel");
+    expect(inputFrame).toContain("Enter submit  Esc close");
+    expect(inputFrame).not.toContain("Ctrl+C");
     expect(inputFrame).not.toMatch(/[·•]/u);
     value.inputSurface!.handleInput?.("Ada");
     value.inputSurface!.handleInput?.("\r");
@@ -85,10 +97,12 @@ describe("pinned extension UI bridge", () => {
     expect(stripTerminalSequences(editorRows[1]!)).toContain("Notes");
     expect(firstVisibleTextColumn(editorRows.find(row => stripTerminalSequences(row).includes("Notes"))!))
       .toBe(firstVisibleTextColumn(editorRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!));
-    expect(editorFrame).toContain("Enter submit  Shift+Enter/Ctrl+J newline  Escape/Ctrl+C cancel  Ctrl+G external editor");
+    expect(editorFrame).toContain("Enter submit  Shift+Enter/Ctrl+J newline  Ctrl+G external editor  Esc close");
+    expect(editorFrame).not.toContain("Ctrl+C");
     expect(editorFrame).not.toMatch(/[·•]/u);
-    value.inputSurface!.handleInput?.("\x1b");
+    value.inputSurface!.handleInput?.("\u0003");
     await expect(editor).resolves.toBeUndefined();
+    expect(value.inputSurface).toBeNull();
 
     const controller = new AbortController();
     const cancelled = value.bridge.context.select("Abort", ["one"], { signal: controller.signal });
@@ -139,7 +153,8 @@ describe("pinned extension UI bridge", () => {
   it("mounts custom overlays and restores the core surface on resolve and throw", async () => {
     const value = fixture();
     let done: ((result: string) => void) | undefined;
-    const result = value.bridge.context.custom<string>((_tui, _theme, _keys, finish) => {
+    // Compatibility: the bridge publishes the neutral port; this case drives Pi's own four-argument custom factory.
+    const result = (value.bridge.context as unknown as ExtensionUIContext).custom<string>((_tui, _theme, _keys, finish) => {
       done = finish;
       return new Text("custom surface", 0, 0);
     }, { overlay: true });
@@ -152,6 +167,18 @@ describe("pinned extension UI bridge", () => {
     await expect(value.bridge.context.custom(() => { throw new Error("custom boom"); })).rejects.toThrow("custom boom");
     await expect(value.bridge.context.custom((() => ({})) as never)).rejects.toThrow(/malformed component/);
     expect(value.notifications).not.toContain("error:Extension custom surface failed: custom boom");
+    expect(value.inputSurface).toBeNull();
+
+    const customInput = vi.fn();
+    const cancelled = value.bridge.context.custom(() => ({
+      render: () => ["custom dialog"],
+      invalidate() {},
+      handleInput: customInput,
+    }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    value.inputSurface!.handleInput?.("\u0003");
+    await expect(cancelled).resolves.toBeUndefined();
+    expect(customInput).not.toHaveBeenCalled();
     expect(value.inputSurface).toBeNull();
 
     const switched = value.bridge.context.custom(() => new Text("switch custom", 0, 0));

@@ -1,9 +1,8 @@
 import { memoryHistory } from "./prompt-history-fixture.js";
 import { type ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import { join } from "node:path";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { Editor } from "@earendil-works/pi-tui";
-import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
 vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal => {
   const actual = await importOriginal<typeof import("../../../src/app/session-shell/paste-executor.js")>();
@@ -96,7 +95,7 @@ describe("OwnedUiSessionShell prompt history", () => {
       engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
       await adapter.flushEvents(); await nextImmediate();
       expect(history.submitted).toHaveLength(3);
-      const dispatch = vi.spyOn(adapter, "execute").mockRejectedValueOnce(new Error("private provider sentinel"));
+      const dispatch = vi.spyOn(adapter.session, "execute").mockRejectedValueOnce(new Error("private provider sentinel"));
       await shell.submit("recover me");
       expect(history.submitted.filter(item => item.text === "recover me")).toHaveLength(1);
       expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain("private provider sentinel");
@@ -112,7 +111,7 @@ describe("OwnedUiSessionShell prompt history", () => {
       shell.root.editor.setText("draft"); history.emit(["newest", "older"]);
       terminal.input("\x1b[A"); terminal.input("\x1b[A");
       await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("newest"));
-      expect(stripTerminalSequences(shell.root.editor.render(80)[0]!)).toMatch(/^─── 2\/2 /u);
+      expect(stripTerminalSequences(shell.root.editor.render(80)[0]!)).toMatch(/^── 2\/2 /u);
       history.emit(["remote", "newest", "older"]);
       expect(shell.root.editor.recall?.position()).toEqual({ index: 0, total: 2 });
       terminal.input("\x1b[B");

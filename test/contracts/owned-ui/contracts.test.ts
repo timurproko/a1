@@ -161,7 +161,14 @@ describe("owned UI command, event, and snapshot contracts", () => {
       model: identity.model,
       assistantMessageCount: 2,
       successful: true,
+      stopReason: "stop",
+      toolContinuation: false,
+      aborted: false,
     }))).not.toThrow();
+    expect(() => assertOwnedUiEvent(event({
+      type: "agent-run-settled", sessionGeneration: 2, runSequence: 4, responseSequence: 5,
+      model: identity.model, assistantMessageCount: 2, successful: true, toolContinuation: false, aborted: false,
+    }) as never)).toThrow(/stop reason/);
     expect(() => assertOwnedUiPromptSuggestionRequest({ identity, signal: new AbortController().signal })).not.toThrow();
     expect(() => assertOwnedUiPromptSuggestionResult({ identity, outcome: "candidate", text: "run the tests" })).not.toThrow();
     expect(() => assertOwnedUiPromptSuggestionState({ status: "prepared", identity, text: "run the tests" })).not.toThrow();

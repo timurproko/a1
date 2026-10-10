@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-tui 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-tui 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/tui/src/undo-stack.ts.
  * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
  * types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports

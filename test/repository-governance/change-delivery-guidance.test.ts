@@ -19,9 +19,10 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).toContain("Omit routine validation-command listings");
     expect(config).toContain("explicit plan approval and an implementation request");
     expect(config).toContain("same worktree, branch, history, and draft PR");
-    expect(config).toContain("Never arm or invoke auto-merge");
+    expect(config).toContain("Agents, Apps, bots, merge queue, and repository automation never arm or invoke auto-merge");
+    expect(config).toContain("personally arms native auto-merge");
     expect(config).toContain("A new head, changed body list, changed manifest, or advanced target baseline requires renewed validation");
-    expect(config).toContain("manual merge of the exact validated head means the listed scenarios are accepted");
+    expect(config).toContain("manual merge of the exact validated head or personal native auto-merge arm");
     expect(config).toContain("one to ten concise implementation-specific behavior-and-result bullets");
     expect(config).toContain("no acceptance, spec-only, or archive-only follow-up PR");
     expect(config).toContain("Standalone existing-spec/OpenSpec revisions and ordinary docs retain this route");
@@ -45,16 +46,52 @@ describe("repository-owned atomic delivery guidance", () => {
     const structure = await readFile("docs/architecture/project-structure.md", "utf8");
     for (const guidance of [config, skill, structure]) {
       expect(guidance).toContain("`a1 session link-worktree <absolute-worktree>`");
+      expect(guidance).toContain("`a1 session worktrees`");
       expect(guidance).toMatch(/before (?:changing |any )?(?:planning|planning or implementation)/i);
       expect(guidance).toMatch(/stop (?:feature |task )?edits? and report the blocker|report the blocker and stop feature edits/);
       expect(guidance).toMatch(/not tool cwd|does not change process or tool cwd/);
       expect(guidance).toMatch(/resuming or switching streams|resuming an existing delivery or switching streams/);
+      expect(guidance).toMatch(/busy.*unverifiable|unverifiable.*busy/i);
+      expect(guidance).toMatch(/separate|fresh/);
     }
     expect(config).toContain("Continue only when the command confirms that exact canonical worktree");
-    expect(skill).toContain("continue only after it confirms the exact path");
+    expect(config).toContain("similarity, recency, cleanliness, or ancestry grants nothing");
+    expect(skill).toContain("continue only after link confirms the exact path");
     expect(structure).toContain("A successful link response confirming the exact canonical worktree is required");
     expect(structure).toContain("git worktree add -b <type>/<short-description>");
+    expect(structure).toContain("Inventory is read-only and advisory");
     expect(structure).toContain("Repository commands therefore keep an explicit worktree path");
+  });
+
+  it("keeps agent-selected delivery scratch in the owning worktree artifacts", async () => {
+    const config = await readFile("openspec/config.yaml", "utf8");
+    const skill = await readFile(".agents/skills/change-delivery/SKILL.md", "utf8");
+    const runbook = await readFile("docs/openspec-archive-automation.md", "utf8");
+    const structure = await readFile("docs/architecture/project-structure.md", "utf8");
+    const canonicalSpec = await readFile("openspec/specs/change-delivery-workflow/spec.md", "utf8");
+    const activeDelta = await readFile("openspec/changes/route-agent-scratch-to-artifacts/specs/change-delivery-workflow/spec.md", "utf8")
+      .catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return "";
+        throw error;
+      });
+    const deliveryPolicy = `${canonicalSpec}\n${activeDelta}`;
+    for (const guidance of [config, skill, runbook, structure]) {
+      expect(guidance).toContain("`.artifacts/`");
+      expect(guidance).toMatch(/(?:owning|linked)(?: task)? worktree|worktree that owns/i);
+      expect(guidance).toMatch(/(?:ignored|unstaged)/i);
+      expect(guidance).toMatch(/(?:non-authoritative|authoritative)/i);
+    }
+    expect(config).toContain("operating-system temporary directory");
+    expect(config).toContain("does not relocate temporary storage internally selected by tools");
+    expect(skill).toContain("never OS temp, home/desktop, primary, or another worktree");
+    expect(skill).toContain("tool/runtime/test-internal temp is out of scope");
+    expect(runbook).toContain("mkdir -p .artifacts/agent");
+    expect(runbook).toContain("--body-file .artifacts/agent/openspec-pr-body.md");
+    expect(runbook).not.toContain("$TMPDIR/openspec-pr-body.md");
+    expect(structure).toContain("must place it beneath the linked worktree's exact `.artifacts/` root");
+    expect(deliveryPolicy).toContain("Agents keep repository-delivery scratch files inside the owning worktree");
+    expect(deliveryPolicy).toContain("SHALL place that file beneath the exact `.artifacts/` root");
+    expect(deliveryPolicy).toContain("SHALL remain ignored, unstaged, uncommitted, disposable, and non-authoritative");
   });
 
   it("ships a concise first-party skill with resolvable local guidance links", async () => {
@@ -88,6 +125,9 @@ describe("repository-owned atomic delivery guidance", () => {
 
   it("documents the exact generated-artifact cleanup boundary", async () => {
     const cleanup = await readFile("docs/local-worktree-cleanup.md", "utf8");
+    const ignore = await readFile(".gitignore", "utf8");
+    for (const path of ["/.artifacts", "/.builds", "/node_modules", "/native/process-guardian/target", "/native/terminal-host/target"])
+      expect(ignore.split(/\r?\n/)).toContain(path);
     expect(cleanup).toContain("`.artifacts`, `native/process-guardian/target`");
     expect(cleanup).toContain("widened to the current policy on the next `complete`");
     expect(cleanup).toContain("near matches such as `.artifacts-user`, `artifacts`, or `pi-settings-metadata-user.json`");
@@ -99,6 +139,10 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(cleanup).toContain("arbitrary `target` directories");
     expect(cleanup).toContain("bounded to 20,000 ordinary entries plus 100,000 entries beneath exact approved generated roots");
     expect(cleanup).toContain("exhausting either allowance never grants deletion authority");
+    expect(cleanup).toContain("An exact-root link may target an external generated-content directory");
+    expect(cleanup).toContain("removes only the link entry through a non-recursive primitive");
+    expect(cleanup).toContain("It never traverses, removes, or mutates the external target");
+    expect(cleanup).toContain("Agents do not manually remove generated content");
     expect(cleanup).toContain("## Explicit closed-unmerged discard");
     expect(cleanup).toContain("--confirm-closed-unmerged");
     expect(cleanup).toContain("expected-SHA lease");
@@ -126,7 +170,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(examples.map(value => value?.version)).toEqual([3, 3]);
     expect(examples[0]).not.toHaveProperty("archive");
     expect(examples[1]).toMatchObject({ archive: "openspec/changes/archive/2026-09-15-example-change/",
-      acceptanceManifest: "openspec/changes/archive/2026-09-15-example-change/acceptance.md" });
+      acceptanceManifest: "openspec/changes/archive/2026-09-15-example-change/acceptance.md",
+      finalizedHead: "0123456789abcdef0123456789abcdef01234567" });
     expect(docs).toContain("## Draft PR body");
     expect(docs).toContain("The first screen should separate purpose from delivery detail, not foreground CI mechanics");
     expect(docs).toContain("## Proposal");
@@ -153,7 +198,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(docs).toContain("## Automation");
     expect(docs).toContain("## Acceptance");
     expect(docs).toContain("plain bullets");
-    expect(docs).toContain("Manual merge is the acceptance decision");
+    expect(docs).toContain("manual merge or personal native auto-merge arm");
+    expect(docs).toContain("never creates or exercises that arm");
     expect(docs).toContain("acceptance PR, archive PR");
     expect(docs).toContain("standalone spec/docs PR retaining auto-merge");
     expect(docs).toContain("## Legacy delivery");

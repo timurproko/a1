@@ -1,4 +1,5 @@
 import type { OwnedUiViewportSettings } from "../../contracts/owned-ui/index.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT } from "../../contracts/presentation/index.js";
 import type { AppHostServices, UiApp } from "../../ui/apps/index.js";
 import {
   GLOBAL_SCOPE,
@@ -11,7 +12,7 @@ import {
   layoutList,
   padToWidth,
   renderGroupHeader,
-  renderShortcutHints,
+  renderShortcutHintsWithClose,
   scrollForTrackPage,
   scrollbarGeometry,
   scrollbarPresentation,
@@ -40,14 +41,17 @@ const LOADING_NOTICE = "Loading…";
 type Action = "up" | "down" | "page-up" | "page-down" | "first" | "last" | "close";
 
 export const REFERENCE_SCREEN_SHORTCUTS = new ShortcutRegistry<Action>();
-// Compatibility: Ctrl+C remains the A1 interrupt chord here rather than a close key.
-REFERENCE_SCREEN_SHORTCUTS.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen", hint: { keys: "esc", does: "close" } }, "close");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Scroll up", section: "Navigate", hint: { keys: "↑↓", does: "scroll" } }, "up");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Scroll down", section: "Navigate", hint: { keys: "↑↓", does: "scroll" } }, "down");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "pageUp", scope: SCOPE, description: "Up a page", section: "Navigate" }, "page-up");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "pageDown", scope: SCOPE, description: "Down a page", section: "Navigate" }, "page-down");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "home", scope: SCOPE, description: "First row", section: "Navigate" }, "first");
 REFERENCE_SCREEN_SHORTCUTS.declare({ key: "end", scope: SCOPE, description: "Last row", section: "Navigate" }, "last");
+// Compatibility: Ctrl+C remains the A1 interrupt chord here rather than a visible close key.
+REFERENCE_SCREEN_SHORTCUTS.declare({
+  key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen",
+  hint: { keys: DIALOG_CLOSE_SHORTCUT_HINT.key, does: DIALOG_CLOSE_SHORTCUT_HINT.action },
+}, "close");
 assertNoShortcutConflicts(REFERENCE_SCREEN_SHORTCUTS.assemble());
 
 const KEYS: Readonly<Record<string, string>> = {
@@ -74,6 +78,8 @@ export interface ReferenceDocumentSection {
 export interface ReferenceDocumentProvider {
   /** Flat rows for this width, or null while the document is not available yet. */
   readonly rows?: (width: number) => readonly string[] | null;
+  /** Rows between the screen title and structured groups, absent for group-only documents. */
+  readonly preamble?: (width: number) => readonly string[] | null;
   /** Structured groups opt into shared Settings-style headers and pinning. */
   readonly sections?: (width: number) => readonly ReferenceDocumentSection[] | null;
   /** Settles once the selected content provider answers; absent when available at once. */
@@ -96,8 +102,8 @@ export interface ReferenceScreenOptions {
  * Presents one read-only document full screen between two accent rules: the bold
  * title leads the scrolled rows, the shared scrollbar rail runs beside them, and
  * the hint line closes the frame. Rows come from a provider per content width and
- * are cached until the width changes; the screen closes on Escape and leaves the
- * interrupt chord to its host.
+ * are cached until the width changes; Escape closes locally, while an opted-in
+ * host closes on Ctrl+C before dispatching it into the screen.
  */
 export class ReferenceScreenApp implements UiApp {
   readonly id: string;
@@ -195,7 +201,7 @@ export class ReferenceScreenApp implements UiApp {
     const withRail = withScrollbarRail(body.slice(0, bodyHeight), geometry, contentWidth, theme, { presentation });
     const hint = this.#interruptArmed
       ? theme.fg("dim", " press ctrl+c again to exit a1")
-      : renderShortcutHints(REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme, 1);
+      : renderShortcutHintsWithClose(REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme, rect.width, 1);
     // Compatibility: the v2 reference screen frames its document between two border-coloured rules.
     const rule = theme.fg("border", "─".repeat(rect.width));
     // Invariant: dialog chrome shares the title's one-cell inset; document content keeps its own layout.
@@ -279,9 +285,14 @@ export class ReferenceScreenApp implements UiApp {
     const cached = this.#cached;
     if (cached !== null && cached.width === width) return this.#withTitle(cached.content, title);
     const sections = this.#document.sections?.(width);
-    if (sections === null) return { kind: "flat", rows: [title, "", LOADING_NOTICE] };
+    const preamble = sections === undefined ? undefined : this.#document.preamble?.(width);
+    if (sections === null || preamble === null) return { kind: "flat", rows: [title, "", LOADING_NOTICE] };
     if (sections !== undefined) {
       const rows: ListRow<string>[] = [];
+      if (preamble !== undefined && preamble.length > 0) {
+        for (const row of preamble) rows.push({ kind: "note", group: "", text: row });
+        rows.push({ kind: "spacer" });
+      }
       sections.forEach((section, sectionIndex) => {
         if (sectionIndex > 0) rows.push({ kind: "spacer" });
         const group = `section-${sectionIndex}`;

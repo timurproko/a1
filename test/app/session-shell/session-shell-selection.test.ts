@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CURSOR_MARKER, stripTerminalSequences } from "@earendil-works/pi-tui";
 import { Editor } from "@earendil-works/pi-tui";
-import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
 vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal => {
   const actual = await importOriginal<typeof import("../../../src/app/session-shell/paste-executor.js")>();
@@ -119,7 +119,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
         invalidate() {}, handleInput: (data: string) => received.push(data) };
       const overlay = shell.runtime.showOverlay(component, { width: 20, row: 5, col: 10 });
       engine.session.emit({ type: "agent_start" });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       shell.runtime.renderNow();
       terminal.input("\u001b[<64;3;3M");
       shell.runtime.renderNow();
@@ -127,7 +127,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const selectedRow = shell.root.render(80).findIndex(row => stripTerminalSequences(row).includes("alpha")) + 1;
       terminal.input(`\u001b[<0;2;${selectedRow}M\u001b[<32;15;8M`);
       engine.session.emit({ type: "message_start", message: { role: "assistant", content: [{ type: "text", text: "new streamed output" }], timestamp: 5 } });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       shell.runtime.renderNow();
       expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
       const replay = await replayTerminalPaint(terminal.writes.map(data => ({ data, atMs: 0 })), { columns: 80, rows: 40, synchronizedUpdates: "honor" });
@@ -204,8 +204,14 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
         const before = await capture();
         const detachedTop = shell.root.viewportPresentationEvidence().scrollTop;
         terminal.input("/");
-        await capture();
+        const opened = await capture();
         expect(shell.root.editor.bodyGeometry!().rowOffset).toBeGreaterThan(0);
+        const selectedMenuRow = opened.rows.find(row => row.includes("→ settings"));
+        expect(selectedMenuRow?.indexOf("→")).toBe(1);
+        if (state === "streaming") {
+          const workingRow = opened.rows.find(row => row.includes("Working"));
+          expect(workingRow?.search(/\S/u)).toBe(selectedMenuRow?.indexOf("→"));
+        }
         if (state === "detached") {
           expect(shell.root.viewportFrameDescriptor()?.followingEnd).toBe(false);
           expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(detachedTop);
@@ -245,7 +251,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       } finally { await shell.dispose(); }
     });
 
-  it.each([false, true])("routes autocomplete body pointers and restores extension editors (history=%s)", async persistent => {
+  it.each([false, true])("selects autocomplete input without copying it and restores extension editors (history=%s)", async persistent => {
     const history = memoryHistory();
     const copied: string[] = [];
     const readText = vi.fn(async () => "clipboard text");
@@ -261,14 +267,16 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       // longer a plain top line above the menu; the counter border now sits directly
       // above the input prompt as part of the editor's own body geometry.
       const topLineRow = row - 1;
-      expect(stripTerminalSequences(frame[topLineRow - 1]!)).toMatch(/^(?:─+|─── \d+\/\d+ ─*)$/u);
+      expect(stripTerminalSequences(frame[topLineRow - 1]!)).toMatch(/^(?:─+|── \d+\/\d+ ─*)$/u);
       expect(shell.root.editor.getText()).toBe("/mo");
       terminal.input(`\u001b[<0;3;${row}M`);
       terminal.input(`\u001b[<32;6;${row}M`);
       terminal.input(`\u001b[<0;6;${row}m`);
       expect(shell.root.hasActiveSelection()).toBe(true);
       terminal.input("\u0003");
-      await vi.waitFor(() => expect(copied).toEqual(["/mo"]));
+      await nextImmediate();
+      expect(copied).toEqual([]);
+      expect(shell.root.hasActiveSelection()).toBe(false);
       const ui = (engine.session.extensionBindings as { uiContext: ExtensionUIContext }).uiContext;
       ui.setEditorComponent(tui => new Editor(tui, {
         borderColor: text => text,
@@ -306,8 +314,8 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
 
   it.each(["exit-render", "unbind-error", "unbind-stall"])("restores the terminal despite %s during disposal", async failure => {
     const { shell, terminal, adapter } = await fixture([], [], true);
-    if (failure === "exit-render") vi.spyOn(adapter, "currentSessionResumeMetadata").mockImplementation(() => { throw new Error("render failed"); });
-    else vi.spyOn(adapter, "unbindExtensionUi").mockImplementation(() => failure === "unbind-stall" ? new Promise(() => {}) : Promise.reject(new Error("unbind failed")));
+    if (failure === "exit-render") vi.spyOn(adapter.identity, "currentSessionResumeMetadata").mockImplementation(() => { throw new Error("render failed"); });
+    else vi.spyOn(adapter.extensions, "unbindExtensionUi").mockImplementation(() => failure === "unbind-stall" ? new Promise(() => {}) : Promise.reject(new Error("unbind failed")));
     await expect(shell.dispose()).rejects.toThrow("disposal failed");
     expect(terminal.active).toBe(false);
     expect(terminal.writes.join("")).toContain("\u001b[?1049l");
@@ -317,7 +325,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     expect(terminal.writes).toHaveLength(count);
   });
 
-  it("paints blank rows and copies their normalized empty payload", async () => {
+  it("paints blank rows without submitting an empty clipboard payload", async () => {
     const { shell, terminal } = await fixture([], [], true);
     try {
       const start = terminal.writes.length;
@@ -325,9 +333,10 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input("\u001b[<32;20;5M");
       shell.runtime.renderNow();
       terminal.input("\u001b[<0;20;5m");
-      await vi.waitFor(() => expect(terminal.writes.slice(start).join("")).toContain("\u001b]52;c;\u0007"));
+      await nextImmediate();
       shell.runtime.renderNow();
       const output = terminal.writes.slice(start).join("");
+      expect(output).not.toContain("\u001b]52;c;");
       expect(output).not.toContain("chars to clipboard");
       expect(output).toContain("\u001b[48;2;38;79;120m");
       terminal.input("still usable");
@@ -519,6 +528,49 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       .toContain(`copied ${"Selectable assistant words".length} chars to clipboard`));
   });
 
+  it("copies one submitted prompt semantically, preserves it in bulk text, and skips dock-only ranges", async () => {
+    const copied: string[] = [];
+    const messages = [
+      { role: "user", content: [{ type: "text", text: "ask me" }], timestamp: Date.now() - 1_000 },
+      { role: "assistant", content: [{ type: "text", text: "answer body" }], timestamp: Date.now() },
+    ];
+    const { terminal, shell } = await fixture(messages, [], true, undefined, {
+      readText: async () => null,
+      writeText: async text => { copied.push(text); },
+    });
+    try {
+      terminal.resize(60, 14);
+      shell.root.setFullscreenCopyOnSelect(false);
+      shell.runtime.renderNow();
+      const rows = shell.root.render(60).map(stripTerminalSequences);
+      const promptRow = rows.findIndex(row => row.startsWith("❯ ask me")) + 1;
+      const answerRow = rows.findIndex(row => row.includes("answer body")) + 1;
+      const dock = shell.root.viewportFrameDescriptor()!.dock!;
+      const inputRow = rows.findIndex((row, index) => index + 1 >= dock.rowStart && row.startsWith("❯ ")) + 1;
+      expect(promptRow).toBeGreaterThan(0);
+      expect(answerRow).toBeGreaterThan(promptRow);
+      expect(inputRow).toBeGreaterThanOrEqual(dock.rowStart);
+
+      terminal.input(`\u001b[<0;1;${promptRow}M\u001b[<32;59;${promptRow}M\u001b[<0;59;${promptRow}m`);
+      terminal.input("\u0003");
+      await vi.waitFor(() => expect(copied).toEqual(["ask me"]));
+
+      terminal.input(`\u001b[<0;1;${promptRow}M\u001b[<32;59;${answerRow}M\u001b[<0;59;${answerRow}m`);
+      terminal.input("\u0003");
+      await vi.waitFor(() => expect(copied).toHaveLength(2));
+      expect(copied[1]).toMatch(/^❯ ask me\s+\d{2}:\d{2}\n\n answer body$/u);
+
+      terminal.input(`\u001b[<0;2;${inputRow}M\u001b[<32;20;${dock.rowEnd}M\u001b[<0;20;${dock.rowEnd}m`);
+      shell.runtime.renderNow();
+      const selected = shell.root.render(60);
+      expect(selected[inputRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[dock.rowEnd - 1]).toContain("\u001b[48;2;38;79;120m");
+      terminal.input("\u0003");
+      await nextImmediate();
+      expect(copied).toHaveLength(2);
+    } finally { await shell.dispose(); }
+  });
+
   it("moves retained agent-stream selection with followed output while footer selection stays pinned", async () => {
     const messages = Array.from({ length: 20 }, (_, index) => ({
       role: "assistant", content: [{ type: "text", text: `surface-anchor-${index}` }], timestamp: index + 1,
@@ -538,7 +590,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const appended = { role: "assistant", content: [{ type: "text", text: "new followed output" }], timestamp: 100 };
       engine.session.emit({ type: "message_start", message: appended });
       engine.session.emit({ type: "message_end", message: appended });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       shell.runtime.renderNow();
       const shiftedPlain = shell.root.render(60).map(stripTerminalSequences);
       const shiftedRow = shiftedPlain.findIndex(row => row.includes("surface-anchor-18"));
@@ -554,7 +606,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const next = { role: "assistant", content: [{ type: "text", text: "another followed output" }], timestamp: 101 };
       engine.session.emit({ type: "message_start", message: next });
       engine.session.emit({ type: "message_end", message: next });
-      await shell.backend.flushEvents();
+      await shell.backend.session.flushEvents();
       shell.runtime.renderNow();
       expect(shell.root.render(60)[footerRow]).toContain("\u001b[48;2;38;79;120m");
       expect(shell.root.viewportFrameDescriptor()!.followingEnd).toBe(true);
@@ -754,7 +806,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
           engine.session.emit({ type: "message_start", message: {
             role: "assistant", content: [{ type: "text", text: "new streamed content" }], timestamp: 50,
           } });
-          await shell.backend.flushEvents();
+          await shell.backend.session.flushEvents();
           shell.root.render(60);
           expect(shell.root.viewportFrameDescriptor()!.nextDocumentRange.start).toBe(0);
           expect(shell.root.viewportFrameDescriptor()!.followingEnd).toBe(false);
@@ -790,12 +842,12 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     } finally { await shell.dispose(); }
   });
 
-  it("keeps comparison Ctrl+Home/End editor bindings unchanged", async () => {
+  it("uses Pi 1.1.0 Home/End editor bindings in the comparison profile", async () => {
     const { terminal, shell } = await fixture();
     try {
       shell.root.editor.setText("draft");
-      terminal.input("\u001b[1;5H"); terminal.input("start ");
-      terminal.input("\u001b[1;5F"); terminal.input(" end");
+      terminal.input("\u001b[H"); terminal.input("start ");
+      terminal.input("\u001b[F"); terminal.input(" end");
       expect(shell.root.editor.getText()).toBe("start draft end");
     } finally { await shell.dispose(); }
   });
@@ -809,7 +861,8 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const text = stripTerminalSequences(shell.root.render(160).join("\n"));
       expect(text.includes("Start of content")).toBe(custom);
       expect(text.includes("Start of prompt line")).toBe(custom);
-      expect(text).toContain("Ctrl+Home");
+      expect(text.includes("Ctrl+Home")).toBe(custom);
+      if (!custom) expect(text).toContain("Home");
     } finally { await shell.dispose(); }
   });
 
@@ -899,7 +952,15 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     terminal.input("\u0003");
     await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha").toString("base64")}\u0007`));
 
-    click();
+    terminal.input(`\u001b[<0;${column};${row}M`);
+    shell.runtime.renderNow();
+    const heldLineCells = (await replayTerminalBackgroundCells(
+      terminal.writes.map((data, atMs) => ({ data, atMs })),
+      { columns: 60, rows: 12 },
+    )).filter(cell => cell.mode === "rgb" && cell.color === 0x264f78 && cell.row === row);
+    const promptEnd = (frame[row - 1]?.indexOf("mouse alpha beta") ?? -1) + "mouse alpha beta".length;
+    expect(heldLineCells.every(cell => cell.column <= promptEnd)).toBe(true);
+    terminal.input(`\u001b[<0;${column};${row}m`);
     terminal.input("\u0003");
     await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("mouse alpha beta").toString("base64")}\u0007`));
 
@@ -967,94 +1028,225 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       timestamp: Date.now() + index,
     }));
     const { terminal, shell } = await fixture(messages, [], true);
-    terminal.resize(60, 12);
-    const firstVisible = (): number => {
-      const indexes = shell.root.render(60)
-        .map(row => /selection-scroll-(\d+)/.exec(stripTerminalSequences(row))?.[1])
-        .filter((value): value is string => value !== undefined)
-        .map(Number);
-      return Math.min(...indexes);
-    };
-    shell.root.render(60);
-    terminal.input("\u001b[<0;5;3M");
-    terminal.input("\u001b[<32;5;1M");
-    const afterMotion = firstVisible();
+    // Invariant: tick counts, not runner load, decide the compared distances. Only the
+    // edge-scroll windows use fake time; terminal replay and disposal keep real timers.
+    const fakeTime = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    fakeTime();
+    try {
+      terminal.resize(60, 12);
+      const firstVisible = (): number => {
+        const indexes = shell.root.render(60)
+          .map(row => /selection-scroll-(\d+)/.exec(stripTerminalSequences(row))?.[1])
+          .filter((value): value is string => value !== undefined)
+          .map(Number);
+        return Math.min(...indexes);
+      };
+      shell.root.render(60);
+      terminal.input("\u001b[<0;5;3M");
+      terminal.input("\u001b[<32;5;1M");
+      const afterMotion = firstVisible();
 
-    await new Promise(resolve => setTimeout(resolve, 150));
-    const whileHeld = firstVisible();
-    expect(whileHeld).toBeLessThan(afterMotion);
-    const normalDistance = afterMotion - whileHeld;
-    terminal.input("\u001b[<0;5;1m");
-    shell.runtime.renderNow();
-    const transcript = shell.root.viewportFrameDescriptor()!.transcript!;
-    const heldCells = await replayTerminalBackgroundCells(
-      terminal.writes.map((data, atMs) => ({ data, atMs })),
-      { columns: 60, rows: 12 },
-    );
-    expect(heldCells.filter(cell => cell.mode === "rgb" && cell.color === 0x264f78)
-      .every(cell => cell.row >= transcript.rowStart && cell.row <= transcript.rowEnd)).toBe(true);
+      await vi.advanceTimersByTimeAsync(150);
+      const whileHeld = firstVisible();
+      expect(whileHeld).toBeLessThan(afterMotion);
+      const normalDistance = afterMotion - whileHeld;
+      terminal.input("\u001b[<0;5;1m");
+      shell.runtime.renderNow();
+      const transcript = shell.root.viewportFrameDescriptor()!.transcript!;
+      vi.useRealTimers();
+      const heldCells = await replayTerminalBackgroundCells(
+        terminal.writes.map((data, atMs) => ({ data, atMs })),
+        { columns: 60, rows: 12 },
+      );
+      fakeTime();
+      expect(heldCells.filter(cell => cell.mode === "rgb" && cell.color === 0x264f78)
+        .every(cell => cell.row >= transcript.rowStart && cell.row <= transcript.rowEnd)).toBe(true);
 
-    await new Promise(resolve => setTimeout(resolve, 130));
-    expect(firstVisible()).toBe(whileHeld);
-    terminal.input("\u0003");
-    await nextImmediate();
-    await nextImmediate();
-    shell.root.resetWorkflowPresentation();
+      await vi.advanceTimersByTimeAsync(130);
+      expect(firstVisible()).toBe(whileHeld);
+      terminal.input("\u0003");
+      await nextImmediate();
+      await nextImmediate();
+      shell.root.resetWorkflowPresentation();
 
-    // Rationale: leave enough room below for the faster direction to demonstrate its
-    // greater distance rather than immediately hitting the document end.
-    terminal.input("\u001b[<64;30;3M");
-    terminal.input("\u001b[<64;30;3M");
-    terminal.input("\u001b[<64;30;3M");
-    shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "fast" });
-    shell.runtime.renderNow();
-    terminal.input("\u001b[<0;5;3M");
-    terminal.input("\u001b[<32;5;12M");
-    const afterDownMotion = firstVisible();
-    await new Promise(resolve => setTimeout(resolve, 150));
-    const fastDistance = firstVisible() - afterDownMotion;
-    expect(fastDistance).toBeGreaterThan(normalDistance);
-    terminal.input("\u001b[<0;5;12m");
+      // Rationale: leave enough room below for the faster direction to demonstrate its
+      // greater distance rather than immediately hitting the document end.
+      terminal.input("\u001b[<64;30;3M");
+      terminal.input("\u001b[<64;30;3M");
+      terminal.input("\u001b[<64;30;3M");
+      shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "fast" });
+      shell.runtime.renderNow();
+      // Invariant: a press on the first gesture's cell inside the multi-click window starts a
+      // word selection, not a drag; the fast gesture starts on another row.
+      terminal.input("\u001b[<0;5;4M");
+      terminal.input("\u001b[<32;5;12M");
+      const afterDownMotion = firstVisible();
+      await vi.advanceTimersByTimeAsync(150);
+      const fastDistance = firstVisible() - afterDownMotion;
+      expect(fastDistance).toBeGreaterThan(normalDistance);
+      terminal.input("\u001b[<0;5;12m");
 
-    shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "high" });
-    terminal.input("\u001b[<0;5;3M");
-    terminal.input("\u001b[<32;5;1M");
-    const beforeHigh = firstVisible();
-    await new Promise(resolve => setTimeout(resolve, 150));
-    const highDistance = beforeHigh - firstVisible();
-    expect(highDistance).toBeGreaterThanOrEqual(fastDistance);
-    terminal.input("\u001b[<0;5;1m");
-    await shell.dispose();
+      shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "high" });
+      terminal.input("\u001b[<0;5;3M");
+      terminal.input("\u001b[<32;5;1M");
+      const beforeHigh = firstVisible();
+      await vi.advanceTimersByTimeAsync(150);
+      const highDistance = beforeHigh - firstVisible();
+      expect(highDistance).toBeGreaterThanOrEqual(fastDistance);
+      terminal.input("\u001b[<0;5;1m");
+    } finally {
+      vi.useRealTimers();
+      await shell.dispose();
+    }
   });
 
-  it("keeps transcript-originated selection above the dock while preserving dock-origin crossing", async () => {
-    const messages = [{ role: "assistant", content: [{ type: "text", text: "content boundary" }], timestamp: Date.now() }];
-    const { terminal, shell } = await fixture(messages, [], true);
-    terminal.resize(60, 12);
-    shell.root.setFullscreenCopyOnSelect(false);
-    const plain = shell.root.render(60).map(stripTerminalSequences);
-    const contentRow = plain.findIndex(row => row.includes("content boundary")) + 1;
-    const descriptor = shell.root.viewportFrameDescriptor()!;
-    const dock = descriptor.dock!;
+  it.each(["working-origin", "downward", "input-origin", "status-origin"] as const)(
+    "routes terminal selection through the Working row (%s)",
+    async direction => {
+      const messages = [{ role: "assistant", content: [{ type: "text", text: "content boundary" }], timestamp: Date.now() }];
+      const { terminal, shell, engine } = await fixture(messages, [], true);
+      try {
+        terminal.resize(60, 12);
+        shell.root.setFullscreenCopyOnSelect(false);
+        engine.session.emit({ type: "agent_start" });
+        await shell.backend.session.flushEvents();
+        shell.runtime.renderNow();
+        const plain = shell.root.render(60).map(stripTerminalSequences);
+        const contentRow = plain.findIndex(row => row.includes("content boundary")) + 1;
+        const workingRow = plain.findIndex(row => row.includes("Working")) + 1;
+        const dock = shell.root.viewportFrameDescriptor()!.dock!;
+        const inputRow = plain.findIndex(row => row.startsWith("❯ ")) + 1;
+        const statusRow = dock.rowEnd;
+        const column = plain[workingRow - 1]!.indexOf("Working") + 1;
+        expect(contentRow).toBeGreaterThan(0);
+        expect(workingRow).toBeGreaterThan(contentRow);
+        expect(dock.rowStart).toBe(workingRow + 1);
+        expect(inputRow).toBeGreaterThanOrEqual(dock.rowStart);
+        expect(statusRow).toBeGreaterThanOrEqual(inputRow);
+        expect(column).toBeGreaterThan(0);
 
-    expect(shell.root.handleViewportPreInput(`\u001b[<0;2;${contentRow}M`)).toMatchObject({ data: "", consumed: true });
-    expect(shell.root.handleViewportPreInput(`\u001b[<35;20;${dock.rowEnd}M`)).toMatchObject({ data: "", consumed: true });
-    expect(shell.root.handleViewportPreInput(`\u001b[<0;20;${dock.rowEnd}m`)).toMatchObject({ data: "", consumed: true });
-    const bounded = shell.root.render(60);
-    expect(bounded.slice(descriptor.transcript!.rowStart - 1, descriptor.transcript!.rowEnd)
-      .some(row => row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
-    expect(bounded.slice(dock.rowStart - 1, dock.rowEnd)
-      .every(row => !row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
-    expect(shell.root.handleViewportPreInput("\u0003")).toMatchObject({ data: "", consumed: true });
+        const path = direction === "working-origin"
+          ? [workingRow, contentRow]
+          : direction === "downward"
+            ? [contentRow, workingRow, inputRow]
+            : direction === "input-origin"
+              ? [inputRow, workingRow, contentRow]
+              : [statusRow, inputRow, workingRow, contentRow];
+        const startRow = path[0]!;
+        const endRow = path.at(-1)!;
+        terminal.input(`\u001b[<0;${column};${startRow}M`);
+        for (const [index, row] of path.slice(1).entries()) {
+          const last = index === path.length - 2;
+          terminal.input(`\u001b[<${last ? 35 : 32};${column};${row}M`);
+          shell.runtime.renderNow();
+        }
+        terminal.input(`\u001b[<0;${column};${endRow}m`);
+        shell.runtime.renderNow();
 
-    shell.root.handleViewportPreInput(`\u001b[<0;20;${dock.rowEnd}M`);
-    shell.root.handleViewportPreInput(`\u001b[<35;20;${contentRow}M`);
-    shell.root.handleViewportPreInput(`\u001b[<0;20;${contentRow}m`);
-    const dockOriginated = shell.root.render(60);
-    expect(dockOriginated[contentRow - 1]).toContain("\u001b[48;2;38;79;120m");
-    expect(dockOriginated.slice(dock.rowStart - 1, dock.rowEnd)
-      .some(row => row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
-    await shell.dispose();
+        const selected = shell.root.render(60);
+        expect(selected[startRow - 1]).toContain("\u001b[48;2;38;79;120m");
+        expect(selected[workingRow - 1]).toContain("\u001b[48;2;38;79;120m");
+        expect(selected[endRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      } finally {
+        await shell.dispose();
+      }
+    },
+  );
+
+  it.each(["above", "below"] as const)("keeps a terminal drag active on Working while its animation ticks from %s", async origin => {
+    const messages = [{ role: "assistant", content: [{ type: "text", text: "animated boundary" }], timestamp: Date.now() }];
+    const { terminal, shell, engine } = await fixture(messages, [], true);
+    try {
+      terminal.resize(60, 12);
+      shell.root.setFullscreenCopyOnSelect(false);
+      engine.session.emit({ type: "agent_start" });
+      await shell.backend.session.flushEvents();
+      shell.runtime.renderNow();
+      const before = shell.root.render(60).map(stripTerminalSequences);
+      const contentRow = before.findIndex(row => row.includes("animated boundary")) + 1;
+      const workingRow = before.findIndex(row => row.includes("Working")) + 1;
+      const inputRow = before.findIndex(row => row.startsWith("❯ ")) + 1;
+      const column = before[workingRow - 1]!.indexOf("Working") + 1;
+      const startRow = origin === "above" ? contentRow : inputRow;
+      const endRow = origin === "above" ? inputRow : contentRow;
+
+      terminal.input(`\u001b[<0;${column};${startRow}M`);
+      terminal.input(`\u001b[<32;${column};${workingRow}M`);
+      shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(true);
+      await new Promise(resolve => setTimeout(resolve, 240));
+      shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(true);
+      expect(shell.root.render(60)[workingRow - 1]).toContain("\u001b[48;2;38;79;120m");
+
+      terminal.input(`\u001b[<35;${column};${endRow}M`);
+      terminal.input(`\u001b[<0;${column};${endRow}m`);
+      shell.runtime.renderNow();
+      const selected = shell.root.render(60);
+      expect(selected[startRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[workingRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[endRow - 1]).toContain("\u001b[48;2;38;79;120m");
+    } finally {
+      await shell.dispose();
+    }
+  });
+
+  it("keeps a downward terminal drag active while the live tail reflows into Working", async () => {
+    const messages = [{ role: "assistant", content: [{ type: "text", text: "selection origin" }], timestamp: Date.now() - 1_000 }];
+    const { terminal, shell, engine } = await fixture(messages, [], true);
+    try {
+      terminal.resize(60, 14);
+      shell.root.setFullscreenCopyOnSelect(false);
+      engine.session.emit({ type: "agent_start" });
+      engine.session.emit({
+        type: "message_start",
+        message: { id: "live-selection", role: "assistant", content: [{ type: "text", text: "partial tail" }], timestamp: Date.now() },
+      });
+      await shell.backend.session.flushEvents();
+      shell.runtime.renderNow();
+      let rows = shell.root.render(60).map(stripTerminalSequences);
+      const originRow = rows.findIndex(row => row.includes("selection origin")) + 1;
+      const partialRow = rows.findIndex(row => row.includes("partial tail")) + 1;
+      expect(originRow).toBeGreaterThan(0);
+      expect(partialRow).toBeGreaterThan(originRow);
+
+      terminal.input(`\u001b[<0;2;${originRow}M`);
+      terminal.input(`\u001b[<32;8;${partialRow}M`);
+      engine.session.emit({
+        type: "message_update",
+        message: { id: "live-selection", role: "assistant", content: [{ type: "text", text: "partial tail extended\nnew live row" }], timestamp: Date.now() },
+        assistantMessageEvent: { type: "text_delta", delta: " extended\nnew live row" },
+      });
+      await shell.backend.session.flushEvents();
+      shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(true);
+
+      rows = shell.root.render(60).map(stripTerminalSequences);
+      const workingRow = rows.findIndex(row => row.includes("Working")) + 1;
+      terminal.input(`\u001b[<32;8;${workingRow}M`);
+      await new Promise(resolve => setTimeout(resolve, 160));
+      engine.session.emit({
+        type: "message_update",
+        message: { id: "live-selection", role: "assistant", content: [{ type: "text", text: "partial tail extended again\nnew live row growing" }], timestamp: Date.now() },
+        assistantMessageEvent: { type: "text_delta", delta: " growing" },
+      });
+      await shell.backend.session.flushEvents();
+      shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(true);
+
+      rows = shell.root.render(60).map(stripTerminalSequences);
+      const currentWorkingRow = rows.findIndex(row => row.includes("Working")) + 1;
+      const inputRow = rows.findIndex(row => row.startsWith("❯ ")) + 1;
+      terminal.input(`\u001b[<35;8;${inputRow}M`);
+      terminal.input(`\u001b[<0;8;${inputRow}m`);
+      shell.runtime.renderNow();
+      const selected = shell.root.render(60);
+      expect(selected[originRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[currentWorkingRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected[inputRow - 1]).toContain("\u001b[48;2;38;79;120m");
+    } finally {
+      await shell.dispose();
+    }
   });
 
   it("continues an active drag through no-button motion reports", async () => {
@@ -1149,7 +1341,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     terminal.input(`\u001b[<0;${jumpColumn};${jumpRow + 1}M`);
     expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("Jump to bottom"))).toBe(false);
 
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     await shell.dispose();
   });
 

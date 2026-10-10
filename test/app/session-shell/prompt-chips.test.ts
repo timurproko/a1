@@ -74,6 +74,36 @@ describe("PromptChipStore", () => {
     } finally { await store.dispose(); }
   });
 
+  it("dims and skips count-rejected images without blocking the accepted prompt", async () => {
+    const store = new PromptChipStore({ imageLimit: () => 1 });
+    const data = screenshotPng(4, 4).toString("base64");
+    const read = async () => ({ kind: "image" as const, data, mimeType: "image/png" });
+    const errors: unknown[] = [];
+    const ready = store.transformPastedContent({ kind: "image", data, mimeType: "image/png" });
+    try {
+      const overflow = store.beginPaste(ready, read, error => errors.push(error));
+      const rejected = await overflow.result;
+      expect(rejected).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
+      expect(rejected).not.toBe(ready);
+      expect(store.unsentRanges(rejected)).toEqual([{ start: 0, end: rejected.length }]);
+      expect(store.atomicRanges(rejected)).toEqual([{ start: 0, end: rejected.length }]);
+      expect(store.imageLimitState(ready + rejected)).toEqual({ count: 1, limit: 1, corrected: false });
+      expect(store.omitUnsentImages(ready + rejected)).toBe(ready);
+      expect(store.prepareHistoryText(ready + rejected)).toBe(ready);
+      expect(store.prepareSubmission(ready + rejected)).toEqual({
+        text: ready,
+        images: [{ type: "image", data, mimeType: "image/png" }],
+      });
+      expect(errors.at(-1)).toMatchObject({ code: "image-count" });
+
+      store.reconcileDraft("");
+      expect(store.unsentRanges(rejected)).toEqual([{ start: 0, end: rejected.length }]);
+      expect(store.prepareSubmission(ready + rejected).images).toHaveLength(1);
+      const replacement = store.beginPaste(rejected, read, error => errors.push(error));
+      expect(await replacement.result).toBe(replacement.marker);
+    } finally { await store.dispose(); }
+  });
+
   it("preserves authored image chip tags in reusable history text and still expands other chips", async () => {
     const store = new PromptChipStore();
     try {
@@ -107,10 +137,11 @@ describe("PromptChipStore", () => {
       await Promise.all(pastes.map(paste => paste.result));
       expect(store.prepareSubmission(draft).images).toHaveLength(8);
       const ninth = store.beginPaste(draft, read, error => errors.push(error));
-      await ninth.result;
+      const rejected = await ninth.result;
+      expect(rejected).toMatch(/^\[📷 screenshot-/u);
       expect(errors.at(-1)).toMatchObject({ code: "image-count" });
-      expect(() => store.prepareSubmission(draft + ninth.marker)).toThrow("at most 8 images");
-      expect(store.prepareSubmission(draft).images).toHaveLength(8);
+      expect(store.prepareSubmission(draft + ninth.marker).images).toHaveLength(8);
+      expect(store.prepareSubmission(draft + rejected).images).toHaveLength(8);
     } finally { store.dispose(); }
   });
 
@@ -153,6 +184,39 @@ describe("PromptChipStore", () => {
     expect(store.atomicRanges(`${folderChip} ${fileChip}`)).toHaveLength(2);
     expect(store.expandCopiedText(folderChip)).toBe(folder);
     expect(store.prepareSubmission(`inspect ${fileChip}`).text).toBe(`inspect ${file}`);
+  });
+
+  it("uses the shortest distinguishing path suffix instead of a random hash", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "a1-path-chip-collisions-"));
+    cleanup.push(root);
+    const first = path.join(root, "first", "shared");
+    const second = path.join(root, "second", "shared");
+    const third = path.join(root, "other", "second", "shared");
+    const firstFile = path.join(root, "first", "notes.txt"), secondFile = path.join(root, "second", "notes.txt");
+    const firstImage = path.join(root, "first", "photo.png"), secondImage = path.join(root, "second", "photo.png");
+    await Promise.all([mkdir(first, { recursive: true }), mkdir(second, { recursive: true }), mkdir(third, { recursive: true })]);
+    await Promise.all([firstFile, secondFile, firstImage, secondImage].map(file => writeFile(file, "fixture", "utf8")));
+    const store = new PromptChipStore();
+    try {
+      const firstChip = store.transformPastedContent({ kind: "text", text: first });
+      const secondChip = store.transformPastedContent({ kind: "text", text: second });
+      const thirdChip = store.transformPastedContent({ kind: "text", text: third });
+      const fileChips = [firstFile, secondFile].map(text => store.transformPastedContent({ kind: "text", text }));
+      const imageChips = [firstImage, secondImage].map(text => store.transformPastedContent({ kind: "text", text }));
+      expect(firstChip).toBe("[📁 shared]");
+      expect(secondChip).toBe("[📁 second/shared]");
+      expect(thirdChip).toBe("[📁 other/second/shared]");
+      expect(fileChips).toEqual(["[📄 notes.txt]", "[📄 second/notes.txt]"]);
+      expect(imageChips).toEqual(["[🖼  photo.png]", "[🖼  second/photo.png]"]);
+      expect(store.transformPastedContent({ kind: "text", text: second })).toBe(secondChip);
+      expect(`${firstChip}${secondChip}${thirdChip}${fileChips.join("")}${imageChips.join("")}`).not.toMatch(/ #[a-f0-9]+\]/u);
+      expect(store.atomicRanges(`${firstChip}${secondChip}${thirdChip}${fileChips.join("")}${imageChips.join("")}`)).toHaveLength(7);
+      expect(store.expandCopiedText(secondChip)).toBe(second);
+      expect(store.expandCopiedText(fileChips[1]!)).toBe(secondFile);
+      expect(store.expandCopiedText(imageChips[1]!)).toBe(secondImage);
+      expect(store.prepareHistoryText(thirdChip)).toBe(third);
+      expect(store.prepareSubmission(`${firstChip}${secondChip}${thirdChip}`).text).toBe(first + second + third);
+    } finally { await store.dispose(); }
   });
 
   it("keeps a full URL target behind its truncated chip label", () => {

@@ -1,10 +1,11 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
- * Modifications: Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; an
- * explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and
- * reserves its linked pull-request badge before path truncation while preserving the remaining footer
- * layout and formatting; replacement surfaces may suppress a thinking level they already present.
+ * Modifications: Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession;
+ * preserves the latest physical route for virtual models; an explicit bare-A1 profile colors the
+ * thinking-level name, renders its repository-context path, and reserves its linked pull-request badge
+ * before path truncation while preserving the remaining footer layout and formatting; replacement
+ * surfaces may suppress a thinking level they already present.
  * Deviations: owned-status-level-color, owned-pull-request-badge.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
@@ -80,10 +81,16 @@ export class SessionFooter implements Component {
     if (leftWidth > width) { left = truncateToWidth(left, width, "..."); leftWidth = visibleWidth(left); }
 
     const modelName = view.activeModel?.modelId ?? "no-model";
-    const rightWithoutProvider = this.profile === "a1"
+    let rightWithoutProvider = this.profile === "a1"
       ? view.activeModel === null || !this.show() ? theme.fg("dim", modelName)
         : theme.fg("dim", `${modelName} • `) + theme.getThinkingBorderColor(view.thinkingLevel)(view.thinkingLevel)
       : view.activeModel === null || view.thinkingLevel === "off" || !this.show() ? modelName : `${modelName} • ${view.thinkingLevel}`;
+    const routed = view.routedModel;
+    if (routed) {
+      const level = routed.thinkingLevel === undefined ? "" : ` • ${routed.thinkingLevel}`;
+      const route = ` → ${routed.model.modelId}${level}`;
+      rightWithoutProvider += this.profile === "a1" ? theme.fg("dim", route) : route;
+    }
     let right = rightWithoutProvider;
     if ((view.status.footer?.availableProviderCount ?? 1) > 1 && view.activeModel) {
       const provider = `(${view.activeModel.providerId}) `;

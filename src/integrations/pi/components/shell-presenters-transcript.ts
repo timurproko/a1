@@ -3,8 +3,6 @@ import {
   BashExecutionComponent,
   CompactionSummaryMessageComponent,
   CustomMessageComponent,
-  DynamicBorder,
-  getMarkdownTheme,
   parseSkillBlock,
   UserMessageComponent,
 } from "../startup-public.js";
@@ -21,7 +19,6 @@ import {
   type Component,
 } from "@earendil-works/pi-tui";
 import type { OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
-import { PRODUCT_TEXT } from "../../../product-identity.js";
 import {
   createPiSubmittedPromptComponent,
   isPiPromptStyleCompaction,
@@ -29,15 +26,14 @@ import {
 } from "./submitted-prompt-adapter.js";
 export { isPiPromptStyleCompaction, paintPiSubmittedPromptTimestamp, type PiShellSubmittedPromptComposer } from "./submitted-prompt-adapter.js";
 import {
+  getPiMarkdownTheme,
   PINNED_PI_LAYOUT,
   piTheme,
 } from "./theme.js";
 import {
-  componentPort,
   createTuiFacade,
   ensureTheme,
   isRecord,
-  type PiShellComponentPort,
   type PiShellExtensionRendererResolver,
   type PiShellImageAssetResolver,
   type PiShellTranscriptComponentPort,
@@ -187,7 +183,7 @@ function renderWithOutputPad(
   outputPad: 0 | 1,
 ): readonly string[] {
   const rows = component.render(width);
-  if (outputPad !== 0 || (kind !== "tool-call" && kind !== "tool-result" && kind !== "bash")) return rows;
+  if (outputPad !== 0 || kind !== "bash") return rows;
   return rows.map(row => row.startsWith(" ") ? row.slice(1) : row);
 }
 
@@ -219,28 +215,6 @@ export function renderPiShellStartupDiagnostic(
   return new Text(`${chalk.open}${chalk.prefix}${diagnostic.message}${chalk.close}`, 0, 0).render(width);
 }
 
-/**
- * Pinned Pi's `showPackageUpdateNotification` banner: warning-coloured dynamic
- * borders around a bold warning title, the muted update instruction with the
- * accent command, and the package list.
- */
-export function renderPiShellPackageUpdateNotice(packages: readonly string[], width: number): readonly string[] {
-  ensureTheme();
-  const theme = piTheme();
-  const container = new Container();
-  container.addChild(new Spacer(1));
-  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
-  container.addChild(new Text(
-    `${theme.bold(theme.fg("warning", "Package Updates Available"))}\n`
-    + `${theme.fg("muted", "Package updates are available. Run ")}${theme.fg("accent", `${PRODUCT_TEXT.commandName} pi update --extensions`)}\n`
-    + `${theme.fg("muted", "Packages:")}\n`
-    + packages.map(name => `- ${name}`).join("\n"),
-    1, 0,
-  ));
-  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
-  return container.render(width);
-}
-
 function transcriptComponent(
   block: OwnedUiTranscriptBlock,
   cwd: string,
@@ -261,7 +235,7 @@ function transcriptComponent(
         : { ...block, text: block.userPresentation.visibleText };
       const skill = parseSkillBlock(visibleBlock.text);
       if (!skill) return submittedPrompt ? createPiSubmittedPromptComponent(visibleBlock, submittedPrompt) : new UserMessageComponent(visibleBlock.text);
-      const invocation = new SkillInvocationMessageComponent(skill, getMarkdownTheme());
+      const invocation = new SkillInvocationMessageComponent(skill, getPiMarkdownTheme(), outputPad);
       invocation.setExpanded(expanded);
       if (!skill.userMessage) return invocation;
       const container = new Container();
@@ -275,7 +249,7 @@ function transcriptComponent(
       return assistantComponent(block, outputPad, hideThinkingBlock, mermaidRenderingMode);
     case "tool-call":
     case "tool-result": {
-      const component = toolComponent(block, cwd, extensions, showImages, imageWidthCells, imageAssets, tui);
+      const component = toolComponent(block, cwd, extensions, outputPad, showImages, imageWidthCells, imageAssets, tui);
       component.setExpanded(expanded);
       return component;
     }
@@ -289,7 +263,7 @@ function transcriptComponent(
         summary: block.text,
         tokensBefore: numericPayload(block, "tokensBefore"),
         timestamp: numericPayload(block, "timestamp") || 0,
-      }, getMarkdownTheme());
+      }, getPiMarkdownTheme());
       component.setExpanded(expanded);
       return component;
     }
@@ -302,7 +276,7 @@ function transcriptComponent(
     case "custom":
       return customMessageComponent(block, expanded, extensions, outputPad);
     case "bash":
-      return bashExecutionComponent(block, cwd, expanded, tui);
+      return bashExecutionComponent(block, expanded, tui);
   }
 }
 
@@ -349,7 +323,7 @@ function assistantComponent(
 ): AssistantMessageComponent {
   const transformer = createMermaidMarkdownTransformer({ getMode: () => mermaidRenderingMode, theme: piTheme() });
   const component = new AssistantMessageComponent(
-    undefined, hideThinkingBlock, getMarkdownTheme(), undefined, outputPad, [transformer],
+    undefined, hideThinkingBlock, getPiMarkdownTheme(), undefined, outputPad, [transformer],
   );
   component.updateContent(validatedAssistantMessage(block), block.status === "live");
   return component;
@@ -399,17 +373,20 @@ function assistantPayloadContent(value: unknown): readonly Record<string, unknow
   return content.length === 0 && value.length > 0 ? undefined : content;
 }
 
-type PiToolDefinition = ConstructorParameters<typeof ToolExecutionComponent>[4];
+type PiToolRenderers = ConstructorParameters<typeof ToolExecutionComponent>[4];
 type PiMessageRenderer = ConstructorParameters<typeof CustomMessageComponent>[1];
 
-function validatedToolDefinition(value: unknown): PiToolDefinition {
+function validatedToolRenderers(value: unknown): PiToolRenderers {
   if (value === undefined) return undefined;
-  if (!isPiToolDefinition(value)) throw new TypeError("Pi tool-definition façade rejected malformed metadata");
+  if (!isPiToolRenderers(value)) throw new TypeError("Pi tool-renderer façade rejected malformed metadata");
   return value;
 }
 
-function isPiToolDefinition(value: unknown): value is NonNullable<PiToolDefinition> {
-  return isRecord(value) && typeof value.name === "string";
+function isPiToolRenderers(value: unknown): value is NonNullable<PiToolRenderers> {
+  if (!isRecord(value)) return false;
+  return (value.renderShell === undefined || value.renderShell === "default" || value.renderShell === "self")
+    && (value.renderCall === undefined || typeof value.renderCall === "function")
+    && (value.renderResult === undefined || typeof value.renderResult === "function");
 }
 
 function validatedMessageRenderer(value: unknown): PiMessageRenderer {
@@ -426,6 +403,7 @@ function toolComponent(
   block: OwnedUiTranscriptBlock,
   cwd: string,
   extensions: PiShellExtensionRendererResolver | undefined,
+  outputPad: 0 | 1,
   showImages: boolean,
   imageWidthCells: number,
   imageAssets?: PiShellImageAssetResolver,
@@ -439,8 +417,8 @@ function toolComponent(
     toolName,
     toolCallId,
     argumentsPayload,
-    { showImages, imageWidthCells },
-    validatedToolDefinition(extensions?.getToolDefinition(toolName)),
+    { showImages, imageWidthCells, outputPad },
+    validatedToolRenderers(extensions?.getToolRenderers(toolName)),
     tui ?? createTuiFacade({ getColumns: () => 80, getRows: () => 24, requestRender() {} }),
     cwd,
   );
@@ -475,12 +453,12 @@ function customMessageComponent(
     timestamp: numericPayload(block, "timestamp") || 0,
   };
   const renderer = validatedMessageRenderer(extensions?.getMessageRenderer(message.customType));
-  const component = new CustomMessageComponent(message, renderer, getMarkdownTheme(), outputPad);
+  const component = new CustomMessageComponent(message, renderer, getPiMarkdownTheme(), outputPad);
   component.setExpanded(expanded);
   return component;
 }
 
-function bashExecutionComponent(block: OwnedUiTranscriptBlock, cwd: string, expanded: boolean, tui?: ReturnType<typeof createTuiFacade>): BashExecutionComponent {
+function bashExecutionComponent(block: OwnedUiTranscriptBlock, expanded: boolean, tui?: ReturnType<typeof createTuiFacade>): BashExecutionComponent {
   const payload = blockPayload(block);
   const component = new BashExecutionComponent(
     stringPayload(payload, "command") ?? block.title ?? "",

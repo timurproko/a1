@@ -6,6 +6,8 @@ import crossSpawn from "cross-spawn";
 import { valid as validSemver } from "semver";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import type { UpdateChannel } from "./types.js";
+import { SHARED_PROGRESS_ACCENT_ANSI } from "./progress-palette.generated.js";
+import { isNewerRelease, releaseChannelOf } from "./latest-release.js";
 import {
   certifyMaterializedRelease,
   ensureSupervisor,
@@ -31,6 +33,7 @@ import { UpdateTransactionStore, type UpdateRecoveryState, type UpdateTransactio
 import {
   npmPrefixForGlobalRoot,
   removeUpdateRecoveryCapsule,
+  resolveNpmCli,
   runProtectedPackageReplacement,
   updateLauncherPaths,
   updateNpmInstallArguments,
@@ -104,6 +107,8 @@ export interface SelfUpdateOptions {
   transactionStore?: UpdateTransactionJournal;
   /** Test seam for protected global package replacement. */
   packageReplacement?: (input: UpdatePackageReplacementInput) => Promise<ProtectedPackageReplacementResult>;
+  /** Test seam for proving replacement-authority preflight ordering. */
+  npmCliResolver?: typeof resolveNpmCli;
   /** Test or embedding seam for post-activation release maintenance. */
   maintenance?: () => Promise<void>;
   progress?: boolean;
@@ -138,6 +143,7 @@ export interface UpdatePackageReplacementInput {
   readonly dataDir: string;
   readonly globalRoot: string;
   readonly npmCliRoot: string;
+  readonly npmCli?: string;
   readonly packageRoot: string;
   readonly transaction: UpdateTransaction;
   readonly priorRelease: { readonly releaseId: string; readonly releaseRoot: string; readonly contentDigest: string };
@@ -373,13 +379,11 @@ interface UpdateProgress { set(percent: number, creepTo?: number): void; finish(
 export function renderUpdateProgressBar(percent: number): string {
   const bounded = Math.min(100, Math.max(0, Math.round(percent)));
   const filled = Math.round((bounded / 100) * PROGRESS_BAR_WIDTH);
-  // Rationale: the completed run uses A1's scrollbar-aligned teal, followed by a
-  // darker gray track and one gray space before the percentage. Explicit RGB
-  // keeps each color stable even when the terminal remaps its ANSI palette.
-  const completed = "\u001b[38;2;138;190;183m";
+  // Rationale: the completed run follows the pinned Pi controls' semantic accent,
+  // while the track and percentage retain the update meter's neutral treatment.
   const gray = "\u001b[38;2;128;128;128m";
   const track = "\u001b[38;2;102;102;102m";
-  return `${completed}${"━".repeat(filled)}${track}${"─".repeat(PROGRESS_BAR_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
+  return `${SHARED_PROGRESS_ACCENT_ANSI}${"━".repeat(filled)}${track}${"─".repeat(PROGRESS_BAR_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
 }
 
 function createUpdateProgress(output: UpdateOutput, enabled: boolean): UpdateProgress {
@@ -645,6 +649,14 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     : await resolveRequestedPreview(runner, requested, output));
   if (resolved.version === null) return resolved.exitCode;
   const targetVersion = resolved.version;
+  // Invariant: a channel head below the running release on the same channel is never installed, so a
+  // lagging or rolled-back dist-tag cannot downgrade. Switching channels and named previews stay deliberate.
+  const sameChannel = releaseChannelOf(runningVersion) === (channel === "stable" ? "stable" : "development");
+  if ((requested === undefined || requested.length === 0) && sameChannel
+    && targetVersion !== runningVersion && !isNewerRelease(targetVersion, runningVersion)) {
+    output.stdout(`${PRODUCT_TEXT.commandName} is up to date — no update needed.\n`);
+    return 0;
+  }
   // Rationale: no full stop after a version: it already ends in a dot-separated identifier,
   // and a trailing one reads as part of the version rather than as punctuation.
   output.stdout(`${PRODUCT_TEXT.commandName} update: ${runningVersion} → ${targetVersion}\n`);
@@ -662,6 +674,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     ? async () => {}
     : async () => await scheduleReleaseCleanup(paths.dataDir, paths));
   let transaction = await transactionStore.read();
+  let npmCli: string | undefined;
   try {
     if ((!transaction || transaction.status === "completed") && await lifecycle.targetIsActive(targetVersion)) {
       await maintenance();
@@ -669,7 +682,16 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       output.stdout(`${PRODUCT_TEXT.commandName} is up to date — no update needed.\n`);
       return 0;
     }
-    // Rationale: the bar first appears here so a no-change run never flashes it.
+    const preflightRequired = options.npmCliResolver !== undefined
+      || options.packageReplacement === undefined && options.runner === undefined;
+    if (preflightRequired) {
+      try {
+        npmCli = await (options.npmCliResolver ?? resolveNpmCli)(npmCliRoot, environment);
+      } catch (error) {
+        throw new UpdatePreflightFailure(errorMessage(error));
+      }
+    }
+    // Rationale: the bar first appears only after every non-mutating replacement prerequisite passes.
     progress.set(3, 15);
     const cohortStore = new CohortStateStore(paths.dataDir);
     let cohortState = await cohortStore.read();
@@ -716,6 +738,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
           dataDir: paths.dataDir,
           globalRoot,
           npmCliRoot,
+          ...(npmCli === undefined ? {} : { npmCli }),
           packageRoot,
           transaction: replacementTransaction,
           priorRelease,
@@ -799,6 +822,10 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   } catch (error) {
     progress.clear();
     const message = errorMessage(error);
+    if (error instanceof UpdatePreflightFailure) {
+      output.stderr(`${PRODUCT_TEXT.diagnostic(`update could not start safely: ${message}. Nothing was changed. Retry with npm x -y -- ${PRODUCT_PACKAGE}-install`)}\n`);
+      return 1;
+    }
     const rollback = options.lifecycle
       ? "previous test lifecycle retained"
       : await rollbackPriorCohort(paths.dataDir, environment, transaction?.priorActiveReleaseId ?? null).catch(rollbackError => `rollback failed: ${errorMessage(rollbackError)}`);
@@ -890,6 +917,8 @@ class UpdateFailure extends Error {
   constructor(exitCode: number, message: string) { super(message); this.exitCode = exitCode; }
 }
 
+class UpdatePreflightFailure extends Error {}
+
 async function canonicalImmutableRoot(dataDir: string, releaseRoot: string): Promise<boolean> {
   try {
     const [store, selected] = await Promise.all([realpath(resolve(dataDir, "releases")), realpath(releaseRoot)]);
@@ -902,10 +931,6 @@ async function canonicalImmutableRoot(dataDir: string, releaseRoot: string): Pro
 
 function samePath(left: string, right: string): boolean {
   return process.platform === "win32" ? resolve(left).toLowerCase() === resolve(right).toLowerCase() : resolve(left) === resolve(right);
-}
-function isContainedBy(parent: string, child: string): boolean {
-  const pathFromParent = relative(parent, child);
-  return pathFromParent.length > 0 && pathFromParent !== ".." && !pathFromParent.startsWith(`..${sep}`) && !isAbsolute(pathFromParent);
 }
 function unsuccessfulCode(code: number | null): number { return code === null || code === 0 ? 1 : code; }
 function formatExitCode(code: number | null): string { return code === null ? "unknown" : String(code); }

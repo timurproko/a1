@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import path from "node:path";
-import { PATH_CHIP_PRESENTATION_UNITS, PATH_CHIP_SUFFIX_UNITS, pathChipTag, preparePathPresentation } from "../../../src/app/session-shell/path-chip-presentation.js";
+import {
+  PATH_CHIP_PRESENTATION_UNITS,
+  pathChipLabelCandidates,
+  pathChipPresentationUnits,
+  pathChipTag,
+  pathChipTagCandidates,
+  preparePathPresentation,
+} from "../../../src/app/session-shell/path-chip-presentation.js";
 import type { ClipboardPath } from "../../../src/app/session-shell/paste-text-preparation.js";
 import { PromptChipStore } from "../../../src/app/session-shell/prompt-chips.js";
 import { startPasteExecutor } from "../../../src/app/session-shell/paste-executor.js";
@@ -15,12 +22,24 @@ const file = (name: string): ClipboardPath => ({ kind: "file", fullPath: `/gener
 const nextImmediate = () => new Promise<void>(resolve => setImmediate(resolve));
 
 describe("bounded path-chip presentation", () => {
-  it("retains the exact boundary and compacts one UTF-16 unit above it", () => {
-    const fitting = file("x".repeat(PATH_CHIP_PRESENTATION_UNITS - PATH_CHIP_SUFFIX_UNITS - 5));
-    expect(pathChipTag(fitting).length + PATH_CHIP_SUFFIX_UNITS).toBe(PATH_CHIP_PRESENTATION_UNITS);
+  it("retains the exact worst-case boundary and compacts one UTF-16 unit above it", () => {
+    const fixedUnits = pathChipPresentationUnits(file("x")) - 1;
+    const fitting = file("x".repeat(PATH_CHIP_PRESENTATION_UNITS - fixedUnits));
+    expect(pathChipPresentationUnits(fitting)).toBe(PATH_CHIP_PRESENTATION_UNITS);
     expect(preparePathPresentation([fitting])).toEqual({ kind: "paths", paths: [fitting] });
-    const excess = file(`${"x".repeat(PATH_CHIP_PRESENTATION_UNITS - PATH_CHIP_SUFFIX_UNITS - 5)}y`);
+    const excess = file(`${"x".repeat(PATH_CHIP_PRESENTATION_UNITS - fixedUnits)}y`);
     expect(preparePathPresentation([excess])).toEqual({ kind: "text", text: excess.fullPath, label: `${excess.fullPath.length} chars` });
+  });
+
+  it("builds deterministic tags from basename through the rooted path", () => {
+    const item = file("outer/shared/notes.txt");
+    expect([...pathChipLabelCandidates(item.fullPath)].slice(0, 4)).toEqual([
+      "notes.txt", "shared/notes.txt", "outer/shared/notes.txt", "generated/outer/shared/notes.txt",
+    ]);
+    expect([...pathChipTagCandidates(item)].slice(0, 3)).toEqual([
+      "[📄 notes.txt]", "[📄 shared/notes.txt]", "[📄 outer/shared/notes.txt]",
+    ]);
+    expect([...pathChipTagCandidates(item)].at(-1)).toMatch(/^\[📄 \/generated\/outer\/shared\/notes\.txt\]$/u);
   });
 
   it.each([
@@ -35,7 +54,7 @@ describe("bounded path-chip presentation", () => {
 
   it("counts every duplicate and Unicode code unit, resetting for each paste", () => {
     const item = file("界👩‍💻.txt");
-    const count = Math.floor(PATH_CHIP_PRESENTATION_UNITS / (pathChipTag(item).length + PATH_CHIP_SUFFIX_UNITS));
+    const count = Math.floor(PATH_CHIP_PRESENTATION_UNITS / pathChipPresentationUnits(item));
     const fitting = Array.from({ length: count }, () => item);
     expect(preparePathPresentation(fitting).kind).toBe("paths");
     expect(preparePathPresentation([...fitting, item])).toEqual({ kind: "text", text: item.fullPath.repeat(count + 1), label: `${item.fullPath.length * (count + 1)} chars` });
@@ -44,12 +63,12 @@ describe("bounded path-chip presentation", () => {
 
   it("stops individual tag construction at the budget rather than formatting the entire list", () => {
     const item = file("name.txt"), paths = Array.from({ length: 6000 }, () => item);
-    const unitCost = pathChipTag(item).length + PATH_CHIP_SUFFIX_UNITS;
-    const basename = vi.spyOn(path, "basename");
+    const unitCost = pathChipPresentationUnits(item);
+    const normalize = vi.spyOn(path, "normalize");
     try {
       expect(preparePathPresentation(paths).kind).toBe("text");
-      expect(basename).toHaveBeenCalledTimes(Math.floor(PATH_CHIP_PRESENTATION_UNITS / unitCost) + 1);
-    } finally { basename.mockRestore(); }
+      expect(normalize).toHaveBeenCalledTimes(Math.floor(PATH_CHIP_PRESENTATION_UNITS / unitCost) + 1);
+    } finally { normalize.mockRestore(); }
   });
 
   it("adopts one ordinary text chip with exact copy/history/submission and no provisional member chips", async () => {
@@ -68,6 +87,22 @@ describe("bounded path-chip presentation", () => {
       expect(store.expandCopiedText(pathChipTag(paths[0]!))).toBe(pathChipTag(paths[0]!));
       store.reconcileDraft("");
       expect(store.prepareSubmission(tag).text === expanded).toBe(true);
+    } finally { await store.dispose(); }
+  });
+
+  it("releases provisional path identities when an isolated paste is canceled", async () => {
+    vi.mocked(startPasteExecutor)
+      .mockReturnValueOnce({ result: Promise.resolve({ kind: "paths", paths: [file("one/shared.txt")] }), stopped: Promise.resolve(), cancel() {} })
+      .mockReturnValueOnce({ result: Promise.resolve({ kind: "paths", paths: [file("two/shared.txt")] }), stopped: Promise.resolve(), cancel() {} });
+    const store = new PromptChipStore({ isolated: true });
+    try {
+      const canceled = store.beginPaste("", { kind: "text", text: "first" }, () => {});
+      expect(await canceled.result).toBe("[📄 shared.txt]");
+      store.reconcileDraft("");
+      await nextImmediate();
+      const replacement = store.beginPaste("", { kind: "text", text: "second" }, () => {});
+      expect(await replacement.result).toBe("[📄 shared.txt]");
+      replacement.complete?.();
     } finally { await store.dispose(); }
   });
 

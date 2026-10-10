@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
-import { OWNED_UI_SETTING_DECLARATIONS, OwnedSettingsManager, type OwnedUiSettingDeclaration } from "../../../src/ui/settings/index.js";
+import {
+  OWNED_UI_SETTING_DECLARATIONS,
+  OwnedSettingsManager,
+  type OwnedUiSettingDeclaration,
+  type OwnedUiSettingValue,
+} from "../../../src/ui/settings/index.js";
 import { SettingsApp } from "../../../src/features/owned-ui/index.js";
 import type { AppHostServices } from "../../../src/ui/apps/index.js";
 import { finalizeFrame, type UiTheme, type UiThemeToken } from "../../../src/ui/components/index.js";
@@ -19,11 +24,17 @@ const RXVT_CTRL_HOME = `${ESC}[7^`;
 const RXVT_CTRL_END = `${ESC}[8^`;
 const ENTER = "\r";
 const SPACE = " ";
+const CTRL_Z = "\u001a";
 const STYLE = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
 
 const WARNING_FLAGS = [
-  { key: "anthropicExtraUsage", label: "Anthropic extra usage", description: "Warn about paid extra usage", fallback: true },
+  { key: "anthropicExtraUsage", label: "Anthropic extra usage", description: "Warn when Anthropic subscription auth may use paid extra usage", fallback: true },
   { key: "unknownTools", label: "Unknown tools", description: "Warn about unknown tools", fallback: false },
+] as const;
+
+const MODEL_THINKING_FLAGS = [
+  { key: "openai/gpt-5", label: "gpt-5 [openai]", description: "global default", fallback: "default", choices: ["default", "low", "high"] },
+  { key: "openai/gpt-5.3-codex-spark", label: "gpt-5.3-codex-spark [openai]", description: "global default", fallback: "default", choices: ["default", "low", "medium", "high"] },
 ] as const;
 
 function descriptor(
@@ -71,6 +82,36 @@ function port(failWrites = false): { port: AgentSettingsPort; writes: { key: str
   };
 }
 
+function modelDialogPort(): { port: AgentSettingsPort; writes: { key: string; value: AgentJsonValue }[] } {
+  const backing = port();
+  let overrides: AgentJsonValue = { "openai/gpt-5": "high" };
+  return {
+    writes: backing.writes,
+    port: {
+      ...backing.port,
+      async listSettings() {
+        return [
+          ...await backing.port.listSettings(),
+          descriptor("modelThinkingLevels", "json", overrides, {
+            label: "Default thinking level per model",
+            owner: "agent",
+            flags: MODEL_THINKING_FLAGS,
+          }),
+        ];
+      },
+      async readSetting(key) {
+        return key === "modelThinkingLevels" ? overrides : await backing.port.readSetting?.(key);
+      },
+      async writeSetting(key, value) {
+        if (key !== "modelThinkingLevels") return await backing.port.writeSetting!(key, value);
+        backing.writes.push({ key, value });
+        overrides = value;
+        return { status: "applied" as const, application: "live" as const, storedValue: value, effectiveValue: value, failure: null, limitationReason: null };
+      },
+    },
+  };
+}
+
 const HOST: AppHostServices = {
   getSize: () => ({ width: 80, height: 24 }),
   requestRender: () => {},
@@ -86,6 +127,10 @@ const NAMING_THEME: UiTheme = Object.freeze({
   fg: (token: UiThemeToken, text: string) => `<${token}>${text}</${token}>`,
   bold: (text: string) => text,
   plain: (text: string) => text,
+  accentPreview: (color: string, text: string) => {
+    const ansi = { purple: 35, blue: 34, cyan: 36, green: 32, orange: 33, pink: 31 }[color];
+    return ansi === undefined ? null : `\u001b[${ansi}m${text}\u001b[39m`;
+  },
   highlight: (text: string) => `<highlight>${text}</highlight>`,
   disabled: (text: string) => `<disabled>${text}</disabled>`,
   panel: (text: string) => `<panel>${text}</panel>`,
@@ -147,7 +192,7 @@ async function app(
   failWrites = false,
   scrollbarSpeed?: "normal" | "fast" | "high",
   declarations: readonly OwnedUiSettingDeclaration[] = OWNED_UI_SETTING_DECLARATIONS,
-  stored: Readonly<Record<string, string>> = {},
+  stored: Readonly<Record<string, OwnedUiSettingValue>> = {},
 ): Promise<{ app: SettingsApp; session: OwnedSettingsManager; writes: { key: string; value: AgentJsonValue }[] }> {
   const backing = port(failWrites);
   const seed = new OwnedSettingsManager({ configDir: root, profileId: "profile", declarations, migrations: [] });
@@ -176,6 +221,10 @@ function selectRow(target: SettingsApp, label: string): void {
   throw new Error(`never reached ${label}`);
 }
 
+async function settleChanges(): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, 0));
+}
+
 beforeEach(() => {
   root = mkdtempSync(path.join(tmpdir(), "a1-settings-app-"));
 });
@@ -194,10 +243,10 @@ describe("the settings screen", () => {
     expect(lines[1]?.trimEnd()).toBe(" <b><accent>Settings</accent></b>");
     expect(lines[2]?.trimEnd()).toBe("");
     expect(lines[3]).toContain("Generic");
-    expect(lines[4]).toContain("Quit animation");
+    expect(lines[4]).toContain("Update check");
     expect(lines.find(line => line.includes("Generic"))?.startsWith(" ")).toBe(true);
     expect(lines.find(line => line.includes("Generic"))).toContain("<mdHeading><b>Generic</b></mdHeading>");
-    expect(lines.find(line => line.includes("Quit animation"))?.startsWith(" <accent>→ ")).toBe(true);
+    expect(lines.find(line => line.includes("Update check"))?.startsWith(" <highlight><accent>→ ")).toBe(true);
     expect(lines.at(-2)).toBe(`<border>${rule}</border>`);
     expect(lines.at(-1)?.startsWith(" <dim>")).toBe(true);
 
@@ -240,9 +289,15 @@ describe("the settings screen", () => {
 
   it("groups concise scrollbar controls with defaults but no default wording", async () => {
     const { app: target } = await app();
-    const lines = screen(target);
-    expect(lines.findIndex(line => line.trim() === "Generic")).toBeLessThan(lines.findIndex(line => line.trim() === "Scroll"));
+    const lines = target.render({ width: 80, height: 32 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    expect(lines.findIndex(line => line.trim() === "Generic")).toBeLessThan(lines.findIndex(line => line.trim() === "Appearance"));
+    expect(lines.findIndex(line => line.trim() === "Appearance")).toBeLessThan(lines.findIndex(line => line.trim() === "Scroll"));
     expect(lines.some(line => line.includes("Quit animation") && line.includes("yes"))).toBe(true);
+    expect(lines.some(line => line.trim() === "Appearance")).toBe(true);
+    expect(lines.some(line => line.includes("Accent color") && line.includes("purple"))).toBe(true);
+    expect(lines.some(line => line.includes("Background") && line.includes("transparent"))).toBe(true);
+    expect(lines.findIndex(line => line.includes("Accent color"))).toBeLessThan(lines.findIndex(line => line.includes("Background")));
+    expect(lines.findIndex(line => line.includes("Background"))).toBeLessThan(lines.findIndex(line => line.includes("Quit animation")));
     expect(lines.some(line => line.trim() === "Scroll")).toBe(true);
     expect(lines.some(line => line.includes("Scrollbar mode") && line.includes("auto"))).toBe(true);
     expect(lines.some(line => line.includes("Fullscreen scrollbar"))).toBe(false);
@@ -263,16 +318,48 @@ describe("the settings screen", () => {
     expect(lines.join("\n")).not.toContain("When the session transcript scrollbar is visible.");
   });
 
-  // Rationale: the selected value once regressed to the accent through pinned-row parity;
-  // the screen itself now pins that only the cursor and label take the selection colour.
-  it("paints the selected row's label in the accent and its value like every other value", async () => {
+  it("changes and undoes the profile accent without writing Pi settings", async () => {
+    const { app: target, session, writes } = await app();
+    screen(target);
+    target.onInput?.(`${ESC}[1;2B`, HOST);
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*purple/);
+    target.onInput?.(`${ESC}[C`, HOST);
+    await settleChanges();
+    expect(session.value("accentColor")).toBe("blue");
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*blue/);
+    expect(writes).toEqual([]);
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("accentColor")).toBe("purple");
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*purple/);
+  });
+
+  it("changes and undoes the owned background without writing Pi settings", async () => {
+    const { app: target, session, writes } = await app();
+    selectRow(target, "Background");
+    expect(find(target, "Background").trimStart()).toMatch(/^→.*transparent/);
+    target.onInput?.(`${ESC}[C`, HOST);
+    await settleChanges();
+    expect(session.value("backgroundStyle")).toBe("accent");
+    expect(find(target, "Background").trimStart()).toMatch(/^→.*accent/);
+    expect(writes).toEqual([]);
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("backgroundStyle")).toBe("transparent");
+  });
+
+  // Rationale: the selected value keeps its semantic foreground while the item gains a surface.
+  it("paints the selected row with an accent cursor, text label, muted value, and highlight", async () => {
     const { app: target } = await app();
     const named = () => target.render({ width: 80, height: 24 }, NAMING_HOST).map(line => line.trimEnd());
     const lines = named();
     const selectedRow = lines.findIndex(line => line.includes("<accent>→ </accent>"));
     expect(selectedRow).toBeGreaterThanOrEqual(0);
     const selected = lines[selectedRow]!;
-    expect(selected).toContain("<accent>Quit animation");
+    expect(selected).toMatch(/^ <highlight>.*<\/highlight>$/u);
+    expect(selected).toContain("<text>Update check");
     expect(selected).toContain("<muted>yes</muted>");
     expect(selected).not.toContain("<accent>yes");
     const unselected = lines.find(line => line.includes("Scrollbar style"))!;
@@ -282,8 +369,9 @@ describe("the settings screen", () => {
     const valueColumn = screen(target)[selectedRow]!.indexOf("yes") + 1;
     target.onMouse?.({ kind: "motion", button: 0, row: selectedRow + 1, column: valueColumn }, NAMING_HOST);
     const pointed = named()[selectedRow]!;
-    expect(pointed).toContain("<accent>Quit animation");
-    expect(pointed).toMatch(/\s+yes$/);
+    expect(pointed).toContain("<text>Update check");
+    expect(pointed).toMatch(/^ <highlight>.*<\/highlight>$/u);
+    expect(pointed).toMatch(/\s+yes<\/highlight>$/u);
     expect(pointed).not.toContain("<muted>yes");
     expect(pointed).not.toContain("<accent>yes");
   });
@@ -291,17 +379,18 @@ describe("the settings screen", () => {
   it("keeps the moved control stable through section jumps, search, refresh, keyboard, and pointer changes", async () => {
     const { app: target, session, writes } = await app();
     screen(target);
-    expect(find(target, "Quit animation").trimStart()).toMatch(/^→/);
+    expect(find(target, "Update check").trimStart()).toMatch(/^→/);
+    target.onInput?.(`${ESC}[1;2B`, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "Persistent history").trimStart()).toMatch(/^→/);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "Warnings").trimStart()).toMatch(/^→/);
     selectRow(target, "Prompt suggestions");
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     await session.load();
     expect(session.value("promptSuggestions")).toBe(false);
-    // Rationale: the second owned Agent row overflows the 24-row frame by one, so the rail follows each row.
+    // Rationale: the owned Agent rows overflow the test frame, so the rail follows each row.
     expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*no\s*│?$/);
     expect(find(target, "Skills").trimStart()).toMatch(/^\s*Skills\s+collapse\s*│?$/);
     expect(writes).toEqual([]);
@@ -327,22 +416,40 @@ describe("the settings screen", () => {
     expect(session.value("promptSuggestions")).toBe(true);
     expect(writes).toEqual([]);
     target.onInput?.(ESC, HOST);
-    expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*yes\s*│?$/);
-    expect(screen(target).filter(line => line.includes("Prompt suggestions"))).toHaveLength(1);
+    target.onInput?.("/", HOST);
+    for (const letter of "Prompt suggestions") target.onInput?.(letter, HOST);
+    expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*yes/);
+    expect(screen(target).filter(line => line.includes("Prompt suggestions") && !line.includes("❯"))).toHaveLength(1);
+    target.onInput?.(ESC, HOST);
 
     // Invariant: the Skills row is the same kind of owned Agent control: search finds it, Enter cycles it, nothing reaches the engine.
     target.onInput?.("/", HOST);
     for (const letter of "Skills") target.onInput?.(letter, HOST);
     expect(screen(target).filter(line => line.trim() === "Agent")).toHaveLength(1);
     expect(find(target, "Skills").trimStart()).toMatch(/^→.*collapse/);
-    target.onInput?.(ESC, HOST);
-    selectRow(target, "Skills");
-    expect(find(target, "Skills").trimStart()).toMatch(/^→.*collapse/);
-    target.onInput?.(ENTER, HOST);
+    const skills = screen(target);
+    const skillsRow = skills.findIndex(line => line.includes("Skills") && !line.includes("❯"));
+    target.onMouse?.({ kind: "press", button: 0, row: skillsRow + 1, column: skills[skillsRow]!.indexOf("collapse") + 1 }, HOST);
+    const skillsMenu = screen(target);
+    const expandRow = skillsMenu.findIndex(line => /\bexpand\b/.test(line));
+    target.onMouse?.({ kind: "press", button: 0, row: expandRow + 1, column: skillsMenu[expandRow]!.indexOf("expand") + 1 }, HOST);
     await session.load();
     expect(session.value("skillsPresentation")).toBe("expand");
     expect(find(target, "Skills").trimStart()).toMatch(/^→.*expand/);
-    expect(screen(target).filter(line => line.includes("Skills"))).toHaveLength(1);
+    expect(screen(target).filter(line => line.includes("Skills") && !line.includes("❯"))).toHaveLength(1);
+    target.onInput?.(ESC, HOST);
+
+    target.onInput?.("/", HOST);
+    for (const letter of "Prompt image limit") target.onInput?.(letter, HOST);
+    expect(find(target, "Prompt image limit").trimStart()).toMatch(/^→.*8/);
+    target.onInput?.(ESC, HOST);
+    target.onInput?.(CTRL_END, HOST);
+    target.onInput?.(ENTER, HOST);
+    await session.load();
+    expect(session.value("promptImageLimit")).toBe(9);
+    target.onInput?.("/", HOST);
+    for (const letter of "Prompt image limit") target.onInput?.(letter, HOST);
+    expect(find(target, "Prompt image limit").trimStart()).toMatch(/^→.*9/);
     expect(writes).toEqual([]);
   });
 
@@ -365,7 +472,7 @@ describe("the settings screen", () => {
     expect(shown.join("\n")).not.toContain("unavailable");
     expect(shown.some(line => line.includes("Thinking level"))).toBe(false);
     selectRow(target, "Prompt suggestions");
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     expect(session.value("promptSuggestions")).toBe(false);
     expect(backing.writes).toEqual([]);
   });
@@ -394,11 +501,156 @@ describe("the settings screen", () => {
     }
   });
 
-  it("steps to the next value on enter", async () => {
+  it("opens the current scalar choice on enter and cancels without writing", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Thinking level");
+    target.onInput?.(SPACE, HOST);
+    expect(writes).toEqual([]);
+
     target.onInput?.(ENTER, HOST);
-    expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
+    const opened = target.render({ width: 80, height: 24 }, NAMING_HOST);
+    expect(opened.find(line => line.includes(" low"))).toContain("<highlight>");
+    expect(writes).toEqual([]);
+
+    target.onInput?.(ESC, HOST);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).not.toContain("<panel>");
+    expect(writes).toEqual([]);
+  });
+
+  it("shows only the selected value through a deferred save and keeps shortcut guidance", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Update check");
+
+    target.onInput?.(`${ESC}[C`, HOST);
+    let row = find(target, "Update check");
+    expect(row).toMatch(/Update check\s+no/u);
+    expect(row).not.toContain("effective");
+    expect(row).not.toContain("next start");
+
+    await settleChanges();
+    row = find(target, "Update check");
+    expect(row).toMatch(/Update check\s+no/u);
+    expect(row).not.toContain("effective");
+    expect(row).not.toContain("next start");
+    expect(find(target, "/ search")).not.toBe("");
+    expect(screen(target).join("\n")).not.toContain("stored and applies");
+
+    const reopened = new SettingsApp(session);
+    selectRow(reopened, "Update check");
+    row = find(reopened, "Update check");
+    expect(row).toMatch(/Update check\s+no/u);
+    expect(row).not.toContain("effective");
+    expect(row).not.toContain("next start");
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(find(target, "/ search")).not.toBe("");
+    expect(screen(target).join("\n")).not.toContain("restored and applies");
+  });
+
+  it("shows only the optimistic value while a live save is unresolved", async () => {
+    const { app: target, session } = await app(false, "normal", WHEEL_SETTINGS);
+    vi.spyOn(session, "change").mockReturnValue(new Promise(() => {}));
+
+    target.onInput?.(`${ESC}[C`, HOST);
+    const row = find(target, "Speed");
+    expect(row).toMatch(/Speed\s+fast/u);
+    expect(row).not.toContain("effective normal");
+    expect(row).not.toContain("live");
+  });
+
+  it("undoes successful scalar changes in reverse order through their owning backends", async () => {
+    const { app: target, session, writes } = await app();
+    selectRow(target, "Prompt suggestions");
+    target.onInput?.(`${ESC}[C`, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+    target.onInput?.(`${ESC}[C`, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(true);
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(true);
+
+    target.onInput?.(CTRL_HOME, HOST);
+    selectRow(target, "Thinking level");
+    target.onInput?.(`${ESC}[C`, HOST);
+    await settleChanges();
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(writes.slice(-2)).toEqual([
+      { key: "thinkingLevel", value: "high" },
+      { key: "thinkingLevel", value: "low" },
+    ]);
+  });
+
+  it("undoes from a scalar menu and active search without losing the query", async () => {
+    const { app: target, writes } = await app();
+    selectRow(target, "Thinking level");
+    target.onInput?.(`${ESC}[C`, HOST);
+    await settleChanges();
+
+    let lines = screen(target);
+    let row = lines.findIndex(line => line.includes("Thinking level"));
+    let valueColumn = (lines[row] ?? "").indexOf("high") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
+    expect(screen(target).some(line => line.includes("✓ high"))).toBe(true);
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(screen(target).some(line => line.includes("✓ high"))).toBe(false);
+    expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "low" });
+
+    target.onInput?.(`${ESC}[C`, HOST);
+    await settleChanges();
+    target.onInput?.("/", HOST);
+    for (const letter of "think") target.onInput?.(letter, HOST);
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    lines = screen(target);
+    row = lines.findIndex(line => line.includes("Thinking level"));
+    valueColumn = (lines[row] ?? "").indexOf("low");
+    expect(lines.some(line => line.includes("think"))).toBe(true);
+    expect(valueColumn).toBeGreaterThan(0);
+    expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "low" });
+  });
+
+  it("keeps a failed restore retryable without changing the authoritative value", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Prompt suggestions");
+    target.onInput?.(`${ESC}[C`, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+
+    vi.spyOn(session, "change").mockResolvedValueOnce({
+      status: "failed", applied: false, pendingRestart: false, application: null,
+      storedValue: null, effectiveValue: null, limitationReason: null, failure: "restore refused",
+    });
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+    expect(find(target, "Could not restore")).toContain("restore refused");
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(true);
+  });
+
+  it("discards undo history when the settings screen closes", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Prompt suggestions");
+    target.onInput?.(`${ESC}[C`, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
+    target.onClose?.(HOST);
+
+    const reopened = new SettingsApp(session);
+    reopened.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.value("promptSuggestions")).toBe(false);
   });
 
   it("stops at the end of a range instead of reporting a rejected write", async () => {
@@ -441,23 +693,145 @@ describe("the settings screen", () => {
     // Invariant: the declaration decides what a flag shows before anything is stored.
     expect(find(target, "Anthropic extra usage")).toContain("true");
     expect(find(target, "Unknown tools")).toContain("false");
-    expect(find(target, "Enter/Space to change")).toContain("Esc to cancel");
+    expect(find(target, "Warnings")).toContain("Warnings");
+    expect(find(target, "Warn when Anthropic subscription auth may use paid extra usage")).not.toBe("");
+    const dialogHint = find(target, "Enter change");
+    expect(dialogHint).toContain("Ctrl+Z undo");
+    expect(dialogHint).toContain("Esc close");
+    expect(dialogHint).not.toContain("Space");
+    expect(dialogHint).not.toContain(" to ");
     const rendered = target.render({ width: 200, height: 24 }, NAMING_HOST);
-    const styledHint = rendered.find(line => line.includes("Enter/Space")) ?? "";
+    const styledHint = rendered.find(line => line.includes("<dim>Enter</dim>")) ?? "";
     const title = rendered.find(line => line.includes("Settings")) ?? "";
     expect(firstVisibleTextColumn(styledHint)).toBe(firstVisibleTextColumn(title));
-    expect(styledHint).toContain("<dim>Esc</dim> <muted>to cancel</muted>  <dim>Enter/Space</dim> <muted>to change</muted>");
-    expect(styledHint).not.toMatch(/[·•]/u);
+    expect(styledHint).not.toBe("");
 
-    target.onInput?.(SPACE, HOST);
-    expect(find(target, "Anthropic extra usage")).toContain("false");
-    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
-
-    // Invariant: a second press steps from what the dialog shows, not from the snapshot it
-    // was opened with.
     target.onInput?.(SPACE, HOST);
     expect(find(target, "Anthropic extra usage")).toContain("true");
+    expect(writes).toHaveLength(0);
+
+    target.onInput?.(ENTER, HOST);
+    expect(find(target, "Anthropic extra usage")).toContain("false");
+    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
+    await settleChanges();
+
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(find(target, "Anthropic extra usage")).toContain("true");
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: true, unknownTools: false } });
+
+    // Invariant: a further press steps from what the restored dialog shows.
+    target.onInput?.(ENTER, HOST);
+    expect(find(target, "Anthropic extra usage")).toContain("false");
+    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
+  });
+
+  it("keeps shortcut guidance after a successful deferred structured change", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Warnings");
+    target.onInput?.(ENTER, HOST);
+    vi.spyOn(session, "changeStructured").mockResolvedValue({
+      status: "deferred", applied: false, pendingRestart: true, application: "next-start",
+      storedValue: {}, effectiveValue: {}, limitationReason: null, failure: null,
+    });
+
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    target.onInput?.(ESC, HOST);
+
+    expect(find(target, "/ search")).not.toBe("");
+    expect(screen(target).join("\n")).not.toContain("stored and applies");
+  });
+
+  it("uses the structured dialog's top rule as the sole list boundary", async () => {
+    const { app: target } = await app();
+    selectRow(target, "Warnings");
+    target.onInput?.(ENTER, HOST);
+
+    const lines = screen(target);
+    const title = lines.findIndex(line => line.trim() === "Warnings");
+    const firstPart = lines.findIndex(line => line.includes("Anthropic extra usage"));
+    const rule = "─".repeat(80);
+    expect(lines).toHaveLength(24);
+    expect(title).toBeGreaterThan(0);
+    expect(lines[title - 1]).toBe(rule);
+    expect(lines[title + 1]).toContain("Warn when Anthropic subscription auth may use paid extra usage");
+    expect(firstPart).toBeGreaterThan(title + 1);
+    expect(lines.at(-1)).toBe(rule);
+  });
+
+  it("uses the owned per-model thinking search and stepped keyboard workflow", async () => {
+    const backing = modelDialogPort();
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent: backing.port });
+    await session.load();
+    const target = new SettingsApp(session);
+    selectRow(target, "Default thinking level per model");
+    target.onInput?.(ENTER, HOST);
+
+    let shown = screen(target).join("\n");
+    expect(shown).toContain("Thinking Level (step 1/2)");
+    expect(shown).toContain("Select a model to configure");
+    expect(shown).toContain("gpt-5 [openai]");
+    expect(shown).toContain("gpt-5.3-codex-spark [openai]");
+    expect(shown).toContain("Type search · Enter select · Esc close");
+    expect(shown).not.toContain("Ctrl+Z undo");
+    expect(shown).not.toContain("Enter change");
+
+    for (const character of "spark") target.onInput?.(character, HOST);
+    shown = screen(target).join("\n");
+    expect(shown).toContain("gpt-5.3-codex-spark [openai]");
+    expect(shown).not.toContain("gpt-5 [openai]");
+
+    const beforePointer = screen(target);
+    target.onMouse?.({ kind: "press", button: 0, row: 20, column: 20 }, HOST);
+    expect(screen(target)).toEqual(beforePointer);
+    expect(backing.writes).toHaveLength(0);
+
+    target.onInput?.(ENTER, HOST);
+    shown = screen(target).join("\n");
+    expect(shown).toContain("Thinking Level (step 2/2)");
+    expect(shown).toContain("Select default thinking level for gpt-5.3-codex-spark [openai]");
+    expect(shown).toContain("↑↓ navigate · Enter select · Esc back");
+    expect(shown).not.toContain("Thinking Level for");
+    expect(shown).toContain("low");
+    expect(shown).toContain("Light reasoning (~2k tokens)");
+    const selectedLevel = screen(target).find(line => line.includes("low") && line.includes("Light reasoning")) ?? "";
+    expect(selectedLevel.startsWith(" → low")).toBe(true);
+    expect(selectedLevel.startsWith(" →  low")).toBe(false);
+    expect(shown).not.toContain("(clear override)");
+    target.onInput?.(ESC, HOST);
+    expect(screen(target).join("\n")).toContain("Thinking Level (step 1/2)");
+    expect(screen(target).join("\n")).toContain("Esc close");
+    expect(backing.writes).toHaveLength(0);
+
+    target.onInput?.(ENTER, HOST);
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(backing.writes.at(-1)).toEqual({
+      key: "modelThinkingLevels",
+      value: { "openai/gpt-5": "high", "openai/gpt-5.3-codex-spark": "low" },
+    });
+    shown = screen(target).join("\n");
+    expect(shown).toContain("Thinking Level (step 1/2)");
+    expect(shown).toContain("Select a model to configure");
+    expect(shown).toContain("gpt-5.3-codex-spark [openai]  low");
+
+    target.onInput?.(ENTER, HOST);
+    shown = screen(target).join("\n");
+    expect(shown).toContain("✓ low");
+    expect(shown).toContain("(clear override)");
+    expect(shown).toContain("Revert to global default");
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(ENTER, HOST);
+    await settleChanges();
+    expect(backing.writes.at(-1)).toEqual({
+      key: "modelThinkingLevels",
+      value: { "openai/gpt-5": "high" },
+    });
+    target.onInput?.(ESC, HOST);
+    expect(screen(target).join("\n")).not.toContain("Thinking Level (step");
   });
 
   it("adjusts a flag with the arrows, as the list adjusts a value", async () => {
@@ -470,20 +844,41 @@ describe("the settings screen", () => {
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: true, unknownTools: false } });
   });
 
-  it("acts on the dialog's value and leaves its label alone", async () => {
+  it("consumes pointer editing and dialog-area wheel input without changing a structured dialog", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Warnings");
     target.onInput?.(ENTER, HOST);
 
-    const lines = screen(target);
-    const row = lines.findIndex(line => line.includes("Anthropic extra usage"));
-    const valueColumn = (lines[row] ?? "").indexOf("true") + 1;
-
-    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: 6 }, HOST);
+    const before = screen(target);
+    const row = before.findIndex(line => line.includes("Unknown tools"));
+    const valueColumn = (before[row] ?? "").indexOf("false") + 1;
+    for (const event of [
+      { kind: "motion" as const, button: 0, row: row + 1, column: valueColumn },
+      { kind: "press" as const, button: 0, row: row + 1, column: valueColumn },
+      { kind: "wheel-down" as const, button: 0, row: row + 1, column: valueColumn },
+    ]) {
+      expect(target.onMouse?.(event, HOST)).toEqual({ consumed: true, render: false });
+    }
+    expect(screen(target)).toEqual(before);
     expect(writes).toHaveLength(0);
+  });
 
-    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
-    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
+  it("scrolls settings content behind an unchanged structured dialog", async () => {
+    const { app: target, writes } = await app(false, undefined, WHEEL_SETTINGS);
+    selectRow(target, "Warnings");
+    target.onInput?.(ENTER, HOST);
+
+    const before = screen(target);
+    const beforeTitle = before.findIndex(line => line.trim() === "Warnings");
+    expect(beforeTitle).toBeGreaterThan(1);
+    expect(target.onMouse?.({ kind: "wheel-up", button: 0, row: 2, column: 70 }, HOST))
+      .toEqual({ consumed: true });
+
+    const after = screen(target);
+    const afterTitle = after.findIndex(line => line.trim() === "Warnings");
+    expect(after.slice(0, afterTitle - 1)).not.toEqual(before.slice(0, beforeTitle - 1));
+    expect(after.slice(afterTitle - 1)).toEqual(before.slice(beforeTitle - 1));
+    expect(writes).toHaveLength(0);
   });
 
   it("moves through what the search found instead of typing the arrows", async () => {
@@ -508,7 +903,7 @@ describe("the settings screen", () => {
     let lines = render();
     const visited = new Set<string>();
     for (let step = 0; step < 20; step++) {
-      for (const label of ["Persistent history", "History limit", "Thinking level", "Output padding", "Prompt suggestions", "Skills"]) {
+      for (const label of ["Persistent history", "History limit", "Thinking level", "Output padding", "Prompt suggestions", "Skills", "Prompt image limit"]) {
         if (lines.some(line => line.includes(label))) visited.add(label);
       }
       // Rationale: the search input still belongs to its results for wheel navigation.
@@ -520,9 +915,11 @@ describe("the settings screen", () => {
     }
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow).toBeGreaterThanOrEqual(2);
-    expect(lines[searchRow - 2]).toContain("Skills");
+    expect(lines[searchRow - 2]).toContain("Prompt image limit");
     expect(lines[searchRow - 2]?.endsWith("┃")).toBe(true);
-    expect([...visited].sort()).toEqual(["History limit", "Output padding", "Persistent history", "Prompt suggestions", "Skills", "Thinking level"]);
+    expect([...visited].sort()).toEqual([
+      "History limit", "Output padding", "Persistent history", "Prompt image limit", "Prompt suggestions", "Skills", "Thinking level",
+    ]);
   });
 
   it("reaches the actual final setting by wheeling over the bottom of an open search", async () => {
@@ -552,7 +949,7 @@ describe("the settings screen", () => {
     expect(lines[1]).toContain(" Settings");
     expect(lines[2]?.replace(/[│┃]$/u, "").trimEnd()).toBe("");
     expect(lines[3]).toContain("Generic");
-    expect(lines[4]?.trimStart()).toMatch(/^→\s+Quit animation/);
+    expect(lines[4]?.trimStart()).toMatch(/^→\s+Update check/);
   });
 
   it("moves the last result onto the final body row when Ctrl+End is used during search", async () => {
@@ -563,9 +960,9 @@ describe("the settings screen", () => {
     const lines = target.render({ width: 80, height: 10 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow, JSON.stringify(lines)).toBeGreaterThanOrEqual(0);
-    expect(lines.find(line => line.includes("Skills"))?.trimStart()).toMatch(/^→/);
+    expect(lines.find(line => line.includes("Prompt image limit"))?.trimStart()).toMatch(/^→/);
     // Invariant: no trailing spacer separates the final result from the ruled input's top line.
-    expect(lines[searchRow - 2]).toContain("Skills");
+    expect(lines[searchRow - 2]).toContain("Prompt image limit");
   });
 
   it("restores the previous bottom position when an untouched search closes", async () => {
@@ -674,13 +1071,16 @@ describe("the settings screen", () => {
 describe("the list view behind the screen", () => {
   it("begins every value at one column, however wide the labels are", async () => {
     const { app: target } = await app();
-    const rows = screen(target).filter(line => /\b(true|false|low|high|3|0)\s*$/.test(line) && line.includes(" "));
+    const rows = target.render({ width: 80, height: 32 }, HOST)
+      .map(line => line.replace(STYLE, "").trimEnd())
+      .filter(line => /\b(true|false|low|high|3|0)\s*$/.test(line) && line.includes(" "));
     const columns = new Set(rows.map(line => line.search(/\S+\s*$/)));
     expect(columns.size, `values start at ${[...columns].join(", ")}`).toBe(1);
   });
 
   it("reads the pointer as a label, a value, or a control beside it", async () => {
     const { app: target, writes } = await app();
+    selectRow(target, "Thinking level");
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Thinking level"));
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
@@ -695,11 +1095,13 @@ describe("the list view behind the screen", () => {
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
     expect(writes).toHaveLength(0);
     expect(screen(target).some(line => line.includes("✓ low"))).toBe(true);
-    expect(screen(target).find(line => line.trimStart().startsWith("→"))).toBe(selectedBefore);
+    // Invariant: the menu lays its effective value over the source row, whose arrow stays put.
+    expect(screen(target).find(line => line.trimStart().startsWith("→"))).toContain("→ Thinking level");
   });
 
   it("raises working minus/plus controls over a number, and only over its value", async () => {
     const { app: target, writes } = await app();
+    selectRow(target, "Editor padding");
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Editor padding"));
     const valueColumn = (lines[row] ?? "").indexOf("3") + 1;
@@ -722,22 +1124,104 @@ describe("the list view behind the screen", () => {
 });
 
 describe("the value dropdown behind the screen", () => {
-  it("opens from the value and applies the chosen row", async () => {
+  it("shows every accent choice with its effective-color square and a neutral current mark", async () => {
+    const { app: target } = await app();
+    const lines = screen(target);
+    const row = lines.findIndex(line => line.includes("Accent color"));
+    const valueColumn = (lines[row] ?? "").indexOf("purple") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
+
+    const opened = target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n");
+    expect(opened).toContain("<highlight><text>✓</text></highlight><highlight> \u001b[35m■\u001b[39m purple");
+    for (const ansi of [34, 36, 32, 33, 31]) expect(opened).toContain(`\u001b[${ansi}m■\u001b[39m`);
+    expect(opened).not.toContain("<accent>✓</accent>");
+  });
+
+  it("opens on the effective value when it is not the first choice", async () => {
     const { app: target, writes } = await app();
+    selectRow(target, "Thinking level");
+    target.onInput?.(`${ESC}[C`, HOST);
+    await settleChanges();
+    expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes("Thinking level")))
+      .toContain("<muted>high</muted>");
+
+    target.onInput?.(ENTER, HOST);
+    const opened = target.render({ width: 80, height: 24 }, NAMING_HOST);
+    const source = opened.find(line => line.includes("Thinking level")) ?? "";
+    const low = opened.find(line => line.includes(" low")) ?? "";
+    const high = opened.find(line => line.includes(" high")) ?? "";
+    expect(source).not.toContain("<muted>high</muted>");
+    expect(source).toContain("  high</highlight>");
+    expect(low).not.toContain("<highlight>");
+    expect(high).toContain("<highlight><text>✓</text></highlight>");
+    expect(writes).toHaveLength(1);
+
+    target.onInput?.(ESC, HOST);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes("Thinking level")))
+      .toContain("<muted>high</muted>");
+    expect(writes).toHaveLength(1);
+  });
+
+  it("navigates and confirms a keyboard-opened menu", async () => {
+    const { app: target, writes } = await app();
+    selectRow(target, "Thinking level");
+    target.onInput?.(ENTER, HOST);
+    expect(writes).toEqual([]);
+
+    target.onInput?.(`${ESC}[A`, HOST);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes(" low"))).toContain("<highlight>");
+    target.onInput?.(DOWN, HOST);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes(" high"))).toContain("<highlight>");
+    target.onInput?.(ENTER, HOST);
+
+    expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
+    const closed = target.render({ width: 80, height: 24 }, NAMING_HOST);
+    expect(closed.join("\n")).not.toContain("<panel>");
+    expect(closed.find(line => line.includes("Thinking level"))).toContain("<muted>high</muted>");
+  });
+
+  it("opens on the effective value under the pointer and navigates from it", async () => {
+    const { app: target, writes } = await app();
+    selectRow(target, "Thinking level");
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Thinking level"));
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
-    expect(screen(target).some(line => line.includes("✓ low"))).toBe(true);
+
+    // Invariant: the press lands on the value in effect, which the menu lays under the pointer.
+    const opened = target.render({ width: 80, height: 24 }, NAMING_HOST);
+    expect(opened.join("\n")).toContain("<highlight><text>✓</text></highlight><highlight> low");
+    expect(writes).toHaveLength(0);
 
     target.onInput?.(DOWN, HOST);
-    expect(screen(target).some(line => line.includes("✓ low"))).toBe(true);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes(" high"))).toContain("<highlight>");
     target.onInput?.(ENTER, HOST);
     expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "high" });
   });
 
+  it("highlights only after the pointer enters a menu row and clears after it leaves", async () => {
+    const { app: target } = await app();
+    selectRow(target, "Thinking level");
+    const lines = screen(target);
+    const row = lines.findIndex(line => line.includes("Thinking level"));
+    const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
+
+    const menu = screen(target);
+    const highRow = menu.findIndex(line => line.includes("high"));
+    const highColumn = (menu[highRow] ?? "").indexOf("high") + 1;
+    target.onMouse?.({ kind: "motion", button: 0, row: highRow + 1, column: highColumn }, HOST);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes("high"))).toContain("<highlight>");
+
+    target.onMouse?.({ kind: "motion", button: 0, row: highRow + 1, column: 1 }, HOST);
+    const cleared = target.render({ width: 80, height: 24 }, NAMING_HOST);
+    expect(cleared.filter(line => line.includes("<panel>") && !line.includes("Thinking level")).join("\n")).not.toContain("<highlight>");
+  });
+
   it("applies the choice pressed inside the shared menu", async () => {
     const { app: target, writes } = await app();
+    selectRow(target, "Thinking level");
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Thinking level"));
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
@@ -771,20 +1255,20 @@ describe("the input row and status line behind the screen", () => {
   it("derives the complete standing status from active shortcut declarations", async () => {
     const { app: target } = await app();
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
-    const hint = wide.find(line => line.includes("/ to search")) ?? "";
+    const hint = wide.find(line => line.includes("/ search")) ?? "";
     const title = wide.find(line => line.includes("Settings")) ?? "";
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(title));
     expect(hint.startsWith(" ")).toBe(true);
-    expect(hint).toContain("↑↓ to navigate");
-    expect(hint).toContain("Shift+↑↓ to jump");
-    expect(hint).toContain("Enter/Space to change");
-    expect(hint).toContain("←→ to adjust");
-    expect(hint).toContain("Esc to cancel");
-    expect(hint).not.toContain("Type to search");
+    expect(hint).toContain("↑↓ navigate");
+    expect(hint).toContain("Shift+↑↓ jump");
+    expect(hint).toContain("Enter change");
+    expect(hint).not.toContain("Space");
+    expect(hint).toContain("←→ adjust");
+    expect(hint).toContain("Ctrl+Z undo");
+    expect(hint).toContain("Esc close");
+    expect(hint).not.toContain("Type search");
+    expect(hint).not.toContain(" to ");
     expect(hint).not.toMatch(/[·•]/u);
-    const styledHint = target.render({ width: 200, height: 24 }, NAMING_HOST).find(line => line.includes("<dim>/</dim>")) ?? "";
-    expect(styledHint).toContain("<dim>/</dim> <muted>to search</muted>  <dim>↑↓</dim> <muted>to navigate</muted>");
-
     const narrow = target.render({ width: 24, height: 8 }, HOST).map(line => line.replace(STYLE, ""));
     expect(narrow.at(-1)).toHaveLength(24);
   });
@@ -810,7 +1294,7 @@ describe("the input row and status line behind the screen", () => {
     const { app: target, session } = await app(false, "normal", WHEEL_SETTINGS);
     const change = vi.spyOn(session, "change").mockReturnValue(new Promise(() => {}));
     target.render({ width: 80, height: 7 }, HOST);
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     expect(change).toHaveBeenCalledWith("a1", "scrollbarSpeed", "fast");
     expect(session.value("scrollbarSpeed")).toBe("normal");
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 3, column: 70 }, HOST);
@@ -911,12 +1395,12 @@ describe("the input row and status line behind the screen", () => {
     const change = vi.spyOn(session, "change").mockReturnValue(new Promise(() => {}));
     expect(railCells(target).every(cell => cell === " ")).toBe(true);
 
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     expect(change).toHaveBeenCalledWith("a1", "scrollbarAppearance", "always");
     expect(session.value("scrollbarAppearance")).toBe("auto");
     expect(railCells(target)).toContain("│");
 
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     expect(change).toHaveBeenCalledWith("a1", "scrollbarAppearance", "hidden");
     expect(target.render(RAIL_RECT, HOST).join("\n")).not.toMatch(/[│┃]/);
   });
@@ -964,13 +1448,16 @@ describe("the input row and status line behind the screen", () => {
     expect(paged).toContain("Wheel row 10");
   });
 
-  it("reports a failed write instead of the hint", async () => {
-    const { app: target } = await app(true);
+  it("reports a failed write instead of the hint and does not make it undoable", async () => {
+    const { app: target, writes } = await app(true);
     selectRow(target, "Thinking level");
-    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
     // Invariant: the write is reported once it has been attempted, not on the keypress.
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await settleChanges();
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
     expect(wide.find(line => line.includes("Could not save"))).toContain("Thinking level");
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(writes).toHaveLength(0);
   });
 });

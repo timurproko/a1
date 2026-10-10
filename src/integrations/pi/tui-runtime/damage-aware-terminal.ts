@@ -1,8 +1,13 @@
 import type { PiTuiTerminalPort } from "./contracts.js";
 
-export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@0.87.1:tui-alt-screen-one-write-v1";
+export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@1.1.0:tui-alt-screen-one-write-v1";
 
 export interface PiTuiDamageFrameDescriptor {
+  /**
+   * Frame ids are compared only within one presentation epoch; absent means the current epoch. A
+   * presenter switch starts a new epoch, because each presenter numbers its own frames.
+   */
+  readonly epoch?: number;
   readonly frameId: number;
   readonly width: number;
   readonly height: number;
@@ -88,6 +93,7 @@ const ROW_MARKER = /\u001b\[(\d+);1H\u001b\[2K/gu;
 const ROW_CONTENT_CURSOR = /\u001b\[\d+;1H/u;
 const CURSOR_SUFFIX = /(?:\u001b\[(\d+);(\d+)H)?\u001b\[\?25[hl]\u001b\[\?2026l$/u;
 const OUT_OF_BAND = /^(?:\u001b\](?:0|2|9|52);[^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b\[\?25[hl])+$/u;
+const SGR_SEQUENCE = /\u001b\[([0-9:;]*)m/gu;
 
 /**
  * A fail-closed adapter for one pinned Pi fullscreen write grammar. Semantic
@@ -103,10 +109,12 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
   #cleanedRevision = 0;
   #recoveryRevision = 0;
   #epoch = 0;
+  #presentationEpoch = 0;
   #armed: ArmedFrame | undefined;
   #lastConsumedFrameId = 0;
   #cacheWidth = 0;
   #cacheHeight = 0;
+  #canvasBackgroundAnsi: string | null = null;
   #decision: PiTuiDamageDecision = {
     frameId: null,
     transformed: false,
@@ -127,6 +135,27 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
   get kittyProtocolActive(): boolean { return this.inner.kittyProtocolActive; }
   get lastDecision(): PiTuiDamageDecision { return this.#decision; }
   get hyperlinkCleanupPending(): boolean { return this.#cleanupRevision > this.#cleanedRevision; }
+  get canvasBackgroundAnsi(): string | null { return this.#canvasBackgroundAnsi; }
+  get presentationEpoch(): number { return this.#presentationEpoch; }
+
+  /**
+   * Starts a new presentation epoch: the remembered cells and the armed frame are discarded and frame ids
+   * restart, so the next frame is painted in full rather than reconciled against another presenter's.
+   */
+  invalidatePresentation(): void {
+    this.#presentationEpoch += 1;
+    this.#armed = undefined;
+    this.#lastConsumedFrameId = 0;
+    this.#invalidatePresentation();
+  }
+
+  /** Invalidates remembered terminal cells before the shell forces one complete canvas repaint. */
+  setCanvasBackground(ansi: string | null): boolean {
+    if (this.#canvasBackgroundAnsi === ansi) return false;
+    this.#canvasBackgroundAnsi = ansi;
+    this.#invalidatePresentation();
+    return true;
+  }
 
   /**
    * The rows as last forwarded to the terminal, top to bottom, with styling
@@ -185,7 +214,7 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     const armed = this.#armed;
     this.#armed = undefined;
     const parsed = parsePinnedFullscreenWrite(data);
-    if (armed !== undefined && armed.descriptor.frameId <= this.#lastConsumedFrameId) {
+    if (armed !== undefined && this.#isStale(armed.descriptor)) {
       // Concurrency: a recognized obsolete frame must never repaint newer cells,
       // acknowledge cleanup, or become the reference for a subsequent differential.
       this.#decision = this.#decide(armed, parsed);
@@ -224,7 +253,10 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
         output = buildDamageWrite(parsed, armed.descriptor, new Set(decision.paintedRows), this.#rows);
       }
     }
-    this.inner.write(output);
+    const forwarded = this.#canvasBackgroundAnsi === null
+      ? output
+      : paintTerminalCanvasFrame(output, this.#canvasBackgroundAnsi);
+    this.inner.write(forwarded);
     if (epoch !== this.#epoch
       || (armed !== undefined && this.#lastConsumedFrameId !== armed.descriptor.frameId)) return;
     // Invariant: cache invalidation follows forwarded bytes, not a suppressed clear.
@@ -260,7 +292,7 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
       shiftRows: descriptor.verticalShiftRows,
       paintedRows: [] as readonly number[],
     };
-    if (descriptor.frameId <= this.#lastConsumedFrameId) return { ...base, reason: "stale-frame" };
+    if (this.#isStale(descriptor)) return { ...base, reason: "stale-frame" };
     this.#lastConsumedFrameId = descriptor.frameId;
     if (this.hyperlinkCleanupPending) return { ...base, reason: "pending-hyperlink-cleanup" };
     if (parsed !== null && parsed.structuralPrefix === "\u001b[2J"
@@ -329,6 +361,11 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
       shiftRows: descriptor.verticalShiftRows,
       paintedRows: [...painted].sort((left, right) => left - right),
     };
+  }
+
+  #isStale(descriptor: PiTuiDamageFrameDescriptor): boolean {
+    return (descriptor.epoch ?? this.#presentationEpoch) !== this.#presentationEpoch
+      || descriptor.frameId <= this.#lastConsumedFrameId;
   }
 
   #rememberFrame(
@@ -437,6 +474,56 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     this.#cacheWidth = 0;
     this.#cacheHeight = 0;
   }
+}
+
+/** Makes SGR background resets return to A1's canvas while preserving explicit backgrounds. */
+export function rebaseTerminalDefaultBackground(content: string, backgroundAnsi: string): string {
+  return content.replace(SGR_SEQUENCE, (sequence, parameters: string) => (
+    sgrLeavesDefaultBackground(parameters) ? `${sequence}${backgroundAnsi}` : sequence
+  ));
+}
+
+/** Paints only synchronized fullscreen rows; clipboard/title/progress controls remain byte-identical. */
+export function paintTerminalCanvasFrame(data: string, backgroundAnsi: string): string {
+  if (!data.startsWith(BEGIN_SYNCHRONIZED_OUTPUT) || !data.endsWith(END_SYNCHRONIZED_OUTPUT)
+    || !ROW_MARKER.test(data)) {
+    ROW_MARKER.lastIndex = 0;
+    return data;
+  }
+  ROW_MARKER.lastIndex = 0;
+  const rows = data.replace(ROW_MARKER, (_marker, row: string) => (
+    `\u001b[${row};1H${backgroundAnsi}\u001b[2K${backgroundAnsi}`
+  ));
+  ROW_MARKER.lastIndex = 0;
+  const rebased = rebaseTerminalDefaultBackground(rows, backgroundAnsi);
+  return `${rebased.slice(0, -END_SYNCHRONIZED_OUTPUT.length)}\u001b[49m${END_SYNCHRONIZED_OUTPUT}`;
+}
+
+function sgrLeavesDefaultBackground(parameters: string): boolean {
+  if (parameters.length === 0) return true;
+  const values = parameters.split(";");
+  let defaultBackground: boolean | undefined;
+  for (let index = 0; index < values.length; index += 1) {
+    const token = values[index]!;
+    const code = Number.parseInt(token.split(":", 1)[0] || "0", 10);
+    if (!Number.isFinite(code)) continue;
+    if (code === 0 || code === 49) {
+      defaultBackground = true;
+      continue;
+    }
+    if (code >= 40 && code <= 47 || code >= 100 && code <= 107) {
+      defaultBackground = false;
+      continue;
+    }
+    if (code !== 38 && code !== 48 && code !== 58) continue;
+    if (code === 48) defaultBackground = false;
+    if (token.includes(":")) continue;
+    const mode = Number.parseInt(values[index + 1] ?? "", 10);
+    if (mode === 5) index += 2;
+    else if (mode === 2) index += 4;
+    else index += 1;
+  }
+  return defaultBackground === true;
 }
 
 function parsePinnedFullscreenWrite(data: string): ParsedFullscreenWrite | null {

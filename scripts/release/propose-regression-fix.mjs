@@ -27,6 +27,7 @@ import {
   renderTriageBody,
   renderTriageChange,
   renderTriageProvenance,
+  shardOf,
   startupBudgetFailure,
   summarizeLanes,
   triageDecision,
@@ -117,7 +118,7 @@ export async function proposeRegressionFix({ runId, repository, output, gh, git,
   await git(["add", "-A"]);
   await git(["commit", "-m", `chore(regression): propose the fix for the ${stamp} ${workflow.name} failure`, "-m", `Opened by the nightly regression triage from run ${run.url}; the evidence is in the pull request and the change's design.`]);
   await git(["push", "--force-with-lease", "origin", branch]);
-  const created = (await gh(["pr", "create", "--draft", "--base", "develop", "--head", branch, "--title", `fix(regression): repair the ${stamp} ${workflow.name.toLowerCase()} failure`, "--body-file", join(output, "body.md")])).stdout.trim();
+  const created = (await gh(["pr", "create", "--draft", "--base", "develop", "--head", branch, "--title", `chore(regression): repair the ${stamp} ${workflow.name.toLowerCase()} failure`, "--body-file", join(output, "body.md")])).stdout.trim();
   const number = Number(/\/pull\/(\d+)\s*$/.exec(created)?.[1] ?? 0) || null;
   return finish({ ...report, changed: true, mode: "new", branch, pr: number, change: changeId(stamp), message: `opened ${branch}${number ? ` as #${number}` : ""}` }, output, files);
 }
@@ -130,12 +131,17 @@ async function collectLanes(artifactRoot, jobs, excerpts, files) {
     const result = await findTierResult(join(artifactRoot, artifact), files);
     if (result === null) continue;
     const id = laneId(artifact);
-    const job = jobs.find(candidate => laneMatchesJob(id, candidate.name));
-    lanes.push({ id, job: job?.name ?? artifact, conclusion: job?.conclusion ?? (result.passed ? "success" : "failure"), result, excerpt: job ? excerpts.get(job.name) ?? [] : [] });
+    const shard = result.fullShard?.id ?? shardOf(artifact);
+    const job = jobs.find(candidate => laneMatchesJob(id, candidate.name) && shardOf(candidate.name) === shard);
+    lanes.push({ id, ...(shard ? { shard } : {}), job: job?.name ?? artifact, conclusion: job?.conclusion ?? (result.passed ? "success" : "failure"), result, excerpt: job ? excerpts.get(job.name) ?? [] : [] });
   }
   for (const job of jobs) {
     if (job.conclusion !== "failure" || lanes.some(lane => lane.job === job.name)) continue;
-    lanes.push({ id: laneId(job.name), job: job.name, conclusion: "failure", result: null, excerpt: excerpts.get(job.name) ?? [] });
+    const shard = shardOf(job.name);
+    // Rationale: a failed Windows lane collector only restates its failed shards; it is an orchestration
+    // failure of its own only when no shard of that runtime failed.
+    if (!shard && jobs.some(other => other.conclusion === "failure" && shardOf(other.name) && laneId(other.name) === laneId(job.name))) continue;
+    lanes.push({ id: laneId(job.name), ...(shard ? { shard } : {}), job: job.name, conclusion: "failure", result: null, excerpt: excerpts.get(job.name) ?? [] });
   }
   return lanes;
 }
@@ -145,7 +151,11 @@ async function collectStartupLanes(artifactRoot, files) {
   const lanes = [];
   for (const artifact of await files.list(artifactRoot).catch(() => [])) {
     const evidence = await findJson(join(artifactRoot, artifact), files, isStartupEvidence);
-    if (evidence !== null) lanes.push({ lane: laneId(artifact), evidence });
+    if (evidence === null) continue;
+    const lane = laneId(artifact);
+    // Invariant: one startup source per lane (the Windows package shard); choosing between two would hide a regression.
+    if (lanes.some(entry => entry.lane === lane)) throw new Error(`duplicate startup evidence for lane ${lane}`);
+    lanes.push({ lane, evidence });
   }
   return lanes;
 }

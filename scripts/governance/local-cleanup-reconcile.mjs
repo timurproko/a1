@@ -9,7 +9,7 @@ import { pruneMergedBranches } from "./local-cleanup-branches.mjs";
 /** A folder Git left behind is removable only once it has sat untouched long enough that no worktree add or removal is mid-flight. */
 const EMPTY_DIRECTORY_GRACE_MS = 10 * 60 * 1000;
 const reason = error => error.cleanupCode ?? error.archiveCode ?? "local-operation-failed";
-const deferred = code => ["pass-deadline", "remote-budget", "remote-backoff", "content-inspection-budget", "mutation-busy"].includes(code);
+const deferred = code => ["pass-deadline", "remote-budget", "remote-backoff", "content-inspection-budget", "mutation-busy", "resource-busy", "state-conflict"].includes(code);
 async function absent(identity, entry, git) {
   if (await exists(entry.path)) fail("residual-or-reused-path");
   const rows = parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"]));
@@ -20,13 +20,14 @@ export async function writeLocalCleanupReport(store, report, now) {
   const files = [];
   for (const name of await readdir(store.directory)) {
     if (!/^report-\d+-[a-f0-9-]{36}\.json$/.test(name)) continue;
-    const path = join(store.directory, name), stat = await lstat(path);
+    const path = join(store.directory, name); let stat;
+    try { stat = await lstat(path); } catch (error) { if (error.code === "ENOENT") continue; throw error; }
     if (stat.isFile() && !stat.isSymbolicLink()) files.push({ path, time: stat.mtimeMs, size: stat.size });
   }
   files.sort((a, b) => b.time - a.time); let bytes = 0;
   for (const file of files) {
     bytes += file.size;
-    if (now - file.time > 30 * 86400000 || bytes > 10 * 1024 * 1024) await unlink(file.path);
+    if (now - file.time > 30 * 86400000 || bytes > 10 * 1024 * 1024) await unlink(file.path).catch(error => { if (error.code !== "ENOENT") throw error; });
   }
 }
 
@@ -34,7 +35,7 @@ export async function writeLocalCleanupReport(store, report, now) {
 export async function reconcileLocalCleanup({ identity, store, reader, preview = true, now = Date.now, deadline = now() + 60000,
   cancelled = () => false, git = gitRunner({ deadline, now }), verify = verifyCleanupEvidence, inspect = inspectWorktree,
   remove = removeWorktree, removeRef = removeLocalRef, purge = purgeDisposable, repair = repairResidue,
-  cwd = process.cwd(), entryIds = null, requireEnabled = true, includeUnmanaged = true, stopSince = null, pruneBranches = false,
+  cwd = process.cwd(), entryIds = null, heldEntryIds = [], requireEnabled = true, includeUnmanaged = true, stopSince = null, pruneBranches = false,
   ancestorOf = (sha, head) => acceptedHead(reader, sha, head), merged = entry => mergedIntoDevelop(reader, entry) }) {
   const report = { version: 1, preview, results: [], coverage: { total: 0, visited: 0, complete: false }, at: now() };
   // Protocol: a completed-delivery HEAD or tip is accepted when every reachable commit is reachable from the merged head.
@@ -45,8 +46,9 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
   async function run(state, save) {
     const fresh = await discoverRepository(identity.primary, git);
     if (JSON.stringify(fresh) !== JSON.stringify(identity)) fail("repository-changed");
-    const selectedIds = entryIds === null ? null : new Set(entryIds);
+    const selectedIds = entryIds === null ? null : new Set(entryIds), heldIds = new Set(heldEntryIds);
     if (selectedIds && (selectedIds.size !== entryIds.length || entryIds.some(id => typeof id !== "string"))) fail("candidate-selection");
+    if (heldIds.size !== heldEntryIds.length || heldEntryIds.some(id => typeof id !== "string") || [...heldIds].some(id => !selectedIds?.has(id))) fail("candidate-selection");
     const selected = entry => selectedIds === null || selectedIds.has(entry.id);
     const entries = state.entries.filter(entry => entry.state !== "done" && !["discard", "redundant"].includes(entry.role) && selected(entry));
     if (selectedIds && !state.entries.some(selected)) fail("candidate-selection");
@@ -64,7 +66,11 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
       const entry = entries[(start + offset) % entries.length];
       const row = { id: entry.id, path: entry.path, sourcePr: entry.sourcePr, head: entry.head, disposition: "blocked", steps: [] };
       report.results.push(row); report.coverage.visited++;
+      let releaseResources;
       try {
+        if (!heldIds.has(entry.id)) releaseResources = await store.acquireResources([`path:${entry.path}`, entry.ref ? `ref:${entry.ref}` : ""]);
+        const current = await store.locked(state => structuredClone(state.entries.find(item => item.id === entry.id)));
+        if (!current || JSON.stringify(current) !== JSON.stringify(entry)) fail("state-conflict");
         if (entry.state === "owned") { row.reason = "owned-worktree"; continue; }
         let evidence;
         try { evidence = await verify(reader, entry); }
@@ -94,7 +100,9 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
         if (preview) continue;
         await enabled();
         // Provenance: bind freshly fetched integration objects without moving primary HEAD.
-        await git(identity.primary, ["fetch", "--no-tags", "origin", "refs/heads/develop:refs/remotes/origin/develop"]);
+        const releaseFetch = await store.acquireResources(["ref:refs/remotes/origin/develop"]);
+        try { await git(identity.primary, ["fetch", "--no-tags", "origin", "refs/heads/develop:refs/remotes/origin/develop"]); }
+        finally { await releaseFetch(); }
         for (const commit of [evidence.sourceMerge, evidence.archiveMerge]) await git(identity.primary, ["merge-base", "--is-ancestor", commit, "refs/remotes/origin/develop"]);
         if (absentBeforeRemoval) {
           evidence = await verify(reader, entry);
@@ -139,7 +147,8 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
         row.reason = reason(error); if (Array.isArray(error.paths)) row.paths = error.paths;
         row.disposition = entry.state === "deleting" ? "partial" : deferred(row.reason) ? "deferred" : "blocked";
       } finally {
-        if (!preview) { if (selectedIds === null) state.cursor = start + offset + 1; await save(state); }
+        try { if (!preview) { if (selectedIds === null) state.cursor = start + offset + 1; await save(state); } }
+        finally { if (releaseResources) await releaseResources(); }
       }
     }
     report.coverage.complete = report.coverage.visited === entries.length;
@@ -181,21 +190,26 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
         if (registered.has(path)) continue;
         const row = { path, disposition: "unmanaged", reason: "not-registered" };
         report.results.push(row);
-        try { await reclaimEmptyDirectory(row, name); }
-        catch (error) { row.reason = reason(error); if (Array.isArray(error.paths)) row.paths = error.paths; row.disposition = deferred(row.reason) ? "deferred" : "blocked"; }
+        let releaseResources;
+        try {
+          if (!preview) releaseResources = await store.acquireResources([`path:${row.path}`]);
+          await reclaimEmptyDirectory(row, name);
+        } catch (error) { row.reason = reason(error); if (Array.isArray(error.paths)) row.paths = error.paths; row.disposition = deferred(row.reason) ? "deferred" : "blocked"; }
+        finally { if (releaseResources) await releaseResources(); }
       }
       if (names.length > 100) report.unmanagedCoverage = "truncated";
     }
     if (pruneBranches && !preview) {
       // Rationale: an exhausted candidate pass defers branch pruning to the next sweep instead of failing the whole report.
-      try { await enabled(); report.branches = await pruneMergedBranches({ identity, state, reader, git, deadline, now, ancestorOf, cancelled, enabled }); }
+      try { await enabled(); report.branches = await pruneMergedBranches({ identity, state, reader, git, deadline, now, ancestorOf, cancelled, enabled,
+        acquireResources: store.acquireResources, registeredRef: ref => store.locked(fresh => fresh.entries.some(entry => entry.state !== "done" && entry.ref === ref)) }); }
       catch (error) { report.branches = { results: [], coverage: { total: 0, visited: 0, complete: false }, deferred: reason(error) }; }
     }
     if (!preview) await writeLocalCleanupReport(store, report, now());
   }
   try {
     if (preview) await run(await store.read(), () => fail("preview-mutation"));
-    else await store.locked(run);
+    else await store.session(run);
   } catch (error) { report.error = reason(error); report.coverage.complete = false; }
   return report;
 }

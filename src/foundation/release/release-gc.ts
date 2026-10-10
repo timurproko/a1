@@ -5,7 +5,6 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   CohortStateStore,
-  planProtectedReleases,
   type CohortState,
   type ExternalReleaseHold,
   type OrphanReleaseDisposition,

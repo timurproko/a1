@@ -79,11 +79,11 @@ Approved refinements SHALL update the affected planning artifacts coherently bef
 - **AND** the finalized delivery record SHALL be validated in the same run
 
 ### Requirement: Auto-merge eligibility uses an exact documentation allowlist
-A pull request SHALL be eligible for automatic squash integration only when it is non-draft, not implementation-bound, and every changed and renamed-from path is under `openspec/**`, under `docs/**`, or is exactly the root `README.md`. Any pull request containing another path SHALL be classified as code/operational, regardless of whether it claims to preserve behavior. Classification SHALL examine the complete pull-request diff and lifecycle association and SHALL fail closed.
+A pull request SHALL be eligible for automation-owned squash integration only when it is non-draft, not implementation-bound, and every changed and renamed-from path is under `openspec/**`, under `docs/**`, or is exactly the root `README.md`. Any pull request containing another path SHALL be classified as code/operational, regardless of whether it claims to preserve behavior. Classification SHALL examine the complete pull-request diff and lifecycle association and SHALL fail closed.
 
-An explicit implementation association or introduction of a new active OpenSpec change SHALL hold the PR for implementation and manual integration even when its current diff is documentation-only. Removing the association SHALL NOT make a newly introduced active change eligible. Malformed or ambiguous lifecycle metadata SHALL block automation. Existing-change standalone planning revisions, ordinary docs, and generated archive follow-ups without an implementation-bound hold SHALL retain documentation auto-merge eligibility.
+An explicit implementation association or introduction of a new active OpenSpec change SHALL hold the PR outside documentation-owned integration even when its current diff is documentation-only. Removing the association SHALL NOT make a newly introduced active change eligible. Malformed or ambiguous lifecycle metadata SHALL block automation. Existing-change standalone planning revisions, ordinary docs, and generated archive follow-ups without an implementation-bound hold SHALL retain documentation auto-merge eligibility. A finalized version-3 candidate MAY separately retain native auto-merge personally armed by an authorized maintainer; that human choice SHALL NOT make it documentation-auto-merge eligible or grant repository automation merge authority.
 
-For an eligible pull request, automation MAY arm auto-merge while required validation is pending because protected `develop` remains the merge gate. Automation SHALL reconcile an eligible current head reported as `clean`, or as `unstable` with positive mergeability, only after successful validation for that same head and through a normal protected squash-merge request enforcing its expected head SHA. An unstable-status rejection when arming SHALL cause bounded state re-evaluation or explicit deferral rather than an unhandled failure or protection bypass. Failed or stale validation, conflicting or unconfirmed mergeability, and GitHub refusal SHALL NOT authorize integration. Any armed auto-merge SHALL be disabled when a draft, implementation-bound, or code/operational exclusion is detected.
+For an eligible documentation pull request, automation MAY arm auto-merge while required validation is pending because protected `develop` remains the merge gate. Automation SHALL reconcile an eligible current head reported as `clean`, or as `unstable` with positive mergeability, only after successful validation for that same head and through a normal protected squash-merge request enforcing its expected head SHA. An unstable-status rejection when arming SHALL cause bounded state re-evaluation or explicit deferral rather than an unhandled failure or protection bypass. Failed or stale validation, conflicting or unconfirmed mergeability, and GitHub refusal SHALL NOT authorize integration. Automation-armed auto-merge SHALL be disabled when a draft, implementation-bound, or code/operational exclusion is detected. A qualifying human arm on a finalized version-3 candidate SHALL instead remain owned by that maintainer and SHALL be disabled when the candidate changes.
 
 #### Scenario: OpenSpec-only pull request
 - **WHEN** every changed path is under `openspec/**` and the non-draft PR is a standalone revision without an implementation-bound hold
@@ -111,22 +111,22 @@ For an eligible pull request, automation MAY arm auto-merge while required valid
 
 #### Scenario: Behavior-preserving refactor
 - **WHEN** a pull request changes source or any other path outside the allowlist
-- **THEN** it SHALL NOT be eligible for auto-merge
+- **THEN** it SHALL NOT be eligible for documentation auto-merge
 - **AND** a claim that behavior is unchanged SHALL NOT alter that classification
 
 #### Scenario: Documentation and code are mixed
 - **WHEN** a pull request changes an allowed documentation path and any path outside the allowlist
 - **THEN** the entire pull request SHALL be classified as code/operational
-- **AND** it SHALL NOT be armed for auto-merge
+- **AND** repository automation SHALL NOT arm auto-merge for it
 
 #### Scenario: Specification and code are mixed
 - **WHEN** a pull request changes an OpenSpec path and any path outside the allowlist
 - **THEN** the entire pull request SHALL be classified as code/operational
-- **AND** it SHALL NOT be armed for auto-merge
+- **AND** repository automation SHALL NOT arm auto-merge for it
 
 #### Scenario: Operational file is renamed into documentation
 - **WHEN** a renamed file's previous path is outside the allowlist even though its new path is allowed
-- **THEN** the pull request SHALL NOT be eligible for auto-merge
+- **THEN** the pull request SHALL NOT be eligible for documentation auto-merge
 
 #### Scenario: Changed paths cannot be classified
 - **WHEN** the complete pull-request diff or lifecycle association cannot be obtained or classified
@@ -148,7 +148,12 @@ For an eligible pull request, automation MAY arm auto-merge while required valid
 
 #### Scenario: Implementation association is added to an eligible docs PR
 - **WHEN** a PR body edit associates a previously eligible docs PR with implementation
-- **THEN** automation SHALL re-evaluate eligibility and disable its armed auto-merge
+- **THEN** automation SHALL re-evaluate eligibility and disable an existing arm unless authorized-human exact-final-candidate provenance is freshly established
+
+#### Scenario: Maintainer arms finalized implementation
+- **WHEN** an authorized maintainer personally enables native auto-merge for the current finalized version-3 head
+- **THEN** automation SHALL preserve that human-owned arm while continuing to classify the PR as code/operational
+- **AND** SHALL NOT create or exercise the authorization itself
 
 #### Scenario: Archive follow-up is ready
 - **WHEN** a verified non-draft archive PR only removes the completed active change, adds its archive, and updates declared main specs
@@ -156,17 +161,17 @@ For an eligible pull request, automation MAY arm auto-merge while required valid
 - **AND** documentation integration SHALL proceed behind required validation
 
 ### Requirement: Code integration requires local maintainer acceptance
-Every code/operational pull request SHALL remain open after automated validation so an authorized maintainer can validate it. The agent SHALL provide exact applicable local run or inspection instructions and SHALL NOT invoke or arm auto-merge. CI success SHALL NOT count as human acceptance.
+Every code/operational pull request SHALL remain open after automated validation until an authorized maintainer chooses its integration. The agent SHALL provide exact applicable local run or inspection instructions and SHALL NOT invoke or arm auto-merge. CI success SHALL NOT count as human acceptance.
 
-For a finalized single-PR OpenSpec delivery, the pull request SHALL present one to three implementation-specific acceptance scenarios as plain bullets. The maintainer SHALL NOT need to check boxes or perform a separate acceptance edit: manually merging the exact current head after review SHALL mean the maintainer accepts the listed scenarios and explicitly authorizes integration. Any new commit SHALL require current-head CI and a new manual merge decision.
+For a finalized single-PR OpenSpec delivery, the pull request SHALL present one to three implementation-specific acceptance scenarios as plain bullets. The maintainer SHALL NOT need to check boxes or perform a separate acceptance edit: manually merging the exact current head after review, or personally enabling native auto-merge for that unchanged head, SHALL mean the maintainer accepts the listed scenarios and explicitly authorizes protected integration after current-head CI. Any new commit or acceptance-list change SHALL require renewed current-head CI and a new maintainer integration decision.
 
 #### Scenario: Code pull request passes CI
-- **WHEN** all required automated checks pass for a code/operational pull request
+- **WHEN** all required automated checks pass for a code/operational pull request without a valid maintainer arm
 - **THEN** the pull request SHALL remain open
-- **AND** the agent SHALL report that maintainer validation and manual merge are still required
+- **AND** the agent SHALL report that maintainer validation and an authorized integration choice are still required
 
 #### Scenario: Maintainer has not accepted locally
-- **WHEN** the maintainer has not manually merged the exact candidate
+- **WHEN** the maintainer has neither manually merged nor personally armed native auto-merge for the exact candidate
 - **THEN** neither the agent nor repository automation SHALL merge it or record human acceptance
 
 #### Scenario: Maintainer accepts and authorizes merge
@@ -174,10 +179,15 @@ For a finalized single-PR OpenSpec delivery, the pull request SHALL present one 
 - **THEN** that merge SHALL constitute acceptance of the listed scenarios and explicit merge authorization
 - **AND** implementation, synchronized specs, acceptance record, and archive SHALL integrate atomically
 
+#### Scenario: Maintainer accepts and enables auto-merge
+- **WHEN** an authorized maintainer reviews the finalized current-head candidate and personally enables native auto-merge
+- **THEN** the arm SHALL constitute acceptance of the listed scenarios for that exact candidate
+- **AND** GitHub MAY integrate it only after required current-head validation succeeds
+
 #### Scenario: Candidate changes after review
-- **WHEN** a new commit changes the pull-request head
-- **THEN** prior CI SHALL NOT authorize the new head
-- **AND** the maintainer SHALL make a new manual merge decision after current-head validation
+- **WHEN** a new commit or acceptance-list edit changes the pull-request candidate
+- **THEN** prior CI and any earlier human arm SHALL NOT authorize the new candidate
+- **AND** the maintainer SHALL make a new integration decision after renewed current-head validation
 
 ### Requirement: Automatic archival uses explicit implementation and acceptance evidence
 Automatic completed-change archival SHALL require an explicit machine-readable association between an OpenSpec change and its implementation pull request, a confirmed merge into `develop`, successful required validation attributable to the final implementation head, and an authorized maintainer's explicit acceptance of that same head. Acceptance SHALL attest that required manual review is complete, the change is fully implemented, and its delta synchronization has been reviewed. The visible acceptance route SHALL prepare a dedicated acceptance-record PR after implementation integration; its verified manual merge SHALL provide the durable acceptance receipt. Existing valid authorized comment-backed acceptance SHALL remain supported without a redundant request.
@@ -490,21 +500,45 @@ Implementation, substantive tasks, focused evidence, and gap disposition SHALL b
 
 ### Requirement: Agents bind the owning session to the active delivery worktree
 
-An interactive A1 delivery agent SHALL treat its one owned task worktree as the active repository context for the delivery. Immediately after creating a new worktree, or after selecting and acquiring an existing worktree for a resumed delivery, the agent SHALL run `a1 session link-worktree <absolute-worktree>` from the owning session and SHALL require the command to confirm that exact canonical worktree before changing planning, implementation, test, or delivery-documentation files. The association SHALL remain bound to the same worktree, branch, history, and pull request through plan review and approved implementation.
+An interactive A1 delivery agent SHALL treat its one exclusively claimed task worktree as the active repository context for the delivery. After the standard cleanup sweep and before choosing an existing checkout, the agent SHALL run `a1 session worktrees` from the owning session. It SHALL treat `busy` and `unverifiable` worktrees as unavailable, SHALL NOT enter them for active repository work, and SHALL create a separate fresh task worktree when the intended candidate has either status. An `available` result is advisory rather than authority: the agent MAY reuse that checkout only when its exact branch, OpenSpec change, and pull request match the requested stream and `a1 session link-worktree <absolute-worktree>` subsequently acquires it successfully. Similar names, files, task descriptions, recent activity, clean status, or ancestry SHALL NOT establish permission to adopt a worktree.
 
-The agent SHALL keep the primary checkout on `develop` and SHALL explicitly scope repository reads, edits, Git operations, builds, and tests to the active worktree. Session association SHALL select footer repository metadata and pull-request discovery only; it SHALL NOT be treated as a process/tool cwd change, worktree cleanup registration, ownership transfer, acceptance, or merge authority.
+Immediately after creating a new worktree, or after selecting an available existing worktree for a resumed delivery, the agent SHALL run `a1 session link-worktree <absolute-worktree>` from the owning session and SHALL require the command to confirm that exact canonical worktree before changing planning, implementation, test, or delivery-documentation files. A conflicting or unverifiable live-session claim SHALL be a hard pre-edit failure; the agent SHALL NOT override, recover, unlink, or wait out another owner and SHALL create a separate worktree instead. The successful claim and association SHALL remain bound to the same worktree, branch, history, and pull request through plan review and approved implementation.
 
-If association fails, identifies another path, or is unavailable in the owning interactive session, the agent SHALL report the blocker and SHALL NOT silently continue feature edits while the footer remains associated with the primary checkout. The agent SHALL NOT infer a replacement context by scanning worktrees, choosing a recent branch or pull request, or adopting another session's checkout. When the owning session deliberately switches delivery streams, it SHALL link the new exact owned worktree before work begins there so stale branch and pull-request metadata are not retained.
+The agent SHALL keep the primary checkout on `develop` and SHALL explicitly scope repository reads, edits, Git operations, builds, and tests to the active worktree. Live-session claim and repository association SHALL NOT be treated as a process/tool cwd change, Git lock, worktree cleanup registration, acceptance, finalization, merge, deletion, or cleanup authority.
 
-A draft pull request need not exist when the worktree is first linked. After that pull request exists, the established bounded repository refresh SHALL discover its open branch association and make its `#<number>` visible in the linked bare-A1 footer without requiring tool-cwd mutation or another delivery identity.
+If inventory or association fails, identifies another path, or is unavailable in the owning interactive session, the agent SHALL report the blocker and SHALL NOT silently continue feature edits while the footer remains associated with the primary checkout. The agent SHALL NOT infer a replacement context by scanning worktrees, choosing a recent branch or pull request, or adopting another session's checkout. When the owning session deliberately switches delivery streams, it SHALL atomically claim and link the new exact worktree before work begins there; failure SHALL leave the prior stream claimed and selected until the agent instead creates and links a fresh worktree.
+
+A draft pull request need not exist when the worktree is first claimed and linked. After that pull request exists, the established bounded repository refresh SHALL discover its open branch association and make its `#<number>` visible in the linked bare-A1 footer without requiring tool-cwd mutation or another delivery identity.
 
 #### Scenario: Start a feature from the primary checkout
 
 - **GIVEN** an interactive A1 delivery session started in the primary checkout on `develop`
-- **WHEN** the agent creates its fresh feature worktree from the selected target
-- **THEN** it SHALL successfully link that absolute worktree to the owning session before writing planning or implementation files
+- **WHEN** the agent runs the worktree inventory and creates its fresh feature worktree from the selected target
+- **THEN** it SHALL successfully claim and link that absolute worktree to the owning session before writing planning or implementation files
 - **AND** all repository operations SHALL be explicitly scoped to that worktree
 - **AND** the primary checkout SHALL remain on `develop`
+
+#### Scenario: Similar existing worktree is busy
+
+- **GIVEN** an existing worktree appears related to the requested task
+- **WHEN** inventory reports that another live session owns it
+- **THEN** the agent SHALL NOT use that checkout for repository work or attempt to displace its owner
+- **AND** SHALL create and claim a separate task worktree
+
+#### Scenario: Existing worktree is available and matches the stream
+
+- **GIVEN** inventory reports an existing worktree as available
+- **AND** its exact branch, OpenSpec change, and pull request match the delivery being resumed
+- **WHEN** atomic linking still finds it available
+- **THEN** the agent MAY claim and reuse that exact checkout
+- **AND** SHALL NOT treat inventory alone as ownership authority
+
+#### Scenario: Available result loses a race
+
+- **GIVEN** inventory reported an existing worktree as available
+- **WHEN** another runtime claims it before this session links it
+- **THEN** this session's link SHALL fail without changing either session's ownership
+- **AND** the agent SHALL create a fresh worktree rather than override or retry takeover
 
 #### Scenario: The linked feature gains a draft pull request
 
@@ -516,29 +550,37 @@ A draft pull request need not exist when the worktree is first linked. After tha
 
 #### Scenario: Resume approved implementation
 
-- **GIVEN** planning exists in an owned worktree, branch, and draft pull request
-- **WHEN** a later interactive session acquires that delivery for approved implementation
-- **THEN** it SHALL link the exact existing worktree before editing
+- **GIVEN** planning exists in a released worktree, branch, and draft pull request
+- **WHEN** a later interactive session verifies availability and acquires that delivery for approved implementation
+- **THEN** it SHALL claim and link the exact existing worktree before editing
 - **AND** implementation SHALL continue in the same worktree, branch, history, and pull request rather than create a second delivery context
+
+#### Scenario: Resume conflicts with a live owner
+
+- **GIVEN** planning exists in a worktree associated with an earlier session
+- **WHEN** that worktree remains claimed by a live runtime or its ownership cannot be verified
+- **THEN** the later session SHALL NOT resume or edit it
+- **AND** SHALL use a separate worktree unless the original runtime is cleanly stopped or later verified absent
 
 #### Scenario: Switch to another delivery stream
 
-- **GIVEN** the session is associated with one delivery worktree
+- **GIVEN** the session claims and associates one delivery worktree
 - **WHEN** it deliberately begins or resumes another owned delivery
-- **THEN** it SHALL link the new exact worktree before reading or changing that stream as active work
-- **AND** footer discovery SHALL stop using the prior stream's branch and pull request after the association refreshes
+- **THEN** it SHALL atomically claim and link the new exact worktree before reading or changing that stream as active work
+- **AND** a failed transfer SHALL preserve the prior claim and association
+- **AND** footer discovery SHALL stop using the prior stream's branch and pull request only after a successful transfer
 
 #### Scenario: Worktree association fails
 
-- **WHEN** `a1 session link-worktree` fails, is unavailable, or confirms a path other than the intended owned worktree
-- **THEN** the agent SHALL report the exact blocker and stop before feature edits
-- **AND** SHALL NOT continue from the primary checkout, guess among local worktrees, or claim that the session switched successfully
+- **WHEN** worktree inventory or `a1 session link-worktree` fails, is unavailable, reports a live or unverifiable owner, or confirms a path other than the intended worktree
+- **THEN** the agent SHALL report the exact blocker and stop before feature edits in that checkout
+- **AND** SHALL NOT continue from the primary checkout, guess among local worktrees, claim that the session switched successfully, or bypass ownership with an ad hoc command
 
 #### Scenario: Linking does not transfer other authority
 
-- **WHEN** an owned worktree is linked to the session
+- **WHEN** an owned worktree is claimed and linked to the session
 - **THEN** commands SHALL still address that worktree explicitly because tool cwd is unchanged
-- **AND** cleanup ownership, acceptance, finalization, merge, and deletion SHALL continue to require their independent established evidence and commands
+- **AND** Git locks, cleanup ownership, acceptance, finalization, merge, and deletion SHALL continue to require their independent established evidence and commands
 
 ### Requirement: Active implementation delivery cannot pass without association
 
@@ -591,3 +633,91 @@ The corrective pull request SHALL implement recurrence prevention, synchronize e
 - **WHEN** the original head, merge, required validation, corrective identity, archive, canonical specifications, or authorized manual merge is absent, stale, mismatched, or ambiguous
 - **THEN** the delivery SHALL remain unassociated or archive-blocked
 - **AND** no positive acceptance or archival verdict SHALL be manufactured
+
+### Requirement: Agents keep repository-delivery scratch files inside the owning worktree
+
+When a delivery agent directly chooses and materializes a transient file for repository work, it SHALL place that file beneath the exact `.artifacts/` root of the repository worktree that owns the operation. Covered files SHALL include pull-request or comment body files, command-interchange payloads, captured command/query output, temporary patches or diffs, and ad hoc delivery logs. A delivery with a linked task worktree SHALL use that worktree's `.artifacts/` root and SHALL NOT select the primary checkout, another worktree, the operating-system temporary directory, the user's home or desktop, or a sibling path for its scratch file.
+
+Agent-created scratch content under `.artifacts/` SHALL remain ignored, unstaged, uncommitted, disposable, and non-authoritative. Durable source or implementation evidence SHALL be promoted to its declared tracked location rather than cited from disposable scratch. Availability of `.artifacts/` SHALL NOT authorize an agent to materialize credentials, tokens, or other content prohibited by the repository's data policy. Cleanup SHALL continue to apply the existing exact-root containment, link, special-file, nested-repository, and bounded-inspection safeguards; this requirement SHALL NOT broaden deletion authority.
+
+This requirement SHALL govern paths directly selected by an agent. It SHALL NOT relocate temporary storage internally selected by Git, GitHub CLI, OpenSpec, language/package tooling, test frameworks, product runtime code, or other invoked tools, and SHALL NOT prohibit hermetic test fixtures whose temporary-path behavior is part of the test contract.
+
+#### Scenario: Agent prepares a pull-request body file
+
+- **GIVEN** a delivery agent needs a file for `gh pr create --body-file` or `gh pr edit --body-file`
+- **WHEN** the agent chooses the file's path
+- **THEN** it SHALL create a purpose-specific descendant beneath the owning worktree's exact `.artifacts/` root
+- **AND** it SHALL NOT write that body file beneath `$TMPDIR`, `%TEMP%`, `/tmp`, the user's home or desktop, or another checkout
+
+#### Scenario: Linked task worktree owns the scratch file
+
+- **GIVEN** the session is linked to an exact task worktree while the primary checkout and other worktrees also exist
+- **WHEN** the agent materializes a transient command payload, captured output, patch, diff, or log for that delivery
+- **THEN** the selected path SHALL resolve beneath the linked task worktree's `.artifacts/` root
+- **AND** repository operations SHALL consume that worktree-owned path explicitly rather than relying on tool cwd
+
+#### Scenario: Scratch content remains disposable
+
+- **WHEN** an agent-created file beneath `.artifacts/` is no longer needed or the delivery is handed off
+- **THEN** the file SHALL remain ignored, unstaged, uncommitted, and eligible for the existing guarded generated-content cleanup
+- **AND** it SHALL NOT serve as the only copy of required durable evidence or source content
+
+#### Scenario: Content is unsafe to persist
+
+- **WHEN** a command can be completed without materializing a credential, token, or other prohibited sensitive value
+- **THEN** the agent SHALL not write that value to `.artifacts/` merely because the directory is ignored
+- **AND** the ordinary repository data-handling restrictions SHALL remain authoritative
+
+#### Scenario: Invoked tooling owns an internal temporary path
+
+- **WHEN** an invoked repository command, third-party tool, product runtime, or hermetic test internally allocates temporary storage without the agent selecting that path
+- **THEN** this delivery-scratch requirement SHALL NOT require that internal path to move beneath `.artifacts/`
+- **AND** the applicable runtime, tooling, isolation, and cleanup contract SHALL continue to govern it
+
+### Requirement: Finalization publishes an exact-head PR validation trigger
+
+Every finalized version-3 implementation fence SHALL bind its archive and acceptance manifest to the exact finalized pull-request head. Draft or active metadata SHALL omit the finalized fields. A missing, malformed, partial, or stale finalized-head binding SHALL NOT authorize protected implementation validation.
+
+After trusted automation pushes a finalization or re-finalization commit, it SHALL update the implementation fence with that exact pushed head only after freshly confirming that both the pull-request body and head remain the values the operation expects. The body transition SHALL produce an ordinary pull-request event for the final head so Development validation is PR-associated. A concurrent body or head change SHALL produce a bounded retry without overwriting human text or binding a newer candidate to stale evidence.
+
+Once the finalized tree, archive paths, body, and exact-head binding agree, repeated finalization events SHALL be idempotent and SHALL NOT create another commit, body edit, validation event, or event loop.
+
+#### Scenario: First finalization publishes visible validation
+- **WHEN** trusted automation finalizes a ready active version-3 implementation and pushes the finalization commit
+- **THEN** it SHALL update the implementation fence with the exact pushed head
+- **AND** that body update SHALL start ordinary PR-associated Development validation for the final head
+
+#### Scenario: Re-finalization reuses archive paths
+- **WHEN** trusted automation re-finalizes a corrected candidate under the same archive and acceptance-manifest paths
+- **THEN** the changed exact-head binding SHALL still produce a body transition
+- **AND** the new final head SHALL receive its own PR-associated validation rather than inherit or wait forever for the earlier head's result
+
+#### Scenario: Candidate advances before the body update
+- **WHEN** the pull-request head changes after the finalization push but before the exact-head fence update
+- **THEN** automation SHALL NOT write the stale binding
+- **AND** SHALL report a bounded retry so the newer candidate can be finalized normally
+
+#### Scenario: Human text changes before the body update
+- **WHEN** the pull-request body changes after finalization read it
+- **THEN** automation SHALL preserve the newer body and report a bounded retry
+- **AND** SHALL NOT overwrite the edit merely to trigger validation
+
+#### Scenario: Finalized candidate is already bound
+- **WHEN** the finalized tree, paths, body, and head binding already match the current pull request
+- **THEN** finalization SHALL report `already-finalized`
+- **AND** SHALL NOT mutate the body or trigger another validation cycle
+
+### Requirement: Worktree claims are keyed by agent within a runtime
+A live-session editing claim SHALL be identified by the owning runtime and the agent within that runtime. Activating a repository context for one agent SHALL release only that agent's prior claim, never a sibling agent's claim in the same runtime. Releasing a runtime SHALL release every agent claim it holds. The claim mutation lock SHALL record its holder's process identity and SHALL be evicted only when the holder is proven dead; a live or unverifiable holder SHALL keep the lock until the existing wait bound expires.
+
+#### Scenario: Two agents in one runtime claim different worktrees
+- **WHEN** agent B activates a worktree while agent A of the same runtime holds a claim on another
+- **THEN** both claims SHALL remain and the inventory SHALL list both agents
+
+#### Scenario: A claim record from a single-agent release is read
+- **WHEN** a claim or runtime record without an agent id is read
+- **THEN** it SHALL be treated as the primary agent's record and rewritten with the current format on its next write
+
+#### Scenario: The lock holder crashed
+- **WHEN** a mutation finds the lock held by a process that is proven dead by identity and start time
+- **THEN** the lock SHALL be replaced atomically and the mutation SHALL proceed

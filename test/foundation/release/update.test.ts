@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import { CHILD_DIAGNOSTIC_LIMIT, renderUpdateProgressBar } from "../../../src/foundation/release/update.js";
+import { SHARED_PROGRESS_ACCENT_ANSI } from "../../../src/foundation/release/progress-palette.generated.js";
 import {
   createNpmProcessRunner,
   PRODUCT_PACKAGE,
@@ -144,13 +145,13 @@ describe("update progress presentation", () => {
     [49.6, 50, 20],
     [100, 100, 40],
     [110, 100, 40],
-  ])("renders %s with a teal completed run and one space before the percentage", (input, percent, filled) => {
+  ])("renders %s with the shared accent and one space before the percentage", (input, percent, filled) => {
     const frame = renderUpdateProgressBar(input);
     const bar = "━".repeat(filled) + "─".repeat(40 - filled);
 
     expect(stripVTControlCharacters(frame)).toBe(`${bar} ${percent}%`);
     expect(frame).toBe(
-      `\u001b[38;2;138;190;183m${"━".repeat(filled)}`
+      `${SHARED_PROGRESS_ACCENT_ANSI}${"━".repeat(filled)}`
       + `\u001b[38;2;102;102;102m${"─".repeat(40 - filled)}`
       + `\u001b[38;2;128;128;128m ${percent}%\u001b[39m`,
     );
@@ -158,10 +159,8 @@ describe("update progress presentation", () => {
 });
 
 describe("A1 self-update orchestration", () => {
-  it.each([
-    ["the current version", "1.2.3"],
-    ["a newer running version", "1.2.2"],
-  ])("skips installation for %s", async (_label, latest) => {
+  it("reinstalls the current version when it is not the active release", async () => {
+    const latest = "1.2.3";
     const harness = createHarness({ responses: [success(`${latest}\n`), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
 
     await expect(runSelfUpdate(harness)).resolves.toBe(0);
@@ -172,6 +171,53 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: installArguments(latest), request: { captureStdout: true } },
     ]);
     expect(harness.stdout.join("")).toContain(`a1 updated successfully to ${latest}`);
+  });
+
+  it.each([
+    ["release", "1.2.3", "stable", "latest", "1.2.2"],
+    ["development", "1.3.0-dev.9", "next", "next", "1.3.0-dev.8"],
+  ] as const)("never downgrades to a lower %s channel head", async (_label, current, channel, distTag, head) => {
+    const harness = createHarness({ current, responses: [success(`${head}\n`)] });
+
+    await expect(runSelfUpdate({ ...harness, channel })).resolves.toBe(0);
+
+    expect(harness.invocations).toEqual([
+      { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@${distTag}`, "version"], request: { captureStdout: true } },
+    ]);
+    expect(harness.stdout.join("")).toBe("a1 is up to date — no update needed.\n");
+    expect(harness.lifecycleCalls).toEqual([]);
+  });
+
+  it("still switches from a development build to a lower stable release", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.9" });
+    harness.fileSystem.realpath = async path => path;
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_[0] === "view") return success("1.2.9\n");
+      if (arguments_[0] === "root") return success(`${harness.globalRoot}\n`);
+      return success();
+    };
+
+    await expect(runSelfUpdate(harness)).resolves.toBe(0);
+
+    expect(harness.invocations.at(-1)).toEqual({ command: "npm", arguments: installArguments("1.2.9"), request: { captureStdout: true } });
+    expect(harness.stdout.join("")).toBe("a1 update: 1.3.0-dev.9 → 1.2.9\na1 updated successfully to 1.2.9\n");
+  });
+
+  it("installs an older preview the user names", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.108" });
+    harness.fileSystem.realpath = async path => path;
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_.includes("versions")) return success(JSON.stringify(["1.3.0-dev.107", "1.3.0-dev.108"]));
+      if (arguments_[0] === "root") return success(harness.globalRoot + NEWLINE);
+      return success();
+    };
+
+    await expect(runSelfUpdate({ ...harness, channel: "next", target: "107" })).resolves.toBe(0);
+
+    expect(harness.invocations.at(-1)).toEqual({ command: "npm", arguments: installArguments("1.3.0-dev.107"), request: { captureStdout: true } });
+    expect(harness.stdout.join("")).toContain("1.3.0-dev.108 → 1.3.0-dev.107");
   });
 
   it("installs an exact newer version for a canonical managed global package", async () => {
@@ -295,6 +341,63 @@ describe("A1 self-update orchestration", () => {
 
     expect(harness.stdout.join("")).toBe("a1 update: 1.2.3 → 1.2.3\na1 is up to date — no update needed.\n");
     expect(harness.stderr).toEqual([]);
+  });
+
+  it("fails npm-authority preflight before progress or update lifecycle mutation", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
+    const begin = vi.spyOn(harness.transactionStore, "begin");
+    const finish = vi.spyOn(harness.transactionStore, "finish");
+    const packageReplacement = vi.fn();
+
+    await expect(runSelfUpdate({
+      ...harness,
+      progress: true,
+      npmCliResolver: async () => { throw new Error("could not resolve npm's JavaScript entry for protected package replacement"); },
+      packageReplacement,
+    })).resolves.toBe(1);
+
+    expect(begin).not.toHaveBeenCalled();
+    expect(finish).not.toHaveBeenCalled();
+    expect(packageReplacement).not.toHaveBeenCalled();
+    expect(harness.lifecycleCalls).toEqual([]);
+    expect(harness.stdout.join("")).toBe("a1 update: 1.2.3 → 1.3.0\n");
+    expect(harness.stdout.join("")).not.toContain(RETURN);
+    expect(harness.stderr.join("")).toContain("Nothing was changed");
+    expect(harness.stderr.join("")).toContain("npm x -y -- @timurproko/a1-install");
+    expect(harness.stderr.join("")).not.toContain("rolled back");
+    expect(harness.stderr.join("")).not.toContain("Diagnostics:");
+  });
+
+  it("passes preflight npm authority into protected replacement", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
+    const npmCli = resolve("fixtures", "active-node", "node_modules", "npm", "bin", "npm-cli.js");
+    const packageReplacement = vi.fn(async () => ({
+      schema: "a1-update-recovery-v1" as const,
+      transactionId: "test-update",
+      outcome: "installed" as const,
+      npmExitCode: 0,
+      cancelled: false,
+      launcherDisposition: "target" as const,
+      stdout: "",
+      stderr: "",
+      completedAt: new Date(0).toISOString(),
+      recovery: {
+        capsulePath: resolve("fixtures", "data", "update-recovery", "test", "capsule.json"),
+        status: "package-installed" as const,
+        guardianPid: 42,
+        guardianStartIdentity: "42:start",
+        cancellationRequested: false,
+        launcherDisposition: "target" as const,
+      },
+    }));
+
+    await expect(runSelfUpdate({
+      ...harness,
+      npmCliResolver: async () => npmCli,
+      packageReplacement,
+    })).resolves.toBe(0);
+
+    expect(packageReplacement).toHaveBeenCalledWith(expect.objectContaining({ npmCli }));
   });
 
   it("commits cleanup maintenance before reporting update success", async () => {

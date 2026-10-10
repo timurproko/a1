@@ -5,5 +5,5 @@ export interface ReleasePlan {
   readonly version: string;
   readonly opening: string;
 }
-export function parseReleaseArguments(args: readonly string[]): string;
+export function parseReleaseArguments(args: readonly string[]): { readonly target: string };
 export function resolveReleasePlan(current: unknown, args: readonly string[]): ReleasePlan;

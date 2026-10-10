@@ -9,23 +9,30 @@ import type { OwnedUiSessionShellOptions } from "../../src/app/session-shell/ind
 
 const observed = vi.hoisted(() => ({ options: undefined as OwnedUiSessionShellOptions | undefined }));
 // Rationale: isolate launch composition from provider discovery and terminal ownership.
-vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [] }));
-vi.mock("../../src/integrations/pi/engine/adapter.js", () => ({ createPiEngineAdapter: vi.fn() }));
+vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {} }));
+vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
-  OwnedSettingsManager: class { value(key: string) { return key === "promptHistoryEnabled" ? false : undefined; } },
+  OwnedSettingsManager: class {
+    value(key: string) { return key === "promptHistoryEnabled" ? false : key === "promptImageLimit" ? 12 : key === "accentColor" ? "purple" : undefined; }
+    onChange() { return () => undefined; }
+  },
 }));
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({
-  OwnedUiSessionShell: class {
-    constructor(options: OwnedUiSessionShellOptions) { observed.options = options; }
+  sessionTerminalHostOptions: () => ({}),
+  OwnedUiTerminalHost: class {
+    attach() {}
     async dispose() {}
+  },
+  OwnedUiSessionPresenter: class {
+    constructor(_host: unknown, options: OwnedUiSessionShellOptions) { observed.options = options; }
   },
 }));
 afterEach(() => { observed.options = undefined; vi.unstubAllEnvs(); });
 
 async function compose(options: { ownedSurfaces?: "off"; profileId?: string; suggestionDiagnosticsPath?: string }) {
-  return composeOwnedUi({ ...options, createPiAdapter: async () => ({ cwd: process.cwd(), agentDir: "synthetic-agent", configuredTheme: () => "dark" }) as never });
+  return composeOwnedUi({ ...options, createEngineHost: async () => ({ create: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never });
 }
 
 describe("suggestion diagnostic launch composition", () => {
@@ -37,6 +44,7 @@ describe("suggestion diagnostic launch composition", () => {
       const composed = await compose({ profileId: "a1", ...(route === "explicit" ? { suggestionDiagnosticsPath: destination } : {}) });
       const capture = observed.options?.suggestions?.diagnostics as SuggestionDiagnosticCapture;
       expect(capture).toBeInstanceOf(SuggestionDiagnosticCapture);
+      expect(observed.options?.promptImages?.limit()).toBe(12);
       capture.record({ event: "skipped", reason: "disabled", session: 1, request: 0, run: 1, response: 2, provider: "test", model: "test", reasoning: "ordinary", elapsedMs: 0 });
       await capture.flush();
       expect(JSON.parse(await readFile(destination, "utf8")).records[0]).toMatchObject({ event: "skipped", reason: "disabled", request: 0 });
@@ -49,7 +57,10 @@ describe("suggestion diagnostic launch composition", () => {
     vi.stubEnv(PRODUCT_IDENTITY.environment.suggestionDiagnostics, mode === "unset" ? undefined : mode === "blank" ? " " : "unused-snapshot.json");
     const composed = await compose({ ...(mode === "settings-free" ? {} : { profileId: "a1" }), ...(mode === "comparison" ? { ownedSurfaces: "off" as const } : {}) });
     expect(observed.options?.suggestions?.diagnostics).toBeUndefined();
-    if (mode === "comparison" || mode === "settings-free") expect(observed.options?.suggestions).toBeUndefined();
+    if (mode === "comparison" || mode === "settings-free") {
+      expect(observed.options?.suggestions).toBeUndefined();
+      expect(observed.options?.promptImages).toBeUndefined();
+    }
     await composed.application.dispose();
   });
 });

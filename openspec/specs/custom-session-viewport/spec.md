@@ -1002,36 +1002,36 @@ Prompt-style compactions SHALL preserve the displayable summary, semantic select
 - **THEN** that surface SHALL retain its existing presentation and behavior rather than acquiring bare-A1 compaction anchors
 
 ### Requirement: Default-editor autocomplete grows above a stable prompt
-Bare A1 SHALL render the default editor's autocomplete list immediately above the editor's upper border, after any above-editor widgets, rather than below the editor. At unchanged terminal dimensions, editor text layout, and other dock content, opening, closing, filtering, paging, or asynchronously updating autocomplete SHALL NOT change the terminal rows occupied by the editor borders, prompt text, caret, below-editor widgets, or footer. The menu SHALL consume space upward from the transcript viewport, not from below the prompt, and SHALL NOT reserve empty menu rows after it closes.
+Bare A1 SHALL render the default editor's autocomplete list immediately above the editor's upper border, after any above-editor widgets, rather than below the editor. At unchanged terminal dimensions, editor text layout, and other dock content, opening, closing, filtering, paging, or asynchronously updating autocomplete SHALL NOT change the terminal rows occupied by the editor borders, prompt text, caret, below-editor widgets, or footer. The menu SHALL consume space upward from the transcript viewport, not from below the prompt, and SHALL NOT reserve empty menu rows after it closes. Its candidate rows SHALL use a one-cell outer gutter so the selection marker aligns with the working indicator, while preserving the list's internal candidate and description alignment.
 
-While the menu has rendered rows, bare A1 SHALL render exactly one horizontal line immediately above it, after above-editor widgets and without a blank spacer. The line SHALL match the input prompt border's horizontal glyph, full rendered width, and current color, including theme or editor-mode color changes. It SHALL contain no copied history or editor-scroll labels. When the existing completion list emits its trailing counter, bare A1 SHALL instead show that counter in the top line as `1/24`, without parentheses, at the history border label's four-cell inset and in its dim color. The original counter row SHALL be removed without a blank replacement. Counter values, updates, and visibility conditions SHALL remain those of the existing list; fitting lists without a counter retain a plain top line. If a complete counter cannot be obtained or fitted at a narrow width, its label SHALL be omitted rather than misrepresented. The existing prompt upper border SHALL remain between the menu and input. The top line SHALL be included in the upward allocation and body offset so its appearance or disappearance does not move the input or footer. The menu SHALL retain its original background and padding; no panel shading SHALL be added.
+While the menu has rendered rows, the existing prompt upper border SHALL remain directly between the menu and input and serve as the menu's horizontal counter line. The border SHALL retain its horizontal glyph, full rendered width, and current color, including theme or editor-mode color changes. When the existing completion list emits its trailing counter, bare A1 SHALL instead show that counter in this border as `1/24`, without parentheses, at a three-cell inset shared with the history border label and in its dim color. The original counter row SHALL be removed without a blank replacement. Counter values, updates, and visibility conditions SHALL remain those of the existing list; fitting lists without a counter retain the plain prompt upper border. If a complete counter cannot be obtained or fitted at a narrow width, its label SHALL be omitted rather than misrepresented. No additional horizontal line SHALL appear above the menu. The menu SHALL retain its original background and internal padding after the one-cell outer gutter; no panel shading SHALL be added.
 
-The list and its top line SHALL remain transient, non-transcript presentation. It SHALL NOT enter scrollback history, transcript selection, copied prompt text, or submitted text. Changes unrelated to autocomplete, including prompt wrapping, terminal resizing, and widget or footer height changes, SHALL retain their existing reflow behavior.
+The list and its counter decoration SHALL remain transient, non-transcript presentation. They SHALL NOT enter scrollback history, transcript selection, copied prompt text, or submitted text. Changes unrelated to autocomplete, including prompt wrapping, terminal resizing, and widget or footer height changes, SHALL retain their existing reflow behavior.
 
 #### Scenario: Open the slash-command list
-- **WHEN** the user types `/` in a single-line bare-A1 prompt
-- **THEN** the completion list SHALL appear above the prompt's upper border
+- **WHEN** the user types `/` in a single-line bare-A1 prompt with zero configured editor padding
+- **THEN** the completion list SHALL appear above the prompt's upper border with its selection marker one cell from the terminal edge
+- **AND** that marker SHALL align with the working indicator's horizontal position
 - **AND** the prompt and footer SHALL occupy the same terminal rows as the equivalent frame without the list
 - **AND** no completion rows SHALL appear between the prompt's lower border and footer
 
 #### Scenario: Match the menu top line to the prompt
 - **WHEN** the default editor displays autocomplete, including after a theme, editor-mode color, or terminal-width change
-- **THEN** exactly one horizontal line SHALL appear directly above the suggestions with the prompt border's current color, glyph, and width
-- **AND** the original prompt upper border SHALL remain below the suggestions
-- **AND** the top line SHALL NOT replace any candidate row
-- **AND** candidate rows SHALL retain their original background and padding without menu-panel shading
+- **THEN** the original prompt upper border SHALL remain directly below the suggestions with its current color, glyph, and width
+- **AND** no additional horizontal line SHALL appear above the suggestions or replace a candidate row
+- **AND** candidate rows SHALL retain their original background and internal padding without menu-panel shading
 
 #### Scenario: Relocate the existing completion counter
 - **WHEN** the existing list would display a trailing counter such as `(1/24)`
-- **THEN** the same value SHALL appear as `1/24` in the top line at the history label inset and in the same dim color
+- **THEN** the same value SHALL appear as `1/24` in the prompt upper border at the shared three-cell history-label inset and in the same dim color
 - **AND** the trailing counter row SHALL be absent, not duplicated or left blank
-- **AND** navigation, filtering, and asynchronous results SHALL update the top counter using the existing list semantics without moving the prompt
+- **AND** navigation, filtering, and asynchronous results SHALL update the border counter using the existing list semantics without moving the prompt
 
 #### Scenario: Filter and dismiss suggestions
 - **WHEN** filtering reduces or grows the visible list without changing prompt wrapping, or Escape or a no-match result closes it
 - **THEN** the menu SHALL grow or shrink upward without moving the prompt or footer
-- **AND** closing the menu SHALL remove its top line in the same frame
-- **AND** vacated menu and top-line rows SHALL be repainted with the current underlying viewport content without stale suggestions, lines, or reserved blank menu space
+- **AND** closing the menu SHALL remove its counter from the prompt upper border in the same frame
+- **AND** vacated menu rows SHALL be repainted with the current underlying viewport content without stale suggestions, lines, or reserved blank menu space
 
 #### Scenario: Receive asynchronous results
 - **WHEN** a current asynchronous completion result opens or resizes the list
@@ -1055,29 +1055,29 @@ The list and its top line SHALL remain transient, non-transcript presentation. I
 - **AND** the prompt and footer SHALL remain stable when their own geometry is unchanged
 
 ### Requirement: History uses a compact numeric border label
-While bare A1 is recalling saved prompt history, the existing history border label SHALL show its position/total without the literal `History` title, for example `1/100`. Its four-cell inset, dim color, count calculation, visibility, clipping, and border width SHALL remain unchanged. When recalled input has hidden lines above the visible editor body, the upper overflow cue SHALL NOT be appended to the history label or separated from it by a dot. Instead, the overflow cue SHALL use the same centered placement, `↑ N more` wording, and current border color as the corresponding lower `↓ N more` cue, while the history position remains independently left-aligned and visible. If centered placement would overlap the history position, the overflow cue SHALL move right only as far as needed when both complete labels fit. If both complete labels cannot fit, the border SHALL preserve the history position and omit the overflow cue rather than replace, merge, interleave, or partially join the labels. This presentation change SHALL NOT alter history navigation, draft restoration, storage, editor scrolling, or input geometry.
+While bare A1 is recalling saved prompt history, the existing history border label SHALL show its position/total without the literal `History` title, for example `1/100`. It SHALL use a three-cell inset; its dim color, count calculation, visibility, clipping, and border width SHALL remain unchanged. When recalled input has hidden lines above the visible editor body, the upper overflow cue SHALL NOT be appended to the history label or separated from it by a dot. Instead, the overflow cue SHALL use the same centered placement, `↑ N more` wording, and current border color as the corresponding lower `↓ N more` cue, while the history position remains independently left-aligned and visible. If centered placement would overlap the history position, the overflow cue SHALL move right only as far as needed when both complete labels fit. If both complete labels cannot fit, the border SHALL preserve the history position and omit the overflow cue rather than replace, merge, interleave, or partially join the labels. This presentation change SHALL NOT alter history navigation, draft restoration, storage, editor scrolling, or input geometry.
 
 #### Scenario: Recall and leave saved history
 - **WHEN** the user navigates saved prompt history
-- **THEN** the border SHALL show the existing position/total without `History`, in the same position and dim color
+- **THEN** the border SHALL show the existing position/total at a three-cell inset without `History`, in the same dim color
 - **AND** the history counter SHALL have no trailing dot or separator
 - **AND** leaving recall SHALL remove the indicator and restore the draft as before
 
 #### Scenario: Scroll within a recalled multiline prompt
 - **WHEN** recalled input has hidden lines above the visible editor body and the border is wide enough for both annotations
-- **THEN** the compact history position SHALL remain at its left inset
+- **THEN** the compact history position SHALL remain at its three-cell left inset
 - **AND** moving or placing the cursor within the recalled multiline text SHALL retain the active history position and counter
 - **AND** `↑ N more` SHALL be centered independently in the top border using the border color, matching the lower overflow cue's placement and wording
 - **AND** neither annotation SHALL be appended to or styled as part of the other
 
 #### Scenario: Render both annotations at a narrow width
 - **WHEN** centered overflow placement would overlap the history position but both complete labels fit on the border
-- **THEN** the history position SHALL remain at its left inset and the complete overflow cue SHALL shift right only far enough to avoid it
+- **THEN** the history position SHALL remain at its three-cell left inset and the complete overflow cue SHALL shift right only far enough to avoid it
 - **AND** the border SHALL remain within the available width without merging, interleaving, or partially joining the labels
 
 #### Scenario: Render a border too narrow for both annotations
 - **WHEN** the complete history position and upper overflow cue cannot both fit on the border
-- **THEN** the history position SHALL remain visible at its left inset
+- **THEN** the history position SHALL remain visible at its three-cell left inset
 - **AND** the overflow cue SHALL be omitted for that frame rather than replacing or partially joining the history position
 
 ### Requirement: Above-prompt autocomplete preserves existing sizing and input geometry
@@ -1252,7 +1252,9 @@ When an interactive bare-A1 session quits through `/quit`, the second `Ctrl+C` o
 ### Requirement: Informational messages are a transient dock notice
 Bare A1 SHALL present informational workflow status messages, including model and thinking-level confirmations, reload and compaction confirmations, generic completed command results, `status`-kind workflow messages, and extension `info` notifications, as one transient notice at the top of the dock rather than as transcript content. The notice SHALL consist of one blank row followed by the message in the existing dim status style with Pi's one-cell status padding regardless of the output pad setting, SHALL be placed after any non-live dock status rows and before above-editor widgets and the editor, and SHALL therefore sit directly below the live working status when that status is visible and directly above the editor group otherwise. The notice SHALL wrap at the dock width and SHALL NOT scroll with transcript content.
 
-A newer simple workflow notice of any informational, warning, or error severity SHALL replace the current notice in place. The notice SHALL be removed when a submitted prompt or shell command block is mounted, when a structured workflow presentation or celebratory component is appended to the transcript, and when workflow presentation is reset for a new, resumed, forked, or replaced session. Assistant, thinking, tool, custom, and compaction blocks that start or update while the agent works SHALL NOT remove it, the agent finishing SHALL NOT remove it, and no timer SHALL remove it. The notice SHALL NOT enter transcript order, the selectable document, copied text, prompt navigation, persisted session content, or the pinned `a1 pi` route, whose transcript placement of status text SHALL remain unchanged.
+A successful `/new` result in bare A1 SHALL use the same transient prompt-adjacent ownership instead of transcript ownership, but SHALL preserve the existing accent `✓ New session started` wording, command-message wrapping, one-cell horizontal padding, and leading separation. While the replacement session is idle, its confirmation SHALL appear directly above the editor group at the bottom of the frame with exactly one blank row between the confirmation and input. When the first accepted prompt transitions the session from non-busy to busy, the confirmation SHALL be removed in the same presentation update that introduces the live working status, so `Working…` replaces it and the two SHALL NOT be visible together. A submission that fails before the busy transition MAY replace the confirmation with the existing truthful failure notice but SHALL NOT fabricate live working status.
+
+A newer simple workflow notice of any informational, warning, or error severity SHALL replace the current notice in place. The notice SHALL be removed when a submitted prompt or shell command block is mounted, when a structured workflow presentation or celebratory component is appended to the transcript, and when workflow presentation is reset for a new, resumed, forked, or replaced session. Assistant, thinking, tool, custom, and compaction blocks that start or update while the agent works SHALL NOT remove an ordinary informational, warning, or error notice, the agent finishing SHALL NOT remove it, and no timer SHALL remove it. The notice SHALL NOT enter transcript order, the selectable document, copied text, prompt navigation, persisted session content, or the pinned `a1 pi` route, whose transcript placement of status text and new-session confirmation SHALL remain unchanged.
 
 #### Scenario: Confirm a model switch in a fresh session
 - **WHEN** model selection from `/models` completes in a bare-A1 session with no transcript content
@@ -1260,8 +1262,26 @@ A newer simple workflow notice of any informational, warning, or error severity 
 - **AND** no transcript row SHALL be added for it
 - **AND** the top of the viewport SHALL remain empty
 
+#### Scenario: Confirm a new session beside the prompt
+- **WHEN** `/new` successfully creates an idle bare-A1 session
+- **THEN** the accent `✓ New session started` confirmation SHALL appear directly above the input prompt at the bottom of the frame
+- **AND** it SHALL preserve its existing accent, wrapping, one-cell horizontal padding, and leading separation
+- **AND** exactly one blank row SHALL appear between the confirmation and input
+- **AND** the selectable transcript document and the top of the viewport SHALL remain empty
+
+#### Scenario: Replace the new-session confirmation with working status
+- **WHEN** the reader submits the first prompt and the replacement session accepts it by transitioning to busy
+- **THEN** the first busy frame SHALL show the live `Working…` status directly above the dock
+- **AND** `✓ New session started` SHALL no longer be visible
+- **AND** no frame composed from that accepted transition SHALL show both messages
+
+#### Scenario: Report a prompt failure before work begins
+- **WHEN** a prompt submission fails before the replacement session transitions to busy
+- **THEN** the existing prompt failure notice MAY replace the idle new-session confirmation
+- **AND** no live working status SHALL be fabricated
+
 #### Scenario: Switch models while the agent is working
-- **WHEN** an informational message arrives while the live working status is visible
+- **WHEN** an ordinary informational message arrives while the live working status is visible
 - **THEN** the working status SHALL remain immediately above the dock and the notice SHALL render directly below it
 - **AND** streamed updates, further assistant blocks, and tool blocks in that run SHALL NOT remove the notice
 - **AND** the notice SHALL remain after the run finishes until the next submitted prompt
@@ -1273,12 +1293,12 @@ A newer simple workflow notice of any informational, warning, or error severity 
 
 #### Scenario: Keep the notice out of content semantics
 - **WHEN** a selection is dragged toward the dock, the transcript is copied, prompt navigation is used, or the session is persisted and resumed
-- **THEN** the notice text SHALL be excluded from selection, copy, navigation targets, and persisted content
+- **THEN** the notice text, including a new-session confirmation, SHALL be excluded from selection, copy, navigation targets, and persisted content
 - **AND** returning to the session SHALL NOT resurrect a dismissed notice
 
 #### Scenario: Keep the pinned route unchanged
-- **WHEN** the same informational message is produced in the `a1 pi` route
-- **THEN** it SHALL be appended to the transcript exactly as before, including back-to-back replacement of the previous status row
+- **WHEN** the same informational message or successful `/new` result is produced in the `a1 pi` route
+- **THEN** it SHALL be appended to the transcript exactly as before, including back-to-back replacement of the previous status row and the existing accent new-session shape
 
 ### Requirement: The reload box stays visible for a minimum window
 When `/reload` runs in bare A1, the shell SHALL show the reload box in place of the editor and SHALL keep it visible for at least 400 ms measured from the moment it was first shown, regardless of how quickly the reload workflow completes. A reload that takes longer than the window SHALL remove the box as soon as the workflow finishes. A reload that finishes sooner SHALL wait only for the remainder of the window before restoring the editor and presenting the completion notice; the reload workflow itself SHALL NOT be delayed by the hold. The window, the clock, and the wait SHALL be injectable through the session shell options so tests are deterministic, and production SHALL use the defaults. Disposing the shell during the hold SHALL release the hold without restoring the editor. The share surface and the `a1 pi` route SHALL be unchanged.
@@ -1327,9 +1347,9 @@ Bare A1 SHALL move the transcript only for vertical wheel input and in the direc
 - **AND** the horizontal reports SHALL NOT change end-following or viewport-control state
 
 ### Requirement: Command failures and warnings are a transient dock notice
-Bare A1 SHALL present simple workflow failures and warnings, including built-in command failures, explicit `error`- or `warning`-kind workflow messages, and extension error/warning notifications, through the same single transient dock-notice region used by informational messages rather than as transcript content. The notice SHALL preserve the existing contextual wording, `Error:` or `Warning:` prefix, severity theme role, output-padding rule, leading blank row, and width-aware wrapping supplied by the command-message presenter. It SHALL sit directly above the editor group, or directly below live working status when that status is visible, and SHALL NOT scroll with transcript content.
+Bare A1 SHALL present simple workflow failures and warnings, including built-in command failures, explicit `error`- or `warning`-kind workflow messages, and extension error/warning notifications, through the same single transient dock-notice region used by informational messages and the bare-A1 new-session confirmation rather than as transcript content. The notice SHALL preserve the existing contextual wording, `Error:` or `Warning:` prefix, severity theme role, output-padding rule, leading blank row, and width-aware wrapping supplied by the command-message presenter. It SHALL sit directly above the editor group, or directly below live working status when that status is visible, and SHALL NOT scroll with transcript content.
 
-The latest simple workflow notice SHALL replace any earlier informational, warning, or error notice in place. A submitted prompt or shell command, a structured transcript-bound workflow presentation, or workflow/session reset SHALL dismiss it under the common notice lifecycle. Structured command output SHALL remain transcript content. The pinned `a1 pi` route SHALL retain its chronological transcript placement of command failures and warnings.
+The latest simple workflow notice SHALL replace any earlier informational, warning, error, or new-session notice in place. A submitted prompt or shell command, a structured transcript-bound workflow presentation, an owned full-screen reference route, or workflow/session reset SHALL dismiss it under the common notice lifecycle, subject to the new-session confirmation's accepted-busy replacement rule. Structured command output SHALL remain transcript content unless its command is declared as an owned full-screen replacement or as the bare-A1 new-session confirmation; such a route SHALL append no transcript content. The pinned `a1 pi` route SHALL retain its chronological transcript placement of command failures, warnings, new-session confirmations, and structured session information.
 
 #### Scenario: Fail to export an empty session
 - **WHEN** `/export` fails in a fresh bare-A1 session because there is nothing to export
@@ -1343,7 +1363,7 @@ The latest simple workflow notice SHALL replace any earlier informational, warni
 - **AND** it SHALL NOT become transcript, selection, copy, prompt-navigation, or persisted-session content
 
 #### Scenario: Replace notices across severity
-- **WHEN** an error or warning follows an informational notice, or an informational notice follows an error or warning
+- **WHEN** an error or warning follows an informational or new-session notice, or an informational notice follows an error or warning
 - **THEN** the newer message SHALL replace the older notice in the same dock position
 - **AND** no stale notice row or transcript component SHALL remain
 
@@ -1353,13 +1373,17 @@ The latest simple workflow notice SHALL replace any earlier informational, warni
 - **AND** no extension-specific duplicate SHALL be appended to the transcript
 
 #### Scenario: Keep structured output in the transcript
-- **WHEN** a route presents session information, hotkeys, changelog, new/name/debug output, or another structured component
+- **WHEN** a route presents name/debug output or another structured component that is neither an owned full-screen replacement nor the bare-A1 new-session confirmation
 - **THEN** that component SHALL retain its existing transcript placement
 - **AND** it SHALL dismiss any stale simple dock notice
 
+#### Scenario: Keep owned reference output out of the transcript
+- **WHEN** bare A1 opens session information, hotkeys, or changelog through its declared owned full-screen route
+- **THEN** the screen SHALL dismiss any stale simple dock notice and append no structured component, status, or placeholder to the transcript
+
 #### Scenario: Keep pinned command-message placement
-- **WHEN** the same command failure or warning is produced through `a1 pi`
-- **THEN** it SHALL remain chronological transcript content with its pinned spacing, prefix, style, and wording
+- **WHEN** the same command failure, warning, or successful `/new` result is produced through `a1 pi`
+- **THEN** it SHALL remain chronological transcript content with its pinned spacing, prefix or accent style, and wording
 - **AND** no custom-viewport dock notice SHALL be introduced
 
 ### Requirement: Bare A1 omits generated resize guidance from submitted prompts
@@ -1505,9 +1529,9 @@ Supported native clipboard reads and terminal-provided bracketed paste SHALL pre
 - **AND** plain-text acquisition SHALL NOT display a misleading screenshot chip merely because its content is still unknown
 
 ### Requirement: Oversized path lists use bounded compact paste presentation
-Bare A1 SHALL budget individual path-chip presentation at 4,096 UTF-16 code units per successfully classified path-list paste, counting each occurrence, existing label/icon/framing, and a conservative 20-unit collision-suffix allowance per occurrence. Classification and adoption SHALL use the same base-tag formatting. When this estimate exceeds the budget, the isolated preparer SHALL produce one existing text-paste chip representation before transfer/adoption rather than construct a giant editor string or thousands of provisional UI chips.
+Bare A1 SHALL budget individual path-chip presentation at 4,096 UTF-16 code units per successfully classified path-list paste, counting each occurrence and the icon, framing, and longest deterministic label that each path could require for path-suffix disambiguation, including its normalized full-path candidate. Classification and adoption SHALL use the same path-tag formatting. When this estimate exceeds the budget, the isolated preparer SHALL produce one existing text-paste chip representation before transfer/adoption rather than construct a giant editor string or thousands of provisional UI chips.
 
-The compact chip SHALL retain the exact concatenation of classified full paths in occurrence order, including duplicates, without extra separators, content truncation, or further text normalization. It SHALL use existing text-paste chip identity, atomic editing, copying, history/submission expansion, reservation, cancellation, and undo/redo behavior. Individual member-chip editing is replaced by one atomic chip only for over-budget lists. In-budget file/folder/image-file chips SHALL remain unchanged. This policy SHALL apply equally to native and terminal-provided owned paste, SHALL NOT reread terminal-supplied content, and SHALL NOT change the pinned comparison path, existing draft/history chips, clipboard byte/image limits, or failed-probe original-text fallback.
+The compact chip SHALL retain the exact concatenation of classified full paths in occurrence order, including duplicates, without extra separators, content truncation, or further text normalization. It SHALL use existing text-paste chip identity, atomic editing, copying, history/submission expansion, reservation, cancellation, and undo/redo behavior. Individual member-chip editing is replaced by one atomic chip only for over-budget lists. In-budget file/folder/image-file chips SHALL retain their normal icons and deterministic path-suffix collision behavior. This policy SHALL apply equally to native and terminal-provided owned paste, SHALL NOT reread terminal-supplied content, and SHALL NOT change the pinned comparison path, existing draft/history chips, clipboard byte/image limits, or failed-probe original-text fallback.
 
 #### Scenario: A successfully classified path list exceeds its display budget
 - **WHEN** a supported native or terminal-provided path-list paste would exceed 4,096 budgeted UTF-16 units of individual-chip presentation
@@ -1516,8 +1540,8 @@ The compact chip SHALL retain the exact concatenation of classified full paths i
 - **AND** following input and eligible frames SHALL continue progressing without waiting for unbounded editor layout
 
 #### Scenario: A path list fits the budget
-- **WHEN** the complete per-paste estimate, including framing and suffix allowances, is at most 4,096 UTF-16 units
-- **THEN** the existing individual file/folder/image-file chips and their editing semantics SHALL remain unchanged
+- **WHEN** the complete per-paste estimate, including framing and each path's longest deterministic collision label, is at most 4,096 UTF-16 units
+- **THEN** the existing individual file/folder/image-file chips and their editing semantics SHALL remain unchanged except for deterministic path-suffix disambiguation
 - **AND** repeated occurrences and surrogate-pair labels SHALL count toward the same per-paste budget
 
 #### Scenario: Copy, recall, submit, or undo a compact path-list paste
@@ -1705,13 +1729,13 @@ A selection that originates in the dock SHALL retain its existing dock/editor in
 
 ### Requirement: Submitted prompt chips wrap as atomic units
 
-Bare A1 SHALL treat each canonical text-paste, image, file, folder, and URL chip label in submitted user-prompt text as one visual wrapping unit whenever the complete label fits within the prompt's full content width. When the remaining columns on a row cannot contain a fitting chip, the complete chip SHALL begin on the next continuation row rather than split at an internal space.
+Bare A1 SHALL treat each canonical text-paste, image, file, folder, and URL chip label in submitted user-prompt text as one visual wrapping unit whenever the complete label fits within the prompt's full content width, whether authored whitespace separates the chip or it directly touches other text. When the remaining columns on a row cannot contain a fitting chip, the complete chip SHALL begin on the next continuation row rather than split internally.
 
-If one chip is wider than the complete available content width, its visual presentation MAY split at grapheme boundaries as required to keep every rendered row within the declared width. Atomic wrapping SHALL be presentation-only: source text, visible chip characters and spaces, Markdown styling outside chips, hyperlinks, timestamps, sticky-prompt behavior, transcript selection/copy, stored/model-facing content, attachment behavior, and live editor semantics SHALL remain unchanged. Ordinary bracketed text that is not canonical chip syntax SHALL retain normal Markdown wrapping, and the `a1 pi` comparison route SHALL retain pinned rendering.
+If one chip is wider than the complete available content width, bare A1 SHALL truncate its visual label with `…` on one width-bounded row rather than split it. Atomic wrapping SHALL be presentation-only: source text, Markdown styling outside chips, hyperlinks, timestamps, sticky-prompt behavior, stored/model-facing content, attachment behavior, and live editor semantics SHALL remain unchanged. Ordinary bracketed text that is not canonical chip syntax SHALL retain normal Markdown wrapping, and the `a1 pi` comparison route SHALL retain pinned rendering.
 
 #### Scenario: Move a fitting screenshot chip to the next row
 
-- **WHEN** prose leaves too few columns for a complete canonical screenshot chip but the chip fits within a full prompt content row
+- **WHEN** prose, including an uninterrupted run directly touching a canonical screenshot chip, leaves too few columns for the complete chip but the chip fits within a full prompt content row
 - **THEN** the current row SHALL end before the chip
 - **AND** the next continuation row SHALL contain the complete chip without an internal split
 
@@ -1719,21 +1743,111 @@ If one chip is wider than the complete available content width, its visual prese
 
 - **WHEN** submitted prompt text contains canonical text-paste, image, file, folder, or URL chip labels near a row boundary
 - **THEN** every fitting chip SHALL wrap as one unit using the same canonical syntax recognized by prompt-chip behavior
-- **AND** adjacent or repeated chips SHALL remain complete individual units
+- **AND** chips touching prose, adjacent chips, and repeated chips SHALL remain complete individual units without gaining visible separators
 
 #### Scenario: Render a chip wider than the prompt
 
 - **WHEN** one canonical chip is wider than the complete prompt content width
-- **THEN** its visual fallback SHALL preserve all chip content in order across width-bounded rows
-- **AND** no row SHALL exceed the available width or split a grapheme cluster
+- **THEN** its visual label SHALL be truncated with `…` on exactly one width-bounded row
+- **AND** the stored and model-facing source SHALL retain the complete chip without splitting a grapheme cluster
 
 #### Scenario: Preserve submitted-prompt presentation and content
 
-- **WHEN** a submitted prompt contains chips together with Markdown, a URL hyperlink, a source timestamp, sticky-row presentation, or transcript selection
-- **THEN** the chip labels SHALL retain their exact visible characters and ordinary spaces after wrapping
-- **AND** styling, hyperlinks, timestamp placement, sticky behavior, selected/copied text, stored content, and model-facing content SHALL remain unchanged
+- **WHEN** a submitted prompt contains chips together with Markdown, a URL hyperlink, a source timestamp, sticky-row presentation, transcript selection, or directly touching prose
+- **THEN** every fitting chip and its surrounding source SHALL retain exact visible characters and authored spacing, while only an oversized chip label MAY use the declared ellipsis
+- **AND** styling, hyperlinks, timestamp placement, sticky behavior, stored content, and model-facing content SHALL remain unchanged
 
 #### Scenario: Preserve ordinary bracketed text and comparison rendering
 
 - **WHEN** submitted text contains a non-chip bracketed span or the same prompt is rendered through `a1 pi`
 - **THEN** ordinary Markdown wrapping or pinned comparison rendering SHALL remain unchanged
+
+### Requirement: Pending steering chips wrap as atomic units
+
+Bare A1 SHALL treat each canonical text-paste, image, file, folder, and URL chip label in pending `Steering:` content as one visual wrapping unit whenever the complete label fits within the full available content width, whether authored whitespace separates the chip or it directly touches other text. When the remaining columns on a row cannot contain a fitting chip, the complete chip SHALL begin on the next continuation row rather than split internally.
+
+If one chip is wider than the complete available width, bare A1 SHALL truncate its visual label with `…` on one width-bounded row rather than split it. Atomic wrapping SHALL be presentation-only: queued source text, queue ordering, dequeue guidance, scrolling behavior, attachment behavior, and queue lifecycle SHALL remain unchanged. The pinned `a1 pi` comparison presentation SHALL retain its existing wrapping.
+
+#### Scenario: Move a fitting queued screenshot chip to the next row
+
+- **WHEN** preceding steering text leaves too few columns for a complete canonical screenshot chip but the chip fits within a full content row
+- **THEN** the current row SHALL end before the chip
+- **AND** the next continuation row SHALL contain the complete chip without an internal split
+
+#### Scenario: Wrap every canonical queued chip family consistently
+
+- **WHEN** pending steering content contains canonical text-paste, image, file, folder, or URL chip labels near a row boundary
+- **THEN** every fitting chip SHALL wrap as one unit using the same canonical syntax recognized by prompt-chip behavior
+- **AND** adjacent or repeated chips SHALL remain complete individual units
+
+#### Scenario: Isolate a queued chip from uninterrupted text
+
+- **WHEN** a fitting canonical chip directly touches an overlong non-whitespace run before or after it
+- **THEN** wrapping SHALL treat the chip as a separate atomic unit without requiring an authored space
+- **AND** the rendered and queued text SHALL NOT gain visible separators
+
+#### Scenario: Truncate an oversized queued chip atomically
+
+- **WHEN** one canonical chip is wider than the complete steering-content width
+- **THEN** its visual label SHALL be truncated with `…` on exactly one width-bounded row
+- **AND** the queued source SHALL retain the complete chip without splitting a grapheme cluster
+
+#### Scenario: Preserve queue behavior and comparison rendering
+
+- **WHEN** queued steering content changes, is dequeued, scrolls with the transient viewport tail, contains ordinary non-chip bracketed text, or is rendered through `a1 pi`
+- **THEN** atomic chip wrapping SHALL NOT alter queue content, ordering, guidance, lifecycle, viewport ownership, ordinary text semantics, or pinned comparison presentation
+
+### Requirement: Floating bottom-control styling remains bounded
+
+The detached transcript's scroll-to-bottom control SHALL remain floating chrome whose normal or pointed-at background is painted only within its visible label and hit region. Its inline foreground, background, and decoration SHALL NOT redefine the underlying transcript row surface or the reserved scrollbar gutter outside that region.
+
+The final-column gutter SHALL retain the background established independently by the underlying ordinary row or boundary-reaching selection. An idle gutter SHALL show that surface as a blank cell, and a visible scrollbar track or thumb SHALL overlay that same surface. The control SHALL remain above transcript selection within its own bounds without becoming selected, copied, or extended into the gutter.
+
+#### Scenario: Render the control beside an idle scrollbar gutter
+- **WHEN** overflowing content is detached and the scroll-to-bottom control is drawn while the automatic scrollbar rail is idle
+- **THEN** the control's background SHALL end at the control's visible label boundary
+- **AND** the blank final-column gutter SHALL retain the underlying transcript row background
+- **AND** no isolated control-colored cell SHALL appear at the terminal edge
+
+#### Scenario: Render the control beside a visible scrollbar glyph
+- **WHEN** the scrollbar track or thumb is visible on the same row as the scroll-to-bottom control
+- **THEN** the glyph SHALL be painted only in the final-column gutter over the underlying row or selection background
+- **AND** the glyph cell SHALL NOT inherit the control's normal or pointed-at background
+- **AND** the control's label, placement, and hit region SHALL remain unchanged
+
+#### Scenario: Point at the control
+- **WHEN** the latest pointer position enters or leaves the control and changes its presentation
+- **THEN** only cells within the current control bounds SHALL change between normal and pointed-at backgrounds
+- **AND** the gutter background and scrollbar presentation SHALL remain independent on the first resulting frame and on repeated cached frames
+
+#### Scenario: Select through the control row
+- **WHEN** transcript selection reaches the content boundary on the row where the control floats
+- **THEN** the control SHALL remain visibly above selection within its own bounds
+- **AND** the independently composed selection background SHALL continue through the gutter according to the existing right-edge selection rule
+- **AND** the control text, padding, and scrollbar glyph SHALL remain absent from copied text
+
+### Requirement: Same-name path chips expose distinguishing path suffixes
+
+Bare A1 SHALL label a pasted file, image file, or folder with its basename when that chip label does not conflict with a different registered path. When a different platform-normalized path would produce the same chip label, A1 SHALL use the shortest trailing path suffix that makes the later chip label non-conflicting, adding parent segments from nearest to farthest and displaying separators as forward slashes. If parent suffixes remain ambiguous, the normalized full path SHALL be the deterministic final label; path-chip disambiguation SHALL NOT append an opaque random hash.
+
+Repeated references to the same platform-normalized path SHALL reuse its established chip label. Disambiguation SHALL preserve the path kind's icon, atomic editing behavior, and exact full-path value for copying, history, and submission. The pinned `a1 pi` comparison route SHALL remain unchanged.
+
+#### Scenario: Paste different folders with the same basename
+- **WHEN** two pasted folders have different normalized full paths but the same basename
+- **THEN** the first non-conflicting chip SHALL retain the basename-only label
+- **AND** the later chip SHALL show the shortest distinguishing `parent/basename` suffix instead of a random hash
+
+#### Scenario: Add more parent segments only when needed
+- **WHEN** the nearest-parent suffix for a later same-name path already labels a different registered path
+- **THEN** A1 SHALL add parent segments until the shortest non-conflicting trailing suffix is reached
+- **AND** every displayed separator in that suffix SHALL be a forward slash
+
+#### Scenario: Paste the same path repeatedly
+- **WHEN** the same platform-normalized file or folder path is pasted more than once
+- **THEN** every reference SHALL reuse that path's established chip label
+- **AND** A1 SHALL NOT treat the repeated reference as a distinct path collision
+
+#### Scenario: Expand disambiguated path chips
+- **WHEN** a disambiguated file, image-file, or folder chip is copied, stored for history, or submitted
+- **THEN** it SHALL expand to the exact full path associated with that chip
+- **AND** its icon and atomic editing behavior SHALL match the corresponding non-conflicting path-chip kind

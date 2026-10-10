@@ -69,6 +69,7 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
     instanceId,
     helperPath,
     resolve(paths.runtimeDir, "launch-instances", `${instanceId}.ready.json`),
+    resolve(paths.runtimeDir, "launch-instances", `${instanceId}.exit-notice`),
   );
   const stop = stopRequests(client, instanceId);
   let rootIdentity: NativeProcessIdentity | null = null;

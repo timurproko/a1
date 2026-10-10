@@ -331,7 +331,7 @@ describe("session viewport interaction controller", () => {
     } finally { target.clearPointerState(); vi.useRealTimers(); }
   });
 
-  it("keeps a transcript-originated selection out of dock rows after direct and edge-held crossing", () => {
+  it("keeps document-only edge selection in the viewport and crosses the dock symmetrically", () => {
     vi.useFakeTimers();
     const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
     target.setCopyOnSelect(false);
@@ -364,9 +364,9 @@ describe("session viewport interaction controller", () => {
 
       target.compose(input);
       target.handlePreInput("\u001b[<0;2;4M\u001b[<32;4;5M\u001b[<0;4;5m", true, 200);
-      const bounded = target.compose(input);
-      expect(bounded.rows[3]).toContain("\u001b[45m");
-      expect(bounded.rows.slice(bounded.hits.viewportHeight).every(row => !row.includes("\u001b[45m"))).toBe(true);
+      const crossedDown = target.compose(input);
+      expect(crossedDown.rows[3]).toContain("\u001b[45m");
+      expect(crossedDown.rows[4]).toContain("\u001b[45m");
       expect(copiedText(target.handlePreInput("\u0003"))).not.toMatch(/editor|footer/u);
 
       target.compose(input);
@@ -374,7 +374,7 @@ describe("session viewport interaction controller", () => {
       const dockOriginated = target.compose(input);
       expect(dockOriginated.rows[3]).toContain("\u001b[45m");
       expect(dockOriginated.rows[4]).toContain("\u001b[45m");
-      expect(copiedText(target.handlePreInput("\u0003"))).toContain("ed");
+      expect(copiedText(target.handlePreInput("\u0003"))).not.toMatch(/editor|footer/u);
     } finally {
       target.clearPointerState();
       vi.useRealTimers();
@@ -444,7 +444,9 @@ describe("session viewport interaction controller", () => {
       target.reset();
       frame(target, 0);
       expect(target.handlePreInput("\u001b[<0;4;2M\u001b[<32;15;3M\u001b[<0;15;3m").consumed).toBe(true);
-      expect(copiedText(target.handlePreInput("\u0003"))).toBe("");
+      const emptyCopy = target.handlePreInput("\u0003");
+      expect(emptyCopy).toMatchObject({ data: "", consumed: true });
+      expect(emptyCopy.copySelection).toBeUndefined();
     } finally { target.clearPointerState(); }
   });
 
@@ -506,8 +508,8 @@ describe("session viewport interaction controller", () => {
     }
   });
 
-  it("selects across a drag begun on transient tail chrome", () => {
-    const { target, input, compose } = hoverFixture();
+  it("selects across transient tail chrome without copying it", () => {
+    const { target, input } = hoverFixture();
     try {
       const tailed = {
         ...input,
@@ -521,7 +523,7 @@ describe("session viewport interaction controller", () => {
       expect(target.handlePreInput("\u001b[<32;5;3M").consumed).toBe(true);
       const release = target.handlePreInput("\u001b[<0;5;3m");
       expect(release.consumed).toBe(true);
-      expect(copiedText(release)).toContain("Stee");
+      expect(copiedText(release)).not.toContain("Steering");
       const selected = target.compose(tailed);
       expect(target.hasSelection).toBe(true);
       expect(selected.rows[4]).toContain("Steering: later");
@@ -531,8 +533,8 @@ describe("session viewport interaction controller", () => {
     }
   });
 
-  it("keeps wheel scrolling over the transient tail while allowing selection", () => {
-    const { target, input, compose } = hoverFixture();
+  it("keeps wheel scrolling over the transient tail while allowing visual selection", () => {
+    const { target, input } = hoverFixture();
     try {
       const tailed = { ...input, documentRows: [...input.documentRows, "", " Working..."], selectableDocumentRowCount: 30 };
       const followed = target.compose(tailed);
@@ -548,14 +550,14 @@ describe("session viewport interaction controller", () => {
       target.handlePreInput("\u001b[<32;5;4M");
       const release = target.handlePreInput("\u001b[<0;5;4m");
       expect(target.hasSelection).toBe(true);
-      expect(copiedText(release)).toContain("Work");
+      expect(copiedText(release)).not.toContain("Working");
     } finally {
       target.clearPointerState();
     }
   });
 
   it("clamps selection and copy at the semantic end of a transient tail", () => {
-    const { target, input, compose } = hoverFixture();
+    const { target, input } = hoverFixture();
     try {
       const tailed = {
         ...input,
@@ -563,7 +565,7 @@ describe("session viewport interaction controller", () => {
         selectableDocumentRowCount: 30,
         bottomAlignedTailRowCount: 1,
       };
-      compose();
+      target.compose(tailed);
       target.handlePreInput("\u001b[<0;4;2M");
       target.handlePreInput("\u001b[<32;4;7M");
       target.handlePreInput("\u001b[<0;4;7m");
@@ -571,14 +573,14 @@ describe("session viewport interaction controller", () => {
       expect(copied.consumed).toBe(true);
       expect(copiedText(copied)).not.toContain("Steering");
       expect(copiedText(copied)).not.toContain("Working");
-      expect(copiedText(copied)).toContain("row-25");
+      expect(copiedText(copied)).toContain("row-28");
     } finally {
       target.clearPointerState();
     }
   });
 
   it("keeps jump-to-bottom controls ahead of transient-tail suppression", () => {
-    const { target, input, compose } = hoverFixture();
+    const { target, input } = hoverFixture();
     try {
       const tailed = { ...input, documentRows: [...input.documentRows, "", "", " Working..."], selectableDocumentRowCount: 30 };
       target.handlePreInput("\u001b[<64;30;2M");
@@ -899,6 +901,41 @@ describe("session viewport interaction controller", () => {
     }
   });
 
+  it("keeps no-drag prompt clicks out of provisional frame selection", () => {
+    const events: PiShellEditorPointerEvent[] = [];
+    const selectionPaint = vi.fn((line: string) => line);
+    const target = new SessionViewportController({
+      enabled: true,
+      editor: editor({ handlePointer: event => { events.push(event); return true; } }),
+      requestRender() {},
+    });
+    target.setEditorPointerFrame({ rowStart: 4, rowEnd: 5 });
+    const input = {
+      documentRows: ["row-0", "row-1", "row-2", "prompt alpha", "footer"],
+      dockRows: [] as string[], promptAnchors: [], width: 20, height: 5,
+      theme: {
+        track: (text: string) => text,
+        thumb: (text: string) => text,
+        sticky: (text: string) => text,
+        quietSticky: (text: string) => text,
+        bottomControl: (text: string) => text,
+        selection: selectionPaint,
+      },
+    };
+    target.compose(input);
+
+    for (const now of [1_000, 1_100, 1_200]) {
+      expect(target.handlePreInput("\u001b[<0;8;4M", true, now).consumed).toBe(true);
+      expect(target.hasSelection).toBe(false);
+      target.compose(input);
+      expect(selectionPaint).not.toHaveBeenCalled();
+      expect(target.handlePreInput("\u001b[<0;8;4m", true, now + 1).consumed).toBe(true);
+    }
+    expect(events.map(event => event.kind)).toEqual([
+      "press", "release", "press", "release", "press", "release",
+    ]);
+  });
+
   it("routes editor pointer input only through the declared editor frame", () => {
     const events: PiShellEditorPointerEvent[] = [];
     let ownsPointer = false;
@@ -923,6 +960,13 @@ describe("session viewport interaction controller", () => {
     const dragRelease = target.handlePreInput("\u001b[<0;4;5m");
     expect(dragRelease.consumed).toBe(true);
     expect(copiedText(dragRelease)).toBeTruthy();
+    expect(events).toEqual([]);
+
+    target.handlePreInput("\u0003");
+    target.handlePreInput("\u001b[<0;3;4M");
+    target.handlePreInput("\u001b[<32;4;4M");
+    const sameRowRelease = target.handlePreInput("\u001b[<0;4;4m");
+    expect(copiedText(sameRowRelease)).toBe("w-");
     expect(events).toEqual([]);
 
     target.handlePreInput("\u0003");

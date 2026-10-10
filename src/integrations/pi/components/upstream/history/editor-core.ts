@@ -1,11 +1,11 @@
 /**
- * Provenance: @earendil-works/pi-tui 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-tui 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/tui/src/components/editor.ts.
  * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
  * types, typed persistent-history hooks, semantic border state with the user-approved numeric-only
- * history label and separate centered history-overflow cue, and history-count retention during cursor
- * placement within recalled multiline text. Public terminal runtime/exports remain shared and
- * unchanged. See docs/architecture/history-editor-provenance.md.
+ * history label with a three-cell inset and separate centered history-overflow cue, and history-count
+ * retention during cursor placement within recalled multiline text. Public terminal runtime/exports
+ * remain shared and unchanged. See docs/architecture/history-editor-provenance.md.
  * Deviations: compact-history-counter-label, history-overflow-cue-separation,
  * history-recall-cursor-retention, persistent-history-owned-editor-boundary.
  */
@@ -248,6 +248,8 @@ const ATTACHMENT_AUTOCOMPLETE_DEBOUNCE_MS = 20;
 const DEFAULT_AUTOCOMPLETE_TRIGGER_CHARACTERS = ["@", "#"];
 // Unquoted completions end at whitespace or CJK punctuation; quoted paths may contain either.
 const unquotedAutocompleteSuffixRegex = new RegExp(`(?:(?!${autocompleteSeparatorRegex.source}).)*`, "u");
+// Trigger tokens may be wrapped in prose, e.g. "(@src/foo" or "`@src/foo".
+const autocompleteTokenStartSource = `${autocompleteBoundaryRegex.source}[([{<\`]*`;
 
 function escapeCharacterClass(value: string): string {
 	return value.replace(/[\\^$.*+?()[\]{}|-]/g, "\\$&");
@@ -255,7 +257,7 @@ function escapeCharacterClass(value: string): string {
 
 function buildTriggerPattern(triggerCharacters: string[]): RegExp {
 	return new RegExp(
-		`${autocompleteBoundaryRegex.source}(?:@"[^"]*|[${triggerCharacters.map(escapeCharacterClass).join("")}]${unquotedAutocompleteSuffixRegex.source})$`,
+		`${autocompleteTokenStartSource}(?:@"[^"]*|[${triggerCharacters.map(escapeCharacterClass).join("")}]${unquotedAutocompleteSuffixRegex.source})$`,
 		"u",
 	);
 }
@@ -263,10 +265,13 @@ function buildTriggerPattern(triggerCharacters: string[]): RegExp {
 function buildDebouncePattern(triggerCharacters: string[]): RegExp {
 	const escapedWithoutAt = triggerCharacters.filter((character) => character !== "@").map(escapeCharacterClass);
 	return new RegExp(
-		`${autocompleteBoundaryRegex.source}(?:@(?:"[^"]*|${unquotedAutocompleteSuffixRegex.source})|[${escapedWithoutAt.join("")}]${unquotedAutocompleteSuffixRegex.source})$`,
+		`${autocompleteTokenStartSource}(?:@(?:"[^"]*|${unquotedAutocompleteSuffixRegex.source})|[${escapedWithoutAt.join("")}]${unquotedAutocompleteSuffixRegex.source})$`,
 		"u",
 	);
 }
+
+const HISTORY_COUNTER_INSET = 3;
+const HISTORY_COUNTER_PREFIX = "── ";
 
 function createScrollBorder(direction: "↑" | "↓", hiddenLineCount: number, width: number, minimumCueStart = 0): string {
 	const availableWidth = Math.max(0, width);
@@ -598,7 +603,7 @@ export class HistoryEditorCore implements Component, Focusable {
 		if (this.persistentHistory && this.historyIndex >= 0) {
 			const history = `${this.history.length - this.historyIndex}/${this.history.length} `;
 			if (hiddenLineCount > 0) {
-				const historyStart = 4;
+				const historyStart = HISTORY_COUNTER_INSET;
 				const historyEnd = historyStart + visibleWidth(history);
 				const historyAnchorStart = historyStart - 1;
 				if (historyEnd <= width) {
@@ -608,10 +613,12 @@ export class HistoryEditorCore implements Component, Focusable {
 						+ this.borderColor(border.slice(historyEnd));
 				}
 			}
-			const label = `─── ${history}`;
+			const label = `${HISTORY_COUNTER_PREFIX}${history}`;
 			const shown = truncateToWidth(label, width);
 			const remaining = Math.max(0, width - visibleWidth(shown));
-			return this.borderColor(shown.slice(0, 4)) + this.styleHistoryLabel(shown.slice(4)) + this.borderColor("─".repeat(remaining));
+			return this.borderColor(shown.slice(0, HISTORY_COUNTER_INSET))
+				+ this.styleHistoryLabel(shown.slice(HISTORY_COUNTER_INSET))
+				+ this.borderColor("─".repeat(remaining));
 		}
 		const border = hiddenLineCount > 0 ? createScrollBorder("↑", hiddenLineCount, width) : "─".repeat(width);
 		return this.borderColor(border);

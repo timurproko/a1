@@ -3,8 +3,10 @@ import { CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION } from "../../../../src/contra
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import {
+  assertOwnedUiExtensionUiPort,
   OWNED_UI_EXTENSION_UI_CALLBACKS,
   type OwnedUiCommand,
+  type OwnedUiExtensionUiPort,
   type OwnedUiEvent,
 } from "../../../../src/contracts/owned-ui/index.js";
 import {
@@ -217,12 +219,13 @@ async function adapterWithRuntime(runtime: FakeRuntime): Promise<{
   return { adapter, events };
 }
 
-function completeExtensionUiPort(): unknown {
+function completeExtensionUiPort(): OwnedUiExtensionUiPort {
   const value: Record<string, unknown> = Object.fromEntries(OWNED_UI_EXTENSION_UI_CALLBACKS.map(name => [name, () => undefined]));
   value.theme = Object.fromEntries([
     "fg", "bg", "bold", "italic", "underline", "inverse", "strikethrough", "getFgAnsi", "getBgAnsi",
     "getColorMode", "getThinkingBorderColor", "getBashModeBorderColor",
   ].map(name => [name, () => undefined]));
+  assertOwnedUiExtensionUiPort(value);
   return value;
 }
 
@@ -252,7 +255,7 @@ describe("Pi engine adapter", () => {
     expect(adapter.view().lifecycle).toBe("stopped");
   });
 
-  it("announces extension package updates from the startup probe as a recoverable diagnostic", async () => {
+  it("announces extension package updates from the probe as a recoverable diagnostic when the host asks", async () => {
     const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
     let probed = 0;
     const adapter = await createPiEngineAdapter({
@@ -265,6 +268,8 @@ describe("Pi engine adapter", () => {
         return ["pi-mcp-adapter"];
       },
     });
+    expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(false);
+    await adapter.announcePackageUpdates();
     await vi.waitFor(() => {
       expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(true);
     });
@@ -835,8 +840,7 @@ describe("Pi engine adapter", () => {
     await adapter.flushEvents();
     await adapter.execute({ type: "steer", correlationId: "s1", sessionId: adapter.sessionId, text: "first" });
     session.isCompacting = false;
-    session.prompt = async (_text, options) => {
-      (options as { preflightResult?: (success: boolean) => void } | undefined)?.preflightResult?.(false);
+    session.prompt = async () => {
       throw new Error("No model selected");
     };
     session.emit({ type: "compaction_end", reason: "manual", aborted: true, willRetry: false });

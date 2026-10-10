@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/coding-agent/src/modes/interactive/theme/theme-controller.ts.
  * Modifications: Source-synchronized controller port: renamed owner class, injected dependency-free
  * settings/runtime ports, remapped private theme helpers to the public-backed A1 theme adapter, and

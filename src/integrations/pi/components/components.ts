@@ -5,7 +5,7 @@ import {
 } from "../startup-public.js";
 import type { OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
 import { createTuiFacade, validatedAssistantMessage } from "./shell-components.js";
-import { ensurePiTheme } from "./theme.js";
+import { ensurePiTheme, getPiMarkdownTheme } from "./theme.js";
 
 export function adaptPiUserMessage(block: OwnedUiTranscriptBlock, width: number): readonly string[] {
   requireBlock(block, "user");
@@ -16,7 +16,7 @@ export function adaptPiUserMessage(block: OwnedUiTranscriptBlock, width: number)
 export function adaptPiAssistantMessage(block: OwnedUiTranscriptBlock, width: number): readonly string[] {
   requireBlock(block, "assistant");
   ensurePiTheme();
-  return new AssistantMessageComponent(validatedAssistantMessage(block), false).render(width);
+  return new AssistantMessageComponent(validatedAssistantMessage(block), false, getPiMarkdownTheme()).render(width);
 }
 
 export function adaptPiToolExecution(
@@ -60,29 +60,11 @@ function blockPayload(block: OwnedUiTranscriptBlock): Record<string, unknown> {
   return isRecord(block.payload) ? block.payload : {};
 }
 
-function blockProvider(block: OwnedUiTranscriptBlock): string {
-  return stringPayload(blockPayload(block), "provider") ?? "openai";
-}
-
-function blockModel(block: OwnedUiTranscriptBlock): string {
-  return stringPayload(blockPayload(block), "model") ?? "gpt-5";
-}
-
 function stringPayload(payload: Record<string, unknown>, key: string): string | undefined {
   const value = payload[key];
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-function emptyUsage() {
-  return {
-    input: 0,
-    output: 0,
-    cacheRead: 0,
-    cacheWrite: 0,
-    totalTokens: 0,
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-  };
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;

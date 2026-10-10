@@ -38,6 +38,7 @@ describe("documentation auto-merge path policy", () => {
     ["scripts", ["scripts/example.mjs"]],
     ["configuration", ["config/validation-suites.json"]],
     ["workflow", [".github/workflows/ci.yml"]],
+    ["release history", ["docs/releases/0.2.2.md"]],
     ["generated baseline", ["config/baselines/example.json"]],
     ["mixed docs and code", ["docs/architecture/example.md", "src/index.ts"]],
     ["mixed spec and code", ["openspec/changes/example/proposal.md", "src/index.ts"]],
@@ -69,6 +70,11 @@ describe("documentation auto-merge path policy", () => {
       previous_filename: "docs/architecture/old.md",
       status: "renamed",
     }]).eligible).toBe(true);
+    expect(classifyDocumentationAutoMerge([{
+      filename: "docs/architecture/former-release.md",
+      previous_filename: "docs/releases/0.2.2.md",
+      status: "renamed",
+    }])).toMatchObject({ eligible: false, disallowedPaths: ["docs/releases/0.2.2.md"] });
   });
 });
 
@@ -276,6 +282,17 @@ describe("acceptance manual-only integration", () => {
 
 describe("single-PR implementation holds", () => {
   const link = '```openspec-implementation\n{"version":2,"change":"example"}\n```';
+  const finalizedLink = '```openspec-implementation\n{"version":3,"change":"example","archive":"openspec/changes/archive/2026-09-15-example/","acceptanceManifest":"openspec/changes/archive/2026-09-15-example/acceptance.md"}\n```';
+  const reviewer = { login: "reviewer", type: "User" };
+  const enabled = { event: "auto_merge_enabled", actor: reviewer, performed_via_github_app: null, created_at: "2026-09-15T11:59:00Z" };
+  const humanArmResponse = (request: RecordedRequest, stale = false): FakeResponse | undefined => {
+    if (request.url.includes("/files?")) return { body: [{ filename: "src/example.ts", status: "modified" }] };
+    if (request.url.endsWith("/collaborators/reviewer/permission")) return { body: { permission: "write" } };
+    if (request.url.includes("/issues/42/timeline?")) return { body: stale
+      ? [enabled, { event: "committed", sha: headSha }]
+      : [{ event: "committed", sha: headSha }, enabled] };
+    return undefined;
+  };
   it.each([link, '```openspec-implementation\n{"version":99,"change":"example"}\n```', '```openspec-implementation\n{'])
     ("disables an armed PR on association edits, including malformed metadata %#", async body => {
       const result = await runManager({ action: "edited", pull_request: { number: 42, body: "stale event body" } },
@@ -284,6 +301,43 @@ describe("single-PR implementation holds", () => {
       expect(result.requests.some(request => request.body.includes("enablePullRequestAutoMerge") || request.method === "PUT")).toBe(false);
       expect(result.stdout).toContain("manual implementation hold");
     });
+
+  it("preserves only an authorized human arm for the exact finalized implementation head", async () => {
+    const result = await runManager({ action: "auto_merge_enabled", pull_request: { number: 42 } }, pullFixture({
+      body: finalizedLink, head: { ref: "feature/example", sha: headSha, repo: { full_name: "owner/repository" } },
+      auto_merge: { merge_method: "squash", enabled_by: reviewer },
+    }), { respond: request => humanArmResponse(request) });
+    expectNoMutation(result.requests);
+    expect(result.stdout).toContain("preserved authorized human auto-merge for the exact finalized implementation head");
+  });
+
+  // Provenance: PR #742's timeline named every human enable `auto_squash_enabled`, and policy disarmed each one.
+  it.each(["auto_squash_enabled", "auto_rebase_enabled"])("preserves a human arm recorded as %s after a disarmed attempt", async name => {
+    const botDisabled = { event: "auto_merge_disabled", actor: { login: "github-actions[bot]", type: "Bot" }, created_at: "2026-09-15T11:58:30Z" };
+    const timeline = [{ event: "committed", sha: "c".repeat(40) }, { ...enabled, event: name, created_at: "2026-09-15T11:58:00Z" },
+      botDisabled, { event: "committed", sha: headSha }, { ...enabled, event: name }];
+    const result = await runManager({ action: "auto_merge_enabled", pull_request: { number: 42 } }, pullFixture({
+      body: finalizedLink, head: { ref: "feature/example", sha: headSha, repo: { full_name: "owner/repository" } },
+      auto_merge: { merge_method: name === "auto_rebase_enabled" ? "rebase" : "squash", enabled_by: reviewer },
+    }), { respond: request => request.url.includes("/issues/42/timeline?") ? { body: timeline } : humanArmResponse(request) });
+    expectNoMutation(result.requests);
+    expect(result.stdout).toContain("preserved authorized human auto-merge for the exact finalized implementation head");
+  });
+
+  it("disables stale, body-edited, and bot-authored implementation arms", async () => {
+    const stale = await runManager(validationEvent(), pullFixture({ body: finalizedLink,
+      auto_merge: { merge_method: "squash", enabled_by: reviewer } }), { respond: request => humanArmResponse(request, true) });
+    expect(stale.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+
+    const edited = await runManager({ action: "edited", pull_request: { number: 42 } }, pullFixture({ body: finalizedLink,
+      auto_merge: { merge_method: "squash", enabled_by: reviewer } }), { respond: request => humanArmResponse(request) });
+    expect(edited.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+
+    const bot = await runManager({ action: "auto_merge_enabled", pull_request: { number: 42 } }, pullFixture({ body: finalizedLink,
+      auto_merge: { merge_method: "squash", enabled_by: { login: "github-actions[bot]", type: "Bot" } },
+    }), { respond: request => humanArmResponse(request) });
+    expect(bot.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+  });
 
   it.each([false, true])("holds an introduced active plan after marker removal (renamed=%s)", async renamed => {
     const result = await runManager({ action: "edited", pull_request: { number: 42, body: link } },
@@ -552,6 +606,80 @@ describe("documentation auto-merge state recovery", () => {
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("malformed PR #42 metadata");
     expect(result.requests.some(request => request.method === "PUT" || request.method === "DELETE")).toBe(false);
+  });
+});
+
+describe("release reopening auto-merge", () => {
+  const installerManifest = ["packages", "a1-install", "package.json"].join("/");
+  const note = "## [0.2.2] - 2026-09-30\n\n### Fixed\n\n- Example fix.\n";
+  const manifests = (version: string, dependency = "^1.0.0"): Record<string, string> => ({
+    "package.json": JSON.stringify({ name: "@timurproko/a1", version, dependencies: { semver: dependency } }),
+    "package-lock.json": JSON.stringify({ name: "@timurproko/a1", version, packages: { "": { name: "@timurproko/a1", version } } }),
+    [installerManifest]: JSON.stringify({ name: "@timurproko/a1-install", version }),
+  });
+  const reopening = (overrides: Record<string, unknown> = {}) => pullFixture({
+    changed_files: 4,
+    user: { login: "openspec-ci[bot]", id: 329165293, type: "Bot" },
+    head: { ref: "chore/release-0.2.3-dev", sha: headSha, repo: { full_name: "owner/repository" } },
+    ...overrides,
+  });
+  const github = (options: { head?: Record<string, string>; files?: unknown[] } = {}) => (request: RecordedRequest): FakeResponse | undefined => {
+    if (request.url.includes("/files?")) return { body: options.files ?? [
+      { filename: "docs/releases/0.2.2.md", status: "added" },
+      { filename: "package-lock.json", status: "modified" },
+      { filename: "package.json", status: "modified" },
+      { filename: "packages/a1-install/package.json", status: "modified" },
+    ] };
+    const content = /\/contents\/(.+)\?ref=([a-f0-9]{40})$/u.exec(request.url);
+    if (content) {
+      const tree = content[2] === headSha ? { ...(options.head ?? manifests("0.2.3-dev")), "docs/releases/0.2.2.md": note } : manifests("0.2.2-dev");
+      const text = tree[decodeURIComponent(content[1]!)];
+      return text === undefined ? { status: 404, body: { message: "Not Found" } }
+        : { body: { type: "file", encoding: "base64", content: Buffer.from(text).toString("base64") } };
+    }
+    if (request.url === "/repos/owner/repository/releases/tags/v0.2.2") {
+      return { body: { tag_name: "v0.2.2", draft: false, prerelease: false, body: note } };
+    }
+    return undefined;
+  };
+
+  it("arms a verified reopening PR behind pending validation", async () => {
+    const result = await runManager({ pull_request: { number: 42 } }, reopening(), { respond: github() });
+    expect(result.requests.some(request => request.body.includes("enablePullRequestAutoMerge"))).toBe(true);
+    expect(result.requests.some(request => request.method === "PUT")).toBe(false);
+    expect(result.stdout).toContain("exact release reopening; squash auto-merge armed");
+  });
+
+  it("squash-merges and cleans the validated current head", async () => {
+    const result = await runManager(validationEvent(), reopening({ mergeable_state: "clean" }), { respond: github() });
+    expectMerge(result.requests);
+    expect(result.requests.some(request => request.url.includes("/git/refs/heads/") && request.method === "DELETE")).toBe(true);
+  });
+
+  it.each([
+    ["failed validation", validationEvent({ conclusion: "failure" })],
+    ["stale validation", validationEvent({ head_sha: "c".repeat(40) })],
+  ])("does not merge after %s", async (_label, event) => {
+    const result = await runManager(event, reopening({ mergeable_state: "clean" }), { respond: github() });
+    expect(result.requests.some(request => request.method === "PUT")).toBe(false);
+  });
+
+  it.each([
+    ["a dependency change", reopening({ auto_merge: { merge_method: "squash" } }), { head: manifests("0.2.3-dev", "^2.0.0") }],
+    ["another author", reopening({ auto_merge: { merge_method: "squash" }, user: { login: "someone", id: 7, type: "User" } }), {}],
+  ])("disarms and holds %s", async (_label, pull, options) => {
+    const result = await runManager(validationEvent(), pull, { respond: github(options) });
+    expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+    expect(result.requests.some(request => request.body.includes("enablePullRequestAutoMerge") || request.method === "PUT")).toBe(false);
+    expect(result.stdout).toContain("auto-merge not eligible");
+  });
+
+  it("keeps a release-note edit outside the reopening branch manual", async () => {
+    const result = await runManager(validationEvent(), pullFixture({ mergeable_state: "clean", auto_merge: { merge_method: "squash" } }), {
+      respond: github({ files: [{ filename: "docs/releases/0.2.2.md", status: "modified" }] }),
+    });
+    expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+    expect(result.requests.some(request => request.url.includes("/contents/") || request.method === "PUT")).toBe(false);
   });
 });
 

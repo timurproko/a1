@@ -101,6 +101,17 @@ describe("the listing", () => {
     expect(target.list().some(entry => entry.key === "n")).toBe(true);
   });
 
+  it("rejects inconsistent hint wording at declaration time", () => {
+    const target = new ShortcutRegistry<"close">();
+    expect(() => target.declare({
+      key: "escape",
+      scope: SCREEN,
+      description: "Close",
+      hint: { keys: "esc", does: "to close" },
+    }, "close")).toThrow(/omit connective "to"/u);
+    expect(target.list()).toEqual([]);
+  });
+
   it("exposes deduplicated semantic hint entries for modal rendering", () => {
     const target = new ShortcutRegistry<"move-up" | "close">();
     target.declare({ key: "up", scope: SCREEN, description: "Previous", hint: { keys: "↑↓", does: "navigate" } }, "move-up");

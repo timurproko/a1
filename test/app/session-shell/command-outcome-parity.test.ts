@@ -46,6 +46,16 @@ async function capture(producer: "pinned" | "owned", directory: string, mode: st
   expect(new Set(frames.map(frame => frame.id)).size).toBe(frames.length);
   return frames;
 }
+function hasSemanticAccentException(frame: Capture): boolean {
+  return /\/(?:hotkeys|changelog)\//u.test(frame.id);
+}
+
+function rowsMatch(actual: Capture, expected: Capture): boolean {
+  const reference = expected.exceptionReferenceRows ?? expected.rows;
+  if (!hasSemanticAccentException(expected)) return JSON.stringify(actual.rows) === JSON.stringify(reference);
+  return JSON.stringify(actual.rows.map(stripTerminalSequences)) === JSON.stringify(reference.map(stripTerminalSequences));
+}
+
 function verify(actual: Capture, expected: Capture): void {
   expect(actual.id).toBe(expected.id);
   expect(actual.activeBindings, `${actual.id} active editor bindings`).toEqual(expected.activeBindings);
@@ -58,16 +68,23 @@ function verify(actual: Capture, expected: Capture): void {
       expect(actual.trust?.after).toEqual(actual.trust?.before);
     }
   }
-  expect(actual.rows, actual.id).toEqual(expected.exceptionReferenceRows ?? expected.rows);
+  const referenceRows = expected.exceptionReferenceRows ?? expected.rows;
+  if (hasSemanticAccentException(expected)) {
+    // Compatibility: bare A1 recolors hotkey key spans plus changelog headings/list markers while preserving Pi's text and layout.
+    expect(actual.rows, `${actual.id} semantic accent exception`).not.toEqual(referenceRows);
+    expect(actual.rows.map(stripTerminalSequences), actual.id).toEqual(referenceRows.map(stripTerminalSequences));
+  } else {
+    expect(actual.rows, actual.id).toEqual(referenceRows);
+  }
   expect(actual.progressRows, `${actual.id} before catalog completion`).toEqual(expected.progressRows);
   expect(actual.surfaceOpen, `${actual.id} input ownership`).toBe(expected.surfaceOpen);
-  if (/\/(tree|scoped-models|trust|resume|thinking|model|login)\//u.test(expected.id)) {
+  if (/\/(tree|scoped-models|trust|resume|thinking|model|login|settings)\//u.test(expected.id)) {
     // Compatibility: bare A1 changes modal chrome/padding, hint styling, display casing, separators, and consequent wrapping; pinned text and behavior remain the oracle.
     const surfaceWidth = Number(expected.id.split("/").at(-1));
-    const plainSurfaceText = (rows: readonly string[], reduceContentWidth = false) => {
-      let text = rows.map(row => {
+    const plainSurfaceText = (rows: readonly string[], options: { readonly reduceContentWidth?: boolean; readonly omitTrustSavedMarker?: boolean; readonly omitHintRow?: boolean } = {}) => {
+      let text = rows.filter((_, index) => !options.omitHintRow || index !== rows.length - 2).map(row => {
         const plain = stripTerminalSequences(row);
-        const reduced = reduceContentWidth && plain.length >= surfaceWidth && !/^─+$/u.test(plain.trim()) ? plain.slice(0, -1) : plain;
+        const reduced = options.reduceContentWidth && plain.length >= surfaceWidth && !/^─+$/u.test(plain.trim()) ? plain.slice(0, -1) : plain;
         return reduced.replace(/\s*·\s*/gu, " ");
       }).join("\n").replace(/\s+/gu, " ").trim()
         .replace(/\b(?:Alt|Backspace|Cmd|Ctrl|Delete|Down|End|Enter|Esc|Escape|Home|Insert|Left|Meta|Option|PageDown|PageUp|PgDn|PgUp|Return|Right|Shift|Space|Tab|Up)\b/gu, key => key.toLowerCase())
@@ -76,10 +93,44 @@ function verify(actual: Capture, expected: Capture): void {
         text = text.replace("Session-only. to save to settings.", "Session-only.")
           .replace("provider /shift+ctrl+down reorder save all enabled", "provider shift+ctrl+down reorder all enabled");
       }
-      return text.replace(/\s+/gu, "");
+      text = text.replace(/\s+/gu, "");
+      return options.omitTrustSavedMarker ? text.replace("→✓", "→") : text;
     };
-    expect(plainSurfaceText(actual.surfaceRows), `${actual.id} selector messages`)
-      .toBe(plainSurfaceText(expected.surfaceRows, expected.id.includes("/tree/")));
+    // Compatibility: bare A1 replaces Pi's settings cancellation wording and narrow clipping with the canonical close hint.
+    const settingsHintException = expected.id.includes("/settings/");
+    let actualText = plainSurfaceText(actual.surfaceRows, { omitHintRow: settingsHintException });
+    let expectedText = plainSurfaceText(expected.surfaceRows, {
+      reduceContentWidth: expected.id.includes("/tree/"),
+      omitTrustSavedMarker: expected.id.includes("/trust/"),
+      omitHintRow: settingsHintException,
+    }).replace(/(esc(?:ape)?)\/ctrl\+c(?=(?:to)?(?:close|cancel))/gu, "$1");
+    if (expected.id.includes("/login/")) {
+      // Compatibility: bare A1 adds canonical login-selector guidance and replaces Pi's implicit Ctrl+C alias.
+      actualText = actualText.replace("↑↓navigateenterselectescclose", "").replace("escclose", "");
+      expectedText = expectedText
+        .replace("↑↓navigateenterselectescape/ctrl+ccancel", "")
+        .replace("↑↓navigateenterselectescapecancel", "")
+        .replace("(escape/ctrl+ctoclose)", "")
+        .replace("(escapetoclose)", "");
+    } else if (/\/(scoped-models|trust|resume|thinking|model)\//u.test(expected.id) && actualText.includes("escclose")) {
+      // Compatibility: bare A1 adds or replaces these selectors' final guidance with the canonical close hint.
+      actualText = actualText.replace("escclose", "");
+      expectedText = expectedText
+        .replace("escape/ctrl+ccancel", "")
+        .replace("escapecancel", "")
+        .replace("esccancel", "")
+        .replace("escapetocancel", "");
+    }
+    if (expected.id.includes("/tree/")) {
+      // Compatibility: bare A1 intentionally replaces Pi's tree filter, search, selection, and footer presentation.
+      // Keep this cross-runtime gate on the shared entry content and selection counter instead of divergent chrome.
+      expect(actualText.match(/user:synthetic(?:first|second)prompt/gu), `${actual.id} tree entries`)
+        .toEqual(expectedText.match(/user:synthetic(?:first|second)prompt/gu));
+      expect(actualText.match(/\(\d+\/\d+\)/gu), `${actual.id} tree selection counter`)
+        .toEqual(expectedText.match(/\(\d+\/\d+\)/gu));
+    } else {
+      expect(actualText, `${actual.id} selector messages`).toBe(expectedText);
+    }
   } else {
     expect(actual.surfaceRows, `${actual.id} selector messages`).toEqual(expected.surfaceRows);
   }
@@ -99,7 +150,7 @@ describe("independent command outcome parity", () => {
     const directory = await home();
     const expected = await capture("pinned", directory, mode, COMMAND_OUTCOME_CASES);
     const actual = await capture("owned", directory, mode, COMMAND_OUTCOME_CASES);
-    const mismatches = expected.filter((frame, index) => JSON.stringify(actual[index]?.rows) !== JSON.stringify(frame.exceptionReferenceRows ?? frame.rows)).map(frame => frame.id);
+    const mismatches = expected.filter((frame, index) => !rowsMatch(actual[index]!, frame)).map(frame => frame.id);
     expect(mismatches, "command message differences").toEqual([]);
     for (const [index, frame] of expected.entries()) verify(actual[index]!, frame);
     const compactFailures = [...expected.entries()].filter(([, frame]) => frame.id.includes("/compact/failure/"));
@@ -128,6 +179,12 @@ describe("independent command outcome parity", () => {
     expect(trustIndex).toBeGreaterThanOrEqual(0);
     const trust = actual[trustIndex]!;
     const trustReference = expected[trustIndex]!;
+    const savedTrustIndexes = expected.map((frame, index) => /\/trust\/(?:alias|canonical)-saved-(?:trusted|denied|parent)\/80$/u.test(frame.id) ? index : -1).filter(index => index >= 0);
+    expect(savedTrustIndexes.length).toBeGreaterThan(0);
+    for (const index of savedTrustIndexes) {
+      expect(expected[index]!.surfaceRows.join("\n"), `${expected[index]!.id} pinned saved marker`).toContain("✓");
+      expect(actual[index]!.surfaceRows.join("\n"), `${actual[index]!.id} marker-free choice menu`).not.toContain("✓");
+    }
     const lexicalParent = join(directory, "trust-alias");
     const leakedLexicalParent = trust.surfaceRows.map(row => row.includes("Trust parent folder")
       ? row.replace("Trust parent folder", `Trust parent folder (${lexicalParent})`)

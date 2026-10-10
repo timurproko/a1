@@ -5,6 +5,7 @@ use std::process::ExitCode;
 
 #[cfg(target_os = "macos")]
 mod darwin;
+mod exit_notice;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(windows)]
@@ -55,7 +56,31 @@ fn run(arguments: Vec<String>) -> Result<u8, String> {
         }
     }
 
+    #[cfg(windows)]
+    if arguments.first().map(String::as_str) == Some("--watch-exit-notice") {
+        if arguments.len() != 5 {
+            return Err(usage("--watch-exit-notice requires a guardian PID, notice, status file, and modes"));
+        }
+        let guardian_pid = arguments[1]
+            .parse::<u32>()
+            .map_err(|_| usage("watched guardian PID must be a positive integer"))?;
+        return windows::watch_exit_notice(guardian_pid, arguments[2].clone(), &arguments[3], &arguments[4]);
+    }
+
     let invocation = Invocation::parse(arguments)?;
+    let notice = exit_notice::ExitNotice::capture(invocation.exit_notice.clone());
+    #[cfg(windows)]
+    if let Some(path) = &invocation.exit_notice {
+        windows::spawn_notice_watcher(path, &invocation.status_file, &notice.encoded_modes());
+    }
+    let outcome = run_contained(invocation);
+    // Invariant: the notice is delivered on every path after the runtime ended, including
+    // the owner's death, because that is exactly when nothing else restores the terminal.
+    notice.deliver();
+    outcome
+}
+
+fn run_contained(invocation: Invocation) -> Result<u8, String> {
     #[cfg(windows)]
     {
         return windows::run(invocation);
@@ -93,6 +118,7 @@ struct Invocation {
     parent_pid: u32,
     instance_id: String,
     status_file: String,
+    exit_notice: Option<String>,
     executable: String,
     arguments: Vec<String>,
 }
@@ -112,6 +138,7 @@ impl Invocation {
         let mut parent_pid = None;
         let mut instance_id = None;
         let mut status_file = None;
+        let mut exit_notice = None;
         let mut index = 0;
         while index < options.len() {
             match options[index].as_str() {
@@ -131,6 +158,10 @@ impl Invocation {
                     status_file = Some(options[index + 1].clone());
                     index += 2;
                 }
+                "--exit-notice" if index + 1 < options.len() => {
+                    exit_notice = Some(options[index + 1].clone());
+                    index += 2;
+                }
                 unknown => return Err(usage(&format!("unknown option {unknown}"))),
             }
         }
@@ -147,6 +178,12 @@ impl Invocation {
         if status_file.is_empty() || status_file.len() > 4_096 || status_file.contains('\0') {
             return Err(usage("status file path is invalid"));
         }
+        if exit_notice
+            .as_ref()
+            .is_some_and(|path: &String| path.is_empty() || path.len() > 4_096 || path.contains('\0'))
+        {
+            return Err(usage("exit notice path is invalid"));
+        }
         if command.iter().any(|value| value.contains('\0')) {
             return Err(usage("contained command contains a null byte"));
         }
@@ -155,6 +192,7 @@ impl Invocation {
             parent_pid,
             instance_id,
             status_file,
+            exit_notice,
             executable: command[0].clone(),
             arguments: command[1..].to_vec(),
         })
@@ -188,7 +226,7 @@ fn write_ready_status(
 
 fn usage(reason: &str) -> String {
     format!(
-        "{reason}; usage: a1-process-guardian --parent-pid <pid> --instance <id> --status-file <path> -- <executable> [arguments...]"
+        "{reason}; usage: a1-process-guardian --parent-pid <pid> --instance <id> --status-file <path> [--exit-notice <path>] -- <executable> [arguments...]"
     )
 }
 
@@ -214,6 +252,25 @@ mod tests {
         assert_eq!(invocation.instance_id, "instance-1");
         assert_eq!(invocation.status_file, "status.json");
         assert_eq!(invocation.arguments, ["value with spaces"]);
+        assert_eq!(invocation.exit_notice, None);
+    }
+
+    #[test]
+    fn parses_an_optional_exit_notice() {
+        let invocation = Invocation::parse(vec![
+            "--parent-pid".into(),
+            "42".into(),
+            "--instance".into(),
+            "instance-1".into(),
+            "--status-file".into(),
+            "status.json".into(),
+            "--exit-notice".into(),
+            "notice.txt".into(),
+            "--".into(),
+            "node".into(),
+        ])
+        .expect("valid invocation");
+        assert_eq!(invocation.exit_notice.as_deref(), Some("notice.txt"));
     }
 
     #[test]

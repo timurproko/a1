@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { acceptanceBytes, acceptanceBlockers, artifactDigest, assertManualAcceptanceMerge, digest,
-  parseAcceptanceRecord, receiptIdentity, receiptIdentityMatches, reconcileAcceptanceTasks, taskInventory,
+import { acceptanceBytes, acceptanceBlockers, artifactDigest, assertHumanAutoMergeArm, assertManualAcceptanceMerge,
+  assertVersion3AcceptanceMerge, digest, parseAcceptanceRecord, receiptIdentity, receiptIdentityMatches, reconcileAcceptanceTasks, taskInventory,
   verifyRecordBindings, ACCEPTANCE_SIGNOFF,
   type AcceptanceRecord } from "../../scripts/governance/openspec-acceptance-policy.mjs";
 
@@ -110,10 +110,75 @@ describe("manual merge authority", () => {
     for (const created_at of ["2026-09-15T06:00:01Z", "2026-09-15T05:59:59Z", "2026-09-15T06:00:05Z"]) {
       expect(() => assertManualAcceptanceMerge(pull(), "admin", [{ ...events()[0], created_at }])).not.toThrow();
     }
-    for (const event of ["auto_merge_enabled", "added_to_merge_queue"]) {
-      expect(() => assertManualAcceptanceMerge(pull(), "admin", [...events(), { event }])).toThrow("acceptance-merge-provenance");
-    }
+    expect(() => assertManualAcceptanceMerge(pull(), "admin", [{ event: "auto_merge_enabled" }, ...events()]))
+      .toThrow("acceptance-merge-provenance");
+    expect(() => assertManualAcceptanceMerge(pull(), "admin", [{ event: "added_to_merge_queue" }, ...events()]))
+      .toThrow("acceptance-merge-provenance");
     expect(() => assertManualAcceptanceMerge(pull(), "admin", [])).toThrow();
     expect(() => assertManualAcceptanceMerge(pull(), "admin", [...events(), ...events()])).toThrow();
+  });
+});
+
+describe("version-3 maintainer integration authority", () => {
+  const head = "a".repeat(40), merge = "b".repeat(40), time = "2026-09-15T06:00:00Z";
+  const actor = { type: "User", login: "reviewer" };
+  const committed = { event: "committed", sha: head };
+  const enabled = { event: "auto_merge_enabled", actor, performed_via_github_app: null, created_at: "2026-09-15T05:59:00Z" };
+  const disabled = { event: "auto_merge_disabled", actor: { type: "Bot", login: "github-actions[bot]" }, created_at: "2026-09-15T05:59:10Z" };
+  const merged = { event: "merged", actor, performed_via_github_app: null, commit_id: merge, created_at: time };
+  const pull = (auto_merge: object | null = null) => ({ merged: true, state: "closed", draft: false, merge_commit_sha: merge,
+    merged_at: time, head: { sha: head }, auto_merge, merged_by: actor });
+
+  it("accepts direct manual integration after an abandoned human arm", () => {
+    expect(assertVersion3AcceptanceMerge(pull(), "write", [committed, enabled, disabled, merged]))
+      .toEqual({ kind: "manual", actor: "reviewer" });
+  });
+
+  it("accepts native auto-merge personally armed after the final commit", () => {
+    expect(assertVersion3AcceptanceMerge(pull({ enabled_by: actor }), "maintain", [committed, enabled, merged]))
+      .toEqual({ kind: "human-auto-merge", actor: "reviewer", enabledAt: enabled.created_at });
+    expect(assertHumanAutoMergeArm({ ...pull({ enabled_by: actor }), state: "open", merged: false }, "admin", [committed, enabled]))
+      .toMatchObject({ kind: "human-auto-merge", actor: "reviewer" });
+  });
+
+  // Provenance: GitHub's timeline names an enable by merge method; PR #742 recorded only `auto_squash_enabled`.
+  it.each(["auto_squash_enabled", "auto_rebase_enabled"])("reads %s as a human enable", name => {
+    const methodEnabled = { ...enabled, event: name };
+    expect(assertVersion3AcceptanceMerge(pull({ enabled_by: actor }), "write", [committed, methodEnabled, merged]))
+      .toEqual({ kind: "human-auto-merge", actor: "reviewer", enabledAt: enabled.created_at });
+    expect(assertHumanAutoMergeArm({ ...pull({ enabled_by: actor }), state: "open", merged: false }, "write", [committed, methodEnabled]))
+      .toMatchObject({ kind: "human-auto-merge", actor: "reviewer" });
+    expect(() => assertVersion3AcceptanceMerge(pull({ enabled_by: actor }), "write", [methodEnabled, committed, merged]))
+      .toThrow("acceptance-merge-provenance");
+    expect(() => assertVersion3AcceptanceMerge(pull({ enabled_by: actor }), "write",
+      [committed, { ...methodEnabled, actor: { type: "Bot", login: "github-actions[bot]" } }, merged])).toThrow();
+    expect(() => assertManualAcceptanceMerge(pull(), "write", [methodEnabled, merged]))
+      .toThrow("acceptance-merge-provenance");
+  });
+
+  it("accepts PR #742's manual merge after three policy-disarmed squash enables", () => {
+    const at = (created_at: string) => ({ ...enabled, event: "auto_squash_enabled", created_at });
+    const off = (created_at: string) => ({ ...disabled, created_at });
+    const timeline = [{ event: "committed", sha: "c".repeat(40) }, at("2026-09-15T05:50:00Z"), off("2026-09-15T05:50:14Z"),
+      committed, at("2026-09-15T05:55:00Z"), off("2026-09-15T05:55:13Z"), at("2026-09-15T05:58:00Z"), off("2026-09-15T05:58:14Z"), merged];
+    expect(assertVersion3AcceptanceMerge(pull(), "admin", timeline)).toEqual({ kind: "manual", actor: "reviewer" });
+  });
+
+  it("rejects stale, automated, differently authored, disabled, queued, and unauthorized arms", () => {
+    const automatic = { ...enabled, actor: { type: "Bot", login: "github-actions[bot]" } };
+    const appEnabled = { ...enabled, performed_via_github_app: { slug: "github-actions" } };
+    const another = { ...enabled, actor: { type: "User", login: "another" } };
+    for (const timeline of [
+      [enabled, committed, merged],
+      [committed, { ...enabled, created_at: "not-a-time" }, merged],
+      [committed, automatic, merged],
+      [committed, appEnabled, merged],
+      [committed, another, merged],
+      [committed, enabled, disabled, merged],
+      [committed, enabled, { event: "added_to_merge_queue" }, merged],
+    ]) expect(() => assertVersion3AcceptanceMerge(pull({ enabled_by: actor }), "admin", timeline))
+      .toThrow(/acceptance-(?:merge-provenance|auto-merge-authority)/);
+    expect(() => assertVersion3AcceptanceMerge(pull({ enabled_by: actor }), "read", [committed, enabled, merged]))
+      .toThrow("acceptance-manual-authority");
   });
 });

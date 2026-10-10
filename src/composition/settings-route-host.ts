@@ -1,13 +1,6 @@
-import {
-  CHANGELOG_APP_ID,
-  CHANGELOG_ROUTE,
-  CHANGELOG_TITLE,
-  HOTKEYS_APP_ID,
-  HOTKEYS_ROUTE,
-  HOTKEYS_TITLE,
-} from "../features/owned-ui/reference-routes.js";
+import { CHANGELOG_ROUTE, HOTKEYS_ROUTE, HOTKEYS_TITLE } from "../features/owned-ui/reference-routes.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "../features/owned-ui/settings-route.js";
-import { piTheme } from "../integrations/pi/components/upstream/theme/theme.js";
+import { piTheme, renderPiAccentPreview } from "../integrations/pi/components/upstream/theme/theme.js";
 import type { ReferenceDocumentProvider } from "../features/owned-ui/reference-screen-app.js";
 import type { OwnedSettingsManager } from "../ui/settings/manager.js";
 import type { UiApp, UiRouteHost, UiRouteInput, UiRouteSurface } from "../ui/apps/contracts.js";
@@ -21,15 +14,12 @@ export type OwnedReferenceRows = NonNullable<ReferenceDocumentProvider["rows"]>;
 export interface OwnedReferenceProviders {
   changelog(input?: UiRouteInput): Promise<ReferenceDocumentProvider>;
   hotkeys(): Promise<ReferenceDocumentProvider>;
+  session(): Promise<ReferenceDocumentProvider>;
 }
 
-/**
- * Declares the A1-owned settings route, and the changelog and hotkeys reference
- * routes when their documents are supplied, without evaluating their presentation
- * graphs during startup. Opening a route retains input while the optional module loads.
- */
+/** Declares settings and lazy document routes. */
 export function createOwnedRouteHost(settings: OwnedSettingsManager, references?: OwnedReferenceProviders): UiRouteHost {
-  const routes = new Set([SETTINGS_ROUTE, ...(references === undefined ? [] : [CHANGELOG_ROUTE, HOTKEYS_ROUTE])]);
+  const routes = new Set([SETTINGS_ROUTE, ...(references === undefined ? [] : [CHANGELOG_ROUTE, HOTKEYS_ROUTE, "session"])]);
   return {
     claims: route => routes.has(route),
     open: (route, input) => {
@@ -38,10 +28,10 @@ export function createOwnedRouteHost(settings: OwnedSettingsManager, references?
         return deferredSurface(SETTINGS_APP_ID, "settings", () => loadSettingsSurface(settings));
       }
       const changelog = route === CHANGELOG_ROUTE;
-      const id = changelog ? CHANGELOG_APP_ID : HOTKEYS_APP_ID;
-      const title = changelog ? CHANGELOG_TITLE : HOTKEYS_TITLE;
-      const document = changelog ? references!.changelog(input) : references!.hotkeys();
-      return deferredSurface(id, title, () => loadReferenceSurface(settings, id, route, title, document));
+      const session = route === "session";
+      const title = session ? "Session Info" : changelog ? input ? "What's New" : "Changelog" : HOTKEYS_TITLE;
+      const document = session ? references!.session() : changelog ? references!.changelog(input) : references!.hotkeys();
+      return deferredSurface(route, title, () => loadReferenceSurface(settings, route, route, title, document));
     },
   };
 }
@@ -157,8 +147,9 @@ function pinnedTheme(): UiTheme {
     fg: (token: UiThemeToken, text: string) => piTheme().fg(token, text),
     bold: (text: string) => piTheme().bold(text),
     plain: (text: string) => text,
+    accentPreview: (color: string, text: string) => renderPiAccentPreview(color, text),
     disabled: (text: string) => faint(piTheme().fg("dim", text)),
-    highlight: (text: string) => `\u001b[48;2;82;82;82m\u001b[97m${text}\u001b[39m\u001b[49m`,
+    highlight: (text: string) => piTheme().bg("selectedBg", text),
     panel: (text: string) => `\u001b[48;2;55;55;55m${text}\u001b[49m`,
   };
 }

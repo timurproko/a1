@@ -36,21 +36,30 @@ describe("version stats", () => {
     expect(harness.stderr).toEqual([]);
   });
 
-  it("prints only the installed version for a stable release without querying npm", async () => {
+  it("reports current and release versions for a stable release without the preview channel", async () => {
     const harness = await createHarness("1.1.0");
-    let queried = false;
     const code = await runVersionStats({
       ...harness.options,
-      runner: async () => {
-        queried = true;
-        throw new Error("stable versions must not query npm");
-      },
+      runner: async () => ({ code: 0, stdout: JSON.stringify({ latest: "1.1.4", next: "1.2.0-dev.3" }) }),
     });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("1.1.0\n");
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nRelease: 1.1.4\n");
     expect(harness.stderr).toEqual([]);
-    expect(queried).toBe(false);
+  });
+
+  it("keeps the stable current version and emits one A1 diagnostic when discovery fails", async () => {
+    const harness = await createHarness("1.1.0");
+    const code = await runVersionStats({
+      ...harness.options,
+      runner: async () => ({ code: 17, stdout: "" }),
+      fetcher: async () => ({ ok: false, status: 503, text: async () => "" }),
+    });
+
+    expect(code).toBe(0);
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nRelease: unavailable\n");
+    expect(harness.stderr).toHaveLength(1);
+    expect(harness.stderr[0]).toContain("a1 could not resolve npm dist-tags");
   });
 
   it("treats an absent optional development tag as normally unavailable", async () => {

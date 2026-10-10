@@ -150,6 +150,7 @@
       "testPaths": [
         "test/integrations/pi/components/",
         "test/integrations/pi/engine/",
+        "test/integrations/pi/session-presenters/",
         "test/app/session-shell/"
       ],
       "integrationOwners": [

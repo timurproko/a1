@@ -5,6 +5,7 @@ import { loadAssociationRepair } from "./openspec-association-repair.mjs";
 import { acceptanceBranch, archivedAcceptanceMatches, receiptIdentityMatches } from "./openspec-acceptance-policy.mjs";
 import { parseImplementation, SHA } from "./openspec-archive-policy.mjs";
 import { digest, fail } from "./local-cleanup-state.mjs";
+import { inspectDocumentationLifecycle } from "./documentation-lifecycle.mjs";
 
 const IMMUTABLE_CACHE_ENTRIES = 1000, IMMUTABLE_CACHE_BYTES = 64 * 1024 * 1024;
 /** Content-addressed objects cannot change under a SHA, so one pass may reuse them across its revalidations. */
@@ -116,6 +117,37 @@ export async function mergedIntoDevelop(reader, entry) {
     && pull.base.repo?.full_name === reader.repository && pull.head?.repo?.full_name === reader.repository && SHA.test(pull.merge_commit_sha ?? "");
 }
 
+async function verifyStandaloneDocumentation(reader, entry, pull) {
+  if (pull?.number !== entry.sourcePr || entry.candidatePr !== entry.sourcePr
+    || pull.base?.ref !== "develop" || pull.base.repo?.full_name !== reader.repository
+    || pull.head?.repo?.full_name !== reader.repository || !SHA.test(pull.head?.sha ?? "")) return null;
+  const files = await reader.pages(`/pulls/${pull.number}/files`, 3000);
+  const lifecycle = await inspectDocumentationLifecycle(pull, files, reader);
+  if (lifecycle.held) return null;
+  if (entry.role !== "implementation" || !await acceptedHead(reader, entry.head, pull.head.sha)
+    || entry.ref !== `refs/heads/${pull.head.ref}`) fail("candidate-head-association");
+  if (pull.state === "open") return { disposition: "pending", reason: "pr-open", sourcePr: pull.number };
+  if (pull.state === "closed" && pull.merged !== true) {
+    return { disposition: "awaiting-discard", reason: "pr-closed-unmerged", sourcePr: pull.number };
+  }
+  merged(pull, reader.repository);
+  const validation = await findImplementationValidation(reader, pull);
+  const targetSha = (await reader.get(`${reader.prefix}/git/ref/heads/develop`)).object?.sha;
+  if (!SHA.test(targetSha ?? "")) fail("target-identity");
+  await reader.ancestor(pull.merge_commit_sha, targetSha);
+  const ref = pull.head.ref;
+  if (typeof ref !== "string" || !/^[A-Za-z0-9._/-]+$/.test(ref) || ref.includes("..")) fail("remote-ref-identity");
+  try {
+    const live = await reader.get(`${reader.prefix}/git/ref/heads/${encodeURIComponent(ref)}`);
+    return { disposition: "pending", reason: "remote-ref-present", ref,
+      actualSha: SHA.test(live.object?.sha ?? "") ? live.object.sha : null };
+  } catch (error) { if (error.archiveCode !== "github-not-found") throw error; }
+  return { disposition: "eligible", kind: "standalone-documentation", documentationReason: lifecycle.reason,
+    sourcePr: pull.number, sourceHead: pull.head.sha, sourceMerge: pull.merge_commit_sha,
+    archivePr: null, archiveHead: pull.head.sha, archiveMerge: pull.merge_commit_sha,
+    targetSha, refs: [ref], validation };
+}
+
 async function verifyCorrectiveAssociation(reader, entry, source) {
   merged(source.pull, reader.repository);
   const targetSha = (await reader.get(`${reader.prefix}/git/ref/heads/develop`)).object?.sha;
@@ -153,11 +185,14 @@ async function verifyCorrectiveAssociation(reader, entry, source) {
 /** A status comment or absent branch is never proof of integrated archival. */
 export async function verifyCleanupEvidence(reader, entry) {
   const source = await loadArchiveEvidence(reader, entry.sourcePr);
-  if (source.disposition === "unlinked") return await verifyCorrectiveAssociation(reader, entry, source);
+  if (source.disposition === "unlinked") {
+    const documentation = await verifyStandaloneDocumentation(reader, entry, source.pull);
+    return documentation ?? await verifyCorrectiveAssociation(reader, entry, source);
+  }
   if (source.implementation?.version === 3 && source.implementation.change === entry.change) {
     // Protocol: an unmerged hand-off is reported, never acted on; closure alone grants no discard authority.
     if (source.disposition === "closed") return { disposition: "awaiting-discard", reason: "pr-closed-unmerged", sourcePr: source.pull.number };
-    if (["draft", "needs-finalization", "ready-for-manual-merge"].includes(source.disposition)) return { disposition: "pending", reason: "pr-open", sourcePr: source.pull.number };
+    if (["draft", "needs-finalization", "ready-for-maintainer-integration"].includes(source.disposition)) return { disposition: "pending", reason: "pr-open", sourcePr: source.pull.number };
   }
   if (source.disposition !== "eligible" || source.implementation.change !== entry.change) fail("source-association");
   if (source.implementation.version === 3) {

@@ -1,19 +1,18 @@
-import {
-  type ExtensionUIContext,
-  getSelectListTheme,
-} from "../startup-public.js";
+import { type ExtensionUIContext } from "../startup-public.js";
 import { ExtensionEditorComponent } from "./upstream/components/extension-editor.js";
 import { ExtensionInputComponent } from "./upstream/components/extension-input.js";
 import { ExtensionSelectorComponent } from "./upstream/components/extension-selector.js";
+import type { ProgramStatusBlocked } from "./upstream/program-status-reporter.js";
 import {
-  setKeybindings,
   Text,
   type Component,
   type OverlayHandle,
 } from "@earendil-works/pi-tui";
-import type {
-  OwnedUiExtensionOverlayHandle,
-  OwnedUiExtensionOverlayOptions,
+import {
+  assertOwnedUiExtensionUiPort,
+  type OwnedUiExtensionOverlayHandle,
+  type OwnedUiExtensionOverlayOptions,
+  type OwnedUiExtensionUiPort,
 } from "../../../contracts/owned-ui/index.js";
 import {
   KeybindingsManager,
@@ -23,6 +22,7 @@ import {
   applyPiTheme,
   applyPiThemeInstance,
   getAvailablePiThemes,
+  getPiSelectListTheme,
   loadPiTheme,
   piTheme,
 } from "./theme.js";
@@ -31,6 +31,7 @@ import {
   createTuiFacade,
   ensureTheme,
   isRecord,
+  withPiDialogCancel,
   type PiShellComponentPort,
   type PiShellEditorOptions,
 } from "./shell-shared-facade.js";
@@ -41,6 +42,7 @@ export interface PiExtensionUiBridgeHost {
   readonly runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">;
   readonly agentDir?: string;
   setInputSurface(component: PiShellComponentPort | null): void;
+  setProgramStatusBlocked(status: ProgramStatusBlocked | undefined): void;
   showOverlay(component: PiShellComponentPort, options?: OwnedUiExtensionOverlayOptions): OwnedUiExtensionOverlayHandle;
   listenInput(handler: (data: string) => { readonly consume?: boolean; readonly data?: string } | undefined): () => void;
   replaceWidget(key: string, component: PiShellComponentPort | null, placement: "aboveEditor" | "belowEditor"): void;
@@ -61,7 +63,9 @@ export interface PiExtensionUiBridgeHost {
 }
 
 export interface PiExtensionUiBridge {
-  readonly context: ExtensionUIContext;
+  /** The extension UI context the engine binds to a session, typed by the neutral contract it satisfies. */
+  readonly context: OwnedUiExtensionUiPort;
+  input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean }): Promise<string | undefined>;
   reset(): void;
   dispose(): void;
 }
@@ -70,8 +74,8 @@ export interface PiExtensionUiBridge {
 export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExtensionUiBridge {
   ensureTheme();
   const tui = createTuiFacade(host.runtime);
+  // Invariant: extension components receive Pi's manager explicitly; the registry stays the process host's.
   const keybindings = KeybindingsManager.create(host.agentDir);
-  setKeybindings(keybindings);
   const disposers = new Set<() => void>();
   let customEditorFactory: PiEditorFactory | undefined;
   let activeSurface: PiShellComponentPort | undefined;
@@ -102,7 +106,12 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
       disposers.delete(dispose);
     };
   };
-  const showInput = <T>(create: (resolve: (value: T) => void, cancel: () => void) => PiShellComponentPort, options?: { signal?: AbortSignal }) =>
+  const showInput = <T>(
+    create: (resolve: (value: T) => void, cancel: () => void) => PiShellComponentPort,
+    options?: { signal?: AbortSignal },
+    retainSurfaceOnSettle = false,
+    blocked?: ProgramStatusBlocked,
+  ) =>
     new Promise<T>(resolve => {
       let settled = false;
       let surface: PiShellComponentPort;
@@ -112,7 +121,10 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
         settled = true;
         if (activeCancel === cancel) activeCancel = undefined;
         untrack();
-        closeSurface(surface);
+        const ownedSurface = activeSurface === surface;
+        if (retainSurfaceOnSettle && ownedSurface) activeSurface = undefined;
+        else closeSurface(surface);
+        if (ownedSurface) host.setProgramStatusBlocked(undefined);
         resolve(value);
       };
       const cancel = () => finish(undefined as T);
@@ -121,6 +133,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
       if (!settled) {
         activeCancel = cancel;
         mountSurface(surface);
+        host.setProgramStatusBlocked(blocked);
       }
     });
   const createFactoryComponent = (factory: unknown, ...arguments_: unknown[]): PiShellComponentPort => {
@@ -137,16 +150,23 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
         ...(opts?.timeout === undefined ? {} : { timeout: opts.timeout }),
         onToggleToolsExpanded: () => host.setToolsExpanded(!host.getToolsExpanded()),
       }),
-    ), opts),
+    ), opts, false, { kind: "question", message: title }),
     async confirm(title, message, opts) {
-      return (await context.select(`${title}\n${message}`, ["Yes", "No"], opts)) === "Yes";
+      const selected = await showInput<string | undefined>((resolve, cancel) => componentPort(
+        new ExtensionSelectorComponent(`${title}\n${message}`, ["Yes", "No"], resolve, cancel, {
+          tui,
+          ...(opts?.timeout === undefined ? {} : { timeout: opts.timeout }),
+          onToggleToolsExpanded: () => host.setToolsExpanded(!host.getToolsExpanded()),
+        }),
+      ), opts, false, { kind: "permission", message: title });
+      return selected === "Yes";
     },
     input: (title, placeholder, opts) => showInput<string | undefined>((resolve, cancel) => componentPort(
       new ExtensionInputComponent(title, placeholder, resolve, cancel, {
         tui,
         ...(opts?.timeout === undefined ? {} : { timeout: opts.timeout }),
       }),
-    ), opts),
+    ), opts, false, { kind: "question", message: title }),
     notify: (message, type = "info") => host.notify(message, type),
     onTerminalInput: handler => host.listenInput(handler),
     setStatus: (key, text) => host.setStatus(key, text),
@@ -218,7 +238,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
           if ("dispose" in component && typeof component.dispose === "function") component.dispose();
           return;
         }
-        surface = componentPort(component);
+        surface = withPiDialogCancel(componentPort(component), cancelCustom);
         activeCancel = cancelCustom;
         if (options?.overlay) {
           const overlayOptions = typeof options.overlayOptions === "function" ? options.overlayOptions() : options.overlayOptions;
@@ -236,7 +256,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
     getEditorText: () => host.getEditorText(),
     editor: (title, prefill) => showInput<string | undefined>((resolve, cancel) => componentPort(
       new ExtensionEditorComponent(tui, keybindings, title, prefill, resolve, cancel),
-    )),
+    ), undefined, false, { kind: "question", message: title }),
     addAutocompleteProvider: factory => host.addAutocompleteProvider(factory),
     setEditorComponent(factory) {
       customEditorFactory = factory;
@@ -247,7 +267,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
       try {
         const editor: unknown = Reflect.apply(factory, undefined, [tui, {
           borderColor: (text: string) => piTheme().fg("borderMuted", text),
-          selectList: getSelectListTheme(),
+          selectList: getPiSelectListTheme(),
         }, keybindings]);
         if (!isComponent(editor)) throw new TypeError("extension editor factory returned a malformed editor");
         host.setCustomEditor(componentPort(editor));
@@ -280,9 +300,16 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
     activeSurface?.dispose?.();
     activeSurface = undefined;
     host.setInputSurface(null);
+    host.setProgramStatusBlocked(undefined);
   };
+  // Compatibility: Pi's context takes its own TUI and Theme in factory callbacks, so it is not statically the
+  // neutral port; the same runtime check the engine applies at bind time lets the shell see only that port.
+  assertOwnedUiExtensionUiPort(context);
   return {
     context,
+    input: (title, placeholder, options) => showInput<string | undefined>((resolve, cancel) => componentPort(
+      new ExtensionInputComponent(title, placeholder, resolve, cancel, { tui }),
+    ), undefined, options?.retainSurfaceOnSettle === true, { kind: "question", message: title }),
     reset,
     dispose() {
       reset();

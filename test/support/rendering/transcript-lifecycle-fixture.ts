@@ -1,5 +1,6 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { RecordingRenderingTerminal } from "./recording-rendering-terminal.js";
 
@@ -21,8 +22,10 @@ export class TranscriptFixtureSession {
   readonly isRetrying = false;
   readonly isCompacting = false;
   readonly definitions = new Map<string, unknown>();
+  readonly renderers = new Map<string, unknown>();
   readonly extensionRunner = {
     getToolDefinition: (name: string) => this.definitions.get(name),
+    resolveToolRenderers: (name: string, base: () => unknown) => this.renderers.get(name) ?? base(),
     getRegisteredCommands: () => [],
   };
   readonly listeners = new Set<(event: Record<string, unknown>) => void>();
@@ -43,11 +46,13 @@ export class TranscriptFixtureSession {
 export async function transcriptLifecycleFixture(options: {
   messages?: unknown[];
   definitions?: ReadonlyMap<string, unknown>;
+  renderers?: ReadonlyMap<string, unknown>;
   width?: number;
   height?: number;
 } = {}) {
   const session = new TranscriptFixtureSession(options.messages ?? []);
   for (const [name, definition] of options.definitions ?? []) session.definitions.set(name, definition);
+  for (const [name, renderers] of options.renderers ?? []) session.renderers.set(name, renderers);
   let rebind: ((next: TranscriptFixtureSession) => void) | undefined;
   const runtime = {
     session,
@@ -66,7 +71,7 @@ export async function transcriptLifecycleFixture(options: {
   });
   await backend.flushEvents();
   const terminal = new RecordingRenderingTerminal(options.width ?? 80, options.height ?? 30);
-  const shell = new OwnedUiSessionShell({ engine: { backend, cwd: process.cwd(), sessionLayout: "custom-viewport" }, presentation: { terminal } });
+  const shell = new OwnedUiSessionShell({ presenters: createPiSessionPresenters(backend), engine: { backend, cwd: process.cwd(), sessionLayout: "custom-viewport" }, presentation: { terminal } });
   terminal.observeDamageDecisions(() => shell.damagePresentationDecision());
   shell.start();
   await backend.flushEvents();

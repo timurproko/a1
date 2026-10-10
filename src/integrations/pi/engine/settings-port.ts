@@ -1,4 +1,3 @@
-import { configureOwnedHttpDispatcher } from "./http-dispatcher.js";
 import { isRecord, readThinkingLevel, stringProperty } from "./message-values.js";
 import { collectionResult } from "./resource-catalog.js";
 import { MODEL_THINKING_DEFAULT, PiSettingsBridge, type PiSettingsModelChoice } from "./settings-bridge.js";
@@ -21,6 +20,8 @@ export interface PiEngineSettingsPorts {
   requireSession(): AgentSession;
   /** The session's thinking level was written through the settings port; the adapter mirrors and publishes it. */
   thinkingLevelChanged(level: OwnedUiThinkingLevel): void;
+  /** The HTTP idle timeout was written through the settings port; the host re-installs the process dispatcher. */
+  httpPolicyChanged(timeoutMs: number): void;
   emitView(): void;
 }
 
@@ -71,7 +72,6 @@ export class PiEngineSettings {
     if (!settings || typeof settings.getCompactionEnabled !== "function") return null;
     if (this.#settingsIntegration === undefined || this.#settingsIntegrationManager !== settings) {
       this.#settingsIntegrationManager = settings;
-      configureOwnedHttpDispatcher(settings.getHttpIdleTimeoutMs());
       this.#settingsIntegration = new PiSettingsBridge(settings, {
         ...(this.#availableThemes === null ? {} : { themes: this.#availableThemes }),
         models: () => this.#modelChoices(),
@@ -128,9 +128,9 @@ export class PiEngineSettings {
         } },
         httpIdleTimeoutMs: { apply: value => {
           if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw new TypeError("HTTP idle timeout is invalid");
-          // Invariant: provider streaming reads the manager per request; global fetch uses
-          // the matching owned dispatcher and zero maps to disabled semantics.
-          configureOwnedHttpDispatcher(value);
+          // Invariant: provider streaming reads the manager per request; the host gives global
+          // fetch the matching process-wide dispatcher, and zero maps to disabled semantics.
+          this.#ports.httpPolicyChanged(value);
           settings.setHttpIdleTimeoutMs(value);
         } },
         cacheWarmingMode: { apply: value => {
@@ -238,6 +238,7 @@ export class PiEngineSettings {
       fullscreenExitOutput: setting(settings?.getFullscreenExitOutput, "transcript"),
       fullscreenScrollbar: setting(settings?.getFullscreenScrollbar, "auto"),
       fullscreenCopyOnSelect: setting(settings?.getFullscreenCopyOnSelect, true),
+      fullscreenWheelScrollLines: setting(settings?.getFullscreenWheelScrollLines, "auto"),
       warnings: setting(settings?.getWarnings, { anthropicExtraUsage: true }),
     };
   }
@@ -293,6 +294,7 @@ export class PiEngineSettings {
         onTuiModeChange: snapshot.tuiMode,
         onFullscreenExitOutputChange: snapshot.fullscreenExitOutput,
         onFullscreenScrollbarChange: snapshot.fullscreenScrollbar,
+        onFullscreenWheelScrollLinesChange: snapshot.fullscreenWheelScrollLines,
         onWarningsChange: snapshot.warnings,
       };
       selectedValue = currentValues[callback];
@@ -338,7 +340,8 @@ function settingKeyForCallback(callback: PiPinnedSettingsCallback): string | nul
     onTreeFilterModeChange: "treeFilterMode", onShowHardwareCursorChange: "showHardwareCursor",
     onEditorPaddingXChange: "editorPaddingX", onOutputPadChange: "outputPad", onAutocompleteMaxVisibleChange: "autocompleteMaxVisible",
     onClearOnShrinkChange: "clearOnShrink", onShowTerminalProgressChange: "showTerminalProgress", onTuiModeChange: "tuiMode",
-    onFullscreenExitOutputChange: "fullscreenExitOutput", onFullscreenScrollbarChange: "fullscreenScrollbar", onWarningsChange: "warnings",
+    onFullscreenExitOutputChange: "fullscreenExitOutput", onFullscreenScrollbarChange: "fullscreenScrollbar",
+    onFullscreenWheelScrollLinesChange: "fullscreenWheelScrollLines", onWarningsChange: "warnings",
   };
   return keys[callback] ?? null;
 }

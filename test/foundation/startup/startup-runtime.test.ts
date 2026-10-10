@@ -5,8 +5,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   collectCompileCaches,
   enableStartupCompileCache,
-  evaluateStartupPerformanceBudget,
-  formatStartupBudgetViolation,
   initializeStartupTrace,
   markStartupPhase,
   parseStartupTrace,

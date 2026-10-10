@@ -1,10 +1,11 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 0.87.1 (MIT), commit f07218c4d4bbc12bef056a7058c3dd49dfe41abe,
+ * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/coding-agent/src/modes/interactive/theme/theme.ts.
  * Modifications: Source-synchronized theme port: retain pinned theme schema, variable/color
  * resolution, built-in and custom loading, terminal detection, and layout defaults while constructing
- * the public package-root Theme class.
- * Deviations: theme-public-api-boundary, theme-owned-watcher-boundary.
+ * the public package-root Theme class, projecting A1's optional semantic accent, and deriving its
+ * owned fullscreen canvas.
+ * Deviations: theme-public-api-boundary, theme-owned-watcher-boundary, semantic-accent-projection.
  */
 import { existsSync, readFileSync, readdirSync, watch, type FSWatcher } from "node:fs";
 import { join } from "node:path";
@@ -14,7 +15,17 @@ import {
   Theme,
   type ThemeColor,
 } from "@earendil-works/pi-coding-agent";
-import { getCapabilities, type RgbColor } from "@earendil-works/pi-tui";
+export type { ThemeColor } from "@earendil-works/pi-coding-agent";
+import {
+  backgroundAnsi,
+  colorToOkhsl,
+  foregroundAnsi,
+  getCapabilities,
+  okhslColor,
+  type Color,
+  type RgbColor,
+} from "@earendil-works/pi-tui";
+import type { OwnedUiBackgroundStyle, UiAccentColor } from "../../../../../contracts/owned-ui/index.js";
 import { BUILTIN_THEME_RESOURCES, isBuiltinThemeName } from "../../resources/builtin-themes.js";
 
 export const PINNED_PI_LAYOUT = Object.freeze({
@@ -28,18 +39,23 @@ export const PINNED_PI_LAYOUT = Object.freeze({
 } as const);
 
 export type PiTerminalTheme = "dark" | "light";
+export type ThemeAppearance = PiTerminalTheme;
 export type PiThemeBackground =
   | "selectedBg"
+  | "searchMatchBg"
   | "userMessageBg"
   | "customMessageBg"
   | "toolPendingBg"
   | "toolSuccessBg"
   | "toolErrorBg";
+export type ThemeBg = PiThemeBackground;
+export type ThemeToken = ThemeColor | ThemeBg;
 export type PiColorMode = "truecolor" | "256color";
 type ColorValue = string | number;
 
 interface PiThemeJson {
   readonly name: string;
+  readonly appearance?: PiTerminalTheme;
   readonly vars?: Readonly<Record<string, ColorValue>>;
   readonly colors: Readonly<Record<string, ColorValue>>;
 }
@@ -63,7 +79,7 @@ export interface PiTerminalThemeDetector {
 }
 
 const FOREGROUND_COLORS: readonly ThemeColor[] = [
-  "accent", "border", "borderAccent", "borderMuted", "success", "error", "warning", "muted", "dim", "text", "scrollbarTrack", "scrollbarThumb",
+  "accent", "border", "borderAccent", "borderMuted", "success", "error", "warning", "muted", "dim", "text", "scrollbarTrack", "scrollbarThumb", "searchMatchText",
   "thinkingText", "userMessageText", "customMessageText", "customMessageLabel", "toolTitle", "toolOutput",
   "mdHeading", "mdLink", "mdLinkUrl", "mdCode", "mdCodeBlock", "mdCodeBlockBorder", "mdQuote", "mdQuoteBorder",
   "mdHr", "mdListBullet", "toolDiffAdded", "toolDiffRemoved", "toolDiffContext", "syntaxComment", "syntaxKeyword",
@@ -71,14 +87,74 @@ const FOREGROUND_COLORS: readonly ThemeColor[] = [
   "thinkingOff", "thinkingMinimal", "thinkingLow", "thinkingMedium", "thinkingHigh", "thinkingXhigh", "thinkingMax", "bashMode",
 ];
 const BACKGROUND_COLORS: readonly PiThemeBackground[] = [
-  "selectedBg", "userMessageBg", "customMessageBg", "toolPendingBg", "toolSuccessBg", "toolErrorBg",
+  "selectedBg", "searchMatchBg", "userMessageBg", "customMessageBg", "toolPendingBg", "toolSuccessBg", "toolErrorBg",
 ];
+export interface PiAccentProjection {
+  readonly accent: Color;
+  readonly border: Color;
+  readonly secondaryHeading: Color;
+  readonly selectedBg: Color;
+  readonly userMessageBg: Color;
+}
+
+const ACCENT_PALETTE: Readonly<Record<UiAccentColor, Readonly<Record<PiTerminalTheme, Color>>>> = Object.freeze({
+  purple: Object.freeze({
+    dark: Object.freeze({ kind: "rgb", r: 167, g: 152, b: 215 }),
+    light: Object.freeze({ kind: "rgb", r: 116, g: 89, b: 180 }),
+  }),
+  blue: Object.freeze({ dark: okhslColor(268, 0.80, 0.67), light: okhslColor(268, 0.90, 0.47) }),
+  cyan: Object.freeze({ dark: okhslColor(202, 0.58, 0.67), light: okhslColor(203, 0.73, 0.46) }),
+  green: Object.freeze({ dark: okhslColor(159, 0.59, 0.67), light: okhslColor(159, 0.75, 0.46) }),
+  orange: Object.freeze({ dark: okhslColor(48, 0.75, 0.67), light: okhslColor(48, 0.90, 0.47) }),
+  pink: Object.freeze({ dark: okhslColor(337, 0.72, 0.67), light: okhslColor(337, 0.75, 0.48) }),
+});
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+function wrapHue(hue: number): number {
+  return ((hue % 360) + 360) % 360;
+}
+
+/** Derive the complete semantic family from any primary accent, including future custom colors. */
+export function derivePiAccentProjection(accent: Color, appearance: PiTerminalTheme): PiAccentProjection {
+  const { h, s, l } = colorToOkhsl(accent);
+  const warm = h < 90 || h >= 270;
+  const magenta = h >= 270 && h < 325;
+  const blue = h >= 210 && h < 270;
+  const borderHue = wrapHue(h + (warm ? -20 : 20));
+  const secondaryHue = wrapHue(h + (magenta ? 55 : blue ? -50 : warm ? 35 : -35));
+  const dark = appearance === "dark";
+  const selectedSaturation = clamp(s * (dark ? 0.25 : 0.16), dark ? 0.10 : 0.08, dark ? 0.16 : 0.11);
+  const selectedLightness = dark ? l * 0.37 : 1 - (1 - l) * 0.075;
+  return Object.freeze({
+    accent,
+    border: okhslColor(borderHue, clamp(s * 0.78, 0.30, 0.64), clamp(l - (dark ? 0.17 : 0.11), 0, 1)),
+    secondaryHeading: okhslColor(
+      secondaryHue,
+      clamp(s + 0.20, 0.62, 0.82),
+      clamp(l + (dark ? 0.09 : -0.09), 0, 1),
+    ),
+    selectedBg: okhslColor(h, selectedSaturation, selectedLightness),
+    userMessageBg: okhslColor(
+      h,
+      selectedSaturation * 2 / 3,
+      dark ? l * 0.34 : 1 - (1 - l) * 0.055,
+    ),
+  });
+}
+let activeBaseTheme: Theme | undefined;
 let activeTheme: Theme | undefined;
 let activeThemeName: string | undefined;
 let activeThemeMode: PiColorMode | undefined;
+let activeAccentColor: UiAccentColor = "purple";
+let packageBorderProjectionEnabled = true;
 let themeWatcher: FSWatcher | undefined;
 let themeReloadTimer: NodeJS.Timeout | undefined;
 const themeChangeListeners = new Set<() => void>();
+const accentProjectionBases = new WeakMap<Theme, Theme>();
+const accentProjectionCache = new WeakMap<Theme, Map<UiAccentColor, Theme>>();
 
 export function ensurePiTheme(): Theme {
   if (activeTheme) return activeTheme;
@@ -96,21 +172,74 @@ export function currentPiThemeName(): string {
   return activeThemeName!;
 }
 
+export function currentPiAccentColor(): UiAccentColor {
+  return activeAccentColor;
+}
+
+/** Paints one menu swatch from a named A1 palette entry. */
+export function renderPiAccentPreview(color: string, text: string): string | null {
+  ensurePiTheme();
+  const base = activeBaseTheme!;
+  if (!isAccentColor(color)) return null;
+  const accent = ACCENT_PALETTE[color][base.appearance];
+  return `${foregroundAnsi(accent, base.getColorMode())}${text}\u001b[39m`;
+}
+
+/** Derives A1's fullscreen canvas without adding a token to Pi's theme grammar. */
+export function derivePiCanvasBackground(style: OwnedUiBackgroundStyle, accent: Color): Color | null {
+  if (style === "transparent") return null;
+  if (style === "dark") return okhslColor(229, 0.03, 0.12);
+  const { h } = colorToOkhsl(accent);
+  return okhslColor(h, 0.12, 0.12);
+}
+
+/** Resolves the selected canvas through the active accent and terminal color mode. */
+export function piCanvasBackgroundAnsi(style: OwnedUiBackgroundStyle): string | null {
+  ensurePiTheme();
+  const base = activeBaseTheme!;
+  const accent = ACCENT_PALETTE[activeAccentColor][base.appearance];
+  const background = derivePiCanvasBackground(style, accent);
+  return background === null ? null : backgroundAnsi(background, base.getColorMode());
+}
+
+/** Keeps the complete comparison theme unmodified while bare A1 projects its semantic accent family. */
+export function setPiPackageBorderProjectionEnabled(enabled: boolean): void {
+  if (packageBorderProjectionEnabled === enabled) return;
+  packageBorderProjectionEnabled = enabled;
+  if (activeBaseTheme !== undefined) activeTheme = resolvePiAccentTheme(activeBaseTheme);
+  syncPiPackageBorderProjection();
+  notifyThemeChanged();
+}
+
+/** Reprojects the active base theme; repeated changes never derive from an earlier projection. */
+export function setPiAccentColor(color: UiAccentColor): void {
+  if (activeAccentColor === color) return;
+  activeAccentColor = color;
+  if (activeBaseTheme === undefined) return;
+  activeTheme = resolvePiAccentTheme(activeBaseTheme);
+  syncPiPackageBorderProjection();
+  notifyThemeChanged();
+}
+
 export function applyPiTheme(name: string, enableWatcher = false, mode?: PiColorMode): PiThemeResult {
   try {
     const loaded = loadPiTheme(name, mode);
     initTheme(name, false);
-    activeTheme = loaded;
+    activeBaseTheme = loaded;
+    activeTheme = resolvePiAccentTheme(loaded);
     activeThemeName = name;
     activeThemeMode = mode;
+    syncPiPackageBorderProjection();
     if (enableWatcher) startPiThemeWatcher(name);
     notifyThemeChanged();
     return { success: true, name };
   } catch (error) {
     initTheme("dark", false);
-    activeTheme = loadPiTheme("dark", mode);
+    activeBaseTheme = loadPiTheme("dark", mode);
+    activeTheme = resolvePiAccentTheme(activeBaseTheme);
     activeThemeName = "dark";
     activeThemeMode = mode;
+    syncPiPackageBorderProjection();
     notifyThemeChanged();
     return { success: false, name: "dark", error: error instanceof Error ? error.message : String(error) };
   }
@@ -118,9 +247,12 @@ export function applyPiTheme(name: string, enableWatcher = false, mode?: PiColor
 
 export function applyPiThemeInstance(theme: Theme): PiThemeResult {
   stopPiThemeWatcher();
-  activeTheme = theme;
-  activeThemeName = theme.name ?? "<in-memory>";
-  activeThemeMode = theme.getColorMode();
+  const base = accentProjectionBases.get(theme) ?? theme;
+  activeBaseTheme = base;
+  activeTheme = resolvePiAccentTheme(base);
+  activeThemeName = base.name ?? "<in-memory>";
+  activeThemeMode = base.getColorMode();
+  syncPiPackageBorderProjection();
   notifyThemeChanged();
   return { success: true, name: activeThemeName };
 }
@@ -158,15 +290,20 @@ export function loadPiTheme(name: string, mode?: PiColorMode): Theme {
   const thinkingMax = colors.thinkingMax ?? colors.thinkingXhigh;
   const scrollbarThumb = colors.scrollbarThumb ?? colors.text;
   const scrollbarTrack = colors.scrollbarTrack ?? colors.muted;
+  const searchMatchBg = colors.searchMatchBg ?? colors.selectedBg;
+  const searchMatchText = colors.searchMatchText ?? colors.text;
   if (thinkingMax !== undefined) colors.thinkingMax = thinkingMax;
   if (scrollbarThumb !== undefined) colors.scrollbarThumb = scrollbarThumb;
   if (scrollbarTrack !== undefined) colors.scrollbarTrack = scrollbarTrack;
+  if (searchMatchBg !== undefined) colors.searchMatchBg = searchMatchBg;
+  if (searchMatchText !== undefined) colors.searchMatchText = searchMatchText;
   const resolved = Object.fromEntries(Object.entries(colors).map(([key, value]) => [key, resolveVariable(value, vars)]));
   const foreground = Object.fromEntries(FOREGROUND_COLORS.map(key => [key, requiredColor(resolved, key, path)])) as Record<ThemeColor, ColorValue>;
   const backgrounds = Object.fromEntries(BACKGROUND_COLORS.map(key => [key, requiredColor(resolved, key, path)])) as Record<PiThemeBackground, ColorValue>;
   return new Theme(foreground, backgrounds, mode ?? (getCapabilities().trueColor ? "truecolor" : "256color"), {
     name: themeJson.name,
     sourcePath: path,
+    ...(themeJson.appearance === undefined ? {} : { appearance: themeJson.appearance }),
   });
 }
 
@@ -266,7 +403,9 @@ function startPiThemeWatcher(name: string): void {
       themeReloadTimer = undefined;
       if (activeThemeName !== name || !existsSync(path)) return;
       try {
-        activeTheme = loadPiTheme(name, activeThemeMode);
+        activeBaseTheme = loadPiTheme(name, activeThemeMode);
+        activeTheme = resolvePiAccentTheme(activeBaseTheme);
+        syncPiPackageBorderProjection();
         notifyThemeChanged();
       } catch {}
     }, 100);
@@ -276,6 +415,121 @@ function startPiThemeWatcher(name: string): void {
 
 function notifyThemeChanged(): void {
   for (const listener of themeChangeListeners) listener();
+}
+
+function resolvePiAccentTheme(base: Theme): Theme {
+  const rootBase = accentProjectionBases.get(base) ?? base;
+  return packageBorderProjectionEnabled ? projectPiAccent(rootBase, activeAccentColor) : rootBase;
+}
+
+function syncPiPackageBorderProjection(): void {
+  if (activeBaseTheme === undefined || activeTheme === undefined) return;
+  if (!packageBorderProjectionEnabled) {
+    setPiPackageThemeInstance(activeBaseTheme);
+    return;
+  }
+  const base = activeBaseTheme;
+  const projected = activeTheme;
+  setPiPackageThemeInstance(new Proxy(base, {
+    get(target, property) {
+      if (property === "colors") return Object.freeze({ ...target.colors, border: projected.colors.border });
+      if (property === "fg") {
+        return (token: ThemeColor, text: string) => token === "border"
+          ? projected.fg(token, text)
+          : target.fg(token, text);
+      }
+      if (property === "getFgAnsi") {
+        return (token: ThemeColor) => token === "border"
+          ? projected.getFgAnsi(token)
+          : target.getFgAnsi(token);
+      }
+      if (property === "style") {
+        return (text: string, options: Parameters<Theme["style"]>[1]) => target.style(text, {
+          ...options,
+          ...(options.fg === "border" ? { fg: projected.colors.border } : {}),
+        });
+      }
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  }));
+}
+
+function setPiPackageThemeInstance(theme: Theme): void {
+  Reflect.set(globalThis, Symbol.for("@earendil-works/pi-coding-agent:theme"), theme);
+  Reflect.set(globalThis, Symbol.for("@mariozechner/pi-coding-agent:theme"), theme);
+}
+
+function isAccentColor(value: string): value is UiAccentColor {
+  return Object.hasOwn(ACCENT_PALETTE, value);
+}
+
+/** A transparent Theme projection keeps every role outside the selected accent family on the base. */
+function projectPiAccent(base: Theme, color: UiAccentColor): Theme {
+  const rootBase = accentProjectionBases.get(base) ?? base;
+  const cached = accentProjectionCache.get(rootBase)?.get(color);
+  if (cached !== undefined) return cached;
+  const tone = derivePiAccentProjection(ACCENT_PALETTE[color][rootBase.appearance], rootBase.appearance);
+  const accentAnsi = foregroundAnsi(tone.accent, rootBase.getColorMode());
+  const foregrounds: Readonly<Partial<Record<ThemeColor, Color>>> = Object.freeze({
+    accent: tone.accent,
+    border: tone.border,
+    mdHeading: tone.secondaryHeading,
+    mdListBullet: tone.secondaryHeading,
+  });
+  const foregroundSequences: Readonly<Partial<Record<ThemeColor, string>>> = Object.freeze({
+    accent: accentAnsi,
+    border: foregroundAnsi(tone.border, rootBase.getColorMode()),
+    mdHeading: foregroundAnsi(tone.secondaryHeading, rootBase.getColorMode()),
+    mdListBullet: foregroundAnsi(tone.secondaryHeading, rootBase.getColorMode()),
+  });
+  const backgrounds: Readonly<Partial<Record<PiThemeBackground, Color>>> = Object.freeze({
+    selectedBg: tone.selectedBg,
+    userMessageBg: tone.userMessageBg,
+  });
+  const backgroundSequences: Readonly<Partial<Record<PiThemeBackground, string>>> = Object.freeze({
+    selectedBg: backgroundAnsi(tone.selectedBg, rootBase.getColorMode()),
+    userMessageBg: backgroundAnsi(tone.userMessageBg, rootBase.getColorMode()),
+  });
+  const projection = new Proxy(rootBase, {
+    get(target, property) {
+      if (property === "colors") return Object.freeze({
+        ...target.colors,
+        ...foregrounds,
+        ...backgrounds,
+      });
+      if (property === "fg") {
+        return (token: ThemeColor, text: string) => foregroundSequences[token] === undefined
+          ? target.fg(token, text)
+          : `${foregroundSequences[token]}${text}\u001b[39m`;
+      }
+      if (property === "bg") {
+        return (token: PiThemeBackground, text: string) => backgroundSequences[token] === undefined
+          ? target.bg(token, text)
+          : `${backgroundSequences[token]}${text}\u001b[49m`;
+      }
+      if (property === "getFgAnsi") {
+        return (token: ThemeColor) => foregroundSequences[token] ?? target.getFgAnsi(token);
+      }
+      if (property === "getBgAnsi") {
+        return (token: PiThemeBackground) => backgroundSequences[token] ?? target.getBgAnsi(token);
+      }
+      if (property === "style") {
+        return (text: string, options: Parameters<Theme["style"]>[1]) => target.style(text, {
+          ...options,
+          ...(typeof options.fg === "string" && foregrounds[options.fg] !== undefined ? { fg: foregrounds[options.fg] } : {}),
+          ...(typeof options.bg === "string" && backgrounds[options.bg] !== undefined ? { bg: backgrounds[options.bg] } : {}),
+        });
+      }
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  accentProjectionBases.set(projection, rootBase);
+  const projections = accentProjectionCache.get(rootBase) ?? new Map<UiAccentColor, Theme>();
+  projections.set(color, projection);
+  accentProjectionCache.set(rootBase, projections);
+  return projection;
 }
 
 function customThemePath(name: string): string {
@@ -288,11 +542,14 @@ function validateThemeJson(label: string, value: unknown): PiThemeJson {
     throw new Error(`Invalid theme "${label}": expected name, colors, and optional vars objects`);
   }
   if (value.name.includes("/")) throw new Error(`Invalid theme name "${value.name}"`);
+  if (value.appearance !== undefined && value.appearance !== "dark" && value.appearance !== "light") {
+    throw new Error(`Invalid theme "${label}": appearance must be dark or light`);
+  }
   for (const key of FOREGROUND_COLORS) {
-    if (key !== "thinkingMax" && key !== "scrollbarThumb" && key !== "scrollbarTrack" && value.colors[key] === undefined) throw new Error(`Invalid theme "${label}": missing required color ${key}`);
+    if (key !== "thinkingMax" && key !== "scrollbarThumb" && key !== "scrollbarTrack" && key !== "searchMatchText" && value.colors[key] === undefined) throw new Error(`Invalid theme "${label}": missing required color ${key}`);
   }
   for (const key of BACKGROUND_COLORS) {
-    if (value.colors[key] === undefined) throw new Error(`Invalid theme "${label}": missing required color ${key}`);
+    if (key !== "searchMatchBg" && value.colors[key] === undefined) throw new Error(`Invalid theme "${label}": missing required color ${key}`);
   }
   const colors: Record<string, ColorValue> = {};
   for (const [key, color] of Object.entries(value.colors)) {
@@ -304,7 +561,12 @@ function validateThemeJson(label: string, value: unknown): PiThemeJson {
     validateColor(color, `${label}.vars.${key}`);
     vars[key] = color;
   }
-  return { name: value.name, colors, ...(Object.keys(vars).length === 0 ? {} : { vars }) };
+  return {
+    name: value.name,
+    colors,
+    ...(value.appearance === undefined ? {} : { appearance: value.appearance }),
+    ...(Object.keys(vars).length === 0 ? {} : { vars }),
+  };
 }
 
 function validateColor(value: unknown, label: string): asserts value is ColorValue {
@@ -314,7 +576,7 @@ function validateColor(value: unknown, label: string): asserts value is ColorVal
 }
 
 function resolveVariable(value: ColorValue, vars: Readonly<Record<string, ColorValue>>, visited = new Set<string>()): ColorValue {
-  if (typeof value === "number" || value === "" || value.startsWith("#")) return value;
+  if (typeof value === "number" || value === "" || value.startsWith("#") || /^ok(lch|hsl)\(/i.test(value)) return value;
   if (visited.has(value)) throw new Error(`Circular variable reference detected: ${value}`);
   if (!(value in vars)) throw new Error(`Variable reference not found: ${value}`);
   visited.add(value);

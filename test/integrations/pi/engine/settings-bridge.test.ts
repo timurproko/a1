@@ -55,6 +55,20 @@ describe("Pi settings integration", () => {
     expect(await port.readSetting("outputPad")).toBe(1);
   });
 
+  it("exposes Pi 1.0's header-only quiet-startup mode", async () => {
+    const settings = SettingsManager.inMemory({ quietStartup: "header" });
+    const port = new PiSettingsBridge(settings, { productMode: "comparison" });
+    port.bindOwner("startup", { quietStartup: { apply() {} } });
+
+    expect((await port.listSettings()).find(value => value.key === "quietStartup")).toMatchObject({
+      valueType: "enum", choices: [true, "header", false], storedValue: "header", effectiveValue: "header",
+    });
+    await expect(port.writeSetting("quietStartup", true)).resolves.toMatchObject({
+      status: "deferred", storedValue: true, effectiveValue: "header",
+    });
+    expect(settings.getQuietStartup()).toBe(true);
+  });
+
   it("applies Pi's fullscreen copy preference through the live bare shell owner", async () => {
     const settings = SettingsManager.inMemory({ fullscreenCopyOnSelect: true });
     const port = new PiSettingsBridge(settings);
@@ -72,6 +86,27 @@ describe("Pi settings integration", () => {
     });
     expect(effective).toBe(false);
     expect(settings.getFullscreenCopyOnSelect()).toBe(false);
+  });
+
+  it("applies Pi's fullscreen wheel-scroll distance through the live shell owner", async () => {
+    const settings = SettingsManager.inMemory({ fullscreenWheelScrollLines: "auto" });
+    const port = new PiSettingsBridge(settings);
+    let effective: number | "auto" = "auto";
+    port.bindOwner("shell", { fullscreenWheelScrollLines: { apply: value => {
+      if (value !== "auto" && (typeof value !== "number" || !Number.isSafeInteger(value))) {
+        throw new TypeError("invalid wheel-scroll distance");
+      }
+      effective = value;
+    } } });
+
+    expect((await port.listSettings()).find(value => value.key === "fullscreenWheelScrollLines")).toMatchObject({
+      label: "Fullscreen wheel scrolling", storedValue: "auto", effectiveValue: "auto",
+    });
+    await expect(port.writeSetting("fullscreenWheelScrollLines", 4)).resolves.toMatchObject({
+      status: "applied", storedValue: 4, effectiveValue: 4,
+    });
+    expect(effective).toBe(4);
+    expect(settings.getFullscreenWheelScrollLines()).toBe(4);
   });
 
   it("omits every unavailable bare-A1 option while retaining supported fallbacks", async () => {

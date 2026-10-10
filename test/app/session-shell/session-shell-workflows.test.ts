@@ -1,6 +1,5 @@
-import { join } from "node:path";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
-import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
 vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal => {
   const actual = await importOriginal<typeof import("../../../src/app/session-shell/paste-executor.js")>();
@@ -19,11 +18,84 @@ vi.mock("node:worker_threads", async importOriginal => {
   } };
 });
 import { piTheme } from "../../../src/integrations/pi/components/index.js";
+import { piShellLazySelectors, type PiShellLazySelectorLoader } from "../../../src/integrations/pi/components/lazy-selectors.js";
 import { cellStyle } from "../../support/ansi-cell-style.js";
 import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
-import { Session, fixture, nextImmediate } from "./session-shell-fixture.js";
+import { fixture, nextImmediate } from "./session-shell-fixture.js";
+
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((onResolve, onReject) => { resolve = onResolve; reject = onReject; });
+  return { promise, resolve, reject };
+}
+
+function fixtureWithLazySelectors(lazySelectors: PiShellLazySelectorLoader) {
+  return fixture([], [], true, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, lazySelectors);
+}
 
 describe("OwnedUiSessionShell dialogs and workflows", () => {
+  it("opens a compact bare-A1 name input while preserving direct and comparison workflows", async () => {
+    const bare = await fixture([], [], true);
+    await bare.shell.submit("/name Direct Name");
+    expect(bare.engine.session.calls).toContain("name:Direct Name");
+    expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(stripTerminalSequences(bare.shell.root.render(100).join("\n"))).toContain("Session name set: direct name");
+
+    await bare.shell.submit("/name");
+    const inputRows = bare.shell.root.render(100);
+    const inputFrame = inputRows.map(stripTerminalSequences).join("\n");
+    const title = inputRows.find(row => stripTerminalSequences(row).includes("Session Name"))!;
+    const hints = inputRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!;
+    expect(inputFrame).toContain("Session Name");
+    expect(inputFrame).toContain("Enter submit  Esc close");
+    expect(inputFrame).not.toContain("Ctrl+C");
+    expect(inputFrame).not.toContain("Usage: /name <name>");
+    expect(firstVisibleTextColumn(hints)).toBe(firstVisibleTextColumn(title));
+    expect(cellStyle(title, "S")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("S")), "S"));
+    expect(inputRows[inputRows.indexOf(title) + 2]?.trimStart()).toMatch(/^>/);
+    expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
+
+    bare.terminal.input(" Renamed ");
+    bare.terminal.input("\r");
+    await nextImmediate();
+    expect(bare.engine.session.calls.filter(call => call.startsWith("name:"))).toEqual(["name:Direct Name", "name:Renamed"]);
+    expect(bare.engine.session.name).toBe("renamed");
+    expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
+    const namedFrame = stripTerminalSequences(bare.shell.root.render(100).join("\n"));
+    expect(namedFrame).toContain("Session name set: renamed");
+
+    const resultCount = bare.engine.session.calls.length;
+    const namedResultCount = namedFrame.match(/Session name set:/g)?.length;
+    await bare.shell.submit("/name");
+    bare.terminal.input("   ");
+    bare.terminal.input("\r");
+    await nextImmediate();
+    expect(bare.engine.session.calls).toHaveLength(resultCount);
+    expect(bare.engine.session.name).toBe("renamed");
+    expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(stripTerminalSequences(bare.shell.root.render(100).join("\n")).match(/Session name set:/g)?.length).toBe(namedResultCount);
+
+    await bare.shell.submit("/name");
+    bare.terminal.input("unsaved name");
+    bare.terminal.input("\x03");
+    await nextImmediate();
+    expect(bare.engine.session.calls).toHaveLength(resultCount);
+    expect(bare.engine.session.name).toBe("renamed");
+    expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
+    const dismissedFrame = stripTerminalSequences(bare.shell.root.render(100).join("\n"));
+    expect(dismissedFrame.match(/Session name set:/g)?.length).toBe(namedResultCount);
+    expect(dismissedFrame).not.toContain("Usage: /name <name>");
+    await bare.shell.dispose();
+
+    const comparison = await fixture();
+    await comparison.shell.submit("/name");
+    expect(comparison.shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(stripTerminalSequences(comparison.shell.root.render(100).join("\n"))).toContain("Warning: Usage: /name <name>");
+    await comparison.shell.dispose();
+  });
+
   it("persists thinking defaults immediately without changing the active level or comparison mode", async () => {
     const bare = await fixture([], [], true);
     await bare.shell.submit("/thinking");
@@ -31,23 +103,25 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     const plain = rows.map(stripTerminalSequences).join("\n");
     expect(plain).toContain("Ctrl+L cycles thinking levels in-session");
     expect(plain).not.toContain("Shift+Tab");
-    expect(plain.replace(/\s+/g, " ")).toContain("medium ✓ [default] Moderate reasoning (~8k tokens)");
-    expect(plain).not.toContain("· default");
+    expect(plain.replace(/\s+/g, " ")).toContain("◉ medium ✓ Moderate reasoning (~8k tokens)");
+    expect(plain).not.toContain("[default]");
+    expect(plain).not.toContain("●");
     expect(plain.match(/Moderate reasoning/g)).toHaveLength(1);
     expect(plain.match(/\bmedium\b/g)).toHaveLength(1);
-    expect(plain).toContain("Enter select  Space default  Esc close");
+    expect(plain).toContain("Type search  Enter select  Space default  Esc close");
     expect(plain).not.toContain("Ctrl+S");
     expect(plain).not.toContain("Escape/Ctrl+C");
     const heading = rows.find(row => stripTerminalSequences(row).includes("Thinking Level"))!;
     expect(cellStyle(heading, "T")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("T")), "T"));
     const selectedRow = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
     expect(cellStyle(selectedRow, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
+    expect(cellStyle(selectedRow, "◉")).toEqual(cellStyle(piTheme().fg("text", "◉"), "◉"));
     expect(cellStyle(selectedRow, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
 
     bare.shell.root.handleInput("low");
     bare.shell.root.handleInput(" ");
     const persisted = bare.shell.root.render(100).map(stripTerminalSequences).join("\n");
-    expect(persisted.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
+    expect(persisted.replace(/\s+/g, " ")).toContain("◉ low Light reasoning (~2k tokens)");
     expect(persisted).not.toContain("unsaved");
     expect(bare.engine.calls).toContain("default-thinking:low");
     expect(bare.engine.defaultThinkingLevel).toBe("low");
@@ -55,14 +129,12 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(bare.engine.session.calls).not.toContain("thinking:low");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
     bare.shell.root.handleInput("\x03");
-    expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
-    bare.shell.root.handleInput("\x1b");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
 
     await bare.shell.submit("/thinking");
     const reopened = bare.shell.root.render(100).map(stripTerminalSequences).join("\n");
-    expect(reopened.replace(/\s+/g, " ")).toContain("low [default] Light reasoning (~2k tokens)");
-    expect(reopened.replace(/\s+/g, " ")).toContain("medium ✓ Moderate reasoning (~8k tokens)");
+    expect(reopened.replace(/\s+/g, " ")).toContain("◉ low Light reasoning (~2k tokens)");
+    expect(reopened.replace(/\s+/g, " ")).toContain("○ medium ✓ Moderate reasoning (~8k tokens)");
     bare.shell.root.handleInput("\x1b");
     await bare.shell.dispose();
 
@@ -74,6 +146,129 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await comparison.shell.dispose();
   });
 
+  it("presents thinking only after its pending lazy selector is ready", async () => {
+    const gate = deferred();
+    const lazySelectors: PiShellLazySelectorLoader = {
+      prepare: async () => {},
+      createThinking: async options => {
+        await gate.promise;
+        return piShellLazySelectors.createThinking(options);
+      },
+      createTree: options => piShellLazySelectors.createTree(options),
+    };
+    const { shell, terminal } = await fixtureWithLazySelectors(lazySelectors);
+    shell.root.editor.setText("/thinking");
+    shell.runtime.renderNow(true);
+    const writesBeforeSubmit = terminal.writes.length;
+
+    terminal.input("\r");
+    expect(shell.runtime.presentationHeld).toBe(true);
+    shell.runtime.renderNow(true);
+    expect(terminal.writes).toHaveLength(writesBeforeSubmit);
+
+    gate.resolve(undefined);
+    await nextImmediate();
+    await nextImmediate();
+    expect(shell.runtime.presentationHeld).toBe(false);
+    shell.runtime.renderNow(true);
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Thinking Level");
+    expect(terminal.writes.slice(writesBeforeSubmit).join("")).toContain("Thinking Level");
+    await shell.dispose();
+  });
+
+  it("presents the tree atomically from slash and double-Escape entry", async () => {
+    let gate = deferred();
+    const lazySelectors: PiShellLazySelectorLoader = {
+      prepare: async () => {},
+      createThinking: options => piShellLazySelectors.createThinking(options),
+      createTree: async options => {
+        const currentGate = gate;
+        await currentGate.promise;
+        return piShellLazySelectors.createTree(options);
+      },
+    };
+    const { adapter, shell, terminal } = await fixtureWithLazySelectors(lazySelectors);
+    vi.spyOn(adapter.presentationSource(), "pinnedTreeSelectorContext").mockReturnValue({
+      tree: [{
+        entry: {
+          type: "message",
+          id: "atomic-tree-entry",
+          parentId: null,
+          timestamp: new Date(0).toISOString(),
+          message: { role: "user", content: [{ type: "text", text: "Atomic tree" }], timestamp: 0 },
+        },
+        children: [],
+      }],
+      currentLeafId: null,
+      filterMode: "default",
+      skipSummaryPrompt: false,
+      appendLabelChange() {},
+    });
+
+    shell.root.editor.setText("/tree");
+    shell.runtime.renderNow(true);
+    let writesBeforeOpen = terminal.writes.length;
+    terminal.input("\r");
+    expect(shell.runtime.presentationHeld).toBe(true);
+    shell.runtime.renderNow(true);
+    expect(terminal.writes).toHaveLength(writesBeforeOpen);
+    gate.resolve(undefined);
+    await nextImmediate();
+    await nextImmediate();
+    shell.runtime.renderNow(true);
+    expect(shell.runtime.presentationHeld).toBe(false);
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session Tree");
+    expect(terminal.writes.slice(writesBeforeOpen).join("")).toContain("Session Tree");
+
+    terminal.input("\x1b");
+    gate = deferred();
+    shell.runtime.renderNow(true);
+    writesBeforeOpen = terminal.writes.length;
+    await shell.interrupt(1_000);
+    const opening = shell.interrupt(1_100);
+    expect(shell.runtime.presentationHeld).toBe(true);
+    shell.runtime.renderNow(true);
+    expect(terminal.writes).toHaveLength(writesBeforeOpen);
+    gate.resolve(undefined);
+    await opening;
+    await nextImmediate();
+    shell.runtime.renderNow(true);
+    expect(shell.runtime.presentationHeld).toBe(false);
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session Tree");
+    expect(terminal.writes.slice(writesBeforeOpen).join("")).toContain("Session Tree");
+    await shell.dispose();
+  });
+
+  it("releases the atomic selector presentation and restores input after a lazy-load failure", async () => {
+    const gate = deferred();
+    const lazySelectors: PiShellLazySelectorLoader = {
+      prepare: async () => {},
+      createThinking: async () => {
+        await gate.promise;
+        throw new Error("thinking selector unavailable");
+      },
+      createTree: options => piShellLazySelectors.createTree(options),
+    };
+    const { shell, terminal } = await fixtureWithLazySelectors(lazySelectors);
+    shell.root.editor.setText("/thinking");
+    shell.runtime.renderNow(true);
+    const writesBeforeSubmit = terminal.writes.length;
+    terminal.input("\r");
+    shell.runtime.renderNow(true);
+    expect(shell.runtime.presentationHeld).toBe(true);
+    expect(terminal.writes).toHaveLength(writesBeforeSubmit);
+
+    gate.resolve(undefined);
+    await nextImmediate();
+    await nextImmediate();
+    shell.runtime.renderNow(true);
+    expect(shell.runtime.presentationHeld).toBe(false);
+    expect(shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(shell.root.editor.getText()).toBe("/thinking");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Submission rejected");
+    await shell.dispose();
+  });
+
   it("preserves deep settings submenus, theme mode nesting, and parent restoration", async () => {
     const { terminal, shell } = await fixture();
     const frame = () => stripTerminalSequences(shell.root.render(100).join("\n"));
@@ -81,7 +276,9 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await shell.submit("/settings");
     terminal.input("theme");
     terminal.input("\r");
-    expect(frame()).toContain("Select a theme, or choose Automatic to follow terminal appearance.");
+    expect(frame()).toContain("Select a theme, or choose automatic to follow terminal appearance.");
+    expect(frame()).toContain("Esc close");
+    expect(frame()).not.toContain("Esc to go back");
     terminal.input("\x1b[A");
     terminal.input("\r");
     expect(frame()).toContain("Automatic Theme");
@@ -92,7 +289,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     terminal.input("\x1b");
     expect(frame()).toContain("Automatic Theme");
     terminal.input("\x1b");
-    expect(frame()).toContain("Type to search · Enter/Space to change · Esc to cancel");
+    expect(frame()).toContain("Type to search · Enter/Space to change · Esc close");
     expect(frame()).toContain("> theme");
     terminal.input("\x1b");
 
@@ -121,11 +318,11 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(shell.root.usesDefaultInputSurface()).toBe(false);
 
     engine.session.emit({ type: "agent_start" });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     expect(shell.root.usesDefaultInputSurface()).toBe(false);
 
     engine.session.emit({ type: "agent_settled" });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     expect(shell.root.usesDefaultInputSurface()).toBe(false);
     await shell.dispose();
   });
@@ -160,7 +357,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
 
   it("ports project trust as a stateful save-or-cancel selector", async () => {
     const { adapter, terminal, shell } = await fixture();
-    vi.spyOn(adapter, "pinnedProjectTrustContext").mockReturnValue({
+    vi.spyOn(adapter.catalog, "pinnedProjectTrustContext").mockReturnValue({
       cwd: "D:\\work",
       savedDecision: null,
       projectTrusted: false,
@@ -169,11 +366,12 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
         { label: "Do not trust", trusted: false, updates: [{ path: "D:\\work", decision: false }], savedPath: "D:\\work" },
       ],
     });
-    const persist = vi.spyOn(adapter, "persistProjectTrust").mockImplementation(() => {});
+    const persist = vi.spyOn(adapter.catalog, "persistProjectTrust").mockImplementation(() => {});
 
     await shell.submit("/trust");
-    expect(shell.root.render(100).join("\n")).toContain("Project trust");
-    expect(shell.root.render(100).join("\n")).toContain("Current session: untrusted");
+    const trustFrame = shell.root.render(100).map(stripTerminalSequences).join("\n");
+    expect(trustFrame).toContain("Project trust");
+    expect(trustFrame).toContain("Current session: untrusted");
     terminal.input("\x1b");
     expect(persist).not.toHaveBeenCalled();
     expect(shell.root.render(100).join("\n")).not.toContain("Project trust");
@@ -198,7 +396,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       firstMessage: "First prompt",
       allMessagesText: "First prompt response",
     };
-    vi.spyOn(adapter, "pinnedSessionSelectorContext").mockReturnValue({
+    vi.spyOn(adapter.presentationSource(), "pinnedSessionSelectorContext").mockReturnValue({
       currentSessionFilePath: "D:/sessions/current.jsonl",
       loadCurrentSessions: async () => [session],
       loadAllSessions: async progress => {
@@ -210,10 +408,23 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
 
     await shell.submit("/resume");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Resume Session (Current Folder)");
+    const currentRows = shell.root.render(100);
+    const currentFrame = stripTerminalSequences(currentRows.join("\n"));
+    expect(currentFrame).toContain("Resume Session");
+    expect(currentFrame).not.toContain("Resume Session (");
+    expect(currentFrame).toContain("Filter: current | all  Name: all  Sort: threaded");
+    expect(currentRows.find(row => stripTerminalSequences(row).includes("Filter:")))
+      .toContain(piTheme().fg("mdHeading", "current"));
     terminal.input("\t");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Resume Session (All)");
+    const allRows = shell.root.render(100);
+    const allFrame = stripTerminalSequences(allRows.join("\n"));
+    expect(allFrame).toContain("Resume Session");
+    expect(allFrame).not.toContain("Resume Session (");
+    expect(allFrame).toContain("Filter: current | all  Name: all  Sort: threaded");
+    const allFilterRow = allRows.find(row => stripTerminalSequences(row).includes("Filter:"))!;
+    expect(allFilterRow).toContain(piTheme().fg("dim", "current"));
+    expect(allFilterRow).toContain(piTheme().fg("mdHeading", "all"));
     terminal.input("\x1b");
     expect(shell.root.render(100).join("\n")).not.toContain("Resume Session");
     expect(shell.root.render(100).join("\n")).not.toContain("Resume cancelled");
@@ -223,7 +434,17 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(engine.calls).toContain("switch:D:/sessions/one.jsonl");
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Resumed session");
+    const restoredRows = shell.root.render(100).map(stripTerminalSequences);
+    const restoredStatusIndex = restoredRows.findIndex(row => row.includes("Resumed session"));
+    expect(restoredRows.slice(restoredStatusIndex + 1, restoredStatusIndex + 3)).toEqual(["", "─".repeat(100)]);
+
+    await shell.submit("/resume");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const reopenedRows = shell.root.render(100).map(stripTerminalSequences);
+    const reopenedStatusIndex = reopenedRows.findIndex(row => row.includes("Resumed session"));
+    const reopenedHeadingIndex = reopenedRows.findIndex(row => row.includes("Resume Session"));
+    expect(reopenedRows.slice(reopenedStatusIndex + 1, reopenedHeadingIndex)).toEqual(["", "─".repeat(100)]);
+    terminal.input("\x1b");
     await shell.dispose();
   });
 
@@ -239,31 +460,51 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       },
       children: [],
     }];
-    vi.spyOn(adapter, "pinnedTreeSelectorContext").mockReturnValue({
+    vi.spyOn(adapter.presentationSource(), "pinnedTreeSelectorContext").mockReturnValue({
       tree,
       currentLeafId: null,
       filterMode: "default",
       skipSummaryPrompt: false,
       appendLabelChange() {},
     });
-    const execute = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
+    const execute = vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(async request => ({
       command: request.command,
       outcome: "completed",
       message: "Navigated to selected point",
+      detail: "Selected branch prompt",
     }));
 
+    shell.root.appendWorkflowStatus("Tree dialog spacing");
     await shell.submit("/tree");
     const treeRows = shell.root.render(100);
-    expect(stripTerminalSequences(treeRows.join("\n"))).toContain("Session Tree");
-    const treeHeading = treeRows.find(row => stripTerminalSequences(row).includes("Session Tree"))!;
-    const treeHint = treeRows.find(row => stripTerminalSequences(row).includes("move"))!;
+    const plainTreeRows = treeRows.map(stripTerminalSequences);
+    expect(plainTreeRows.join("\n")).toContain("Session Tree");
+    const treeHeadingIndex = plainTreeRows.findIndex(row => row.includes("Session Tree"));
+    const treeStatusIndex = plainTreeRows.findIndex(row => row.includes("Tree dialog spacing"));
+    expect(plainTreeRows.slice(treeStatusIndex + 1, treeHeadingIndex)).toEqual(["", "─".repeat(100)]);
+    const treeHeading = treeRows[treeHeadingIndex]!;
+    const treeHint = treeRows.find(row => stripTerminalSequences(row).includes("Type search"))!;
     expect(firstVisibleTextColumn(treeHint)).toBe(firstVisibleTextColumn(treeHeading));
+    expect(cellStyle(treeHeading, "S")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("S")), "S"));
+
+    const surfaceChanges = vi.spyOn(shell.root, "setInputSurface");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Summarize branch?");
+    const summaryRows = shell.root.render(100);
+    const plainSummaryRows = summaryRows.map(stripTerminalSequences);
+    expect(plainSummaryRows.join("\n")).toContain("Summarize Branch?");
+    expect(surfaceChanges).toHaveBeenCalled();
+    expect(surfaceChanges.mock.calls.every(([surface]) => surface !== null)).toBe(true);
+    const summaryHintIndex = plainSummaryRows.findIndex(row => row.includes("navigate") && row.includes("select"));
+    expect(plainSummaryRows[summaryHintIndex]).toContain("Esc close");
+    expect(plainSummaryRows[summaryHintIndex + 1]).toBe("─".repeat(100));
+    surfaceChanges.mockClear();
     terminal.input("\x1b");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session Tree");
+    expect(surfaceChanges).toHaveBeenCalled();
+    expect(surfaceChanges.mock.calls.every(([surface]) => surface !== null)).toBe(true);
+    surfaceChanges.mockRestore();
 
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -271,7 +512,35 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     terminal.input("\x1b[B");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Custom summarization instructions");
+    const customRows = shell.root.render(100);
+    const plainCustomRows = customRows.map(stripTerminalSequences);
+    const customTitleIndex = plainCustomRows.findIndex(row => row.includes("Custom Summarization Instructions"));
+    expect(cellStyle(customRows[customTitleIndex]!, "C")).toEqual(
+      cellStyle(piTheme().fg("accent", piTheme().bold("C")), "C"),
+    );
+    expect(plainCustomRows[customTitleIndex + 2]?.trimStart()).toMatch(/^>/);
+    const customHintIndex = plainCustomRows.findIndex(row => row.includes("submit") && row.includes("close"));
+    expect(plainCustomRows[customHintIndex]).toContain("Enter submit  Esc close");
+    expect(plainCustomRows[customHintIndex]).not.toContain("Ctrl+C");
+    expect(cellStyle(customRows[customHintIndex]!, "E")).toEqual(cellStyle(piTheme().fg("dim", "E"), "E"));
+    expect(cellStyle(customRows[customHintIndex]!, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
+    expect(plainCustomRows[customHintIndex]).not.toContain("newline");
+    expect(plainCustomRows[customHintIndex]).not.toContain("external editor");
+    expect(plainCustomRows[customHintIndex + 1]).toBe("─".repeat(100));
+
+    const customSurfaceChanges = vi.spyOn(shell.root, "setInputSurface");
+    terminal.input("\u0003");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Summarize Branch?");
+    expect(customSurfaceChanges).toHaveBeenCalled();
+    expect(customSurfaceChanges.mock.calls.every(([surface]) => surface !== null)).toBe(true);
+    customSurfaceChanges.mockRestore();
+
+    terminal.input("\x1b[B");
+    terminal.input("\x1b[B");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Custom Summarization Instructions");
     terminal.input("Preserve decisions");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -282,6 +551,87 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       treeSummary: { summarize: true, customInstructions: "Preserve decisions" },
     });
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Navigated to selected point");
+    expect(shell.root.editor.getText()).toBe("Selected branch prompt");
+    await shell.dispose();
+  });
+
+  it("closes the tree before direct navigation when summary prompting is skipped", async () => {
+    const { adapter, terminal, shell } = await fixture();
+    const tree = [{
+      entry: {
+        type: "message",
+        id: "entry-1",
+        parentId: null,
+        timestamp: new Date(0).toISOString(),
+        message: { role: "user", content: [{ type: "text", text: "First prompt" }], timestamp: 0 },
+      },
+      children: [],
+    }];
+    vi.spyOn(adapter.presentationSource(), "pinnedTreeSelectorContext").mockReturnValue({
+      tree,
+      currentLeafId: null,
+      filterMode: "default",
+      skipSummaryPrompt: true,
+      appendLabelChange() {},
+    });
+    const execute = vi.spyOn(adapter.workflows, "executeWorkflow").mockResolvedValue({
+      command: "tree",
+      outcome: "completed",
+      message: "Navigated to selected point",
+      detail: "First prompt",
+    });
+
+    await shell.submit("/tree");
+    shell.root.editor.setText("Keep existing draft");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(execute).toHaveBeenCalledWith({
+      command: "tree",
+      argument: "",
+      selection: "entry-1",
+      treeSummary: { summarize: false },
+    });
+    expect(shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(shell.root.editor.getText()).toBe("Keep existing draft");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Summarize Branch?");
+    await shell.dispose();
+  });
+
+  it("routes PageUp and PageDown to the open tree instead of the transcript viewport", async () => {
+    const { adapter, terminal, shell } = await fixture();
+    const children = Array.from({ length: 12 }, (_, index) => ({
+      entry: {
+        type: "message" as const,
+        id: `page-user-${index}`,
+        parentId: "page-system",
+        timestamp: new Date(index + 1).toISOString(),
+        message: { role: "user" as const, content: [{ type: "text" as const, text: `Question${index}` }], timestamp: index + 1 },
+      },
+      children: [],
+    }));
+    vi.spyOn(adapter.presentationSource(), "pinnedTreeSelectorContext").mockReturnValue({
+      tree: [{
+        entry: {
+          type: "message",
+          id: "page-system",
+          parentId: null,
+          timestamp: new Date(0).toISOString(),
+          message: { role: "system", content: "System prompt", timestamp: 0 },
+        },
+        children,
+      }],
+      currentLeafId: "page-user-0",
+      filterMode: "all",
+      skipSummaryPrompt: false,
+      appendLabelChange() {},
+    });
+
+    await shell.submit("/tree");
+    expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toMatch(/→ .*user: Question0/u);
+    terminal.input("\x1b[6~");
+    expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toMatch(/→ .*user: Question11/u);
+    terminal.input("\x1b[5~");
+    expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("→ session");
     await shell.dispose();
   });
 
@@ -292,26 +642,26 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     let frame = stripTerminalSequences(shell.root.render(100).join("\n"));
     expect(frame).toContain("OpenAI Codex");
     expect(frame).toContain("✓ stored");
-    expect(frame).not.toContain("OpenAI Codex • unconfigured");
+    expect(frame).not.toContain("OpenAI Codex • not configured");
 
     terminal.input("\x1b");
     terminal.input("\x1b");
     await shell.runWorkflow({ command: "logout", argument: "", selection: "oauth:openai" });
-    await shell.backend.flushEvents();
+    await shell.backend.session.flushEvents();
     expect(shell.view().activeModel).toBeNull();
     expect(shell.view().status.footer?.availableProviderCount).toBe(1);
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("gpt-5 • medium");
     await shell.submit("/login");
     terminal.input("\r");
     frame = stripTerminalSequences(shell.root.render(100).join("\n"));
-    expect(frame).toContain("OpenAI Codex • unconfigured");
+    expect(frame).toContain("OpenAI Codex • not configured");
     await shell.dispose();
   });
 
   it("renders empty fork and logout outcomes as pinned statuses", async () => {
     const { adapter, shell } = await fixture();
-    vi.spyOn(adapter, "pinnedForkOptions").mockReturnValue([]);
-    vi.spyOn(adapter, "pinnedLogoutOptions").mockResolvedValue([]);
+    vi.spyOn(adapter.catalog, "pinnedForkOptions").mockReturnValue([]);
+    vi.spyOn(adapter.catalog, "pinnedLogoutOptions").mockResolvedValue([]);
 
     shell.showForkSelector();
     const forkFrame = stripTerminalSequences(shell.root.render(100).join("\n"));
@@ -327,14 +677,14 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
 
   it("nests login authentication type and provider selection with pinned cancellation", async () => {
     const { adapter, terminal, shell } = await fixture();
-    vi.spyOn(adapter, "pinnedLoginOptions").mockImplementation(authType => [{
+    vi.spyOn(adapter.catalog, "pinnedLoginOptions").mockImplementation(authType => [{
       id: `${authType ?? "oauth"}:openai`,
       providerId: "openai",
       label: "OpenAI",
       description: authType === "api_key" ? "API key" : "Account / OAuth",
       authType: authType ?? "oauth",
     }]);
-    const execute = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
+    const execute = vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(async request => ({
       command: request.command,
       outcome: "completed",
       message: `completed ${request.selection ?? ""}`,
@@ -427,7 +777,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
 
   it("opens the model selector with the original search after a command-owned refresh misses", async () => {
     const { adapter, shell } = await fixture();
-    vi.spyOn(adapter, "executeWorkflow").mockResolvedValue({
+    vi.spyOn(adapter.workflows, "executeWorkflow").mockResolvedValue({
       command: "model",
       outcome: "requires-selection",
       message: "Select a model",

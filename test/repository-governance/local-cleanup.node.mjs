@@ -8,9 +8,9 @@ import { randomUUID } from "node:crypto";
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
 import { promisify } from "node:util";
-import { atomicJson, createStateStore, registerEntry, transitionEntry, validateState, digest } from "../../scripts/governance/local-cleanup-state.mjs";
+import { atomicJson, createStateStore, registerEntry, relocateTerminalState, transitionEntry, validateState, digest } from "../../scripts/governance/local-cleanup-state.mjs";
 import { canonical, captureWorktree, discoverRepository, inspectWorktree, exists, gitRunner, purgeDisposable, removeLocalRef, removeRemoteRef, removeWorktree } from "../../scripts/governance/local-cleanup-git.mjs";
-import { reconcileLocalCleanup } from "../../scripts/governance/local-cleanup-reconcile.mjs";
+import { reconcileLocalCleanup, writeLocalCleanupReport } from "../../scripts/governance/local-cleanup-reconcile.mjs";
 import { completeLocalCleanup, handoffLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "../../scripts/governance/local-cleanup-complete.mjs";
 import { pruneMergedBranches } from "../../scripts/governance/local-cleanup-branches.mjs";
 import { sweepLines } from "../../scripts/governance/local-worktree-cleanup.mjs";
@@ -20,7 +20,7 @@ import { retireRedundantWorktree, verifyRedundantWorktree } from "../../scripts/
 const owner = "fixture-owner-token-at-least-32-characters";
 const execFileAsync = promisify(execFile);
 async function git(cwd, ...args) { return (await execFileAsync("git", ["-C", cwd, ...args], { encoding: "utf8", windowsHide: true })).stdout.trim(); }
-async function fixture(t, branch = false, registered = true) {
+async function fixture(t, branch = false, registered = true, beforeDiscovery = async () => {}) {
   const temporary = await canonical(await mkdtemp(join(tmpdir(), "local-cleanup-")));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const primary = join(temporary, "primary"); await mkdir(primary);
@@ -28,8 +28,9 @@ async function fixture(t, branch = false, registered = true) {
   await writeFile(join(primary, "tracked.txt"), "base\n");
   await mkdir(join(primary, "vendor")); await writeFile(join(primary, "vendor", ".gitmodules"), "");
   await mkdir(join(primary, "node_modules-cache")); await writeFile(join(primary, "node_modules-cache", "tracked.txt"), "ordinary content\n");
-  await writeFile(join(primary, ".gitignore"), "node_modules/\nsecret.txt\n/.artifacts/\n/.artifacts-user/\n/artifacts/\n.builds/\ndist/\n/native/process-guardian/target/\n/native/terminal-host/target/\n/src/integrations/pi/engine/pi-settings-metadata.json\n/src/integrations/pi/engine/pi-settings-metadata-user.json\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
+  await writeFile(join(primary, ".gitignore"), "/node_modules\nnode_modules/\nsecret.txt\n/.artifacts\n/.artifacts-user\n/artifacts/\n.builds\ndist/\n/native/process-guardian/target\n/native/terminal-host/target\n/src/integrations/pi/engine/pi-settings-metadata.json\n/src/integrations/pi/engine/pi-settings-metadata-user.json\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
   await git(primary, "add", "."); await git(primary, "commit", "-m", "fixture"); await git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
+  await beforeDiscovery(primary);
   const path = join(primary, ".worktrees", "example");
   await git(primary, "worktree", "add", ...(branch ? ["-b", "feature/example"] : ["--detach"]), path);
   const identity = await discoverRepository(primary), store = createStateStore(identity), snapshot = await captureWorktree(identity, path);
@@ -50,6 +51,78 @@ async function fixture(t, branch = false, registered = true) {
 // Performance: every case owns a private temporary repository, so cases run concurrently instead of
 // serially; a bounded width keeps Git and child-process load predictable on shared runners.
 describe("local cleanup", { concurrency: 4 }, () => {
+
+test("repository identity ignores transport-only URL rewrites and rejects ambiguous configured origins", async t => {
+  const f = await fixture(t, false, false, async primary => {
+    await git(primary, "config", "--local", "url.git@github-account:owner/.insteadOf", "https://github.com/owner/");
+  });
+  assert.equal(await git(f.primary, "remote", "get-url", "origin"), "git@github-account:owner/repo.git");
+  assert.equal(f.identity.repository, "owner/repo");
+
+  const realGit = gitRunner();
+  const discoverWith = value => discoverRepository(f.primary, async (cwd, args, options) =>
+    args.join(" ") === "config --local --get-all remote.origin.url" ? value : realGit(cwd, args, options));
+  await assert.rejects(discoverWith("git@github-account:owner/repo.git\n"), /unsupported-origin/);
+  await assert.rejects(discoverWith("https://example.com/owner/repo.git\n"), /unsupported-origin/);
+  await assert.rejects(discoverWith("\n"), /unsupported-origin/);
+  await assert.rejects(discoverWith("https://github.com/owner/repo.git\nhttps://github.com/other/repo.git\n"), /unsupported-origin/);
+});
+
+test("terminal cleanup state follows a repository relocation without carrying live authority", async t => {
+  const f = await fixture(t, false, false);
+  const normalized = path => path.replaceAll("\\", "/");
+  const oldPrimary = normalized(join(f.temporary, "old-primary"));
+  const oldIdentity = { ...f.identity, primary: oldPrimary, common: `${oldPrimary}/.git`, root: `${oldPrimary}/.worktrees` };
+  const snapshot = await captureWorktree(f.identity, f.path);
+  const stale = { version: 1, identity: oldIdentity, enabled: true, cursor: 7, entries: [] };
+  const completed = registerEntry(stale, { ...snapshot, path: `${oldIdentity.root}/completed`, change: "completed-history",
+    sourcePr: 19, candidatePr: 19, role: "implementation", disposable: [] }, owner);
+  transitionEntry(completed, "release", owner, completed.generation);
+  Object.assign(completed, { state: "done", step: "complete" });
+  await mkdir(f.store.directory, { recursive: true });
+  const statePath = join(f.store.directory, "state.json");
+  await writeFile(statePath, JSON.stringify(stale, null, 2) + "\n");
+
+  await assert.rejects(f.store.read(), /state-relocation-required/);
+  await f.store.locked(async state => {
+    assert.deepEqual(state.identity, f.identity); assert.equal(state.enabled, true); assert.equal(state.cursor, 7);
+    assert.equal(state.entries[0].path, `${f.identity.root}/completed`); assert.equal(state.entries[0].id, completed.id);
+    assert.equal(state.entries[0].state, "done");
+  });
+  const migrated = JSON.parse(await readFile(statePath, "utf8"));
+  assert.equal(migrated.entries[0].ownerHash, completed.ownerHash);
+
+  let selected;
+  await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path, change: "example", sourcePr: 20,
+    cwd: f.primary, reconcile: async options => { selected = options.entryIds[0]; return { results: [] }; } });
+  const rebound = await f.store.read(), fresh = rebound.entries.find(entry => entry.id === selected);
+  assert.equal(fresh.path, normalized(f.path)); assert.equal(fresh.state, "released"); assert.notEqual(fresh.id, completed.id);
+
+  const active = structuredClone(stale); Object.assign(active.entries[0], { state: "released", step: "none" });
+  assert.throws(() => relocateTerminalState(active, f.identity), /state-relocation-active/);
+  const partial = structuredClone(stale); Object.assign(partial.entries[0], { state: "deleting", step: "remove-intent" });
+  assert.throws(() => relocateTerminalState(partial, f.identity), /state-relocation-active/);
+  assert.throws(() => relocateTerminalState({ ...stale, identity: { ...oldIdentity, repository: "other/repo" } }, f.identity), /state-relocation-identity/);
+  assert.throws(() => relocateTerminalState({ ...stale, identity: { ...oldIdentity, remote: "upstream" } }, f.identity), /repository-identity/);
+  assert.throws(() => relocateTerminalState({ ...stale, identity: { ...oldIdentity, root: `${oldPrimary}/other` } }, f.identity), /state-relocation-topology/);
+  const escaped = structuredClone(stale); escaped.entries[0].path = `${oldIdentity.root}/../escape`;
+  assert.throws(() => relocateTerminalState(escaped, f.identity), /state-relocation-path/);
+  const duplicated = structuredClone(stale); duplicated.entries.push({ ...duplicated.entries[0], id: randomUUID(), path: `${oldIdentity.root}/nested/../completed` });
+  assert.throws(() => relocateTerminalState(duplicated, f.identity), /state-relocation-duplicate/);
+});
+
+test("failed relocation replacement retains the prior drive-bound journal", async t => {
+  const f = await fixture(t, false, false), normalized = path => path.replaceAll("\\", "/");
+  const oldPrimary = normalized(join(f.temporary, "old-primary"));
+  const oldIdentity = { ...f.identity, primary: oldPrimary, common: `${oldPrimary}/.git`, root: `${oldPrimary}/.worktrees` };
+  const stale = { version: 1, identity: oldIdentity, enabled: false, cursor: 0, entries: [] };
+  await mkdir(f.store.directory, { recursive: true });
+  const statePath = join(f.store.directory, "state.json"), before = JSON.stringify(stale, null, 2) + "\n";
+  await writeFile(statePath, before);
+  const failing = createStateStore(f.identity, { replace: async () => { throw Error("replacement-failed"); } });
+  await assert.rejects(failing.locked(async () => {}), /replacement-failed/);
+  assert.equal(await readFile(statePath, "utf8"), before);
+});
 
 test("registration rejects duplicate paths, malformed state and cross-repository identity", async t => {
   const f = await fixture(t); const state = await f.store.read();
@@ -154,6 +227,28 @@ test("complete registers one exact candidate, applies central disposables, and i
   assert.equal(completed.state, "done"); assert.equal(state.enabled, false);
   const repeated = await completeLocalCleanup(options);
   assert.equal(repeated.results.length, 1); assert.equal(repeated.results[0].disposition, "already-absent");
+});
+
+test("standalone documentation evidence uses the ordinary completed-candidate cleanup path", async t => {
+  const f = await fixture(t, true, false);
+  const verify = async () => ({ disposition: "eligible", kind: "standalone-documentation",
+    documentationReason: "standalone-documentation", sourcePr: 20, sourceHead: f.snapshot.head,
+    sourceMerge: f.snapshot.head, archivePr: null, archiveHead: f.snapshot.head,
+    archiveMerge: f.snapshot.head, targetSha: f.snapshot.head, refs: [] });
+  const report = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify, git: f.boundedGit } });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.equal(await exists(f.path), false);
+  assert.equal(await git(f.primary, "show-ref", "--verify", "--quiet", "refs/heads/feature/example").then(() => true, () => false), false);
+  const entry = (await f.store.read()).entries.find(item => item.change === "example");
+  assert.equal(entry.state, "done"); assert.equal(entry.step, "complete");
+
+  const dirty = await fixture(t, true, false); await writeFile(join(dirty.path, "tracked.txt"), "dirty\n");
+  const dirtyVerify = async () => ({ ...await verify(), sourceHead: dirty.snapshot.head,
+    sourceMerge: dirty.snapshot.head, archiveHead: dirty.snapshot.head, archiveMerge: dirty.snapshot.head, targetSha: dirty.snapshot.head });
+  const blocked = await completeLocalCleanup({ identity: dirty.identity, store: dirty.store, reader: {}, path: dirty.path,
+    change: "example", sourcePr: 20, cwd: dirty.primary, reconcileOptions: { verify: dirtyVerify, git: dirty.boundedGit } });
+  assert.equal(blocked.results[0].reason, "worktree-content"); assert.equal(await exists(dirty.path), true);
 });
 
 test("complete blocks unknown ignored content and conflicting ownership", async t => {
@@ -265,6 +360,81 @@ test("complete removes generated links contained by the same artifact root witho
   await mkdir(join(linkedTarget, ".git"), { recursive: true });
   await symlink(linkedTarget, join(i.path, ".artifacts", "alias"), process.platform === "win32" ? "junction" : "dir");
   await assert.rejects(inspectWorktree(i.identity, { ...i.snapshot, disposable: [".artifacts"] }, { cwd: i.primary }), /nested-repository/);
+});
+
+test("complete removes an exact disposable-root link without traversing its external target", async t => {
+  const f = await fixture(t, false, false), target = join(f.temporary, "shared-dependencies");
+  const link = join(f.path, "node_modules"), sentinel = join(target, "sentinel.txt");
+  await mkdir(target); await writeFile(sentinel, "preserve external dependency bytes\n");
+  await symlink(target, link, process.platform === "win32" ? "junction" : "dir");
+
+  const report = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.equal(await exists(f.path), false);
+  assert.equal(await readFile(sentinel, "utf8"), "preserve external dependency bytes\n");
+});
+
+test("Windows cleanup removes a disposable-root junction while preserving its target", { skip: process.platform !== "win32" }, async t => {
+  const f = await fixture(t, false, false), target = join(f.temporary, "external-artifacts");
+  const link = join(f.path, ".artifacts"), sentinel = join(target, "sentinel.json");
+  await mkdir(target); await writeFile(sentinel, "{\"preserved\":true}\n");
+  await symlink(target, link, "junction");
+
+  const report = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit } });
+  assert.equal(report.results[0].disposition, "removed", JSON.stringify(report));
+  assert.equal(await exists(f.path), false);
+  assert.equal(await readFile(sentinel, "utf8"), "{\"preserved\":true}\n");
+});
+
+test("disposable-root links fail closed on resolution, cycles, identity drift, and replacement", async t => {
+  const f = await fixture(t, false, false), first = join(f.temporary, "first-target"), second = join(f.temporary, "second-target");
+  const link = join(f.path, "node_modules"), entry = { ...f.snapshot, disposable: ["node_modules"] };
+  await mkdir(first); await mkdir(second); await writeFile(join(first, "sentinel"), "first\n"); await writeFile(join(second, "sentinel"), "second\n");
+  await symlink(first, link, process.platform === "win32" ? "junction" : "dir");
+  const inspected = await inspectWorktree(f.identity, entry, { cwd: f.primary });
+  assert.deepEqual(inspected.containedLinks.map(item => [item.path, item.root, item.kind]), [["node_modules", "node_modules", "root"]]);
+
+  await rm(link, { recursive: true, force: true });
+  await symlink(second, link, process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(purgeDisposable(entry, { containedLinks: inspected.containedLinks }), /content-link-drift/);
+  assert.equal(await readFile(join(first, "sentinel"), "utf8"), "first\n");
+  assert.equal(await readFile(join(second, "sentinel"), "utf8"), "second\n");
+
+  await rm(link, { recursive: true, force: true }); await mkdir(link);
+  await assert.rejects(purgeDisposable(entry, { containedLinks: inspected.containedLinks }), /content-link-drift/);
+  await rm(link, { recursive: true, force: true });
+  await symlink(f.path, link, process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(inspectWorktree(f.identity, entry, { cwd: f.primary }), /content-link-cycle/);
+
+  await rm(link, { recursive: true, force: true });
+  const missing = join(f.temporary, "missing-target");
+  await symlink(missing, link, process.platform === "win32" ? "junction" : "dir").catch(async () => {
+    await mkdir(missing); await symlink(missing, link, "junction"); await rm(missing, { recursive: true, force: true });
+  });
+  await assert.rejects(inspectWorktree(f.identity, entry, { cwd: f.primary }), /content-link/);
+
+  const g = await fixture(t, false, false), unapprovedTarget = join(g.temporary, "unapproved-target");
+  await mkdir(unapprovedTarget); await writeFile(join(unapprovedTarget, "sentinel"), "keep\n");
+  await symlink(unapprovedTarget, join(g.path, ".artifacts-user"), process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(inspectWorktree(g.identity, { ...g.snapshot, disposable: [".artifacts-user"] }, { cwd: g.primary }), /content-link/);
+  assert.equal(await readFile(join(unapprovedTarget, "sentinel"), "utf8"), "keep\n");
+});
+
+test("a disposable-root link removal failure preserves the link, target, and pre-journal state", async t => {
+  const f = await fixture(t, false, false), target = join(f.temporary, "locked-link-target"), link = join(f.path, "node_modules");
+  const sentinel = join(target, "sentinel.txt"); await mkdir(target); await writeFile(sentinel, "preserve\n");
+  await symlink(target, link, process.platform === "win32" ? "junction" : "dir");
+  const blocked = Object.assign(new Error("disposable-link-locked"), { cleanupCode: "disposable-link-locked", paths: ["node_modules"] });
+  const report = await completeLocalCleanup({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, cwd: f.primary, reconcileOptions: { verify: f.verify, git: f.boundedGit,
+      purge: (entry, timing) => purgeDisposable(entry, timing, { removeLink: async () => { throw blocked; } }) } });
+  assert.equal(report.results[0].disposition, "blocked", JSON.stringify(report));
+  assert.equal(report.results[0].reason, "disposable-link-locked", JSON.stringify(report));
+  assert.equal(await exists(link), true); assert.equal(await readFile(sentinel, "utf8"), "preserve\n");
+  const state = await f.store.read(), registered = state.entries.find(item => item.sourcePr === 20);
+  assert.equal(registered.state, "released"); assert.equal(registered.step, "none");
 });
 
 test("legacy artifact subroot registrations are widened to the artifact root", async t => {
@@ -572,6 +742,18 @@ test("report retention is bounded without evicting unresolved state or unrelated
   assert.equal(await readFile(unrelated, "utf8"), "preserve"); assert.equal(await exists(f.path), true);
 });
 
+test("concurrent report writers retain valid independent evidence", async t => {
+  const f = await fixture(t), started = Date.now();
+  await Promise.all(Array.from({ length: 12 }, (_, index) => writeLocalCleanupReport(f.store, {
+    version: 1, preview: false, results: [{ id: String(index), disposition: "pending" }], at: started + index,
+  }, started + index)));
+  const names = (await readdir(f.store.directory)).filter(name => /^report-/.test(name));
+  assert.equal(names.length, 12);
+  const ids = new Set();
+  for (const name of names) ids.add(JSON.parse(await readFile(join(f.store.directory, name), "utf8")).results[0].id);
+  assert.equal(ids.size, 12);
+});
+
 test("completed paths report absence and need fresh registration after reuse", async t => {
   const f = await fixture(t); await f.store.enable(); await f.pass({ preview: false });
   assert.equal((await f.pass()).results[0].disposition, "already-absent");
@@ -607,6 +789,117 @@ test("a dead holder's silent lock is evicted once, journaled, and a live or fres
   ran = false; await f.store.locked(async () => { ran = true; }); assert.equal(ran, true, "a legacy lock is judged by its mtime");
   await writeFile(lock, "not json"); const fresh = new Date(); await utimes(lock, fresh, fresh);
   await assert.rejects(f.store.locked(() => {}), /mutation-busy/, "an unreadable fresh lock is busy");
+});
+
+test("scoped locks permit disjoint resources and exclude the same candidate", async t => {
+  const f = await fixture(t);
+  let releaseHeld, signalHeld;
+  const held = new Promise(resolve => { signalHeld = resolve; });
+  const gate = new Promise(resolve => { releaseHeld = resolve; });
+  const first = f.store.resourceLocked([`path:${f.path}`], async () => { signalHeld(); await gate; });
+  await held;
+  let disjointRan = false;
+  await f.store.resourceLocked([`path:${f.path}-other`], async () => { disjointRan = true; });
+  assert.equal(disjointRan, true);
+  await assert.rejects(f.store.resourceLocked([`path:${f.path}`], async () => {}), /resource-busy/);
+  releaseHeld(); await first;
+});
+
+test("scoped locks coordinate separate cleanup processes", { timeout: 15000 }, async t => {
+  const f = await fixture(t), ready = join(f.temporary, "resource-ready"), release = join(f.temporary, "resource-release");
+  const key = `path:${f.path}`;
+  const stateModule = new URL("../../scripts/governance/local-cleanup-state.mjs", import.meta.url).href;
+  const script = `
+    import { writeFile, access } from "node:fs/promises";
+    import { setTimeout as delay } from "node:timers/promises";
+    const { createStateStore } = await import(process.env.STATE_MODULE);
+    const store = createStateStore(JSON.parse(process.env.CLEANUP_IDENTITY));
+    await store.resourceLocked([process.env.CLEANUP_RESOURCE], async () => {
+      await writeFile(process.env.CLEANUP_READY, "ready");
+      while (true) { try { await access(process.env.CLEANUP_RELEASE); break; } catch { await delay(20); } }
+    });
+  `;
+  const child = spawn(process.execPath, ["--input-type=module", "-e", script], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"], env: {
+    ...process.env, STATE_MODULE: stateModule, CLEANUP_IDENTITY: JSON.stringify(f.identity), CLEANUP_RESOURCE: key,
+    CLEANUP_READY: ready, CLEANUP_RELEASE: release,
+  } });
+  t.after(() => { if (child.exitCode === null) child.kill(); });
+  for (let attempt = 0; attempt < 100 && !await exists(ready); attempt++) await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(await exists(ready), true);
+  await f.store.resourceLocked([`path:${f.path}-other`], async () => {});
+  await assert.rejects(f.store.resourceLocked([key], async () => {}), /resource-busy/);
+  await writeFile(release, "release");
+  const code = child.exitCode ?? (await once(child, "exit"))[0];
+  assert.equal(code, 0);
+});
+
+test("concurrent state sessions preserve disjoint candidate transitions", async t => {
+  const f = await fixture(t), secondPath = join(f.identity.root, "second");
+  await git(f.primary, "worktree", "add", "--detach", secondPath);
+  const secondSnapshot = await captureWorktree(f.identity, secondPath);
+  let second;
+  await f.store.locked(async (state, save) => {
+    second = registerEntry(state, { ...secondSnapshot, change: "second", sourcePr: 21, candidatePr: 21,
+      role: "implementation", disposable: [] }, owner);
+    transitionEntry(second, "release", owner, second.generation); await save(state);
+  });
+  let ready = 0, releaseBoth;
+  const gate = new Promise(resolve => { releaseBoth = resolve; });
+  const update = id => f.store.session(async (state, save) => {
+    const entry = state.entries.find(item => item.id === id); entry.state = "deleting"; entry.step = "remove-intent";
+    ready++; if (ready === 2) releaseBoth(); await gate; await save(state);
+  });
+  await Promise.all([update(f.entry.id), update(second.id)]);
+  const state = await f.store.read();
+  assert.deepEqual(state.entries.filter(entry => [f.entry.id, second.id].includes(entry.id)).map(entry => entry.step), ["remove-intent", "remove-intent"]);
+});
+
+test("a paused candidate does not block disjoint cleanup", { timeout: 30000 }, async t => {
+  const f = await fixture(t, false, true), secondPath = join(f.identity.root, "second"); await f.store.enable();
+  await mkdir(join(f.path, "node_modules")); await writeFile(join(f.path, "node_modules", "generated"), "fixture");
+  await f.store.locked(async (state, save) => { state.entries.find(entry => entry.id === f.entry.id).disposable = ["node_modules"]; await save(state); });
+  await git(f.primary, "worktree", "add", "--detach", secondPath);
+  const secondSnapshot = await captureWorktree(f.identity, secondPath);
+  let second;
+  await f.store.locked(async (state, save) => {
+    second = registerEntry(state, { ...secondSnapshot, change: "second", sourcePr: 21, candidatePr: 21,
+      role: "implementation", disposable: [] }, owner);
+    transitionEntry(second, "release", owner, second.generation); await save(state);
+  });
+  let signalSlow, releaseSlow;
+  const entered = new Promise(resolve => { signalSlow = resolve; });
+  const gate = new Promise(resolve => { releaseSlow = resolve; });
+  t.after(() => releaseSlow());
+  let paused = false;
+  const slowPurge = async (...args) => {
+    if (!paused) { paused = true; signalSlow(); await gate; }
+    return purgeDisposable(...args);
+  };
+  const slow = f.pass({ preview: false, entryIds: [f.entry.id], includeUnmanaged: false, purge: slowPurge });
+  await entered;
+  const fast = await f.pass({ preview: false, entryIds: [second.id], includeUnmanaged: false });
+  assert.equal(fast.results[0].disposition, "removed", JSON.stringify(fast));
+  assert.equal(await exists(secondPath), false); assert.equal(await exists(f.path), true);
+  releaseSlow();
+  const finished = await slow; assert.equal(finished.results[0].disposition, "removed", JSON.stringify(finished));
+  const state = await f.store.read(); assert.ok(state.entries.filter(entry => [f.entry.id, second.id].includes(entry.id)).every(entry => entry.state === "done"));
+});
+
+test("sweep defers a held candidate and continues with disjoint work", async t => {
+  const f = await fixture(t, false, true), secondPath = join(f.identity.root, "second"); await f.store.enable();
+  await git(f.primary, "worktree", "add", "--detach", secondPath);
+  const secondSnapshot = await captureWorktree(f.identity, secondPath);
+  let second;
+  await f.store.locked(async (state, save) => {
+    second = registerEntry(state, { ...secondSnapshot, change: "second", sourcePr: 21, candidatePr: 21,
+      role: "implementation", disposable: [] }, owner);
+    transitionEntry(second, "release", owner, second.generation); await save(state);
+  });
+  const report = await f.store.resourceLocked([`path:${f.path}`], async () => f.pass({ preview: false, includeUnmanaged: false }));
+  const held = report.results.find(row => row.id === f.entry.id), removed = report.results.find(row => row.id === second.id);
+  assert.deepEqual([held.disposition, held.reason], ["deferred", "resource-busy"], JSON.stringify(report));
+  assert.equal(removed.disposition, "removed", JSON.stringify(report));
+  assert.equal(await exists(f.path), true); assert.equal(await exists(secondPath), false);
 });
 
 test("preview and disabled execution preserve local refs, files and state", async t => {

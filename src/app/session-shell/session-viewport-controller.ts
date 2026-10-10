@@ -21,6 +21,18 @@ export interface SessionViewportControllerOptions {
   readonly nextPasteDiagnosticRequest?: () => number;
 }
 
+/** One-based, inclusive terminal cells of a clickable viewport-tail control. */
+export interface TailControlRegion {
+  readonly rowStart: number;
+  readonly rowEnd: number;
+  readonly columnStart: number;
+  readonly columnEnd: number;
+}
+
+function withinTailControl(region: TailControlRegion, column: number, row: number): boolean {
+  return row >= region.rowStart && row <= region.rowEnd && column >= region.columnStart && column <= region.columnEnd;
+}
+
 export interface SessionViewportInputResult {
   readonly data: string;
   readonly consumed: boolean;
@@ -62,6 +74,8 @@ export class SessionViewportController {
   #pendingEditorClick: { readonly column: number; readonly row: number } | undefined;
   // Invariant: pointer routing uses the most recently composed editor rows.
   #editorPointerFrame: { readonly rowStart: number; readonly rowEnd: number } | undefined;
+  // Invariant: one clickable region in the viewport tail, located by the most recent composition.
+  #tailControl: (TailControlRegion & { readonly activate: () => void }) | undefined;
   #selectionAutoScrollTimer: ReturnType<typeof setTimeout> | undefined;
   #selectionAutoScrollPointer: { readonly column: number; readonly row: number; readonly direction: -1 | 1 } | undefined;
   #pointerPosition: { readonly column: number; readonly row: number } | undefined;
@@ -123,6 +137,17 @@ export class SessionViewportController {
 
   setEditorPointerFrame(frame: { readonly rowStart: number; readonly rowEnd: number } | undefined): void {
     this.#editorPointerFrame = frame;
+  }
+
+  /** The visible close control of a viewport-tail notice, or undefined when none is on screen. */
+  setTailControl(control: (TailControlRegion & { readonly activate: () => void }) | undefined): void {
+    this.#tailControl = control;
+  }
+
+  /** Whether the pointer currently rests on the tail control; drives its hover paint. */
+  tailControlHovered(target: TailControlRegion | undefined): boolean {
+    const pointer = this.#pointerPosition;
+    return target !== undefined && pointer !== undefined && withinTailControl(target, pointer.column, pointer.row);
   }
 
   /** Replacement input changed before its new bounds have been painted. */
@@ -323,14 +348,14 @@ export class SessionViewportController {
     if (data === "\u0003") {
       if (editorActive && this.#editor.hasSelection()) {
         if (this.#viewport.clearSelection()) this.#requestRender();
-      } else {
+      } else if (this.#viewport.hasSelection) {
         const copySelection = this.#viewport.captureSelectedText();
-        if (copySelection !== null) {
-          this.#viewport.clearSelection();
-          this.#stopSelectionAutoScroll();
-          this.#requestRender();
-          return { data: "", consumed: true, copySelection };
-        }
+        this.#viewport.clearSelection();
+        this.#stopSelectionAutoScroll();
+        this.#requestRender();
+        return copySelection === null
+          ? { data: "", consumed: true }
+          : { data: "", consumed: true, copySelection };
       }
     }
     const previousPrompt = SHIFT_UP_INPUTS.has(data) || this.#editor.matchesTerminalKey(data, "alt+home");
@@ -385,6 +410,9 @@ export class SessionViewportController {
       const overSticky = overModal === undefined && hits.sticky !== null && event.row === hits.sticky.row && event.column <= hits.sticky.width;
       const overBottom = overModal === undefined && hits.bottom !== null && event.row === hits.bottom.row
         && event.column >= hits.bottom.columnStart && event.column <= hits.bottom.columnEnd;
+      const tailControl = this.#tailControl;
+      const overTailControl = overModal === undefined && tailControl !== undefined
+        && withinTailControl(tailControl, event.column, event.row);
 
       const previousPointer = this.#pointerPosition;
       const wasOverBottom = hits.bottom !== null && previousPointer !== undefined
@@ -394,6 +422,9 @@ export class SessionViewportController {
       // Keep this location while the control is hidden; composition resolves its next hit region.
       this.#pointerPosition = { column: event.column, row: event.row };
       repaint ||= wasOverBottom !== overBottom;
+      const wasOverTailControl = tailControl !== undefined && previousPointer !== undefined
+        && withinTailControl(tailControl, previousPointer.column, previousPointer.row);
+      repaint ||= wasOverTailControl !== overTailControl;
       if (!this.#viewport.selectionActive && !this.#editorPointerSelecting) {
         const nextHyperlink = this.#hyperlinkKeyAt(frame, event.column, event.row);
         if (this.#hoveredHyperlinkKey !== undefined && nextHyperlink !== this.#hoveredHyperlinkKey) {
@@ -418,12 +449,18 @@ export class SessionViewportController {
           return true;
         }
         if (this.#dockPointerSuppressed || this.#tailPointerSuppressed) return true;
+        const pendingEditorClick = this.#pendingEditorClick;
+        if (pendingEditorClick !== undefined) {
+          if (event.column === pendingEditorClick.column && event.row === pendingEditorClick.row) return true;
+          this.#pendingEditorClick = undefined;
+          this.#viewport.pressSelection(pendingEditorClick.column, pendingEditorClick.row, now, { continueMultiClick: false });
+          this.#viewport.extendSelection(event.column, event.row, now, false);
+          this.#updateSelectionAutoScroll(event.column, event.row, hits.viewportHeight, frame.rows.length);
+          activity = true;
+          return true;
+        }
         if (this.#viewport.selectionActive) {
           this.#viewport.extendSelection(event.column, event.row, now, false);
-          if (this.#pendingEditorClick !== undefined
-            && (event.column !== this.#pendingEditorClick.column || event.row !== this.#pendingEditorClick.row)) {
-            this.#pendingEditorClick = undefined;
-          }
           this.#updateSelectionAutoScroll(event.column, event.row, hits.viewportHeight, frame.rows.length);
           activity = true;
           return true;
@@ -434,7 +471,7 @@ export class SessionViewportController {
           activity = true;
           return true;
         }
-        return overRail || overSticky || overBottom;
+        return overRail || overSticky || overBottom || overTailControl;
       }
       if (event.kind === "wheel-up" || event.kind === "wheel-down") {
         if (!allowWheel || event.row < 1 || event.row > hits.viewportHeight) return false;
@@ -463,6 +500,13 @@ export class SessionViewportController {
         this.#pendingEditorClick = undefined;
         this.#stopSelectionAutoScroll();
         if (this.#viewport.clearSelection()) repaint = true;
+        if (overTailControl) {
+          this.#tailControl = undefined;
+          tailControl.activate();
+          this.#tailPointerSuppressed = true;
+          repaint = true;
+          return true;
+        }
         if (overBottom) {
           this.#viewport.scrollToEnd(now);
           this.#tailPointerSuppressed = true;
@@ -493,11 +537,12 @@ export class SessionViewportController {
         }
         if (event.row >= 1 && event.row <= frame.rows.length && event.column <= frame.descriptor.width) {
           if (editorFrame !== undefined && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
+            // Invariant: no-drag prompt clicks remain visually editor-owned. Distinct
+            // motion promotes from this exact origin into complete-frame selection.
             this.#pendingEditorClick = { column: event.column, row: event.row };
+          } else {
+            this.#viewport.pressSelection(event.column, event.row, now);
           }
-          // Invariant: frame selection includes transient and dock rows without changing
-          // semantic ownership; no-drag editor presses replay on release.
-          this.#viewport.pressSelection(event.column, event.row, now);
           repaint = true;
           return true;
         }
@@ -518,18 +563,21 @@ export class SessionViewportController {
           repaint = true;
           return true;
         }
-        if (this.#viewport.releaseSelection()) {
-          this.#stopSelectionAutoScroll();
-          const pendingEditorClick = this.#pendingEditorClick;
+        const pendingEditorClick = this.#pendingEditorClick;
+        if (pendingEditorClick !== undefined) {
           this.#pendingEditorClick = undefined;
-          if (pendingEditorClick !== undefined && this.#editorPointerFrame !== undefined) {
-            this.#viewport.clearSelection();
+          if (this.#editorPointerFrame !== undefined) {
             const editorRow = pendingEditorClick.row - this.#editorPointerFrame.rowStart + 1;
             this.#editor.handlePointer({ kind: "press", button: 0, column: pendingEditorClick.column, row: editorRow });
             this.#editor.handlePointer({ kind: "release", button: 0, column: pendingEditorClick.column, row: editorRow });
-          } else if (this.#copyOnSelect) {
-            completedCopy = this.#viewport.captureSelectedText() ?? undefined;
           }
+          forceRepaint = true;
+          repaint = true;
+          return true;
+        }
+        if (this.#viewport.releaseSelection()) {
+          this.#stopSelectionAutoScroll();
+          if (this.#copyOnSelect) completedCopy = this.#viewport.captureSelectedText() ?? undefined;
           // Platform: restore OSC 8 links only after the held-button selection paint has
           // ended, then overwrite any terminal-cached hover cells immediately.
           forceRepaint = true;

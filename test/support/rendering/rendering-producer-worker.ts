@@ -6,6 +6,7 @@ import { PinnedContentRoot } from "./pinned-content-root.js";
 import { CONTENT_RENDERING_WORKLOADS } from "./content-workloads.js";
 import { applyPiTheme } from "../../../src/integrations/pi/components/index.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { RecordingRenderingTerminal } from "./recording-rendering-terminal.js";
 import type { TranscriptViewportFrameDescriptor } from "../../../src/ui/components/index.js";
@@ -30,6 +31,7 @@ async function runOwned(
   });
   const terminal = new RecordingTerminal(producerRequest.state.columns, producerRequest.state.rows, producerRequest.presentation === "scheduled");
   const shell = new OwnedUiSessionShell({
+    presenters: createPiSessionPresenters(adapter),
     engine: {
       backend: adapter,
       cwd: producerRequest.state.cwd,

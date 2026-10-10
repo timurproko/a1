@@ -74,12 +74,28 @@
       "semantics": "Developer state-root override; retain pending exposure review"
     },
     {
+      "role": "exitNoticePath",
+      "key": "A1_EXIT_NOTICE_PATH",
+      "exposure": "review",
+      "owner": "src/foundation/process-containment/native-guardian-containment.ts",
+      "evidence": "test/foundation/process-containment/windows-job.integration.test.ts",
+      "semantics": "Guardian-to-runtime handoff of the unclean-exit notice path, removed from the runtime environment on read; retain pending exposure review"
+    },
+    {
       "role": "processGuardianPath",
       "key": "A1_PROCESS_GUARDIAN_PATH",
       "exposure": "review",
       "owner": "src/foundation/process-containment/native-guardian-containment.ts",
       "evidence": "test/foundation/process-containment/windows-job.integration.test.ts",
       "semantics": "Explicit helper executable override; retain pending caller exposure review"
+    },
+    {
+      "role": "skipVersionCheck",
+      "key": "A1_SKIP_VERSION_CHECK",
+      "exposure": "public",
+      "owner": "src/foundation/release/latest-release.ts",
+      "evidence": "test/foundation/release/latest-release.test.ts",
+      "semantics": "Disables the interactive startup release-availability check"
     },
     {
       "role": "prFooterPreview",
@@ -144,6 +160,14 @@
       "owner": "native/terminal-host/src/workspace.rs",
       "evidence": "native/terminal-host/src/main.rs",
       "semantics": "Session identity exported to launched programs"
+    },
+    {
+      "role": "sessionRuntimeId",
+      "key": "A1_SESSION_RUNTIME_ID",
+      "exposure": "integration",
+      "owner": "bin/ui.js",
+      "evidence": "test/foundation/lifecycle/session-repository-context.test.ts",
+      "semantics": "Runtime-generation identity exported to session tools for cooperative worktree claims"
     },
     {
       "role": "releaseRoot",

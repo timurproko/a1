@@ -1,8 +1,31 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { STARTUP_LAZY_IMPORT_MODULES, hasDynamicImport, isStartupLazyImportModule, pinnedDynamicImportPath, rewriteStartupLazyImports, validatePinnedDynamicImports } from "../../scripts/pi/startup-lazy-imports.mjs";
 
-const piAiDist = "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist";
+const codingAgentRoot = installedDependencyRoot(process.cwd(), "@earendil-works/pi-coding-agent");
+const codingAgentDist = join(codingAgentRoot, "dist");
+const piAiDist = join(installedDependencyRoot(codingAgentRoot, "@earendil-works/pi-ai"), "dist");
+
+function installedDependencyRoot(from: string, packageName: string): string {
+  let current = from;
+  while (true) {
+    const candidate = join(current, "node_modules", ...packageName.split("/"));
+    if (existsSync(join(candidate, "package.json"))) return candidate;
+    const parent = dirname(current);
+    if (parent === current) throw new Error(`installed dependency is unavailable: ${packageName}`);
+    current = parent;
+  }
+}
+
+function installedPinnedModule(path: string): string {
+  const piAiPrefix = "@earendil-works/pi-ai/dist/";
+  const codingAgentPrefix = "@earendil-works/pi-coding-agent/dist/";
+  if (path.startsWith(piAiPrefix)) return join(piAiDist, path.slice(piAiPrefix.length));
+  if (path.startsWith(codingAgentPrefix)) return join(codingAgentDist, path.slice(codingAgentPrefix.length));
+  throw new Error(`unknown pinned module path: ${path}`);
+}
 
 describe("generated public Pi startup lazy imports", () => {
   it("targets only the pinned pi-ai modules that hide imports behind variable specifiers", () => {
@@ -60,7 +83,7 @@ describe("generated public Pi startup lazy imports", () => {
     const ledger = baseline.pinnedDynamicImports.map((entry: { path: string }) => entry.path).sort();
     expect(ledger).toEqual([...ledger].sort());
     for (const path of ledger) {
-      const source = await readFile(`node_modules/${path.startsWith("@earendil-works/pi-ai/") ? `@earendil-works/pi-coding-agent/node_modules/${path}` : path}`, "utf8");
+      const source = await readFile(installedPinnedModule(path), "utf8");
       expect(hasDynamicImport(source), path).toBe(true);
     }
     expect(ledger).toContain("@earendil-works/pi-ai/dist/auth/oauth/load.js");
@@ -69,7 +92,7 @@ describe("generated public Pi startup lazy imports", () => {
 
   it("rewrites every variable relative import in the pinned pi-ai modules", async () => {
     for (const module of STARTUP_LAZY_IMPORT_MODULES) {
-      const source = await readFile(`${piAiDist}/${module}`, "utf8");
+      const source = await readFile(join(piAiDist, module), "utf8");
       expect(source, module).toMatch(/\b(?:importOAuthModule|importNodeOnlyApi)\("\.\//);
       const rewritten = rewriteStartupLazyImports(source);
       expect(rewritten).not.toMatch(/\b(?:importOAuthModule|importNodeOnlyApi)\("/);

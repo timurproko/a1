@@ -1,3 +1,6 @@
+/** Stable stored choices for bare A1's semantic UI accent. */
+export type UiAccentColor = "purple" | "blue" | "cyan" | "green" | "orange" | "pink";
+
 export {
   OWNED_UI_EXTENSION_CONTRACT_VERSION,
   OWNED_UI_EXTENSION_RENDER_CALLBACKS,
@@ -50,6 +53,8 @@ export type {
 } from "./extension-ui.js";
 export { OWNED_UI_CONTRACT_VERSION } from "./model.js";
 export type {
+  OwnedUiBackgroundSettingsPort,
+  OwnedUiBackgroundStyle,
   OwnedUiBlockStatus,
   OwnedUiCommand,
   OwnedUiCommandOutcome,
@@ -91,8 +96,81 @@ export type {
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
 } from "./model.js";
+export type {
+  OwnedUiExtensionPort,
+  OwnedUiSessionBackend,
+  OwnedUiSessionCatalogPort,
+  OwnedUiSessionFactory,
+  OwnedUiSessionIdentityPort,
+  OwnedUiSessionPort,
+  OwnedUiSessionRequest,
+  OwnedUiSessionSettingsPort,
+  OwnedUiWorkflowPort,
+} from "./session-backend.js";
+export type {
+  OwnedUiDialogHost,
+  OwnedUiInputSurface,
+  OwnedUiPresenterHost,
+  OwnedUiSessionPresenter,
+  OwnedUiSessionPresenters,
+  OwnedUiShortcutDescription,
+  OwnedUiTerminalHost,
+  OwnedUiTranscriptRendererPort,
+} from "./session-presenters.js";
+export {
+  OWNED_UI_HIDDEN_COMMAND_NAMES,
+  OWNED_UI_MODELS_COMMAND_NAME,
+  OWNED_UI_WORKFLOW_COMMAND_NAMES,
+} from "./session-workflows.js";
+export type {
+  OwnedUiAmbientAuthentication,
+  OwnedUiAuthenticationProviderOption,
+  OwnedUiAuthenticationProviderStatus,
+  OwnedUiBashWorkflowResult,
+  OwnedUiCacheWarmingPresentation,
+  OwnedUiCommandResult,
+  OwnedUiExtensionResourceSummary,
+  OwnedUiExtensionSourceSummary,
+  OwnedUiHiddenWorkflowCommandName,
+  OwnedUiJsonValue,
+  OwnedUiModelsCommandName,
+  OwnedUiModelsContext,
+  OwnedUiModelsRefreshResult,
+  OwnedUiProjectTrustContext,
+  OwnedUiProjectTrustUpdate,
+  OwnedUiReleaseUpdate,
+  OwnedUiResourceSummary,
+  OwnedUiScopedModelDescriptor,
+  OwnedUiScopedModelsContext,
+  OwnedUiScopedModelsRefreshResult,
+  OwnedUiSessionInfoPresentation,
+  OwnedUiSessionProductMode,
+  OwnedUiSessionResumeMetadata,
+  OwnedUiSessionSettingKey,
+  OwnedUiSessionSettingsSnapshot,
+  OwnedUiSettingEffectHandler,
+  OwnedUiSettingOwner,
+  OwnedUiSettingOwnerHandlers,
+  OwnedUiSettingsThinkingLevel,
+  OwnedUiVisualExtensionSupport,
+  OwnedUiWorkflowAutocompleteCommand,
+  OwnedUiWorkflowCommandName,
+  OwnedUiWorkflowInteractionHost,
+  OwnedUiWorkflowInteractionRequest,
+  OwnedUiWorkflowLoginNotification,
+  OwnedUiWorkflowLoginStart,
+  OwnedUiWorkflowMessage,
+  OwnedUiWorkflowMessageKind,
+  OwnedUiWorkflowOption,
+  OwnedUiWorkflowOutcome,
+  OwnedUiWorkflowPresentation,
+  OwnedUiWorkflowRequest,
+  OwnedUiWorkflowResult,
+  OwnedUiWorkflowRoute,
+} from "./session-workflows.js";
 export { acceptsTranscriptUpdate, transcriptToolState } from "./transcript-lifecycle.js";
 export {
+  DEFAULT_PROMPT_IMAGE_LIMIT,
   ImageAttachmentError,
   MAX_CLIPBOARD_TEXT_BYTES,
   MAX_IMAGE_DATA_BYTES,
@@ -103,8 +181,9 @@ export {
 export { CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION, normalizePromptSuggestionCandidate } from "./prompt-suggestions.js";
 export { canonicalPromptChipMatches, protectPromptChipWrapping, replaceCanonicalPromptChips } from "./prompt-chips.js";
 export type { PromptChipTextMatch, PromptChipWrapProtection } from "./prompt-chips.js";
-export { SUGGESTION_DECISION_REASONS, SUGGESTION_DIAGNOSTIC_EVENTS } from "./suggestion-diagnostics.js";
+export { SUGGESTION_ATTEMPT_TRIGGERS, SUGGESTION_DECISION_REASONS, SUGGESTION_DIAGNOSTIC_EVENTS } from "./suggestion-diagnostics.js";
 export type {
+  SuggestionAttemptTrigger,
   SuggestionDecision,
   SuggestionDecisionReason,
   SuggestionDiagnosticEvent,

@@ -1,8 +1,7 @@
 import { VERSION } from "@earendil-works/pi-coding-agent";
 import { type AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
-import { join } from "node:path";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
-import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
 vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal => {
   const actual = await importOriginal<typeof import("../../../src/app/session-shell/paste-executor.js")>();
@@ -21,10 +20,12 @@ vi.mock("node:worker_threads", async importOriginal => {
   } };
 });
 import { createPiEngineAdapter, PINNED_PI_HIDDEN_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { piTheme } from "../../../src/integrations/pi/components/index.js";
+import { readVisibleHyperlinks } from "../../../src/ui/components/visible-hyperlinks.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
-import { Session, Runtime, fixture, nextImmediate } from "./session-shell-fixture.js";
+import { Session, Runtime, fixture, nextImmediate, withPinnedHyperlinks } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell commands, notices, and presentation", () => {
   it("renders every advertised and hidden route without a generic raw/plain fallback at narrow and wide widths", async () => {
@@ -90,7 +91,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("routes the complete command manifest, hidden routes, prompt resources, bash modes, and streaming queues", async () => {
     const { engine, adapter, shell } = await fixture();
-    const workflow = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
+    const workflow = vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(async request => ({
       command: request.command,
       outcome: "completed",
       message: `ran ${request.command}`,
@@ -199,14 +200,14 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("cancels the share operation through its loader without rendering late success", async () => {
     const { adapter, terminal, shell } = await fixture();
-    const execute = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => {
+    const execute = vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(async request => {
       if (request.command !== "share" || !request.signal) return { command: request.command, outcome: "completed", message: "done" };
       await new Promise<void>(resolve => request.signal?.addEventListener("abort", () => resolve(), { once: true }));
       return { command: "share", outcome: "cancelled", message: "Share cancelled", messageKind: "status" };
     });
 
     const share = shell.runWorkflow({ command: "share", argument: "" });
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Creating gist...");
+    await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Creating gist…"));
     terminal.input("\x1b");
     await share;
     const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
@@ -219,16 +220,20 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
   it("uses pinned editor-replacement loaders for share and reload operations", async () => {
     const { adapter, shell } = await fixture();
     let resolveShare: ((result: Awaited<ReturnType<typeof adapter.executeWorkflow>>) => void) | undefined;
-    const execute = vi.spyOn(adapter, "executeWorkflow").mockImplementation(request => request.command === "share"
+    const execute = vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(request => request.command === "share"
       ? new Promise(resolve => { resolveShare = resolve; })
       : Promise.resolve({ command: request.command, outcome: "completed", message: "Reloaded keybindings, extensions, skills, prompts, themes, and context files" }));
 
     const share = shell.runWorkflow({ command: "share", argument: "" });
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Creating gist...");
+    await vi.waitFor(() => {
+      const pinnedLoading = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+      expect(pinnedLoading.some(row => row.includes("Creating gist…"))).toBe(true);
+      expect(pinnedLoading).not.toContain(" Share");
+    });
     resolveShare?.({ command: "share", outcome: "completed", message: "Share URL: https://example.test", detail: "https://gist.test/id" });
     await share;
     const shareRows = shell.root.render(100);
-    expect(stripTerminalSequences(shareRows.join("\n"))).not.toContain("Creating gist...");
+    expect(stripTerminalSequences(shareRows.join("\n"))).not.toContain("Creating gist…");
     expect(shareRows.every(row => !row.includes("\n"))).toBe(true);
     const plainShareRows = shareRows.map(row => stripTerminalSequences(row));
     const shareRow = plainShareRows.findIndex(row => row.trimEnd() === " Share URL: https://example.test");
@@ -236,11 +241,57 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     expect(plainShareRows[shareRow + 1]?.trimEnd()).toBe(" Gist: https://gist.test/id");
 
     const reload = shell.runWorkflow({ command: "reload", argument: "" });
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Reloading keybindings, extensions, skills, prompts, themes, and context files...");
+    const reloadFrame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(reloadFrame).toContain("Reloading keybindings, extensions, skills, prompts, themes, and context files...");
     await reload;
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Reloading keybindings");
     expect(execute).toHaveBeenCalledTimes(2);
     await shell.dispose();
+  });
+
+  it("uses the standard share dialog and native blue result links only in bare A1", async () => {
+    await withPinnedHyperlinks(async () => {
+      const { adapter, shell } = await fixture([], [], true);
+      let resolveShare: ((result: Awaited<ReturnType<typeof adapter.executeWorkflow>>) => void) | undefined;
+      vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(request => new Promise(resolve => {
+        if (request.command === "share") resolveShare = resolve;
+      }));
+
+      const share = shell.runWorkflow({ command: "share", argument: "" });
+      await vi.waitFor(() => {
+        const loading = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+        expect(loading).toContain(" Share");
+        expect(loading).toContain(" Esc close");
+        expect(loading.join("\n")).not.toContain("Ctrl+C");
+      });
+      resolveShare?.({
+        command: "share",
+        outcome: "completed",
+        message: "Share URL: https://example.test/session/#id",
+        detail: "https://gist.github.com/example/id",
+      });
+      await share;
+
+      const rows = shell.root.render(100);
+      const viewerRow = rows.find(row => stripTerminalSequences(row).includes("Share URL:"));
+      const gistRow = rows.find(row => stripTerminalSequences(row).includes("Gist:"));
+      expect(viewerRow).toBeDefined();
+      expect(gistRow).toBeDefined();
+      expect(viewerRow).toContain(piTheme().fg("dim", "Share URL: "));
+      expect(gistRow).toContain(piTheme().fg("dim", "Gist: "));
+      expect(viewerRow).toContain(piTheme().fg("mdLink", "https://example.test/session/#id"));
+      expect(gistRow).toContain(piTheme().fg("mdLink", "https://gist.github.com/example/id"));
+      expect([viewerRow!, gistRow!].flatMap(row => readVisibleHyperlinks(row).ranges).map(link => link.target)).toEqual([
+        "https://example.test/session/#id",
+        "https://gist.github.com/example/id",
+      ]);
+
+      shell.root.appendWorkflowStatus("ordinary status");
+      const ordinaryRow = shell.root.render(100).find(row => stripTerminalSequences(row).includes("ordinary status"));
+      expect(ordinaryRow).toBeDefined();
+      expect(readVisibleHyperlinks(ordinaryRow!).ranges).toEqual([]);
+      await shell.dispose();
+    });
   });
 
   it("holds the reload box for the minimum visible window when reload finishes instantly", async () => {
@@ -255,7 +306,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
         return new Promise<void>(resolve => { releaseSleep = resolve; });
       },
     });
-    vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => {
+    vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(async request => {
       clock += 50;
       return { command: request.command, outcome: "completed", message: "Reloaded keybindings, extensions, skills, prompts, themes, and context files" };
     });
@@ -279,7 +330,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       now: () => clock,
       sleep: async ms => { sleeps.push(ms); },
     });
-    vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => {
+    vi.spyOn(adapter.workflows, "executeWorkflow").mockImplementation(async request => {
       clock += 400;
       return { command: request.command, outcome: "completed", message: "Reloaded keybindings, extensions, skills, prompts, themes, and context files" };
     });
@@ -471,14 +522,14 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     }
   });
 
-  it("moves a fitting screenshot chip whole to the next submitted-prompt row", async () => {
+  it("keeps a fitting screenshot chip whole beside uninterrupted submitted-prompt text", async () => {
     const { engine, adapter, shell, terminal } = await fixture([], [], true);
     const marker = "[📷 screenshot-0123456789]";
     try {
       terminal.resize(50, 20);
       engine.session.emit({ type: "message_start", message: {
         role: "user",
-        content: [{ type: "text", text: `${"1".repeat(30)} ${marker}` }],
+        content: [{ type: "text", text: `${"1".repeat(120)}${marker}${"2".repeat(40)}` }],
         timestamp: 1_000,
       } });
       await adapter.flushEvents();
@@ -486,6 +537,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       const chipRows = rows.filter(row => row.includes("[📷") || row.includes("screenshot-0123456789"));
       expect(chipRows).toHaveLength(1);
       expect(chipRows[0]).toContain(marker);
+      expect(rows.join("").replace(/\s/gu, "")).toContain("2".repeat(40));
     } finally { await shell.dispose(); }
   });
 
@@ -527,6 +579,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     });
     const terminal = new TestPresentationTerminal();
     const shell = new OwnedUiSessionShell({
+      presenters: createPiSessionPresenters(adapter),
       engine: { backend: adapter, cwd: "D:/work", sessionLayout: "custom-viewport" },
       presentation: { terminal },
     });
@@ -563,6 +616,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       createRuntime: async () => engine as unknown as AgentSessionRuntime,
     });
     const shell = new OwnedUiSessionShell({
+      presenters: createPiSessionPresenters(adapter),
       engine: { backend: adapter, cwd: "D:/work" },
       presentation: { terminal: new TestPresentationTerminal() },
     });
@@ -579,8 +633,8 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     }
   });
 
-  it("shows bare-A1 command errors and warnings as the transient dock notice above the editor", async () => {
-    const { terminal, shell } = await fixture([], [], true);
+  it("shows bare-A1 command errors, warnings, and new-session confirmation above the editor", async () => {
+    const { engine, adapter, terminal, shell } = await fixture([], [], true);
     try {
       terminal.resize(100, 20);
       const exportFailure = "Failed to export session: Nothing to export yet - start a conversation first";
@@ -627,11 +681,41 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       expect(wrappedNotice).toContain("narrow dock");
       expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBe(0);
 
-      shell.root.appendWorkflowResult({ command: "new", outcome: "completed", message: "New session started" });
-      rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+      await shell.submit("/new");
+      rawRows = shell.root.render(100);
+      rows = rawRows.map(row => stripTerminalSequences(row).trimEnd());
       expect(rows.some(row => row.includes("Extension warning"))).toBe(false);
-      expect(rows.some(row => row.includes("New session started"))).toBe(true);
-      expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBeGreaterThan(0);
+      notice = rows.findIndex(row => row.includes("✓ New session started"));
+      border = rows.findIndex((row, index) => index > notice && /^─+$/.test(row));
+      expect(notice).toBeGreaterThan(0);
+      expect(rows.slice(0, notice).every(row => row === "")).toBe(true);
+      expect(border).toBe(notice + 2);
+      expect(rows[notice + 1]).toBe("");
+      expect(rawRows[notice]).toContain(piTheme().fg("accent", "✓ New session started"));
+      expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBe(0);
+
+      await shell.submit("first prompt");
+      expect(engine.session.calls).toContain("prompt:first prompt");
+      engine.session.emit({ type: "agent_start" });
+      await adapter.flushEvents();
+      rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+      expect(rows.some(row => row.includes("New session started"))).toBe(false);
+      expect(rows.some(row => row.includes("Working…"))).toBe(true);
+    } finally {
+      await shell.dispose();
+    }
+  });
+
+  it("keeps the new-session confirmation in the pinned transcript route", async () => {
+    const { shell } = await fixture();
+    try {
+      await shell.submit("/new");
+      const rawRows = shell.root.render(80);
+      const rows = rawRows.map(row => stripTerminalSequences(row).trimEnd());
+      const notice = rows.findIndex(row => row.includes("✓ New session started"));
+      expect(notice).toBeGreaterThan(0);
+      expect(rawRows[notice]).toContain(piTheme().fg("accent", "✓ New session started"));
+      expect(shell.root.viewportFrameDescriptor()).toBeNull();
     } finally {
       await shell.dispose();
     }
@@ -750,7 +834,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("uses the pinned confirmation surface without committing on cancel", async () => {
     const { adapter, terminal, shell } = await fixture();
-    const workflow = vi.spyOn(adapter, "executeWorkflow")
+    const workflow = vi.spyOn(adapter.workflows, "executeWorkflow")
       .mockResolvedValueOnce({ command: "import", outcome: "requires-confirmation", message: "Replace current session with fixture.jsonl?" })
       .mockResolvedValueOnce({ command: "import", outcome: "cancelled", message: "Import cancelled", messageKind: "status" })
       .mockResolvedValueOnce({ command: "import", outcome: "requires-confirmation", message: "Replace current session with fixture.jsonl?" })
@@ -776,7 +860,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("continues import through the missing-cwd recovery confirmation", async () => {
     const { adapter, terminal, shell } = await fixture();
-    const workflow = vi.spyOn(adapter, "executeWorkflow")
+    const workflow = vi.spyOn(adapter.workflows, "executeWorkflow")
       .mockResolvedValueOnce({ command: "import", outcome: "requires-confirmation", message: "Replace current session with fixture.jsonl?" })
       .mockResolvedValueOnce({
         command: "import",
@@ -805,7 +889,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("closes selectors silently, restores editor input, and continues selected workflows", async () => {
     const { adapter, terminal, shell } = await fixture();
-    const workflow = vi.spyOn(adapter, "executeWorkflow")
+    const workflow = vi.spyOn(adapter.workflows, "executeWorkflow")
       .mockResolvedValueOnce({ command: "model", outcome: "completed", message: "Selected GPT-5" })
       .mockResolvedValueOnce({ command: "copy", outcome: "failed", message: "clipboard denied" });
 
@@ -839,11 +923,12 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       createRuntime: async () => engine as unknown as AgentSessionRuntime,
       checkPackageUpdates: async () => ["pi-mcp-adapter"],
     });
+    await adapter.announcePackageUpdates();
     await vi.waitFor(() => {
       expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(true);
     });
     const terminal = new TestPresentationTerminal();
-    const shell = new OwnedUiSessionShell({ engine: { backend: adapter, cwd: "D:/work" }, presentation: { terminal } });
+    const shell = new OwnedUiSessionShell({ presenters: createPiSessionPresenters(adapter), engine: { backend: adapter, cwd: "D:/work" }, presentation: { terminal } });
     shell.start();
     shell.runtime.renderNow();
 
@@ -864,6 +949,67 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     expect(frame).toContain("Packages:");
     expect(frame).toContain("- pi-mcp-adapter");
     expect(rows[updateTitleRow - 1]).toMatch(/─/);
+    await shell.dispose();
+  });
+
+  it.each([
+    ["pinned", undefined],
+  ] as const)("renders the A1 release notice before the package notice in the %s layout", async (_label, sessionLayout) => {
+    const adapter = await createPiEngineAdapter({
+      cwd: "D:/work",
+      sessionId: "owned-shell",
+      createRuntime: async () => new Runtime() as unknown as AgentSessionRuntime,
+      checkPackageUpdates: async () => ["pi-mcp-adapter"],
+    });
+    await adapter.announcePackageUpdates();
+    await vi.waitFor(() => {
+      expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(true);
+    });
+    adapter.announceReleaseUpdate({ version: "0.3.1", command: "a1 update", changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.3.1" });
+    const terminal = new TestPresentationTerminal();
+    const shell = new OwnedUiSessionShell({
+      presenters: createPiSessionPresenters(adapter),
+      engine: { backend: adapter, cwd: "D:/work", ...(sessionLayout === undefined ? {} : { sessionLayout }) },
+      presentation: { terminal },
+    });
+    shell.start();
+    shell.runtime.renderNow();
+
+    const rows = shell.root.render(100).map(row => stripTerminalSequences(row));
+    const frame = rows.join("\n");
+    const releaseTitleRow = rows.findIndex(row => row.includes("Update Available") && !row.includes("Package"));
+    const packageTitleRow = rows.findIndex(row => row.includes("Package Updates Available"));
+    expect(releaseTitleRow).toBeGreaterThanOrEqual(0);
+    expect(releaseTitleRow).toBeLessThan(packageTitleRow);
+    expect(rows[releaseTitleRow - 1]).toMatch(/─/);
+    expect(frame).toContain("New version 0.3.1 is available. Run a1 update");
+    expect(frame).toContain("Changelog: https://github.com/timurproko/a1/releases/tag/v0.3.1");
+    expect(frame).not.toContain("release-update");
+    await shell.dispose();
+  });
+
+  it("appends a late development release notice without a changelog or disturbing the editor", async () => {
+    const adapter = await createPiEngineAdapter({
+      cwd: "D:/work",
+      sessionId: "owned-shell",
+      createRuntime: async () => new Runtime() as unknown as AgentSessionRuntime,
+    });
+    const terminal = new TestPresentationTerminal();
+    const shell = new OwnedUiSessionShell({ presenters: createPiSessionPresenters(adapter), engine: { backend: adapter, cwd: "D:/work" }, presentation: { terminal } });
+    shell.start();
+    shell.runtime.renderNow();
+    terminal.input("draft prompt");
+    expect(shell.root.render(100).join("\n")).not.toContain("Update Available");
+
+    adapter.announceReleaseUpdate({ version: "0.3.1-dev.652", command: "a1 update --develop", changelogUrl: null });
+    await vi.waitFor(() => {
+      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("New version 0.3.1-dev.652 is available. Run a1 update --develop");
+    });
+
+    const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(frame).toContain("Update Available");
+    expect(frame).not.toContain("Changelog:");
+    expect(shell.root.editor.getText()).toBe("draft prompt");
     await shell.dispose();
   });
 });

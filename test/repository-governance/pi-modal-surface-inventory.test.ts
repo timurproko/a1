@@ -11,16 +11,7 @@ const REQUIRED_LIFECYCLE = [
 ];
 const FORBIDDEN_CONTROLLERS = new Set(["generic-selector", "generic-input", "generic-dialog", "generic-workflow"]);
 const MODAL_HINT_COVERAGE = Object.fromEntries([
-  ["settings.root", "owned-settings-fullscreen"],
-  ...`settings.value-submenu settings.warnings settings.thinking settings.theme.single settings.theme.automatic settings.theme.light settings.theme.dark`.split(" ").map(id => [id, "already-semantic-or-no-row"]),
-  ...`models.select`.split(" ").map(id => [id, "owned-models"]),
-  ...`models.scope models.scope.refreshing`.split(" ").map(id => [id, "owned-scoped-models"]),
-  ...`trust.project`.split(" ").map(id => [id, "owned-trust"]),
-  ...`tree.root tree.summary-choice tree.summary-custom`.split(" ").map(id => [id, "owned-tree"]),
-  ...`session.resume.current session.resume.all session.resume.rename session.resume.delete`.split(" ").map(id => [id, "owned-sessions"]),
-  ...`extension.editor`.split(" ").map(id => [id, "owned-extension-editor"]),
-  ...`extension.select extension.confirm extension.input`.split(" ").map(id => [id, "owned-extension-prompts"]),
-  ...`session.fork session.missing-cwd auth.login-type auth.login-provider auth.logout-provider auth.dialog.oauth auth.dialog.api-key auth.dialog.ambient auth.dialog.details auth.dialog.auth-url auth.dialog.device-code auth.dialog.select-prompt auth.dialog.manual-code auth.dialog.text-prompt auth.dialog.info auth.dialog.waiting auth.dialog.progress command.import-confirm operation.share-loader`.split(" ").map(id => [id, "already-semantic"]),
+  ...`settings.root settings.value-submenu settings.warnings settings.thinking settings.theme.single settings.theme.automatic settings.theme.light settings.theme.dark models.select models.scope models.scope.refreshing trust.project tree.root tree.summary-choice tree.summary-custom session.resume.current session.resume.all session.resume.rename session.resume.delete extension.editor extension.select extension.confirm extension.input session.fork session.missing-cwd auth.login-type auth.login-provider auth.logout-provider auth.dialog.oauth auth.dialog.api-key auth.dialog.ambient auth.dialog.details auth.dialog.auth-url auth.dialog.device-code auth.dialog.select-prompt auth.dialog.manual-code auth.dialog.text-prompt auth.dialog.info auth.dialog.waiting auth.dialog.progress command.import-confirm operation.share-loader`.split(" ").map(id => [id, "canonical-close"]),
   ...`editor.root operation.reload-loader extension.custom-editor extension.custom-replacement extension.overlay`.split(" ").map(id => [id, "no-owned-shortcut-row"]),
 ]);
 const COMPACT_MODAL_HEADER_SOURCES = [
@@ -36,7 +27,9 @@ const COMPACT_MODAL_HEADER_SOURCES = [
   "src/integrations/pi/components/upstream/components/trust-selector.ts",
 ];
 const SHARED_HINT_SOURCES = [
+  "src/integrations/pi/components/modal-frame.ts",
   "src/integrations/pi/components/models-dialog.ts",
+  "src/integrations/pi/components/shell-selectors-dialogs.ts",
   "src/integrations/pi/components/skills-dialog.ts",
   "src/integrations/pi/components/upstream/components/extension-editor.ts",
   "src/integrations/pi/components/upstream/components/extension-input.ts",
@@ -46,6 +39,12 @@ const SHARED_HINT_SOURCES = [
   "src/integrations/pi/components/upstream/components/thinking-selector.ts",
   "src/integrations/pi/components/upstream/components/tree-selector.ts",
   "src/integrations/pi/components/upstream/components/trust-selector.ts",
+];
+const CANONICAL_CLOSE_HINT_SOURCES = [
+  "src/features/owned-ui/project-trust-dialog.ts",
+  "src/features/owned-ui/reference-screen-app.ts",
+  "src/features/owned-ui/settings-app.ts",
+  ...SHARED_HINT_SOURCES,
 ];
 
 type Node = {
@@ -185,10 +184,18 @@ describe("pinned Pi modal transition graph", () => {
     const inventory = await loadInventory();
     expect(Object.keys(MODAL_HINT_COVERAGE).sort()).toEqual(inventory.nodes.map(node => node.id).sort());
     const semanticRenderer = await readFile("src/contracts/presentation/index.ts", "utf8");
+    expect(semanticRenderer).toContain("DIALOG_CLOSE_SHORTCUT_HINT");
+    expect(semanticRenderer).toContain('{ key: "esc", action: "close" }');
+    expect(semanticRenderer).toContain("DIALOG_BACK_SHORTCUT_HINT");
+    expect(semanticRenderer).toContain('{ key: "esc", action: "back" }');
     expect(semanticRenderer).toContain("displayShortcutKeyLabel(entry.key)");
     expect(semanticRenderer).toContain("roles.key(");
     expect(semanticRenderer).toContain("roles.action(");
-    expect(semanticRenderer).toContain('.join("  ")');
+    expect(semanticRenderer).toContain('separator = "  "');
+    expect(semanticRenderer).toContain("rendered.join(separator)");
+    const ownedHelper = await readFile("src/ui/components/shortcut-hints.ts", "utf8");
+    expect(ownedHelper).toContain("assertOwnedShortcutHintConventions(entries)");
+    expect(ownedHelper).toContain('omit connective "to"');
     const helper = await readFile("src/integrations/pi/components/theme.ts", "utf8");
     expect(helper).toContain("renderSemanticShortcutHints");
     expect(helper).toContain("indent = 0");
@@ -197,20 +204,27 @@ describe("pinned Pi modal transition graph", () => {
     for (const path of SHARED_HINT_SOURCES) {
       expect(await readFile(path, "utf8"), path).toContain("renderPiModalShortcutHints");
     }
+    for (const path of CANONICAL_CLOSE_HINT_SOURCES) {
+      const source = await readFile(path, "utf8");
+      expect(source, path).toContain("DIALOG_CLOSE_SHORTCUT_HINT");
+      expect(source, path).not.toMatch(/(?:action|does): "(?:cancel|exit|to cancel|to go back)"/u);
+    }
     const settings = await readFile("src/features/owned-ui/settings-app.ts", "utf8");
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE)");
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(SCOPE)");
     const dialogPanel = await readFile("src/ui/components/dialog-panel.ts", "utf8");
-    expect(dialogPanel).toContain("renderShortcutHints(state.hint, theme, 0)");
+    expect(dialogPanel).toContain("renderShortcutHintsWithClose(state.hint, theme, contentWidth, 0)");
+    expect(dialogPanel).toContain('renderShortcutHints(entries, theme, 1, theme.fg("dim", " · "))');
     expect(dialogPanel).toContain("contentWidth = Math.max(0, width - contentPadding)");
     const reference = await readFile("src/features/owned-ui/reference-screen-app.ts", "utf8");
-    expect(reference).toContain("REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme, 1");
+    expect(reference).toContain("REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme, rect.width, 1");
     expect(reference).not.toContain("HINT_SEPARATOR");
     const models = await readFile("src/integrations/pi/components/models-dialog.ts", "utf8");
-    expect(models).toContain("renderPiModalShortcutHints(this.#hints())");
+    expect(models).toContain("renderHintsWithClose(this.#hints(), width)");
     const tree = await readFile("src/integrations/pi/components/upstream/components/tree-selector.ts", "utf8");
     expect(tree).toContain('const indent = "";');
-    expect(tree).toContain('new Text(theme.bold("Session Tree"), 0, 0)');
+    expect(tree).toContain('new Text(theme.fg("accent", theme.bold("Session Tree")), 0, 0)');
+    expect(tree).toContain("class TreeSearchInput implements Component, Focusable");
     const startupTrust = await readFile("src/features/owned-ui/project-trust-prompt.ts", "utf8");
     expect(startupTrust).toContain("${DIM}↑/↓${MUTED} to navigate  ${DIM}Enter${MUTED} to select");
     expect(startupTrust).not.toContain("${DIM}  ↑/↓");

@@ -71,6 +71,74 @@ describe("Windows Job Object process guardian", () => {
       safeKill(unrelated.pid, "SIGKILL");
     }
   }, 20_000);
+  windowsIt("prints the armed exit notice after the runtime is force-killed and stays silent after a clean exit", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-exit-notice-"));
+    roots.push(root);
+    const helper = process.env.A1_PROCESS_GUARDIAN_PATH
+      ?? resolve("native/process-guardian/target/debug/process-guardian.exe");
+    const run = async (script: string, kill: boolean) => {
+      const statusPath = resolve(root, `${randomUUID()}.ready.json`);
+      const noticePath = resolve(root, `${randomUUID()}.exit-notice`);
+      const guardian = spawn(helper, [
+        "--parent-pid", String(process.pid),
+        "--instance", randomUUID(),
+        "--status-file", statusPath,
+        "--exit-notice", noticePath,
+        "--", process.execPath, "-e", script, noticePath,
+      ], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+      let output = "";
+      guardian.stdout.on("data", chunk => { output += chunk; });
+      guardian.stderr.on("data", chunk => { output += chunk; });
+      const closed = once(guardian, "close");
+      if (kill) {
+        await waitUntil(async () => (await readFile(noticePath, "utf8").catch(() => "")).length > 0, 10_000);
+        const status = JSON.parse(await readFile(statusPath, "utf8")) as { pid: number };
+        await new Promise(resolvePromise => execFile("taskkill", ["/F", "/PID", String(status.pid)], { windowsHide: true }, resolvePromise));
+      }
+      await closed;
+      return { output, noticeRemains: await readFile(noticePath, "utf8").then(() => true, () => false) };
+    };
+
+    const killed = await run(
+      "require('fs').writeFileSync(process.argv[1], 'a1 was stopped unexpectedly.\\nTo resume this session: a1 --session abc\\n'); setInterval(() => {}, 1000)",
+      true,
+    );
+    expect(killed.output).toContain("a1 was stopped unexpectedly.\r\nTo resume this session: a1 --session abc\r\n");
+    expect(killed.noticeRemains).toBe(false);
+
+    const clean = await run(
+      "const fs = require('fs'); fs.writeFileSync(process.argv[1], 'armed\\n'); fs.rmSync(process.argv[1])",
+      false,
+    );
+    expect(clean.output).toBe("");
+  }, 30_000);
+
+  windowsIt("delivers the exit notice from its watcher when the Node owner is force-killed with the guardian", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-exit-notice-owner-"));
+    roots.push(root);
+    const helper = process.env.A1_PROCESS_GUARDIAN_PATH
+      ?? resolve("native/process-guardian/target/debug/process-guardian.exe");
+    const statusPath = resolve(root, "ready.json");
+    const noticePath = resolve(root, "runtime.exit-notice");
+    const runtime = "require('fs').writeFileSync(process.argv[1], 'a1 was stopped unexpectedly.\\n'); setInterval(() => {}, 1000)";
+    // Platform: the owner spawns the guardian the way the launcher does, so the guardian joins the
+    // owner's kill-on-close libuv job and dies with it.
+    const ownerScript = `require('child_process').spawn(${JSON.stringify(helper)}, ['--parent-pid', String(process.pid), '--instance', 'owner-kill', '--status-file', ${JSON.stringify(statusPath)}, '--exit-notice', ${JSON.stringify(noticePath)}, '--', process.execPath, '-e', ${JSON.stringify(runtime)}, ${JSON.stringify(noticePath)}], { stdio: 'inherit' }); setInterval(() => {}, 1000)`;
+    const owner = spawn(process.execPath, ["-e", ownerScript], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    let output = "";
+    owner.stdout.on("data", chunk => { output += chunk; });
+    owner.stderr.on("data", chunk => { output += chunk; });
+    try {
+      await waitUntil(async () => (await readFile(noticePath, "utf8").catch(() => "")).length > 0, 10_000);
+      const runtimePid = (JSON.parse(await readFile(statusPath, "utf8")) as { pid: number }).pid;
+      await new Promise(resolvePromise => execFile("taskkill", ["/F", "/PID", String(owner.pid)], { windowsHide: true }, resolvePromise));
+      await waitUntil(() => output.includes("a1 was stopped unexpectedly.\r\n"), 10_000);
+      await waitUntil(() => !processIsAlive(runtimePid), 4_000);
+      await expect(readFile(noticePath, "utf8")).rejects.toThrow();
+    } finally {
+      safeKill(owner.pid, "SIGKILL");
+    }
+  }, 30_000);
 });
 
 async function waitForTree(path: string): Promise<{ rootPid: number; childPid: number; grandchildPid: number }> {
@@ -103,10 +171,6 @@ async function inspect(helper: string, pid: number): Promise<{ pid: number; star
       else resolvePromise(JSON.parse(stdout));
     });
   });
-}
-
-async function inspectExit(helper: string, pid: number | undefined): Promise<number> {
-  return (await inspectOutcome(helper, pid)).code;
 }
 
 async function inspectOutcome(helper: string, pid: number | undefined): Promise<{ code: number; stdout: string; stderr: string }> {

@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { OwnedUiDialog, OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
-import { piTheme } from "../../../../src/integrations/pi/components/theme.js";
+import { createPiShellShareOperationDialog } from "../../../../src/integrations/pi/components/share-operation-dialog.js";
+import { piTheme, setPiAccentColor } from "../../../../src/integrations/pi/components/theme.js";
 import {
   createPiShellDialog,
   createPiShellEditor,
@@ -19,7 +20,10 @@ import {
   createPiShellLoginDialog,
   createPiQueuedInputStatus,
   createPiShellSettingsSelector,
+  createPiShellSessionInfo,
   createPiShellSelector,
+  createPiShellShowImagesSelector,
+  createPiShellThemeSelector,
   createPiShellUserMessageSelector,
   createPiShellStatus,
   createPiShellTranscriptComponent,
@@ -30,8 +34,10 @@ import {
   renderPiShellTranscriptBlock,
   WorkingStatusIndicator,
 } from "../../../../src/integrations/pi/components/index.js";
+import { renderPiShellSessionInfoReferenceDocument } from "../../../../src/integrations/pi/components/shell-session-info-reference.js";
 import { PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../../../src/integrations/pi/engine/index.js";
 import { composeSubmittedPromptRows, progressStatusFrame, progressStatusText, submittedPromptLayout } from "../../../../src/ui/components/index.js";
+import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
 
 function block(kind: OwnedUiTranscriptBlock["kind"], text: string, payload: unknown = {}): OwnedUiTranscriptBlock {
   return { id: `${kind}-1`, kind, status: "finalized", revision: 1, title: kind.startsWith("tool") ? "read" : null, text, payload };
@@ -65,6 +71,45 @@ function view(): OwnedUiSessionViewModel {
 }
 
 describe("Pi shell public component adapters", () => {
+  it("renders the bare-A1 share operation as a compact standard dialog", () => {
+    const dialog = createPiShellShareOperationDialog({
+      getColumns: () => 80,
+      getRows: () => 24,
+      requestRender() {},
+    }, "Creating gist…");
+    try {
+      const rows = dialog.render(40);
+      const plainRows = rows.map(row => stripTerminalSequences(row).trimEnd());
+      const titleRow = plainRows.findIndex(row => row === " Share");
+      const hintRow = plainRows.findIndex(row => row === " Esc close");
+
+      expect(titleRow).toBe(1);
+      expect(plainRows[0]).toBe("─".repeat(40));
+      expect(plainRows.some(row => row.includes("Creating gist…"))).toBe(true);
+      expect(hintRow).toBeGreaterThan(titleRow);
+      expect(plainRows[hintRow + 1]).toBe("─".repeat(40));
+      expect(rows[titleRow]).toContain(piTheme().fg("accent", piTheme().bold("Share")));
+      expect(rows[hintRow]).toContain(piTheme().fg("dim", "Esc"));
+      expect(rows[hintRow]).toContain(piTheme().fg("muted", "close"));
+      expect(plainRows.join("\n")).not.toContain("Ctrl+C");
+      expect(dialog.render(12).every(row => visibleWidth(row) <= 12)).toBe(true);
+    } finally {
+      dialog.dispose?.();
+    }
+  });
+
+  it.each([["Escape", "\x1b"], ["Ctrl+C", "\x03"]])("cancels the bare-A1 share operation with %s", (_label, input) => {
+    const dialog = createPiShellShareOperationDialog({
+      getColumns: () => 80,
+      getRows: () => 24,
+      requestRender() {},
+    }, "Creating gist…");
+    expect(dialog.signal.aborted).toBe(false);
+    dialog.handleInput?.(input);
+    expect(dialog.signal.aborted).toBe(true);
+    dialog.dispose?.();
+  });
+
   it("matches Pi's queued steering rows and derives the dequeue hint from live bindings", () => {
     let dequeueBinding = "alt+up";
     const queued = createPiQueuedInputStatus(
@@ -82,6 +127,65 @@ describe("Pi shell public component adapters", () => {
     dequeueBinding = "ctrl+r";
     rows = queued.render(80).map(row => stripTerminalSequences(row).trimEnd());
     expect(rows.at(-1)).toBe(" ↳ Ctrl+R to edit all queued messages");
+  });
+
+  it.each([
+    "[paste #1 1001 chars]",
+    "[📷 screenshot-0123456789]",
+    "[📁 C:/workspace/folder]",
+    "[📄 C:/workspace/file.txt]",
+    "[🖼  converted-image.png]",
+    "[🔗 https://example.com/resource]",
+  ])("moves a fitting queued chip intact to its next custom-viewport row: %s", marker => {
+    const queued = createPiQueuedInputStatus([`${"x".repeat(70)}${marker}`], "custom-viewport");
+    const rows = queued.render(40).map(row => stripTerminalSequences(row).trimEnd());
+    expect(rows.filter(row => row.includes(marker))).toHaveLength(1);
+    expect(rows.every(row => visibleWidth(row) <= 40)).toBe(true);
+  });
+
+  it("keeps adjacent queued chips individually atomic and refreshes wrapping with current queue text", () => {
+    const first = "[📷 screenshot-0123456789]";
+    const second = "[📄 C:/workspace/file.txt]";
+    let dequeueBinding = "alt+up";
+    const queued = createPiQueuedInputStatus(
+      [`${"x".repeat(70)}${first}${second}${first}${"y".repeat(70)}`],
+      "custom-viewport",
+      () => ({ "app.message.dequeue": dequeueBinding as "alt+up" | "ctrl+r" }),
+    );
+    let rows = queued.render(40).map(row => stripTerminalSequences(row).trimEnd());
+    expect(rows.filter(row => row.includes(first))).toHaveLength(2);
+    expect(rows.filter(row => row.includes(second))).toHaveLength(1);
+    // Platform: macOS names Alt "Option", so the same hint exceeds the 38-column content
+    // width and wraps at a word boundary like any other Pi text row.
+    expect(rows.slice(process.platform === "darwin" ? -2 : -1)).toEqual(process.platform === "darwin"
+      ? [" ↳ Option+Up to edit all queued", " messages"]
+      : [" ↳ Alt+Up to edit all queued messages"]);
+
+    dequeueBinding = "ctrl+r";
+    queued.update([`updated${second}tail`, "[ordinary bracketed text]"]);
+    rows = queued.render(40).map(row => stripTerminalSequences(row).trimEnd());
+    expect(rows.join("\n")).not.toContain("screenshot-0123456789");
+    expect(rows.filter(row => row.includes(second))).toHaveLength(1);
+    expect(rows.join("\n")).toContain("[ordinary bracketed text]");
+    expect(rows.some(row => row.includes("Ctrl+R to edit all queued messages"))).toBe(true);
+  });
+
+  it("ellipsizes an oversized queued chip on one row and leaves pinned queue wrapping unchanged", () => {
+    const marker = "[📷 screenshot-👩‍💻-0123456789]";
+    const custom = createPiQueuedInputStatus([marker], "custom-viewport");
+    const customRows = custom.render(14).map(row => stripTerminalSequences(row).trimEnd());
+    expect(customRows.every(row => visibleWidth(row) <= 14)).toBe(true);
+    expect(customRows.filter(row => row.includes("…"))).toHaveLength(1);
+    expect(customRows.join("\n")).not.toContain("0123456789");
+    expect(custom.render(80).map(stripTerminalSequences).some(row => row.includes(marker))).toBe(true);
+    expect(custom.render(14).map(stripTerminalSequences).filter(row => row.includes("…"))).toHaveLength(1);
+
+    const fitting = `[📷 screenshot-0123456789]`;
+    const pinned = createPiQueuedInputStatus([`${"x".repeat(70)}${fitting}`], "pinned");
+    const pinnedRows = pinned.render(40).map(row => stripTerminalSequences(row).trimEnd());
+    expect(pinnedRows.some(row => row.includes(fitting))).toBe(false);
+    expect(pinnedRows.some(row => row.includes("[📷"))).toBe(true);
+    expect(pinnedRows.some(row => row.includes("screenshot-0123456789]"))).toBe(true);
   });
 
   it("adapts editor input and focus through owned contracts", () => {
@@ -408,7 +512,7 @@ describe("Pi shell public component adapters", () => {
     expect(await selectedRow(comparison, "/login", "login")).toContain("<provider> — Configure provider authentication");
   });
 
-  it("keeps selected autocomplete descriptions muted only in bare A1", async () => {
+  it("uses the standard selection palette for the bare-A1 command menu", async () => {
     const options = {
       getColumns: () => 80,
       getRows: () => 24,
@@ -425,7 +529,9 @@ describe("Pi shell public component adapters", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
 
     const accentStart = piTheme().fg("accent", "MARK").split("MARK")[0]!;
+    const textStart = piTheme().fg("text", "MARK").split("MARK")[0]!;
     const mutedStart = piTheme().fg("muted", "MARK").split("MARK")[0]!;
+    const selectionBackground = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
     const selectedRow = (editor: ReturnType<typeof createPiShellEditor>, width: number, label: string): string => {
       const row = editor.render(width)
         .map(line => line.replaceAll(/\u001b\[2?7m/gu, ""))
@@ -434,11 +540,18 @@ describe("Pi shell public component adapters", () => {
       return row!;
     };
     const expectSplitRoles = (row: string, label: string, description: string): void => {
-      const selected = row.slice(row.indexOf(`→ ${label}`));
-      expect(row).toContain(`${accentStart}→ ${label}`);
+      const plain = stripTerminalSequences(row);
+      const itemStart = plain.indexOf(`→ ${label}`);
+      const itemEnd = plain.trimEnd().length - 1;
+      const selected = row.slice(row.indexOf("→ "));
+      expect(row).toContain(`${accentStart}→ `);
+      expect(selected).toContain(`${textStart}${label}`);
       expect(selected).toContain(mutedStart);
       expect(stripTerminalSequences(selected.slice(selected.indexOf(mutedStart)))).toMatch(new RegExp(`^\\s+${description}`, "u"));
       expect(selected.slice(selected.indexOf(mutedStart))).not.toContain(accentStart);
+      expect(cellStyle(row, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
+      expect(cellBackgroundAt(row, itemStart)).toBe(selectionBackground);
+      expect(cellBackgroundAt(row, itemEnd)).toBe(selectionBackground);
     };
 
     expectSplitRoles(selectedRow(bare, 80, "settings"), "settings", "Open settings menu");
@@ -517,15 +630,15 @@ describe("Pi shell public component adapters", () => {
       "[🔗 https://x.dev]",
     ];
     for (const chip of chips) {
-      const source = block("user", `${prefix} ${chip}`);
+      const source = block("user", `${prefix.repeat(5)}${chip}suffix`);
       const component = createPiShellTranscriptComponent(source, process.cwd(), undefined, composer,
         1, false, "off", false, 40, { resolve: () => null });
       const rawRows = component.render(40);
       const rows = rawRows.map(row => stripTerminalSequences(row).trimEnd());
       expect(rows.filter(row => row.includes(chip)), chip).toHaveLength(1);
-      expect(rows.find(row => row.includes(chip)), chip).toBe(`  ${chip}`);
+      expect(rows.find(row => row.includes(chip)), chip).toContain(chip);
       expect(rawRows.every(row => visibleWidth(row) <= 40), chip).toBe(true);
-      expect(source.text).toBe(`${prefix} ${chip}`);
+      expect(source.text).toBe(`${prefix.repeat(5)}${chip}suffix`);
     }
   });
 
@@ -562,14 +675,19 @@ describe("Pi shell public component adapters", () => {
     expect(ordinaryRows.some(row => row.includes(ordinary))).toBe(false);
   });
 
-  it("keeps oversized chips complete in source while every fallback row remains width-bounded", () => {
+  it("ellipsizes an oversized submitted chip on one row while keeping its complete source", () => {
     const composer = { layout: submittedPromptLayout, compose: composeSubmittedPromptRows };
     const chip = "[📷 screenshot-0123456789-extra-long-label]";
     const source = block("user", chip);
-    const rows = createPiShellTranscriptComponent(source, process.cwd(), undefined, composer,
-      1, false, "off", false, 14, { resolve: () => null }).render(14);
-    expect(rows.length).toBeGreaterThan(1);
+    const component = createPiShellTranscriptComponent(source, process.cwd(), undefined, composer,
+      1, false, "off", false, 14, { resolve: () => null });
+    const rows = component.render(14);
+    const visible = rows.map(row => stripTerminalSequences(row).trimEnd());
+    expect(visible.filter(row => row.includes("…"))).toHaveLength(1);
+    expect(visible.join("\n")).not.toContain("0123456789");
     expect(rows.every(row => visibleWidth(row) <= 14)).toBe(true);
+    expect(component.render(80).map(stripTerminalSequences).some(row => row.includes(chip))).toBe(true);
+    expect(component.render(14).map(stripTerminalSequences).filter(row => row.includes("…"))).toHaveLength(1);
     expect(source.text).toBe(chip);
   });
 
@@ -623,32 +741,107 @@ describe("Pi shell public component adapters", () => {
   });
 
   it("uses extension custom-message and tool renderers with fallback isolation", () => {
+    const toolContexts: Array<{ durationMs?: number; outputPad?: number }> = [];
     const resolver = {
       getMessageRenderer: (customType: string) => customType === "extension-message"
         ? (() => new Text("extension message renderer", 0, 0))
         : undefined,
-      getToolDefinition: (toolName: string) => toolName === "extension-tool" ? {
-        name: toolName,
-        label: toolName,
-        description: "fixture",
-        parameters: {},
-        execute: async () => ({ content: [] }),
+      getToolRenderers: (toolName: string) => toolName === "extension-tool" ? {
         renderCall: () => new Text("extension tool call", 0, 0),
-        renderResult: () => new Text("extension tool result", 0, 0),
+        renderResult: (...args: any[]) => {
+          toolContexts.push(args[3]);
+          return new Text("extension tool result", 0, 0);
+        },
       } : undefined,
     };
     const custom = createPiShellTranscriptComponent(block("custom", "fallback", { customType: "extension-message" }), process.cwd(), resolver);
     expect(stripTerminalSequences(custom.render(80).join("\n"))).toContain("extension message renderer");
     const tool = createPiShellTranscriptComponent(block("tool-result", "done", {
-      toolCallId: "extension-call", toolName: "extension-tool", arguments: { json: {} }, argsComplete: true,
+      toolCallId: "extension-call", toolName: "extension-tool", arguments: { json: {} }, argsComplete: true, durationMs: 321,
     }), process.cwd(), resolver);
+    tool.setOutputPad(0);
     expect(stripTerminalSequences(tool.render(80).join("\n"))).toContain("extension tool result");
+    expect(toolContexts.at(-1)).toMatchObject({ durationMs: 321, outputPad: 0 });
 
     const broken = createPiShellTranscriptComponent(block("custom", "fallback survives", { customType: "broken" }), process.cwd(), {
       ...resolver,
       getMessageRenderer: () => (() => { throw new Error("renderer failed"); }),
     });
     expect(stripTerminalSequences(broken.render(80).join("\n"))).toContain("fallback survives");
+  });
+
+  it("derives session reference preamble and sections from the pinned report values", () => {
+    const presentation = {
+      sessionName: "Parity fixture",
+      stats: {
+        sessionFile: "C:\\sessions\\parity.jsonl", sessionId: "session-1", userMessages: 2,
+        assistantMessages: 2, toolCalls: 1, toolResults: 1, totalMessages: 6,
+        tokens: { input: 100, output: 20, cacheRead: 300, cacheWrite: 50, total: 470 }, cost: 0.125,
+      },
+      cacheWaste: { missedTokens: 2048, missedCost: 0.002, missCount: 1 },
+      usageBreakdown: [
+        { key: "openai/gpt-5", cost: 0.1, tokens: 400 },
+        { key: "Tools/summaries", cost: 0.025, tokens: 70 },
+      ],
+      cacheWarming: {
+        mode: "streaming",
+        status: {
+          state: "scheduled" as const,
+          decision: {
+            phase: "idle" as const, action: "warm", warmCost: 0.01, missCost: 0.2,
+            continuationProbability: 0.5, expectedSavings: 0.1, economicsAvailable: true,
+          },
+        },
+      },
+    };
+    const reference = renderPiShellSessionInfoReferenceDocument(presentation, 100);
+    expect(reference.sections.map(section => section.title)).toEqual(["Messages", "Tokens", "Cache Warming", "Cost"]);
+    expect(reference.sections.every(section => !section.title.includes("\u001b"))).toBe(true);
+    const preamble = stripTerminalSequences(reference.preamble.join("\n"));
+    expect(preamble).toMatch(/Name: Parity fixture\s*\n\s*File: C:\\sessions\\parity\.jsonl\s*\n\s*ID: session-1/);
+
+    const longSessionFile = String.raw`C:\Users\Timur Prokopiev\.a1\agent\sessions\--E--Git-a1-.worktrees-session-tree-dialog-design--\2026-10-06T14-50-37-124Z_01a111b1-f2c3-76dc-a3f7-7b6e82c49ebb.jsonl`;
+    const overflowWidth = 32;
+    const overflow = renderPiShellSessionInfoReferenceDocument({
+      ...presentation,
+      stats: { ...presentation.stats, sessionFile: longSessionFile },
+    }, overflowWidth);
+    const overflowRows = overflow.preamble.map(row => stripTerminalSequences(row).trimEnd());
+    const fileIndex = overflowRows.findIndex(row => row.startsWith(" File:"));
+    const idIndex = overflowRows.findIndex(row => row.startsWith(" ID:"));
+    expect(fileIndex).toBe(1);
+    expect(idIndex).toBeGreaterThan(fileIndex + 1);
+    expect(overflowRows[fileIndex]).toBe(` File: ${longSessionFile.slice(0, 24)}`);
+    const pathRows = [
+      overflowRows[fileIndex]!.slice(" File: ".length),
+      ...overflowRows.slice(fileIndex + 1, idIndex).map(row => row.slice(1)),
+    ];
+    expect(pathRows.join("")).toBe(longSessionFile);
+    expect(overflowRows[idIndex]).toBe(" ID: session-1");
+    expect(overflow.preamble.every(row => visibleWidth(row) <= overflowWidth)).toBe(true);
+
+    const grouped = stripTerminalSequences(reference.sections.flatMap(section => section.rows).join("\n"));
+    expect(grouped).toMatch(/Total: 6\s*\n\s*User: 2\s*\n\s*Assistant: 2\s*\n\s*Tools: 1 calls, 1 results/);
+    expect(grouped).toMatch(/Input: 450\s*\n\s*Cached: 300 \(66\.7%\)\s*\n\s*Uncached: 150 \(50 written to cache\)/);
+    expect(grouped).toContain("Status: Decision now (50% continuation probability, expected savings 0.100 >= 0.050 -> warm)");
+    expect(grouped).toContain("Cache miss penalty: $0.200");
+    expect(grouped).toContain("Refresh cost: $0.010");
+    expect(grouped).toContain("Cache Re-billed: $0.002 (2,048 tokens, 1 miss)");
+
+    const pinned = stripTerminalSequences(createPiShellSessionInfo(presentation).render(100).join("\n"));
+    expect(pinned).toMatch(/Session Info\s*\n\s*\n\s*Name: Parity fixture/);
+    expect(pinned).toMatch(/Cache Warming\s*\n\s*Mode: streaming/);
+    expect(pinned).toContain("Status: Decision now (50% continuation probability, expected savings 0.100 >= 0.050 -> warm)");
+
+    const { sessionName: _sessionName, ...unnamedPresentation } = presentation;
+    const minimal = renderPiShellSessionInfoReferenceDocument({
+      ...unnamedPresentation,
+      stats: { ...presentation.stats, cost: 0 },
+      cacheWaste: { missedTokens: 0, missedCost: 0, missCount: 0 },
+      usageBreakdown: [],
+    }, 100);
+    expect(stripTerminalSequences(minimal.preamble.join("\n"))).not.toContain("Name:");
+    expect(minimal.sections.map(section => section.title)).toEqual(["Messages", "Tokens", "Cache Warming"]);
   });
 
   it("renders the complete keybinding-derived pinned hotkey tables", () => {
@@ -662,6 +855,23 @@ describe("Pi shell public component adapters", () => {
     expect(rows).toContain("Ctrl+O");
   });
 
+  it("paints hotkey spans with every live active-filter tone", () => {
+    try {
+      for (const color of ["purple", "blue", "cyan", "green", "orange", "pink"] as const) {
+        setPiAccentColor(color);
+        const rows = createPiShellHotkeys(undefined, undefined, "a1").render(120);
+        const navigation = rows.find(row => stripTerminalSequences(row).includes("Move cursor / browse history"))!;
+        expect(cellStyle(navigation, "U")).toEqual(cellStyle(piTheme().fg("mdHeading", "U"), "U"));
+        const sections = renderPiShellHotkeySections({ profile: "a1" }, 120);
+        const sectionRow = sections.flatMap(section => section.rows)
+          .find(row => stripTerminalSequences(row).includes("Move cursor / browse history"))!;
+        expect(cellStyle(sectionRow, "U")).toEqual(cellStyle(piTheme().fg("mdHeading", "U"), "U"));
+      }
+    } finally {
+      setPiAccentColor("purple");
+    }
+  });
+
   it("reports prompt and content boundaries only in owned hotkey tables", () => {
     const owned = stripTerminalSequences(createPiShellHotkeys(undefined, undefined, "a1").render(120).join("\n"));
     const pinned = stripTerminalSequences(createPiShellHotkeys().render(120).join("\n"));
@@ -672,8 +882,8 @@ describe("Pi shell public component adapters", () => {
       if (action!.includes("prompt")) expect(row).not.toContain("Ctrl+End");
     }
     expect(pinned).not.toContain("Start of content");
-    expect(pinned.split("\n").find(line => line.includes("Start of line"))).toContain("Ctrl+Home");
-    expect(pinned.split("\n").find(line => line.includes("End of line"))).toContain("Ctrl+End");
+    expect(pinned.split("\n").find(line => line.includes("Start of line"))).toContain("Home/Ctrl+A");
+    expect(pinned.split("\n").find(line => line.includes("End of line"))).toContain("End/Ctrl+E");
   });
 
   it.each([80, 120])("renders the reference screen rows as the in-feed documents minus their chrome at %i columns", width => {
@@ -742,21 +952,27 @@ describe("Pi shell public component adapters", () => {
         enableInstallTelemetry: true, doubleEscapeAction: "tree", treeFilterMode: "default",
         showHardwareCursor: true, editorPaddingX: 0, outputPad: 1, autocompleteMaxVisible: 5,
         quietStartup: false, defaultProjectTrust: "ask", clearOnShrink: false, showTerminalProgress: false,
-        tuiMode: "fullscreen", fullscreenExitOutput: "transcript", fullscreenScrollbar: "auto", warnings: { anthropicExtraUsage: true },
+        tuiMode: "fullscreen", fullscreenExitOutput: "transcript", fullscreenScrollbar: "auto", fullscreenWheelScrollLines: "auto", warnings: { anthropicExtraUsage: true },
       },
       onChange: changed,
       onCancel: cancelled,
     });
     const rows = stripTerminalSequences(settings.render(88).join("\n"));
     expect(rows).toMatch(/Auto-compact\s+true/);
+    expect(stripTerminalSequences(settings.render(12).join("\n"))).toContain("Esc close");
     expect(rows).toMatch(/Auto-resize images\s+true/);
     settings.handleInput?.("\x1b[B");
-    expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/31)");
+    expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/32)");
     settings.handleInput?.("\x1b");
     expect(cancelled).toHaveBeenCalledOnce();
 
     const selected = vi.fn();
+    const theme = createPiShellThemeSelector("dark", selected, cancelled, vi.fn());
+    expect(stripTerminalSequences(theme.render(80).join("\n"))).toContain("↑↓ navigate  Enter select  Esc close");
+    const images = createPiShellShowImagesSelector(true, selected, cancelled);
+    expect(stripTerminalSequences(images.render(80).join("\n"))).toContain("↑↓ navigate  Enter select  Esc close");
     const messages = createPiShellUserMessageSelector([{ id: "entry-1", label: "first prompt" }], selected, cancelled);
+    expect(stripTerminalSequences(messages.render(80).join("\n"))).toContain("Esc close");
     messages.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("entry-1");
     const auth = createPiShellAuthProviderSelector("login", [{
@@ -769,16 +985,29 @@ describe("Pi shell public component adapters", () => {
     const authRows = auth.render(80).map(stripTerminalSequences);
     expect(authRows[1]?.trimEnd()).toBe(" Select provider to configure:");
     expect(authRows.join("\n")).toContain("OpenAI ✓ stored");
+    expect(authRows.join("\n")).toContain("Esc close");
     auth.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("oauth:openai");
 
+    const loginComplete = vi.fn();
     const login = createPiShellLoginDialog(
       { getColumns: () => 80, getRows: () => 24, requestRender: vi.fn() },
       "openai",
-      vi.fn(),
+      loginComplete,
     );
+    login.showInfo("Continue in your browser", [], true);
     const loginRows = login.render(80).map(stripTerminalSequences);
     expect(loginRows[1]?.trimEnd()).toBe(" Login to openai");
+    expect(loginRows.join("\n")).toContain("Esc close");
+    expect(loginRows.join("\n")).not.toContain("Ctrl+C");
+    login.showWaiting("Waiting for authentication");
+    const waitingRows = stripTerminalSequences(login.render(80).join("\n"));
+    expect(waitingRows).toContain("Waiting for authentication");
+    expect(waitingRows).toContain("Esc close");
+    expect(waitingRows).not.toContain("Ctrl+C");
+    expect(waitingRows).not.toContain("to cancel");
+    login.handleInput?.("\u0003");
+    expect(loginComplete).toHaveBeenCalledExactlyOnceWith(false, "Login cancelled");
 
     const unconfigured = createPiShellAuthProviderSelector("login", [{
       id: "api_key:anthropic",
@@ -786,7 +1015,7 @@ describe("Pi shell public component adapters", () => {
       label: "Anthropic",
       authType: "api_key",
     }], selected, cancelled);
-    expect(stripTerminalSequences(unconfigured.render(44).join("\n"))).toContain("Anthropic • unconfigured");
+    expect(stripTerminalSequences(unconfigured.render(44).join("\n"))).toContain("Anthropic • not configured");
 
     const environment = createPiShellAuthProviderSelector("login", [{
       id: "api_key:anthropic",
@@ -988,6 +1217,11 @@ describe("Pi shell public component adapters", () => {
     expect(createPiShellDialog(dialog).render(50).join("\n")).toContain("Choose");
     expect(createPiShellStatus(view(), canonicalProgressStatus).render(80)).toEqual([]);
     expect(createPiShellFooter(view(), "D:/work").render(80).join("\n")).toContain("gpt-5 • medium");
+    const routed = { ...view(), routedModel: {
+      model: { providerId: "anthropic", modelId: "claude-sonnet", displayName: "Claude Sonnet" },
+      thinkingLevel: "high" as const,
+    } };
+    expect(createPiShellFooter(routed, "D:/work").render(80).join("\n")).toContain("gpt-5 • medium → claude-sonnet • high");
     expect(createPiShellHeader().render(80).join("\n")).toContain(`v${VERSION}`);
   });
 });

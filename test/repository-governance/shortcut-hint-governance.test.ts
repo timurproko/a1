@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SETTINGS_APP_ID, SETTINGS_SHORTCUTS } from "../../src/features/owned-ui/index.js";
 import { assembleShortcuts } from "../../src/ui/components/index.js";
@@ -10,6 +11,13 @@ import { assembleShortcuts } from "../../src/ui/components/index.js";
 const SCREENS = [
   { scope: SETTINGS_APP_ID, source: "src/features/owned-ui/settings-app.ts", registry: SETTINGS_SHORTCUTS },
 ] as const;
+
+function sourceFiles(root: string): string[] {
+  return readdirSync(root, { withFileTypes: true }).flatMap(entry => {
+    const path = join(root, entry.name);
+    return entry.isDirectory() ? sourceFiles(path) : entry.isFile() && path.endsWith(".ts") ? [path.replaceAll("\\", "/")] : [];
+  });
+}
 
 describe("what a screen says about its keys", () => {
   it("describes only keys it binds", () => {
@@ -28,6 +36,16 @@ describe("what a screen says about its keys", () => {
       const written = source.match(/"[^"]*·[^"]*"/g) ?? [];
       expect(written, `${screen.source} writes a hint line out instead of deriving it`).toEqual([]);
     }
+  });
+
+  it("routes semantic hints through the owned or pinned central adapter", () => {
+    const directConsumers = sourceFiles("src")
+      .filter(path => path !== "src/contracts/presentation/index.ts")
+      .filter(path => readFileSync(path, "utf8").includes("renderSemanticShortcutHints"));
+    expect(directConsumers.sort()).toEqual([
+      "src/integrations/pi/components/theme.ts",
+      "src/ui/components/shortcut-hints.ts",
+    ]);
   });
 
   it("declares no key twice within one screen", () => {

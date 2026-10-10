@@ -40,7 +40,7 @@ export interface ExactPackagePreparationEvidence {
   prefix?: string;
   installedIdentity?: Record<string, unknown>;
   phases?: { installMs: number; installedIdentityMs: number };
-  consumers: Array<"package-startup" | "package-contracts">;
+  consumers: Array<"package-startup" | "package-contracts" | "update-predecessor">;
   cleanup: null | { status: "passed" | "deferred" | "failed"; durationMs?: number; error: string | null };
 }
 
@@ -67,7 +67,7 @@ export interface ValidationPlan {
     id: "exact-package-preparation";
     count: 1;
     policy: string;
-    consumers: Array<"package-startup" | "package-contracts">;
+    consumers: Array<"package-startup" | "package-contracts" | "update-predecessor">;
   };
   commands: ValidationCommandPlan[];
   vitest: null | {
@@ -81,7 +81,7 @@ export const EXACT_PACKAGE_HANDOFF_SCHEMA: "a1-exact-package-handoff-v1";
 
 export interface ExactPackageHandoff {
   schema: "a1-exact-package-handoff-v1";
-  consumers: Array<"package-startup" | "package-contracts">;
+  consumers: Array<"package-startup" | "package-contracts" | "update-predecessor">;
   root: string;
   prefix: string;
   packageRoot: string;
@@ -127,3 +127,27 @@ export function runTierPlan(plan: ValidationPlan, options?: {
   exactPackagePreparation: Record<string, unknown> | null;
   outcomes: ValidationExecutionOutcome[];
 }>;
+export type FullRegressionShard = "core" | "resource" | "rendering" | "package";
+/** Stable Windows complete-regression shard identities, in canonical merge order. */
+export const FULL_REGRESSION_SHARDS: readonly FullRegressionShard[];
+export const FULL_REGRESSION_SHARD_SCHEMA: "a1-full-regression-shard-v1";
+export interface FullRegressionShardWork { commands: string[]; preparation: string[]; invocations: string[] }
+export interface FullRegressionShardIdentity {
+  schema: "a1-full-regression-shard-v1";
+  id: FullRegressionShard;
+  planDigest: string;
+  prerequisites: string[];
+  assigned: FullRegressionShardWork;
+}
+export interface FullRegressionPartition {
+  schema: "a1-full-regression-partition-v1";
+  planDigest: string;
+  selected: string[];
+  structuralEvidence: Record<string, unknown>;
+  prerequisites: string[];
+  order: string[];
+  shards: Record<FullRegressionShard, FullRegressionShardWork>;
+}
+export function fullRegressionPlanDigest(plan: ValidationPlan): string;
+export function partitionFullRegressionPlan(plan: ValidationPlan): FullRegressionPartition;
+export function createFullRegressionShardPlan(plan: ValidationPlan, shard: string): ValidationPlan & { fullShard: FullRegressionShardIdentity };

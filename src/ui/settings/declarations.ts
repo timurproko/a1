@@ -1,4 +1,9 @@
-export const OWNED_UI_SETTINGS_VERSION = 8;
+import type { OwnedUiBackgroundStyle, UiAccentColor } from "../../contracts/owned-ui/index.js";
+
+export const OWNED_UI_SETTINGS_VERSION = 13;
+const UI_ACCENT_COLOR_CHOICES = Object.freeze([
+  "purple", "blue", "cyan", "green", "orange", "pink",
+] as const satisfies readonly UiAccentColor[]);
 
 export type OwnedUiSettingValue = string | number | boolean;
 
@@ -21,6 +26,7 @@ const ID_PATTERN = /^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)*$/;
 
 /** Declared first so the settings screen opens on it; sections follow first-declaration order. */
 const GENERIC_SECTION = Object.freeze({ id: "generic", title: "Generic" });
+const APPEARANCE_SECTION = Object.freeze({ id: "appearance", title: "Appearance" });
 const SCROLL_SECTION = Object.freeze({ id: "scroll", title: "Scroll" });
 const AGENT_SECTION = Object.freeze({ id: "agent", title: "Agent" });
 
@@ -29,10 +35,39 @@ const AGENT_SECTION = Object.freeze({ id: "agent", title: "Agent" });
  * values are read from it, and `OwnedSettingValueOf` derives each getter's type from it.
  */
 export const OWNED_SETTING_DECLARATIONS = Object.freeze({
+  updateCheck: Object.freeze({
+    id: "updateCheck",
+    label: "Update check",
+    section: GENERIC_SECTION,
+    description: "Check once a day at startup whether a newer A1 release exists on this channel and show a notice. Uses the public npm registry; applies on next start.",
+    application: "restart",
+    defaultValue: true,
+    allowedValues: Object.freeze([true, false] as const),
+  }),
+  accentColor: Object.freeze({
+    id: "accentColor",
+    label: "Accent color",
+    section: APPEARANCE_SECTION,
+    description: "Color used by highlighted interface controls, list markers, and tonal interface surfaces.",
+    application: "live",
+    defaultValue: "purple",
+    allowedValues: UI_ACCENT_COLOR_CHOICES,
+  }),
+  backgroundStyle: Object.freeze({
+    id: "backgroundStyle",
+    label: "Background",
+    section: APPEARANCE_SECTION,
+    description: "Fullscreen canvas background: terminal transparency, a dark accent tint, or fixed neutral dark.",
+    application: "live",
+    defaultValue: "transparent",
+    allowedValues: Object.freeze([
+      "transparent", "accent", "dark",
+    ] as const satisfies readonly OwnedUiBackgroundStyle[]),
+  }),
   quitAnimation: Object.freeze({
     id: "quitAnimation",
     label: "Quit animation",
-    section: GENERIC_SECTION,
+    section: APPEARANCE_SECTION,
     description: "Play the fall effect over the last screen when the session quits. Off returns to the terminal immediately.",
     application: "live",
     defaultValue: true,
@@ -87,7 +122,7 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     id: "promptSuggestions",
     label: "Prompt suggestions",
     section: AGENT_SECTION,
-    description: "Predict likely next prompts with one additional background request using the selected model.",
+    description: "Predict likely next prompts with one background request, plus one bounded recovery request when needed, using the selected model.",
     application: "live",
     defaultValue: true,
     allowedValues: Object.freeze([true, false] as const),
@@ -100,6 +135,15 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     application: "live",
     defaultValue: "collapse",
     allowedValues: Object.freeze(["collapse", "expand"] as const),
+  }),
+  promptImageLimit: Object.freeze({
+    id: "promptImageLimit",
+    label: "Prompt image limit",
+    section: AGENT_SECTION,
+    description: "Maximum image attachments in one prompt. Providers may enforce a lower limit.",
+    application: "live",
+    defaultValue: 8,
+    allowedValues: Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const),
   }),
 } as const satisfies Readonly<Record<string, OwnedUiSettingDeclaration>>);
 

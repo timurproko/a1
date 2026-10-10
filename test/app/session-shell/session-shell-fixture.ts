@@ -4,9 +4,8 @@
  */
 import { selectionCopyRowText } from "../../../src/ui/components/index.js";
 import { type AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
-import { join } from "node:path";
 import { getCapabilities as getPinnedPiTuiCapabilities, setCapabilities as setPinnedPiTuiCapabilities } from "@earendil-works/pi-tui";
-import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
+import { onTestFailed, onTestFinished, vi } from "vitest";
 import { NativeRegressionTrace } from "../../support/native-regression-trace.js";
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
 vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal => {
@@ -26,17 +25,26 @@ vi.mock("node:worker_threads", async importOriginal => {
   } };
 });
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { loadHistoryEditor } from "../../../src/integrations/pi/components/index.js";
+import type { PiShellLazySelectorLoader } from "../../../src/integrations/pi/components/lazy-selectors.js";
 import {
+  OwnedUiSessionPresenter,
   OwnedUiSessionShell,
   type OwnedUiShellDiagnosticOptions,
   type OwnedUiShellHistoryOptions,
   type OwnedUiShellPresentationOptions,
+  type OwnedUiShellPromptImagesOptions,
+  type OwnedUiShellSharedServices,
   type OwnedUiShellSkillsOptions,
   type OwnedUiShellSuggestionOptions,
 } from "../../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
-import { ImageAttachmentError, type OwnedUiViewportSettingsPort } from "../../../src/contracts/owned-ui/index.js";
+import {
+  ImageAttachmentError,
+  type OwnedUiBackgroundSettingsPort,
+  type OwnedUiViewportSettingsPort,
+} from "../../../src/contracts/owned-ui/index.js";
 import { startPasteExecutor } from "../../../src/app/session-shell/paste-executor.js";
 import type { PasteExecutorStarter } from "../../../src/app/session-shell/paste-preparation-client.js";
 import { PASTE_TEXT_BYTES, type PreparedPaste } from "../../../src/app/session-shell/paste-protocol.js";
@@ -110,6 +118,8 @@ export class Session {
   isCompacting = false;
   readonly calls: string[] = [];
   readonly promptOptions: unknown[] = [];
+  name: string | undefined;
+  readonly sessionManager = { getSessionName: () => this.name };
   readonly agent: { state: { systemPrompt: string; messages: unknown[]; tools: unknown[] } };
   scopedModels: readonly unknown[] = [];
   readonly messages: readonly unknown[];
@@ -155,6 +165,7 @@ export class Session {
   async bindExtensions(bindings: unknown): Promise<void> { this.extensionBindings = bindings; this.calls.push("bindExtensions"); }
   async reload(): Promise<void> { this.calls.push("reload"); }
   async setModel(model: unknown): Promise<void> { this.model = model; this.calls.push("setModel"); }
+  setSessionName(name: string): void { this.name = name.trim().toLowerCase(); this.calls.push(`name:${name}`); }
   getUserMessagesForForking(): readonly unknown[] { return [{ entryId: "entry-1", text: "Fork point" }]; }
   setScopedModels(models: readonly unknown[]): void { this.scopedModels = models; this.calls.push(`scoped:${models.length}`); }
   setThinkingLevel(level: unknown): void { this.thinkingLevel = level; this.calls.push(`thinking:${String(level)}`); }
@@ -284,6 +295,10 @@ export async function fixture(
   reloadPresentation?: OwnedUiShellPresentationOptions["reload"],
   pastePreparation: OwnedUiShellDiagnosticOptions["pastePreparation"] | "forked" = { execute: inProcessPasteExecutor },
   skills?: OwnedUiShellSkillsOptions,
+  promptImages?: OwnedUiShellPromptImagesOptions,
+  lazySelectors?: PiShellLazySelectorLoader,
+  backgroundSettings?: OwnedUiBackgroundSettingsPort,
+  shared?: OwnedUiShellSharedServices,
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -291,6 +306,7 @@ export async function fixture(
   const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine as unknown as AgentSessionRuntime });
   const terminal = new TestPresentationTerminal();
   const shell = new OwnedUiSessionShell({
+    presenters: createPiSessionPresenters(adapter, lazySelectors === undefined ? {} : { lazySelectors }),
     engine: {
       backend: adapter,
       cwd: "D:/work",
@@ -299,6 +315,7 @@ export async function fixture(
     presentation: {
       terminal,
       ...(viewportSettings === undefined ? {} : { viewportSettings }),
+      ...(backgroundSettings === undefined ? {} : { backgroundSettings }),
       ...(streamPresentation === undefined ? {} : { stream: streamPresentation }),
       ...(inputPresentation === undefined ? {} : { input: inputPresentation }),
       ...(quitOutro === undefined ? {} : { quitOutro }),
@@ -309,6 +326,7 @@ export async function fixture(
       ...(clipboard === undefined ? {} : { clipboard }),
       ...(pasteDiagnostics === undefined ? {} : { paste: pasteDiagnostics }),
       ...(pastePreparation === "forked" ? {} : { pastePreparation }),
+      ...(lazySelectors === undefined ? {} : { lazySelectors }),
       responseCopy: responseCopy === "forked" ? {} : responseCopy ?? { execute: (snapshot, phase) => {
       const text = snapshot.rows.map((row, index) => selectionCopyRowText(snapshot, row, index)).join("\n");
       phase("extracted", Buffer.byteLength(text), "injected");
@@ -321,11 +339,37 @@ export async function fixture(
     },
     ...(promptSuggestions === undefined ? {} : { suggestions: promptSuggestions }),
     ...(promptHistory === undefined ? {} : { history: { ...promptHistory, editor: await loadHistoryEditor() } }),
+    ...(promptImages === undefined ? {} : { promptImages }),
     ...(skills === undefined ? {} : { skills }),
+    ...(shared === undefined ? {} : { shared }),
   });
   shell.start();
   shell.runtime.renderNow();
   return { engine, adapter, terminal, shell };
+}
+
+/** Another session presenter on an existing shell's terminal host, over its own engine double; it starts detached. */
+export async function secondPresenter(
+  shell: OwnedUiSessionShell,
+  terminal: TestPresentationTerminal,
+  messages: readonly unknown[] = [],
+  customViewport = true,
+) {
+  const engine = new Runtime(messages);
+  const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell-second", createRuntime: async () => engine as unknown as AgentSessionRuntime });
+  const presenter = new OwnedUiSessionPresenter(shell.terminalHost, {
+    presenters: createPiSessionPresenters(adapter),
+    engine: { backend: adapter, cwd: "D:/work", ...(customViewport ? { sessionLayout: "custom-viewport" as const } : {}) },
+    presentation: { terminal, reload: { minVisibleMs: 0 } },
+    diagnostics: {
+      pastePreparation: { execute: inProcessPasteExecutor },
+      responseCopy: { execute: () => {
+        const result = Promise.resolve({ outcome: "submitted-unverified" as const });
+        return { result, stopped: result.then(() => {}), cancel() {} };
+      } },
+    },
+  });
+  return { engine, adapter, presenter };
 }
 
 export async function observedPasteFixture(clipboard: NonNullable<Parameters<typeof fixture>[4]>) {
