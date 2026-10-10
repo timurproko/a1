@@ -1,6 +1,10 @@
+# Resident tabs — architecture and roadmap
+
+Status: planned. Nothing here is implemented until the milestone change that delivers it merges. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
+
 ## Context
 
-Today bare `a1` runs as a chain: `bin/cli.js`, then a detached per-release **supervisor**, then the foreground **launch guardian**, then the native **process-guardian**, then `bin/ui.js`. That last process hosts one in-process Pi `AgentSessionRuntime` behind the owned UI. The process-guardian puts the UI in kill-on-close containment, so closing the terminal kills the agent. `launch-instance-lifecycle` requires that behavior and reserves "a separately specified explicit resident capability" for anything that must survive. This change defines that capability.
+Today bare `a1` runs as a chain: `bin/cli.js`, then a detached per-release **supervisor**, then the foreground **launch guardian**, then the native **process-guardian**, then `bin/ui.js`. That last process hosts one in-process Pi `AgentSessionRuntime` behind the owned UI. The process-guardian puts the UI in kill-on-close containment, so closing the terminal kills the agent. `launch-instance-lifecycle` requires that behavior and reserves "a separately specified explicit resident capability" for anything that must survive. This design defines that capability.
 
 The user set three product constraints:
 
@@ -8,14 +12,15 @@ The user set three product constraints:
 2. Extensions work as natively as possible, including extensions that render their own in-process UI.
 3. The same tab system must next host arbitrary interactive CLIs.
 
-A structured, message-based agent protocol cannot meet (2), because an extension's custom UI component is code running inside the agent process. It also forces a second, unrelated system for (3). Every tab is therefore a **terminal session**: a pseudoterminal running the complete A1 owned UI in "tab mode". Native extension components retain the declared text-terminal behavior; inline image protocols are explicitly outside this slice and use the existing text fallback.
+A structured, message-based agent protocol cannot meet (2), because an extension's custom UI component is code running inside the agent process. It also forces a second, unrelated system for (3). Every tab is therefore a **terminal session**: a pseudoterminal running the complete A1 owned UI in "tab mode". Native extension components retain the declared text-terminal behavior; inline image protocols are explicitly outside the first version and use the existing text fallback.
 
-This change is deliberately narrower than the eventual product. It delivers a Windows x64 opt-in vertical slice with `tabs.resident=false` by default. Default enablement, automatic resident-cohort upgrades, macOS/Linux support, arbitrary CLI tabs, and split layouts each require a later change and their own evidence.
+The first version is deliberately narrower than the eventual product. It is an opt-in preview on Windows x64, macOS, and Linux (the platforms A1 already ships the native process-guardian for), with `tabs.resident=false` by default. It is delivered as six sequenced milestone changes, each merged behind that setting. Restoring tabs after reboot or logout, default enablement, automatic resident-cohort upgrades, arbitrary CLI tabs, and split layouts each require a later change and their own evidence.
 
 Existing assets:
 
-- **`native/terminal-host`** is a working in-terminal host. It uses `libghostty-vt` pinned at `c5a21edf`, `portable-pty` 0.9.0 with ConPTY, crossterm 0.29, and an A1-owned damage-aware frame composer. It already has per-pane retained models, focused-input isolation, libghostty mouse and key encoding, host-owned selection with OSC 52 copy, resize, and verified cleanup. Today it is only a fixed 2×2 proof with no resident mode.
-- **The supervisor, process-guardian, and launch guardian** provide the patterns for detached spawn, verified process identity (`--inspect-pid`), an endpoint probe with join-the-winner, and atomic metadata.
+- **`native/terminal-host`** is a working in-terminal host. It uses `libghostty-vt` pinned at `c5a21edf`, `portable-pty` 0.9.0 (ConPTY on Windows, Unix PTYs elsewhere), crossterm 0.29, and an A1-owned damage-aware frame composer. It already has per-pane retained models, focused-input isolation, libghostty mouse and key encoding, host-owned selection with OSC 52 copy, resize, and verified cleanup. Today it is only a fixed 2×2 proof with no resident mode.
+- **The supervisor, process-guardian, and launch guardian** provide the patterns for detached spawn, verified process identity (`--inspect-pid`), an endpoint probe with join-the-winner, and atomic metadata. The process-guardian already has Windows, macOS, and Linux implementations.
+- **The 2×2 spike evidence** in [`evidence/terminal-host-spike/`](evidence/terminal-host-spike/) is historical. Its verdicts stay pending and are not evidence for this design.
 
 References:
 
@@ -43,13 +48,18 @@ The read-only review used A1 `develop` at `b42b3c9e`, PR #586 at `8fdb7361`, `E:
 - Current herdr's `src/platform/windows.rs`, `src/server/client_transport.rs`, and `src/server/render_stream.rs` are references for detachment, bounded transport, and surface revisions. `src/pty/actor.rs` uses threads, not one process per PTY. Unix-only descriptor handoff and Unix-gated detach/multi-client tests do not certify Windows survival. `src/persist/writer.rs` synchronizes recovery copies, while ordinary session saving in `src/persist/io.rs` still uses unsynchronized write-and-rename.
 - A1's existing prompt history is asynchronous and can skip writes; it is not the durable-before-dispatch journal. The native host is a fixed 2×2 proof, not resident infrastructure. Its historical acceptance record still has pending technical/physical verdicts and must not be relabelled as accepted.
 - Before implementation, reconcile current `develop`, including #588's terminal-query/CI ownership and #667's surviving-owner terminal restoration. Update architecture/proof documentation during approved implementation to distinguish this single-pane resident certification from future split certification, preserving historical evidence unchanged.
+- herdr's Unix paths (socket bind as lock, Unix detach, the macOS per-user bootstrap port fix in #4100) are references for the macOS and Linux roles, not evidence for them.
+
+### Relation to the in-process prep refactors (2026-10-09/10)
+
+PRs #729–#736 prepared the owned UI for several sessions in one process. This design runs one A1 process per tab, so it does not depend on the shared helper pools (#733), the engine host's multi-session factory (#734), the terminal-host/presenter split (#735), or the per-agent claim dimension (#736). It does use the lifecycle ordering from #732 (bounded quit, clean disposal), which tab detach and restart rely on, and the unique required session ids from #734. Each tab process must get its own launch runtime id so worktree claims (#736) never collide.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Several independent A1 agents in opt-in Windows x64 bare `a1` tabs, each running the full A1 UI with its extensions. The user can create, switch, rename, reorder, and close them.
-- Tabs keep running through terminal closure, SSH drops, attach-client crashes, and resident-server crashes. Relaunching from any terminal reattaches with exact screen state. A reboot restores every committed session without replaying an interrupted prompt.
+- Several independent A1 agents in opt-in bare `a1` tabs on Windows x64, macOS, and Linux, each running the full A1 UI with its extensions. The user can create, switch, rename, reorder, and close them.
+- Tabs keep running through terminal closure, SSH drops, attach-client crashes, and resident-server crashes. Relaunching from any terminal reattaches with exact screen state. A crashed tab restarts into its session without replaying an interrupted prompt.
 - One tab's failure never affects another tab, the server, or the client. Package activation retains every immutable release still used by resident processes.
 - Status comes from structured engine events, not screen text.
 - Terminal bytes, input, and rendering stay native. Node never relays them.
@@ -60,13 +70,13 @@ The read-only review used A1 `develop` at `b42b3c9e`, PR #586 at `8fdb7361`, `E:
 **Non-Goals:**
 
 - Enabling resident tabs by default on any platform.
-- macOS or Linux resident support, automatic resident server handoff/recycling, arbitrary CLI tabs, split panes/layouts, and v2-style per-folder workspaces or sidebar.
-- Resurrecting processes across reboot. Tabs restore from their Pi sessions.
+- Restoring tabs after reboot or logout. Resident processes end with the OS session; the sessions stay resumable through the normal session picker (Decision 9).
+- Platforms beyond the three above, automatic resident server handoff/recycling, arbitrary CLI tabs, split panes/layouts, and v2-style per-folder workspaces or sidebar.
 - Network or remote attach, and multi-user sharing.
-- Adding resident behavior or presentation to `a1 pi`. Its only shared Windows change is the session-writer guard described in Decision 8; it must not initialize a resident host or bridge.
+- Adding resident behavior or presentation to `a1 pi`. Its only shared change is the session-writer guard described in Decision 8; it must not initialize a resident host or bridge.
 - Automatic repository/worktree allocation, conflicting-edit prevention, task delegation, inter-agent messaging/results, shared context, or cost/approval orchestration. Independent sessions may still write the same working directory; tabs are not repository isolation.
 - Automatically replaying an interrupted turn.
-- Inline terminal image protocols (kitty graphics, sixel). Children see a host terminal identity without image support, Pi's text fallback applies, and this slice does not claim image-protocol extension parity.
+- Inline terminal image protocols (kitty graphics, sixel). Children see a host terminal identity without image support, Pi's text fallback applies, and the first version does not claim image-protocol extension parity.
 
 ## Decisions
 
@@ -127,28 +137,34 @@ Alternatives considered:
 ### 3. Host scope, endpoints, writer authority, and credentials
 
 - There is **one server per OS user × canonical A1 profile root**, independent of the release cohort. Tabs must outlive release changes, and the supervisor is forbidden from retaining runtime processes.
-  - Windows endpoint: `\\.\pipe\a1-tabs-<sha256(profileHome\0runtimeDir)[0:20]>`
+  - Windows endpoint: `\\.\pipe\a1-tabs-<sha256(profileHome\0runtimeDir)[0:20]>`.
+  - macOS and Linux endpoint: a Unix domain socket `a1-tabs-<same hash>.sock` inside an owner-only (`0700`) per-user runtime directory (`$XDG_RUNTIME_DIR` when set, otherwise a private directory under the profile's runtime dir), kept short enough for the platform's socket path limit.
   - Holders use `…-h-<tabId>` endpoints.
   - Hermetic override: `A1_TABS_ENDPOINT`, together with the `A1_*_DIR` overrides.
 - **The endpoint is discovery; the writer lease is authority.** A starting server probes with a real handshake. If a live server answers, it exits as `already-running` and joins the winner. A failed probe does not authorize blind endpoint reclaim: the starter reads the owner marker, verifies pid and native start identity, requests termination, and waits for the owner-only OS-exclusive registry-writer lease. If the owner cannot be verified or the lease cannot be acquired, startup fails closed instead of creating split brain.
 - The ownership marker `{serverId, pid, startIdentity, bootNonce, generation, build}` is written atomically under the writer lease. Every registry mutation rechecks the held lease and current epoch before commit. A server removes an endpoint or marker only while both still identify it.
 - **Access and authentication:**
-  - The named pipe, token files, secret file, registry, and writer lease receive owner-only Windows ACLs.
+  - The endpoint, token files, secret file, registry, and writer lease are owner-only: Windows ACLs on the named pipe and files, `0700` directories and `0600` files on macOS and Linux, plus a peer-credential check (`SO_PEERCRED` / `getpeereid`) on every Unix socket connection.
   - Clients present a random 32-byte client token from an owner-only file.
   - One random owner-only profile secret persists outside the registry. Per-tab/per-incarnation holder and bridge credentials are derived from that secret and the non-secret tab/incarnation identity, so a replacement server can authenticate surviving processes without storing tab credentials.
   - Holders and bridges also present pid and native start identity. Nothing unverifiable is adopted, signalled, terminated, or allowed to mutate state.
 
-### 4. Detached start on Windows x64
+### 4. Detached start
 
 - **Server start.** The server is started from the Node pre-guardian bootstrap (`ensureTerminalHost()` beside `ensureSupervisor()`), through `a1-terminal-host server --detach`.
-- **No job-wide breakaway permission.** Ordinary launch-instance jobs and holder-owned child jobs retain kill-on-close containment without `JOB_OBJECT_LIMIT_BREAKAWAY_OK` or silent breakaway. A job flag cannot allowlist an executable. Resident creation is a distinct authenticated fixed-role operation, not an arbitrary executable/argv spawn service.
+- **No general escape from containment.** On Windows, ordinary launch-instance jobs and holder-owned child jobs retain kill-on-close containment without `JOB_OBJECT_LIMIT_BREAKAWAY_OK` or silent breakaway; a job flag cannot allowlist an executable. On every platform, resident creation is a distinct authenticated fixed-role operation, not an arbitrary executable/argv spawn service.
 - **Authorized launch and recovery.** Initial creation runs before the launch guardian. A contained attach client or surviving holder can request the native verified `server --detach` recovery path; the native routine verifies the immutable terminal-host artifact, role, canonical profile, and request authority before spawning outside containment. It exposes no generic escape API to tool/extension descendants. Owner-only credentials prevent cross-user access; this is not a sandbox against arbitrary malicious code already running as the same OS user.
 - **Windows:**
   - Select valid platform creation flags for detached, console-free startup; do not assume combining `DETACHED_PROCESS` and `CREATE_NO_WINDOW` adds a guarantee. Verify resulting process identity and job containment before reporting resident readiness.
   - For a caller in a foreign kill-on-close job that denies breakaway (Windows OpenSSH, some IDE terminals), use WMI `Win32_Process.Create` with an explicit environment block and cwd, bounded startup, and post-launch verification (herdr reference).
-  - Record the observed detachment mode and failed verification reason. Milestone 1 must pin the concrete authorized recovery transport and handle-inheritance rules; milestone 2 must prove them with containment fixtures before relying on survival.
-- macOS and Linux detachment are deferred. On those platforms `tabs.resident` remains unsupported and the direct single-agent path is unchanged.
-- **Holders** are spawned by the server through the same Windows detach routine.
+  - Milestone 1 must pin the concrete authorized recovery transport and handle-inheritance rules and prove them with containment fixtures before milestone 2 relies on survival.
+- **Every platform** records the observed detachment mode and any failed verification reason.
+- **macOS and Linux:**
+  - Start resident roles in a new session (`setsid`) with no controlling terminal, standard streams on `/dev/null`, and an explicit environment and cwd, so terminal close and SSH hang-up (`SIGHUP`) do not reach them. Verify the resulting session, process group, and identity before reporting readiness.
+  - The process-guardian's kill-on-close tree tracking must not adopt resident roles, and ordinary descendants must not gain a way to leave their tree.
+  - macOS: keep the resident roles in the user's per-user bootstrap namespace, so clipboard, keychain, and other per-user services keep working after the launching terminal closes (herdr #4100 is the reference). Linux: a session manager that kills user processes at logout (systemd `KillUserProcesses`) ends tabs at logout; that is the documented logout behavior, not a failure.
+  - Milestone 1 proves these with fixtures on each platform before any milestone relies on survival.
+- **Holders** are spawned by the server through the same platform detach routine.
 - **Unverified survival** uses the direct single-agent fallback with one notice, not a purported resident tab that remains contained. Reject or clean up only the exact verified incomplete resident start; never terminate an unverifiable process. Existing resident records and session leases remain intact.
 
 ### 5. Protocols
@@ -188,7 +204,7 @@ The channels carry bounded, length-prefixed binary frames: a u32 length followed
 - **Passthrough and intercepts:**
   - OSC 52 clipboard writes, OSC 8 hyperlinks as cell attributes, OSC 0/2 titles as tab metadata, and cursor shape pass through. A bell (BEL) from the child is never forwarded to the outer terminal; icons are the only attention signal (Decision 7).
   - Queries the child sends, such as DA and cursor position, are answered by the holder's model, never by the outer terminal.
-  - Image protocols are not forwarded in this slice; the terminal identity the child sees disables them and existing text fallback applies. Extension parity is claimed only for the certified text-terminal contract.
+  - Image protocols are not forwarded in the first version; the terminal identity the child sees disables them and existing text fallback applies. Extension parity is claimed only for the certified text-terminal contract.
 - **Detach.** On detach the client restores the outer terminal's keyboard and mouse modes exactly. Enhanced keyboard sequences must not leak into the parent shell (herdr CHANGELOG lesson). Preserve A1's surviving-owner restoration for a killed attach process; an in-process panic/fatal hook cannot run after forced termination. The outer bootstrap/exit-notice owner performs bounded emergency restoration without giving either guardian terminal-byte relay authority.
 
 ### 7. Status and attention come from the tab bridge
@@ -219,7 +235,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   - It is written only while the server holds the OS-exclusive writer lease and current epoch: to a temporary file, then write-capable `fsync(file)`, rename, and `fsync(dir)`, on every mutation before acknowledgement.
   - Up to 20 rotated generations are kept in `registry-history/`, at most one per 15 minutes.
   - An unparseable file is quarantined as `registry.corrupt-<ts>.json`, and the last good history generation is loaded. A notice names both. If existing state has no valid recoverable generation, fail recovery closed with preserved files rather than initialize an empty registry.
-  - JSON with explicit synchronization is chosen over sqlite to keep the native server dependency-light. Milestone 1 must specify Windows write-handle, atomic replacement, and directory/metadata durability semantics and their supported-filesystem limits; invoking a POSIX-shaped `fsync(dir)` is not evidence of a Windows power-loss guarantee.
+  - JSON with explicit synchronization is chosen over sqlite to keep the native server dependency-light. Milestone 1 must specify, per platform, the write-handle, atomic replacement, and directory/metadata durability semantics and their supported-filesystem limits: on Windows a write-capable flush plus write-through replacement, because a POSIX-shaped `fsync(dir)` is not evidence of a Windows power-loss guarantee; on Linux `fsync` of file and parent directory; on macOS `F_FULLFSYNC`, because plain `fsync` does not flush the drive cache.
   - A durable mutation is acknowledged only after its commit barrier. On failed persistence, reject new durable mutations; retain live observed process state in memory without claiming it is committed or rebuilding it from older disk state. Retry bounded writes; never kill a live tab solely because persistence failed.
 - **Per-tab fields:**
   - identity: `tabId`, `kind`, `createdAt`
@@ -230,8 +246,8 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   - holder: `holderPid`, `holderStartIdentity`, `release`
   - restarts: `restarts`, `restartWindowStart`, `lastExit`
   - `registryRevision`, `epoch`, and `bootId`
-- **No per-tab credential is persisted in the registry.** The owner-only profile secret is stored separately and derives per-tab/per-incarnation credentials from recorded non-secret identities. The environment sent with `tab.create` is kept in holder memory only. A restore after reboot uses the restoring client's environment and notes that once in the tab.
-- **Session-writer lease.** All Windows A1-owned session writers (resident, direct/fallback, and Pi-comparison) use one profile-neutral native lock primitive before opening a session for writing, independent of `tabs.resident`. It does not start a host, holder, or bridge for direct modes. Resolve canonical filesystem identity, including case, junction/symlink and existing-file aliases; reserve the canonical parent/name for a not-yet-created session and bind it to the created file identity without an admission gap. The registry and holder coordinate admission, but a holder-only lock is insufficient: native lease custody must remain valid for the actual writer's lifetime, including any interval after holder death. Pin and prove the writer-bound lock/handle design in milestone 1; do not infer child death from ConPTY loss. Replacement requires lease acquisition and verified prior-writer/tree exit; uncertainty blocks it. Session switching acquires the target before relinquishing the old writer lease, and failed switches preserve the original session. Resident selection focuses an existing tab; direct-mode conflicts fail safely or offer an explicit fork, never silently attach or overwrite. Unmodified external Pi, older nonparticipating builds, and arbitrary file writers are outside this cooperative guarantee; document that limitation rather than claiming an OS sandbox.
+- **No per-tab credential is persisted in the registry.** The owner-only profile secret is stored separately and derives per-tab/per-incarnation credentials from recorded non-secret identities. The environment sent with `tab.create` is kept in holder memory only; a tab restarted after a crash reuses its holder's environment.
+- **Session-writer lease.** All A1-owned session writers (resident, direct/fallback, and Pi-comparison) on the supported platforms use one profile-neutral native lock primitive before opening a session for writing, independent of `tabs.resident`. It does not start a host, holder, or bridge for direct modes. The primitive is an OS lock held by the writer process itself (`LockFileEx` on Windows, an open-file-description `fcntl` lock on Linux, `flock` on macOS), so the kernel releases it only when the writer is gone. Resolve canonical filesystem identity, including case, junction/symlink, hard-link and existing-file aliases; reserve the canonical parent/name for a not-yet-created session and bind it to the created file identity without an admission gap. The registry and holder coordinate admission, but a holder-only lock is insufficient: native lease custody must remain valid for the actual writer's lifetime, including any interval after holder death. Pin and prove the writer-bound lock/handle design on each platform in milestone 1; do not infer child death from pseudoterminal loss. Replacement requires lease acquisition and verified prior-writer/tree exit; uncertainty blocks it. Session switching acquires the target before relinquishing the old writer lease, and failed switches preserve the original session. Resident selection focuses an existing tab; direct-mode conflicts fail safely or offer an explicit fork, never silently attach or overwrite. Unmodified external Pi, older nonparticipating builds, and arbitrary file writers are outside this cooperative guarantee; document that limitation rather than claiming an OS sandbox.
 - **Prompt journal.** `<dataDir>/tabs/<profile-token>/<tabId>/journal.jsonl` is an owner-only child-owned recovery journal, separate from asynchronous prompt history. Each submission has a stable ID and session/incarnation identity. Admission awaits a successful durable journal commit before dispatch; timeout/failure leaves the prompt in the editor with a visible failure and dispatches nothing. Correlate it with the committed session entry, and retire it only after the corresponding session data is synchronized; a settled turn's durable completion also records its submission ID so recovery never offers a completed prompt as unfinished. Recovery merges journal/session evidence by identity and never automatically resends, including when a crash occurs between dispatch, session append, sync, and journal retirement. Preserve the first-turn journal and reserved session identity if Pi has not created its file yet; distinguish that from an unexpectedly missing existing transcript.
 - **Draft checkpoint.** Use a periodic dirty checkpoint with a maximum one-second dirty interval while storage is healthy, including uninterrupted typing, rather than inactivity-only debounce. Expose failed/late checkpoints as degraded recovery; never continue claiming the one-second bound during a blocked disk or event-loop stall. Drafts and submitted prompts have different guarantees.
 
@@ -240,13 +256,13 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
 | Failure | Detection | Outcome |
 |---|---|---|
 | Tab child exits or crashes | holder sees the child exit | If the exit was not requested: `crashed`. The holder respawns `ui.js --tab --session <file>` with backoff 1 s, 5 s, 30 s. After 3 restarts in 10 min: `failed`, with a banner `✗ <reason> — [r] retry · [f] start fresh · [alt+w] close`. An interrupted prompt (reported via the bridge, or detected as a trailing user entry) is offered back into the editor and never resent. Child stderr, if separately available, is a private content-bearing recovery artifact, never an ordinary diagnostic log. |
-| Holder crash | pipe EOF plus verified process identity/exit | ConPTY loss is not proof that every descendant exited. Verify the old writer/tree is gone and acquire its writer lease before resuming in a new holder; otherwise keep the tab blocked without duplicate writers. |
+| Holder crash | pipe EOF plus verified process identity/exit | Pseudoterminal loss is not proof that every descendant exited. Verify the old writer/tree is gone and acquire its writer lease before resuming in a new holder; otherwise keep the tab blocked without duplicate writers. |
 | Holder hang | holder control heartbeat every 5 s, 3 missed over a healthy supervision path | Terminate only the verified holder/tree within bounded deadlines, then follow the lease-gated recovery path. |
 | A1 child hang | missing child event-loop heartbeat over a healthy bridge path | Warn at 30 s; restart at `tabs.unresponsiveRestartSeconds` (default 120), preserving journal/screen. A server/bridge transport outage alone is not proof of a child hang. |
 | Server crash | clients and holders see the pipe EOF | Holders keep running. A client or holder starts a replacement, which acquires the released writer lease, increments the epoch, derives expected credentials, and re-admits identity-verified holders. A live but unresponsive recorded owner is terminated only after native identity verification; an unverifiable owner blocks replacement. After 3 starts in 60 s, clients show `✗ tab host stopped — [r] restart · [q] quit`. |
 | Attach client crash or terminal close | the server sees the pipe EOF | Nothing happens to tabs. Pending requests stay `needs-input`. |
-| Reboot or logout | `bootNonce` differs and no verified holders exist | Every `desired=running` tab restores under one restore gate, which prevents the duplicate-spawn bug v2 hit, at most `maxConcurrentStarts` at a time: `restoring`, then resumed from its session, idle, with no turn resumed. |
-| Missing cwd or existing session on restore | stat or open fails | The tab is `failed` with the reason and path. It is never moved elsewhere, and the file is never overwritten. A reserved first-turn identity with a journal and no previously created transcript follows journal recovery instead. |
+| Reboot or logout | the platform boot identity differs, or no verified holders exist for a new OS session | Tabs are not restored in this version. The server moves the previous tab set to registry history, and bare `a1` starts with one new tab. Every previous session stays resumable through the normal session picker or `a1 --session`. A pending journaled prompt is offered when its session is next opened in a tab, for up to seven days. Restoring tabs after reboot is a follow-up change. |
+| Missing cwd or session on crash restart | stat or open fails | The tab is `failed` with the reason and path. It is never moved elsewhere, and the file is never overwritten. A reserved first-turn identity with a journal and no previously created transcript follows journal recovery instead. |
 | Registry corrupt | parse or validation fails | The file is quarantined, the last good generation is loaded, and a notice is shown. |
 | PID reuse | start-identity mismatch | The process is never adopted or killed, and the record is treated as having a dead holder. |
 | Disk full | write fails | The mutation is rejected with its reason, and running tabs are unaffected. |
@@ -256,7 +272,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
 
 - **Binaries.** The server and holders run from immutable release directories, never from the mutable npm prefix, so no running binary is ever overwritten.
 - **Same generation, newer client.** The client attaches normally, and features the server lacks are disabled per method.
-- **No automatic handoff in this slice.** A compatible resident cohort remains on its immutable release until all of its tabs stop. A newer same-generation client may attach with unsupported optional operations disabled.
+- **No automatic handoff in the first version.** A compatible resident cohort remains on its immutable release until all of its tabs stop. A newer same-generation client may attach with unsupported optional operations disabled.
 - **Retention.** Release collection keeps the server's, every holder's, and every tab child's release while native identities verify. Package activation does not terminate or overwrite them.
 - **Incompatibility.** A generation mismatch never kills resident processes. The client reports that the resident host must be stopped explicitly before the preview can restart on the newer generation. Automatic server handoff and idle tab recycling require a follow-up change.
 
@@ -326,9 +342,9 @@ The settings live in the owned settings screen, each with a hard cap.
 
 ### 13. Packaging and certification
 
-- `a1-terminal-host` is built and packaged only for win32-x64 in this slice, using the impact-selected Windows CI owner introduced by #588 and Zig 0.15.2 for pinned libghostty-vt. It ships in the immutable release with artifact manifest, hash verification, provenance, licenses, and notices.
-- Opt-in acceptance requires exact-package Windows hermetic suites plus manual or isolated-worker evidence for terminal close, SSH/session loss, reattach, input fidelity, extension text UI, failure recovery, rollback, and render smoothness.
-- Default-on Windows support requires a later change with an authorized isolated-worker 24-hour soak. macOS and Linux require separate implementation, exact-package certification, and default decisions.
+- `a1-terminal-host` is built and packaged for every platform A1 ships the process-guardian for (Windows x64, macOS, Linux), extending the impact-selected Windows CI owner introduced by #588 to a platform matrix, with Zig 0.15.2 for pinned libghostty-vt. It ships in the immutable release with artifact manifest, hash verification, provenance, licenses, and notices.
+- Opt-in acceptance requires exact-package hermetic suites on each platform plus manual or isolated-worker evidence per platform for terminal close, SSH/session loss, reattach, input fidelity, extension text UI, failure recovery, rollback, and render smoothness. Evidence is never inferred from one platform to another.
+- Default-on support on any platform requires a later change with an authorized isolated-worker 24-hour soak on that platform.
 
 ### 14. Security
 
@@ -340,23 +356,23 @@ The settings live in the owned settings screen, each with a hard cap.
 
 ### 15. Rollback
 
-- `tabs.resident: false` restores direct bare-A1 launch. The server is not started, and the registry is preserved. The shared Windows session-writer guard remains active, so fallback cannot write into a live tab's session.
+- `tabs.resident: false` restores direct bare-A1 launch. The server is not started, and the registry is preserved. The shared session-writer guard remains active, so fallback cannot write into a live tab's session.
 - If the server cannot start, bare A1 falls back to the direct single-agent launch with one notice, instead of failing.
 
 ### 16. Reliability engineering
 
-The v2 daemon was unreliable for structural reasons, and a forensic pass over its source established them. This design treats reliability as architecture rather than as patches, and proves it with release-gating tests. The full normative contract is the `resident-tab-reliability` capability.
+The v2 daemon was unreliable for structural reasons, and a forensic pass over its source established them. This design treats reliability as architecture rather than as patches, and proves it with release-gating tests. The full normative contract is the `resident-tab-reliability` section of [`resident-tabs-requirements.md`](resident-tabs-requirements.md).
 
 **Principles:**
 
 1. **Failure domains are processes.** The client, the server, one holder per tab, and one A1 process per tab are separate processes. Nothing shares an event loop across tabs.
 2. **Crash-only.** Every resident process may be killed at any instruction, and its startup path is its recovery path. Internal invariant violations fail fast: that process crashes with a record, instead of being swallowed. Because the failure domains are small, failing fast is cheap.
-3. **The control loop never blocks.** Each Rust role keeps its state machine I/O-free, a "sans-IO core". A thin shell runs blocking work (spawn, ConPTY creation, kill, identity inspection, fsync) on workers with deadlines. A missed deadline becomes a typed event, never a stall.
+3. **The control loop never blocks.** Each Rust role keeps its state machine I/O-free, a "sans-IO core". A thin shell runs blocking work (spawn, pseudoterminal creation, kill, identity inspection, fsync) on workers with deadlines. A missed deadline becomes a typed event, never a stall.
 4. **Level-triggered reconciliation.** Desired state (lifecycle, holder presence, size) is continuously reconciled against observed state. Every process incarnation carries an ID, and stale events are dropped.
 5. **Fencing.** The server must hold the OS-exclusive registry-writer lease; each start increments the durable epoch under that lease, each mutation verifies both lease and epoch, and holders and bridges obey only the highest epoch they have seen. A timed-out endpoint alone never authorizes a second writer.
 6. **Explicit durability per data class.** There is no "best effort". Each class of data has a stated guarantee, and each guarantee has a test.
 7. **Evidence survives failure.** Logs rotate but are never truncated at startup. Each crash produces its own record.
-8. **Prove it in stages.** Deterministic simulation, crash-point injection, fuzzing, bounded Windows CI chaos, and exact-package physical evidence gate this opt-in slice. A separately authorized isolated-worker 24-hour Windows soak gates any default-on change; each later platform earns equivalent evidence independently.
+8. **Prove it in stages.** Deterministic simulation, crash-point injection, fuzzing, bounded CI chaos on each platform, and exact-package physical evidence per platform gate this opt-in preview. A separately authorized isolated-worker 24-hour soak on a platform gates default-on for that platform; evidence is never inferred across platforms.
 
 **How each v2 failure is closed:**
 
@@ -370,18 +386,18 @@ The v2 daemon was unreliable for structural reasons, and a forensic pass over it
 | Repaints arrived in fragments ("ghost frames"), patched with timing heuristics and two screen sources | Emulation reconciled with bridge surfaces by timers | One source of truth, the holder model. Frames are published at synchronized-output boundaries, with a bounded coalescing window. |
 | A late exit event poisoned the replacement child | Events were not tied to an incarnation | Incarnation IDs on every event. Stale events are discarded. |
 | Resizes were lost in transit | Edge-triggered resize | Size is desired state, reconciled until observed. |
-| Restore spawned duplicate agents | No restore gate | A single restore gate, at most one start in flight per tab, and conditional revisions. The duplicate-start invariant is checked in simulation. |
+| Restore spawned duplicate agents | No restore gate | A single start gate for crash restarts, at most one start in flight per tab, and conditional revisions. The duplicate-start invariant is checked in simulation. |
 | A fresh agent whose session file was never reported could not be recovered | Session identity was learned after spawn | Session identity is committed to the registry before the tab accepts input. The prompt journal covers Pi's no-file-until-first-reply behavior. |
 | A corrupt state file was treated as a fresh boot and wiped every record | Parse failure fell through to an empty state | Quarantine, then load the last good history generation, with a notice. The server never starts empty over existing data. |
 | A failed persist plus a hot-swap re-read old state from disk and killed live agents as orphans | Rebuilding from disk over newer memory; the persist result was ignored | Memory stays authoritative on write failure: retry with backoff and report degraded health. There is no hot-swap, and processes are never killed because a registry read came back short. |
 | fsync was probably a no-op on Windows (file opened read-only), and the directory was never synced | Wrong handle access | Files are synced with write access and the directory is synced too. A test asserts the platform flush calls. |
-| Two processes appended to one session JSONL | Leases lived only in daemon memory | A canonical session-writer lock shared by A1-owned Windows launch modes, with custody tied to the writer rather than only its holder. |
-| Boot-identity rounding misclassified a crash as a reboot | `now − uptime` rounded to minutes | This slice reads the Windows boot sequence/`LastBootUpTime` identity and always verifies process identity; later platforms must define and test their native boot identity independently. |
+| Two processes appended to one session JSONL | Leases lived only in daemon memory | A canonical session-writer lock shared by every A1-owned launch mode, held by the writer process itself so the kernel releases it only when the writer is gone. |
+| Boot-identity rounding misclassified a crash as a reboot | `now − uptime` rounded to minutes | Each platform reads an exact native boot identity (Windows boot sequence/`LastBootUpTime`, Linux `/proc/sys/kernel/random/boot_id`, macOS `kern.boottime`) and always verifies process identity by pid plus native start time. |
 | A persist storm: a synchronous pretty-printed JSON write on every status change | Status was persisted with lifecycle | Only lifecycle and identity mutations are persisted. Status is volatile and rebuilt from the bridge. Writes run off-loop. |
 | Hot-swapping the logic bundle caused generation bugs, lost deferred callbacks, and memory growth; kernel updates never applied | In-process code replacement, needed because restarts killed agents | No logic hot-swap. Crash recovery replaces a server while retaining its compatible cohort. Automatic upgrade handoff and release recycling remain deferred; idle suspension is not a cohort upgrade. |
 | Crash evidence was deleted: the log was removed at boot, crash logs truncated on respawn, a 256-line queue dropped lines | Log handling | Size-rotated generations that are never truncated at boot. A distinct crash record per incident with a backtrace. `a1 tabs doctor` produces a redacted bundle. |
 | Crash text was wiped by the alternate-screen clear | The child cleared the screen before printing | The holder freezes the last screen as a read-only snapshot and writes a recovery file. Separately available stderr goes only to private bounded recovery storage, never the doctor bundle. |
-| Concurrent starts hit the `auth.json` lock ("No models available"), and `taskkill /F` left stale locks | Start storms and forced kills | Starts are capped and spaced. Graceful stop comes before force, so Pi releases its locks. A ten-tab restore test asserts models are available. |
+| Concurrent starts hit the `auth.json` lock ("No models available"), and `taskkill /F` left stale locks | Start storms and forced kills | Starts are capped and spaced. Graceful stop comes before force, so Pi releases its locks. A ten-tab concurrent start test asserts models are available. |
 | A mid-edit extension reload crashed children | Children loaded a tree that was being edited | This is handled like any other crash: the bounded restart budget, the prompt journal, and the last-screen snapshot. The restart is visible and never silent. |
 | The v1 daemon churned: slow replies were read as an outdated build | Timing used as a version signal | The version is carried by the explicit handshake generation, never inferred from timing. |
 
@@ -405,41 +421,45 @@ The v2 daemon was unreliable for structural reasons, and a forensic pass over it
 - Deterministic simulation and property tests of the sans-IO server core over death, loss, reordering, delay, stale epochs, controller transfer, churn, and mutation. Invariants include no lost committed mutation, one registry writer, one live incarnation per tab/session, attributable client-scoped requests, and convergence to running or failed.
 - Failure points at every persistence and IPC step, with kill-at-each-point crash tests.
 - `cargo-fuzz` targets for the protocol decoder and surface patch encoder.
-- Bounded Windows CI chaos with high-rate fake agents, random process death, resize/attach churn, controller transfer, blocked writes, ConPTY creation hang, rename denial, and kill-on-close containment.
-- Exact-package Windows manual or isolated-worker physical acceptance. A later default-on proposal must additionally supply an authorized 24-hour Windows soak with zero lost journaled prompts/committed entries, zero orphans/duplicates, bounded memory/handles, reattach p95 under 300 ms, tab restart under 3 s, and server recovery under 2 s.
+- Bounded CI chaos on each platform with high-rate fake agents, random process death, resize/attach churn, controller transfer, blocked writes, pseudoterminal creation hang, rename denial, and containment escape attempts.
+- Exact-package manual or isolated-worker physical acceptance on each platform. A later default-on proposal must additionally supply an authorized 24-hour soak on that platform with zero lost journaled prompts/committed entries, zero orphans/duplicates, bounded memory/handles, reattach p95 under 300 ms, tab restart under 3 s, and server recovery under 2 s.
 
 ## Risks / Trade-offs
 
 - **[A server crash interrupts the display for everyone]** → Holders keep processes and screens alive. The server holds no VT, Pi, or extension code. It is auto-respawned by any client or holder, and reattach restores exact surfaces.
-- **[Terminal fidelity in a composed surface]** (keyboard protocols, mouse, paste, IME, Unicode width, hyperlinks) → Reuse libghostty-vt encoding and the proof's input work, and add Windows fidelity suites. Claims cover only the certified text-terminal contract; image protocols remain an explicit gap.
+- **[Terminal fidelity in a composed surface]** (keyboard protocols, mouse, paste, IME, Unicode width, hyperlinks) → Reuse libghostty-vt encoding and the proof's input work, and add fidelity suites on each platform. Claims cover only the certified text-terminal contract; image protocols remain an explicit gap.
 - **[Per-tab memory multiplies with holder and A1 processes; historical estimates are not measured A1 bounds]** → `tabs.max`, idle suspension on by default, and throttled rendering while hidden via `bridge.visibility`.
-- **[Windows detachment is fragile]** → Detection and escape live in the native binary. The mode is reported, never assumed, and unverifiable breakaway falls back instead of claiming survival.
-- **[The Zig and libghostty toolchain in CI and release]** → It is pinned already. Reuse the #588 Windows owner and provenance gate; cross-platform matrices are deferred.
+- **[Detachment is platform-specific and fragile]** (Windows jobs and SSH, macOS bootstrap namespaces, Linux logout policies) → Detection and escape live in the native binary per platform. The mode is reported, never assumed, and unverifiable survival falls back instead of claiming persistence.
+- **[Three platforms multiply native and certification work]** → Platform code is confined to the thin I/O shell around one shared sans-IO core, and milestone 1 proves every platform primitive before later milestones build on it.
+- **[The Zig and libghostty toolchain in CI and release]** → It is pinned already. Extend the #588 Windows owner and provenance gate to a macOS and Linux build matrix.
 - **[No image protocol in tabs at first]** → Pi's text fallback applies and the gap is documented. Forwarding is a follow-up.
-- **[Stale or duplicate processes after races]** → An OS-exclusive writer lease, current-epoch commits, one restore gate, conditional registry revisions, derived credentials, and adoption only after identity verification.
+- **[Stale or duplicate processes after races]** → An OS-exclusive writer lease, current-epoch commits, one start gate, conditional registry revisions, derived credentials, and adoption only after identity verification.
 - **[Two clients type into one tab or a delayed slash command detaches the wrong terminal]** → One controller lease, a proven cross-channel input-admission barrier, immutable command-origin generations, and fail-closed ambiguous requests. A sideband acknowledgement alone is not sufficient.
 - **[Physical close, logout, and reboot cannot be tested hermetically]** → Owner-tree kills stand in for terminal close. Exact-artifact manual or isolated-worker records are required, and nothing is automated on an active workstation.
 
-## Migration Plan
+## Roadmap
 
-This refinement changes planning artifacts only. Explicit plan approval and an implementation request are required before any code, tests, workflows, architecture-document updates, or canonical-spec synchronization. Continue in this same draft PR/branch. Each milestone earns its own evidence; none independently authorizes productization, finalization, or merge.
+Each milestone is its own OpenSpec change and pull request, merged to `develop` behind `tabs.resident: false`, so nothing user-visible changes until the preview is certified. A milestone starts only after the previous one merges, moves its requirements from [`resident-tabs-requirements.md`](resident-tabs-requirements.md) into its own spec delta, and covers Windows x64, macOS, and Linux together unless its change says otherwise.
 
-| Milestone | Deliverable and exit evidence |
-|---|---|
-| 1. Contracts and baseline | Reconcile then-current `develop`; freeze role/protocol/data ownership, Windows resident-launch authority, writer-bound lease custody and alias handling, controller-transfer barrier, and filesystem durability primitives. Name and test the proof obligations before dependent behavior is enabled. Reconcile historical pending proof documentation without changing its verdict or weakening exact-package certification. |
-| 2. One persistent tab | Implement the three native roles with one full A1 text UI, minimal authenticated registry/bridge, bounded I/O, explicit opt-in and direct fallback. Demonstrate terminal/client closure, detached output, retained reattach, input, and surviving-owner terminal restoration. |
-| 3. Failure isolation | Demonstrate two tabs, server replacement with unchanged holder/child identities, isolated holder/child failure and hang, slow client/blocked writer isolation, exclusive registry epochs, writer-lease safety, and no duplicate starts. |
-| 4. Safe recovery | Prove durable-before-dispatch journaling, periodic drafts during continuous typing, session correlation/retirement crash points, missing first-turn versus missing existing session, boot restore, corruption/rename/disk failures, and sensitive-recovery/diagnostic separation. |
-| 5. Complete UX | Complete input-controller transfer with buffered-command races, status/needs-input, create/switch/rename/reorder/close, detach, resume, and extension text fidelity. Only after survival/recovery proofs add prewarm, auto-naming and 60-minute idle suspension with the recorded defaults unchanged. |
-| 6. Package and certify | Immutable Windows packaging/retention, maintenance, bounded resources, deterministic/property/crash/fuzz/chaos evidence and exact-package physical acceptance, including SSH loss, reboot restore, forced attach death, direct conflict-safe rollback, and independent concurrent sessions. Measure cold launch, warm tab creation, retained reattach and recovery separately; prototype timings are not results. |
+| # | Change | Deliverable and exit evidence |
+|---|---|---|
+| 1 | `resident-tabs-contracts` (PR #586) | Native platform primitives with tests on every platform: fixed-role detached start and containment checks, process identity, owner-only endpoints, the writer-bound session lock, durable atomic file replacement, and boot identity. The frozen protocol generation 1 with fixtures, and the controller-transfer barrier proven in the sans-IO core. No product wiring. |
+| 2 | `resident-tabs-persistent-tab` | The three native roles with one full A1 text UI, minimal authenticated registry and bridge, bounded I/O, explicit opt-in and direct fallback. Terminal and client closure, detached output, retained reattach, input, and surviving-owner terminal restoration. |
+| 3 | `resident-tabs-failure-isolation` | Two tabs, server replacement with unchanged holder/child identities, isolated holder/child failure and hang, slow client and blocked writer isolation, exclusive registry epochs, the session-writer lock wired into every A1 launch mode, and no duplicate starts. |
+| 4 | `resident-tabs-crash-recovery` | Crash restart into the session, durable-before-dispatch journaling, periodic drafts during continuous typing, correlation/retirement crash points, missing first-turn versus missing existing session, corruption/rename/disk failures, last-screen recovery, and sensitive-recovery/diagnostic separation. After reboot, previous sessions stay resumable, with no tab restore. |
+| 5 | `resident-tabs-tab-ux` | Strip, shortcuts, mouse, commands, rename/reorder/close, status and needs-input, detach and resume, two attached clients with the controller-transfer barrier, and extension text fidelity. Then auto-naming, one prewarmed tab, and 60-minute idle suspension with the recorded defaults. |
+| 6 | `resident-tabs-certification` | Packaging and release retention on every platform, maintenance commands, bounded resources, deterministic/property/crash/fuzz/chaos evidence and exact-package physical acceptance per platform, including SSH loss, forced attach death, conflict-safe direct rollback, and performance measured separately for cold launch, warm tab creation, reattach, and recovery. |
 
-Detailed tasks are in `tasks.md`. Failures keep the preview disabled and the candidate draft until fixed; proof milestones are development sequencing, not six separate deliveries. The authorized isolated-worker 24-hour soak remains a later default-on gate, not hidden work in this preview.
+A failed milestone keeps the preview disabled and its pull request open until fixed. Change names for milestones 2–6 are working names and may change when each is planned.
 
-### Separate multi-agent follow-ups
+### Follow-ups outside this roadmap
 
+- **Reboot and logout restore:** reopen the previous tab set after a new OS session.
 - **Work isolation:** explicit task-to-repository/worktree ownership, dirty-tree policy, concurrent-edit conflicts, and review/integration ownership. A tab's cwd is not an isolation guarantee.
 - **Coordination:** task identities, delegation, prompt/result exchange, cancellation, permission and cost limits, and parent/child lifecycle. Herdr's agent start/prompt/read/wait API is a reference, not functionality included here.
-- **Presentation/platform expansion:** generic CLI admission, held split layouts, remote attachment, macOS/Linux certification, automatic cohort handoff and default enablement each need their own approved scope. This outline grants no implementation authority for any follow-up.
+- **Presentation and enablement:** generic CLI tabs, split layouts, remote attachment, automatic cohort handoff, and default enablement after a 24-hour soak per platform.
+
+Each follow-up needs its own approved change.
 
 ## Recorded User Decisions
 
@@ -453,4 +473,11 @@ The user made these decisions on 2026-09-24:
 - `Ctrl+C` twice leaves `a1` from any tab while tabs keep running. There is no separate detach key.
 - Reliability is a first-class, release-gating requirement (Decision 16).
 
-The 2026-09-25 refinement bounded this delivery to an opt-in Windows x64 slice. The 2026-10-05 user request authorizes refinement of PR #586 only, with no implementation. This revision retains the product decisions and six-stage delivery, corrects job-wide breakaway and holder-only lease assumptions, requires a proven cross-channel controller barrier, defines journal/draft and diagnostic privacy guarantees, and separates hosting from work isolation/coordination. The shared Windows writer guard is the explicit direct/Pi-comparison safety exception; no resident UI is added there. Platform primitives and race proofs remain unchecked milestone-1 work, not claims that the risks are already implemented or certified. Deferred scopes require new planning and approval.
+On 2026-10-10 the user confirmed this resident design over in-process tabs and set the first version's scope:
+
+- Deliver as six milestone pull requests, each merged behind `tabs.resident: false`; PR #586 carries this roadmap and milestone 1.
+- Target Windows x64, macOS, and Linux in the first version.
+- Keep crash recovery (restart into the session, prompt journal, drafts); drop reboot and logout restore to a follow-up.
+- Keep auto-naming, idle suspension with prewarm, and two attached clients.
+- Hosting only: worktree isolation and agent coordination are separate follow-ups.
+- Retire the earlier `evolve-bare-a1-into-multi-agent-workspace` plan (#745); split layouts are a follow-up idea.
