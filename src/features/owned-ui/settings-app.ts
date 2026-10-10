@@ -599,15 +599,15 @@ export class SettingsApp implements UiApp {
       this.#hoverKey = anchorKey;
       this.#hoverRegion = "value";
     }
-    // Invariant: pointer opening stays inactive because it targeted the setting value, while
-    // Enter explicitly starts keyboard choice navigation at the value already in effect.
+    // Invariant: the menu lays the value in effect over its source row, so both a press on
+    // that value and Enter start on it: the pointer is already resting on that entry.
     this.#menu = {
       entry,
       current,
       anchorKey,
       choices: entry.choices,
       keyboardOpened: selectCurrent,
-      index: selectCurrent ? current : -1,
+      index: current,
     };
   }
 

@@ -67,7 +67,7 @@ describe("shared value menu", () => {
       surfaceWidth: 30,
       reservedRight: 2,
     });
-    expect(frame).toEqual({ top: 2, column: 6, width: 13, rows: 2 });
+    expect(frame).toEqual({ top: 1, column: 6, width: 13, rows: 2 });
 
     const rendered = renderValueMenu([" ".repeat(30), " ".repeat(30), " ".repeat(30), " ".repeat(30)], state, frame, NAMING_THEME);
     expect(rendered[frame.top]).toContain("<active><text>✓</text></active><active> \u001b[35m■\u001b[39m default");
@@ -75,25 +75,32 @@ describe("shared value menu", () => {
     expect(rendered.join("\n")).not.toContain("<accent>✓</accent>");
   });
 
-  it("places below when possible and flips above while clipping at the right rail", () => {
+  it("lays the value in effect over its anchor, shifting only at the body edges", () => {
     const aligned = valueMenuFrame(STATE, { screenRow: 1, valueColumn: 8 }, {
       bodyHeight: 8,
       surfaceWidth: 30,
       reservedRight: 2,
     });
-    expect(aligned).toEqual({ top: 2, column: 6, width: 10, rows: 3 });
+    expect(aligned).toEqual({ top: 1, column: 6, width: 10, rows: 3 });
     const rendered = renderValueMenu([" ".repeat(30), " ".repeat(30), " ".repeat(30), " ".repeat(30), " ".repeat(30)], STATE, aligned, PLAIN_THEME);
     expect(rendered[aligned.top]?.indexOf("auto")).toBe(8);
     expect(rendered[aligned.top + 1]?.indexOf("always")).toBe(8);
+
+    // Invariant: a later choice in effect pulls the menu up so it still lands on the anchor.
+    expect(valueMenuFrame({ ...STATE, current: "hidden" }, { screenRow: 4, valueColumn: 8 }, {
+      bodyHeight: 8,
+      surfaceWidth: 30,
+      reservedRight: 2,
+    })).toEqual({ top: 2, column: 6, width: 10, rows: 3 });
 
     expect(valueMenuFrame(STATE, { screenRow: 5, valueColumn: 27 }, {
       bodyHeight: 7,
       surfaceWidth: 30,
       reservedRight: 2,
-    })).toEqual({ top: 2, column: 18, width: 10, rows: 3 });
+    })).toEqual({ top: 4, column: 18, width: 10, rows: 3 });
 
-    // Invariant: fixed screen chrome is not available when a framed list flips upward.
-    expect(valueMenuFrame(STATE, { screenRow: 4, valueColumn: 8 }, {
+    // Invariant: fixed screen chrome is not available when the menu is pushed off an edge.
+    expect(valueMenuFrame({ ...STATE, current: "hidden" }, { screenRow: 3, valueColumn: 8 }, {
       bodyTop: 2,
       bodyHeight: 4,
       surfaceWidth: 30,

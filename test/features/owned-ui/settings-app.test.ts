@@ -1095,7 +1095,8 @@ describe("the list view behind the screen", () => {
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
     expect(writes).toHaveLength(0);
     expect(screen(target).some(line => line.includes("✓ low"))).toBe(true);
-    expect(screen(target).find(line => line.trimStart().startsWith("→"))).toBe(selectedBefore);
+    // Invariant: the menu lays its effective value over the source row, whose arrow stays put.
+    expect(screen(target).find(line => line.trimStart().startsWith("→"))).toContain("→ Thinking level");
   });
 
   it("raises working minus/plus controls over a number, and only over its value", async () => {
@@ -1131,7 +1132,7 @@ describe("the value dropdown behind the screen", () => {
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
 
     const opened = target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n");
-    expect(opened).toContain("<panel><text>✓</text></panel><panel> \u001b[35m■\u001b[39m purple");
+    expect(opened).toContain("<highlight><text>✓</text></highlight><highlight> \u001b[35m■\u001b[39m purple");
     for (const ansi of [34, 36, 32, 33, 31]) expect(opened).toContain(`\u001b[${ansi}m■\u001b[39m`);
     expect(opened).not.toContain("<accent>✓</accent>");
   });
@@ -1180,7 +1181,7 @@ describe("the value dropdown behind the screen", () => {
     expect(closed.find(line => line.includes("Thinking level"))).toContain("<muted>high</muted>");
   });
 
-  it("opens without an active row and keeps keyboard navigation based on the effective value", async () => {
+  it("opens on the effective value under the pointer and navigates from it", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Thinking level");
     const lines = screen(target);
@@ -1188,13 +1189,13 @@ describe("the value dropdown behind the screen", () => {
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
 
+    // Invariant: the press lands on the value in effect, which the menu lays under the pointer.
     const opened = target.render({ width: 80, height: 24 }, NAMING_HOST);
-    expect(opened.filter(line => line.includes("<panel>")).join("\n")).not.toContain("<highlight>");
-    expect(opened.join("\n")).toContain("<panel><text>✓</text></panel><panel> low");
+    expect(opened.join("\n")).toContain("<highlight><text>✓</text></highlight><highlight> low");
+    expect(writes).toHaveLength(0);
 
     target.onInput?.(DOWN, HOST);
-    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).toContain("<highlight><text>✓</text></highlight><highlight> low");
-    target.onInput?.(DOWN, HOST);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes(" high"))).toContain("<highlight>");
     target.onInput?.(ENTER, HOST);
     expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "high" });
   });
@@ -1215,7 +1216,7 @@ describe("the value dropdown behind the screen", () => {
 
     target.onMouse?.({ kind: "motion", button: 0, row: highRow + 1, column: 1 }, HOST);
     const cleared = target.render({ width: 80, height: 24 }, NAMING_HOST);
-    expect(cleared.filter(line => line.includes("<panel>")).join("\n")).not.toContain("<highlight>");
+    expect(cleared.filter(line => line.includes("<panel>") && !line.includes("Thinking level")).join("\n")).not.toContain("<highlight>");
   });
 
   it("applies the choice pressed inside the shared menu", async () => {
