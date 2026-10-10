@@ -27,6 +27,7 @@ export type { CohortEndpointPaths, ProductPaths } from "./paths.js";
 export { parseSessionSelection, sessionSelectionArguments } from "./session-selection.js";
 export type { SessionSelection } from "./session-selection.js";
 export {
+  PRIMARY_SESSION_AGENT_ID,
   activateSessionRepositoryContext,
   clearSessionRepositoryContext,
   listSessionRepositoryWorktrees,

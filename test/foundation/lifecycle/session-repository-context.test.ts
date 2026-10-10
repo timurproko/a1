@@ -240,6 +240,91 @@ describe("session repository context and live worktree claims", () => {
     )).rejects.toMatchObject({ code: "session-runtime-conflict" });
   });
 
+  it("keeps one independent claim per agent of a runtime and releases all of them with the runtime", async () => {
+    const fixture = await repositoryFixture();
+    const firstPath = await realpath(fixture.worktree);
+    const secondPath = await realpath(fixture.secondWorktree);
+    const runtime = fixture.firstRuntime;
+    const agentA = { ...runtimeOptions(fixture, runtime), agentId: "agent-a" };
+    const agentB = { ...runtimeOptions(fixture, runtime), agentId: "agent-b" };
+    await registerSessionRepositoryRuntime(fixture.identity, runtime.runtimeId, runtime.process, agentA);
+    await registerSessionRepositoryRuntime(fixture.secondIdentity, runtime.runtimeId, runtime.process, agentB);
+    await setSessionRepositoryContext(fixture.identity, fixture.worktree, agentA);
+    await setSessionRepositoryContext(fixture.secondIdentity, fixture.secondWorktree, agentB);
+
+    await expect(activateSessionRepositoryContext(fixture.secondIdentity, runtime.runtimeId, runtime.process, agentB))
+      .resolves.toEqual({ cwd: secondPath, branch: "fix/example-two" });
+    const inventory = await listSessionRepositoryWorktrees(fixture.identity, agentA);
+    expect(inventory.find(entry => entry.cwd === firstPath)).toMatchObject({ status: "current", agentId: "agent-a" });
+    expect(inventory.find(entry => entry.cwd === secondPath)).toMatchObject({ status: "busy", agentId: "agent-b" });
+    await expect(setSessionRepositoryContext(fixture.identity, fixture.secondWorktree, agentA))
+      .rejects.toMatchObject({ code: "worktree-active-in-another-session" });
+
+    await releaseSessionRepositoryRuntime(runtime.runtimeId, runtime.process, { dataDir: fixture.dataDir });
+    await register(fixture, fixture.identity, fixture.secondRuntime);
+    const released = await listSessionRepositoryWorktrees(fixture.identity, runtimeOptions(fixture, fixture.secondRuntime));
+    expect(released.find(entry => entry.cwd === firstPath)).toMatchObject({ status: "available", agentId: null });
+    expect(released.find(entry => entry.cwd === secondPath)).toMatchObject({ status: "available", agentId: null });
+    await expect(readdir(join(fixture.dataDir, "session-worktree-claims", "runtimes"))).resolves.toHaveLength(1);
+  });
+
+  it("reads single-agent records as the primary agent's and rewrites them in the current format", async () => {
+    const fixture = await repositoryFixture();
+    const canonicalWorktree = await realpath(fixture.worktree);
+    await register(fixture, fixture.identity, fixture.firstRuntime);
+    await setSessionRepositoryContext(fixture.identity, fixture.worktree, runtimeOptions(fixture, fixture.firstRuntime));
+    const store = join(fixture.dataDir, "session-worktree-claims");
+    const files = [
+      ...(await readdir(join(store, "runtimes"))).map(name => join(store, "runtimes", name)),
+      ...(await readdir(join(store, "worktrees"))).map(name => join(store, "worktrees", name)),
+    ];
+    expect(files).toHaveLength(2);
+    for (const file of files) {
+      const { formatVersion: _version, agentId: _agent, ...versionOne } = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
+      await writeFile(file, `${JSON.stringify(versionOne)}\n`);
+    }
+
+    expect((await listSessionRepositoryWorktrees(fixture.identity, runtimeOptions(fixture, fixture.firstRuntime)))
+      .find(entry => entry.cwd === canonicalWorktree)).toMatchObject({ status: "current", agentId: "primary" });
+    await expect(activateSessionRepositoryContext(
+      fixture.identity, fixture.firstRuntime.runtimeId, fixture.firstRuntime.process,
+      { dataDir: fixture.dataDir, inspectProcess: fixture.inspectProcess },
+    )).resolves.toEqual({ cwd: canonicalWorktree, branch: "fix/example" });
+    for (const file of files) {
+      await expect(readFile(file, "utf8").then(text => JSON.parse(text) as unknown))
+        .resolves.toMatchObject({ formatVersion: 2, agentId: "primary" });
+    }
+  });
+
+  it("evicts the mutation lock only when its recorded holder is proven dead", async () => {
+    const fixture = await repositoryFixture();
+    const lockPath = join(fixture.dataDir, "session-worktree-claims", "mutation.lock");
+    await register(fixture, fixture.identity, fixture.firstRuntime);
+    const options = { dataDir: fixture.dataDir, inspectProcess: fixture.inspectProcess, lockTimeoutMs: 100 };
+    const lock = (pid: number, startIdentity: string) =>
+      `${JSON.stringify({ pid, startIdentity, acquiredAt: "2026-10-10T00:00:00.000Z", nonce: `nonce-${pid}` })}\n`;
+
+    await writeFile(lockPath, lock(4242, "fixture:crashed"));
+    await registerSessionRepositoryRuntime(fixture.identity, fixture.firstRuntime.runtimeId, fixture.firstRuntime.process, options);
+    await expect(readFile(lockPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    fixture.processes.set(1003, "fixture:three");
+    await writeFile(lockPath, lock(1003, "fixture:pid-reused-before"));
+    await registerSessionRepositoryRuntime(fixture.identity, fixture.firstRuntime.runtimeId, fixture.firstRuntime.process, options);
+    await expect(readFile(lockPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    for (const held of [lock(1002, "fixture:two"), "contended\n"]) {
+      await writeFile(lockPath, held);
+      await expect(registerSessionRepositoryRuntime(fixture.identity, fixture.firstRuntime.runtimeId, fixture.firstRuntime.process, options))
+        .rejects.toMatchObject({ code: "worktree-claim-busy" });
+      await expect(readFile(lockPath, "utf8")).resolves.toBe(held);
+    }
+    await writeFile(lockPath, lock(1002, "fixture:two"));
+    const uncertain = { ...options, inspectProcess: async () => { throw new Error("inspection unavailable"); } };
+    await expect(registerSessionRepositoryRuntime(fixture.identity, fixture.firstRuntime.runtimeId, fixture.firstRuntime.process, uncertain))
+      .rejects.toMatchObject({ code: "worktree-claim-busy" });
+  });
+
   it("rejects foreign, non-root, detached, mismatched, and malformed durable contexts", async () => {
     const fixture = await repositoryFixture();
     await register(fixture, fixture.identity, fixture.firstRuntime);

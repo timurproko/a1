@@ -107,7 +107,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const sessionRuntimeId = ownedSurfaces ? process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] : undefined;
   const inspectSessionProcess = options.inspectProcess;
   let sessionRuntimeIdentity: Promise<NativeProcessIdentity | null> | null = null;
-  let activeSessionIdentity: { readonly sessionId: string; readonly sessionFile: string } | null = null;
+  // Invariant: one entry per agent of this runtime; each agent holds its own claim, and the runtime's exit releases all.
+  const activeSessionIdentities = new Map<string | undefined, { readonly sessionId: string; readonly sessionFile: string }>();
   let sessionRuntimeRefreshTimer: NodeJS.Timeout | null = null;
   let sessionRuntimeRefresh = Promise.resolve();
   let sessionRuntimeDisposed = false;
@@ -117,16 +118,37 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     return await sessionRuntimeIdentity;
   };
   const queueSessionRuntimeRefresh = (): void => {
-    if (sessionRuntimeDisposed || activeSessionIdentity === null || sessionRuntimeId === undefined || inspectSessionProcess === undefined) return;
+    if (sessionRuntimeDisposed || activeSessionIdentities.size === 0 || sessionRuntimeId === undefined || inspectSessionProcess === undefined) return;
     sessionRuntimeRefresh = sessionRuntimeRefresh.then(async () => {
-      const identity = activeSessionIdentity;
-      if (sessionRuntimeDisposed || identity === null) return;
+      if (sessionRuntimeDisposed) return;
       const owner = await runtimeIdentity();
       if (owner === null) return;
       const { registerSessionRepositoryRuntime } = await import("../foundation/lifecycle/session-repository-context.js");
-      await registerSessionRepositoryRuntime(identity, sessionRuntimeId, owner, { inspectProcess: inspectSessionProcess });
+      for (const [agentId, identity] of activeSessionIdentities) {
+        if (sessionRuntimeDisposed) return;
+        await registerSessionRepositoryRuntime(identity, sessionRuntimeId, owner, {
+          inspectProcess: inspectSessionProcess,
+          ...(agentId === undefined ? {} : { agentId }),
+        }).catch(() => undefined);
+      }
     }).catch(() => undefined);
   };
+  /** The repository context reader for one agent; undefined names the primary agent, the only one composed today. */
+  const repositoryContextReaderFor = (agentId: string | undefined) =>
+    async (sessionId: string, sessionFile: string, signal: AbortSignal) => {
+      const owner = await runtimeIdentity();
+      if (owner === null || sessionRuntimeId === undefined || inspectSessionProcess === undefined) return null;
+      const identity = { sessionId, sessionFile };
+      activeSessionIdentities.set(agentId, identity);
+      const { activateSessionRepositoryContext } = await import("../foundation/lifecycle/session-repository-context.js");
+      const context = await activateSessionRepositoryContext(identity, sessionRuntimeId, owner, {
+        signal,
+        inspectProcess: inspectSessionProcess,
+        ...(agentId === undefined ? {} : { agentId }),
+      });
+      armSessionRuntimeRefresh();
+      return context;
+    };
   const armSessionRuntimeRefresh = (): void => {
     if (sessionRuntimeRefreshTimer !== null) return;
     sessionRuntimeRefreshTimer = setInterval(queueSessionRuntimeRefresh, SESSION_RUNTIME_REFRESH_MS);
@@ -161,22 +183,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   try {
     backend = await host.create({
       cwd,
-      ...(ownedSurfaces ? {
-        repositoryContextReader: async (sessionId: string, sessionFile: string, signal: AbortSignal) => {
-          const owner = await runtimeIdentity();
-          if (owner === null || sessionRuntimeId === undefined || inspectSessionProcess === undefined) return null;
-          activeSessionIdentity = { sessionId, sessionFile };
-          const { activateSessionRepositoryContext } = await import("../foundation/lifecycle/session-repository-context.js");
-          const context = await activateSessionRepositoryContext(
-            activeSessionIdentity,
-            sessionRuntimeId,
-            owner,
-            { signal, inspectProcess: inspectSessionProcess },
-          );
-          armSessionRuntimeRefresh();
-          return context;
-        },
-      } : {}),
+      ...(ownedSurfaces ? { repositoryContextReader: repositoryContextReaderFor(undefined) } : {}),
       ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
       ...(options.sessionSelection === undefined ? {} : { sessionSelection: options.sessionSelection }),
       ...(options.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: options.sessionForkPrompt }),

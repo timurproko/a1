@@ -7,6 +7,8 @@ import {
   type SessionWorktreeInventoryEntry,
 } from "../../foundation/lifecycle/index.js";
 
+export { PRIMARY_SESSION_AGENT_ID } from "../../foundation/lifecycle/index.js";
+
 export type SessionContextRequest =
   | { readonly action: "link-worktree"; readonly path: string }
   | { readonly action: "unlink-worktree" }

@@ -1,4 +1,5 @@
 import {
+  PRIMARY_SESSION_AGENT_ID,
   updateSessionRepositoryContext,
   type SessionContextRequest,
 } from "../features/launch/index.js";
@@ -39,7 +40,11 @@ export async function runSessionContextCommand(
     if (outcome.kind === "unlinked") stdout("Session worktree context cleared.\n");
     if (outcome.kind === "linked") stdout(`Session worktree context linked: ${outcome.cwd}\n`);
     if (outcome.kind === "worktrees") {
-      for (const entry of outcome.entries) stdout(`${entry.status}: ${entry.cwd} (${entry.branch})\n`);
+      for (const entry of outcome.entries) {
+        // Compatibility: the primary agent is the only agent of a single-session runtime, so it stays unnamed.
+        const agent = entry.agentId === null || entry.agentId === PRIMARY_SESSION_AGENT_ID ? "" : ` [agent ${entry.agentId}]`;
+        stdout(`${entry.status}: ${entry.cwd} (${entry.branch})${agent}\n`);
+      }
     }
     return 0;
   } catch (error) {

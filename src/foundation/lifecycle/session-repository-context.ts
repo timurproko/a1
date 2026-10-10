@@ -15,6 +15,9 @@ const MAX_WORKTREES = 256;
 const GIT_TIMEOUT_MS = 5_000;
 const LOCK_TIMEOUT_MS = 2_000;
 const LOCK_RETRY_MS = 20;
+/** Records without an agent id were written by a single-agent release and belong to its one agent. */
+export const PRIMARY_SESSION_AGENT_ID = "primary";
+const RECORD_FORMAT_VERSION = 2;
 
 export interface SessionRepositoryIdentity {
   readonly sessionId: string;
@@ -30,6 +33,8 @@ export type SessionWorktreeStatus = "current" | "busy" | "available" | "unverifi
 
 export interface SessionWorktreeInventoryEntry extends SessionRepositoryContext {
   readonly status: SessionWorktreeStatus;
+  /** Agent holding the claim within its runtime; null when the worktree is unclaimed or unverifiable. */
+  readonly agentId: string | null;
 }
 
 interface SessionHeader {
@@ -59,7 +64,9 @@ interface SessionRepositoryRecord {
 
 interface SessionRuntimeRecord {
   readonly schema: typeof RUNTIME_SCHEMA;
+  readonly formatVersion: typeof RECORD_FORMAT_VERSION;
   readonly runtimeId: string;
+  readonly agentId: string;
   readonly sessionId: string;
   readonly sessionFile: string;
   readonly pid: number;
@@ -67,9 +74,24 @@ interface SessionRuntimeRecord {
   readonly updatedAt: string;
 }
 
+interface ClaimOwner {
+  readonly runtimeId: string;
+  readonly agentId: string;
+}
+
+interface MutationLockRecord {
+  readonly pid: number;
+  /** Absent when the holder could not inspect itself; such a lock is never evicted. */
+  readonly startIdentity?: string;
+  readonly acquiredAt: string;
+  readonly nonce: string;
+}
+
 interface WorktreeClaimRecord {
   readonly schema: typeof CLAIM_SCHEMA;
+  readonly formatVersion: typeof RECORD_FORMAT_VERSION;
   readonly runtimeId: string;
+  readonly agentId: string;
   readonly sessionId: string;
   readonly worktreeRoot: string;
   readonly worktreeCommonDir: string;
@@ -83,6 +105,8 @@ export interface SessionRepositoryContextOptions {
   readonly dataDir?: string;
   readonly signal?: AbortSignal;
   readonly runtimeId?: string;
+  /** Agent within the runtime that owns the claim; defaults to the primary agent. */
+  readonly agentId?: string;
   readonly runtimeIdentity?: NativeProcessIdentity;
   readonly inspectProcess?: (pid: number) => Promise<NativeProcessIdentity | null>;
   readonly lockTimeoutMs?: number;
@@ -97,13 +121,14 @@ export async function registerSessionRepositoryRuntime(
 ): Promise<void> {
   const header = await readSessionHeader(identity);
   assertRuntimeId(runtimeId);
+  const agentId = requireAgentId(options);
   assertProcessIdentity(runtimeIdentity);
-  await withClaimLock(options, async () => {
-    await writeRuntimeRecord(header, runtimeId, runtimeIdentity, options);
+  await withClaimLock({ ...options, runtimeIdentity }, async () => {
+    await writeRuntimeRecord(header, runtimeId, agentId, runtimeIdentity, options);
   });
 }
 
-/** Revalidate a durable association and acquire its live claim for this runtime. */
+/** Revalidate a durable association and acquire its live claim for this runtime's agent; sibling agents' claims stay. */
 export async function activateSessionRepositoryContext(
   identity: SessionRepositoryIdentity,
   runtimeId: string,
@@ -112,31 +137,33 @@ export async function activateSessionRepositoryContext(
 ): Promise<SessionRepositoryContext | null> {
   const header = await readSessionHeader(identity);
   assertRuntimeId(runtimeId);
+  const agentId = requireAgentId(options);
   assertProcessIdentity(runtimeIdentity);
-  return await withClaimLock(options, async () => {
-    await writeRuntimeRecord(header, runtimeId, runtimeIdentity, options);
+  const owner = { runtimeId, agentId };
+  return await withClaimLock({ ...options, runtimeIdentity }, async () => {
+    await writeRuntimeRecord(header, runtimeId, agentId, runtimeIdentity, options);
     const record = await readContextRecord(header, options);
     if (record === null) {
-      await releaseClaimsOwnedBy(runtimeId, null, options);
+      await releaseClaimsOwnedBy(owner, null, options);
       return null;
     }
     const selected = await validateContextRecord(header, record, options.signal).catch(() => null);
     if (selected === null) {
-      await releaseClaimsOwnedBy(runtimeId, null, options);
+      await releaseClaimsOwnedBy(owner, null, options);
       return null;
     }
-    const status = await claimAvailability(selected, runtimeId, options);
+    const status = await claimAvailability(selected, owner, options);
     if (status !== "available" && status !== "current") {
-      await releaseClaimsOwnedBy(runtimeId, null, options);
+      await releaseClaimsOwnedBy(owner, null, options);
       return null;
     }
-    await writeClaim(header, selected, runtimeId, runtimeIdentity, options);
-    await releaseClaimsOwnedBy(runtimeId, selected.gitDir, options);
+    await writeClaim(header, selected, owner, runtimeIdentity, options);
+    await releaseClaimsOwnedBy(owner, selected.gitDir, options);
     return { cwd: selected.root, branch: requireBranch(selected) };
   });
 }
 
-/** Release only this exact runtime generation's cooperative editing claims. */
+/** Release every agent's cooperative editing claims held by this exact runtime generation. */
 export async function releaseSessionRepositoryRuntime(
   runtimeId: string,
   runtimeIdentity: NativeProcessIdentity,
@@ -144,11 +171,12 @@ export async function releaseSessionRepositoryRuntime(
 ): Promise<void> {
   assertRuntimeId(runtimeId);
   assertProcessIdentity(runtimeIdentity);
-  await withClaimLock(options, async () => {
-    const runtime = await readRuntimeRecord(runtimeId, options);
-    if (runtime === null || runtime.pid !== runtimeIdentity.pid || runtime.startIdentity !== runtimeIdentity.startIdentity) return;
-    await releaseClaimsOwnedBy(runtimeId, null, options);
-    await rm(runtimeRecordPath(runtimeId, options), { force: true });
+  await withClaimLock({ ...options, runtimeIdentity }, async () => {
+    const runtimes = (await readRuntimeRecordsOf(runtimeId, options))
+      .filter(({ record }) => record.pid === runtimeIdentity.pid && record.startIdentity === runtimeIdentity.startIdentity);
+    if (runtimes.length === 0) return;
+    await releaseRuntimeClaims(runtimeId, options);
+    for (const { path } of runtimes) await rm(path, { force: true });
   });
 }
 
@@ -164,23 +192,23 @@ export async function setSessionRepositoryContext(
   if (!samePath(startup.commonDir, selected.commonDir)) {
     throw contextError("associated worktree belongs to a different Git repository", "worktree-foreign-repository");
   }
-  const runtimeId = requireRuntimeId(options);
+  const owner = { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) };
   return await withClaimLock(options, async () => {
-    const runtime = await requireLiveRuntime(header, runtimeId, options);
-    const status = await claimAvailability(selected, runtimeId, options);
+    const runtime = await requireLiveRuntime(header, owner, options);
+    const status = await claimAvailability(selected, owner, options);
     if (status === "busy") throw contextError("worktree is active in another session", "worktree-active-in-another-session");
     if (status === "unverifiable") throw contextError("worktree ownership cannot be verified", "worktree-owner-unverifiable");
     const prior = await readContextRecord(header, options);
-    await writeClaim(header, selected, runtimeId, processIdentityOf(runtime), options);
+    await writeClaim(header, selected, owner, processIdentityOf(runtime), options);
     try {
       await writeContextRecord(header, startup, selected, options);
     } catch (error) {
-      if (status !== "current") await removeMatchingClaim(selected, runtimeId, options);
+      if (status !== "current") await removeMatchingClaim(selected, owner, options);
       throw error;
     }
-    await releaseClaimsOwnedBy(runtimeId, selected.gitDir, options);
+    await releaseClaimsOwnedBy(owner, selected.gitDir, options);
     if (prior !== null && !samePath(prior.worktreeGitDir, selected.gitDir)) {
-      await removeClaimByGitDir(prior.worktreeCommonDir, prior.worktreeGitDir, runtimeId, options);
+      await removeClaimByGitDir(prior.worktreeCommonDir, prior.worktreeGitDir, owner, options);
     }
     return { cwd: selected.root, branch: requireBranch(selected) };
   });
@@ -196,11 +224,11 @@ export async function clearSessionRepositoryContext(
     await rm(contextRecordPath(header, options), { force: true });
     return;
   }
-  const runtimeId = requireRuntimeId(options);
+  const owner = { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) };
   await withClaimLock(options, async () => {
-    await requireLiveRuntime(header, runtimeId, options);
+    await requireLiveRuntime(header, owner, options);
     await rm(contextRecordPath(header, options), { force: true });
-    await releaseClaimsOwnedBy(runtimeId, null, options);
+    await releaseClaimsOwnedBy(owner, null, options);
   });
 }
 
@@ -227,8 +255,8 @@ export async function listSessionRepositoryWorktrees(
   options: SessionRepositoryContextOptions = {},
 ): Promise<readonly SessionWorktreeInventoryEntry[]> {
   const header = await readSessionHeader(identity);
-  const runtimeId = requireRuntimeId(options);
-  await requireLiveRuntime(header, runtimeId, options);
+  const owner = { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) };
+  await requireLiveRuntime(header, owner, options);
   const startup = await readGitWorktreeIdentity(header.cwd, false, options.signal);
   const worktrees = await listGitWorktrees(startup.root, startup.commonDir, options.signal);
   if (worktrees.length > MAX_WORKTREES) throw contextError("worktree inventory exceeds its bounded limit", "worktree-inventory-limit");
@@ -236,24 +264,22 @@ export async function listSessionRepositoryWorktrees(
   const entries: SessionWorktreeInventoryEntry[] = [];
   for (const selected of worktrees) {
     if (selected.branch === null) {
-      entries.push({ cwd: selected.root, branch: "(detached)", status: "unverifiable" });
+      entries.push({ cwd: selected.root, branch: "(detached)", status: "unverifiable", agentId: null });
       continue;
     }
-    entries.push({
-      cwd: selected.root,
-      branch: selected.branch,
-      status: contended ? "unverifiable" : await claimAvailability(selected, runtimeId, options),
-    });
+    const status = contended ? "unverifiable" : await claimAvailability(selected, owner, options);
+    const claim = status === "current" || status === "busy" ? await readClaim(selected, options) : null;
+    entries.push({ cwd: selected.root, branch: selected.branch, status, agentId: claim?.agentId ?? null });
   }
   return entries.sort((left, right) => pathKey(left.cwd).localeCompare(pathKey(right.cwd)));
 }
 
 async function requireLiveRuntime(
   header: SessionHeader,
-  runtimeId: string,
+  owner: ClaimOwner,
   options: SessionRepositoryContextOptions,
 ): Promise<SessionRuntimeRecord> {
-  const runtime = await readRuntimeRecord(runtimeId, options);
+  const runtime = await readRuntimeRecord(owner, options);
   if (runtime === null || runtime.sessionId !== header.id || runtime.sessionFile !== header.file) {
     throw contextError("active session runtime is unavailable", "session-runtime-unavailable");
   }
@@ -272,13 +298,14 @@ async function requireLiveRuntime(
 
 async function claimAvailability(
   selected: GitWorktreeIdentity,
-  runtimeId: string,
+  owner: ClaimOwner,
   options: SessionRepositoryContextOptions,
 ): Promise<SessionWorktreeStatus> {
   const claim = await readClaim(selected, options);
   if (claim === undefined) return "available";
   if (claim === null || !claimMatchesWorktree(claim, selected)) return "unverifiable";
-  if (claim.runtimeId === runtimeId) return "current";
+  if (ownedBy(claim, owner)) return "current";
+  // Invariant: a sibling agent of this runtime is live by construction, so its claim reads busy below.
   const inspection = requireInspector(options);
   let observed: NativeProcessIdentity | null;
   try {
@@ -293,10 +320,11 @@ async function claimAvailability(
 async function writeRuntimeRecord(
   header: SessionHeader,
   runtimeId: string,
+  agentId: string,
   runtimeIdentity: NativeProcessIdentity,
   options: SessionRepositoryContextOptions,
 ): Promise<void> {
-  const existing = await readRuntimeRecord(runtimeId, options);
+  const existing = await readRuntimeRecord({ runtimeId, agentId }, options);
   if (existing !== null && (existing.pid !== runtimeIdentity.pid || existing.startIdentity !== runtimeIdentity.startIdentity)) {
     const inspection = requireInspector(options);
     let observed: NativeProcessIdentity | null;
@@ -311,14 +339,16 @@ async function writeRuntimeRecord(
   }
   const record: SessionRuntimeRecord = {
     schema: RUNTIME_SCHEMA,
+    formatVersion: RECORD_FORMAT_VERSION,
     runtimeId,
+    agentId,
     sessionId: header.id,
     sessionFile: header.file,
     pid: runtimeIdentity.pid,
     startIdentity: runtimeIdentity.startIdentity,
     updatedAt: new Date().toISOString(),
   };
-  await atomicWrite(runtimeRecordPath(runtimeId, options), record);
+  await atomicWrite(runtimeRecordPath({ runtimeId, agentId }, options), record);
 }
 
 async function writeContextRecord(
@@ -344,13 +374,15 @@ async function writeContextRecord(
 async function writeClaim(
   header: SessionHeader,
   selected: GitWorktreeIdentity,
-  runtimeId: string,
+  owner: ClaimOwner,
   runtimeIdentity: NativeProcessIdentity,
   options: SessionRepositoryContextOptions,
 ): Promise<void> {
   const claim: WorktreeClaimRecord = {
     schema: CLAIM_SCHEMA,
-    runtimeId,
+    formatVersion: RECORD_FORMAT_VERSION,
+    runtimeId: owner.runtimeId,
+    agentId: owner.agentId,
     sessionId: header.id,
     worktreeRoot: selected.root,
     worktreeCommonDir: selected.commonDir,
@@ -366,8 +398,37 @@ async function readContextRecord(header: SessionHeader, options: SessionReposito
   return await readJsonRecord(contextRecordPath(header, options), isContextRecord);
 }
 
-async function readRuntimeRecord(runtimeId: string, options: SessionRepositoryContextOptions): Promise<SessionRuntimeRecord | null> {
-  return await readJsonRecord(runtimeRecordPath(runtimeId, options), isRuntimeRecord);
+async function readRuntimeRecord(owner: ClaimOwner, options: SessionRepositoryContextOptions): Promise<SessionRuntimeRecord | null> {
+  const record = await readRuntimeRecordAt(runtimeRecordPath(owner, options));
+  return record !== null && ownedBy(record, owner) ? record : null;
+}
+
+async function readRuntimeRecordAt(path: string): Promise<SessionRuntimeRecord | null> {
+  const stored = await readJsonRecord(path, isStoredRuntimeRecord);
+  return stored === null ? null : { ...stored, formatVersion: RECORD_FORMAT_VERSION, agentId: stored.agentId ?? PRIMARY_SESSION_AGENT_ID };
+}
+
+/** Every agent's runtime record of one runtime, with the file that holds it. */
+async function readRuntimeRecordsOf(
+  runtimeId: string,
+  options: SessionRepositoryContextOptions,
+): Promise<ReadonlyArray<{ readonly path: string; readonly record: SessionRuntimeRecord }>> {
+  const directory = runtimesDirectory(options);
+  const names = await readdir(directory).catch(() => []);
+  if (names.length > MAX_WORKTREES * 4) throw contextError("session runtime store exceeds its bounded limit", "session-runtime-limit");
+  const records: Array<{ readonly path: string; readonly record: SessionRuntimeRecord }> = [];
+  for (const name of names) {
+    if (!name.endsWith(".json")) continue;
+    const path = join(directory, name);
+    const record = await readRuntimeRecordAt(path);
+    if (record?.runtimeId === runtimeId) records.push({ path, record });
+  }
+  return records;
+}
+
+async function readClaimRecordAt(path: string): Promise<WorktreeClaimRecord | null> {
+  const stored = await readJsonRecord(path, isStoredClaimRecord);
+  return stored === null ? null : normalizeClaim(stored);
 }
 
 /** Undefined means absent; null means present but invalid. */
@@ -377,7 +438,7 @@ async function readClaim(selected: GitWorktreeIdentity, options: SessionReposito
     const metadata = await lstat(path);
     if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size === 0 || metadata.size > MAX_RECORD_BYTES) return null;
     const value: unknown = JSON.parse((await readFile(path, { signal: options.signal })).toString("utf8"));
-    return isClaimRecord(value) ? value : null;
+    return isStoredClaimRecord(value) ? normalizeClaim(value) : null;
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined;
     return null;
@@ -401,28 +462,36 @@ async function validateContextRecord(
   return selected;
 }
 
-async function releaseClaimsOwnedBy(runtimeId: string, keepGitDir: string | null, options: SessionRepositoryContextOptions): Promise<void> {
+/** Release one agent's claims except the one it keeps; sibling agents of the runtime are untouched. */
+async function releaseClaimsOwnedBy(owner: ClaimOwner, keepGitDir: string | null, options: SessionRepositoryContextOptions): Promise<void> {
+  await releaseClaimsWhere(claim => ownedBy(claim, owner) && (keepGitDir === null || !samePath(claim.worktreeGitDir, keepGitDir)), options);
+}
+
+/** Release every agent's claims of one runtime; only process exit does this. */
+async function releaseRuntimeClaims(runtimeId: string, options: SessionRepositoryContextOptions): Promise<void> {
+  await releaseClaimsWhere(claim => claim.runtimeId === runtimeId, options);
+}
+
+async function releaseClaimsWhere(release: (claim: WorktreeClaimRecord) => boolean, options: SessionRepositoryContextOptions): Promise<void> {
   const directory = claimsDirectory(options);
   const names = await readdir(directory).catch(() => []);
   if (names.length > MAX_WORKTREES * 4) throw contextError("worktree claim store exceeds its bounded limit", "worktree-claim-limit");
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
     const path = join(directory, name);
-    const claim = await readJsonRecord(path, isClaimRecord);
-    if (claim?.runtimeId === runtimeId && (keepGitDir === null || !samePath(claim.worktreeGitDir, keepGitDir))) {
-      await rm(path, { force: true });
-    }
+    const claim = await readClaimRecordAt(path);
+    if (claim !== null && release(claim)) await rm(path, { force: true });
   }
 }
 
-async function removeMatchingClaim(selected: GitWorktreeIdentity, runtimeId: string, options: SessionRepositoryContextOptions): Promise<void> {
-  await removeClaimByGitDir(selected.commonDir, selected.gitDir, runtimeId, options);
+async function removeMatchingClaim(selected: GitWorktreeIdentity, owner: ClaimOwner, options: SessionRepositoryContextOptions): Promise<void> {
+  await removeClaimByGitDir(selected.commonDir, selected.gitDir, owner, options);
 }
 
-async function removeClaimByGitDir(commonDir: string, gitDir: string, runtimeId: string, options: SessionRepositoryContextOptions): Promise<void> {
+async function removeClaimByGitDir(commonDir: string, gitDir: string, owner: ClaimOwner, options: SessionRepositoryContextOptions): Promise<void> {
   const path = claimRecordPath(commonDir, gitDir, options);
-  const claim = await readJsonRecord(path, isClaimRecord);
-  if (claim?.runtimeId === runtimeId) await rm(path, { force: true });
+  const claim = await readClaimRecordAt(path);
+  if (claim !== null && ownedBy(claim, owner)) await rm(path, { force: true });
 }
 
 async function readSessionHeader(identity: SessionRepositoryIdentity): Promise<SessionHeader> {
@@ -525,23 +594,80 @@ async function withClaimLock<T>(options: SessionRepositoryContextOptions, operat
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const path = join(directory, "mutation.lock");
   const deadline = Date.now() + (options.lockTimeoutMs ?? LOCK_TIMEOUT_MS);
+  const holder = await lockHolderIdentity(options);
   let handle;
-  while (handle === undefined) {
+  for (let attempt = 0; handle === undefined; attempt++) {
     try {
       handle = await open(path, "wx", 0o600);
     } catch (error) {
       if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
+      if (attempt === 0 && await evictDeadLockHolder(path, options)) continue;
       if (Date.now() >= deadline) throw contextError("worktree claim mutation is busy", "worktree-claim-busy");
       await new Promise(resolvePromise => setTimeout(resolvePromise, LOCK_RETRY_MS));
     }
   }
   try {
-    await handle.writeFile(`${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`);
+    const record: MutationLockRecord = {
+      pid: process.pid,
+      ...(holder === null ? {} : { startIdentity: holder.startIdentity }),
+      acquiredAt: new Date().toISOString(),
+      nonce: randomUUID(),
+    };
+    await handle.writeFile(`${JSON.stringify(record)}\n`);
     return await operation();
   } finally {
     await handle.close().catch(() => undefined);
     await rm(path, { force: true }).catch(() => undefined);
   }
+}
+
+const lockHolderIdentities = new WeakMap<(pid: number) => Promise<NativeProcessIdentity | null>, Promise<NativeProcessIdentity | null>>();
+
+/** This process's identity as recorded in the lock; null leaves the lock unevictable, never wrongly evictable. */
+async function lockHolderIdentity(options: SessionRepositoryContextOptions): Promise<NativeProcessIdentity | null> {
+  if (options.runtimeIdentity?.pid === process.pid) return options.runtimeIdentity;
+  const inspection = options.inspectProcess;
+  if (inspection === undefined) return null;
+  let identity = lockHolderIdentities.get(inspection);
+  if (identity === undefined) {
+    identity = inspection(process.pid)
+      .then(observed => observed !== null && observed.pid === process.pid ? observed : null)
+      .catch(() => null);
+    lockHolderIdentities.set(inspection, identity);
+  }
+  return await identity;
+}
+
+/**
+ * Evict the mutation lock only when its recorded holder is proven dead: the pid is gone or now names a process
+ * with another start identity. A lock without a holder identity, or a holder that cannot be inspected, is kept.
+ */
+async function evictDeadLockHolder(path: string, options: SessionRepositoryContextOptions): Promise<boolean> {
+  const inspection = options.inspectProcess;
+  if (inspection === undefined) return false;
+  const holder = await readJsonRecord(path, isMutationLockRecord);
+  if (holder === null || holder.startIdentity === undefined || holder.pid === process.pid) return false;
+  let observed: NativeProcessIdentity | null;
+  try {
+    observed = await inspection(holder.pid);
+  } catch {
+    return false;
+  }
+  if (observed !== null && observed.pid === holder.pid && observed.startIdentity === holder.startIdentity) return false;
+  const evicted = `${path}.${randomUUID()}.evicted`;
+  try {
+    await rename(path, evicted);
+  } catch {
+    return false;
+  }
+  const moved = await readJsonRecord(evicted, isMutationLockRecord);
+  if (moved?.nonce !== holder.nonce) {
+    // Concurrency: another waiter evicted first and a live holder took the lock since; hand it back untouched.
+    await rename(evicted, path).catch(() => undefined);
+    return false;
+  }
+  await rm(evicted, { force: true });
+  return true;
 }
 
 async function atomicWrite(path: string, value: unknown): Promise<void> {
@@ -577,8 +703,14 @@ function claimStoreRoot(options: SessionRepositoryContextOptions): string {
   return join(options.dataDir ?? resolveProductPaths().dataDir, PRODUCT_IDENTITY.state.sessionWorktreeClaimDirectory);
 }
 
-function runtimeRecordPath(runtimeId: string, options: SessionRepositoryContextOptions): string {
-  return join(claimStoreRoot(options), "runtimes", `${digest(runtimeId)}.json`);
+function runtimesDirectory(options: SessionRepositoryContextOptions): string {
+  return join(claimStoreRoot(options), "runtimes");
+}
+
+// Compatibility: the primary agent keeps the single-agent file name, so a version-1 runtime record is its record.
+function runtimeRecordPath(owner: ClaimOwner, options: SessionRepositoryContextOptions): string {
+  const key = owner.agentId === PRIMARY_SESSION_AGENT_ID ? owner.runtimeId : `${owner.runtimeId}\0${owner.agentId}`;
+  return join(runtimesDirectory(options), `${digest(key)}.json`);
 }
 
 function claimsDirectory(options: SessionRepositoryContextOptions): string {
@@ -597,6 +729,16 @@ function requireRuntimeId(options: SessionRepositoryContextOptions): string {
   const runtimeId = options.runtimeId;
   assertRuntimeId(runtimeId);
   return runtimeId;
+}
+
+function requireAgentId(options: SessionRepositoryContextOptions): string {
+  const agentId = options.agentId ?? PRIMARY_SESSION_AGENT_ID;
+  if (!validSessionId(agentId)) throw contextError("session agent identity is invalid", "session-agent-invalid");
+  return agentId;
+}
+
+function ownedBy(record: ClaimOwner, owner: ClaimOwner): boolean {
+  return record.runtimeId === owner.runtimeId && record.agentId === owner.agentId;
 }
 
 function requireInspector(options: SessionRepositoryContextOptions): (pid: number) => Promise<NativeProcessIdentity | null> {
@@ -656,19 +798,40 @@ function isContextRecord(value: unknown): value is SessionRepositoryRecord {
     && typeof value.updatedAt === "string";
 }
 
-function isRuntimeRecord(value: unknown): value is SessionRuntimeRecord {
-  return isRecord(value) && value.schema === RUNTIME_SCHEMA && validSessionId(value.runtimeId) && validSessionId(value.sessionId)
-    && validPath(value.sessionFile) && Number.isSafeInteger(value.pid) && Number(value.pid) > 0
+/** A record as stored: version 1 omits the format version and the agent id. */
+type Stored<T extends { readonly formatVersion: number; readonly agentId: string }> =
+  Omit<T, "formatVersion" | "agentId"> & { readonly formatVersion?: T["formatVersion"]; readonly agentId?: string };
+
+function isStoredRuntimeRecord(value: unknown): value is Stored<SessionRuntimeRecord> {
+  return isRecord(value) && value.schema === RUNTIME_SCHEMA && validRecordVersion(value) && validSessionId(value.runtimeId)
+    && validSessionId(value.sessionId) && validPath(value.sessionFile) && Number.isSafeInteger(value.pid) && Number(value.pid) > 0
     && typeof value.startIdentity === "string" && value.startIdentity.length > 0 && value.startIdentity.length <= 512
     && !value.startIdentity.includes("\0") && typeof value.updatedAt === "string";
 }
 
-function isClaimRecord(value: unknown): value is WorktreeClaimRecord {
-  return isRecord(value) && value.schema === CLAIM_SCHEMA && validSessionId(value.runtimeId) && validSessionId(value.sessionId)
+function isStoredClaimRecord(value: unknown): value is Stored<WorktreeClaimRecord> {
+  return isRecord(value) && value.schema === CLAIM_SCHEMA && validRecordVersion(value) && validSessionId(value.runtimeId)
+    && validSessionId(value.sessionId)
     && validPath(value.worktreeRoot) && validPath(value.worktreeCommonDir) && validPath(value.worktreeGitDir)
     && Number.isSafeInteger(value.pid) && Number(value.pid) > 0
     && typeof value.startIdentity === "string" && value.startIdentity.length > 0 && value.startIdentity.length <= 512
     && !value.startIdentity.includes("\0") && typeof value.updatedAt === "string";
+}
+
+function isMutationLockRecord(value: unknown): value is MutationLockRecord {
+  return isRecord(value) && Number.isSafeInteger(value.pid) && Number(value.pid) > 0
+    && (value.startIdentity === undefined || (typeof value.startIdentity === "string" && value.startIdentity.length > 0
+      && value.startIdentity.length <= 512 && !value.startIdentity.includes("\0")))
+    && typeof value.acquiredAt === "string" && typeof value.nonce === "string" && value.nonce.length > 0;
+}
+
+function validRecordVersion(value: Record<string, unknown>): boolean {
+  if (value.formatVersion === undefined) return value.agentId === undefined;
+  return value.formatVersion === RECORD_FORMAT_VERSION && validSessionId(value.agentId);
+}
+
+function normalizeClaim(stored: Stored<WorktreeClaimRecord>): WorktreeClaimRecord {
+  return { ...stored, formatVersion: RECORD_FORMAT_VERSION, agentId: stored.agentId ?? PRIMARY_SESSION_AGENT_ID };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
