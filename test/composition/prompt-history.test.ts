@@ -28,10 +28,15 @@ vi.mock("../../src/ui/settings/manager.js", () => ({
   },
 }));
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({
-  OwnedUiSessionShell: class {
+  sessionTerminalHostOptions: () => ({}),
+  OwnedUiTerminalHost: class {
+    #presenter: { readonly options: ShellOptions } | undefined;
+    attach(presenter: { readonly options: ShellOptions }) { this.#presenter = presenter; }
+    async dispose() { await this.#presenter?.options.history?.store.close(); }
+  },
+  OwnedUiSessionPresenter: class {
     readonly options: ShellOptions;
-    constructor(options: ShellOptions) { this.options = options; observed.shells.push(options); }
-    async dispose() { await this.options.history?.store.close(); }
+    constructor(_host: unknown, options: ShellOptions) { this.options = options; observed.shells.push(options); }
   },
 }));
 

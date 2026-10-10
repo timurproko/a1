@@ -12,14 +12,14 @@ describe("keyboard input presentation ownership", () => {
   });
 
   it("enables coordination and viewport reuse only on the declared custom viewport", async () => {
-    const shell = await readFile(new URL("../../src/app/session-shell/session-shell.ts", import.meta.url), "utf8");
+    const host = await readFile(new URL("../../src/app/session-shell/shell-host.ts", import.meta.url), "utf8");
     const root = await readFile(new URL("../../src/app/session-shell/session-shell-root.ts", import.meta.url), "utf8");
-    const optionsStart = shell.indexOf("const runtimeOptions");
-    const optionsEnd = shell.indexOf("runtime = new PiTuiRuntimeAdapter", optionsStart);
-    const runtimeOptions = shell.slice(optionsStart, optionsEnd);
+    const optionsStart = host.indexOf("const runtimeOptions");
+    const optionsEnd = host.indexOf("this.runtime = new PiTuiRuntimeAdapter", optionsStart);
+    const runtimeOptions = host.slice(optionsStart, optionsEnd);
     expect(runtimeOptions).toContain("this.#customViewport ? {");
     expect(runtimeOptions).toContain("inputCoordination:");
-    expect(runtimeOptions).toContain(": { layoutRoot: this.root.layoutRoot() }");
+    expect(runtimeOptions).toContain(": { layoutRoot: pinnedLayoutRoot(this.#delegatingLayoutParts()) }");
     expect(root).toContain("this.#customViewport && this.#dockInputReuseEnabled");
     expect(root).toContain("coordination: Exclude<PiTuiInputSurfaceKind");
   });

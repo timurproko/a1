@@ -110,8 +110,11 @@ export type {
 export type {
   OwnedUiDialogHost,
   OwnedUiInputSurface,
+  OwnedUiPresenterHost,
+  OwnedUiSessionPresenter,
   OwnedUiSessionPresenters,
   OwnedUiShortcutDescription,
+  OwnedUiTerminalHost,
   OwnedUiTranscriptRendererPort,
 } from "./session-presenters.js";
 export {

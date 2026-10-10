@@ -17,7 +17,12 @@ import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-sele
 import { ClipboardDiagnosticCapture } from "../app/session-shell/clipboard-diagnostics.js";
 import { createOwnedUiClipboardServices } from "../app/session-shell/clipboard-services.js";
 import { createPiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
-import { OwnedUiSessionShell } from "../app/session-shell/session-shell.js";
+import {
+  OwnedUiSessionPresenter,
+  OwnedUiTerminalHost,
+  sessionTerminalHostOptions,
+  type OwnedUiSessionShellOptions,
+} from "../app/session-shell/session-shell.js";
 import { OwnedSettingsManager } from "../ui/settings/manager.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentation-adapter.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
@@ -209,7 +214,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       return { rows: width => renderPiShellChangelogLines(markdown, width).map(row => nativeHyperlinkStyle(row)) };
     },
     hotkeys: async () => {
-      const presentation = shell.hotkeysPresentation();
+      const presentation = presenter.hotkeysPresentation();
       const { renderPiShellHotkeySections } = await import("../integrations/pi/components/shell-hotkey-sections.js");
       return { sections: width => renderPiShellHotkeySections(presentation, width) };
     },
@@ -263,10 +268,12 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // keybinding registry is applied before any presenter is built, so none of them reads Pi's defaults.
   const keybindings = createPiKeybindingsHost({ profile: ownedSurfaces ? "a1" : "pi", agentDir: backend.identity.agentDir });
   const clipboardServices = ownedSurfaces ? createOwnedUiClipboardServices() : null;
-  let shell: OwnedUiSessionShell;
+  let createdTerminalHost: OwnedUiTerminalHost | undefined;
+  let terminalHost: OwnedUiTerminalHost;
+  let presenter: OwnedUiSessionPresenter;
   let releaseNoteAcknowledgement: Promise<void> | null = null;
   try {
-    shell = new OwnedUiSessionShell({
+    const presenterOptions: OwnedUiSessionShellOptions = {
       presenters: createPiSessionPresenters(backend),
       engine: {
         backend,
@@ -305,8 +312,14 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         ...promptHistory,
         editor: await import("../integrations/pi/components/history-editor-loader.js").then(module => module.loadHistoryEditor()),
       } }),
-    });
+    };
+    // Invariant: one terminal host owns the process terminal; the session presenter reaches it only through
+    // the host and paints once attached.
+    terminalHost = createdTerminalHost = new OwnedUiTerminalHost(sessionTerminalHostOptions(presenterOptions));
+    presenter = new OwnedUiSessionPresenter(terminalHost, presenterOptions);
+    terminalHost.attach(presenter);
   } catch (error) {
+    await createdTerminalHost?.dispose().catch(() => undefined);
     unsubscribeAccent();
     await releaseNoteClaim?.release();
     clipboardDiagnostics?.dispose(); suggestionDiagnostics?.dispose(); clipboardServices?.dispose();
@@ -337,14 +350,14 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       // Performance: the guardian notice loads beside first paint, never on the startup path.
       if (exitNoticePath) exitNotice = import("../app/session-shell/exit-notice.js")
         .then(module => module.armExitNotice(backend, exitNoticePath), () => null);
-      shell.start();
+      presenter.start();
       void announceNewerRelease().catch(() => undefined);
     },
     flush: () => backend.session.flushEvents(),
-    waitUntilStopped: () => shell.waitUntilStopped(),
+    waitUntilStopped: () => presenter.waitUntilStopped(),
     dispose: async () => {
       try {
-        await shell.dispose();
+        await terminalHost.dispose();
         // Invariant: cleared only once the terminal is restored; a failed dispose leaves it armed.
         (await exitNotice)?.clear();
         await releaseNoteAcknowledgement?.catch(() => undefined);

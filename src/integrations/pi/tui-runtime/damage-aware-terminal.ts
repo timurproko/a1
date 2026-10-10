@@ -3,6 +3,11 @@ import type { PiTuiTerminalPort } from "./contracts.js";
 export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@1.1.0:tui-alt-screen-one-write-v1";
 
 export interface PiTuiDamageFrameDescriptor {
+  /**
+   * Frame ids are compared only within one presentation epoch; absent means the current epoch. A
+   * presenter switch starts a new epoch, because each presenter numbers its own frames.
+   */
+  readonly epoch?: number;
   readonly frameId: number;
   readonly width: number;
   readonly height: number;
@@ -104,6 +109,7 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
   #cleanedRevision = 0;
   #recoveryRevision = 0;
   #epoch = 0;
+  #presentationEpoch = 0;
   #armed: ArmedFrame | undefined;
   #lastConsumedFrameId = 0;
   #cacheWidth = 0;
@@ -130,6 +136,18 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
   get lastDecision(): PiTuiDamageDecision { return this.#decision; }
   get hyperlinkCleanupPending(): boolean { return this.#cleanupRevision > this.#cleanedRevision; }
   get canvasBackgroundAnsi(): string | null { return this.#canvasBackgroundAnsi; }
+  get presentationEpoch(): number { return this.#presentationEpoch; }
+
+  /**
+   * Starts a new presentation epoch: the remembered cells and the armed frame are discarded and frame ids
+   * restart, so the next frame is painted in full rather than reconciled against another presenter's.
+   */
+  invalidatePresentation(): void {
+    this.#presentationEpoch += 1;
+    this.#armed = undefined;
+    this.#lastConsumedFrameId = 0;
+    this.#invalidatePresentation();
+  }
 
   /** Invalidates remembered terminal cells before the shell forces one complete canvas repaint. */
   setCanvasBackground(ansi: string | null): boolean {
@@ -196,7 +214,7 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     const armed = this.#armed;
     this.#armed = undefined;
     const parsed = parsePinnedFullscreenWrite(data);
-    if (armed !== undefined && armed.descriptor.frameId <= this.#lastConsumedFrameId) {
+    if (armed !== undefined && this.#isStale(armed.descriptor)) {
       // Concurrency: a recognized obsolete frame must never repaint newer cells,
       // acknowledge cleanup, or become the reference for a subsequent differential.
       this.#decision = this.#decide(armed, parsed);
@@ -274,7 +292,7 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
       shiftRows: descriptor.verticalShiftRows,
       paintedRows: [] as readonly number[],
     };
-    if (descriptor.frameId <= this.#lastConsumedFrameId) return { ...base, reason: "stale-frame" };
+    if (this.#isStale(descriptor)) return { ...base, reason: "stale-frame" };
     this.#lastConsumedFrameId = descriptor.frameId;
     if (this.hyperlinkCleanupPending) return { ...base, reason: "pending-hyperlink-cleanup" };
     if (parsed !== null && parsed.structuralPrefix === "\u001b[2J"
@@ -343,6 +361,11 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
       shiftRows: descriptor.verticalShiftRows,
       paintedRows: [...painted].sort((left, right) => left - right),
     };
+  }
+
+  #isStale(descriptor: PiTuiDamageFrameDescriptor): boolean {
+    return (descriptor.epoch ?? this.#presentationEpoch) !== this.#presentationEpoch
+      || descriptor.frameId <= this.#lastConsumedFrameId;
   }
 
   #rememberFrame(

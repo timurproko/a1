@@ -180,6 +180,40 @@ describe("A1-owned damage-aware terminal adapter", () => {
     expect(actual.final.rows.slice(0, 8)).toEqual(["B", "C", "D", "E", "F", "G", "editor", "footer"]);
   });
 
+  it("restarts frame ids in a new presentation epoch, painting its first frame in full", () => {
+    const { adapter, terminal } = initialized();
+    adapter.arm(descriptor(9), SAFE);
+    adapter.write(fullscreenWrite(initialRows));
+    const epoch = adapter.presentationEpoch;
+
+    adapter.invalidatePresentation();
+    expect(adapter.presentationEpoch).toBe(epoch + 1);
+    expect(adapter.presentedRows()).toEqual(Array.from({ length: 8 }, () => ""));
+    // Invariant: another presenter's ids start over; frame 1 of the new epoch is not stale.
+    const replacement = ["a", "b", "c", "d", "e", "f", "editor", "footer"];
+    const full = fullscreenWrite(replacement);
+    adapter.arm(descriptor(1, 0, false, { epoch: adapter.presentationEpoch }), SAFE);
+    adapter.write(full);
+    expect(adapter.lastDecision.reason).not.toBe("stale-frame");
+    expect(terminal.writes.at(-1)).toBe(full);
+    expect(adapter.presentedRows()).toEqual(replacement);
+
+    adapter.arm(descriptor(2, 1, true, { epoch: adapter.presentationEpoch }), SAFE);
+    adapter.write(fullscreenWrite(["b", "c", "d", "e", "f", "g"]));
+    expect(adapter.lastDecision).toMatchObject({ frameId: 2, reason: "transformed", shiftRows: 1, paintedRows: [6] });
+  });
+
+  it("never forwards a frame armed for an earlier presentation epoch", () => {
+    const { adapter, terminal } = initialized();
+    const earlier = adapter.presentationEpoch;
+    adapter.invalidatePresentation();
+    const count = terminal.writes.length;
+    adapter.arm(descriptor(2, 0, false, { epoch: earlier }), SAFE);
+    adapter.write(fullscreenWrite(["obsolete"]));
+    expect(adapter.lastDecision.reason).toBe("stale-frame");
+    expect(terminal.writes).toHaveLength(count);
+  });
+
   it("snapshots the presented rows as written and forgets them after invalidation", () => {
     const { adapter, terminal } = initialized();
     expect(adapter.presentedRows()).toEqual(initialRows);

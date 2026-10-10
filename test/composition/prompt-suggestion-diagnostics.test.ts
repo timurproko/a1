@@ -20,9 +20,13 @@ vi.mock("../../src/ui/settings/manager.js", () => ({
   },
 }));
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({
-  OwnedUiSessionShell: class {
-    constructor(options: OwnedUiSessionShellOptions) { observed.options = options; }
+  sessionTerminalHostOptions: () => ({}),
+  OwnedUiTerminalHost: class {
+    attach() {}
     async dispose() {}
+  },
+  OwnedUiSessionPresenter: class {
+    constructor(_host: unknown, options: OwnedUiSessionShellOptions) { observed.options = options; }
   },
 }));
 afterEach(() => { observed.options = undefined; vi.unstubAllEnvs(); });

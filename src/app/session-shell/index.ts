@@ -3,9 +3,18 @@ export { createOwnedUiClipboardServices } from "./clipboard-services.js";
 export type { OwnedUiClipboardServices, OwnedUiClipboardServicesOptions } from "./clipboard-services.js";
 export { ContextualPromptSuggestionController, samePromptSuggestionIdentity } from "./prompt-suggestion-controller.js";
 export type { ContextualPromptSuggestionControllerOptions, ContextualPromptSuggestionSurface } from "./prompt-suggestion-controller.js";
-export { OwnedUiSessionShell, OwnedUiSessionShellRoot, formatSessionResumeCommand, quoteCommandArgument } from "./session-shell.js";
+export {
+  OwnedUiSessionPresenter,
+  OwnedUiSessionShell,
+  OwnedUiSessionShellRoot,
+  OwnedUiTerminalHost,
+  formatSessionResumeCommand,
+  quoteCommandArgument,
+  sessionTerminalHostOptions,
+} from "./session-shell.js";
 export type {
   OwnedUiSessionShellOptions,
+  OwnedUiTerminalHostOptions,
   OwnedUiShellDiagnosticOptions,
   OwnedUiShellEngineOptions,
   OwnedUiShellHistoryOptions,
