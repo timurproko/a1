@@ -28,6 +28,7 @@ This is milestone 1 of 6. It adds native primitives and tests only; no product p
 ### Modified Capabilities
 
 - `continuous-integration`: the terminal-host owner builds and tests the crate on macOS and Linux as well as Windows x64.
+- `project-structure-governance`: record held-subsystem copies by commit instead of a deleted archive branch, and replace the retired structured-workspace direction with resident terminal-session tabs.
 
 ## Impact
 
