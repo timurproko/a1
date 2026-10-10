@@ -32,6 +32,19 @@ The lock file content becomes `{ pid, startIdentity, acquiredAt }`. On contentio
 
 `a1 session worktrees` rows gain an `agent` column; a worktree claimed by two agents of one runtime lists both. The footer repository context shows the active presenter's claim.
 
+## Implementation notes
+
+Reconciled against `develop` at `d7fa345b` (after #735); the line references above predate #730–#735.
+
+- **One claim per worktree.** Claims stay one record per worktree, so a worktree held by a sibling agent of the same runtime reads `busy` to the other agent, exactly as one held by another runtime does. Two agents therefore never claim one worktree, and the listing names the one agent that holds it. The scenario this change specifies (two agents, two worktrees) holds as written.
+- **Record migration.** Both claim and runtime records keep their schema strings and gain `formatVersion: 2` plus `agentId`. A record without either is read as `primary`. The primary agent's runtime record keeps the single-agent file name (`digest(runtimeId)`), so a version-1 runtime file is that agent's record and is rewritten in place on the next write. Other agents use `digest(runtimeId \0 agentId)`. A record with a version but no valid agent id is malformed and fails closed.
+- **Agent id seam.** Composition builds its reader through `repositoryContextReaderFor(agentId)` and passes `undefined` (the primary agent) for the one session it composes. The engine's generated session id is not used: the reader runs inside `host.create()` before that id is returned, and a non-`primary` id would orphan version-1 claims. The tabs feature supplies one agent id per presenter.
+- **CLI agent identity.** `a1 session link-worktree|unlink-worktree|worktrees` still act as the primary agent: no per-agent shell-tool environment variable exists yet. The tabs feature must export one beside `A1_SESSION_RUNTIME_ID`.
+- **Listing output.** The agent is printed as a ` [agent <id>]` suffix only when it is not `primary`, so single-session output is byte-identical.
+- **Lock record.** `mutation.lock` holds `{ pid, startIdentity?, acquiredAt, nonce }`. A holder that cannot inspect itself omits `startIdentity`, and such a lock is never evicted. Eviction is attempted once, on first contention: rename to a unique `.evicted` name, compare the nonce, and if a live holder took the lock in between, hand it back. A lock held by the waiter's own pid is never evicted. The listing remains read-only and still reports `unverifiable` while any lock file exists; the next mutation (startup activation, refresh) evicts a dead holder's lock.
+- **Cleanup script.** `local-worktree-cleanup.mjs` keeps its own lock and store; nothing is shared with it.
+- **Composition evidence.** No two-identity composition test was added, because composition composes one agent. Per-agent refresh and release are covered by the lifecycle tests through the same functions.
+
 ## Risks / Trade-offs
 
 - Record migration must be atomic per file; readers of the old shape in an older running release only see `primary`, which is the single-session behavior.
