@@ -565,8 +565,11 @@ async function acquireLock(path: string) {
       await lock.sync();
       return lock;
     } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
-      if (await reclaimAbandonedLock(path)) continue;
+      const code = error instanceof Error && "code" in error ? error.code : undefined;
+      // Platform: Windows reports a lock file another holder is still deleting as EPERM or EACCES.
+      const releasing = process.platform === "win32" && (code === "EPERM" || code === "EACCES");
+      if (code !== "EEXIST" && !releasing) throw error;
+      if (code === "EEXIST" && await reclaimAbandonedLock(path)) continue;
       if (Date.now() >= deadline) throw error;
       await new Promise(resolvePromise => setTimeout(resolvePromise, 20));
     }
