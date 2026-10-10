@@ -59,6 +59,18 @@ The root takes a presenter id and namespaces its scroll-view keys with it. The r
 
 `composeOwnedUi` creates the host, one presenter over `host.create()` from the engine host, attaches it, and returns the same `OwnedUiApplicationPort`. The session-shell test fixture builds a host with the fake terminal and one presenter; existing tests keep their assertions.
 
+## Implementation notes
+
+Reconciled against `develop` at `a525dfb9`; the line references above predate #730–#734.
+
+- **Module names.** The host lives in `src/app/session-shell/shell-host.ts`, not `terminal-host.ts`: the architecture check reserves `terminal-host` for the native terminal-host probe and treats any `terminal*` file as a terminal boundary. The presenter class stays in `session-shell.ts`, whose path the presenter, modal, and provenance baselines name.
+- **Single-session pairing.** `OwnedUiSessionShell` remains as a host with one presenter attached (`extends OwnedUiSessionPresenter`). The session-shell fixture and the other in-process producers construct it, so every existing assertion still runs unchanged. Production composition builds the host and presenter explicitly.
+- **Handle.** Presenters get an `OwnedUiPresenterTerminal` from `host.connect(presenter)`. Render requests, frame arming, hyperlink cleanup, raw-input listeners, presentation holds, title, program status, and terminal progress do nothing while the presenter is detached, and its overlays stay hidden until it is attached. Hardware cursor, clear-on-shrink, and wheel distance follow the shared settings files, so the last write wins.
+- **Pinned layout.** The host mounts one delegating `pinnedLayoutRoot()` built from the active presenter's `layoutParts()`, so the runtime has exactly one `transcript` scroll view whatever the presenter count. This replaces namespacing the root's scroll keys (task 4.2); the custom viewport has no runtime scroll views.
+- **Routes.** Composition already wraps each owned app in a `UiAppHost` (`closeOnInterrupt: true`) before the shell sees a `UiRouteSurface`. The host's `openRoute` therefore keeps the runtime plumbing (the raw Ctrl+C forwarding Pi requires, mouse pre-input, pointer reporting, overlay) instead of nesting a second app host. Hiding a route now also removes its listeners, which `#dialogHandle.hide()` used to leave behind.
+- **Teardown.** `presenter.release()` performs the synchronous session teardown and returns its exit text plus an async `settle()`; the host captures the outro frame, releases presenters, freezes, plays the outro, restores the terminal, and then settles. Closing the last presenter ends the terminal, and the presenter disposes its own root after restoration.
+- **No `frameDescriptor()` on the contract.** The host stamps the damage terminal's current epoch on each armed frame, which made a separate descriptor accessor unnecessary.
+
 ## Risks / Trade-offs
 
 - This is the largest diff of the series; land it as the last preparatory change so it absorbs no concurrent edits to the shell.
