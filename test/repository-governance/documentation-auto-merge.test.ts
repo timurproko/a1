@@ -311,6 +311,19 @@ describe("single-PR implementation holds", () => {
     expect(result.stdout).toContain("preserved authorized human auto-merge for the exact finalized implementation head");
   });
 
+  // Provenance: PR #742's timeline named every human enable `auto_squash_enabled`, and policy disarmed each one.
+  it.each(["auto_squash_enabled", "auto_rebase_enabled"])("preserves a human arm recorded as %s after a disarmed attempt", async name => {
+    const botDisabled = { event: "auto_merge_disabled", actor: { login: "github-actions[bot]", type: "Bot" }, created_at: "2026-09-15T11:58:30Z" };
+    const timeline = [{ event: "committed", sha: "c".repeat(40) }, { ...enabled, event: name, created_at: "2026-09-15T11:58:00Z" },
+      botDisabled, { event: "committed", sha: headSha }, { ...enabled, event: name }];
+    const result = await runManager({ action: "auto_merge_enabled", pull_request: { number: 42 } }, pullFixture({
+      body: finalizedLink, head: { ref: "feature/example", sha: headSha, repo: { full_name: "owner/repository" } },
+      auto_merge: { merge_method: name === "auto_rebase_enabled" ? "rebase" : "squash", enabled_by: reviewer },
+    }), { respond: request => request.url.includes("/issues/42/timeline?") ? { body: timeline } : humanArmResponse(request) });
+    expectNoMutation(result.requests);
+    expect(result.stdout).toContain("preserved authorized human auto-merge for the exact finalized implementation head");
+  });
+
   it("disables stale, body-edited, and bot-authored implementation arms", async () => {
     const stale = await runManager(validationEvent(), pullFixture({ body: finalizedLink,
       auto_merge: { merge_method: "squash", enabled_by: reviewer } }), { respond: request => humanArmResponse(request, true) });

@@ -141,6 +141,9 @@ const sameMergeTime = (event, merged) => {
 /** GitHub retains auto_merge after automatic integration; null means no authority remained active at merge time. */
 const authorizedPermission = permission => ["write", "maintain", "admin"].includes(permission);
 const human = actor => actor?.type === "User" && /^[a-zA-Z0-9-]{1,39}$/.test(actor.login ?? "");
+/** The timeline names an enable by its merge method; only the webhook action is the generic `auto_merge_enabled`. */
+const AUTO_MERGE_ENABLE_EVENTS = new Set(["auto_merge_enabled", "auto_squash_enabled", "auto_rebase_enabled"]);
+const autoMergeEnabled = event => AUTO_MERGE_ENABLE_EVENTS.has(event.event);
 
 function assertMergeEvent(pull, permission, events) {
   const actor = pull.merged_by;
@@ -162,7 +165,7 @@ function activeAutoMergeEvent(pull, events, mergeIndex = events.length) {
   let active = null;
   for (let index = 0; index < mergeIndex; index += 1) {
     const event = events[index];
-    if (event.event === "auto_merge_enabled") {
+    if (autoMergeEnabled(event)) {
       requireAcceptance(active === null && human(event.actor) && event.performed_via_github_app === null
         && Number.isFinite(Date.parse(event.created_at)), "acceptance-merge-provenance");
       active = { event, index };
@@ -184,7 +187,7 @@ function activeAutoMergeEvent(pull, events, mergeIndex = events.length) {
 export function assertManualAcceptanceMerge(pull, permission, events) {
   const decision = assertMergeEvent(pull, permission, events);
   requireAcceptance(pull.auto_merge === null, "acceptance-manual-authority");
-  requireAcceptance(!events.some(event => event.event === "auto_merge_enabled"), "acceptance-merge-provenance");
+  requireAcceptance(!events.some(autoMergeEnabled), "acceptance-merge-provenance");
   return { kind: "manual", actor: decision.actor };
 }
 
@@ -194,7 +197,7 @@ export function assertVersion3AcceptanceMerge(pull, permission, events) {
   const active = activeAutoMergeEvent(pull, events, decision.mergeIndex);
   if (pull.auto_merge === null) {
     requireAcceptance(active === null, "acceptance-merge-provenance");
-    const enables = events.slice(0, decision.mergeIndex).filter(event => event.event === "auto_merge_enabled");
+    const enables = events.slice(0, decision.mergeIndex).filter(autoMergeEnabled);
     requireAcceptance(enables.every(event => event.actor?.login === decision.actor), "acceptance-merge-provenance");
     return { kind: "manual", actor: decision.actor };
   }
