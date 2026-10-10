@@ -1,8 +1,80 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-10-01T16:38:54.783Z",
+  "generatedAt": "2026-10-10T15:29:51.045Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/manual-one-pane-terminal-host.md:5:48",
+      "value": "addone",
+      "fingerprint": "697ec2b80f802c2a5916f143b5332664f1bf0e6258d588b380cf219016ad1d62",
+      "reason": "exact historical evidence record"
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/manual-two-by-two-basic-terminal-host.md:7:48",
+      "value": "addone",
+      "fingerprint": "e2b8bd538f130c2f9ca6b1c4c5631521cd19cbbe6fb28644197d1ec863ec22c8",
+      "reason": "exact historical evidence record"
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/manual-two-by-two-basic-terminal-host.md:28:106",
+      "value": "AddOne",
+      "fingerprint": "c047dfa940e62c68d10edf38dbb84839af43636702722a72c8fab816626add87",
+      "reason": "exact historical evidence record"
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:2:14",
+      "value": "addone",
+      "fingerprint": "f0d43747c75b4f726a735b6de521beb533ccee27747b3ec1261748fa30e975c1",
+      "reason": "exact historical evidence record"
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:21:26",
+      "value": "addone",
+      "fingerprint": "3295a52df4ffe9db4d82c5520503cbd8fd520ee04adda480e7a3ef2d1b3ae48b",
+      "reason": "exact historical evidence record"
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:29:31",
+      "value": "addone",
+      "fingerprint": "4ff433c77ea2c6e6e057685f3e6171a693b6b4c7f067092b63b443091ce0204c",
+      "reason": "exact historical evidence record"
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:47:6",
+      "value": "addone",
+      "fingerprint": "f845aa1770d80b8f2c1689571edbbb227c3203547792ca3a4f628e3ab9ea3372",
+      "reason": "exact historical evidence record"
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:102:16",
+      "value": "addone",
+      "fingerprint": "f75983763e5d0d2b683836dc7e2b47412b46c9712c5f87d18b26e1117aa80074",
+      "reason": "exact historical evidence record"
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:2:14",
+      "value": "addone",
+      "fingerprint": "fff66638ae03f076fcd11f49c52b76feb79ac9b52626ab6400d9af478833109c",
+      "reason": "exact historical evidence record"
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:11:29",
+      "value": "addone",
+      "fingerprint": "823f4d04dd7ac79ef0e1daa1125bd07cbda1bad154b489b7eccbf59147235463",
+      "reason": "exact historical evidence record"
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:13:51",
+      "value": "addone",
+      "fingerprint": "3416dadefebdf6b5b7108c77d1b00a2015f051c9f5b842b4b18ebff2c72dcb96",
+      "reason": "exact historical evidence record"
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:21:82",
+      "value": "AddOne",
+      "fingerprint": "1d68b1efa840ecdd2bf5e2900aa2dc29cc452114c47a1c18ff374aaf461527e8",
+      "reason": "exact historical evidence record"
+    },
     {
       "id": "docs/architecture/toolchain.md:102:37",
       "value": "ADDONE",
@@ -44,78 +116,6 @@
       "value": "addone",
       "fingerprint": "d0bda688b76c3c148a9c40e9f6a377e9d0a4c14899aa87c0f5b2cf1b911baf03",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/manual-one-pane-terminal-host.md:5:48",
-      "value": "addone",
-      "fingerprint": "4aebfd62e9c2513fc39736d2bb193aa99e3da092ee22886eb808a4c4e699b4c4",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/manual-two-by-two-basic-terminal-host.md:7:48",
-      "value": "addone",
-      "fingerprint": "3caf5dacd426f6fbcd5257b15ae2738c1e6051dcae4cc8ed9e71315d10a2a678",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/manual-two-by-two-basic-terminal-host.md:28:106",
-      "value": "AddOne",
-      "fingerprint": "89e1d04c232ee381f422f6859adc877dd685278f1bbeb9faef688862b3999b08",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json:2:14",
-      "value": "addone",
-      "fingerprint": "f7e5d878cd196ae357484f519c0e28d758efde5a839201127f5c735af4da15f5",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json:21:26",
-      "value": "addone",
-      "fingerprint": "b4054e78a58687666b1f8ece462612c212aabe4b3344b14ce4baf18aadf6a7f6",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json:29:31",
-      "value": "addone",
-      "fingerprint": "d88cd9af79109eee0f246b26bf81a6a956b1ba85847dde0714484343a2821ef9",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json:47:6",
-      "value": "addone",
-      "fingerprint": "a604e8989804025ebd3fc44aa37d3e4dc6b8d2893a85f18221854161a38434ff",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json:102:16",
-      "value": "addone",
-      "fingerprint": "d11dee0f69273fa5d85b5509ff8f13b89e06360632a3aac1ac170dca36f5a039",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/owned-ui-foundation-prerequisite.json:2:14",
-      "value": "addone",
-      "fingerprint": "5556ede79a479ca9488c04dfbdb5ff0deed9cc837f00c85acc282e5b43093832",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/owned-ui-foundation-prerequisite.json:11:29",
-      "value": "addone",
-      "fingerprint": "2dbd92abe5b2b849effe35692450753d5b1a08f9b8736042974a505b7a50f693",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/owned-ui-foundation-prerequisite.json:13:51",
-      "value": "addone",
-      "fingerprint": "bcc7e4928afd800e666f2452370482c9bc18e03d34052137b65a4c90f1142142",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/owned-ui-foundation-prerequisite.json:21:82",
-      "value": "AddOne",
-      "fingerprint": "8c554ce61f73ee648e94484e4fac538c2b05a40326c53fc2f85c9c114f0e1ef9",
-      "reason": "exact historical evidence record"
     },
     {
       "id": "openspec/specs/a1-shell/spec.md:101:391",

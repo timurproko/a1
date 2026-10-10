@@ -53,7 +53,7 @@ The engine host removes A1's own obstacles to several Pi sessions in one process
 
 ## Planned multi-agent boundaries
 
-The multi-agent workspace feature, its dependency-free contracts, the structured-agent runtime, and the Node side of the terminal-host protocol were removed from `develop` while the multi-agent plan is on hold; their last state is preserved on the `archive/multi-agent-workspace` branch. A future implementation starts from the current codebase rather than from that copy. The boundary rules below remain the design intent for that work.
+The multi-agent workspace feature, its dependency-free contracts, the structured-agent runtime, and the Node side of the terminal-host protocol were removed from `develop`; their last state is commit `243eb7a7` in `develop` history. That structured-workspace plan was retired on 2026-10-10 in favor of `add-persistent-multi-agent-tabs`, where every tab runs the complete A1 UI under the native terminal host. A future implementation starts from the current codebase rather than from that copy. The boundary rules below remain the design intent for that work.
 
 The workspace feature may depend on workspace contracts and the structured/terminal-host foundations. Those foundations may depend only on dependency-free workspace contracts, never on product features, launch profiles, or each other unless an approved capability adds the dependency. Launch profiles do not import, initialize, launch, or connect to composed terminal-host infrastructure.
 
