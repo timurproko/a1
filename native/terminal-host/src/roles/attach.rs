@@ -18,6 +18,10 @@ pub const ENTER_OUTER_MODES: &[u8] =
     b"\x1b[?1049h\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1006h\x1b[?2026h";
 pub const RESTORE_OUTER_MODES: &[u8] =
     b"\x1b[?2026l\x1b[?1006l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?1049l";
+#[cfg(unix)]
+const KITTY_QUERY: &[u8] = b"\x1b[?u\x1b[c";
+const KITTY_ENABLE: &[u8] = b"\x1b[>1u";
+const KITTY_RESTORE: &[u8] = b"\x1b[<1u";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CtrlCDisposition {
@@ -332,14 +336,90 @@ fn outer_size() -> Result<(u16, u16), String> {
     crossterm::terminal::size().map_err(|error| format!("read outer terminal size: {error}"))
 }
 
+#[cfg(unix)]
+fn query_kitty_keyboard(timeout: Duration) -> Result<bool, String> {
+    use std::os::fd::AsRawFd;
+    let mut output = stdout().lock();
+    output
+        .write_all(KITTY_QUERY)
+        .and_then(|()| output.flush())
+        .map_err(|error| format!("query outer keyboard protocol: {error}"))?;
+    drop(output);
+    let stdin = std::io::stdin();
+    let fd = stdin.as_raw_fd();
+    let deadline = Instant::now() + timeout;
+    let mut response = Vec::new();
+    while Instant::now() < deadline && response.len() < 1024 {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        let mut descriptor = libc::pollfd {
+            fd,
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        let ready = unsafe {
+            libc::poll(
+                &mut descriptor,
+                1,
+                remaining.as_millis().clamp(1, i32::MAX as u128) as i32,
+            )
+        };
+        if ready < 0 {
+            return Err(format!(
+                "poll outer keyboard protocol: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        if ready == 0 {
+            break;
+        }
+        let mut bytes = [0_u8; 128];
+        let count = unsafe { libc::read(fd, bytes.as_mut_ptr().cast(), bytes.len()) };
+        if count <= 0 {
+            break;
+        }
+        response.extend_from_slice(&bytes[..count as usize]);
+        if kitty_query_answered(&response) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+#[cfg(windows)]
+fn query_kitty_keyboard(_timeout: Duration) -> Result<bool, String> {
+    Ok(false)
+}
+
+#[cfg(any(unix, test))]
+fn kitty_query_answered(bytes: &[u8]) -> bool {
+    bytes.windows(3).enumerate().any(|(index, prefix)| {
+        if prefix != b"\x1b[?" {
+            return false;
+        }
+        let value = &bytes[index + 3..];
+        value
+            .iter()
+            .position(|byte| *byte == b'u')
+            .is_some_and(|end| end > 0 && value[..end].iter().all(u8::is_ascii_digit))
+    })
+}
+
 struct OuterTerminal {
     restored: bool,
+    kitty_keyboard: bool,
 }
 impl OuterTerminal {
     fn enter() -> Result<Self, String> {
         enable_raw_mode().map_err(|error| format!("enable outer raw mode: {error}"))?;
-        let mut value = Self { restored: false };
+        let kitty_keyboard = query_kitty_keyboard(Duration::from_millis(200)).unwrap_or(false);
+        let mut value = Self {
+            restored: false,
+            kitty_keyboard,
+        };
         value.write(ENTER_OUTER_MODES)?;
+        if kitty_keyboard {
+            value.write(KITTY_ENABLE)?;
+        }
         Ok(value)
     }
     fn write(&mut self, bytes: &[u8]) -> Result<(), String> {
@@ -352,6 +432,9 @@ impl OuterTerminal {
         if self.restored {
             return Ok(());
         }
+        if self.kitty_keyboard {
+            self.write(KITTY_RESTORE)?;
+        }
         self.write(RESTORE_OUTER_MODES)?;
         disable_raw_mode().map_err(|error| format!("restore cooked input: {error}"))?;
         self.restored = true;
@@ -361,6 +444,9 @@ impl OuterTerminal {
 impl Drop for OuterTerminal {
     fn drop(&mut self) {
         if !self.restored {
+            if self.kitty_keyboard {
+                let _ = self.write(KITTY_RESTORE);
+            }
             let _ = self.write(RESTORE_OUTER_MODES);
             let _ = disable_raw_mode();
             self.restored = true;
@@ -450,5 +536,10 @@ mod tests {
             assert!(String::from_utf8_lossy(ENTER_OUTER_MODES).contains(&format!("?{mode}h")));
             assert!(String::from_utf8_lossy(RESTORE_OUTER_MODES).contains(&format!("?{mode}l")));
         }
+        assert_eq!(KITTY_ENABLE, b"\x1b[>1u");
+        assert_eq!(KITTY_RESTORE, b"\x1b[<1u");
+        assert!(kitty_query_answered(b"noise\x1b[?3u\x1b[?1;2c"));
+        assert!(!kitty_query_answered(b"\x1b[?1;2c"));
+        assert!(!kitty_query_answered(b"\x1b[?u"));
     }
 }

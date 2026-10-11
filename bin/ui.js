@@ -1,22 +1,8 @@
 #!/usr/bin/env node
 
-// Security: consume resident bridge credentials before any A1, Pi, or extension-capable module loads.
-const uiArguments = process.argv.slice(2);
-const tabArgument = uiArguments.indexOf("--tab");
-const tabMode = tabArgument !== -1;
-if (tabMode) uiArguments.splice(tabArgument, 1);
-/** @type {{ tabId: string, token: string, endpoint: string } | undefined} */
-let tabCredentials;
-if (tabMode) {
-  const tabId = process.env.A1_TAB_ID;
-  const token = process.env.A1_TAB_TOKEN;
-  const endpoint = process.env.A1_TAB_ENDPOINT;
-  if (!tabId || !token || !endpoint) throw new Error("A1 tab mode requires bridge credentials");
-  tabCredentials = { tabId, token, endpoint };
-}
-delete process.env.A1_TAB_ID;
-delete process.env.A1_TAB_TOKEN;
-delete process.env.A1_TAB_ENDPOINT;
+// Security: this helper has no A1, Pi, tool, or extension dependency and erases credentials before those modules load.
+const { consumeTabLaunchContext } = await import("./tab-launch-context.js");
+const { uiArguments, tabCredentials } = consumeTabLaunchContext(process.argv.slice(2), process.env);
 
 // Invariant: one terminal module identity per process, decided before any A1 or Pi module loads.
 const { installPinnedPiTuiResolver } = await import("./module-resolver.js");
