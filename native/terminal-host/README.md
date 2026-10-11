@@ -21,7 +21,7 @@ A pull request that changes this package, its fixtures, or its run scripts selec
 npm run test:terminal-host
 ```
 
-Each job uploads the debug terminal-host binary, native lock library, and generation-1 fixture manifest as `terminal-host-<platform>-<architecture>-attempt-<n>` for one day. Linux additionally runs the decoder fuzz target for the bounded CI duration.
+Each job uploads the debug terminal-host binary, native lock library, and generation-1 fixture manifest as `terminal-host-<platform>-<architecture>-attempt-<n>` for one day. Vendored native code is built for that exact platform and architecture with a baseline CPU model, never the hosted runner's native CPU. `terminal-host --version` reports the embedded `libghosttyTarget` and `libghosttyCpu` build contract. Linux additionally runs the decoder fuzz target for the bounded CI duration.
 
 On a Windows machine without restrictive antivirus, set `TERMINAL_HOST_LOCAL_BUILD=1` to build locally anyway. Maintainers inspecting only the Rust contract library may additionally set `TERMINAL_HOST_CONTRACTS_ONLY=1`; that diagnostic skips the libghostty build and cannot substitute for any selected binary/probe lane.
 
@@ -32,10 +32,10 @@ The non-interactive gate runs identity, endpoint, writer-lock/addon, durable-rep
 Run only when you choose to test the current terminal manually:
 
 ```powershell
-.\native\terminal-host\target\debug\a1-terminal-host.exe --run
+.\native\terminal-host\target\debug\terminal-host.exe --run
 ```
 
-The proof opens one tab with four independent Pi sessions in a fixed revisioned 2×2 split. `Alt+1` through `Alt+4` focus a pane; clicking inside a pane also focuses it. Keyboard and paste input route only to the focused pane. `Ctrl+Shift+Q` cleanly shuts down the host and all four owned process trees.
+The proof opens one tab with four independent Pi sessions in a fixed revisioned 2×2 split. Pi is intentional here: milestone 1 proves the native PTY, rendering, input, isolation, and cleanup boundary with a complete interactive terminal workload, while A1 product loading and resident launch-route wiring remain deferred to later milestones. This command is not evidence that resident tabs are integrated into `a1` or `a1 pi`. `Alt+1` through `Alt+4` focus a pane; clicking inside a pane also focuses it. Keyboard and paste input route only to the focused pane. `Ctrl+Shift+Q` cleanly shuts down the host and all four owned process trees.
 
 When a child enables terminal mouse reporting, mouse press, release, motion, drag, and wheel events are encoded by `libghostty-vt` from pane-relative coordinates and route only to that pane. Otherwise mouse wheel scrolling and left-button selection remain host-owned and pane-scoped. Plain left-drag selects terminal text with one uniform white inverted style and copies it through the outer terminal's OSC 52 clipboard support. Double-click selects a word, and triple-click selects a line. Ctrl+C clears an active selection in the focused pane before it reaches that child; without selection, interrupt keys remain child-owned. Other keyboard scroll/navigation is not rebound by the host. Each pane owns independent retained state, dimensions, selection, render damage, PTY, and cleanup. The host preserves the outer terminal's default background and foreground unless a child explicitly sets colors.
 
@@ -44,13 +44,13 @@ The host exits when all four children exit or when `Ctrl+Shift+Q` requests host 
 To launch an executable other than the default `pi`, pass the same exact executable and argument vector to all four independent panes:
 
 ```powershell
-.\native\terminal-host\target\debug\a1-terminal-host.exe --run -- <executable> [args...]
+.\native\terminal-host\target\debug\terminal-host.exe --run -- <executable> [args...]
 ```
 
 To inspect the fixed durable topology without opening an interactive surface:
 
 ```powershell
-.\native\terminal-host\target\debug\a1-terminal-host.exe --topology-2x2
+.\native\terminal-host\target\debug\terminal-host.exe --topology-2x2
 ```
 
 For a vanilla-Pi proof without changing `npm start`:

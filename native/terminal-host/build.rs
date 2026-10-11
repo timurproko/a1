@@ -1,3 +1,5 @@
+mod build_target;
+
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,10 +14,19 @@ fn main() {
     refuse_local_windows_build();
     println!("cargo:rerun-if-env-changed=ZIG");
     println!("cargo:rerun-if-env-changed=TERMINAL_HOST_CONTRACTS_ONLY");
+    let target = env::var("TARGET").expect("TARGET");
+    let zig_target = build_target::resolve(&target)
+        .unwrap_or_else(|| panic!("unsupported terminal-host Cargo target: {target}"));
+    println!(
+        "cargo:rustc-env=TERMINAL_HOST_ZIG_TARGET={}",
+        zig_target.triple
+    );
+    println!("cargo:rustc-env=TERMINAL_HOST_ZIG_CPU={}", zig_target.cpu);
     if env::var("TERMINAL_HOST_CONTRACTS_ONLY").as_deref() == Ok("1") {
         return;
     }
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=build_target.rs");
     println!("cargo:rerun-if-changed=vendor/libghostty-vt/build.zig");
     println!("cargo:rerun-if-changed=vendor/libghostty-vt/build.zig.zon");
     println!("cargo:rerun-if-changed=vendor/libghostty-vt/include");
@@ -31,16 +42,19 @@ fn main() {
 
     // Platform: Zig 0.15.2 has a Windows drive-letter path failure when this repository is
     // built from D:. Build from the system temporary directory on every CI target; the source
-    // copy is stamped by commit and Cargo target so unlike targets never share output.
-    let target = env::var("TARGET").expect("TARGET");
+    // copy is stamped by commit, exact target, and CPU policy so stale native output is removed.
     let work = env::temp_dir().join(format!("a1-libghostty-vt-{GHOSTTY_COMMIT}-{target}"));
     let stamp = work.join(".a1-source-commit");
-    if fs::read_to_string(&stamp).ok().as_deref() != Some(GHOSTTY_COMMIT) {
+    let build_identity = format!(
+        "{GHOSTTY_COMMIT}:{target}:{}:{}",
+        zig_target.triple, zig_target.cpu
+    );
+    if fs::read_to_string(&stamp).ok().as_deref() != Some(build_identity.as_str()) {
         if work.exists() {
             fs::remove_dir_all(&work).expect("remove stale libghostty-vt build source");
         }
         copy_dir(&source, &work);
-        fs::write(&stamp, GHOSTTY_COMMIT).expect("write libghostty-vt source stamp");
+        fs::write(&stamp, build_identity).expect("write libghostty-vt source stamp");
     }
 
     let zig = env::var("ZIG").unwrap_or_else(|_| "zig".to_owned());
@@ -50,7 +64,8 @@ fn main() {
         .arg("-Demit-lib-vt")
         .arg("-Doptimize=ReleaseFast")
         .arg("-Dsimd=true")
-        .arg("-Dtarget=native")
+        .arg(format!("-Dtarget={}", zig_target.triple))
+        .arg(format!("-Dcpu={}", zig_target.cpu))
         .arg(format!("-Dversion-string={version}"))
         .arg("-Demit-xcframework=false")
         .status()
