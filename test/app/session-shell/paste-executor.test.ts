@@ -72,7 +72,7 @@ describe("isolated paste executor", () => {
     try {
       pool.warm();
       expect(pool.warmed).toBe(true);
-      if (announced) await new Promise(resolve => setTimeout(resolve, 1_500));
+      if (announced) await vi.waitFor(() => expect(pool.ready).toBe(true), { timeout: 10_000 });
       const started = performance.now();
       const job = startPasteExecutor({ kind: "text", text: "spare hello" }, new AbortController().signal, () => {}, undefined, pool);
       try {
