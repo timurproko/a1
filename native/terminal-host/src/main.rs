@@ -22,6 +22,7 @@ use crossterm::{
     event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
 };
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
+use terminal_host_contracts as contracts;
 
 use crate::ghostty::{
     GhosttyTerminal, KeyEncoder, MouseAction, MouseButton, MouseEncoder, MouseInput,
@@ -67,7 +68,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         Some("--probe-resident-launch") => probe_resident_launch(),
         Some("--probe-2x2") => probe_two_by_two(),
         Some("--resident-fixture-child") if args.len() == 4 => {
-            a1_session_lock::launch::run_fixture_child(&args[1], &args[2], &args[3])
+            contracts::launch::run_fixture_child(&args[1], &args[2], &args[3])
                 .map_err(|error| error.to_string())
         }
         Some("--topology-2x2") => {
@@ -238,11 +239,9 @@ fn probe_resident_launch() -> Result<(), String> {
     ));
     fs::create_dir_all(&root).map_err(|error| format!("create resident launch probe: {error}"))?;
     let result = (|| {
-        let (mut child, observation) = a1_session_lock::launch::launch_resident(
-            a1_session_lock::launch::ResidentRole::Fixture,
-            &root,
-        )
-        .map_err(|error| error.to_string())?;
+        let (mut child, observation) =
+            contracts::launch::launch_resident(contracts::launch::ResidentRole::Fixture, &root)
+                .map_err(|error| error.to_string())?;
         if child.has_exited().map_err(|error| error.to_string())? {
             return Err("resident fixture exited after verified readiness".to_owned());
         }
@@ -279,7 +278,7 @@ fn controller_boundary_child(
     if prior.trim_end_matches(|value| value == '\r' || value == '\n') != "prior-command" {
         return Err("controller marker overtook prior PTY input".to_owned());
     }
-    let (_, acknowledgement_value) = a1_session_lock::controller::admit_fixture_stream(
+    let (_, acknowledgement_value) = contracts::controller::admit_fixture_stream(
         marker
             .trim_end_matches(|value| value == '\r' || value == '\n')
             .as_bytes(),
@@ -345,17 +344,19 @@ fn probe_controller_boundary() -> Result<(), String> {
             .master
             .take_writer()
             .map_err(|error| format!("open controller boundary writer: {error}"))?;
+        let line_end: &[u8] = if cfg!(windows) { b"\r" } else { b"\n" };
         writer
-            .write_all(b"prior-command\n")
+            .write_all(b"prior-command")
+            .and_then(|_| writer.write_all(line_end))
             .map_err(|error| format!("write prior PTY input: {error}"))?;
         writer
-            .write_all(&a1_session_lock::controller::encode_boundary_marker(
+            .write_all(&contracts::controller::encode_boundary_marker(
                 generation,
                 nonce.to_be_bytes(),
             ))
             .map_err(|error| format!("write PTY marker: {error}"))?;
         writer
-            .write_all(b"\n")
+            .write_all(line_end)
             .map_err(|error| format!("complete PTY marker line: {error}"))?;
         writer
             .flush()
@@ -392,9 +393,9 @@ fn probe_controller_boundary() -> Result<(), String> {
 }
 
 fn durable_replace_child(target: &str, kill_step: &str) -> Result<(), String> {
-    let kill_step = a1_session_lock::durable::DurabilityStep::parse(kill_step)
+    let kill_step = contracts::durable::DurabilityStep::parse(kill_step)
         .ok_or_else(|| "unknown durability kill step".to_owned())?;
-    a1_session_lock::durable::replace_with_observer(
+    contracts::durable::replace_with_observer(
         std::path::Path::new(target),
         b"new durable bytes",
         |step| {
@@ -418,7 +419,7 @@ fn probe_durable_replacement() -> Result<(), String> {
     let executable = env::current_exe()
         .map_err(|error| format!("resolve durability probe executable: {error}"))?;
     let result = (|| {
-        for step in a1_session_lock::durable::ALL_DURABILITY_STEPS {
+        for step in contracts::durable::ALL_DURABILITY_STEPS {
             fs::write(&target, b"old durable bytes")
                 .map_err(|error| format!("seed durability probe: {error}"))?;
             let status = Command::new(&executable)
@@ -454,12 +455,12 @@ fn probe_durable_replacement() -> Result<(), String> {
 }
 
 fn probe_contracts() -> Result<(), String> {
-    let process = a1_session_lock::identity::inspect_process(std::process::id())
+    let process = contracts::identity::inspect_process(std::process::id())
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "current process identity disappeared".to_owned())?;
-    let system = a1_session_lock::identity::current_system().map_err(|error| error.to_string())?;
-    let fixtures = a1_session_lock::protocol::fixture_set().map_err(|error| error.to_string())?;
-    let digest = a1_session_lock::protocol::fixture_manifest_digest(&fixtures);
+    let system = contracts::identity::current_system().map_err(|error| error.to_string())?;
+    let fixtures = contracts::protocol::fixture_set().map_err(|error| error.to_string())?;
+    let digest = contracts::protocol::fixture_manifest_digest(&fixtures);
     println!(
         "{{\"schema\":\"a1-terminal-host-contracts-v1\",\"pid\":{},\"startIdentity\":\"{}\",\"bootIdentity\":\"{}\",\"osSessionIdentity\":\"{}\",\"protocolGeneration\":1,\"fixtureDigest\":\"{}\"}}",
         process.pid, process.start, system.boot, system.os_session, digest

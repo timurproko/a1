@@ -24,8 +24,8 @@ impl SessionLock {
     pub fn acquire(path: impl AsRef<Path>) -> Result<Self, LockError> {
         let requested = absolute(path.as_ref())?;
         if requested.exists() {
-            // Existing-file writers also take the location gate while moving to stable identity
-            // authority, so a creator cannot be overtaken between create and bind.
+            // Concurrency: existing-file writers take the location gate while moving to stable
+            // identity authority, so a creator cannot be overtaken between create and bind.
             let location_key = new_location_identity(&requested)?;
             let reservation = LockedFile::acquire(&lock_path("location", &location_key)?)?;
             let key = existing_identity(&requested)?;
@@ -204,9 +204,7 @@ fn existing_identity(path: &Path) -> Result<String, LockError> {
 }
 
 fn lock_root() -> Result<PathBuf, LockError> {
-    let base = std::env::var_os("A1_SESSION_LOCK_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join("a1-session-locks"));
+    let base = std::env::temp_dir().join("a1-session-locks");
     std::fs::create_dir_all(&base)
         .map_err(|error| LockError(format!("create lock root {}: {error}", base.display())))?;
     #[cfg(unix)]

@@ -7,7 +7,7 @@ license = "MIT"
 publish = false
 
 [lib]
-name = "a1_session_lock"
+name = "terminal_host_contracts"
 crate-type = ["rlib", "cdylib"]
 
 [features]

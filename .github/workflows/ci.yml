@@ -693,7 +693,7 @@ jobs:
           name: terminal-host-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}
           path: |
             native/terminal-host/target/debug/${{ matrix.terminalHostBinary }}
-            native/terminal-host/target/debug/${{ matrix.terminalHostAddon }}
+            .artifacts/terminal-host/a1_session_lock.node
             native/terminal-host/protocol/fixtures.json
           if-no-files-found: error
           retention-days: 1

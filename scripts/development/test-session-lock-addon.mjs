@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 
 const root = resolve(".artifacts/terminal-host/addon-test");
 const modulePath = resolve(".artifacts/terminal-host/a1_session_lock.node");
-const built = resolve("native/terminal-host/target/debug", platform() === "win32" ? "a1_session_lock.dll" : platform() === "darwin" ? "liba1_session_lock.dylib" : "liba1_session_lock.so");
+const built = resolve("native/terminal-host/target/debug", platform() === "win32" ? "terminal_host_contracts.dll" : platform() === "darwin" ? "libterminal_host_contracts.dylib" : "libterminal_host_contracts.so");
 
 if (process.argv[2] === "--holder") {
   const addon = createRequire(import.meta.url)(modulePath);

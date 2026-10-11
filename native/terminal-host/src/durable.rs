@@ -283,15 +283,15 @@ fn sync_parent(parent: &Path) -> Result<(), DurableError> {
                 "F_FULLFSYNC replacement directory: {error}"
             )));
         }
-        // APFS/macOS may reject F_FULLFSYNC for directory descriptors after accepting fsync;
-        // that capability result is explicit and the completed directory fsync remains required.
+        // Platform: APFS/macOS may reject F_FULLFSYNC for directory descriptors after accepting
+        // fsync; that explicit capability result leaves the completed directory fsync required.
     }
     Ok(())
 }
 
 #[cfg(windows)]
 fn sync_parent(_parent: &Path) -> Result<(), DurableError> {
-    // MOVEFILE_WRITE_THROUGH is the supported metadata barrier for this primitive.
+    // Platform: MOVEFILE_WRITE_THROUGH is the supported metadata barrier for this primitive.
     Ok(())
 }
 

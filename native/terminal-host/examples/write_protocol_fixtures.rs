@@ -5,8 +5,8 @@ fn main() {
         .nth(1)
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("native/terminal-host/protocol/fixtures.json"));
-    let manifest =
-        a1_session_lock::protocol::fixture_manifest_json().expect("generate protocol fixtures");
+    let manifest = terminal_host_contracts::protocol::fixture_manifest_json()
+        .expect("generate protocol fixtures");
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent).expect("create fixture directory");
     }

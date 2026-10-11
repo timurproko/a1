@@ -218,10 +218,10 @@ mod platform {
 
     #[repr(C)]
     struct Guid {
-        data1: u32,
-        data2: u16,
-        data3: u16,
-        data4: [u8; 8],
+        segment_one: u32,
+        segment_two: u16,
+        segment_three: u16,
+        segment_four: [u8; 8],
     }
     #[repr(C)]
     struct BootEnvironment {
@@ -320,10 +320,10 @@ mod platform {
         let guid = value.boot_identifier;
         Ok(format!(
             "windows-boot:{:08x}-{:04x}-{:04x}-{}",
-            guid.data1,
-            guid.data2,
-            guid.data3,
-            hex::encode(guid.data4)
+            guid.segment_one,
+            guid.segment_two,
+            guid.segment_three,
+            hex::encode(guid.segment_four)
         ))
     }
 

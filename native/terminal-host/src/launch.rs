@@ -224,8 +224,8 @@ pub fn run_fixture_child(role: &str, profile: &str, ready: &str) -> Result<(), L
 fn sanitize_fixture_environment() {
     let path = std::env::var_os("PATH").unwrap_or_default();
     let keys = std::env::vars_os().map(|(key, _)| key).collect::<Vec<_>>();
-    // This fixed-role fixture executes before starting threads. Rust 2024 marks process-global
-    // environment mutation unsafe; this entrypoint has exclusive startup custody here.
+    // Security: this fixed-role fixture executes before starting threads. Rust 2024 marks
+    // process-global environment mutation unsafe; this entrypoint has exclusive startup custody.
     unsafe {
         for key in keys {
             std::env::remove_var(key);
@@ -296,8 +296,8 @@ fn spawn_via_wmi(
     use windows_sys::Win32::System::Threading::{
         OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE,
     };
-    // The PowerShell process is only a fixed WMI client. Win32_Process.Create performs the
-    // actual creation outside the foreign job; no caller-supplied executable or argv is accepted.
+    // Security: PowerShell is only a fixed WMI client. Win32_Process.Create performs creation
+    // outside the foreign job; no caller-supplied executable or argv is accepted.
     let quote = |value: &Path| value.to_string_lossy().replace('\'', "''");
     let command_line = format!(
         "\"{}\" --resident-fixture-child {} \"{}\" \"{}\"",
