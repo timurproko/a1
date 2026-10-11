@@ -1,6 +1,6 @@
 import { ResponseCopyCoordinator } from "./response-copy-coordinator.js";
 import { createResponseCopyExecutor, hasAsyncClipboardOutput, responseCopyDestination, type OwnedResponseCopyExecutor } from "./response-copy-transport.js";
-import { MAX_COPY_CONTROL_BYTES } from "./response-copy-protocol.js";
+import { MAX_COPY_CONTROL_BYTES, type CopyResult } from "./response-copy-protocol.js";
 import { PromptHistoryController } from "./prompt-history-controller.js";
 import type { PromptHistoryKind } from "../../contracts/owned-ui/index.js";
 import { PRODUCT_TEXT } from "../../product-identity.js";
@@ -309,8 +309,11 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
           promptSuggestionController?.invalidate();
           this.#promptHistory?.synchronize();
         },
-        onCopyText: text => {
-          if (this.#responseCopy !== null) { void this.#responseCopy.submitText(text); return; }
+        onCopyText: (text, cut) => {
+          if (this.#responseCopy !== null) {
+            this.#trackCopy(this.#responseCopy.submitText(text), cut ? undefined : text.length);
+            return;
+          }
           const write = () => {
             if (this.#disposed) return Promise.resolve();
             this.#terminal.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
@@ -704,18 +707,19 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.root.usesDefaultInputSurface() && !this.#terminal.hasFocusedOverlay());
     if (routed.copySelection !== undefined) {
       const snapshot = routed.copySelection;
-      const acknowledgement = copyAcknowledgement(snapshot);
-      const intent = ++this.#copyIntentSequence;
-      void this.#responseCopy?.submit(snapshot, this.#pendingClipboardWrite).then(result => {
-        if (this.#disposed || !this.#terminal.running || intent !== this.#copyIntentSequence
-          || result.outcome !== "delivered" && result.outcome !== "submitted-unverified") return;
-        if (acknowledgement.hasNonWhitespace) {
-          this.root.showCopyAcknowledgement(`copied ${acknowledgement.characters} chars to clipboard`);
-        }
-      });
+      this.#trackCopy(this.#responseCopy?.submit(snapshot, this.#pendingClipboardWrite), copyCharacters(snapshot));
     }
     if (!routed.consumed) return routed.data === data ? undefined : { data: routed.data };
     return routed.data.length === 0 ? { consume: true } : { data: routed.data };
+  }
+
+  #trackCopy(delivery: Promise<CopyResult> | undefined, count?: number): void {
+    const intent = ++this.#copyIntentSequence;
+    void delivery?.then(({ outcome }) => {
+      if (count === undefined || this.#disposed || !this.#terminal.running || intent !== this.#copyIntentSequence
+        || outcome !== "delivered" && outcome !== "submitted-unverified") return;
+      this.root.showCopyAcknowledgement(`copied ${count} chars to clipboard`);
+    });
   }
 
   #promptSuggestionPresentationBlockReason(identity: OwnedUiPromptSuggestionIdentity): SuggestionDecision {
@@ -1996,15 +2000,14 @@ function isCoalescedStreamBlock(kind: OwnedUiSessionViewModel["transcript"][numb
   return kind === "assistant" || kind === "thinking" || kind === "tool-call" || kind === "tool-result";
 }
 
-function copyAcknowledgement(snapshot: SelectionCopySnapshot): { readonly characters: number; readonly hasNonWhitespace: boolean } {
-  if (snapshot.literal !== true) return { characters: snapshot.sourceUnits, hasNonWhitespace: true };
-  let characters = Math.max(0, snapshot.rows.length - 1);
-  let hasNonWhitespace = false;
-  for (const row of snapshot.rows) {
-    characters += row.text.length;
-    hasNonWhitespace ||= /\S/u.test(row.text);
+function copyCharacters(snapshot: SelectionCopySnapshot): number | undefined {
+  if (snapshot.literal !== true) return snapshot.sourceUnits;
+  let count = Math.max(0, snapshot.rows.length - 1), hasContent = false;
+  for (const { text } of snapshot.rows) {
+    count += text.length;
+    hasContent ||= /\S/u.test(text);
   }
-  return { characters, hasNonWhitespace };
+  return hasContent ? count : undefined;
 }
 
 export interface SessionResumeCommandMetadata {

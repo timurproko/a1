@@ -345,6 +345,35 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     } finally { await shell.dispose(); }
   });
 
+  it("acknowledges successful Ctrl+C copies of keyboard-selected prompt text", async () => {
+    const copied: string[] = [];
+    const text = "copy 日本語";
+    const { shell, terminal } = await fixture([], [], true, undefined, {
+      readText: async () => null,
+      writeText: async value => { copied.push(value); },
+    });
+    try {
+      terminal.resize(60, 12);
+      shell.root.editor.setText(text);
+      terminal.input("\u0001");
+      expect(shell.root.hasActiveSelection()).toBe(true);
+      terminal.input("\u0003");
+      await vi.waitFor(() => expect(copied).toEqual([text]));
+      await vi.waitFor(() => expect(shell.root.render(60).map(stripTerminalSequences).join("\n"))
+        .toContain(`copied ${text.length} chars to clipboard`));
+      expect(shell.root.hasActiveSelection()).toBe(false);
+      expect(shell.root.editor.getText()).toBe(text);
+
+      shell.root.editor.setText("cut");
+      terminal.input("\u0001");
+      terminal.input("\u0018");
+      await vi.waitFor(() => expect(copied).toEqual([text, "cut"]));
+      expect(shell.root.editor.getText()).toBe("");
+      expect(shell.root.render(60).map(stripTerminalSequences).join("\n"))
+        .not.toContain("copied 3 chars to clipboard");
+    } finally { await shell.dispose(); }
+  });
+
   it("shows one transient right-aligned accent copy acknowledgement immediately above the editor", async () => {
     vi.useFakeTimers();
     const { shell, terminal } = await fixture(Array.from({ length: 20 }, (_, index) => ({
@@ -391,7 +420,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     }
   });
 
-  it("suppresses stale success and latest failure acknowledgements for rapid copy intents", async () => {
+  it("suppresses stale prompt-copy success and latest frame-copy failure acknowledgements", async () => {
     type Result = { readonly outcome: "submitted-unverified" } | { readonly outcome: "failed"; readonly failure: "transport" };
     const captured: number[] = [];
     const settle: Array<(result: Result) => void> = [];
@@ -413,7 +442,9 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       shell.runtime.renderNow();
       const row = shell.root.render(50).map(stripTerminalSequences).findIndex(line => line.includes("abcdefgh")) + 1;
       expect(row).toBeGreaterThan(0);
-      terminal.input(`\u001b[<0;3;${row}M\u001b[<32;5;${row}M\u001b[<0;5;${row}m`);
+      shell.root.editor.setText("abc");
+      terminal.input("\u0001");
+      terminal.input("\u0003");
       await nextImmediate();
       expect(captured).toEqual([3]);
       terminal.input(`\u001b[<0;3;${row}M\u001b[<32;8;${row}M\u001b[<0;8;${row}m`);
@@ -421,11 +452,21 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       settle[0]!({ outcome: "submitted-unverified" });
       await nextImmediate();
       await nextImmediate();
-      expect(captured).toEqual([3, 7]);
+      expect(captured).toEqual([3, 6]);
       expect(shell.root.render(50).map(stripTerminalSequences).join("\n")).not.toContain("chars to clipboard");
       settle[1]!({ outcome: "failed", failure: "transport" });
       await nextImmediate();
-      expect(shell.root.render(50).map(stripTerminalSequences).join("\n")).not.toContain("chars to clipboard");
+      shell.root.editor.setText("failure");
+      terminal.input("\u0001");
+      terminal.input("\u0003");
+      await nextImmediate();
+      await nextImmediate();
+      expect(captured).toEqual([3, 6, 7]);
+      settle[2]!({ outcome: "failed", failure: "transport" });
+      await nextImmediate();
+      const failure = shell.root.render(50).map(stripTerminalSequences).join("\n");
+      expect(failure).not.toContain("chars to clipboard");
+      expect(failure).toContain("Could not copy the selection");
     } finally { await shell.dispose(); }
   });
 
