@@ -180,6 +180,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         while let Ok((bytes, admitted)) = write_rx.recv() {
             let result = pty_writer
                 .write_all(&bytes)
+                .and_then(|()| pty_writer.flush())
                 .map(|()| admitted)
                 .map_err(|error| format!("write resident PTY input: {error}"));
             let failed = result.is_err();
