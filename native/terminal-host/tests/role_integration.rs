@@ -76,6 +76,24 @@ setInterval(() => {}, 1000);
         "{}",
         first.output_text()
     );
+    for mode in ["1049", "2004", "1004", "1000", "1006", "2026"] {
+        assert!(
+            first.output_text().contains(&format!("?{mode}h")),
+            "missing outer mode {mode}: {}",
+            first.output_text()
+        );
+    }
+    let mut competing = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    assert!(
+        competing.output_containing(
+            "a1 is attached in another terminal",
+            Duration::from_secs(10)
+        ),
+        "{}",
+        competing.output_text()
+    );
+    competing.wait(Duration::from_secs(5));
+    drop(competing);
     first.write(b"typed-value\n");
     assert!(
         first.output_containing("echo:typed-value", Duration::from_secs(10)),
@@ -84,6 +102,18 @@ setInterval(() => {}, 1000);
     );
     first.write(b"\x03\x03");
     first.wait(Duration::from_secs(8));
+    assert!(
+        first.output_containing("1 tab still running", Duration::from_secs(2)),
+        "{}",
+        first.output_text()
+    );
+    for mode in ["1049", "2004", "1004", "1000", "1006", "2026"] {
+        assert!(
+            first.output_text().contains(&format!("?{mode}l")),
+            "missing restored mode {mode}: {}",
+            first.output_text()
+        );
+    }
     drop(first);
     std::thread::sleep(Duration::from_millis(1_000));
 

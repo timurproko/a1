@@ -2,11 +2,12 @@ import { EventEmitter } from "node:events";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { TabBridgeClient } from "../../../src/foundation/resident-tabs/bridge-client.js";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "../../../src/foundation/resident-tabs/protocol.js";
 import { ensureTerminalHost } from "../../../src/foundation/resident-tabs/ensure-terminal-host.js";
 import { readResidentTabsSetting } from "../../../src/foundation/resident-tabs/settings.js";
+import { selectResidentHost } from "../../../src/foundation/resident-tabs/routing.js";
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => { while (cleanups.length) await cleanups.pop()!(); });
@@ -25,6 +26,27 @@ describe("resident tab launch contracts", () => {
     expect(await readResidentTabsSetting(root.path)).toBe(false);
     await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 14, values: { residentTabs: "yes" } }));
     expect(await readResidentTabsSetting(root.path)).toBe(false);
+  });
+
+  it("never probes or starts a host for setting-off, comparison, or selected-session launches", async () => {
+    const readSetting = vi.fn(async () => false);
+    const ensureHost = vi.fn(async () => ({ status: "ready" as const, executable: "host", endpoint: "endpoint" }));
+    await expect(selectResidentHost({
+      profileId: "a1", hasSessionSelection: false, currentLaunchContract: true, readSetting, ensureHost,
+    })).resolves.toBeNull();
+    expect(readSetting).toHaveBeenCalledOnce();
+    expect(ensureHost).not.toHaveBeenCalled();
+
+    readSetting.mockClear();
+    for (const selection of [
+      { profileId: "pi" as const, hasSessionSelection: false, currentLaunchContract: true },
+      { profileId: "a1" as const, hasSessionSelection: true, currentLaunchContract: true },
+      { profileId: "a1" as const, hasSessionSelection: false, currentLaunchContract: false },
+    ]) {
+      await expect(selectResidentHost({ ...selection, readSetting, ensureHost })).resolves.toBeNull();
+    }
+    expect(readSetting).not.toHaveBeenCalled();
+    expect(ensureHost).not.toHaveBeenCalled();
   });
 
   it("frames bridge metadata without terminal or prompt content", () => {

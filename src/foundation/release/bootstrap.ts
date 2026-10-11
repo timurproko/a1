@@ -18,7 +18,7 @@ import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDoc
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { markStartupPhase } from "../startup/index.js";
 import { isCurrentLaunchContract, launchContractTarget, readLaunchContext, withLaunchContext, type LaunchContext } from "../launch-context/index.js";
-import { ensureTerminalHost, readResidentTabsSetting, type EnsureTerminalHostOptions, type EnsureTerminalHostResult } from "../resident-tabs/index.js";
+import { ensureTerminalHost, readResidentTabsSetting, selectResidentHost, type EnsureTerminalHostOptions, type EnsureTerminalHostResult } from "../resident-tabs/index.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
@@ -61,15 +61,20 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
 
   const launchSelected = async (release: MaterializedRelease): Promise<number> => {
     let residentContext: LaunchContext = {};
-    const eligible = launchProfileId === "a1" && sessionArgs.length === 0 && isCurrentLaunchContract(release);
-    if (eligible && await (options.readResidentTabs ?? readResidentTabsSetting)(paths.configDir, launchProfileId)) {
-      const resident = await (options.ensureTerminalHost ?? ensureTerminalHost)({
+    const resident = await selectResidentHost({
+      profileId: launchProfileId,
+      hasSessionSelection: sessionArgs.length > 0,
+      currentLaunchContract: isCurrentLaunchContract(release),
+      readSetting: () => (options.readResidentTabs ?? readResidentTabsSetting)(paths.configDir, launchProfileId),
+      ensureHost: () => (options.ensureTerminalHost ?? ensureTerminalHost)({
         releaseRoot: release.releaseRoot,
         profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
         dataDir: paths.dataDir,
         runtimeDir: paths.runtimeDir,
         environment,
-      });
+      }),
+    });
+    if (resident !== null) {
       residentContext = resident.status === "ready" ? {
         residentRootExecutable: resident.executable,
         residentRootArguments: JSON.stringify([
