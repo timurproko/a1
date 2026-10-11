@@ -344,7 +344,7 @@ fn probe_controller_boundary() -> Result<(), String> {
             .master
             .take_writer()
             .map_err(|error| format!("open controller boundary writer: {error}"))?;
-        let line_end: &[u8] = if cfg!(windows) { b"\r" } else { b"\n" };
+        let line_end: &[u8] = if cfg!(windows) { b"\r\n" } else { b"\n" };
         writer
             .write_all(b"prior-command")
             .and_then(|_| writer.write_all(line_end))

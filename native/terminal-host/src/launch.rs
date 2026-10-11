@@ -61,8 +61,10 @@ impl ResidentProcess {
                 ))),
             };
         }
-        #[cfg(not(windows))]
-        unreachable!()
+        #[cfg(unix)]
+        return inspect_process(self.pid)
+            .map(|identity| identity.is_none())
+            .map_err(|error| LaunchError(format!("observe detached resident process: {error}")));
     }
 
     pub fn terminate(&mut self) -> Result<(), LaunchError> {
