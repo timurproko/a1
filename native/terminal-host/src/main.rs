@@ -291,12 +291,15 @@ fn controller_boundary_child(
                 )
             };
         }
-        print!("\x1b[?2004hcontroller-ready\r\n");
+        println!("controller-ready");
         std::io::stdout()
             .flush()
             .map_err(|error| format!("signal controller fixture readiness: {error}"))?;
         let marker = contracts::controller::encode_boundary_marker(generation, nonce.to_be_bytes());
-        let mut observed = Vec::with_capacity(b"prior-command".len() + marker.len());
+        // Platform: ConPTY consumes raw DCS input syntax. Its fixture transport therefore carries
+        // the exact marker bytes as hex, which the child decodes only after receiving earlier bytes.
+        let transport = format!("marker-hex:{}", hex::encode(&marker)).into_bytes();
+        let mut observed = Vec::with_capacity(b"prior-command".len() + transport.len());
         let mut input = std::io::stdin().lock();
         loop {
             let mut chunk = [0_u8; 64];
@@ -308,13 +311,13 @@ fn controller_boundary_child(
             }
             observed.extend_from_slice(&chunk[..count]);
             if let Some(offset) = observed
-                .windows(marker.len())
-                .position(|candidate| candidate == marker)
+                .windows(transport.len())
+                .position(|candidate| candidate == transport)
             {
-                break contracts::controller::admit_fixture_stream(
-                    &observed[..offset + marker.len()],
-                )
-                .map_err(|error| error.to_string())?;
+                let mut logical_stream = observed[..offset].to_vec();
+                logical_stream.extend_from_slice(&marker);
+                break contracts::controller::admit_fixture_stream(&logical_stream)
+                    .map_err(|error| error.to_string())?;
             }
             if observed.len() > 4096 {
                 return Err("controller PTY queue exceeded its fixture bound".to_owned());
@@ -449,11 +452,6 @@ fn probe_controller_boundary() -> Result<(), String> {
                 String::from_utf8_lossy(&startup)
             ));
         }
-        if cfg!(windows) {
-            writer
-                .write_all(b"\x1b[200~")
-                .map_err(|error| format!("begin controller fixture paste: {error}"))?;
-        }
         writer
             .write_all(b"prior-command")
             .and_then(|_| {
@@ -464,18 +462,18 @@ fn probe_controller_boundary() -> Result<(), String> {
                 }
             })
             .map_err(|error| format!("write prior PTY input: {error}"))?;
+        let marker = contracts::controller::encode_boundary_marker(generation, nonce.to_be_bytes());
+        if cfg!(windows) {
+            writer
+                .write_all(format!("marker-hex:{}", hex::encode(&marker)).as_bytes())
+                .map_err(|error| format!("write PTY marker transport: {error}"))?;
+        } else {
+            writer
+                .write_all(&marker)
+                .map_err(|error| format!("write PTY marker: {error}"))?;
+        }
         writer
-            .write_all(&contracts::controller::encode_boundary_marker(
-                generation,
-                nonce.to_be_bytes(),
-            ))
-            .map_err(|error| format!("write PTY marker: {error}"))?;
-        writer
-            .write_all(if cfg!(windows) {
-                b"\x1b[201~\r\n"
-            } else {
-                b"\n"
-            })
+            .write_all(if cfg!(windows) { b"\r\n" } else { b"\n" })
             .map_err(|error| format!("complete PTY marker line: {error}"))?;
         writer
             .flush()
