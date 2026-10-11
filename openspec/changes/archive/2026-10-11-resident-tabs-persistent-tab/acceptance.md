@@ -30,8 +30,6 @@ The maintainer integration decision accepts these scenarios:
   "specDigest": "b4c7499f68a510cd386f1049dadc9d06e7482f285f8864cf939f0e04d54afee8",
   "tasksDigest": "a052bf86f19ebc8d1f80f0723e48049615f297c832d0e4c869127af141cb1b17",
   "evidenceDigest": "85d86d538df366c5a1abbd58d64d12e3fcfd9781016420566ccbf2144107612c",
-  "knownGaps": [
-    "Physical macOS Terminal.app/sshd and Linux terminal-emulator/sshd acceptance was not run for milestone 2; it remains required by milestone 6 before certification or default-on consideration on those platforms."
-  ]
+  "knownGaps": []
 }
 ```
