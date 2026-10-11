@@ -818,7 +818,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       && snapshot.inputSurface === inputSurface
       && snapshot.viewportRevision === viewportRevision
       && snapshot.selectionRevision === selectionRevision
-      ? this.#viewportController.composeDockOnly(dockRows, width, height)
+      ? this.#viewportController.composeDockOnly(dockRows, width, height, dock.footerRows)
       : null;
     if (frame === null) {
       frame = this.#viewportController.compose({
@@ -834,6 +834,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         ...(document.liveTailStartRow === undefined ? {} : { liveTailStartRow: document.liveTailStartRow }),
         bottomAlignedTailRowCount: steeringRows.length + statusRows.length,
         dockRows,
+        explicitCopyDockRows: dock.footerRows,
         promptAnchors: document.promptAnchors,
         width,
         height,
@@ -971,17 +972,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   #renderDockLayout(width: number): {
     readonly rows: readonly string[];
-    /** Offset of the complete input component, before its body-specific row offset. */
     readonly inputOffset: number;
     readonly editorOffset: number;
     readonly inputRows: number;
+    readonly footerRows: number;
   } {
     const queued = this.#customViewport ? [] : this.#renderQueued(width);
     const statusRows = this.#customViewport ? this.#status.renderDock(width) : this.#renderStatus(width);
     const transientRows = [...queued, ...statusRows, ...this.#renderDockNotice(width)];
     const aboveWidgets = this.#renderWidgets("aboveEditor", width);
     const input = this.#inputSurface.render(width);
-    // Invariant: pointer rows describe the body, not the autocomplete block now preceding it.
     const body = this.usesDefaultInputSurface() ? this.editor.bodyGeometry?.() : undefined;
     const belowWidgets = this.#renderWidgets("belowEditor", width);
     const footer = this.#renderFooter(width);
@@ -992,6 +992,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       inputOffset,
       editorOffset: inputOffset + (body?.rowOffset ?? 0),
       inputRows: body?.rowCount ?? input.length,
+      footerRows: footer.length,
     };
   }
 

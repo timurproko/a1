@@ -91,6 +91,37 @@ describe("session viewport interaction controller", () => {
     } finally { target.clearPointerState(); }
   });
 
+  it("copies declared status rows only through explicit Ctrl+C", () => {
+    const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    const input = {
+      documentRows: ["transcript"],
+      dockRows: ["❯ draft", "status bar"],
+      explicitCopyDockRows: 1,
+      promptAnchors: [],
+      width: 20,
+      height: 3,
+    };
+    try {
+      target.compose(input);
+      const statusOnly = target.handlePreInput("\u001b[<0;1;3M\u001b[<32;6;3M\u001b[<0;6;3m");
+      expect(statusOnly.copySelection).toBeUndefined();
+      expect(target.hasSelection).toBe(true);
+      expect(copiedText(target.handlePreInput("\u0003"))).toBe("status");
+      expect(target.hasSelection).toBe(false);
+
+      target.compose(input);
+      const mixed = target.handlePreInput("\u001b[<0;1;1M\u001b[<32;6;3M\u001b[<0;6;3m");
+      expect(copiedText(mixed)).toBe("transcript");
+      expect(copiedText(target.handlePreInput("\u0003"))).toBe("transcript\nstatus");
+
+      target.compose(input);
+      const promptOnly = target.handlePreInput("\u001b[<0;1;2M\u001b[<32;6;2M\u001b[<0;6;2m");
+      expect(promptOnly.copySelection).toBeUndefined();
+      expect(target.handlePreInput("\u0003")).toMatchObject({ data: "", consumed: true });
+      expect(target.hasSelection).toBe(false);
+    } finally { target.clearPointerState(); }
+  });
+
   it("normalizes automatic and explicit complete-frame copies at the same boundary", () => {
     const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
     const compose = () => target.compose({
