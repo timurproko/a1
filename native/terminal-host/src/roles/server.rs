@@ -397,6 +397,7 @@ fn serve_peer(
     if hello.role == "probe" {
         return wire::send(&mut stream, "welcome", request_id, welcome());
     }
+    wire::send(&mut stream, "welcome", request_id, welcome())?;
     let writer = stream
         .try_clone()
         .map_err(|error| format!("clone resident stream: {error}"))?;
@@ -407,9 +408,6 @@ fn serve_peer(
         move || writer_loop(writer, rx, surface)
     });
     let peer = Peer { tx, surface };
-    peer.tx
-        .send(wire::frame("welcome", request_id, welcome())?)
-        .map_err(|_| "resident writer stopped".to_owned())?;
     match hello.role.as_str() {
         "attach" => serve_attach(stream, peer, state, profile),
         "holder" => serve_holder(stream, peer, state),
