@@ -62,6 +62,23 @@ describe("resident tab launch contracts", () => {
     bridge.close();
   });
 
+  it("returns an existing verified generation-1 host without starting another", async () => {
+    const root = await temporaryDirectory("resident-existing-"); cleanups.push(root.cleanup);
+    const executable = join(root.path, process.platform === "win32" ? "host.exe" : "host");
+    await writeFile(executable, "fixture"); await chmod(executable, 0o700);
+    const observed: string[][] = [];
+    const result = await ensureTerminalHost({
+      releaseRoot: root.path, profileRoot: root.path, dataDir: root.path, runtimeDir: root.path,
+      environment: { A1_TERMINAL_HOST_PATH: executable }, platform: "linux", architecture: "x64",
+      run: async (_file, arguments_) => {
+        observed.push([...arguments_]);
+        return { code: 0, stdout: '{"outcome":"ready","generation":1,"endpoint":"/existing"}', stderr: "" };
+      },
+    });
+    expect(result).toEqual({ status: "ready", executable, endpoint: "/existing" });
+    expect(observed.map(arguments_ => arguments_[0])).toEqual(["probe"]);
+  });
+
   it("starts a missing host and waits for a verified generation-1 probe", async () => {
     const root = await temporaryDirectory("resident-host-"); cleanups.push(root.cleanup);
     const executable = join(root.path, process.platform === "win32" ? "host.exe" : "host");
@@ -77,5 +94,69 @@ describe("resident tab launch contracts", () => {
           : { code: 0, stdout: '{"outcome":"ready","generation":1,"endpoint":"/host"}', stderr: "" },
     });
     expect(result).toEqual({ status: "ready", executable, endpoint: "/host" });
+  });
+
+  it.each([
+    ["registry-unreadable", "registry unreadable"],
+    ["blocked", "recovery blocked"],
+  ] as const)("preserves the typed %s startup failure", async (reason, expected) => {
+    const root = await temporaryDirectory("resident-failure-"); cleanups.push(root.cleanup);
+    const executable = join(root.path, process.platform === "win32" ? "host.exe" : "host");
+    await writeFile(executable, "fixture"); await chmod(executable, 0o700);
+    const result = await ensureTerminalHost({
+      releaseRoot: root.path, profileRoot: root.path, dataDir: root.path, runtimeDir: root.path,
+      environment: { A1_TERMINAL_HOST_PATH: executable }, platform: "linux", architecture: "x64",
+      run: async (_file, arguments_) => arguments_[0] === "probe"
+        ? { code: 2, stdout: '{"outcome":"not-running"}', stderr: "" }
+        : { code: 2, stdout: JSON.stringify({ outcome: "blocked", verified: false, reason }), stderr: "" },
+    });
+    expect(result).toEqual({ status: "fallback", reason: expected });
+  });
+
+  it("falls back for unsupported, missing, incompatible, unverified, failed, and timed-out hosts", async () => {
+    const root = await temporaryDirectory("resident-outcomes-"); cleanups.push(root.cleanup);
+    const executable = join(root.path, process.platform === "win32" ? "host.exe" : "host");
+    const base = {
+      releaseRoot: root.path, profileRoot: root.path, dataDir: root.path, runtimeDir: root.path,
+      environment: { A1_TERMINAL_HOST_PATH: executable },
+    };
+    await expect(ensureTerminalHost({ ...base, platform: "freebsd", architecture: "x64" }))
+      .resolves.toEqual({ status: "fallback", reason: "unsupported platform" });
+    await expect(ensureTerminalHost({ ...base, platform: "linux", architecture: "x64" }))
+      .resolves.toEqual({ status: "fallback", reason: "terminal host not installed" });
+    await writeFile(executable, "fixture"); await chmod(executable, 0o700);
+    await expect(ensureTerminalHost({ ...base, platform: "linux", architecture: "x64", run: async () => ({
+      code: 2, stdout: '{"outcome":"incompatible-generation"}', stderr: "",
+    }) })).resolves.toEqual({ status: "fallback", reason: "incompatible generation" });
+    await expect(ensureTerminalHost({ ...base, platform: "linux", architecture: "x64", run: async () => ({
+      code: 0, stdout: '{"outcome":"ready","generation":2,"endpoint":"/older"}', stderr: "",
+    }) })).resolves.toEqual({ status: "fallback", reason: "incompatible generation" });
+
+    let calls = 0;
+    await expect(ensureTerminalHost({ ...base, platform: "linux", architecture: "x64", run: async (_file, arguments_) => {
+      calls++;
+      return arguments_[0] === "probe"
+        ? { code: 2, stdout: '{"outcome":"not-running"}', stderr: "" }
+        : { code: 0, stdout: '{"outcome":"started","verified":false}', stderr: "" };
+    } })).resolves.toEqual({ status: "fallback", reason: "launch not verified" });
+    expect(calls).toBe(2);
+
+    await expect(ensureTerminalHost({ ...base, platform: "linux", architecture: "x64", run: async () => {
+      throw Object.assign(new Error("deadline"), { code: "ETIMEDOUT" });
+    } })).resolves.toEqual({ status: "fallback", reason: "host startup timed out" });
+    await expect(ensureTerminalHost({ ...base, platform: "linux", architecture: "x64", run: async () => {
+      throw new Error("probe failed");
+    } })).resolves.toEqual({ status: "fallback", reason: "host probe failed" });
+
+    let phase = 0;
+    await expect(ensureTerminalHost({
+      ...base, platform: "linux", architecture: "x64", timeoutMs: 5,
+      run: async (_file, arguments_) => {
+        if (arguments_[0] === "server") return { code: 0, stdout: '{"verified":true,"endpoint":"/host"}', stderr: "" };
+        phase++;
+        return { code: 2, stdout: '{"outcome":"not-running"}', stderr: "" };
+      },
+    })).resolves.toEqual({ status: "fallback", reason: "host startup timed out" });
+    expect(phase).toBeGreaterThanOrEqual(1);
   });
 });

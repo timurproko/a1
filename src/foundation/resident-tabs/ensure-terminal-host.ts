@@ -58,11 +58,17 @@ export async function ensureTerminalHost(options: EnsureTerminalHostOptions): Pr
   try {
     const probe = await run(executable, ["probe", ...common], environment, Math.min(4_000, timeoutMs));
     const existing = parseResult(probe.stdout);
-    if (probe.code === 0 && existing?.generation === 1 && typeof existing.endpoint === "string") {
-      return { status: "ready", executable, endpoint: existing.endpoint };
+    if (probe.code === 0) {
+      if (existing?.generation === 1 && typeof existing.endpoint === "string") {
+        return { status: "ready", executable, endpoint: existing.endpoint };
+      }
+      return {
+        status: "fallback",
+        reason: typeof existing?.generation === "number" ? "incompatible generation" : "host probe failed",
+      };
     }
     if (probe.code === 4 || existing?.outcome === "incompatible-generation") return { status: "fallback", reason: "incompatible generation" };
-    if (existing?.outcome !== "not-running" && probe.code !== 3 && probe.code !== 0) return { status: "fallback", reason: classifiedReason(existing?.reason, "host probe failed") };
+    if (existing?.outcome !== "not-running" && probe.code !== 3) return { status: "fallback", reason: classifiedReason(existing?.reason, "host probe failed") };
 
     const start = await run(executable, ["server", "--detach", ...common], environment, timeoutMs);
     const started = parseResult(start.stdout);
@@ -73,10 +79,16 @@ export async function ensureTerminalHost(options: EnsureTerminalHostOptions): Pr
     while (Date.now() < deadline) {
       const result = await run(executable, ["probe", ...common], environment, Math.min(1_000, Math.max(1, deadline - Date.now())));
       const ready = parseResult(result.stdout);
-      if (result.code === 0 && ready?.generation === 1 && typeof ready.endpoint === "string") {
-        return { status: "ready", executable, endpoint: ready.endpoint };
+      if (result.code === 0) {
+        if (ready?.generation === 1 && typeof ready.endpoint === "string") {
+          return { status: "ready", executable, endpoint: ready.endpoint };
+        }
+        return {
+          status: "fallback",
+          reason: typeof ready?.generation === "number" ? "incompatible generation" : "host probe failed",
+        };
       }
-      if (result.code === 4) return { status: "fallback", reason: "incompatible generation" };
+      if (result.code === 4 || ready?.outcome === "incompatible-generation") return { status: "fallback", reason: "incompatible generation" };
       await new Promise(resolvePromise => setTimeout(resolvePromise, 40));
     }
     return { status: "fallback", reason: "host startup timed out" };

@@ -140,7 +140,14 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
             );
             return Ok(());
         }
-        Err(error) => return Err(error.to_string()),
+        Err(error) => {
+            let message = error.to_string();
+            println!(
+                "{{\"outcome\":\"blocked\",\"verified\":false,\"reason\":{}}}",
+                serde_json::to_string(server_failure_reason(&message)).unwrap()
+            );
+            return Err(message);
+        }
     };
     contracts::roles::server::probe(&endpoint, &credentials.client_token)?;
     let metadata = ResidentServerMetadata {
@@ -161,6 +168,16 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn server_failure_reason(message: &str) -> &'static str {
+    if message.contains("registry unreadable") || message.contains("read registry") {
+        "registry-unreadable"
+    } else if message.contains("registry writer lease held") {
+        "blocked"
+    } else {
+        "launch-not-verified"
+    }
+}
+
 fn resident_probe_command(arguments: &[String]) -> Result<(), String> {
     let profile = required_role_path(arguments, "--profile")?;
     let data = required_role_path(arguments, "--data-dir")?;
@@ -179,7 +196,11 @@ fn resident_probe_command(arguments: &[String]) -> Result<(), String> {
             Ok(())
         }
         Err(error) => {
-            println!("{{\"outcome\":\"not-running\"}}");
+            if error.contains("incompatible-generation") {
+                println!("{{\"outcome\":\"incompatible-generation\"}}");
+            } else {
+                println!("{{\"outcome\":\"not-running\"}}");
+            }
             Err(error)
         }
     }
