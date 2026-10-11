@@ -116,7 +116,7 @@ describe("transcript viewport", () => {
       height: 7,
       now: 100,
     });
-    const dockOnly = viewport.composeDockOnly(["edited", "footer"], 30, 7);
+    const dockOnly = viewport.composeDockOnly(["edited", "footer"], 30, 7, 1);
     expect(dockOnly).not.toBeNull();
     expect(dockOnly!.rows.slice(0, 5)).toEqual(initial.rows.slice(0, 5));
     expect(dockOnly!.rows.slice(-2).map(row => row.trimEnd())).toEqual(["edited", "footer"]);
@@ -129,9 +129,15 @@ describe("transcript viewport", () => {
       nextDocumentRange: initial.descriptor.nextDocumentRange,
     });
     expect(dockOnly!.selectionDamage).toMatchObject({ recomputedRows: [], reusedRows: [1, 2, 3, 4, 5] });
-    expect(viewport.composeDockOnly(["wrapped", "editor", "footer"], 30, 7)).toBeNull();
+    viewport.pressSelection(1, 7, 100.1);
+    viewport.extendSelection(6, 7, 100.2, false);
+    viewport.releaseSelection();
+    expect(viewport.selectedText()).toBeNull();
+    expect(viewport.selectedText("explicit")).toBe("footer");
+    viewport.clearSelection();
+    expect(viewport.composeDockOnly(["wrapped", "editor", "footer"], 30, 7, 1)).toBeNull();
     viewport.pressSelection(2, 2, 101);
-    expect(viewport.composeDockOnly(["edited again", "footer"], 30, 7)).toBeNull();
+    expect(viewport.composeDockOnly(["edited again", "footer"], 30, 7, 1)).toBeNull();
   });
 
   it("describes initial, followed-shift, detached, geometry, selection, and reset damage without inspecting rows", () => {
@@ -931,6 +937,7 @@ describe("transcript viewport", () => {
       documentRows: ["transcript", "⠋ Working..."],
       selectableDocumentRowCount: 1,
       dockRows: ["❯ prompt", "branch footer"],
+      explicitCopyDockRows: 1,
       promptAnchors: [],
       width: 20,
       height: 4,
@@ -944,9 +951,70 @@ describe("transcript viewport", () => {
     const expected = "ranscript";
     const snapshot = viewport.captureSelectedText();
     expect(viewport.selectedText()).toBe(expected);
+    expect(viewport.selectedText("explicit")).toBe(`${expected}\nbranch`);
     expect(snapshot).toMatchObject({ literal: true, sourceUnits: expected.length });
+    const explicitSnapshot = viewport.captureSelectedText("explicit");
+    expect(explicitSnapshot).toMatchObject({ literal: true, sourceUnits: `${expected}\nbranch`.length });
     viewport.compose({ ...input, documentRows: ["changed"], dockRows: ["new prompt", "new footer"], now: 103 });
     expect(snapshot?.rows[0]?.text).toBe(expected);
+    expect(explicitSnapshot?.rows[0]?.text).toBe(`${expected}\nbranch`);
+  });
+
+  it("copies declared status rows explicitly while excluding automatic and other dock copy", () => {
+    const viewport = new TranscriptViewport();
+    const input = {
+      documentRows: ["❯ ask me                    19:59", "⠋ Working..."],
+      selectableDocumentRowCount: 1,
+      dockRows: ["widget value", "❯ draft", "footer status", "model high"],
+      explicitCopyDockRows: 2,
+      promptAnchors: [{ id: "prompt", firstRow: 0, lastRow: 0, sourceRow: "❯ ask me                    19:59" }],
+      width: 40,
+      height: 6,
+      now: 100,
+    };
+    viewport.compose(input);
+
+    viewport.pressSelection(1, 5, 101);
+    viewport.extendSelection(10, 6, 102, false);
+    viewport.releaseSelection();
+    expect(viewport.captureSelectedText()).toBeNull();
+    expect(viewport.selectedText("explicit")).toBe("footer status\nmodel high");
+
+    viewport.clearSelection();
+    viewport.pressSelection(1, 3, 103);
+    viewport.extendSelection(20, 4, 104, false);
+    viewport.releaseSelection();
+    expect(viewport.captureSelectedText("explicit")).toBeNull();
+
+    viewport.clearSelection();
+    viewport.pressSelection(1, 1, 105);
+    viewport.extendSelection(40, 5, 106, false);
+    viewport.releaseSelection();
+    expect(viewport.selectedText()).toBe("ask me");
+    expect(viewport.selectedText("explicit")).toBe("ask me\nfooter status");
+
+    viewport.clearSelection();
+    viewport.pressSelection(1, 5, 106.1);
+    viewport.extendSelection(13, 5, 106.2, false);
+    viewport.releaseSelection();
+    const shifted = viewport.compose({
+      ...input,
+      documentRows: ["new transcript", "⠙ Working..."],
+      dockRows: ["next widget", "❯ next draft", "next footer", "next model"],
+      height: 7,
+      now: 107,
+    });
+    expect(viewport.hasSelection).toBe(true);
+    expect(shifted.rows[5]).toContain("\u001b[47m");
+    expect(viewport.selectedText("explicit")).toBe("next footer");
+
+    viewport.clearSelection();
+    const whitespace = { ...input, documentRows: [], selectableDocumentRowCount: 0, dockRows: ["   "], explicitCopyDockRows: 1, height: 1 };
+    viewport.compose(whitespace);
+    viewport.pressSelection(1, 1, 108);
+    viewport.extendSelection(3, 1, 109, false);
+    viewport.releaseSelection();
+    expect(viewport.captureSelectedText("explicit")).toBeNull();
   });
 
   it("excludes base-frame cells covered by an owning overlay", () => {
