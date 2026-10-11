@@ -1,3 +1,7 @@
+## Purpose
+
+Defines the opt-in resident-tab path that keeps bare A1 running independently of its attached terminal and restores the same retained session when the user returns.
+
 ## ADDED Requirements
 
 ### Requirement: Bare A1 runs one resident tab when opted in
