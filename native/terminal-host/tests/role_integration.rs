@@ -62,26 +62,50 @@ setInterval(() => {}, 1000);
     };
 
     let mut first = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
-    assert!(first.output_containing("fake-a1-ready", Duration::from_secs(15)));
+    assert!(
+        first.output_containing("fake-a1-ready", Duration::from_secs(15)),
+        "{}",
+        first.output_text()
+    );
     first.write(b"typed-value\n");
-    assert!(first.output_containing("echo:typed-value", Duration::from_secs(10)));
+    assert!(
+        first.output_containing("echo:typed-value", Duration::from_secs(10)),
+        "{}",
+        first.output_text()
+    );
     first.write(b"\x03\x03");
     first.wait(Duration::from_secs(8));
     drop(first);
     std::thread::sleep(Duration::from_millis(1_000));
 
     let mut second = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
-    assert!(second.output_containing("detached-output", Duration::from_secs(15)));
+    assert!(
+        second.output_containing("detached-output", Duration::from_secs(15)),
+        "{}",
+        second.output_text()
+    );
     second.write(b"after-reattach\n");
-    assert!(second.output_containing("echo:after-reattach", Duration::from_secs(10)));
+    assert!(
+        second.output_containing("echo:after-reattach", Duration::from_secs(10)),
+        "{}",
+        second.output_text()
+    );
     second.child.kill().expect("force attach death");
     second.wait(Duration::from_secs(8));
     drop(second);
 
     let mut third = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
-    assert!(third.output_containing("echo:after-reattach", Duration::from_secs(15)));
+    assert!(
+        third.output_containing("echo:after-reattach", Duration::from_secs(15)),
+        "{}",
+        third.output_text()
+    );
     third.write(b"after-forced-loss\n");
-    assert!(third.output_containing("echo:after-forced-loss", Duration::from_secs(10)));
+    assert!(
+        third.output_containing("echo:after-forced-loss", Duration::from_secs(10)),
+        "{}",
+        third.output_text()
+    );
     third.write(b"\x03\x03");
     third.wait(Duration::from_secs(8));
 
@@ -176,6 +200,9 @@ impl AttachFixture {
             }
         }
         false
+    }
+    fn output_text(&self) -> String {
+        String::from_utf8_lossy(&self.retained).into_owned()
     }
     fn wait(&mut self, timeout: Duration) {
         let deadline = Instant::now() + timeout;

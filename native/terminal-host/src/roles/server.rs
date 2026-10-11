@@ -130,6 +130,7 @@ impl Peer {
 }
 
 struct RuntimeState {
+    endpoint: String,
     credentials: ProfileCredentials,
     registry: RegistryDocument,
     registry_store: RegistryStore,
@@ -230,7 +231,12 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     };
     std::fs::write(ready, format!("{}:server\n", std::process::id()))
         .map_err(|error| format!("write server readiness: {error}"))?;
+    #[cfg(unix)]
+    let endpoint_address = endpoint.path().to_string_lossy().into_owned();
+    #[cfg(windows)]
+    let endpoint_address = endpoint.name().to_owned();
     let state = Arc::new(Mutex::new(RuntimeState {
+        endpoint: endpoint_address,
         credentials,
         registry,
         registry_store,
@@ -622,14 +628,8 @@ fn start_holder(
         let locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
-        let endpoint = start
-            .environment
-            .iter()
-            .find(|(name, _)| name == "A1_TABS_ENDPOINT")
-            .map(|(_, value)| value.clone());
-        let endpoint = endpoint.unwrap_or_else(|| default_endpoint(profile, &start.environment));
         (
-            endpoint,
+            locked.endpoint.clone(),
             locked.credentials.derive("holder", "tab-1", 1).to_vec(),
             locked.credentials.derive("bridge", "tab-1", 1).to_vec(),
         )
@@ -696,23 +696,6 @@ fn start_holder(
     }
     locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
     locked.registry_store.commit(&locked.registry)
-}
-
-fn default_endpoint(profile: &Path, environment: &[(String, String)]) -> String {
-    let runtime = environment
-        .iter()
-        .find(|(name, _)| name == "A1_RUNTIME_DIR")
-        .map(|(_, value)| value.as_str())
-        .unwrap_or(".");
-    let token = crate::endpoint::endpoint_token(profile).unwrap_or_else(|_| "invalid".into());
-    if cfg!(windows) {
-        format!(r"\\.\pipe\a1-tabs-{token}")
-    } else {
-        Path::new(runtime)
-            .join(format!("a1-tabs-{token}.sock"))
-            .to_string_lossy()
-            .into_owned()
-    }
 }
 
 fn serve_holder(
