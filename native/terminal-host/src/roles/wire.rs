@@ -2,6 +2,7 @@ use std::io::{Read, Write};
 
 use serde::{Deserialize, Serialize, de::IgnoredAny};
 
+use crate::endpoint;
 use crate::protocol::{self, Envelope, ProtocolError};
 
 #[derive(Debug, Deserialize)]
@@ -125,7 +126,11 @@ pub struct ResultBody {
     pub message: Option<String>,
 }
 
-pub fn read_payload(stream: &mut impl Read) -> Result<Option<Vec<u8>>, String> {
+pub fn read_payload(stream: &mut endpoint::EndpointStream) -> Result<Option<Vec<u8>>, String> {
+    #[cfg(windows)]
+    if !wait_for_pipe_data(stream)? {
+        return Ok(None);
+    }
     let mut header = [0_u8; 4];
     match stream.read_exact(&mut header) {
         Ok(()) => {}
@@ -141,6 +146,39 @@ pub fn read_payload(stream: &mut impl Read) -> Result<Option<Vec<u8>>, String> {
         .read_exact(&mut payload)
         .map_err(|error| format!("read resident frame payload: {error}"))?;
     Ok(Some(payload))
+}
+
+#[cfg(windows)]
+fn wait_for_pipe_data(stream: &endpoint::EndpointStream) -> Result<bool, String> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::System::Pipes::PeekNamedPipe;
+    loop {
+        let mut available = 0_u32;
+        if unsafe {
+            PeekNamedPipe(
+                stream.as_raw_handle(),
+                std::ptr::null_mut(),
+                0,
+                std::ptr::null_mut(),
+                &mut available,
+                std::ptr::null_mut(),
+            )
+        } == 0
+        {
+            let error = std::io::Error::last_os_error();
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::NotConnected
+            ) {
+                return Ok(false);
+            }
+            return Err(format!("inspect resident pipe: {error}"));
+        }
+        if available > 0 {
+            return Ok(true);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(8));
+    }
 }
 
 pub fn kind(payload: &[u8]) -> Result<EnvelopeKind, String> {
