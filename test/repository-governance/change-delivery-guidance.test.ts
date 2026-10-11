@@ -40,6 +40,32 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).not.toContain("After the initial specification merges");
   });
 
+  it("tracks implementation progress without turning acceptance into checkbox state", async () => {
+    const config = await readFile("openspec/config.yaml", "utf8");
+    const skill = await readFile(".agents/skills/change-delivery/SKILL.md", "utf8");
+    const runbook = await readFile("docs/openspec-archive-automation.md", "utf8");
+    const canonicalSpec = await readFile("openspec/specs/change-delivery-workflow/spec.md", "utf8");
+    const activeDelta = await readFile("openspec/changes/track-implementation-progress/specs/change-delivery-workflow/spec.md", "utf8")
+      .catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return "";
+        throw error;
+      });
+    for (const guidance of [config, skill, runbook]) {
+      expect(guidance).toMatch(/two to ten/i);
+      expect(guidance).toContain("`## Implementation`");
+      expect(guidance).toMatch(/\[ \].*\[x\]|\[ \].*to.*\[x\]/s);
+      expect(guidance).toMatch(/focused evidence/i);
+      expect(guidance).toMatch(/scope refinement/i);
+      expect(guidance).toMatch(/before (?:ready\/finalization|ready or finalization)/i);
+    }
+    expect(runbook).toContain("- [ ] Keep planning and implementation in the same draft PR.");
+    expect(runbook).toContain("- [x] <!-- completed implementation outcome -->");
+    expect(`${canonicalSpec}\n${activeDelta}`).toContain("Implementation progress is visible without changing acceptance semantics");
+    expect(config).toContain("Acceptance uses plain bullets, never checkboxes");
+    expect(skill).toContain("Keep `## Acceptance` plain; maintainer integration accepts");
+    expect(runbook).toContain("those markers report implementation progress and never human acceptance");
+  });
+
   it("requires the owning session to link its exact worktree before delivery edits", async () => {
     const config = await readFile("openspec/config.yaml", "utf8");
     const skill = await readFile(".agents/skills/change-delivery/SKILL.md", "utf8");

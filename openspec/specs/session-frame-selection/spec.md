@@ -59,9 +59,9 @@ Double-click SHALL select the visible word at the pointed cell and triple-click 
 
 ### Requirement: Copy output matches selected visible text
 
-When automatic fullscreen copy is enabled, completing a frame drag with eligible non-whitespace transcript text SHALL capture and submit that text for clipboard delivery without requiring a second keypress. When automatic fullscreen copy is disabled, release SHALL retain the visual selection without submitting clipboard work, and the existing explicit selection-copy action SHALL remain available. Before delivery, complete-frame copy SHALL trim Unicode whitespace from the beginning and end of the complete plain-text payload. It SHALL preserve whitespace between the first and last non-whitespace characters, including multiline indentation and internal blank lines, and SHALL NOT trim each visual row independently.
+When automatic fullscreen copy is enabled, completing a frame drag with eligible non-whitespace transcript text SHALL capture and submit that text for clipboard delivery without requiring a second keypress. Automatic copy SHALL NOT include footer/status-bar text. When automatic fullscreen copy is disabled, release SHALL retain the visual selection without submitting clipboard work, and the existing explicit selection-copy action SHALL remain available. Before delivery, complete-frame copy SHALL trim Unicode whitespace from the beginning and end of the complete plain-text payload. It SHALL preserve whitespace between the first and last non-whitespace characters, including multiline indentation and internal blank lines, and SHALL NOT trim each visual row independently.
 
-The visual selected range MAY span every exposed base-frame row, but frame clipboard output SHALL admit only selected persistent transcript rows. It SHALL exclude transient steering and progress-status rows, flexible alignment rows, prompt-editor and autocomplete rows, notices and widgets in the dock, footer/status rows, and other dock chrome. A range containing only excluded rows or whitespace SHALL remain visibly selected but SHALL NOT submit or replace clipboard content through automatic copy or `Ctrl+C`. `Ctrl+C` SHALL clear such a retained visual-only selection without forwarding an interrupt.
+The visual selected range MAY span every exposed base-frame row. Automatic frame-copy output SHALL admit only selected persistent transcript rows. Explicit `Ctrl+C` frame-copy output SHALL admit selected persistent transcript rows and selected footer/status-bar rows in frame order. Both routes SHALL exclude transient steering and progress-status rows, flexible alignment rows, prompt-editor and autocomplete rows, notices and widgets in the dock, and other dock chrome. A range containing only footer/status-bar text SHALL remain visibly selected on release without automatic clipboard submission, then SHALL be copied when the reader presses `Ctrl+C`. A range containing only other excluded rows or whitespace SHALL remain visibly selected but SHALL NOT submit or replace clipboard content through automatic copy or `Ctrl+C`; `Ctrl+C` SHALL clear such a retained visual-only selection without forwarding an interrupt.
 
 When one submitted prompt is the only eligible transcript source in the range, clipboard text SHALL contain only its semantic prompt text, excluding the `❯` prefix, prompt padding, and timestamp. When a submitted prompt participates in a larger eligible transcript range, copy SHALL preserve its currently selected visible prefix, alignment, and timestamp together with the surrounding selected transcript text. Copy output SHALL otherwise preserve selected visual row boundaries while excluding ANSI and OSC controls, unselected right padding, cursor markers, scrollbar glyphs, and content covered by modal or overlay presentation.
 
@@ -78,9 +78,14 @@ The visual selected range SHALL continue to represent the exact selected cells; 
 - **AND** indentation, spacing, newlines, and blank lines inside those boundaries SHALL remain unchanged
 
 #### Scenario: Select only frame chrome or whitespace
-- **WHEN** a completed visual range contains only transient status, alignment, autocomplete, input, dock/status chrome, or whitespace
+- **WHEN** a completed visual range contains only transient status, alignment, autocomplete, input, non-status dock chrome, or whitespace
 - **THEN** the complete selected range SHALL remain painted
 - **AND** automatic copy and `Ctrl+C` SHALL NOT submit or replace clipboard content
+
+#### Scenario: Select only the status bar
+- **WHEN** a completed visual range contains selected footer/status-bar text and automatic fullscreen copy is enabled
+- **THEN** release SHALL retain the complete selected range without submitting or replacing clipboard content
+- **AND** a subsequent `Ctrl+C` SHALL submit the normalized selected status-bar text and clear the retained selection
 
 #### Scenario: Copy only whitespace
 - **WHEN** the visual frame selection contains only spaces, tabs, newlines, or other Unicode whitespace
@@ -98,7 +103,7 @@ The visual selected range SHALL continue to represent the exact selected cells; 
 - **AND** the submitted prompt's selected visible prefix, alignment, and timestamp SHALL remain included
 
 #### Scenario: Release a cross-frame selection
-- **WHEN** automatic fullscreen copy is enabled and the reader releases a range spanning eligible transcript text plus transient, input, or footer/status rows
+- **WHEN** automatic fullscreen copy is enabled and the reader releases a range spanning eligible transcript text plus transient, input, or footer/status-bar rows
 - **THEN** clipboard submission SHALL begin from one immutable snapshot of only the eligible transcript text at that input boundary
 - **AND** the complete cross-frame highlight SHALL remain visible while delivery proceeds
 
@@ -133,8 +138,8 @@ The visual selected range SHALL continue to represent the exact selected cells; 
 - **AND** later frame changes SHALL NOT alter the captured payload
 
 #### Scenario: Re-copy with Ctrl+C
-- **WHEN** a released frame selection with eligible transcript text is still visible and the reader presses `Ctrl+C`
-- **THEN** A1 SHALL submit the same normalized semantic payload through the bounded clipboard path regardless of the automatic-copy setting
+- **WHEN** a released frame selection with eligible transcript or footer/status-bar text is still visible and the reader presses `Ctrl+C`
+- **THEN** A1 SHALL submit the normalized semantic transcript and selected status-bar payload through the bounded clipboard path regardless of the automatic-copy setting
 - **AND** clear the retained frame selection through the established copy-clearing behavior
 
 #### Scenario: Preserve semantic copy routes

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { acceptanceChecklistDigest, acceptancePullBody, MAX_ACCEPTANCE_CHECKS, parseImplementationAcceptanceChecks,
-  parseImplementationAcceptanceScenarios, verifyAcceptancePullBody } from "../../scripts/governance/openspec-acceptance-checklist.mjs";
+import { acceptanceChecklistDigest, acceptancePullBody, MAX_ACCEPTANCE_CHECKS, MAX_IMPLEMENTATION_PROGRESS_ITEMS,
+  parseImplementationAcceptanceChecks, parseImplementationAcceptanceScenarios, parseImplementationProgress,
+  verifyAcceptancePullBody } from "../../scripts/governance/openspec-acceptance-checklist.mjs";
 import type { AcceptanceRecord } from "../../scripts/governance/openspec-acceptance-policy.mjs";
 
 const checks = [
@@ -9,6 +10,13 @@ const checks = [
 ];
 const sourceBody = (items = checks) => `## Summary\n\nScrollbar behavior is implemented.\n\n\`\`\`openspec-implementation\n{"version":2,"change":"scrollbar"}\n\`\`\`\n\n## Acceptance checks\n\n${items.map(item => `- ${item}`).join("\n")}`;
 const version3Body = (items = checks, prefix = "- ") => `## Proposal\n\nMake overflowing content easier to navigate without losing pane context.\n\n## Implementation\n\n- Add a viewport scrollbar synchronized with selection and scrolling.\n\n## Acceptance\n\n${items.map(item => `${prefix}${item}`).join("\n")}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n{"version":3,"change":"scrollbar"}\n\`\`\`\n\n</details>`;
+const progressItems: [string, string] = [
+  "Add a viewport scrollbar synchronized with selection and scrolling.",
+  "Preserve the selected pane while the viewport moves through overflowing content.",
+];
+const progressBody = (marks: string[] = [" ", "x"], items: readonly string[] = progressItems) => version3Body().replace(
+  "- Add a viewport scrollbar synchronized with selection and scrolling.",
+  items.map((item, index) => `- [${marks[index] ?? "x"}] ${item}`).join("\n"));
 const legacyVersion3Body = (phase = "Implementation") => `> Phase: ${phase}\n\n${version3Body()}`;
 const record = (): AcceptanceRecord => ({
   version: 2, repository: "owner/repo", change: "scrollbar", sourcePr: 42,
@@ -32,6 +40,28 @@ describe("implementation-specific acceptance checklist", () => {
     expect(() => parseImplementationAcceptanceScenarios(version3Body(checks, "- [ ] "), 3)).toThrow("acceptance-checklist-item");
     expect(() => parseImplementationAcceptanceScenarios(sourceBody(), 3)).toThrow("acceptance-layout-phase");
     expect(() => parseImplementationAcceptanceScenarios(version3Body(), 1)).toThrow("acceptance-version");
+  });
+
+  it("tracks scoped Implementation items and requires completion for final version-3 parsing", () => {
+    expect(parseImplementationProgress(progressBody())).toEqual({
+      format: "checklist", complete: false,
+      items: [{ checked: false, text: progressItems[0] }, { checked: true, text: progressItems[1] }],
+    });
+    expect(() => parseImplementationAcceptanceScenarios(progressBody(), 3)).toThrow("implementation-progress-incomplete");
+    expect(parseImplementationAcceptanceScenarios(progressBody(["x", "x"]), 3)).toEqual(checks);
+    expect(parseImplementationProgress(version3Body())).toMatchObject({ format: "legacy", complete: true });
+  });
+
+  it.each([
+    ["mixed plain/task syntax", () => progressBody().replace(`- [x] ${progressItems[1]}`, `- ${progressItems[1]}`), "implementation-progress-item"],
+    ["uppercase marker", () => progressBody(["x", "X"]), "implementation-progress-item"],
+    ["duplicate item", () => progressBody(["x", "x"], [progressItems[0], progressItems[0]]), "implementation-progress-duplicate"],
+    ["generic CI item", () => progressBody(["x", "x"], [progressItems[0], "Run the required CI checks."]), "implementation-progress-generic"],
+    ["one item", () => progressBody(["x"], [progressItems[0]]), "implementation-progress-count"],
+    ["too many items", () => progressBody(Array(MAX_IMPLEMENTATION_PROGRESS_ITEMS + 1).fill("x"),
+      Array.from({ length: MAX_IMPLEMENTATION_PROGRESS_ITEMS + 1 }, (_value, index) => `Implement distinct viewport progress outcome number ${index}.`)), "implementation-progress-count"],
+  ])("rejects %s in an Implementation checklist", (_name, body, code) => {
+    expect(() => parseImplementationProgress(body())).toThrow(code);
   });
 
   it("requires the canonical phase-free section layout and scopes historical compatibility", () => {

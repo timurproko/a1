@@ -528,7 +528,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       .toContain(`copied ${"Selectable assistant words".length} chars to clipboard`));
   });
 
-  it("copies one submitted prompt semantically, preserves it in bulk text, and skips dock-only ranges", async () => {
+  it("copies prompts semantically and status text only through explicit Ctrl+C", async () => {
     const copied: string[] = [];
     const messages = [
       { role: "user", content: [{ type: "text", text: "ask me" }], timestamp: Date.now() - 1_000 },
@@ -560,14 +560,26 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       await vi.waitFor(() => expect(copied).toHaveLength(2));
       expect(copied[1]).toMatch(/^❯ ask me\s+\d{2}:\d{2}\n\n answer body$/u);
 
-      terminal.input(`\u001b[<0;2;${inputRow}M\u001b[<32;20;${dock.rowEnd}M\u001b[<0;20;${dock.rowEnd}m`);
+      terminal.input(`\u001b[<0;2;${inputRow}M\u001b[<32;20;${inputRow}M\u001b[<0;20;${inputRow}m`);
       shell.runtime.renderNow();
-      const selected = shell.root.render(60);
-      expect(selected[inputRow - 1]).toContain("\u001b[48;2;38;79;120m");
-      expect(selected[dock.rowEnd - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(shell.root.render(60)[inputRow - 1]).toContain("\u001b[48;2;38;79;120m");
       terminal.input("\u0003");
       await nextImmediate();
       expect(copied).toHaveLength(2);
+
+      shell.root.setFullscreenCopyOnSelect(true);
+      const footerFrame = shell.root.render(60).map(stripTerminalSequences);
+      const statusRow = footerFrame.findIndex(row => row.includes("D:/work")) + 1;
+      const statusColumn = footerFrame[statusRow - 1]!.indexOf("D:/work") + 1;
+      expect(statusRow).toBeGreaterThanOrEqual(dock.rowStart);
+      terminal.input(`\u001b[<0;${statusColumn};${statusRow}M\u001b[<32;${statusColumn + 6};${statusRow}M\u001b[<0;${statusColumn + 6};${statusRow}m`);
+      await nextImmediate();
+      expect(copied).toHaveLength(2);
+      expect(shell.root.hasActiveSelection()).toBe(true);
+      terminal.input("\u0003");
+      await vi.waitFor(() => expect(copied).toEqual(["ask me", expect.stringMatching(/^❯ ask me/u), "D:/work"]));
+      await vi.waitFor(() => expect(shell.root.render(60).map(stripTerminalSequences).join("\n"))
+        .toContain(`copied ${"D:/work".length} chars to clipboard`));
     } finally { await shell.dispose(); }
   });
 
