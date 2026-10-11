@@ -127,6 +127,7 @@ struct AttachFixture {
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     output: mpsc::Receiver<Vec<u8>>,
     retained: Vec<u8>,
+    trace_path: PathBuf,
 }
 impl AttachFixture {
     fn spawn(
@@ -145,8 +146,10 @@ impl AttachFixture {
             })
             .expect("attach pty");
         let mut command = CommandBuilder::new(executable);
+        let trace_path = data.join("holder-fixture.trace");
         command.env("TERMINAL_HOST_FIXTURE_SIZE", "100x24");
         command.env("TERMINAL_HOST_FIXTURE_TRACE", "1");
+        command.env("TERMINAL_HOST_FIXTURE_TRACE_PATH", trace_path.as_os_str());
         command.args([
             "attach",
             "--endpoint",
@@ -202,6 +205,7 @@ impl AttachFixture {
             writer,
             output,
             retained: Vec::new(),
+            trace_path,
         }
     }
     fn write(&mut self, bytes: &[u8]) {
@@ -228,7 +232,10 @@ impl AttachFixture {
         false
     }
     fn output_text(&self) -> String {
-        String::from_utf8_lossy(&self.retained).into_owned()
+        let output = String::from_utf8_lossy(&self.retained);
+        let trace = std::fs::read_to_string(&self.trace_path)
+            .unwrap_or_else(|error| format!("trace unavailable: {error}"));
+        format!("{output}\n--- holder trace ---\n{trace}")
     }
     fn wait(&mut self, timeout: Duration) {
         let deadline = Instant::now() + timeout;

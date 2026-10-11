@@ -124,7 +124,9 @@ impl RetainedOutput {
 pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result<(), String> {
     let config: HolderLaunchConfig = serde_json::from_slice(context)
         .map_err(|error| format!("decode holder context: {error}"))?;
+    fixture_trace(&config, "decoded");
     let mut stream = connect_holder(&config, false)?;
+    fixture_trace(&config, "connected");
 
     let pty = NativePtySystem::default();
     let pair = pty
@@ -135,6 +137,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
             pixel_height: 0,
         })
         .map_err(|error| format!("open resident tab PTY: {error}"))?;
+    fixture_trace(&config, "pty-opened");
     let mut command = CommandBuilder::new(&config.node_executable);
     command.arg(Path::new(&config.release_root).join("bin").join("ui.js"));
     command.arg("--tab");
@@ -150,6 +153,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         .slave
         .spawn_command(command)
         .map_err(|error| format!("start resident A1 child: {error}"))?;
+    fixture_trace(&config, "child-spawned");
     let child_pid = child
         .process_id()
         .ok_or_else(|| "resident child pid is unavailable".to_owned())?;
@@ -160,6 +164,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
             return Err(error);
         }
     };
+    fixture_trace(&config, "child-contained");
     drop(pair.slave);
     let mut pty_reader = pair
         .master
@@ -206,7 +211,9 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
     );
     std::fs::write(ready, format!("{}:holder\n", std::process::id()))
         .map_err(|error| format!("write holder readiness: {error}"))?;
+    fixture_trace(&config, "ready");
     let mut terminal = GhosttyTerminal::new(config.columns, config.rows)?;
+    fixture_trace(&config, "terminal-created");
     terminal.mark_dirty()?;
     let mut revision = 0_u64;
     let mut input = BoundedInputQueue::default();
@@ -300,9 +307,11 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         }
         let mut changed = false;
         while let Ok(bytes) = output_rx.try_recv() {
+            fixture_trace(&config, &format!("output:{}", bytes.len()));
             terminal.write(&bytes);
             let answers = terminal.take_responses();
             if !answers.is_empty() {
+                fixture_trace(&config, &format!("response:{}", answers.len()));
                 write_tx
                     .send((answers, 0))
                     .map_err(|_| "resident PTY writer stopped".to_owned())?;
@@ -323,6 +332,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                     status: "idle".into(),
                 },
             );
+            fixture_trace(&config, "surface-sent");
         }
         if let Some(status) = child
             .try_wait()
@@ -341,6 +351,24 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         }
         thread::sleep(Duration::from_millis(8));
     }
+}
+
+fn fixture_trace(config: &HolderLaunchConfig, stage: &str) {
+    #[cfg(feature = "resident-fixtures")]
+    if let Some(path) = config
+        .environment
+        .iter()
+        .find(|(name, _)| name == "TERMINAL_HOST_FIXTURE_TRACE_PATH")
+        .map(|(_, value)| value)
+    {
+        use std::fs::OpenOptions;
+        let _ = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .and_then(|mut file| writeln!(file, "holder-fixture:{stage}"));
+    }
+    let _ = (config, stage);
 }
 
 fn connect_holder(
