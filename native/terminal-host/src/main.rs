@@ -9,6 +9,7 @@ use std::fs;
 use std::io::BufRead;
 use std::io::{Read, Write};
 use std::process::{Command, ExitCode};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -63,8 +64,8 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
             durable_replace_child(&args[1], &args[2])
         }
         Some("--probe-controller-boundary") => probe_controller_boundary(),
-        Some("--controller-boundary-child") if args.len() == 5 => {
-            controller_boundary_child(&args[1], &args[2], &args[3], &args[4])
+        Some("--controller-boundary-child") if args.len() == 4 => {
+            controller_boundary_child(&args[1], &args[2], &args[3])
         }
         #[cfg(feature = "resident-fixtures")]
         Some("--probe-resident-launch") => probe_resident_launch(),
@@ -261,7 +262,6 @@ fn controller_boundary_child(
     generation: &str,
     nonce: &str,
     acknowledgement: &str,
-    ready: &str,
 ) -> Result<(), String> {
     let generation = generation
         .parse::<u64>()
@@ -287,7 +287,9 @@ fn controller_boundary_child(
                 )
             };
         }
-        fs::write(ready, b"ready")
+        println!("controller-ready");
+        std::io::stdout()
+            .flush()
             .map_err(|error| format!("signal controller fixture readiness: {error}"))?;
         let marker = contracts::controller::encode_boundary_marker(generation, nonce.to_be_bytes());
         let expected_len = b"prior-command".len() + marker.len();
@@ -308,7 +310,9 @@ fn controller_boundary_child(
     };
     #[cfg(not(windows))]
     let (prior, acknowledgement_value) = {
-        fs::write(ready, b"ready")
+        println!("controller-ready");
+        std::io::stdout()
+            .flush()
             .map_err(|error| format!("signal controller fixture readiness: {error}"))?;
         let mut input = std::io::BufReader::new(std::io::stdin().lock());
         let mut prior = String::new();
@@ -365,7 +369,6 @@ fn probe_controller_boundary() -> Result<(), String> {
             .map_err(|error| format!("protect controller boundary root: {error}"))?;
     }
     let acknowledgement = root.join("ack");
-    let ready = root.join("ready");
     let result = (|| {
         let pair = NativePtySystem::default()
             .openpty(PtySize {
@@ -383,25 +386,45 @@ fn probe_controller_boundary() -> Result<(), String> {
             &generation.to_string(),
             &nonce.to_string(),
             &acknowledgement.to_string_lossy(),
-            &ready.to_string_lossy(),
         ]);
         let mut child = pair
             .slave
             .spawn_command(command)
             .map_err(|error| format!("spawn controller boundary child: {error}"))?;
         drop(pair.slave);
+        let mut reader = pair
+            .master
+            .try_clone_reader()
+            .map_err(|error| format!("open controller boundary reader: {error}"))?;
+        let (output_sender, output) = mpsc::channel::<Vec<u8>>();
+        thread::spawn(move || {
+            let mut buffer = [0_u8; 256];
+            while let Ok(count) = reader.read(&mut buffer) {
+                if count == 0 || output_sender.send(buffer[..count].to_vec()).is_err() {
+                    break;
+                }
+            }
+        });
         let mut writer = pair
             .master
             .take_writer()
             .map_err(|error| format!("open controller boundary writer: {error}"))?;
         let ready_deadline = Instant::now() + Duration::from_secs(4);
-        while !ready.exists() && Instant::now() < ready_deadline {
-            thread::sleep(Duration::from_millis(10));
+        let mut startup = Vec::new();
+        while Instant::now() < ready_deadline
+            && !String::from_utf8_lossy(&startup).contains("controller-ready")
+        {
+            if let Ok(bytes) = output.recv_timeout(Duration::from_millis(20)) {
+                startup.extend(bytes);
+            }
         }
-        if !ready.exists() {
+        if !String::from_utf8_lossy(&startup).contains("controller-ready") {
             let _ = child.kill();
             let _ = child.wait();
-            return Err("controller boundary child did not become ready".to_owned());
+            return Err(format!(
+                "controller boundary child did not become ready: {}",
+                String::from_utf8_lossy(&startup)
+            ));
         }
         writer
             .write_all(b"prior-command")
@@ -809,14 +832,11 @@ fn probe_two_by_two() -> Result<(), String> {
             thread::sleep(Duration::from_millis(10));
         }
 
-        let initial_frame_bytes = workspace.compose_probe_frame()?;
-        if initial_frame_bytes == 0 {
-            return Err("2x2 native frame composer produced no initial presentation".to_owned());
-        }
-
         for index in 0..4 {
             workspace.focus(index)?;
-            workspace.write_to_focused(format!("focused-input-{}\r\n", index + 1).as_bytes())?;
+            let line_end = if cfg!(windows) { "\r\n" } else { "\n" };
+            workspace
+                .write_to_focused(format!("focused-input-{}{line_end}", index + 1).as_bytes())?;
         }
         let focused_topology = workspace.topology_json();
         if !focused_topology.contains("\"revision\":4")
@@ -858,11 +878,10 @@ fn probe_two_by_two() -> Result<(), String> {
             thread::sleep(Duration::from_millis(10));
         }
 
-        let updated_frame_bytes = workspace.compose_probe_frame()?;
-        if updated_frame_bytes == 0 {
-            return Err("2x2 native frame composer produced no updated presentation".to_owned());
+        let initial_frame_bytes = workspace.compose_probe_frame()?;
+        if initial_frame_bytes == 0 {
+            return Err("2x2 native frame composer produced no initial presentation".to_owned());
         }
-
         workspace.resize(100, 30)?;
         let expected_layout = FixedLayout::new(100, 30)?;
         for (index, size) in workspace.pty_sizes()?.iter().enumerate() {
@@ -878,9 +897,20 @@ fn probe_two_by_two() -> Result<(), String> {
                 ));
             }
         }
+        let updated_frame_bytes = workspace.compose_probe_frame()?;
+        if updated_frame_bytes == 0 {
+            return Err("2x2 native frame composer produced no updated presentation".to_owned());
+        }
 
         for index in 0..4 {
-            workspace.write_to_pane(index, b"exit\r\n")?;
+            workspace.write_to_pane(
+                index,
+                if cfg!(windows) {
+                    b"exit\r\n"
+                } else {
+                    b"exit\n"
+                },
+            )?;
         }
         let deadline = Instant::now() + Duration::from_secs(10);
         while !workspace.all_finished() {
