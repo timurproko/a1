@@ -59,22 +59,29 @@ fn main() {
 
     let lib_dir = work.join("zig-out/lib");
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
-    // Rationale: an exact binary-only archive argument avoids the adjacent shared library on
-    // macOS while keeping the independent contract library and Node addon free of Ghostty.
-    let archive = if target.contains("windows") {
-        lib_dir.join("ghostty-vt-static.lib")
+    if target.contains("windows") {
+        // Platform: MSVC must resolve Zig and Rust compiler intrinsics through normal archive
+        // selection; appending the archive as a raw link argument creates weak-symbol conflicts.
+        println!("cargo:rustc-link-lib=static=ghostty-vt-static");
     } else {
-        lib_dir.join("libghostty-vt.a")
-    };
-    assert!(
-        archive.is_file(),
-        "libghostty-vt archive is unavailable: {}",
-        archive.display()
-    );
-    println!(
-        "cargo:rustc-link-arg-bin=terminal-host={}",
-        archive.display()
-    );
+        // Rationale: an exact binary-only archive argument avoids the adjacent shared library on
+        // macOS while keeping the independent contract library and Node addon free of Ghostty.
+        let archive = lib_dir.join("libghostty-vt.a");
+        assert!(
+            archive.is_file(),
+            "libghostty-vt archive is unavailable: {}",
+            archive.display()
+        );
+        println!(
+            "cargo:rustc-link-arg-bin=terminal-host={}",
+            archive.display()
+        );
+    }
+    if target.contains("apple") && env::var_os("CARGO_FEATURE_NODE_ADDON").is_some() {
+        // Platform: Node resolves N-API symbols when loading an addon on Darwin.
+        println!("cargo:rustc-cdylib-link-arg=-Wl,-undefined");
+        println!("cargo:rustc-cdylib-link-arg=-Wl,dynamic_lookup");
+    }
 }
 
 // Platform: Zig's package fetch unpacks upstream test data, including a malformed JPEG that

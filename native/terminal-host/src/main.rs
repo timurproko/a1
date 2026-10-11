@@ -5,7 +5,9 @@ mod workspace;
 use std::collections::HashSet;
 use std::env;
 use std::fs;
-use std::io::{BufRead, Read, Write};
+#[cfg(not(windows))]
+use std::io::BufRead;
+use std::io::{Read, Write};
 use std::process::{Command, ExitCode};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -61,8 +63,8 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
             durable_replace_child(&args[1], &args[2])
         }
         Some("--probe-controller-boundary") => probe_controller_boundary(),
-        Some("--controller-boundary-child") if args.len() == 4 => {
-            controller_boundary_child(&args[1], &args[2], &args[3])
+        Some("--controller-boundary-child") if args.len() == 5 => {
+            controller_boundary_child(&args[1], &args[2], &args[3], &args[4])
         }
         #[cfg(feature = "resident-fixtures")]
         Some("--probe-resident-launch") => probe_resident_launch(),
@@ -259,6 +261,7 @@ fn controller_boundary_child(
     generation: &str,
     nonce: &str,
     acknowledgement: &str,
+    ready: &str,
 ) -> Result<(), String> {
     let generation = generation
         .parse::<u64>()
@@ -266,24 +269,71 @@ fn controller_boundary_child(
     let nonce = nonce
         .parse::<u128>()
         .map_err(|error| format!("parse controller nonce: {error}"))?;
-    let mut input = std::io::BufReader::new(std::io::stdin().lock());
-    let mut prior = String::new();
-    let mut marker = String::new();
-    input
-        .read_line(&mut prior)
-        .map_err(|error| format!("read prior PTY command: {error}"))?;
-    input
-        .read_line(&mut marker)
-        .map_err(|error| format!("read PTY marker: {error}"))?;
-    if prior.trim_end_matches(|value| value == '\r' || value == '\n') != "prior-command" {
+    #[cfg(windows)]
+    let (prior, acknowledgement_value) = {
+        use windows_sys::Win32::System::Console::{
+            ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT, ENABLE_VIRTUAL_TERMINAL_INPUT, GetConsoleMode,
+            GetStdHandle, STD_INPUT_HANDLE, SetConsoleMode,
+        };
+        let handle = unsafe { GetStdHandle(STD_INPUT_HANDLE) };
+        let mut mode = 0_u32;
+        if unsafe { GetConsoleMode(handle, &mut mode) } == 0
+            || unsafe {
+                SetConsoleMode(
+                    handle,
+                    mode & !(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_VIRTUAL_TERMINAL_INPUT),
+                )
+            } == 0
+        {
+            return Err(format!(
+                "configure raw controller fixture input: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        fs::write(ready, b"ready")
+            .map_err(|error| format!("signal controller fixture readiness: {error}"))?;
+        let marker = contracts::controller::encode_boundary_marker(generation, nonce.to_be_bytes());
+        let expected_len = b"prior-command".len() + marker.len();
+        let mut observed = Vec::with_capacity(expected_len);
+        let mut input = std::io::stdin().lock();
+        while observed.len() < expected_len {
+            let mut chunk = [0_u8; 64];
+            let count = input
+                .read(&mut chunk)
+                .map_err(|error| format!("read raw PTY queue: {error}"))?;
+            if count == 0 {
+                return Err("controller PTY queue closed before its marker".to_owned());
+            }
+            observed.extend_from_slice(&chunk[..count]);
+        }
+        contracts::controller::admit_fixture_stream(&observed).map_err(|error| error.to_string())?
+    };
+    #[cfg(not(windows))]
+    let (prior, acknowledgement_value) = {
+        fs::write(ready, b"ready")
+            .map_err(|error| format!("signal controller fixture readiness: {error}"))?;
+        let mut input = std::io::BufReader::new(std::io::stdin().lock());
+        let mut prior = String::new();
+        let mut marker = String::new();
+        input
+            .read_line(&mut prior)
+            .map_err(|error| format!("read prior PTY command: {error}"))?;
+        input
+            .read_line(&mut marker)
+            .map_err(|error| format!("read PTY marker: {error}"))?;
+        let (_, acknowledgement_value) = contracts::controller::admit_fixture_stream(
+            marker
+                .trim_end_matches(|value| value == '\r' || value == '\n')
+                .as_bytes(),
+        )
+        .map_err(|error| error.to_string())?;
+        (prior.into_bytes(), acknowledgement_value)
+    };
+    let prior = prior.strip_suffix(b"\n").unwrap_or(&prior);
+    let prior = prior.strip_suffix(b"\r").unwrap_or(prior);
+    if prior != b"prior-command" {
         return Err("controller marker overtook prior PTY input".to_owned());
     }
-    let (_, acknowledgement_value) = contracts::controller::admit_fixture_stream(
-        marker
-            .trim_end_matches(|value| value == '\r' || value == '\n')
-            .as_bytes(),
-    )
-    .map_err(|error| error.to_string())?;
     let (acknowledged_generation, acknowledged_nonce) = acknowledgement_value
         .ok_or_else(|| "child did not observe a complete PTY marker".to_owned())?;
     if acknowledged_generation != generation || acknowledged_nonce != nonce.to_be_bytes() {
@@ -317,6 +367,7 @@ fn probe_controller_boundary() -> Result<(), String> {
             .map_err(|error| format!("protect controller boundary root: {error}"))?;
     }
     let acknowledgement = root.join("ack");
+    let ready = root.join("ready");
     let result = (|| {
         let pair = NativePtySystem::default()
             .openpty(PtySize {
@@ -334,6 +385,7 @@ fn probe_controller_boundary() -> Result<(), String> {
             &generation.to_string(),
             &nonce.to_string(),
             &acknowledgement.to_string_lossy(),
+            &ready.to_string_lossy(),
         ]);
         let mut child = pair
             .slave
@@ -344,10 +396,24 @@ fn probe_controller_boundary() -> Result<(), String> {
             .master
             .take_writer()
             .map_err(|error| format!("open controller boundary writer: {error}"))?;
-        let line_end: &[u8] = if cfg!(windows) { b"\r\n" } else { b"\n" };
+        let ready_deadline = Instant::now() + Duration::from_secs(4);
+        while !ready.exists() && Instant::now() < ready_deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
+        if !ready.exists() {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("controller boundary child did not become ready".to_owned());
+        }
         writer
             .write_all(b"prior-command")
-            .and_then(|_| writer.write_all(line_end))
+            .and_then(|_| {
+                if cfg!(windows) {
+                    Ok(())
+                } else {
+                    writer.write_all(b"\n")
+                }
+            })
             .map_err(|error| format!("write prior PTY input: {error}"))?;
         writer
             .write_all(&contracts::controller::encode_boundary_marker(
@@ -355,9 +421,11 @@ fn probe_controller_boundary() -> Result<(), String> {
                 nonce.to_be_bytes(),
             ))
             .map_err(|error| format!("write PTY marker: {error}"))?;
-        writer
-            .write_all(line_end)
-            .map_err(|error| format!("complete PTY marker line: {error}"))?;
+        if !cfg!(windows) {
+            writer
+                .write_all(b"\n")
+                .map_err(|error| format!("complete PTY marker line: {error}"))?;
+        }
         writer
             .flush()
             .map_err(|error| format!("flush controller boundary PTY: {error}"))?;
