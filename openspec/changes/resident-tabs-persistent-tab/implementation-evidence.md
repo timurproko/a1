@@ -15,12 +15,18 @@ Evidence is recorded by platform. A passing contracts-only build does not certif
 
 ## CI Windows x64
 
-Pending `npm run test:terminal-host`, the role integration fixture, Node validation, and physical-survival evidence.
+- `npm run test:terminal-host`: passed in [run 38151058837, job 114504652524](https://github.com/timurproko/a1/actions/runs/38151058837/job/114504652524).
+- The server/holder/attach pseudoterminal fixture passed create, input, double-`Ctrl+C` detach, output while detached, reattach, forced attach-process loss, retained surface, and input after reattach.
+- Node validation and physical terminal-close, OpenSSH-loss, and parent-shell restoration evidence remain pending.
 
 ## CI Linux x64
 
-Pending `npm run test:terminal-host`, the role integration fixture, Node validation, and physical-survival evidence.
+- `npm run test:terminal-host`: passed in [run 38151058837, job 114504652565](https://github.com/timurproko/a1/actions/runs/38151058837/job/114504652565).
+- The server/holder/attach pseudoterminal fixture passed create, input, double-`Ctrl+C` detach, output while detached, reattach, forced attach-process loss, retained surface, and input after reattach.
+- Node validation and physical terminal-close, SSH-loss, and parent-shell restoration evidence remain pending.
 
 ## CI macOS arm64
 
-Pending `npm run test:terminal-host`, the role integration fixture, Node validation, and physical-survival evidence.
+- `npm run test:terminal-host`: passed in [run 38151058837, job 114504652528](https://github.com/timurproko/a1/actions/runs/38151058837/job/114504652528).
+- The server/holder/attach pseudoterminal fixture passed create, input, double-`Ctrl+C` detach, output while detached, reattach, forced attach-process loss, retained surface, and input after reattach.
+- Node validation and physical Terminal.app-close, SSH-loss, and parent-shell restoration evidence remain pending.
