@@ -30,8 +30,8 @@ The maintainer integration decision accepts these scenarios:
     "Strict OpenSpec, documentation, architecture/provenance, typecheck, formatting, whitespace, and focused governance validation pass; exact-head hosted evidence is handed off from the ready PR run.",
     "No setting, resident role wiring, tab UI, launch-route change, or other user-visible behavior is introduced."
   ],
-  "archiveDigest": "6266b5688a79370ce751a0f6db45f9728bef4c977b8394365cdfcfb524935555",
-  "specDigest": "485161332e478436ca8266648efd895b7d4c11667deb6af17fe77c6d72511ae6",
+  "archiveDigest": "dffc97c141b1120648ca30bce129daf852b4bfccc86f2e0c4b69daa960f3c583",
+  "specDigest": "89f40712e9df7e6854f324a9a64de15deda3b3380dd9a6cdea07258bcdfa3311",
   "tasksDigest": "4e04e617ed8bb5aa7fe9b5ddc409157beeb1045fe49dd183310182a5a768346b",
   "evidenceDigest": "27d7d8530029e347fd18935e0c9d3461fc02859100c224a13425b06298eb0f2f",
   "knownGaps": []
