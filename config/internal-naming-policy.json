@@ -162,6 +162,46 @@
       "semantics": "Session identity exported to launched programs"
     },
     {
+      "role": "tabEndpoint",
+      "key": "A1_TAB_ENDPOINT",
+      "exposure": "integration",
+      "owner": "bin/ui.js",
+      "evidence": "test/foundation/resident-tabs/resident-tabs.test.ts",
+      "semantics": "Authenticated child bridge endpoint consumed before extension loading"
+    },
+    {
+      "role": "tabId",
+      "key": "A1_TAB_ID",
+      "exposure": "integration",
+      "owner": "bin/ui.js",
+      "evidence": "test/foundation/resident-tabs/resident-tabs.test.ts",
+      "semantics": "Resident tab identity consumed before extension loading"
+    },
+    {
+      "role": "tabToken",
+      "key": "A1_TAB_TOKEN",
+      "exposure": "integration",
+      "owner": "bin/ui.js",
+      "evidence": "test/foundation/resident-tabs/resident-tabs.test.ts",
+      "semantics": "Resident bridge credential consumed before extension loading"
+    },
+    {
+      "role": "tabsEndpoint",
+      "key": "A1_TABS_ENDPOINT",
+      "exposure": "integration",
+      "owner": "src/foundation/resident-tabs/ensure-terminal-host.ts",
+      "evidence": "native/terminal-host/src/main.rs",
+      "semantics": "Hermetic resident endpoint override for native integration tests"
+    },
+    {
+      "role": "terminalHostPath",
+      "key": "A1_TERMINAL_HOST_PATH",
+      "exposure": "integration",
+      "owner": "src/foundation/resident-tabs/ensure-terminal-host.ts",
+      "evidence": "test/foundation/resident-tabs/resident-tabs.test.ts",
+      "semantics": "Hermetic resident host artifact override for integration tests"
+    },
+    {
       "role": "sessionRuntimeId",
       "key": "A1_SESSION_RUNTIME_ID",
       "exposure": "integration",
