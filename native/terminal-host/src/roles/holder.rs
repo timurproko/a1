@@ -217,6 +217,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
             let completed = result?;
             input.complete(completed);
         }
+        let mut changed = false;
         while let Ok(command) = command_rx.try_recv() {
             if matches!(command, HolderCommand::Disconnected) {
                 stream = connect_holder(&config, true)?;
@@ -259,6 +260,8 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                         bytes: Vec::with_capacity(bytes),
                     })
                 } else {
+                    terminal.write(input_rejected_notice(InputAdmissionError::Capacity));
+                    changed = true;
                     Some(PendingPaste::Discard { remaining: bytes })
                 };
             } else if let HolderCommand::Input(message) = command {
@@ -290,17 +293,22 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 } else {
                     input.admit_paste(&message.bytes).map(|_| ())
                 };
-                if admitted.is_ok() {
-                    while let Some(chunk) = input.take_for_write() {
-                        let count = chunk.len();
-                        write_tx
-                            .send((chunk, count))
-                            .map_err(|_| "resident PTY writer stopped".to_owned())?;
+                match admitted {
+                    Ok(()) => {
+                        while let Some(chunk) = input.take_for_write() {
+                            let count = chunk.len();
+                            write_tx
+                                .send((chunk, count))
+                                .map_err(|_| "resident PTY writer stopped".to_owned())?;
+                        }
+                    }
+                    Err(error) => {
+                        terminal.write(input_rejected_notice(error));
+                        changed = true;
                     }
                 }
             }
         }
-        let mut changed = false;
         while let Ok(bytes) = output_rx.try_recv() {
             terminal.write(&bytes);
             let answers = terminal.take_responses();
@@ -342,6 +350,17 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
             return Ok(());
         }
         thread::sleep(Duration::from_millis(8));
+    }
+}
+
+fn input_rejected_notice(error: InputAdmissionError) -> &'static [u8] {
+    match error {
+        InputAdmissionError::Capacity => {
+            b"\r\n\x1b[33m[a1: input rejected; resident tab input queue is full]\x1b[0m\r\n"
+        }
+        InputAdmissionError::MessageTooLarge => {
+            b"\r\n\x1b[33m[a1: input rejected; message exceeds the resident tab limit]\x1b[0m\r\n"
+        }
     }
 }
 
@@ -435,6 +454,10 @@ mod tests {
         );
         assert_eq!(queue.queued_bytes(), 0);
         assert_eq!(queue.pop(), None);
+        assert!(
+            String::from_utf8_lossy(input_rejected_notice(InputAdmissionError::Capacity))
+                .contains("input rejected")
+        );
     }
     #[test]
     fn admitted_large_paste_is_split_and_ordered() {
