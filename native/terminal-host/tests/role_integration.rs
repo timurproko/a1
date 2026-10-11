@@ -178,10 +178,10 @@ impl AttachFixture {
                     Ok(0) | Err(_) => return,
                     Ok(count) => {
                         if bytes[..count].windows(4).any(|value| value == b"\x1b[6n") {
-                            let _ = response_writer
-                                .lock()
-                                .expect("response writer")
-                                .write_all(b"\x1b[24;100R");
+                            let mut response = response_writer.lock().expect("response writer");
+                            let _ = response
+                                .write_all(b"\x1b[24;100R")
+                                .and_then(|()| response.flush());
                         }
                         if tx.send(bytes[..count].to_vec()).is_err() {
                             return;
