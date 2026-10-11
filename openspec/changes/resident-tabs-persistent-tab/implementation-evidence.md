@@ -14,14 +14,19 @@ Validated locally across the final implementation sequence:
 - `npx openspec validate resident-tabs-persistent-tab --strict --no-interactive`: passed.
 - Architecture, full naming, code-documentation, docs-governance, and repository-governance checks: passed.
 - Full local Zig/native execution was not attempted. Managed antivirus previously blocked a vendored malformed-image fixture; the downloaded Zig executable, archive, and temporary build directory remain removed, and no antivirus exclusion was added.
-- Physical Windows Terminal-close, Windows OpenSSH-loss, and parent-shell restoration evidence: pending an isolated worker with a CI-built artifact.
+- Physical Windows acceptance used the isolated `.artifacts/physical-profile` profile and the CI-built artifact for head `09028be5` from [run 38159593912](https://github.com/timurproko/a1/actions/runs/38159593912).
+- Windows Terminal tab closure while a one-line-per-second command was active: passed. The verified server and holder survived, output advanced from the pre-close prefix through `resident-59`, and reattach restored that output and the same A1 session.
+- Forced attach-process termination: passed. The server and holder remained alive and the surviving Git Bash parent accepted `printf 'shell-ok\\n'`.
+- Input after reattach: failed physical acceptance. Character input and `Ctrl+J` reached the editor, but Enter did not submit the prompt. Certification remains blocked while this native Enter-key defect is corrected and retested.
+- Windows OpenSSH-loss, `/quit`, double-`Ctrl+C`, and empty-editor `Ctrl+D` physical evidence remains pending.
 
 ## CI Windows x64
 
 - `npm run test:terminal-host`: passed in [run 38151058837, job 114504652524](https://github.com/timurproko/a1/actions/runs/38151058837/job/114504652524).
 - The server/holder/attach pseudoterminal fixture passed create, input, double-`Ctrl+C` detach, output while detached, reattach, forced attach-process loss, retained surface, and input after reattach.
 - The expanded role fixture, including concurrent server startup, serialized attach admission, mode enable/restore, keyboard negotiation, nonzero second-client refusal, retained output, Windows job-close launch-tree loss, and cold holder adoption after server death, passed for implementation head `7bdcec50` in [run 38156862241, job 114521630855](https://github.com/timurproko/a1/actions/runs/38156862241/job/114521630855).
-- Physical Windows Terminal-close, Windows OpenSSH-loss, and parent-shell restoration evidence remains pending.
+- Exact-head development validation, including the Windows holder-start correction, passed in [run 38159593912](https://github.com/timurproko/a1/actions/runs/38159593912).
+- Physical Windows details and the blocking Enter-key failure are recorded in the Local Windows x64 section.
 
 ## CI Linux x64
 

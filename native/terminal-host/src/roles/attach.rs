@@ -69,6 +69,28 @@ pub fn is_ctrl_c_console(character: char, control: bool, key_down: bool) -> bool
     key_down && control && matches!(character, 'c' | 'C' | '\u{3}')
 }
 
+#[derive(Default)]
+struct OuterKeyAdmission {
+    enter_press_seen: bool,
+}
+impl OuterKeyAdmission {
+    fn admit(&mut self, code: &KeyCode, kind: KeyEventKind) -> bool {
+        let enter = matches!(code, KeyCode::Enter | KeyCode::Char('\r'));
+        match kind {
+            KeyEventKind::Press | KeyEventKind::Repeat => {
+                if enter {
+                    self.enter_press_seen = true;
+                }
+                true
+            }
+            // Platform: some Windows terminal stacks expose Return only as a release event after
+            // reconnect. Recover that event without duplicating a normal press/release pair.
+            KeyEventKind::Release if enter => !std::mem::take(&mut self.enter_press_seen),
+            _ => false,
+        }
+    }
+}
+
 pub fn render_strip(status: &str, name: &str, columns: u16) -> String {
     let glyph = match status {
         "starting" => "… ",
@@ -185,6 +207,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     terminal.write(render_strip("starting", "agent", columns).as_bytes())?;
     let started = Instant::now();
     let mut chord = DoubleCtrlC::new(options.clear_exit_ms);
+    let mut key_admission = OuterKeyAdmission::default();
     loop {
         while let Ok(payload) = message_rx.try_recv() {
             if payload.is_empty() {
@@ -236,7 +259,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             continue;
         }
         match event::read().map_err(|error| format!("read outer terminal: {error}"))? {
-            Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => {
+            Event::Key(key) if key_admission.admit(&key.code, key.kind) => {
                 let bytes = encode_key(key.code, key.modifiers);
                 if bytes.is_empty() {
                     continue;
@@ -524,6 +547,15 @@ fn encode_mouse(kind: MouseEventKind, column: u16, outer_row: u16) -> Option<Vec
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn recovers_release_only_enter_without_duplicating_a_press_pair() {
+        let mut admission = OuterKeyAdmission::default();
+        assert!(admission.admit(&KeyCode::Enter, KeyEventKind::Release));
+        assert!(admission.admit(&KeyCode::Enter, KeyEventKind::Press));
+        assert!(!admission.admit(&KeyCode::Enter, KeyEventKind::Release));
+        assert!(admission.admit(&KeyCode::Char('\r'), KeyEventKind::Release));
+        assert!(!admission.admit(&KeyCode::Char('a'), KeyEventKind::Release));
+    }
     #[test]
     fn fast_double_ctrl_c_forwards_once_then_detaches() {
         let mut chord = DoubleCtrlC::new(500);
