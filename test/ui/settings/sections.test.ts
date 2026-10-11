@@ -74,14 +74,14 @@ describe("owned UI settings sections", () => {
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: AGENT });
     expect(sections.map(section => [section.id, section.title])).toEqual([
-      ["generic", "Generic"], ["appearance", "Appearance"], ["scroll", "Scroll"], ["history", "History"], ["tabs", "Tabs"], ["agent", "Agent"],
+      ["generic", "Generic"], ["appearance", "Appearance"], ["scroll", "Scroll"], ["history", "History"], ["agent", "Agent"],
     ]);
     const entries = (id: string) => sections.find(section => section.id === id)?.entries.map(entry => entry.id);
-    expect(entries("generic")).toEqual(["updateCheck"]);
+    expect(entries("generic")).toEqual(["updateCheck", "residentTabs"]);
     expect(entries("appearance")).toEqual(["accentColor", "backgroundStyle", "quitAnimation"]);
     expect(entries("scroll")).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
     expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryMaxItems"]);
-    expect(entries("tabs")).toEqual(["residentTabs"]);
+    expect(entries("tabs")).toBeUndefined();
     expect(entries("quit")).toBeUndefined();
     expect(findOwnedUiSettingsEntry(sections, "quitAnimation", "a1")).toMatchObject({
       label: "Quit animation", value: true, origin: "default", application: "live", choices: [true, false],
@@ -131,7 +131,7 @@ describe("owned UI settings sections", () => {
       resolution: resolveOwnedUiSettings({ declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [], document: null }),
       agent,
     });
-    expect(sections.map(section => section.id)).toEqual(["generic", "appearance", "scroll", "history", "tabs", "agent"]);
+    expect(sections.map(section => section.id)).toEqual(["generic", "appearance", "scroll", "history", "agent"]);
     const group = sections.find(section => section.id === "agent");
     expect(group).toMatchObject({ title: "Agent", unavailableReason: null, readOnlyReason: null });
     expect(group?.entries).toHaveLength(3);

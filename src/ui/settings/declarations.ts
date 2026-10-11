@@ -147,9 +147,9 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
   }),
   residentTabs: Object.freeze({
     id: "residentTabs",
-    label: "Resident tabs (preview)",
-    section: Object.freeze({ id: "tabs", title: "Tabs" }),
-    description: "Keep bare A1 running when its terminal closes and reattach on the next launch. Preview tabs have no stop command yet; turning this off prevents new resident launches but does not stop an existing tab.",
+    label: "Resident tabs",
+    section: GENERIC_SECTION,
+    description: "Keep bare A1 running when its terminal closes and reattach on the next launch. Resident tabs have no stop command yet; turning this off prevents new resident launches but does not stop an existing tab.",
     application: "restart",
     defaultValue: false,
     allowedValues: Object.freeze([true, false] as const),

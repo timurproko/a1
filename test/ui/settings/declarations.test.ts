@@ -91,8 +91,8 @@ describe("owned UI setting declarations", () => {
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptSuggestions")?.description)
       .toContain("one background request, plus one bounded recovery request when needed");
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "residentTabs")).toMatchObject({
-      label: "Resident tabs (preview)",
-      section: { id: "tabs", title: "Tabs" },
+      label: "Resident tabs",
+      section: { id: "generic", title: "Generic" },
       application: "restart",
       defaultValue: false,
       allowedValues: [true, false],
