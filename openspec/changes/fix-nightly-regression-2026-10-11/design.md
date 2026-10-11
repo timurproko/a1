@@ -4,9 +4,18 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- Treat the failure as environmental coupling in the test precondition, not a product regression or a change from the suspect range. The test used a fixed 1.5-second sleep as a proxy for the paste helper's `ready` protocol message; under Windows Node 24 resource pressure, module loading had not completed, so the retained 500-millisecond warm-path assertion also measured the remaining cold startup.
+- Expose the held helper's existing protocol readiness through `HelperPool.ready` and wait for that state before starting the warm-path stopwatch. Keep the real child process, the 500-millisecond assertion, the 15-second test timeout, the unannounced-spare case, and replenishment assertions unchanged.
+- The latent test coupling was introduced with the warm-spare test in `bba1b572`, before the last successful Full regression and outside the ten-commit suspect range. No suspect commit changed the helper, pool, or test.
+- No specification delta is needed because product behavior and its warm-path budget are unchanged; this correction makes the existing evidence observe its declared precondition deterministically.
 
 ## Evidence
+
+- Full regression #58 identified one primary failure: the announced warm-spare case took 1,633.192 milliseconds after the fixed sleep on Windows Node 24, while the same resource shard passed on Node 22 and all other lanes passed. The Windows lane reconstruction and complete-regression failures were downstream orchestration consequences.
+- The failed head passed five focused local Windows Node 24 runs (26 tests each), confirming the failure depends on hosted resource pressure rather than a deterministic product change. Those runs also showed the announced test spending about 1.68-1.71 seconds including its fixed 1.5-second sleep.
+- Focused implementation evidence on Windows Node 24.21.0: five consecutive `paste-executor.test.ts` runs passed all 26 tests with the announced warm-spare case completing in 412-426 milliseconds including readiness observation; `helper-pool.test.ts` passed all 5 tests. Build and source/bin typecheck passed.
+- Pre-finalization observation: the test now begins the unchanged 500-millisecond measurement only after the same structured `ready` message that `startPasteExecutor` consumes. Selected exact-head PR Full regression remains deferred while the PR is draft and will exercise the Windows Node 24 resource lane after finalization.
+- Known gaps: none.
 
 - Run [Full regression #58](https://github.com/timurproko/a1/actions/runs/38104464578) (attempt 1, schedule) on `2a8be16` at 2026-10-11T02:13:44Z:
   - `vitest-fast-resource-sensitive` (`fast-resource-sensitive`) failed on windows-2025-node24 (resource shard) with exit 1.

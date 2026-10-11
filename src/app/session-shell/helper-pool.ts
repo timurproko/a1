@@ -38,6 +38,9 @@ export class HelperPool {
   /** Whether a spare is currently held (ready or still starting). */
   get warmed(): boolean { return this.#spare !== undefined; }
 
+  /** Whether the held spare has announced that module loading is complete. */
+  get ready(): boolean { return this.#spare?.ready === true; }
+
   /** Opts the pool in and forks the first spare; from here on `replenish` keeps one ready after each request. */
   warm(): void {
     if (this.#disposed) return;
