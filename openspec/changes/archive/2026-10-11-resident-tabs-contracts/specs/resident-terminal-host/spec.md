@@ -1,3 +1,6 @@
+## Purpose
+Define the cross-platform native primitives, bounded protocol, and controller-transfer foundation that later resident terminal sessions can use without introducing product wiring or user-visible tab behavior.
+
 ## ADDED Requirements
 
 ### Requirement: Resident host primitives identify processes, boots, and OS sessions exactly
