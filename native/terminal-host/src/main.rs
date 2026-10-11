@@ -411,11 +411,21 @@ fn probe_controller_boundary() -> Result<(), String> {
             .map_err(|error| format!("open controller boundary writer: {error}"))?;
         let ready_deadline = Instant::now() + Duration::from_secs(4);
         let mut startup = Vec::new();
+        let mut cursor_answered = false;
         while Instant::now() < ready_deadline
             && !String::from_utf8_lossy(&startup).contains("controller-ready")
         {
             if let Ok(bytes) = output.recv_timeout(Duration::from_millis(20)) {
                 startup.extend(bytes);
+                if !cursor_answered && startup.windows(4).any(|bytes| bytes == b"\x1b[6n") {
+                    writer
+                        .write_all(b"\x1b[1;1R")
+                        .and_then(|()| writer.flush())
+                        .map_err(|error| {
+                            format!("answer controller fixture cursor query: {error}")
+                        })?;
+                    cursor_answered = true;
+                }
             }
         }
         if !String::from_utf8_lossy(&startup).contains("controller-ready") {
