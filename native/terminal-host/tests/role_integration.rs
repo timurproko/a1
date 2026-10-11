@@ -127,7 +127,6 @@ struct AttachFixture {
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     output: mpsc::Receiver<Vec<u8>>,
     retained: Vec<u8>,
-    trace_path: PathBuf,
     data_dir: PathBuf,
 }
 impl AttachFixture {
@@ -147,10 +146,7 @@ impl AttachFixture {
             })
             .expect("attach pty");
         let mut command = CommandBuilder::new(executable);
-        let trace_path = data.join("holder-fixture.trace");
         command.env("TERMINAL_HOST_FIXTURE_SIZE", "100x24");
-        command.env("TERMINAL_HOST_FIXTURE_TRACE", "1");
-        command.env("TERMINAL_HOST_FIXTURE_TRACE_PATH", trace_path.as_os_str());
         command.args([
             "attach",
             "--endpoint",
@@ -206,7 +202,6 @@ impl AttachFixture {
             writer,
             output,
             retained: Vec::new(),
-            trace_path,
             data_dir: data.to_path_buf(),
         }
     }
@@ -235,15 +230,13 @@ impl AttachFixture {
     }
     fn output_text(&self) -> String {
         let output = String::from_utf8_lossy(&self.retained);
-        let trace = std::fs::read_to_string(&self.trace_path)
-            .unwrap_or_else(|error| format!("trace unavailable: {error}"));
         let registry = std::fs::read_dir(self.data_dir.join("tabs"))
             .ok()
             .and_then(|mut roots| roots.next())
             .and_then(Result::ok)
             .and_then(|root| std::fs::read_to_string(root.path().join("registry.json")).ok())
             .unwrap_or_else(|| "registry unavailable".into());
-        format!("{output}\n--- holder trace ---\n{trace}\n--- registry ---\n{registry}")
+        format!("{output}\n--- registry ---\n{registry}")
     }
     fn wait(&mut self, timeout: Duration) {
         let deadline = Instant::now() + timeout;
