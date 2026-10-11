@@ -1,7 +1,7 @@
 {
   "schema": "a1-terminal-host-provenance-v1",
-  "recordedAt": "2026-08-20T09:25:48.307Z",
-  "change": "evolve-bare-a1-into-multi-agent-workspace",
+  "recordedAt": "2026-10-11T00:00:00.000Z",
+  "change": "resident-tabs-contracts",
   "hostMode": "console-inside-existing-terminal",
   "desktopApplicationRequired": false,
   "sources": [
@@ -35,6 +35,69 @@
       "license": "MIT",
       "cleanSourceTree": true,
       "licenseVerification": "declared-license-recorded; license notice must be vendored before packaging"
+    },
+    {
+      "name": "rmp-serde",
+      "version": "1.3.1",
+      "registryChecksum": "72f81bee8c8ef9b577d1681a70ebbc962c232461e397b22c208c43c04b67a155",
+      "role": "generation-1 named-map MessagePack encoding",
+      "license": "MIT",
+      "cleanSourceTree": true,
+      "licenseVerification": "registry metadata and checksum pinned"
+    },
+    {
+      "name": "napi",
+      "version": "2.16.17",
+      "registryChecksum": "55740c4ae1d8696773c78fdafd5d0e5fe9bc9f1b071c7ba493ba5c413a9184f3",
+      "role": "Node-API 9 writer-lock wrapper",
+      "license": "MIT",
+      "cleanSourceTree": true,
+      "licenseVerification": "registry metadata and checksum pinned"
+    },
+    {
+      "name": "napi-derive",
+      "version": "2.16.13",
+      "registryChecksum": "7cbe2585d8ac223f7d34f13701434b9d5f4eb9c332cccce8dee57ea18ab8ab0c",
+      "role": "Node-API export generation",
+      "license": "MIT",
+      "cleanSourceTree": true,
+      "licenseVerification": "registry metadata and checksum pinned"
+    },
+    {
+      "name": "sha2",
+      "version": "0.10.9",
+      "registryChecksum": "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283",
+      "role": "endpoint, lock, and fixture digests",
+      "license": "MIT OR Apache-2.0",
+      "cleanSourceTree": true,
+      "licenseVerification": "registry metadata and checksum pinned"
+    },
+    {
+      "name": "rand",
+      "version": "0.10.0",
+      "registryChecksum": "bc266eb313df6c5c09c1c7b1fbe2510961e5bcd3add930c1e31f7ed9da0feff8",
+      "role": "boundary and temporary-file nonces",
+      "license": "MIT OR Apache-2.0",
+      "cleanSourceTree": true,
+      "licenseVerification": "registry metadata and checksum pinned"
+    },
+    {
+      "name": "serde",
+      "version": "1.0.228",
+      "registryChecksum": "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e",
+      "role": "typed protocol serialization",
+      "license": "MIT OR Apache-2.0",
+      "cleanSourceTree": true,
+      "licenseVerification": "registry metadata and checksum pinned"
+    },
+    {
+      "name": "hex",
+      "version": "0.4.3",
+      "registryChecksum": "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70",
+      "role": "stable binary identity rendering",
+      "license": "MIT OR Apache-2.0",
+      "cleanSourceTree": true,
+      "licenseVerification": "registry metadata and checksum pinned"
     }
   ],
   "rendererPolicy": {
@@ -67,7 +130,9 @@
   "buildPrerequisites": {
     "operatingSystems": [
       "windows-10",
-      "windows-11"
+      "windows-11",
+      "ubuntu-24.04",
+      "macos-15"
     ],
     "architectures": [
       "x64",

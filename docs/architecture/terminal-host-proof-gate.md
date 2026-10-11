@@ -29,4 +29,4 @@ Any failed, missing, incomplete, contradictory, physically unverified, or thresh
 - stops composed-terminal work instead of starting a custom rendering/input remediation loop;
 - prevents investment in a postponed desktop-native application shell.
 
-The executable decision was `evaluateNativeSpikeGate` in `src/foundation/native-host-protocol/proof-gate.ts`, preserved on the `archive/multi-agent-workspace` branch while the multi-agent plan is on hold. The current acceptance record is `openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-spike-acceptance-record.json`; it remains pending until task 5.6 records a physical verdict for exact artifact bytes.
+The executable decision was `evaluateNativeSpikeGate` in `src/foundation/native-host-protocol/proof-gate.ts`, preserved in `develop` history at commit `243eb7a7`. The acceptance record is `docs/architecture/evidence/terminal-host-spike/terminal-spike-acceptance-record.json`. It stays pending: the owning plan was retired on 2026-10-10 without a physical verdict, and `add-persistent-multi-agent-tabs` defines its own certification rather than reusing this gate.

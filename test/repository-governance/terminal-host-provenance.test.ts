@@ -53,7 +53,7 @@ describe("terminal-host provenance policy", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("host mode must remain console-inside-existing-terminal");
     expect(result.stderr).toContain("desktop application must not be required");
-    expect(result.stderr).toContain("exactly three component records");
+    expect(result.stderr).toContain("exactly ten component records");
     expect(result.stderr).toContain("license must be MIT");
     expect(result.stderr).toContain("source tree must be clean");
     expect(result.stderr).toContain("GUI SDK must not be required");

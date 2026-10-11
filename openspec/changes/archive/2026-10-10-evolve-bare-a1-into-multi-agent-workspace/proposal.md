@@ -1,5 +1,7 @@
 ## Why
 
+> **RETIRED 2026-10-10 — superseded, not completed.** The maintainer chose persistent terminal-session tabs (`add-persistent-multi-agent-tabs`, PR #586) over this structured-workspace design and closed this plan. Its checked tasks describe source removed by `archive-workspace-subsystem` (last state: commit `243eb7a7` in `develop` history); its unchecked tasks are abandoned, not deferred. Split layouts and multiplexer presentation are future ideas without an approved change.
+
 > **Status: ON HOLD by user direction — scheduled after the A1 custom-experience milestones.** Do not implement, continue, publish, or resume any remaining multi-agent or composed-terminal scope until the user explicitly authorizes this change to resume. Its unchecked scope is intentionally deferred future work, not stale or blocked work. Completion of parity or customization work does not lift this hold.
 >
 > **Source archived 2026-09-18.** The workspace feature, workspace contracts, structured-agent runtime, native-host protocol modules, their tests, and the control-store tables they owned were removed from `develop` by the `archive-workspace-subsystem` change; their last state is the `archive/multi-agent-workspace` branch (commit `0a70298f`). When this plan resumes, analyze the then-current codebase and implement afresh rather than restoring that copy.

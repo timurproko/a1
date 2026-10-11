@@ -376,7 +376,7 @@
     },
     "terminal-host": {
       "kind": "commands",
-      "fullReleaseExclusion": "Windows-only native build that complete-regression lanes cannot run; its pull-request owner validates every change to its paths.",
+      "fullReleaseExclusion": "The three-target native contract is validated by its pull-request owner; packaged complete-regression integration remains deferred to resident-tabs milestone 6.",
       "commands": [
         {
           "id": "terminal-host-build-and-probes",
