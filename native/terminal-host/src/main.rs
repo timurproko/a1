@@ -473,12 +473,21 @@ fn probe_controller_boundary() -> Result<(), String> {
             .map_err(|error| format!("flush controller boundary PTY: {error}"))?;
         let deadline = Instant::now() + Duration::from_secs(4);
         while !acknowledgement.exists() && Instant::now() < deadline {
+            while let Ok(bytes) = output.try_recv() {
+                startup.extend(bytes);
+            }
             thread::sleep(Duration::from_millis(10));
         }
         if !acknowledgement.exists() {
+            while let Ok(bytes) = output.try_recv() {
+                startup.extend(bytes);
+            }
             let _ = child.kill();
             let _ = child.wait();
-            return Err("controller boundary acknowledgement exceeded four seconds".to_owned());
+            return Err(format!(
+                "controller boundary acknowledgement exceeded four seconds: {}",
+                String::from_utf8_lossy(&startup)
+            ));
         }
         let status = child
             .wait()
