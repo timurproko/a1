@@ -185,7 +185,7 @@ Tab shortcuts SHALL be declared with action identities, SHALL be configurable th
 
 ### Purpose
 
-Defines the opt-in resident capability (Windows x64, macOS, Linux) that keeps bare-A1 tabs alive independently of any terminal: the native resident server, per-tab session holders, and attach client, together with their protocols, controller attribution, durable registry, writer authority, derived credentials, detachment, crash/reboot recovery, limits, diagnostics, and preview certification.
+Defines the opt-in resident capability (Windows x64, Linux x64, macOS arm64) that keeps bare-A1 tabs alive independently of any terminal: the native resident server, per-tab session holders, and attach client, together with their protocols, controller attribution, durable registry, writer authority, derived credentials, detachment, crash/reboot recovery, limits, diagnostics, and preview certification.
 
 ### ADDED Requirements
 
@@ -261,16 +261,16 @@ Pseudoterminal output, child input, retained terminal state, input encoding, com
 - **WHEN** the attach client exits abnormally
 - **THEN** the outer terminal SHALL be restored by the surviving-owner path even when forced termination prevents in-process fatal hooks, and every tab SHALL continue
 
-#### Requirement: Host exchanges use a generation-stable bounded protocol
-Every connection SHALL begin with a handshake carrying role, protocol generation, build, features, and credentials. Within a generation, messages SHALL change only additively with defaulted optional fields and unknown-value fallbacks, guarded by frozen shape fixtures; a missing optional method SHALL disable only that operation; a generation mismatch SHALL produce a typed incompatibility outcome. Frames, input messages, and handshakes SHALL be bounded. Topology mutations SHALL carry expected revisions and SHALL apply atomically or be rejected.
+#### Requirement: Host topology mutations are revisioned and atomic
+Client/server topology messages SHALL use the generation-1 protocol established by `resident-tabs-contracts`. A topology subscription SHALL begin with one complete snapshot and monotonic revision, followed by ordered changes. Every create, rename, reorder, close, retry, fresh-start, and stop-all mutation SHALL carry its expected topology or registry revision and SHALL either commit completely at the next revision or be rejected without a partial change. A method absent from an older same-generation server SHALL disable only that operation.
 
-##### Scenario: Newer client, same generation
-- **WHEN** a client of a newer release attaches to an older server of the same generation
-- **THEN** the attach SHALL succeed and only operations the server lacks SHALL be unavailable
+##### Scenario: Two clients mutate one revision
+- **WHEN** two clients submit topology mutations against the same expected revision
+- **THEN** at most one SHALL commit, the stale mutation SHALL receive a typed revision conflict, and every client SHALL converge on the committed topology
 
-##### Scenario: Oversized frame
-- **WHEN** a peer sends a frame above its limit
-- **THEN** the receiver SHALL reject it and SHALL keep unrelated tabs and connections healthy
+##### Scenario: Newer client calls an unavailable method
+- **WHEN** a newer same-generation client attaches to an older server that lacks one optional topology method
+- **THEN** attachment and unrelated operations SHALL remain available while only that method is disabled
 
 #### Requirement: Reattach renders from retained terminal state
 Viewing a tab SHALL deliver a complete retained surface of cells, attributes, hyperlinks, cursor, and modes, followed by patches against its revision. Output produced while no client viewed the tab SHALL be present because the holder's model absorbed it. Logs or replayed byte streams SHALL NOT be used to reconstruct a screen. Only viewed tabs SHALL stream surfaces to a client; status and attention SHALL stream for all tabs.
@@ -378,7 +378,7 @@ A1 SHALL provide `a1 tabs` to list tabs with identity, name, status, and cwd; `a
 - **THEN** A1 SHALL report no running tabs and SHALL NOT start a server
 
 #### Requirement: Preview support is packaged, opt-in, certified, and reversible
-The terminal-host binary SHALL ship for Windows x64, macOS, and Linux with artifact hashes, pinned source provenance, licenses, notices, and immutable-release placement verified before execution. `residentTabs` SHALL remain `false` by default on every platform in this change and SHALL be accepted as an opt-in preview on each platform only after exact-package automated suites and manual or isolated-worker physical evidence on that platform for terminal closure, remote-session loss, input fidelity, extension text UI, recovery, and rendering. Physical automation SHALL NOT run on an active workstation. When the setting is false, the platform unsupported, or the server cannot start safely, bare `a1` SHALL run the direct single-agent owned UI, with one notice for an attempted fallback; registry records and sessions SHALL be preserved. Default-on support on any platform and each additional platform require separate approved changes and evidence.
+The terminal-host binary SHALL ship for Windows x64, Linux x64, and macOS arm64 with artifact hashes, pinned source provenance, licenses, notices, and immutable-release placement verified before execution. `residentTabs` SHALL remain `false` by default on every platform in this change and SHALL be accepted as an opt-in preview on each platform only after exact-package automated suites and manual or isolated-worker physical evidence on that platform for terminal closure, remote-session loss, input fidelity, extension text UI, recovery, and rendering. Physical automation SHALL NOT run on an active workstation. When the setting is false, the platform unsupported, or the server cannot start safely, bare `a1` SHALL run the direct single-agent owned UI, with one notice for an attempted fallback; registry records and sessions SHALL be preserved. Default-on support on any platform and each additional platform require separate approved changes and evidence.
 
 ##### Scenario: Server cannot start
 - **WHEN** the terminal-host binary is missing, unverified, or fails its start budget
@@ -581,7 +581,7 @@ Before resident tabs may default on for a platform, a separately authorized isol
 ### MODIFIED Requirements
 
 #### Requirement: Interactive launch forms use the owned Pi UI pipeline
-Bare `a1` SHALL launch the A1-owned product surface directly. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed. On a supported platform (Windows x64, macOS, Linux), when the opt-in `residentTabs` setting is enabled, bare `a1` SHALL instead run the native terminal-host attach client over resident tabs, each of which SHALL run the same owned product UI in its own holder-owned pseudoterminal; pseudoterminals, terminal models, and composition SHALL exist only inside the resident terminal-host capability, and `a1 pi` SHALL retain its direct presentation without resident infrastructure. Direct and Pi-comparison runtimes SHALL share only the canonical session-writer admission guard with resident runtimes; this guard SHALL NOT initialize a terminal host. This change SHALL leave `residentTabs` disabled by default and SHALL leave unsupported platforms on the direct owned path.
+Bare `a1` SHALL launch the A1-owned product surface directly. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed. On a supported platform (Windows x64, Linux x64, macOS arm64), when the opt-in `residentTabs` setting is enabled, bare `a1` SHALL instead run the native terminal-host attach client over resident tabs, each of which SHALL run the same owned product UI in its own holder-owned pseudoterminal; pseudoterminals, terminal models, and composition SHALL exist only inside the resident terminal-host capability, and `a1 pi` SHALL retain its direct presentation without resident infrastructure. Direct and Pi-comparison runtimes SHALL share only the canonical session-writer admission guard with resident runtimes; this guard SHALL NOT initialize a terminal host. This change SHALL leave `residentTabs` disabled by default and SHALL leave unsupported platforms on the direct owned path.
 
 ##### Scenario: Launch bare A1
 - **WHEN** the user runs `a1`
