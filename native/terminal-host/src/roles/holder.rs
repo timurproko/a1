@@ -94,33 +94,6 @@ impl BoundedInputQueue {
     }
 }
 
-/// Bounded retained output used by the holder even while no client is attached.
-#[derive(Debug)]
-pub struct RetainedOutput {
-    bytes: VecDeque<u8>,
-    capacity: usize,
-    revision: u64,
-}
-impl RetainedOutput {
-    pub fn new(capacity: usize) -> Self {
-        Self {
-            bytes: VecDeque::new(),
-            capacity,
-            revision: 0,
-        }
-    }
-    pub fn absorb(&mut self, output: &[u8]) {
-        self.revision = self.revision.saturating_add(1);
-        self.bytes.extend(output.iter().copied());
-        while self.bytes.len() > self.capacity {
-            self.bytes.pop_front();
-        }
-    }
-    pub fn snapshot(&self) -> (u64, Vec<u8>) {
-        (self.revision, self.bytes.iter().copied().collect())
-    }
-}
-
 pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result<(), String> {
     let config: HolderLaunchConfig = serde_json::from_slice(context)
         .map_err(|error| format!("decode holder context: {error}"))?;
@@ -467,12 +440,5 @@ mod tests {
         let mut output = queue.pop().unwrap();
         output.extend(queue.pop().unwrap());
         assert_eq!(output, input);
-    }
-    #[test]
-    fn output_is_retained_without_a_viewer() {
-        let mut retained = RetainedOutput::new(6);
-        retained.absorb(b"before");
-        retained.absorb(b"-after");
-        assert_eq!(retained.snapshot(), (2, b"-after".to_vec()));
     }
 }
