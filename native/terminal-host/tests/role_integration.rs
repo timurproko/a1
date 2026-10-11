@@ -3,7 +3,7 @@
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::mpsc;
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
 
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
@@ -24,7 +24,16 @@ fn server_holder_and_attach_survive_client_loss_and_retain_output() {
         r#"
 process.stdin.setEncoding("utf8");
 if (process.stdin.isTTY) process.stdin.setRawMode(true);
-process.stdin.on("data", value => process.stdout.write(`echo:${value}\r\n`));
+let typed = "";
+process.stdin.on("data", value => {
+  for (const character of value) {
+    if (character === "\u0003") { process.stdout.write("ctrl-c\r\n"); continue; }
+    if (character === "\n" || character === "\r") {
+      if (typed) process.stdout.write(`echo:${typed}\r\n`);
+      typed = "";
+    } else typed += character;
+  }
+});
 process.stdout.write("fake-a1-ready\r\n");
 setTimeout(() => process.stdout.write("detached-output\r\n"), 750);
 setInterval(() => {}, 1000);
@@ -115,7 +124,7 @@ setInterval(() => {}, 1000);
 struct AttachFixture {
     child: Box<dyn Child + Send + Sync>,
     _master: Box<dyn MasterPty + Send>,
-    writer: Box<dyn Write + Send>,
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
     output: mpsc::Receiver<Vec<u8>>,
     retained: Vec<u8>,
 }
@@ -156,7 +165,10 @@ impl AttachFixture {
         let child = pair.slave.spawn_command(command).expect("spawn attach");
         drop(pair.slave);
         let mut reader = pair.master.try_clone_reader().expect("attach reader");
-        let writer = pair.master.take_writer().expect("attach writer");
+        let writer = Arc::new(Mutex::new(
+            pair.master.take_writer().expect("attach writer"),
+        ));
+        let response_writer = writer.clone();
         let (tx, output) = mpsc::channel();
         std::thread::spawn(move || {
             let mut bytes = [0_u8; 16 * 1024];
@@ -164,6 +176,12 @@ impl AttachFixture {
                 match reader.read(&mut bytes) {
                     Ok(0) | Err(_) => return,
                     Ok(count) => {
+                        if bytes[..count].windows(4).any(|value| value == b"\x1b[6n") {
+                            let _ = response_writer
+                                .lock()
+                                .expect("response writer")
+                                .write_all(b"\x1b[24;100R");
+                        }
                         if tx.send(bytes[..count].to_vec()).is_err() {
                             return;
                         }
@@ -180,9 +198,10 @@ impl AttachFixture {
         }
     }
     fn write(&mut self, bytes: &[u8]) {
-        self.writer
+        let mut writer = self.writer.lock().expect("attach writer");
+        writer
             .write_all(bytes)
-            .and_then(|()| self.writer.flush())
+            .and_then(|()| writer.flush())
             .expect("attach input");
     }
     fn output_containing(&mut self, needle: &str, timeout: Duration) -> bool {
