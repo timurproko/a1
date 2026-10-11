@@ -272,8 +272,9 @@ fn controller_boundary_child(
     #[cfg(windows)]
     let (prior, acknowledgement_value) = {
         use windows_sys::Win32::System::Console::{
-            ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT, ENABLE_VIRTUAL_TERMINAL_INPUT, GetConsoleMode,
-            GetStdHandle, STD_INPUT_HANDLE, SetConsoleMode,
+            ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT, ENABLE_PROCESSED_INPUT,
+            ENABLE_VIRTUAL_TERMINAL_INPUT, GetConsoleMode, GetStdHandle, STD_INPUT_HANDLE,
+            SetConsoleMode,
         };
         let handle = unsafe { GetStdHandle(STD_INPUT_HANDLE) };
         let mut mode = 0_u32;
@@ -283,7 +284,10 @@ fn controller_boundary_child(
             let _ = unsafe {
                 SetConsoleMode(
                     handle,
-                    mode & !(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_VIRTUAL_TERMINAL_INPUT),
+                    mode & !(ENABLE_ECHO_INPUT
+                        | ENABLE_LINE_INPUT
+                        | ENABLE_PROCESSED_INPUT
+                        | ENABLE_VIRTUAL_TERMINAL_INPUT),
                 )
             };
         }
@@ -292,10 +296,9 @@ fn controller_boundary_child(
             .flush()
             .map_err(|error| format!("signal controller fixture readiness: {error}"))?;
         let marker = contracts::controller::encode_boundary_marker(generation, nonce.to_be_bytes());
-        let expected_len = b"prior-command".len() + marker.len();
-        let mut observed = Vec::with_capacity(expected_len);
+        let mut observed = Vec::with_capacity(b"prior-command".len() + marker.len());
         let mut input = std::io::stdin().lock();
-        while observed.len() < expected_len {
+        loop {
             let mut chunk = [0_u8; 64];
             let count = input
                 .read(&mut chunk)
@@ -304,9 +307,19 @@ fn controller_boundary_child(
                 return Err("controller PTY queue closed before its marker".to_owned());
             }
             observed.extend_from_slice(&chunk[..count]);
+            if let Some(offset) = observed
+                .windows(marker.len())
+                .position(|candidate| candidate == marker)
+            {
+                break contracts::controller::admit_fixture_stream(
+                    &observed[..offset + marker.len()],
+                )
+                .map_err(|error| error.to_string())?;
+            }
+            if observed.len() > 4096 {
+                return Err("controller PTY queue exceeded its fixture bound".to_owned());
+            }
         }
-        contracts::controller::admit_fixture_stream(&observed[..expected_len])
-            .map_err(|error| error.to_string())?
     };
     #[cfg(not(windows))]
     let (prior, acknowledgement_value) = {
@@ -333,7 +346,7 @@ fn controller_boundary_child(
     };
     let prior = prior.strip_suffix(b"\n").unwrap_or(&prior);
     let prior = prior.strip_suffix(b"\r").unwrap_or(prior);
-    if prior != b"prior-command" {
+    if !prior.ends_with(b"prior-command") {
         return Err("controller marker overtook prior PTY input".to_owned());
     }
     let (acknowledged_generation, acknowledged_nonce) = acknowledgement_value
