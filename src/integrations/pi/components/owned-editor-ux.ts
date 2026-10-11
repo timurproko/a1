@@ -137,7 +137,7 @@ const ATOMIC_SEGMENTATION = Symbol("a1.editor.atomicSegmentation");
 const ATOMIC_SPACE_SENTINEL = "\uE000";
 
 export interface PromptSelectionUxOptions {
-  readonly copyText: (text: string) => void;
+  readonly copyText: (text: string, cut: boolean) => void;
   readonly readClipboardContent: () => Promise<PiShellClipboardContent | null>;
   readonly beginClipboardPaste?: () => PiShellPasteReservation;
   readonly beginTextPaste?: (text: string) => PiShellPasteReservation;
@@ -223,12 +223,12 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       return;
     }
     if (this.keybindings.matches(data, "tui.input.copy") && this.hasSelection()) {
-      this.options.copyText(this.options.expandCopiedText(this.#selectedText()));
+      this.options.copyText(this.options.expandCopiedText(this.#selectedText()), false);
       this.#collapseCopiedSelection();
       return;
     }
     if (this.keybindings.matches(data, "owned.editor.cut") && this.hasSelection()) {
-      this.options.copyText(this.options.expandCopiedText(this.#selectedText()));
+      this.options.copyText(this.options.expandCopiedText(this.#selectedText()), true);
       if (!this.#deleteSelection()) this.#deleteAtomicFocus();
       return;
     }

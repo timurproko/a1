@@ -378,7 +378,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly onPromptSuggestionAccepted?: (text: string) => void;
       readonly onInputSurfaceChanged?: () => void;
       readonly onPromptSuggestionEligibilityChanged?: () => void;
-      readonly onCopyText?: (text: string) => void;
+      readonly onCopyText?: (text: string, cut: boolean) => void;
       readonly readClipboardContent?: (signal?: AbortSignal) => Promise<PiShellClipboardContent | null>;
       readonly captureClipboardPaste?: () => PasteSource;
       readonly pasteDiagnostics?: (event: PasteEvent) => void;
