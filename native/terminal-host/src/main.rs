@@ -291,7 +291,7 @@ fn controller_boundary_child(
                 )
             };
         }
-        println!("controller-ready");
+        print!("\x1b[?2004hcontroller-ready\r\n");
         std::io::stdout()
             .flush()
             .map_err(|error| format!("signal controller fixture readiness: {error}"))?;
@@ -449,6 +449,11 @@ fn probe_controller_boundary() -> Result<(), String> {
                 String::from_utf8_lossy(&startup)
             ));
         }
+        if cfg!(windows) {
+            writer
+                .write_all(b"\x1b[200~")
+                .map_err(|error| format!("begin controller fixture paste: {error}"))?;
+        }
         writer
             .write_all(b"prior-command")
             .and_then(|_| {
@@ -466,7 +471,11 @@ fn probe_controller_boundary() -> Result<(), String> {
             ))
             .map_err(|error| format!("write PTY marker: {error}"))?;
         writer
-            .write_all(if cfg!(windows) { b"\r\n" } else { b"\n" })
+            .write_all(if cfg!(windows) {
+                b"\x1b[201~\r\n"
+            } else {
+                b"\n"
+            })
             .map_err(|error| format!("complete PTY marker line: {error}"))?;
         writer
             .flush()
