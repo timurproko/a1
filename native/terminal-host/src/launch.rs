@@ -211,7 +211,10 @@ pub fn run_fixture_child(role: &str, profile: &str, ready: &str) -> Result<(), L
     }
     let profile = std::fs::canonicalize(profile)
         .map_err(|error| LaunchError(format!("verify fixture profile: {error}")))?;
-    if std::env::current_dir().map_err(|error| LaunchError(error.to_string()))? != profile {
+    let current_dir = std::env::current_dir()
+        .and_then(std::fs::canonicalize)
+        .map_err(|error| LaunchError(format!("verify fixture cwd: {error}")))?;
+    if current_dir != profile {
         return Err(LaunchError(
             "resident fixture cwd does not match its canonical profile".to_owned(),
         ));
