@@ -42,25 +42,7 @@ setInterval(() => {}, 1000);
     .expect("fake child");
     let address = fixture_endpoint(&runtime);
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
-    let started = Command::new(&executable)
-        .args([
-            "server",
-            "--detach",
-            "--profile",
-            text(&profile),
-            "--data-dir",
-            text(&data),
-            "--runtime-dir",
-            text(&runtime),
-        ])
-        .env("A1_TABS_ENDPOINT", &address)
-        .output()
-        .expect("start server");
-    assert!(
-        started.status.success(),
-        "{}",
-        String::from_utf8_lossy(&started.stderr)
-    );
+    start_server(&executable, &profile, &data, &runtime, &address);
 
     let credentials_root = data
         .join("tabs")
@@ -138,12 +120,24 @@ setInterval(() => {}, 1000);
     drop(first);
     std::thread::sleep(Duration::from_millis(1_000));
 
+    let holder_before_replacement = holder_pids(&credentials_root);
+    let epoch_before_replacement = registry_epoch(&credentials_root);
+    assert_eq!(holder_before_replacement.len(), 1);
+    for pid in server_pids(&credentials_root) {
+        terminate(pid);
+    }
+    std::thread::sleep(Duration::from_millis(500));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    cleanup.pids.extend(server_pids(&credentials_root));
+
     let mut second = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
     assert!(
         second.output_containing("detached-output", Duration::from_secs(15)),
         "{}",
         second.output_text()
     );
+    assert_eq!(holder_pids(&credentials_root), holder_before_replacement);
+    assert!(registry_epoch(&credentials_root) > epoch_before_replacement);
     second.write(b"after-reattach\n");
     assert!(
         second.output_containing("echo:after-reattach", Duration::from_secs(10)),
@@ -308,6 +302,32 @@ impl AttachFixture {
     }
 }
 
+fn start_server(executable: &Path, profile: &Path, data: &Path, runtime: &Path, address: &str) {
+    let mut diagnostic = String::new();
+    for _ in 0..20 {
+        let started = Command::new(executable)
+            .args([
+                "server",
+                "--detach",
+                "--profile",
+                text(profile),
+                "--data-dir",
+                text(data),
+                "--runtime-dir",
+                text(runtime),
+            ])
+            .env("A1_TABS_ENDPOINT", address)
+            .output()
+            .expect("start server");
+        if started.status.success() {
+            return;
+        }
+        diagnostic = String::from_utf8_lossy(&started.stderr).into_owned();
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    panic!("server did not start: {diagnostic}");
+}
+
 fn server_pids(root: &Path) -> Vec<u32> {
     serde_json::from_slice::<serde_json::Value>(
         &std::fs::read(root.join("server.json")).expect("server metadata"),
@@ -316,6 +336,12 @@ fn server_pids(root: &Path) -> Vec<u32> {
     .and_then(|value| value.get("pid").and_then(serde_json::Value::as_u64))
     .map(|pid| vec![pid as u32])
     .unwrap_or_default()
+}
+fn registry_epoch(root: &Path) -> u64 {
+    RegistryStore::read(&root.join("registry.json"))
+        .expect("read registry")
+        .expect("registry document")
+        .epoch
 }
 fn holder_pids(root: &Path) -> Vec<u32> {
     RegistryStore::read(&root.join("registry.json"))
