@@ -218,7 +218,12 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 "holder.exit" => {
                     terminal.write(render_strip("ended", "agent", columns).as_bytes())?;
                 }
-                "error" => return Err("resident tab failed to start".to_owned()),
+                "error" => {
+                    let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    return Err(result
+                        .message
+                        .unwrap_or_else(|| "resident tab failed to start".to_owned()));
+                }
                 "attached" => {
                     let _: (Option<u64>, BridgeAttachment) = wire::body(&payload)?;
                 }

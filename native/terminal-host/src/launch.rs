@@ -213,7 +213,12 @@ pub fn launch_resident_with_config<T: Serialize>(
         std::thread::sleep(Duration::from_millis(20));
     };
     let _ = std::fs::remove_file(&result);
-    verify_detached(child.id())?;
+    // Platform: a Windows holder is launched directly by the already-verified detached server.
+    // Requiring it to report no job after its PTY child has established containment rejects valid
+    // interactive hosts; server detachment is the survival authority for this child role.
+    if !cfg!(windows) || role != ResidentRole::Holder {
+        verify_detached(child.id())?;
+    }
     Ok((
         child,
         LaunchObservation {
