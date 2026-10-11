@@ -20,7 +20,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-11-resident-tabs-contracts/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-11-resident-tabs-contracts/acceptance.md",
   "finalizedDate": "2026-10-11",
-  "specBaseSha": "2a8be1665aa556cf3ab9c37a5504ca18fafb16a8",
+  "specBaseSha": "e2a1a8aed74aebcd913172f9f2cbd17bb58e4bc6",
   "acceptanceScenarios": [
     "One shared Rust package exposes the retained proof binary, contract library, and test-only Node-API 9 session-lock artifact without product loading or packaging.",
     "Windows x64, Linux x64, and macOS arm64 implementations cover native identity, owner endpoints, fixed-role detachment, writer-lock custody, and durable replacement with bounded evidence claims.",
