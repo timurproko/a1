@@ -1,6 +1,6 @@
 # Implementation evidence
 
-Evidence is recorded by platform. A passing contracts-only build does not certify the native runtime, and the pseudoterminal fixture does not replace the physical terminal-close and SSH-loss checks in task 7.2.
+Evidence is recorded by platform. A passing contracts-only build does not certify the native runtime. Milestone 2 has complete Windows physical evidence; its macOS and Linux native role fixtures are implementation evidence, not physical certification, which is explicitly deferred to milestone 6 (`resident-tabs-certification`).
 
 ## Local Windows x64
 
@@ -36,15 +36,15 @@ Validated locally across the final implementation sequence:
 - `npm run test:terminal-host`: passed in [run 38151058837, job 114504652565](https://github.com/timurproko/a1/actions/runs/38151058837/job/114504652565).
 - The server/holder/attach pseudoterminal fixture passed create, input, double-`Ctrl+C` detach, output while detached, reattach, forced attach-process loss, retained surface, and input after reattach.
 - The expanded role fixture, including concurrent server startup, serialized attach admission, mode enable/restore, keyboard negotiation, nonzero second-client refusal, retained output, `SIGHUP` launch-session loss, and cold holder adoption after server death, passed for implementation head `7bdcec50` in [run 38156862241, job 114521630913](https://github.com/timurproko/a1/actions/runs/38156862241/job/114521630913).
-- Physical terminal-emulator close, SSH-loss, and parent-shell restoration evidence remains pending.
+- Physical terminal-emulator close, `sshd` loss, and parent-shell restoration were not run because no isolated Linux worker was available. They remain a disclosed certification gap deferred to milestone 6; the CI fixture is not relabeled as physical evidence.
 
 ## CI macOS arm64
 
 - `npm run test:terminal-host`: passed in [run 38151058837, job 114504652528](https://github.com/timurproko/a1/actions/runs/38151058837/job/114504652528).
 - The server/holder/attach pseudoterminal fixture passed create, input, double-`Ctrl+C` detach, output while detached, reattach, forced attach-process loss, retained surface, and input after reattach.
 - The expanded role fixture, including concurrent server startup, serialized attach admission, mode enable/restore, keyboard negotiation, nonzero second-client refusal, retained output, `SIGHUP` launch-session loss, and cold holder adoption after server death, passed for implementation head `7bdcec50` in [run 38156862241, job 114521630943](https://github.com/timurproko/a1/actions/runs/38156862241/job/114521630943).
-- Physical Terminal.app-close, SSH-loss, and parent-shell restoration evidence remains pending.
+- Physical Terminal.app close, `sshd` loss, and parent-shell restoration were not run because no isolated macOS worker was available. They remain a disclosed certification gap deferred to milestone 6; the CI fixture is not relabeled as physical evidence.
 
-## Physical acceptance still required
+## Milestone 2 acceptance boundary
 
-Before this change can be accepted or PR #746 can leave draft, task 7.2 must be run on isolated Windows, macOS, and Linux workers with the CI-built host selected through `A1_TERMINAL_HOST_PATH`. Each platform record must show terminal-window loss and SSH-session loss while work continues, retained output on reattach, successful input after reattach, `/quit` and double-`Ctrl+C` detach, and a usable parent shell after forced attach death. Empty-editor `Ctrl+D` is covered by the lifecycle suite but should also be exercised during the physical pass.
+The maintainer approved milestone 2 to proceed with complete isolated Windows physical evidence plus the existing macOS and Linux native launch-tree/`SIGHUP` role fixtures. This accepts delivery of the default-off implementation; it does not certify physical survival on macOS or Linux and does not permit those missing results to be inferred from Windows or CI. Milestone 6 (`resident-tabs-certification`) retains the exact-package Terminal.app/Linux-emulator, `sshd`-loss, reattach-input, detach, and parent-shell physical gates before certification or any default-on consideration on those platforms.
