@@ -111,11 +111,13 @@ pub struct AttachOptions<'a> {
 }
 
 pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
+    fixture_trace("credentials");
     let token =
         crate::endpoint::endpoint_token(options.profile).map_err(|error| error.to_string())?;
     let credentials =
         ProfileCredentials::load_or_create(&options.data_dir.join("tabs").join(token))?;
     let mut stream = endpoint::connect(options.endpoint).map_err(|error| error.to_string())?;
+    fixture_trace("connected");
     wire::send(
         &mut stream,
         "hello",
@@ -137,9 +139,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         return Err("resident server refused attach".to_owned());
     }
     let _: (Option<u64>, Welcome) = wire::body(&payload)?;
+    fixture_trace("welcomed");
     let (columns, outer_rows) = outer_size()?;
     let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
     let environment = std::env::vars().collect::<Vec<_>>();
+    fixture_trace("sized");
     wire::send(
         &mut stream,
         "attach.start",
@@ -168,7 +172,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         let _ = message_tx.send(Vec::new());
     });
 
+    fixture_trace("reader-started");
     let mut terminal = OuterTerminal::enter()?;
+    fixture_trace("outer-entered");
     terminal.write(render_strip("starting", "agent", columns).as_bytes())?;
     let started = Instant::now();
     let mut chord = DoubleCtrlC::new(options.clear_exit_ms);
@@ -314,6 +320,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             _ => {}
         }
     }
+}
+
+fn fixture_trace(stage: &str) {
+    #[cfg(feature = "resident-fixtures")]
+    if std::env::var_os("TERMINAL_HOST_FIXTURE_TRACE").is_some() {
+        eprintln!("attach-fixture:{stage}");
+    }
+    let _ = stage;
 }
 
 fn outer_size() -> Result<(u16, u16), String> {

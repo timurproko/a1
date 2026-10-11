@@ -146,6 +146,7 @@ impl AttachFixture {
             .expect("attach pty");
         let mut command = CommandBuilder::new(executable);
         command.env("TERMINAL_HOST_FIXTURE_SIZE", "100x24");
+        command.env("TERMINAL_HOST_FIXTURE_TRACE", "1");
         command.args([
             "attach",
             "--endpoint",
@@ -173,15 +174,20 @@ impl AttachFixture {
         let (tx, output) = mpsc::channel();
         std::thread::spawn(move || {
             let mut bytes = [0_u8; 16 * 1024];
+            let mut query_tail = Vec::new();
             loop {
                 match reader.read(&mut bytes) {
                     Ok(0) | Err(_) => return,
                     Ok(count) => {
-                        if bytes[..count].windows(4).any(|value| value == b"\x1b[6n") {
+                        query_tail.extend_from_slice(&bytes[..count]);
+                        if query_tail.windows(4).any(|value| value == b"\x1b[6n") {
                             let mut response = response_writer.lock().expect("response writer");
                             let _ = response
                                 .write_all(b"\x1b[24;100R")
                                 .and_then(|()| response.flush());
+                            query_tail.clear();
+                        } else if query_tail.len() > 3 {
+                            query_tail.drain(..query_tail.len() - 3);
                         }
                         if tx.send(bytes[..count].to_vec()).is_err() {
                             return;
