@@ -17,8 +17,11 @@ Validated locally across the final implementation sequence:
 - Physical Windows acceptance used the isolated `.artifacts/physical-profile` profile and the CI-built artifact for head `09028be5` from [run 38159593912](https://github.com/timurproko/a1/actions/runs/38159593912).
 - Windows Terminal tab closure while a one-line-per-second command was active: passed. The verified server and holder survived, output advanced from the pre-close prefix through `resident-59`, and reattach restored that output and the same A1 session.
 - Forced attach-process termination: passed. The server and holder remained alive and the surviving Git Bash parent accepted `printf 'shell-ok\\n'`.
-- Post-reattach submission: inconclusive and blocking. A prompt was visible in the restored editor and history navigation plus `Ctrl+J` produced visible editor changes, but Enter did not submit in that state. This does not establish that the native attach dropped Return; editor state, retained rendering, and transport handling must be isolated before a fix is selected.
-- Windows OpenSSH-loss, `/quit`, double-`Ctrl+C`, empty-editor `Ctrl+D`, and conclusive input-after-reattach evidence remain pending.
+- Input after reattach: passed on a clean diagnostic reattach. History navigation worked and both Enter and its carriage-return equivalent `Ctrl+M` submitted successfully. An earlier non-submitting restored editor state did not reproduce and was not attributed to native Return handling; the speculative key-event change was reverted.
+- Double-`Ctrl+C` detach: passed from a verified clean server/holder/attach state and printed the exact `1 tab still running · run a1 to return` notice.
+- `/quit` detach: passed after reattach and printed the exact resident-tab notice.
+- Empty-editor `Ctrl+D` detach: passed after reattach and printed the exact resident-tab notice.
+- Windows OpenSSH loss: passed using the Windows system OpenSSH client, key authentication, and a disposable loopback SSH/ConPTY endpoint bound only to `127.0.0.1`. Closing the complete Git Bash tab removed the SSH attach client while the verified server and holder remained alive; local reattach restored the same `ask me 1 questions` content and accepted a new prompt.
 
 ## CI Windows x64
 
@@ -26,7 +29,7 @@ Validated locally across the final implementation sequence:
 - The server/holder/attach pseudoterminal fixture passed create, input, double-`Ctrl+C` detach, output while detached, reattach, forced attach-process loss, retained surface, and input after reattach.
 - The expanded role fixture, including concurrent server startup, serialized attach admission, mode enable/restore, keyboard negotiation, nonzero second-client refusal, retained output, Windows job-close launch-tree loss, and cold holder adoption after server death, passed for implementation head `7bdcec50` in [run 38156862241, job 114521630855](https://github.com/timurproko/a1/actions/runs/38156862241/job/114521630855).
 - Exact-head development validation, including the Windows holder-start correction, passed in [run 38159593912](https://github.com/timurproko/a1/actions/runs/38159593912).
-- Physical Windows details and the blocking inconclusive submission result are recorded in the Local Windows x64 section.
+- Physical Windows details are recorded in the Local Windows x64 section.
 
 ## CI Linux x64
 
