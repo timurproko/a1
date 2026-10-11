@@ -1,7 +1,7 @@
 # resident-terminal-host Specification
 
 ## Purpose
-Define the cross-platform native primitives, bounded protocol, and controller-transfer foundation that later resident terminal sessions can use without introducing product wiring or user-visible tab behavior.
+TBD - created by archiving change resident-tabs-contracts. Update Purpose after archive.
 
 ## Requirements
 
