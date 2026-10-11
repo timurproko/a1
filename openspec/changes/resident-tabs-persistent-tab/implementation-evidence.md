@@ -10,7 +10,7 @@ Validated locally across the final implementation sequence:
 - Focused post-reconciliation resident-tabs, session-shell lifecycle, settings, settings-app, composition, and launch-guardian suites: 11 files and 202 tests passed.
 - `npm run typecheck`: passed.
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --all-targets --features resident-fixtures`: passed.
-- `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo test --lib`: 31 passed.
+- `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo test --lib`: 32 passed, including the Windows owner-only ACL assertion.
 - `npx openspec validate resident-tabs-persistent-tab --strict --no-interactive`: passed.
 - Architecture, full naming, code-documentation, docs-governance, and repository-governance checks: passed.
 - Full local Zig/native execution was not attempted. Managed antivirus previously blocked a vendored malformed-image fixture; the downloaded Zig executable, archive, and temporary build directory remain removed, and no antivirus exclusion was added.
@@ -20,21 +20,21 @@ Validated locally across the final implementation sequence:
 
 - `npm run test:terminal-host`: passed in [run 38151058837, job 114504652524](https://github.com/timurproko/a1/actions/runs/38151058837/job/114504652524).
 - The server/holder/attach pseudoterminal fixture passed create, input, double-`Ctrl+C` detach, output while detached, reattach, forced attach-process loss, retained surface, and input after reattach.
-- The expanded role fixture, including serialized attach admission, mode enable/restore, keyboard negotiation, second-client refusal, retained output, forced attach loss, and cold holder adoption after server death, passed for final head `ca803c34` in [run 38155464520, job 114517618223](https://github.com/timurproko/a1/actions/runs/38155464520/job/114517618223).
+- The expanded role fixture, including concurrent server startup, serialized attach admission, mode enable/restore, keyboard negotiation, nonzero second-client refusal, retained output, Windows job-close launch-tree loss, and cold holder adoption after server death, passed for implementation head `7bdcec50` in [run 38156862241, job 114521630855](https://github.com/timurproko/a1/actions/runs/38156862241/job/114521630855).
 - Physical Windows Terminal-close, Windows OpenSSH-loss, and parent-shell restoration evidence remains pending.
 
 ## CI Linux x64
 
 - `npm run test:terminal-host`: passed in [run 38151058837, job 114504652565](https://github.com/timurproko/a1/actions/runs/38151058837/job/114504652565).
 - The server/holder/attach pseudoterminal fixture passed create, input, double-`Ctrl+C` detach, output while detached, reattach, forced attach-process loss, retained surface, and input after reattach.
-- The expanded role fixture, including serialized attach admission, mode enable/restore, keyboard negotiation, second-client refusal, retained output, forced attach loss, and cold holder adoption after server death, passed for final head `ca803c34` in [run 38155464520, job 114517618254](https://github.com/timurproko/a1/actions/runs/38155464520/job/114517618254).
+- The expanded role fixture, including concurrent server startup, serialized attach admission, mode enable/restore, keyboard negotiation, nonzero second-client refusal, retained output, `SIGHUP` launch-session loss, and cold holder adoption after server death, passed for implementation head `7bdcec50` in [run 38156862241, job 114521630913](https://github.com/timurproko/a1/actions/runs/38156862241/job/114521630913).
 - Physical terminal-emulator close, SSH-loss, and parent-shell restoration evidence remains pending.
 
 ## CI macOS arm64
 
 - `npm run test:terminal-host`: passed in [run 38151058837, job 114504652528](https://github.com/timurproko/a1/actions/runs/38151058837/job/114504652528).
 - The server/holder/attach pseudoterminal fixture passed create, input, double-`Ctrl+C` detach, output while detached, reattach, forced attach-process loss, retained surface, and input after reattach.
-- The expanded role fixture, including serialized attach admission, mode enable/restore, keyboard negotiation, second-client refusal, retained output, forced attach loss, and cold holder adoption after server death, passed for final head `ca803c34` in [run 38155464520, job 114517618210](https://github.com/timurproko/a1/actions/runs/38155464520/job/114517618210).
+- The expanded role fixture, including concurrent server startup, serialized attach admission, mode enable/restore, keyboard negotiation, nonzero second-client refusal, retained output, `SIGHUP` launch-session loss, and cold holder adoption after server death, passed for implementation head `7bdcec50` in [run 38156862241, job 114521630943](https://github.com/timurproko/a1/actions/runs/38156862241/job/114521630943).
 - Physical Terminal.app-close, SSH-loss, and parent-shell restoration evidence remains pending.
 
 ## Physical acceptance still required
