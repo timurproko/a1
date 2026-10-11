@@ -360,7 +360,7 @@ fn spawn_with_fallback(
 ) -> Result<ResidentProcess, LaunchError> {
     #[cfg(windows)]
     {
-        // The server must escape a possibly foreign launcher job through WMI. A holder is created
+        // Platform: the server must escape a possibly foreign launcher job through WMI. A holder is created
         // by that already-independent server and must launch directly; recursively invoking WMI
         // from the detached service can block in non-interactive Windows sessions.
         if role != ResidentRole::Holder {
