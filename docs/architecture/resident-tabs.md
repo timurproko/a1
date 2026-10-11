@@ -148,8 +148,8 @@ Alternatives considered:
 ### 3. Host scope, endpoints, writer authority, and credentials
 
 - There is **one server per OS user × canonical A1 profile root**, independent of the release cohort. Tabs must outlive release changes, and the supervisor is forbidden from retaining runtime processes.
-  - Windows endpoint: `\\.\pipe\a1-tabs-<sha256(profileHome\0runtimeDir)[0:20]>`.
-  - macOS and Linux endpoint: a Unix domain socket `a1-tabs-<same hash>.sock` inside an owner-only (`0700`) per-user runtime directory (`$XDG_RUNTIME_DIR` when set, otherwise a private directory under the profile's runtime dir), kept short enough for the platform's socket path limit.
+  - Windows endpoint: `\\.\pipe\a1-tabs-<sha256(canonicalProfileHome)[0:20]>`.
+  - macOS and Linux endpoint: a Unix domain socket `a1-tabs-<same profile hash>.sock` inside an owner-only (`0700`) per-user runtime directory (`$XDG_RUNTIME_DIR` when set, otherwise a private directory under the profile's runtime dir), kept short enough for the platform's socket path limit.
   - Holders use `…-h-<tabId>` endpoints.
   - Hermetic override: `A1_TABS_ENDPOINT`, together with the `A1_*_DIR` overrides.
 - **The endpoint is discovery; the writer lease is authority.** A starting server probes with a real handshake. If a live server answers, it exits as `already-running` and joins the winner. A failed probe does not authorize blind endpoint reclaim: the starter reads the owner marker, verifies pid and native start identity, requests termination, and waits for the owner-only OS-exclusive registry-writer lease. If the owner cannot be verified or the lease cannot be acquired, startup fails closed instead of creating split brain.

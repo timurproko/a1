@@ -133,10 +133,6 @@ pub fn endpoint_token(profile: &Path) -> Result<String, EndpointError> {
     })?;
     let mut digest = Sha256::new();
     digest.update(canonical.to_string_lossy().as_bytes());
-    digest.update([0]);
-    if let Some(runtime) = std::env::var_os("A1_RUNTIME_DIR") {
-        digest.update(runtime.to_string_lossy().as_bytes());
-    }
     Ok(hex::encode(digest.finalize())[..20].to_owned())
 }
 

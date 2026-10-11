@@ -31,7 +31,7 @@ setInterval(() => {}, 1000);
 "#,
     )
     .expect("fake child");
-    let address = fixture_endpoint(root.path());
+    let address = fixture_endpoint(&runtime);
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
     let started = Command::new(&executable)
         .args([
