@@ -5,8 +5,11 @@ mod workspace;
 use std::collections::HashSet;
 use std::env;
 use std::fs;
+#[cfg(not(windows))]
+use std::io::BufRead;
 use std::io::{Read, Write};
-use std::process::ExitCode;
+use std::process::{Command, ExitCode};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -22,6 +25,7 @@ use crossterm::{
     event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
 };
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
+use terminal_host_contracts as contracts;
 
 use crate::ghostty::{
     GhosttyTerminal, KeyEncoder, MouseAction, MouseButton, MouseEncoder, MouseInput,
@@ -54,7 +58,22 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         Some("--probe-scroll") => probe_scroll(),
         Some("--probe-selection") => probe_selection(),
         Some("--probe-input") => probe_input(),
+        Some("--probe-contracts") => probe_contracts(),
+        Some("--probe-durable") => probe_durable_replacement(),
+        Some("--durable-replace-child") if args.len() == 3 => {
+            durable_replace_child(&args[1], &args[2])
+        }
+        Some("--probe-controller-boundary") => probe_controller_boundary(),
+        Some("--controller-boundary-child") if args.len() == 4 => {
+            controller_boundary_child(&args[1], &args[2], &args[3])
+        }
+        #[cfg(feature = "resident-fixtures")]
+        Some("--probe-resident-launch") => probe_resident_launch(),
         Some("--probe-2x2") => probe_two_by_two(),
+        Some("--resident-fixture-child") if args.len() == 4 => {
+            contracts::launch::run_fixture_child(&args[1], &args[2], &args[3])
+                .map_err(|error| error.to_string())
+        }
         Some("--topology-2x2") => {
             println!(
                 "{}",
@@ -75,7 +94,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         Some("--run") => run_interactive(&args[1..]),
         _ => {
             eprintln!(
-                "usage: a1-terminal-host --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-2x2 | --topology-2x2 | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
+                "usage: a1-terminal-host --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-contracts | --probe-durable | --probe-controller-boundary | --probe-resident-launch | --probe-2x2 | --topology-2x2 | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
             );
             Err("expected a mode".to_owned())
         }
@@ -214,6 +233,367 @@ fn probe_input() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(feature = "resident-fixtures")]
+fn probe_resident_launch() -> Result<(), String> {
+    let root = env::temp_dir().join(format!(
+        "a1-resident-launch-probe-{}-{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    fs::create_dir_all(&root).map_err(|error| format!("create resident launch probe: {error}"))?;
+    let result = (|| {
+        let (mut child, observation) =
+            contracts::launch::launch_resident(contracts::launch::ResidentRole::Fixture, &root)
+                .map_err(|error| error.to_string())?;
+        if child.has_exited().map_err(|error| error.to_string())? {
+            return Err("resident fixture exited after verified readiness".to_owned());
+        }
+        println!(
+            "{{\"schema\":\"a1-resident-launch-probe-v1\",\"pid\":{},\"mode\":\"{}\",\"survived\":true}}",
+            observation.process.pid, observation.mode
+        );
+        child.terminate().map_err(|error| error.to_string())
+    })();
+    let _ = fs::remove_dir_all(&root);
+    result
+}
+
+fn controller_boundary_child(
+    generation: &str,
+    nonce: &str,
+    acknowledgement: &str,
+) -> Result<(), String> {
+    let generation = generation
+        .parse::<u64>()
+        .map_err(|error| format!("parse controller generation: {error}"))?;
+    let nonce = nonce
+        .parse::<u128>()
+        .map_err(|error| format!("parse controller nonce: {error}"))?;
+    #[cfg(windows)]
+    let (prior, acknowledgement_value) = {
+        use windows_sys::Win32::System::Console::{
+            ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT, ENABLE_PROCESSED_INPUT,
+            ENABLE_VIRTUAL_TERMINAL_INPUT, GetConsoleMode, GetStdHandle, STD_INPUT_HANDLE,
+            SetConsoleMode,
+        };
+        let handle = unsafe { GetStdHandle(STD_INPUT_HANDLE) };
+        let mut mode = 0_u32;
+        if unsafe { GetConsoleMode(handle, &mut mode) } != 0 {
+            // Platform: a virtualized ConPTY standard handle can reject mode changes; a line
+            // terminator below still releases its queue so the same marker bytes are inspected.
+            let _ = unsafe {
+                SetConsoleMode(
+                    handle,
+                    mode & !(ENABLE_ECHO_INPUT
+                        | ENABLE_LINE_INPUT
+                        | ENABLE_PROCESSED_INPUT
+                        | ENABLE_VIRTUAL_TERMINAL_INPUT),
+                )
+            };
+        }
+        println!("controller-ready");
+        std::io::stdout()
+            .flush()
+            .map_err(|error| format!("signal controller fixture readiness: {error}"))?;
+        let marker = contracts::controller::encode_boundary_marker(generation, nonce.to_be_bytes());
+        // Platform: ConPTY consumes raw DCS input syntax. Its fixture transport therefore carries
+        // the exact marker bytes as hex, which the child decodes only after receiving earlier bytes.
+        let transport = format!("marker-hex:{}", hex::encode(&marker)).into_bytes();
+        let mut observed = Vec::with_capacity(b"prior-command".len() + transport.len());
+        let mut input = std::io::stdin().lock();
+        loop {
+            let mut chunk = [0_u8; 64];
+            let count = input
+                .read(&mut chunk)
+                .map_err(|error| format!("read raw PTY queue: {error}"))?;
+            if count == 0 {
+                return Err("controller PTY queue closed before its marker".to_owned());
+            }
+            observed.extend_from_slice(&chunk[..count]);
+            if let Some(offset) = observed
+                .windows(transport.len())
+                .position(|candidate| candidate == transport)
+            {
+                let mut logical_stream = observed[..offset].to_vec();
+                logical_stream.extend_from_slice(&marker);
+                break contracts::controller::admit_fixture_stream(&logical_stream)
+                    .map_err(|error| error.to_string())?;
+            }
+            if observed.len() > 4096 {
+                return Err("controller PTY queue exceeded its fixture bound".to_owned());
+            }
+        }
+    };
+    #[cfg(not(windows))]
+    let (prior, acknowledgement_value) = {
+        println!("controller-ready");
+        std::io::stdout()
+            .flush()
+            .map_err(|error| format!("signal controller fixture readiness: {error}"))?;
+        let mut input = std::io::BufReader::new(std::io::stdin().lock());
+        let mut prior = String::new();
+        let mut marker = String::new();
+        input
+            .read_line(&mut prior)
+            .map_err(|error| format!("read prior PTY command: {error}"))?;
+        input
+            .read_line(&mut marker)
+            .map_err(|error| format!("read PTY marker: {error}"))?;
+        let (_, acknowledgement_value) = contracts::controller::admit_fixture_stream(
+            marker
+                .trim_end_matches(|value| value == '\r' || value == '\n')
+                .as_bytes(),
+        )
+        .map_err(|error| error.to_string())?;
+        (prior.into_bytes(), acknowledgement_value)
+    };
+    let prior = prior.strip_suffix(b"\n").unwrap_or(&prior);
+    let prior = prior.strip_suffix(b"\r").unwrap_or(prior);
+    if !prior.ends_with(b"prior-command") {
+        return Err("controller marker overtook prior PTY input".to_owned());
+    }
+    let (acknowledged_generation, acknowledged_nonce) = acknowledgement_value
+        .ok_or_else(|| "child did not observe a complete PTY marker".to_owned())?;
+    if acknowledged_generation != generation || acknowledged_nonce != nonce.to_be_bytes() {
+        return Err("child observed the wrong PTY marker".to_owned());
+    }
+    fs::write(
+        acknowledgement,
+        format!(
+            "{}:{:032x}",
+            acknowledged_generation,
+            u128::from_be_bytes(acknowledged_nonce)
+        ),
+    )
+    .map_err(|error| format!("write owner acknowledgement: {error}"))
+}
+
+fn probe_controller_boundary() -> Result<(), String> {
+    let generation = 23_u64;
+    let nonce = 0x00112233445566778899aabbccddeeff_u128;
+    let root = env::temp_dir().join(format!(
+        "a1-controller-boundary-{}-{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    fs::create_dir_all(&root)
+        .map_err(|error| format!("create controller boundary root: {error}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o700))
+            .map_err(|error| format!("protect controller boundary root: {error}"))?;
+    }
+    let acknowledgement = root.join("ack");
+    let result = (|| {
+        let pair = NativePtySystem::default()
+            .openpty(PtySize {
+                rows: 4,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|error| format!("open controller boundary PTY: {error}"))?;
+        let mut command = CommandBuilder::new(
+            env::current_exe().map_err(|error| format!("resolve controller child: {error}"))?,
+        );
+        command.args([
+            "--controller-boundary-child",
+            &generation.to_string(),
+            &nonce.to_string(),
+            &acknowledgement.to_string_lossy(),
+        ]);
+        let mut child = pair
+            .slave
+            .spawn_command(command)
+            .map_err(|error| format!("spawn controller boundary child: {error}"))?;
+        drop(pair.slave);
+        let mut reader = pair
+            .master
+            .try_clone_reader()
+            .map_err(|error| format!("open controller boundary reader: {error}"))?;
+        let (output_sender, output) = mpsc::channel::<Vec<u8>>();
+        thread::spawn(move || {
+            let mut buffer = [0_u8; 256];
+            while let Ok(count) = reader.read(&mut buffer) {
+                if count == 0 || output_sender.send(buffer[..count].to_vec()).is_err() {
+                    break;
+                }
+            }
+        });
+        let mut writer = pair
+            .master
+            .take_writer()
+            .map_err(|error| format!("open controller boundary writer: {error}"))?;
+        let ready_deadline = Instant::now() + Duration::from_secs(4);
+        let mut startup = Vec::new();
+        let mut cursor_answered = false;
+        while Instant::now() < ready_deadline
+            && !String::from_utf8_lossy(&startup).contains("controller-ready")
+        {
+            if let Ok(bytes) = output.recv_timeout(Duration::from_millis(20)) {
+                startup.extend(bytes);
+                if !cursor_answered && startup.windows(4).any(|bytes| bytes == b"\x1b[6n") {
+                    writer
+                        .write_all(b"\x1b[1;1R")
+                        .and_then(|()| writer.flush())
+                        .map_err(|error| {
+                            format!("answer controller fixture cursor query: {error}")
+                        })?;
+                    cursor_answered = true;
+                }
+            }
+        }
+        if !String::from_utf8_lossy(&startup).contains("controller-ready") {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(format!(
+                "controller boundary child did not become ready: {}",
+                String::from_utf8_lossy(&startup)
+            ));
+        }
+        writer
+            .write_all(b"prior-command")
+            .and_then(|_| {
+                if cfg!(windows) {
+                    Ok(())
+                } else {
+                    writer.write_all(b"\n")
+                }
+            })
+            .map_err(|error| format!("write prior PTY input: {error}"))?;
+        let marker = contracts::controller::encode_boundary_marker(generation, nonce.to_be_bytes());
+        if cfg!(windows) {
+            writer
+                .write_all(format!("marker-hex:{}", hex::encode(&marker)).as_bytes())
+                .map_err(|error| format!("write PTY marker transport: {error}"))?;
+        } else {
+            writer
+                .write_all(&marker)
+                .map_err(|error| format!("write PTY marker: {error}"))?;
+        }
+        writer
+            .write_all(if cfg!(windows) { b"\r\n" } else { b"\n" })
+            .map_err(|error| format!("complete PTY marker line: {error}"))?;
+        writer
+            .flush()
+            .map_err(|error| format!("flush controller boundary PTY: {error}"))?;
+        let deadline = Instant::now() + Duration::from_secs(4);
+        while !acknowledgement.exists() && Instant::now() < deadline {
+            while let Ok(bytes) = output.try_recv() {
+                startup.extend(bytes);
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        if !acknowledgement.exists() {
+            while let Ok(bytes) = output.try_recv() {
+                startup.extend(bytes);
+            }
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(format!(
+                "controller boundary acknowledgement exceeded four seconds: {}",
+                String::from_utf8_lossy(&startup)
+            ));
+        }
+        let status = child
+            .wait()
+            .map_err(|error| format!("wait for controller boundary child: {error}"))?;
+        if !status.success() || !acknowledgement.exists() {
+            return Err(
+                "controller boundary child did not acknowledge after prior input".to_owned(),
+            );
+        }
+        let ack = fs::read_to_string(&acknowledgement)
+            .map_err(|error| format!("read controller acknowledgement: {error}"))?;
+        if ack != format!("{generation}:{nonce:032x}") {
+            return Err("controller acknowledgement did not match owner nonce".to_owned());
+        }
+        println!(
+            "{{\"schema\":\"a1-controller-boundary-probe-v1\",\"samePtyQueue\":true,\"ownerAcknowledgement\":true}}"
+        );
+        Ok(())
+    })();
+    let _ = fs::remove_dir_all(&root);
+    result
+}
+
+fn durable_replace_child(target: &str, kill_step: &str) -> Result<(), String> {
+    let kill_step = contracts::durable::DurabilityStep::parse(kill_step)
+        .ok_or_else(|| "unknown durability kill step".to_owned())?;
+    contracts::durable::replace_with_observer(
+        std::path::Path::new(target),
+        b"new durable bytes",
+        |step| {
+            if step == kill_step {
+                std::process::abort();
+            }
+            Ok(())
+        },
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn probe_durable_replacement() -> Result<(), String> {
+    let root = env::temp_dir().join(format!(
+        "a1-durable-probe-{}-{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    fs::create_dir_all(&root).map_err(|error| format!("create durability probe: {error}"))?;
+    let target = root.join("state.bin");
+    let executable = env::current_exe()
+        .map_err(|error| format!("resolve durability probe executable: {error}"))?;
+    let result = (|| {
+        for step in contracts::durable::ALL_DURABILITY_STEPS {
+            fs::write(&target, b"old durable bytes")
+                .map_err(|error| format!("seed durability probe: {error}"))?;
+            let status = Command::new(&executable)
+                .args([
+                    "--durable-replace-child",
+                    &target.to_string_lossy(),
+                    step.name(),
+                ])
+                .status()
+                .map_err(|error| format!("run durability kill child: {error}"))?;
+            if status.success() {
+                return Err(format!(
+                    "durability child did not terminate at {}",
+                    step.name()
+                ));
+            }
+            let bytes =
+                fs::read(&target).map_err(|error| format!("read durability result: {error}"))?;
+            if bytes != b"old durable bytes" && bytes != b"new durable bytes" {
+                return Err(format!(
+                    "durability boundary {} exposed partial bytes",
+                    step.name()
+                ));
+            }
+        }
+        println!(
+            "{{\"schema\":\"a1-durable-replacement-probe-v1\",\"killBoundaries\":5,\"oldOrNewOnly\":true}}"
+        );
+        Ok(())
+    })();
+    let _ = fs::remove_dir_all(&root);
+    result
+}
+
+fn probe_contracts() -> Result<(), String> {
+    let process = contracts::identity::inspect_process(std::process::id())
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "current process identity disappeared".to_owned())?;
+    let system = contracts::identity::current_system().map_err(|error| error.to_string())?;
+    let fixtures = contracts::protocol::fixture_set().map_err(|error| error.to_string())?;
+    let digest = contracts::protocol::fixture_manifest_digest(&fixtures);
+    println!(
+        "{{\"schema\":\"a1-terminal-host-contracts-v1\",\"pid\":{},\"startIdentity\":\"{}\",\"bootIdentity\":\"{}\",\"osSessionIdentity\":\"{}\",\"protocolGeneration\":1,\"fixtureDigest\":\"{}\"}}",
+        process.pid, process.start, system.boot, system.os_session, digest
+    );
+    Ok(())
+}
+
 fn probe() -> Result<(), String> {
     probe_trace("create terminal");
     let mut terminal = GhosttyTerminal::new(80, 24)?;
@@ -271,8 +651,7 @@ fn probe() -> Result<(), String> {
             pixel_height: 0,
         })
         .map_err(|error| format!("open probe PTY: {error}"))?;
-    let mut command = CommandBuilder::new("cmd.exe");
-    command.args(["/d", "/q", "/c", "exit 0"]);
+    let command = successful_probe_command();
     probe_trace("spawn PTY child");
     let mut child = pair
         .slave
@@ -303,6 +682,18 @@ fn probe() -> Result<(), String> {
         "{{\"probe\":\"passed\",\"pty\":\"started-and-cleaned\",\"terminalModel\":\"passed\"}}"
     );
     Ok(())
+}
+
+fn successful_probe_command() -> CommandBuilder {
+    if cfg!(windows) {
+        let mut command = CommandBuilder::new("cmd.exe");
+        command.args(["/d", "/q", "/c", "exit 0"]);
+        command
+    } else {
+        let mut command = CommandBuilder::new("/bin/sh");
+        command.args(["-c", "exit 0"]);
+        command
+    }
 }
 
 fn drain_probe_pty(mut reader: Box<dyn Read + Send>, mut writer: Box<dyn Write + Send>) {
@@ -337,8 +728,8 @@ fn fixture_pane(argument: &str) -> Result<(), String> {
         env::var("A1_PANE_ID").map_err(|_| "fixture pane identity is unavailable".to_owned())?;
     let session_id = env::var("A1_TERMINAL_SESSION_ID")
         .map_err(|_| "fixture terminal-session identity is unavailable".to_owned())?;
-    let token =
-        env::var("TERMINAL_FIXTURE_TOKEN").map_err(|_| "fixture token is unavailable".to_owned())?;
+    let token = env::var("TERMINAL_FIXTURE_TOKEN")
+        .map_err(|_| "fixture token is unavailable".to_owned())?;
     if token != argument {
         return Err("fixture exact argument did not match its environment".to_owned());
     }
@@ -392,6 +783,8 @@ fn probe_two_by_two() -> Result<(), String> {
     ));
     fs::create_dir_all(&root)
         .map_err(|error| format!("create 2x2 probe root {}: {error}", root.display()))?;
+    let root =
+        fs::canonicalize(&root).map_err(|error| format!("canonicalize 2x2 probe root: {error}"))?;
 
     let result = (|| {
         for index in 0..4 {
@@ -478,14 +871,11 @@ fn probe_two_by_two() -> Result<(), String> {
             thread::sleep(Duration::from_millis(10));
         }
 
-        let initial_frame_bytes = workspace.compose_probe_frame()?;
-        if initial_frame_bytes == 0 {
-            return Err("2x2 native frame composer produced no initial presentation".to_owned());
-        }
-
         for index in 0..4 {
             workspace.focus(index)?;
-            workspace.write_to_focused(format!("focused-input-{}\r\n", index + 1).as_bytes())?;
+            let line_end = if cfg!(windows) { "\r\n" } else { "\n" };
+            workspace
+                .write_to_focused(format!("focused-input-{}{line_end}", index + 1).as_bytes())?;
         }
         let focused_topology = workspace.topology_json();
         if !focused_topology.contains("\"revision\":4")
@@ -527,11 +917,10 @@ fn probe_two_by_two() -> Result<(), String> {
             thread::sleep(Duration::from_millis(10));
         }
 
-        let updated_frame_bytes = workspace.compose_probe_frame()?;
-        if updated_frame_bytes == 0 {
-            return Err("2x2 native frame composer produced no updated presentation".to_owned());
+        let initial_frame_bytes = workspace.compose_probe_frame()?;
+        if initial_frame_bytes == 0 {
+            return Err("2x2 native frame composer produced no initial presentation".to_owned());
         }
-
         workspace.resize(100, 30)?;
         let expected_layout = FixedLayout::new(100, 30)?;
         for (index, size) in workspace.pty_sizes()?.iter().enumerate() {
@@ -547,9 +936,20 @@ fn probe_two_by_two() -> Result<(), String> {
                 ));
             }
         }
+        let updated_frame_bytes = workspace.compose_probe_frame()?;
+        if updated_frame_bytes == 0 {
+            return Err("2x2 native frame composer produced no updated presentation".to_owned());
+        }
 
         for index in 0..4 {
-            workspace.write_to_pane(index, b"exit\r\n")?;
+            workspace.write_to_pane(
+                index,
+                if cfg!(windows) {
+                    b"exit\r\n"
+                } else {
+                    b"exit\n"
+                },
+            )?;
         }
         let deadline = Instant::now() + Duration::from_secs(10);
         while !workspace.all_finished() {

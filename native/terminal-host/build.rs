@@ -11,6 +11,10 @@ fn main() {
     println!("cargo:rerun-if-env-changed={LOCAL_BUILD_OVERRIDE}");
     refuse_local_windows_build();
     println!("cargo:rerun-if-env-changed=ZIG");
+    println!("cargo:rerun-if-env-changed=TERMINAL_HOST_CONTRACTS_ONLY");
+    if env::var("TERMINAL_HOST_CONTRACTS_ONLY").as_deref() == Ok("1") {
+        return;
+    }
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=vendor/libghostty-vt/build.zig");
     println!("cargo:rerun-if-changed=vendor/libghostty-vt/build.zig.zon");
@@ -26,9 +30,10 @@ fn main() {
         .to_owned();
 
     // Platform: Zig 0.15.2 has a Windows drive-letter path failure when this repository is
-    // built from D:. Build from the system temporary directory instead; the
-    // source copy is stamped with the pinned source commit.
-    let work = env::temp_dir().join(format!("a1-libghostty-vt-{GHOSTTY_COMMIT}"));
+    // built from D:. Build from the system temporary directory on every CI target; the source
+    // copy is stamped by commit and Cargo target so unlike targets never share output.
+    let target = env::var("TARGET").expect("TARGET");
+    let work = env::temp_dir().join(format!("a1-libghostty-vt-{GHOSTTY_COMMIT}-{target}"));
     let stamp = work.join(".a1-source-commit");
     if fs::read_to_string(&stamp).ok().as_deref() != Some(GHOSTTY_COMMIT) {
         if work.exists() {
@@ -45,7 +50,7 @@ fn main() {
         .arg("-Demit-lib-vt")
         .arg("-Doptimize=ReleaseFast")
         .arg("-Dsimd=true")
-        .arg("-Dtarget=x86_64-windows-msvc")
+        .arg("-Dtarget=native")
         .arg(format!("-Dversion-string={version}"))
         .arg("-Demit-xcframework=false")
         .status()
@@ -54,7 +59,29 @@ fn main() {
 
     let lib_dir = work.join("zig-out/lib");
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
-    println!("cargo:rustc-link-lib=static=ghostty-vt-static");
+    if target.contains("windows") {
+        // Platform: MSVC must resolve Zig and Rust compiler intrinsics through normal archive
+        // selection; appending the archive as a raw link argument creates weak-symbol conflicts.
+        println!("cargo:rustc-link-lib=static=ghostty-vt-static");
+    } else {
+        // Rationale: an exact binary-only archive argument avoids the adjacent shared library on
+        // macOS while keeping the independent contract library and Node addon free of Ghostty.
+        let archive = lib_dir.join("libghostty-vt.a");
+        assert!(
+            archive.is_file(),
+            "libghostty-vt archive is unavailable: {}",
+            archive.display()
+        );
+        println!(
+            "cargo:rustc-link-arg-bin=terminal-host={}",
+            archive.display()
+        );
+    }
+    if target.contains("apple") && env::var_os("CARGO_FEATURE_NODE_ADDON").is_some() {
+        // Platform: Node resolves N-API symbols when loading an addon on Darwin.
+        println!("cargo:rustc-cdylib-link-arg=-Wl,-undefined");
+        println!("cargo:rustc-cdylib-link-arg=-Wl,dynamic_lookup");
+    }
 }
 
 // Platform: Zig's package fetch unpacks upstream test data, including a malformed JPEG that
@@ -66,7 +93,7 @@ fn refuse_local_windows_build() {
         return;
     }
     eprintln!(
-        "terminal-host builds run in GitHub CI (\"Native terminal host (Windows)\" job).\n\
+        "terminal-host builds run in GitHub CI (\"Native terminal host (Windows x64)\" job).\n\
          Push the branch and read the job result, or set {LOCAL_BUILD_OVERRIDE}=1 to build locally anyway."
     );
     std::process::exit(1);
