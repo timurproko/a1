@@ -221,7 +221,9 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
     let mut pending_paste: Option<PendingPaste> = None;
     loop {
         while let Ok(result) = write_result_rx.try_recv() {
-            input.complete(result?);
+            let completed = result?;
+            fixture_trace(&config, &format!("write-complete:{completed}"));
+            input.complete(completed);
         }
         while let Ok(command) = command_rx.try_recv() {
             if matches!(command, HolderCommand::Disconnected) {
@@ -321,8 +323,11 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         }
         if changed {
             revision = revision.saturating_add(1);
+            fixture_trace(&config, "mark-dirty-start");
             terminal.mark_dirty()?;
+            fixture_trace(&config, "mark-dirty-complete");
             let frame = terminal.frame_at(0, 1, true)?.into_bytes();
+            fixture_trace(&config, &format!("frame:{}", frame.len()));
             let _ = wire::send(
                 &mut stream,
                 "surface",
