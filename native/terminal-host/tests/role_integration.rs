@@ -76,10 +76,24 @@ setInterval(() => {}, 1000);
         "{}",
         first.output_text()
     );
-    for mode in ["1049", "2004", "1004", "1000", "1006", "2026"] {
+    // Platform: ConPTY consumes mouse/focus tracking controls before they reach the
+    // fixture's outer-terminal capture; the mode-contract unit test covers those bytes.
+    let observable_modes: &[&str] = if cfg!(windows) {
+        &["1049", "2004", "2026"]
+    } else {
+        &["1049", "2004", "1004", "1000", "1006", "2026"]
+    };
+    for mode in observable_modes {
         assert!(
             first.output_text().contains(&format!("?{mode}h")),
             "missing outer mode {mode}: {}",
+            first.output_text()
+        );
+    }
+    if cfg!(unix) {
+        assert!(
+            first.output_text().contains("[>1u"),
+            "{}",
             first.output_text()
         );
     }
@@ -107,10 +121,17 @@ setInterval(() => {}, 1000);
         "{}",
         first.output_text()
     );
-    for mode in ["1049", "2004", "1004", "1000", "1006", "2026"] {
+    for mode in observable_modes {
         assert!(
             first.output_text().contains(&format!("?{mode}l")),
             "missing restored mode {mode}: {}",
+            first.output_text()
+        );
+    }
+    if cfg!(unix) {
+        assert!(
+            first.output_text().contains("[<1u"),
+            "{}",
             first.output_text()
         );
     }
@@ -210,7 +231,13 @@ impl AttachFixture {
                     Ok(0) | Err(_) => return,
                     Ok(count) => {
                         query_tail.extend_from_slice(&bytes[..count]);
-                        if query_tail.windows(4).any(|value| value == b"\x1b[6n") {
+                        if query_tail.windows(4).any(|value| value == b"\x1b[?u") {
+                            let mut response = response_writer.lock().expect("response writer");
+                            let _ = response
+                                .write_all(b"\x1b[?1u")
+                                .and_then(|()| response.flush());
+                            query_tail.clear();
+                        } else if query_tail.windows(4).any(|value| value == b"\x1b[6n") {
                             let mut response = response_writer.lock().expect("response writer");
                             let _ = response
                                 .write_all(b"\x1b[24;100R")

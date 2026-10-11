@@ -32,7 +32,7 @@ describe("resident tab credential consumption", () => {
     expect(consumeTabLaunchContext([], direct)).toEqual({ uiArguments: [], tabCredentials: undefined });
     expect(names.map(name => direct[name])).toEqual([undefined, undefined, undefined]);
 
-    const incomplete: Record<string, string | undefined> = { A1_TAB_ID: "tab-1", A1_TAB_TOKEN: "token" };
+    const incomplete: Record<string, string | undefined> = Object.fromEntries(names.slice(0, 2).map((name, index) => [name, index === 0 ? "tab-1" : "token"]));
     expect(() => consumeTabLaunchContext(["--tab"], incomplete)).toThrow("requires bridge credentials");
     expect(names.map(name => incomplete[name])).toEqual([undefined, undefined, undefined]);
   });

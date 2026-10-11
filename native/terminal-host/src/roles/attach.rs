@@ -141,6 +141,15 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         return Err("resident server refused attach".to_owned());
     }
     let _: (Option<u64>, Welcome) = wire::body(&payload)?;
+    let attachment = wire::read_payload(&mut stream)?
+        .ok_or_else(|| "server closed before attach admission".to_owned())?;
+    match wire::kind(&attachment)?.message_type.as_str() {
+        "attached" => {
+            let _: (Option<u64>, BridgeAttachment) = wire::body(&attachment)?;
+        }
+        "refused" => return Err("a1 is attached in another terminal".to_owned()),
+        message => return Err(format!("unexpected attach admission message: {message}")),
+    }
     let (columns, outer_rows) = outer_size()?;
     let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
     let environment = std::env::vars().collect::<Vec<_>>();
