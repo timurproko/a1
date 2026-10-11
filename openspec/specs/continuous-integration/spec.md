@@ -1331,30 +1331,35 @@ Manual Development dispatch, scheduled/manual Full regression, release validatio
 - **AND** the protected aggregate SHALL remain unavailable rather than trusting stale event metadata
 
 ### Requirement: The native terminal host is validated in CI rather than on workstations
-Development validation SHALL own `native/terminal-host/**`, its run scripts and its provenance check through a deterministic pull-request-cadence validation owner. When the impact classifier selects that owner, CI SHALL build the crate on Windows x64 with pinned Rust and Zig toolchains, run its unit tests and non-interactive probes, and upload the built debug executable as a short-lived artifact. The owner's result SHALL participate in the protected development check. Changes that touch none of the owned paths SHALL NOT run the job. Until the crate builds on every complete-regression lane, its scope SHALL be excluded from `full-release`, so nightly Full regression and release gates SHALL NOT build it.
+Development validation SHALL own `native/terminal-host/**`, its run scripts, Node-addon harness, protocol fixtures and fuzz corpus, and provenance check through one deterministic pull-request-cadence validation owner. When impact classification selects that owner, CI SHALL schedule exactly Windows x64, Linux x64, and macOS arm64 targets with pinned Rust and Zig toolchains. Every target SHALL build the terminal-host binary and Node-API 9 lock artifact, run unit tests, platform-primitive tests, addon lifecycle/alias tests, fixture roles, and non-interactive probes, and upload the debug artifacts under platform-neutral names. The Linux x64 target SHALL additionally build and run the decoder fuzz target for a pinned bounded duration against its checked-in corpus. Every selected target SHALL participate in the protected development check. Changes touching none of the owned paths SHALL NOT schedule the owner. Until milestone 6 adds complete packaged lanes, terminal-host scope SHALL remain excluded from `full-release`, so nightly Full regression and release gates SHALL NOT infer terminal-host coverage.
 
-The crate's build script SHALL refuse to build on a Windows host outside CI unless the explicit `TERMINAL_HOST_LOCAL_BUILD=1` override is set. It SHALL fail before invoking Zig or fetching Zig packages, with a concise message naming the CI job and the override.
+The crate's build script SHALL refuse to build on a Windows host outside CI unless the explicit `TERMINAL_HOST_LOCAL_BUILD=1` override is set. It SHALL fail before invoking Zig or fetching Zig packages, with a concise message naming the CI job and the override. The same guard SHALL cover binary and addon builds.
 
 #### Scenario: A pull request changes the terminal host
-- **WHEN** a pull request changes a file under `native/terminal-host/`
+- **WHEN** a pull request changes a terminal-host-owned source, script, fixture, corpus, or provenance path
 - **THEN** impact classification SHALL select the terminal-host owner
-- **AND** CI SHALL build, unit-test and probe the crate on Windows x64
-- **AND** the built executable SHALL be available as a workflow artifact
-- **AND** a build, test or probe failure SHALL fail the protected development check
+- **AND** CI SHALL build, test, and probe the binary and addon on Windows x64, Linux x64, and macOS arm64
+- **AND** Linux x64 SHALL run the bounded decoder fuzz target
+- **AND** each platform's debug artifacts SHALL be available under unambiguous platform-neutral artifact names
+- **AND** a missing, skipped, failed, or stale selected target SHALL fail the protected development check
 
 #### Scenario: A pull request does not touch the terminal host
 - **WHEN** a pull request changes no terminal-host-owned path
-- **THEN** the terminal-host job SHALL be reported as not selected and SHALL NOT build the crate
+- **THEN** the terminal-host owner SHALL be reported as not selected and SHALL schedule no terminal-host platform target
+
+#### Scenario: Cross-user endpoint fixture cannot run
+- **WHEN** a selected target cannot provision the second local identity required by the owner-only endpoint test
+- **THEN** that target SHALL fail rather than skip the ownership assertion
 
 #### Scenario: A developer builds the crate locally on Windows
-- **WHEN** `cargo test`, `cargo build` or `npm run test:terminal-host` runs on a Windows host without `CI` and without `TERMINAL_HOST_LOCAL_BUILD=1`
+- **WHEN** `cargo test`, `cargo build`, an addon build, or `npm run test:terminal-host` runs on a Windows host without `CI` and without `TERMINAL_HOST_LOCAL_BUILD=1`
 - **THEN** the build SHALL fail before invoking Zig
 - **AND** the message SHALL name the CI job and the override
 - **AND** no Zig package-cache entries SHALL be created by that attempt
 
 #### Scenario: A developer explicitly overrides the guard
 - **WHEN** the same build runs with `TERMINAL_HOST_LOCAL_BUILD=1`
-- **THEN** the build SHALL proceed as it does in CI
+- **THEN** the build SHALL proceed as it does in CI without weakening selected CI requirements
 
 ### Requirement: Allowed prerequisite skips do not suppress required publication outcomes
 A publication job that intentionally permits an upstream prerequisite to be skipped SHALL evaluate every subsequent required job explicitly. Post-publication smoke SHALL run only when its selected work requires publication and its direct plan, package, and publish dependencies all succeeded. Release completion SHALL run only when its direct plan, package, publish, and post-publication dependencies all succeeded. Both jobs SHALL evaluate their explicit predicates despite allowed transitive skips and SHALL remain ineligible after a failed, cancelled, or skipped direct prerequisite. The aggregate SHALL continue to reject missing or skipped post-publication smoke and completion whenever publication work was required.
