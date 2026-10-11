@@ -277,8 +277,8 @@ fn controller_boundary_child(
         };
         let handle = unsafe { GetStdHandle(STD_INPUT_HANDLE) };
         let mut mode = 0_u32;
-        if unsafe { GetConsoleMode(handle, &mut mode) } == 0
-            || unsafe {
+        if unsafe { GetConsoleMode(handle, &mut mode) } != 0
+            && unsafe {
                 SetConsoleMode(
                     handle,
                     mode & !(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_VIRTUAL_TERMINAL_INPUT),
@@ -725,6 +725,8 @@ fn probe_two_by_two() -> Result<(), String> {
     ));
     fs::create_dir_all(&root)
         .map_err(|error| format!("create 2x2 probe root {}: {error}", root.display()))?;
+    let root =
+        fs::canonicalize(&root).map_err(|error| format!("canonicalize 2x2 probe root: {error}"))?;
 
     let result = (|| {
         for index in 0..4 {
