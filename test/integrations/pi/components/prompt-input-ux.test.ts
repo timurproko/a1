@@ -116,8 +116,13 @@ describe("owned shared input and status presentation", () => {
     input.handlePointer?.({ kind: "release", button: 0, column: 8, row: 2 });
     expect(input.hasSelection()).toBe(true);
     input.handleInput?.("\u0003");
-    expect(copy).toHaveBeenCalledWith("hello");
+    expect(copy).toHaveBeenCalledWith("hello", false);
     expect(input.getText()).toBe("hello world");
+    input.setText("cut me");
+    input.handleInput?.("\u0001");
+    input.handleInput?.("\u0018");
+    expect(copy).toHaveBeenLastCalledWith("cut me", true);
+    expect(input.getText()).toBe("");
   });
 
   it("links only the PR number in the owned footer and leaves the pinned profile unchanged", () => {
@@ -414,7 +419,7 @@ describe("owned level and model keybindings", () => {
     input.handleInput?.(key);
     expect(input.hasSelection()).toBe(true);
     input.handleInput?.("\u0003");
-    expect(copy).toHaveBeenCalledWith("selected");
+    expect(copy).toHaveBeenCalledWith("selected", false);
     expect(cycle).not.toHaveBeenCalled();
     expect(select).not.toHaveBeenCalled();
   });

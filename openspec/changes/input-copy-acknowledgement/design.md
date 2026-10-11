@@ -19,7 +19,7 @@ The ordinary bare-A1 prompt owns keyboard selection through `PromptSelectionInte
 
 ### 1. Carry the prompt operation across the editor callback
 
-Extend the owned editor copy callback with a `copy` or `cut` operation discriminator. `PromptSelectionInterceptor` supplies it at the point where the matched keybinding is known. Existing callback consumers may ignore the additional argument; the bare-A1 shell uses it only to decide whether successful delivery should produce an acknowledgement.
+Extend the owned editor copy callback with a `cut` discriminator. `PromptSelectionInterceptor` supplies false for copy and true for cut at the point where the matched keybinding is known. Existing callback consumers may ignore the additional argument; the bare-A1 shell uses it only to decide whether successful delivery should produce an acknowledgement.
 
 Alternative considered: acknowledge every `onCopyText` call. Rejected because that would silently add feedback to cut and would not satisfy the requested `Ctrl+C`-specific behavior precisely.
 
@@ -50,4 +50,4 @@ No migration is required. Add failing focused tests, carry the operation discrim
 
 ## Implementation Evidence
 
-To be recorded after approved implementation. Planned evidence includes successful prompt-copy wording/count and placement, copy-versus-cut isolation, failed/stale completion suppression, exact clipboard payload preservation, comparison-profile isolation, strict OpenSpec validation, typecheck, build, architecture, and changed-documentation checks.
+See `implementation-evidence.md`. Automated evidence covers successful prompt-copy wording/count and placement, copy-versus-cut isolation, failed/stale completion suppression, exact clipboard payload preservation, comparison-profile isolation, strict OpenSpec validation, typecheck, build, architecture, and changed-documentation checks.
