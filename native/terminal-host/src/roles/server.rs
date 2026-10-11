@@ -604,11 +604,7 @@ fn serve_attach(
     Ok(())
 }
 
-fn start_holder(
-    profile: &Path,
-    state: &Arc<Mutex<RuntimeState>>,
-    mut start: AttachStart,
-) -> Result<(), String> {
+pub fn sanitize_tab_environment(environment: &mut Vec<(String, String)>) {
     const STRIP: &[&str] = &[
         "A1_ENDPOINT",
         "A1_EXIT_NOTICE_PATH",
@@ -619,9 +615,15 @@ fn start_holder(
         "LAUNCH_CONTEXT_RESIDENT_ROOT_ARGUMENTS",
         "LAUNCH_CONTEXT_RESIDENT_FALLBACK",
     ];
-    start
-        .environment
-        .retain(|(name, _)| !STRIP.contains(&name.as_str()));
+    environment.retain(|(name, _)| !STRIP.contains(&name.as_str()));
+}
+
+fn start_holder(
+    profile: &Path,
+    state: &Arc<Mutex<RuntimeState>>,
+    mut start: AttachStart,
+) -> Result<(), String> {
+    sanitize_tab_environment(&mut start.environment);
     let (endpoint, holder_token, bridge_token) = {
         let locked = state
             .lock()
@@ -895,6 +897,29 @@ mod tests {
             })
         );
         assert_eq!(lane.drain(Vec::new), None);
+    }
+
+    #[test]
+    fn tab_environment_drops_every_launch_instance_identity() {
+        let mut environment = vec![
+            ("A1_ENDPOINT".into(), "private".into()),
+            ("A1_EXIT_NOTICE_PATH".into(), "private".into()),
+            ("A1_PROCESS_GUARDIAN_PATH".into(), "private".into()),
+            ("A1_STARTUP_TRACE".into(), "private".into()),
+            ("A1_SESSION_RUNTIME_ID".into(), "private".into()),
+            (
+                "LAUNCH_CONTEXT_RESIDENT_ROOT_EXECUTABLE".into(),
+                "private".into(),
+            ),
+            (
+                "LAUNCH_CONTEXT_RESIDENT_ROOT_ARGUMENTS".into(),
+                "private".into(),
+            ),
+            ("LAUNCH_CONTEXT_RESIDENT_FALLBACK".into(), "private".into()),
+            ("PATH".into(), "retained".into()),
+        ];
+        sanitize_tab_environment(&mut environment);
+        assert_eq!(environment, vec![("PATH".into(), "retained".into())]);
     }
 
     #[test]

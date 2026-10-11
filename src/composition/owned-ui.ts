@@ -198,22 +198,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     throw error;
   }
   const tabBridge = options.tab?.bridge ?? null;
-  let unsubscribeTabBridge = () => {};
-  if (tabBridge !== null) {
-    await tabBridge.start().catch(() => false);
-    tabBridge.status("starting");
-    const announceSession = () => {
-      const resume = backend.identity.currentSessionResumeMetadata();
-      tabBridge.session(resume === null ? null : `${resume.sessionDir}/${resume.sessionId}`, backend.session.view().status.footer?.sessionName ?? null);
-    };
-    announceSession();
-    unsubscribeTabBridge = backend.session.onEvent(event => {
-      if (event.type === "session-lifecycle") {
-        tabBridge.status(event.lifecycle === "busy" ? "working" : event.lifecycle === "starting" ? "starting" : "idle");
-      }
-      if (event.type === "session-view") announceSession();
-    });
-  }
+  const unsubscribeTabBridge = tabBridge === null ? () => {} : await bindResidentTabBridge(tabBridge, backend);
   let releaseNotes: ReleaseNoteCatalog | null = null;
   let releaseNotesFailure: unknown;
   if (ownedSurfaces) {
@@ -418,6 +403,25 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     },
   };
   return { application, settings };
+}
+
+export async function bindResidentTabBridge(
+  tabBridge: TabBridgeClient,
+  backend: Pick<ComposedSessionBackend, "identity" | "session">,
+): Promise<() => void> {
+  await tabBridge.start().catch(() => false);
+  tabBridge.status("starting");
+  const announceSession = () => {
+    const resume = backend.identity.currentSessionResumeMetadata();
+    tabBridge.session(resume === null ? null : `${resume.sessionDir}/${resume.sessionId}`, backend.session.view().status.footer?.sessionName ?? null);
+  };
+  announceSession();
+  return backend.session.onEvent(event => {
+    if (event.type === "session-lifecycle") {
+      tabBridge.status(event.lifecycle === "busy" ? "working" : event.lifecycle === "starting" ? "starting" : "idle");
+    }
+    if (event.type === "session-view") announceSession();
+  });
 }
 
 async function readPackageVersion(): Promise<string> {
