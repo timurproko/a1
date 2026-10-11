@@ -271,22 +271,30 @@ fn configure_detached(command: &mut Command) -> Result<String, LaunchError> {
 }
 
 fn spawn_with_fallback(
-    mut command: Command,
+    command: Command,
     _artifact: &Path,
     _role: ResidentRole,
     _profile: &Path,
     _result: &Path,
 ) -> Result<ResidentProcess, LaunchError> {
+    #[cfg(windows)]
+    {
+        // Platform: GitHub and packaged launchers can retain descendants in a foreign job even
+        // when direct breakaway creation succeeds. WMI creates this fixed role outside that job.
+        drop(command);
+        return spawn_via_wmi(_artifact, _role, _profile, _result).map_err(LaunchError);
+    }
+    #[cfg(not(windows))]
+    let mut command = command;
+    #[cfg(not(windows))]
     match command.spawn() {
         Ok(child) => Ok(ResidentProcess {
-            pid: child.id(), child: Some(child),
-            #[cfg(windows)] handle: std::ptr::null_mut(),
+            pid: child.id(),
+            child: Some(child),
         }),
-        #[cfg(windows)]
-        Err(direct_error) => spawn_via_wmi(_artifact, _role, _profile, _result)
-            .map_err(|wmi_error| LaunchError(format!("direct detached launch failed ({direct_error}); WMI fallback failed ({wmi_error})"))),
-        #[cfg(not(windows))]
-        Err(error) => Err(LaunchError(format!("spawn detached resident role: {error}"))),
+        Err(error) => Err(LaunchError(format!(
+            "spawn detached resident role: {error}"
+        ))),
     }
 }
 
