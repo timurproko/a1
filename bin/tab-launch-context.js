@@ -1,5 +1,22 @@
 const TAB_ENVIRONMENT_NAMES = ["A1_TAB_ID", "A1_TAB_TOKEN", "A1_TAB_ENDPOINT"];
 
+/** @param {string} reason */
+export function formatResidentFallbackNotice(reason) {
+  return `Resident tabs unavailable (${reason}); running a single agent.`;
+}
+
+/**
+ * @param {Record<string, string | undefined>} environment
+ * @param {string} name
+ * @param {() => string} createId
+ */
+export function assignFreshSessionRuntimeId(environment, name, createId) {
+  const id = createId();
+  if (typeof id !== "string" || id.length === 0 || id.includes("\0")) throw new Error("Session runtime identity generation failed");
+  environment[name] = id;
+  return id;
+}
+
 /**
  * Security: consume bridge credentials into caller-private memory and erase their inheritable
  * environment entries before any extension-capable module loads.

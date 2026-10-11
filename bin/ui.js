@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Security: this helper has no A1, Pi, tool, or extension dependency and erases credentials before those modules load.
-const { consumeTabLaunchContext } = await import("./tab-launch-context.js");
+const { assignFreshSessionRuntimeId, consumeTabLaunchContext, formatResidentFallbackNotice } = await import("./tab-launch-context.js");
 const { uiArguments, tabCredentials } = consumeTabLaunchContext(process.argv.slice(2), process.env);
 
 // Invariant: one terminal module identity per process, decided before any A1 or Pi module loads.
@@ -18,7 +18,7 @@ if (profile === "a1") {
     import("node:crypto"),
     import("../dist/product-identity.js"),
   ]);
-  process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] = randomUUID();
+  assignFreshSessionRuntimeId(process.env, PRODUCT_IDENTITY.environment.sessionRuntimeId, randomUUID);
 }
 const { installFatalExit } = await import("../dist/foundation/terminal-cleanup/fatal-exit.js");
 const { resolveProductPaths } = await import("../dist/foundation/lifecycle/paths.js");
@@ -78,7 +78,7 @@ Promise.resolve().then(async () => {
         ...(sessionSelection === undefined ? {} : { sessionSelection }),
         ...(tab === undefined ? {} : { tab }),
         ...(launchContext.residentFallback === undefined ? {} : {
-          residentFallbackNotice: `Resident tabs unavailable (${launchContext.residentFallback}); running a single agent.`,
+          residentFallbackNotice: formatResidentFallbackNotice(launchContext.residentFallback),
         }),
       });
       runningApplication = application;

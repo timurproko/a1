@@ -190,6 +190,73 @@ mod tests {
         );
     }
 
+    #[cfg(windows)]
+    fn assert_owner_only(path: &Path) {
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::Foundation::LocalFree;
+        use windows_sys::Win32::Security::Authorization::{GetNamedSecurityInfoW, SE_FILE_OBJECT};
+        use windows_sys::Win32::Security::{
+            ACCESS_ALLOWED_ACE, DACL_SECURITY_INFORMATION, GetAce, IsWellKnownSid,
+            PSECURITY_DESCRIPTOR, WinCreatorOwnerRightsSid,
+        };
+        use windows_sys::Win32::Storage::FileSystem::FILE_ALL_ACCESS;
+
+        let wide = path
+            .as_os_str()
+            .encode_wide()
+            .chain(Some(0))
+            .collect::<Vec<_>>();
+        let mut dacl = std::ptr::null_mut();
+        let mut descriptor: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
+        let result = unsafe {
+            GetNamedSecurityInfoW(
+                wide.as_ptr(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                &mut dacl,
+                std::ptr::null_mut(),
+                &mut descriptor,
+            )
+        };
+        assert_eq!(result, 0, "read ACL for {}", path.display());
+        assert!(!dacl.is_null(), "missing DACL for {}", path.display());
+        assert_eq!(
+            unsafe { (*dacl).AceCount },
+            1,
+            "unexpected ACE count for {}",
+            path.display()
+        );
+        let mut raw_ace = std::ptr::null_mut();
+        assert_ne!(unsafe { GetAce(dacl, 0, &mut raw_ace) }, 0);
+        let ace = unsafe { &*(raw_ace.cast::<ACCESS_ALLOWED_ACE>()) };
+        assert_eq!(ace.Header.AceType, 0);
+        assert_eq!(ace.Mask, FILE_ALL_ACCESS);
+        assert_ne!(
+            unsafe {
+                IsWellKnownSid(
+                    std::ptr::addr_of!(ace.SidStart).cast_mut().cast(),
+                    WinCreatorOwnerRightsSid,
+                )
+            },
+            0,
+            "ACE is not owner-rights for {}",
+            path.display()
+        );
+        unsafe { LocalFree(descriptor) };
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn credential_storage_is_owner_only() {
+        let root = tempfile::tempdir().unwrap();
+        let credentials = ProfileCredentials::load_or_create(root.path()).unwrap();
+        assert_owner_only(root.path());
+        assert_owner_only(&credentials.client_token_path);
+        assert_owner_only(&credentials.secret_path);
+    }
+
     #[cfg(unix)]
     #[test]
     fn credential_storage_is_owner_only() {

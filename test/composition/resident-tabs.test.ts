@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { bindResidentTabBridge } from "../../src/composition/owned-ui.js";
+import { bindResidentTabBridge, residentStartupPresentation } from "../../src/composition/owned-ui.js";
+import { formatResidentFallbackNotice } from "../../bin/tab-launch-context.js";
 
 function fixture(start: () => Promise<boolean> = async () => true) {
   let listener: ((event: { type: string; lifecycle?: string }) => void) | null = null;
@@ -28,6 +29,25 @@ function fixture(start: () => Promise<boolean> = async () => true) {
 }
 
 describe("resident tab composition bridge", () => {
+  it("renders exactly one direct fallback notice and stays silent when the feature is off", () => {
+    const reasons = [
+      "terminal host not installed",
+      "incompatible generation",
+      "launch not verified",
+      "host startup timed out",
+      "host probe failed",
+    ];
+    for (const reason of reasons) {
+      const notice = formatResidentFallbackNotice(reason);
+      expect(residentStartupPresentation(false, notice)).toEqual({
+        startup: { notices: [{ kind: "warning", message: notice }] },
+      });
+    }
+    expect(residentStartupPresentation(false)).toEqual({});
+    expect(residentStartupPresentation(true, formatResidentFallbackNotice("ignored")))
+      .toEqual({ startup: { quiet: true } });
+  });
+
   it("reports starting, working, idle, and current session metadata from engine events", async () => {
     const value = fixture();
     await expect(bindResidentTabBridge(value.bridge as never, value.backend as never)).resolves.toBe(value.unsubscribe);

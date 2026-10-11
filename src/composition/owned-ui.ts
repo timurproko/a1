@@ -102,6 +102,13 @@ export interface OwnedUiComposition {
 
 const SESSION_RUNTIME_REFRESH_MS = 30_000;
 
+export function residentStartupPresentation(resident: boolean, fallbackNotice?: string): {
+  readonly startup?: { readonly quiet?: boolean; readonly notices?: readonly [{ readonly kind: "warning"; readonly message: string }] };
+} {
+  if (resident) return { startup: { quiet: true } };
+  return fallbackNotice === undefined ? {} : { startup: { notices: [{ kind: "warning", message: fallbackNotice }] } };
+}
+
 export async function composeOwnedUiApplication(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiApplicationPort> {
   return (await composeOwnedUi(options)).application;
 }
@@ -308,9 +315,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       },
       presentation: {
         ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
-        ...(tabBridge !== null ? { startup: { quiet: true } } : options.residentFallbackNotice === undefined ? {} : {
-          startup: { notices: [{ kind: "warning" as const, message: options.residentFallbackNotice }] },
-        }),
+        ...residentStartupPresentation(tabBridge !== null, options.residentFallbackNotice),
         ...(clipboardDiagnostics === null ? {} : { input: { onEvent: event => clipboardDiagnostics.runtime(event) } }),
         ...(viewportSettings === null ? {} : { viewportSettings }),
         ...(backgroundSettings === null ? {} : { backgroundSettings }),

@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -138,6 +138,8 @@ describe("resident tab launch contracts", () => {
   it("falls back for unsupported, missing, incompatible, unverified, failed, and timed-out hosts", async () => {
     const root = await temporaryDirectory("resident-outcomes-"); cleanups.push(root.cleanup);
     const executable = join(root.path, process.platform === "win32" ? "host.exe" : "host");
+    const registry = join(root.path, "registry.json");
+    await writeFile(registry, "existing-holder-sentinel");
     const base = {
       releaseRoot: root.path, profileRoot: root.path, dataDir: root.path, runtimeDir: root.path,
       environment: { A1_TERMINAL_HOST_PATH: executable },
@@ -180,5 +182,6 @@ describe("resident tab launch contracts", () => {
       },
     })).resolves.toEqual({ status: "fallback", reason: "host startup timed out" });
     expect(phase).toBeGreaterThanOrEqual(1);
+    await expect(readFile(registry, "utf8")).resolves.toBe("existing-holder-sentinel");
   });
 });

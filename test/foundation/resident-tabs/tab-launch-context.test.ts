@@ -1,12 +1,21 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { consumeTabLaunchContext } from "../../../bin/tab-launch-context.js";
+import { assignFreshSessionRuntimeId, consumeTabLaunchContext } from "../../../bin/tab-launch-context.js";
 
 const exec = promisify(execFile);
 const names = ["A1_TAB_ID", "A1_TAB_TOKEN", "A1_TAB_ENDPOINT"] as const;
 
 describe("resident tab credential consumption", () => {
+  it("assigns independent runtime identities to tab incarnations and a concurrent direct launch", () => {
+    const environments = [{}, {}, {}] as Array<Record<string, string | undefined>>;
+    const ids = ["tab-incarnation-1", "tab-incarnation-2", "direct-runtime"];
+    const assigned = environments.map((environment, index) =>
+      assignFreshSessionRuntimeId(environment, "SESSION_RUNTIME", () => ids[index]!));
+    expect(new Set(assigned).size).toBe(3);
+    expect(environments.map(environment => environment.SESSION_RUNTIME)).toEqual(ids);
+  });
+
   it("moves credentials into private state and strips every inheritable entry", async () => {
     const environment: Record<string, string | undefined> = {
       A1_TAB_ID: "tab-1",

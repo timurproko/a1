@@ -4,6 +4,14 @@ export interface TabLaunchCredentials {
   readonly endpoint: string;
 }
 
+export function formatResidentFallbackNotice(reason: string): string;
+
+export function assignFreshSessionRuntimeId(
+  environment: Record<string, string | undefined>,
+  name: string,
+  createId: () => string,
+): string;
+
 export function consumeTabLaunchContext(
   arguments_: readonly string[],
   environment: Record<string, string | undefined>,
