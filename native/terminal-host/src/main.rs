@@ -277,18 +277,15 @@ fn controller_boundary_child(
         };
         let handle = unsafe { GetStdHandle(STD_INPUT_HANDLE) };
         let mut mode = 0_u32;
-        if unsafe { GetConsoleMode(handle, &mut mode) } != 0
-            && unsafe {
+        if unsafe { GetConsoleMode(handle, &mut mode) } != 0 {
+            // Platform: a virtualized ConPTY standard handle can reject mode changes; a line
+            // terminator below still releases its queue so the same marker bytes are inspected.
+            let _ = unsafe {
                 SetConsoleMode(
                     handle,
                     mode & !(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_VIRTUAL_TERMINAL_INPUT),
                 )
-            } == 0
-        {
-            return Err(format!(
-                "configure raw controller fixture input: {}",
-                std::io::Error::last_os_error()
-            ));
+            };
         }
         fs::write(ready, b"ready")
             .map_err(|error| format!("signal controller fixture readiness: {error}"))?;
@@ -306,7 +303,8 @@ fn controller_boundary_child(
             }
             observed.extend_from_slice(&chunk[..count]);
         }
-        contracts::controller::admit_fixture_stream(&observed).map_err(|error| error.to_string())?
+        contracts::controller::admit_fixture_stream(&observed[..expected_len])
+            .map_err(|error| error.to_string())?
     };
     #[cfg(not(windows))]
     let (prior, acknowledgement_value) = {
@@ -421,11 +419,9 @@ fn probe_controller_boundary() -> Result<(), String> {
                 nonce.to_be_bytes(),
             ))
             .map_err(|error| format!("write PTY marker: {error}"))?;
-        if !cfg!(windows) {
-            writer
-                .write_all(b"\n")
-                .map_err(|error| format!("complete PTY marker line: {error}"))?;
-        }
+        writer
+            .write_all(if cfg!(windows) { b"\r\n" } else { b"\n" })
+            .map_err(|error| format!("complete PTY marker line: {error}"))?;
         writer
             .flush()
             .map_err(|error| format!("flush controller boundary PTY: {error}"))?;
