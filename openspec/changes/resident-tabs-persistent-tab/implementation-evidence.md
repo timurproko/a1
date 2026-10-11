@@ -4,10 +4,10 @@ Evidence is recorded by platform. A passing contracts-only build does not certif
 
 ## Local Windows x64
 
-Validated on branch head `05ff5680` after reconciling with `origin/develop`:
+Validated locally across the final implementation sequence:
 
-- `npm test`: passed the selected fast and resource-sensitive suites; the resource-sensitive phase reported 25 files and 332 tests passed.
-- Focused resident-tabs, session-shell lifecycle, settings, settings-app, composition, and launch-guardian suites: 11 files and 202 tests passed.
+- `npm test` on `ead00179`: passed the selected fast and resource-sensitive suites; the resource-sensitive phase reported 25 files and 332 tests passed.
+- Focused post-reconciliation resident-tabs, session-shell lifecycle, settings, settings-app, composition, and launch-guardian suites: 11 files and 202 tests passed.
 - `npm run typecheck`: passed.
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --all-targets --features resident-fixtures`: passed.
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo test --lib`: 31 passed.
@@ -20,21 +20,21 @@ Validated on branch head `05ff5680` after reconciling with `origin/develop`:
 
 - `npm run test:terminal-host`: passed in [run 38151058837, job 114504652524](https://github.com/timurproko/a1/actions/runs/38151058837/job/114504652524).
 - The server/holder/attach pseudoterminal fixture passed create, input, double-`Ctrl+C` detach, output while detached, reattach, forced attach-process loss, retained surface, and input after reattach.
-- A fresh run for head `05ff5680`, including serialized attach admission, keyboard negotiation, visible input rejection, and cold holder adoption after server death, is pending.
+- The expanded role fixture, including serialized attach admission, mode enable/restore, keyboard negotiation, second-client refusal, retained output, forced attach loss, and cold holder adoption after server death, passed for final head `ca803c34` in [run 38155464520, job 114517618223](https://github.com/timurproko/a1/actions/runs/38155464520/job/114517618223).
 - Physical Windows Terminal-close, Windows OpenSSH-loss, and parent-shell restoration evidence remains pending.
 
 ## CI Linux x64
 
 - `npm run test:terminal-host`: passed in [run 38151058837, job 114504652565](https://github.com/timurproko/a1/actions/runs/38151058837/job/114504652565).
 - The server/holder/attach pseudoterminal fixture passed create, input, double-`Ctrl+C` detach, output while detached, reattach, forced attach-process loss, retained surface, and input after reattach.
-- A fresh run for head `05ff5680`, including serialized attach admission, keyboard negotiation, visible input rejection, and cold holder adoption after server death, is pending.
+- The expanded role fixture, including serialized attach admission, mode enable/restore, keyboard negotiation, second-client refusal, retained output, forced attach loss, and cold holder adoption after server death, passed for final head `ca803c34` in [run 38155464520, job 114517618254](https://github.com/timurproko/a1/actions/runs/38155464520/job/114517618254).
 - Physical terminal-emulator close, SSH-loss, and parent-shell restoration evidence remains pending.
 
 ## CI macOS arm64
 
 - `npm run test:terminal-host`: passed in [run 38151058837, job 114504652528](https://github.com/timurproko/a1/actions/runs/38151058837/job/114504652528).
 - The server/holder/attach pseudoterminal fixture passed create, input, double-`Ctrl+C` detach, output while detached, reattach, forced attach-process loss, retained surface, and input after reattach.
-- A fresh run for head `05ff5680`, including serialized attach admission, keyboard negotiation, visible input rejection, and cold holder adoption after server death, is pending.
+- The expanded role fixture, including serialized attach admission, mode enable/restore, keyboard negotiation, second-client refusal, retained output, forced attach loss, and cold holder adoption after server death, passed for final head `ca803c34` in [run 38155464520, job 114517618210](https://github.com/timurproko/a1/actions/runs/38155464520/job/114517618210).
 - Physical Terminal.app-close, SSH-loss, and parent-shell restoration evidence remains pending.
 
 ## Physical acceptance still required

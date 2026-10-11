@@ -47,7 +47,7 @@ Milestone 2 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). I
 
 ## 7. Validation
 
-- [ ] 7.1 Run `npm run test:terminal-host` and the role integration test in the terminal-host CI job on Windows x64, macOS, and Linux, and the Node suites for the changed `src/` and `bin/` paths; all pass on each platform.
+- [x] 7.1 Run `npm run test:terminal-host` and the role integration test in the terminal-host CI job on Windows x64, macOS, and Linux, and the Node suites for the changed `src/` and `bin/` paths; all pass on each platform.
 - [ ] 7.2 Record manual or isolated-worker evidence per platform with a CI-built artifact through `A1_TERMINAL_HOST_PATH`, never automated on an active workstation: closing the terminal window (Windows Terminal; Terminal.app; a Linux terminal emulator), losing an SSH session (Windows OpenSSH; macOS and Linux `sshd`), output produced while detached and shown on reattach, typing after reattach, double-`Ctrl+C` detach, `/quit` detach, and a forced attach kill leaving a usable parent shell.
 - [x] 7.3 Confirm with `residentTabs` at `false` that bare `a1`, `a1 pi`, and `a1 --session` start no probe and no host, using the existing launch tests.
 - [x] 7.4 Run `openspec validate resident-tabs-persistent-tab --strict --no-interactive`, `npm run check:architecture`, and documentation governance, and record every result from 7.1 to 7.4 in `implementation-evidence.md`, one section per platform, without inferring one platform's result from another's.
