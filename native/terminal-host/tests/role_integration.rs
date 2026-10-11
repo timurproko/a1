@@ -2,7 +2,7 @@
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
 
@@ -42,7 +42,7 @@ setInterval(() => {}, 1000);
     .expect("fake child");
     let address = fixture_endpoint(&runtime);
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
-    start_server(&executable, &profile, &data, &runtime, &address);
+    start_servers_concurrently(&executable, &profile, &data, &runtime, &address);
 
     let credentials_root = data
         .join("tabs")
@@ -88,7 +88,7 @@ setInterval(() => {}, 1000);
         "{}",
         competing.output_text()
     );
-    competing.wait(Duration::from_secs(5));
+    assert!(!competing.wait(Duration::from_secs(5)).success());
     drop(competing);
     first.write(b"typed-value\n");
     assert!(
@@ -144,7 +144,7 @@ setInterval(() => {}, 1000);
         "{}",
         second.output_text()
     );
-    second.child.kill().expect("force attach death");
+    second.lose_launch_tree();
     second.wait(Duration::from_secs(8));
     drop(second);
 
@@ -279,6 +279,10 @@ impl AttachFixture {
         }
         false
     }
+    fn lose_launch_tree(&mut self) {
+        let pid = self.child.process_id().expect("attach pid");
+        terminate_launch_tree(pid);
+    }
     fn output_text(&self) -> String {
         let output = String::from_utf8_lossy(&self.retained);
         let registry = std::fs::read_dir(self.data_dir.join("tabs"))
@@ -289,11 +293,11 @@ impl AttachFixture {
             .unwrap_or_else(|| "registry unavailable".into());
         format!("{output}\n--- registry ---\n{registry}")
     }
-    fn wait(&mut self, timeout: Duration) {
+    fn wait(&mut self, timeout: Duration) -> portable_pty::ExitStatus {
         let deadline = Instant::now() + timeout;
         while Instant::now() < deadline {
-            if self.child.try_wait().expect("attach status").is_some() {
-                return;
+            if let Some(status) = self.child.try_wait().expect("attach status") {
+                return status;
             }
             std::thread::sleep(Duration::from_millis(25));
         }
@@ -302,21 +306,79 @@ impl AttachFixture {
     }
 }
 
+fn server_command(
+    executable: &Path,
+    profile: &Path,
+    data: &Path,
+    runtime: &Path,
+    address: &str,
+) -> Command {
+    let mut command = Command::new(executable);
+    command
+        .args([
+            "server",
+            "--detach",
+            "--profile",
+            text(profile),
+            "--data-dir",
+            text(data),
+            "--runtime-dir",
+            text(runtime),
+        ])
+        .env("A1_TABS_ENDPOINT", address);
+    command
+}
+
+fn start_servers_concurrently(
+    executable: &Path,
+    profile: &Path,
+    data: &Path,
+    runtime: &Path,
+    address: &str,
+) {
+    let first = server_command(executable, profile, data, runtime, address)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("start first server command");
+    let second = server_command(executable, profile, data, runtime, address)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("start second server command");
+    let first = first.wait_with_output().expect("first server outcome");
+    let second = second.wait_with_output().expect("second server outcome");
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    assert!(
+        second.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+    let outcomes = format!(
+        "{}{}",
+        String::from_utf8_lossy(&first.stdout),
+        String::from_utf8_lossy(&second.stdout)
+    );
+    assert_eq!(
+        outcomes.matches("\"outcome\":\"started\"").count(),
+        1,
+        "{outcomes}"
+    );
+    assert_eq!(
+        outcomes.matches("\"outcome\":\"already-running\"").count(),
+        1,
+        "{outcomes}"
+    );
+}
+
 fn start_server(executable: &Path, profile: &Path, data: &Path, runtime: &Path, address: &str) {
     let mut diagnostic = String::new();
     for _ in 0..20 {
-        let started = Command::new(executable)
-            .args([
-                "server",
-                "--detach",
-                "--profile",
-                text(profile),
-                "--data-dir",
-                text(data),
-                "--runtime-dir",
-                text(runtime),
-            ])
-            .env("A1_TABS_ENDPOINT", address)
+        let started = server_command(executable, profile, data, runtime, address)
             .output()
             .expect("start server");
         if started.status.success() {
@@ -408,6 +470,49 @@ impl Drop for Cleanup {
         for pid in self.pids.iter().rev().copied() {
             terminate(pid);
         }
+    }
+}
+#[cfg(unix)]
+fn terminate_launch_tree(pid: u32) {
+    assert_eq!(unsafe { libc::kill(-(pid as i32), libc::SIGHUP) }, 0);
+}
+#[cfg(windows)]
+fn terminate_launch_tree(pid: u32) {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+        SetInformationJobObject,
+    };
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
+    };
+    let job = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+    assert!(!job.is_null(), "create attach-loss job");
+    let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    assert_ne!(
+        unsafe {
+            SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                std::ptr::addr_of!(limits).cast(),
+                std::mem::size_of_val(&limits) as u32,
+            )
+        },
+        0,
+        "configure attach-loss job"
+    );
+    let process = unsafe { OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid) };
+    assert!(!process.is_null(), "open attach process");
+    assert_ne!(
+        unsafe { AssignProcessToJobObject(job, process) },
+        0,
+        "assign attach process"
+    );
+    unsafe {
+        CloseHandle(process);
+        CloseHandle(job);
     }
 }
 #[cfg(unix)]

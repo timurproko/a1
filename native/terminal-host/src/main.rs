@@ -131,16 +131,19 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     );
     let (_process, observation) = match launched {
         Ok(value) => value,
-        Err(_error)
-            if contracts::roles::server::probe(&endpoint, &credentials.client_token).is_ok() =>
-        {
-            println!(
-                "{{\"outcome\":\"already-running\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
-                serde_json::to_string(&endpoint).unwrap()
-            );
-            return Ok(());
-        }
         Err(error) => {
+            // Concurrency: a competing detached child may own the lease just before its endpoint
+            // becomes observable. Bound the readiness race before classifying a silent lease.
+            for _ in 0..25 {
+                if contracts::roles::server::probe(&endpoint, &credentials.client_token).is_ok() {
+                    println!(
+                        "{{\"outcome\":\"already-running\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
+                        serde_json::to_string(&endpoint).unwrap()
+                    );
+                    return Ok(());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
             let message = error.to_string();
             println!(
                 "{{\"outcome\":\"blocked\",\"verified\":false,\"reason\":{}}}",

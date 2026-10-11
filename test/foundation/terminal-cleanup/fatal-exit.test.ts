@@ -21,14 +21,14 @@ async function run(mode: string, directory: string) {
 }
 
 describe("owned terminal failure cleanup", () => {
-  it.each(["exception", "rejection", "stall", "dispose-error", "duplicate", "owner"])("restores after %s without leaking private errors", async mode => {
+  it.each(["exception", "rejection", "stall", "dispose-error", "duplicate", "owner", "owner-signal"])("restores after %s without leaking private errors", async mode => {
     const directory = await mkdtemp(join(tmpdir(), "a1-fatal-"));
     try {
       const result = await run(mode, directory);
       expect(result.code).toBe(mode === "owner" ? 9 : 1);
       expect(result.stdout.lastIndexOf(EMERGENCY_TERMINAL_RESET)).toBeGreaterThan(result.stdout.indexOf("CHILD-LAST"));
       expect(result.stderr).not.toContain("private");
-      if (mode !== "owner") {
+      if (!mode.startsWith("owner")) {
         expect(result.stderr.match(/A1 stopped/g)).toHaveLength(1);
         const records = await readdir(directory);
         expect(records).toHaveLength(1);
