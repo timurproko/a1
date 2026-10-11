@@ -240,8 +240,6 @@ struct GhosttyRenderStateColors {
     palette: [GhosttyColorRgb; 256],
 }
 
-#[cfg_attr(windows, link(name = "ghostty-vt-static", kind = "static"))]
-#[cfg_attr(unix, link(name = "ghostty-vt", kind = "static"))]
 unsafe extern "C" {
     fn ghostty_terminal_new(
         allocator: *const c_void,

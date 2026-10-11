@@ -59,8 +59,22 @@ fn main() {
 
     let lib_dir = work.join("zig-out/lib");
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
-    // Rationale: the binary's FFI declaration selects the platform archive, keeping the
-    // independent contract library and Node addon from loading libghostty-vt.
+    // Rationale: an exact binary-only archive argument avoids the adjacent shared library on
+    // macOS while keeping the independent contract library and Node addon free of Ghostty.
+    let archive = if target.contains("windows") {
+        lib_dir.join("ghostty-vt-static.lib")
+    } else {
+        lib_dir.join("libghostty-vt.a")
+    };
+    assert!(
+        archive.is_file(),
+        "libghostty-vt archive is unavailable: {}",
+        archive.display()
+    );
+    println!(
+        "cargo:rustc-link-arg-bin=terminal-host={}",
+        archive.display()
+    );
 }
 
 // Platform: Zig's package fetch unpacks upstream test data, including a malformed JPEG that
