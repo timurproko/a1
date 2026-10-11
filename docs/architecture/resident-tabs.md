@@ -1,6 +1,6 @@
 # Resident tabs — architecture and roadmap
 
-Status: planned. Nothing here is implemented until the milestone change that delivers it merges. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
+Status: staged implementation. Milestone 1 (contracts and platform primitives) is integrated; milestone 2's opt-in one-tab runtime is implemented behind its default-off setting, has passed its three-platform native workflow, and has complete isolated Windows physical-survival evidence. macOS and Linux physical survival remains explicitly uncertified and is deferred to milestone 6; CI evidence is not a substitute. Discovery or verification failure safely falls back to the direct path. Later multi-tab, recovery, UX, packaging, and certification behavior remains planned until its named milestone merges. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
 
 ## Context
 
@@ -18,7 +18,7 @@ The first version is deliberately narrower than the eventual product. It is an o
 
 Existing assets:
 
-- **`native/terminal-host`** is a working in-terminal host. It uses `libghostty-vt` pinned at `c5a21edf`, `portable-pty` 0.9.0 (ConPTY on Windows, Unix PTYs elsewhere), crossterm 0.29, and an A1-owned damage-aware frame composer. It already has per-pane retained models, focused-input isolation, libghostty mouse and key encoding, host-owned selection with OSC 52 copy, resize, and verified cleanup. Today it is only a fixed 2×2 proof with no resident mode.
+- **`native/terminal-host`** is a working in-terminal host. It uses `libghostty-vt` pinned at `c5a21edf`, `portable-pty` 0.9.0 (ConPTY on Windows, Unix PTYs elsewhere), crossterm 0.29, and an A1-owned damage-aware frame composer. Its retained model and native encoders came from the fixed 2×2 proof; milestone 2 removed that interactive proof path and moved the model into the resident holder/attach roles. Three-platform certification remains separate from implementation.
 - **The supervisor, process-guardian, and launch guardian** provide the patterns for detached spawn, verified process identity (`--inspect-pid`), an endpoint probe with join-the-winner, and atomic metadata. The process-guardian already has Windows, macOS, and Linux implementations.
 - **The 2×2 spike evidence** in [`evidence/terminal-host-spike/`](evidence/terminal-host-spike/) is historical. Its verdicts stay pending and are not evidence for this design.
 
@@ -49,6 +49,17 @@ The read-only review used A1 `develop` at `b42b3c9e`, PR #586 at `8fdb7361`, `E:
 - A1's existing prompt history is asynchronous and can skip writes; it is not the durable-before-dispatch journal. The native host is a fixed 2×2 proof, not resident infrastructure. Its historical acceptance record still has pending technical/physical verdicts and must not be relabelled as accepted.
 - Before implementation, reconcile current `develop`, including #588's terminal-query/CI ownership and #667's surviving-owner terminal restoration. Update architecture/proof documentation during approved implementation to distinguish this single-pane resident certification from future split certification, preserving historical evidence unchanged.
 - herdr's Unix paths (socket bind as lock, Unix detach, the macOS per-user bootstrap port fix in #4100) are references for the macOS and Linux roles, not evidence for them.
+
+### Milestone 2 pinned launch contract (2026-10-11)
+
+- The preview flag is `residentTabs` in profile-local owned settings, version 14, default `false`; pre-UI routing treats absent, unreadable, oversized, and invalid values as off.
+- The host artifact resolves to `dist/native/<platform>-<arch>/a1-terminal-host[.exe]`, with hermetic `A1_TERMINAL_HOST_PATH`; discovery may use `A1_TABS_ENDPOINT`.
+- Tab children consume and erase `A1_TAB_ID`, `A1_TAB_TOKEN`, and `A1_TAB_ENDPOINT` before loading A1, Pi, extensions, or tools.
+- Client-scoped bridge detach binds `clientId` and `controllerRevision` captured when the command is admitted. The additive generation-1 `attachment` and `bridge.request` fixtures freeze that shape.
+- Launch fallback reasons are bounded to unsupported platform, missing artifact, failed probe, incompatible generation, unreadable registry, blocked recovery, unverified launch, and startup timeout. Fallback preserves resident records and presents exactly one direct-session notice.
+- Until milestone 4 adds quarantine and history recovery, an unreadable registry fails closed and is left untouched.
+- Milestone 2 multiplexes authenticated attach, holder, bridge, and probe roles over the owner endpoint and sends a replaceable full current surface through each client's single-slot render lane. Dedicated holder endpoints and patch deltas remain multi-tab optimizations rather than claims of this one-tab milestone.
+- The native server, holder, attach, bridge reconnect, child containment, and role integration fixture are implemented. Milestone 2 records complete Windows x64 terminal-close and OpenSSH-loss evidence; macOS arm64 and Linux x64 physical terminal/SSH evidence remains uncertified and is an explicit milestone-6 gate rather than an inferred milestone-2 result.
 
 ### Relation to the in-process prep refactors (2026-10-09/10)
 
@@ -137,8 +148,8 @@ Alternatives considered:
 ### 3. Host scope, endpoints, writer authority, and credentials
 
 - There is **one server per OS user × canonical A1 profile root**, independent of the release cohort. Tabs must outlive release changes, and the supervisor is forbidden from retaining runtime processes.
-  - Windows endpoint: `\\.\pipe\a1-tabs-<sha256(profileHome\0runtimeDir)[0:20]>`.
-  - macOS and Linux endpoint: a Unix domain socket `a1-tabs-<same hash>.sock` inside an owner-only (`0700`) per-user runtime directory (`$XDG_RUNTIME_DIR` when set, otherwise a private directory under the profile's runtime dir), kept short enough for the platform's socket path limit.
+  - Windows endpoint: `\\.\pipe\a1-tabs-<sha256(canonicalProfileHome)[0:20]>`.
+  - macOS and Linux endpoint: a Unix domain socket `a1-tabs-<same profile hash>.sock` inside an owner-only (`0700`) per-user runtime directory (`$XDG_RUNTIME_DIR` when set, otherwise a private directory under the profile's runtime dir), kept short enough for the platform's socket path limit.
   - Holders use `…-h-<tabId>` endpoints.
   - Hermetic override: `A1_TABS_ENDPOINT`, together with the `A1_*_DIR` overrides.
 - **The endpoint is discovery; the writer lease is authority.** A starting server probes with a real handshake. If a live server answers, it exits as `already-running` and joins the winner. A failed probe does not authorize blind endpoint reclaim: the starter reads the owner marker, verifies pid and native start identity, requests termination, and waits for the owner-only OS-exclusive registry-writer lease. If the owner cannot be verified or the lease cannot be acquired, startup fails closed instead of creating split brain.

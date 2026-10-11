@@ -23,8 +23,7 @@ run(executable, ["--probe-controller-boundary"], environment, PROBE_TIMEOUT_MS);
 run(executable, ["--probe-resident-launch"], environment, PROBE_TIMEOUT_MS);
 run(executable, ["--probe-selection"], environment, PROBE_TIMEOUT_MS);
 run(executable, ["--probe-input"], environment, PROBE_TIMEOUT_MS);
-run(executable, ["--probe-2x2"], environment, PROBE_TIMEOUT_MS);
-console.log("Terminal host binary/addon, contracts/durability/controller boundary, native input/selection, and one-pane/2x2 integration probes OK");
+console.log("Terminal host binary/addon, contracts/durability/controller boundary, fixed-role launch, retained model, and native input/selection probes OK");
 
 function run(executable, args, env, timeout) {
   const result = spawnSync(executable, args, { stdio: "inherit", env, windowsHide: true, timeout });

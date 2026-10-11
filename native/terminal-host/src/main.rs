@@ -1,8 +1,4 @@
-mod ghostty;
 mod shell;
-mod workspace;
-
-use std::collections::HashSet;
 use std::env;
 use std::fs;
 #[cfg(not(windows))]
@@ -11,27 +7,17 @@ use std::io::{Read, Write};
 use std::process::{Command, ExitCode};
 use std::sync::mpsc;
 use std::thread;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use crossterm::execute;
-use crossterm::terminal::{
-    self, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
-};
-use crossterm::{
-    cursor::{Hide, Show},
-    event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
-};
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use terminal_host_contracts as contracts;
 
-use crate::ghostty::{
+use contracts::ghostty::{
     GhosttyTerminal, KeyEncoder, MouseAction, MouseButton, MouseEncoder, MouseInput,
     SelectionGesture, key_for_character,
 };
-use crate::workspace::{FixedLayout, FixedWorkspace, SessionLaunch};
 
 const PROTOCOL_VERSION: u32 = 1;
 const GHOSTTY_VT_COMMIT: &str = "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3";
@@ -56,6 +42,10 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
             print_provenance();
             Ok(())
         }
+        Some("server") => resident_server_command(&args[1..]),
+        Some("probe") => resident_probe_command(&args[1..]),
+        Some("holder") => Err("holder role is started only by the resident server".to_owned()),
+        Some("attach") => resident_attach_command(&args[1..]),
         Some("--probe") => probe(),
         Some("--probe-scroll") => probe_scroll(),
         Some("--probe-selection") => probe_selection(),
@@ -71,19 +61,10 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         }
         #[cfg(feature = "resident-fixtures")]
         Some("--probe-resident-launch") => probe_resident_launch(),
-        Some("--probe-2x2") => probe_two_by_two(),
-        Some("--resident-fixture-child") if args.len() == 4 => {
-            contracts::launch::run_fixture_child(&args[1], &args[2], &args[3])
+        Some("--resident-role-child") if args.len() == 5 => {
+            contracts::launch::run_resident_child(&args[1], &args[2], &args[3], &args[4])
                 .map_err(|error| error.to_string())
         }
-        Some("--topology-2x2") => {
-            println!(
-                "{}",
-                workspace::topology_json(0, workspace::TOPOLOGY_REVISION)
-            );
-            Ok(())
-        }
-        Some("--fixture-pane") if args.len() == 2 => fixture_pane(&args[1]),
         Some("--resolve") if args.len() == 2 => {
             println!("{}", resolve_command(&args[1])?);
             Ok(())
@@ -93,13 +74,194 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
             println!("{program} {}", arguments.join(" "));
             Ok(())
         }
-        Some("--run") => run_interactive(&args[1..]),
         _ => {
             eprintln!(
-                "usage: a1-terminal-host --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-contracts | --probe-durable | --probe-controller-boundary | --probe-resident-launch | --probe-2x2 | --topology-2x2 | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
+                "usage: a1-terminal-host server --detach --profile <path> --data-dir <path> --runtime-dir <path> | probe --profile <path> --data-dir <path> --runtime-dir <path> | attach --endpoint <endpoint> --cwd <path> --clear-exit-ms <ms> | --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-contracts | --probe-durable | --probe-controller-boundary | --probe-resident-launch | --resolve <command> | --resolve-shell"
             );
             Err("expected a mode".to_owned())
         }
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResidentServerMetadata {
+    pid: u32,
+    start_identity: String,
+    endpoint: String,
+    generation: u16,
+    verified: bool,
+    detachment_mode: String,
+}
+
+fn resident_server_command(arguments: &[String]) -> Result<(), String> {
+    if !arguments.iter().any(|value| value == "--detach") {
+        return Err("server role requires --detach".to_owned());
+    }
+    let profile = required_role_path(arguments, "--profile")?;
+    let data = required_role_path(arguments, "--data-dir")?;
+    let runtime = required_role_path(arguments, "--runtime-dir")?;
+    fs::create_dir_all(&data)
+        .map_err(|error| format!("create resident data directory: {error}"))?;
+    fs::create_dir_all(&runtime)
+        .map_err(|error| format!("create resident runtime directory: {error}"))?;
+    let credentials_root = data
+        .join("tabs")
+        .join(contracts::endpoint::endpoint_token(&profile).map_err(|error| error.to_string())?);
+    let credentials =
+        contracts::roles::credentials::ProfileCredentials::load_or_create(&credentials_root)?;
+    let endpoint = resident_endpoint(&profile, &runtime)?;
+    if contracts::roles::server::probe(&endpoint, &credentials.client_token).is_ok() {
+        println!(
+            "{{\"outcome\":\"already-running\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
+            serde_json::to_string(&endpoint).unwrap()
+        );
+        return Ok(());
+    }
+    let context = contracts::roles::wire::ServerLaunchConfig {
+        profile: profile.to_string_lossy().into_owned(),
+        data_dir: data.to_string_lossy().into_owned(),
+        runtime_dir: runtime.to_string_lossy().into_owned(),
+        endpoint: endpoint.clone(),
+    };
+    let launched = contracts::launch::launch_resident_with_config(
+        contracts::launch::ResidentRole::Server,
+        &profile,
+        &context,
+    );
+    let (_process, observation) = match launched {
+        Ok(value) => value,
+        Err(error) => {
+            // Concurrency: a competing detached child may own the lease just before its endpoint
+            // becomes observable. Bound the readiness race before classifying a silent lease.
+            for _ in 0..25 {
+                if contracts::roles::server::probe(&endpoint, &credentials.client_token).is_ok() {
+                    println!(
+                        "{{\"outcome\":\"already-running\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
+                        serde_json::to_string(&endpoint).unwrap()
+                    );
+                    return Ok(());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            let message = error.to_string();
+            println!(
+                "{{\"outcome\":\"blocked\",\"verified\":false,\"reason\":{}}}",
+                serde_json::to_string(server_failure_reason(&message)).unwrap()
+            );
+            return Err(message);
+        }
+    };
+    contracts::roles::server::probe(&endpoint, &credentials.client_token)?;
+    let metadata = ResidentServerMetadata {
+        pid: observation.process.pid,
+        start_identity: observation.process.start,
+        endpoint: endpoint.clone(),
+        generation: contracts::protocol::GENERATION,
+        verified: true,
+        detachment_mode: observation.mode,
+    };
+    let bytes = serde_json::to_vec_pretty(&metadata).map_err(|error| error.to_string())?;
+    contracts::durable::replace(&credentials_root.join("server.json"), &bytes)
+        .map_err(|error| error.to_string())?;
+    println!(
+        "{{\"outcome\":\"started\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
+        serde_json::to_string(&endpoint).unwrap()
+    );
+    Ok(())
+}
+
+fn server_failure_reason(message: &str) -> &'static str {
+    if message.contains("registry unreadable") || message.contains("read registry") {
+        "registry-unreadable"
+    } else if message.contains("registry writer lease held") {
+        "blocked"
+    } else {
+        "launch-not-verified"
+    }
+}
+
+fn resident_probe_command(arguments: &[String]) -> Result<(), String> {
+    let profile = required_role_path(arguments, "--profile")?;
+    let data = required_role_path(arguments, "--data-dir")?;
+    let runtime = required_role_path(arguments, "--runtime-dir")?;
+    let token = contracts::endpoint::endpoint_token(&profile).map_err(|error| error.to_string())?;
+    let credentials = contracts::roles::credentials::ProfileCredentials::load_or_create(
+        &data.join("tabs").join(token),
+    )?;
+    let endpoint = resident_endpoint(&profile, &runtime)?;
+    match contracts::roles::server::probe(&endpoint, &credentials.client_token) {
+        Ok(()) => {
+            println!(
+                "{{\"outcome\":\"ready\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
+                serde_json::to_string(&endpoint).unwrap()
+            );
+            Ok(())
+        }
+        Err(error) => {
+            if error.contains("incompatible-generation") {
+                println!("{{\"outcome\":\"incompatible-generation\"}}");
+            } else {
+                println!("{{\"outcome\":\"not-running\"}}");
+            }
+            Err(error)
+        }
+    }
+}
+
+fn resident_attach_command(arguments: &[String]) -> Result<(), String> {
+    let endpoint = required_role_value(arguments, "--endpoint")?;
+    let cwd = required_role_value(arguments, "--cwd")?;
+    let clear_exit = required_role_value(arguments, "--clear-exit-ms")?
+        .parse::<u64>()
+        .map_err(|_| "attach clear-exit interval is invalid".to_owned())?;
+    let profile = required_role_path(arguments, "--profile")?;
+    let data = required_role_path(arguments, "--data-dir")?;
+    let release_root = required_role_value(arguments, "--release-root")?;
+    let node_executable = required_role_value(arguments, "--node-executable")?;
+    if clear_exit == 0 || endpoint.is_empty() {
+        return Err("attach contract is invalid".to_owned());
+    }
+    contracts::roles::attach::run_attach(contracts::roles::attach::AttachOptions {
+        endpoint,
+        cwd,
+        clear_exit_ms: clear_exit,
+        profile: &profile,
+        data_dir: &data,
+        release_root,
+        node_executable,
+    })
+}
+
+fn required_role_value<'a>(arguments: &'a [String], flag: &str) -> Result<&'a str, String> {
+    arguments
+        .windows(2)
+        .find(|pair| pair[0] == flag)
+        .map(|pair| pair[1].as_str())
+        .ok_or_else(|| format!("resident role requires {flag}"))
+}
+
+fn required_role_path(arguments: &[String], flag: &str) -> Result<std::path::PathBuf, String> {
+    let path = std::path::PathBuf::from(required_role_value(arguments, flag)?);
+    fs::create_dir_all(&path).map_err(|error| format!("prepare {flag}: {error}"))?;
+    fs::canonicalize(&path).map_err(|error| format!("canonicalize {flag}: {error}"))
+}
+
+fn resident_endpoint(
+    profile: &std::path::Path,
+    runtime: &std::path::Path,
+) -> Result<String, String> {
+    if let Some(override_value) = env::var_os("A1_TABS_ENDPOINT") {
+        return Ok(override_value.to_string_lossy().into_owned());
+    }
+    let token = contracts::endpoint::endpoint_token(profile).map_err(|error| error.to_string())?;
+    if cfg!(windows) {
+        Ok(format!(r"\\.\pipe\a1-tabs-{token}"))
+    } else {
+        Ok(runtime
+            .join(format!("a1-tabs-{token}.sock"))
+            .to_string_lossy()
+            .into_owned())
     }
 }
 
@@ -725,338 +887,6 @@ fn drain_probe_pty(mut reader: Box<dyn Read + Send>, mut writer: Box<dyn Write +
     }
 }
 
-fn fixture_pane(argument: &str) -> Result<(), String> {
-    let pane_id =
-        env::var("A1_PANE_ID").map_err(|_| "fixture pane identity is unavailable".to_owned())?;
-    let session_id = env::var("A1_TERMINAL_SESSION_ID")
-        .map_err(|_| "fixture terminal-session identity is unavailable".to_owned())?;
-    let token = env::var("TERMINAL_FIXTURE_TOKEN")
-        .map_err(|_| "fixture token is unavailable".to_owned())?;
-    if token != argument {
-        return Err("fixture exact argument did not match its environment".to_owned());
-    }
-    let cwd = env::current_dir()
-        .map_err(|error| format!("read fixture cwd: {error}"))?
-        .to_string_lossy()
-        .into_owned();
-    println!(
-        "A1_FIXTURE|{pane_id}|{session_id}|{token}|{cwd}|pid={}",
-        std::process::id()
-    );
-    std::io::stdout()
-        .flush()
-        .map_err(|error| format!("flush fixture identity: {error}"))?;
-    let expected_input = env::var("TERMINAL_FIXTURE_INPUT")
-        .map_err(|_| "fixture input identity is unavailable".to_owned())?;
-    let mut command = String::new();
-    std::io::stdin()
-        .read_line(&mut command)
-        .map_err(|error| format!("read fixture routed input: {error}"))?;
-    if command.trim() != expected_input {
-        return Err(format!(
-            "fixture received cross-routed input: expected {expected_input}, received {}",
-            command.trim()
-        ));
-    }
-    println!("A1_INPUT_ACK|{pane_id}|{expected_input}");
-    std::io::stdout()
-        .flush()
-        .map_err(|error| format!("flush fixture input acknowledgement: {error}"))?;
-    command.clear();
-    std::io::stdin()
-        .read_line(&mut command)
-        .map_err(|error| format!("read fixture cleanup command: {error}"))?;
-    if command.trim() != "exit" {
-        return Err("fixture received an unexpected cleanup command".to_owned());
-    }
-    Ok(())
-}
-
-fn probe_two_by_two() -> Result<(), String> {
-    let executable =
-        env::current_exe().map_err(|error| format!("resolve 2x2 probe executable: {error}"))?;
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|error| format!("read 2x2 probe clock: {error}"))?
-        .as_nanos();
-    let root = env::temp_dir().join(format!(
-        "a1-terminal-host-2x2-{}-{nonce}",
-        std::process::id()
-    ));
-    fs::create_dir_all(&root)
-        .map_err(|error| format!("create 2x2 probe root {}: {error}", root.display()))?;
-    let root =
-        fs::canonicalize(&root).map_err(|error| format!("canonicalize 2x2 probe root: {error}"))?;
-
-    let result = (|| {
-        for index in 0..4 {
-            let cwd = root.join(format!("pane-{}", index + 1));
-            fs::create_dir_all(&cwd).map_err(|error| {
-                format!("create isolated 2x2 fixture cwd {}: {error}", cwd.display())
-            })?;
-        }
-        let launches: [SessionLaunch; 4] = std::array::from_fn(|index| {
-            let cwd = root.join(format!("pane-{}", index + 1));
-            let token = format!("exact-argument-{}", index + 1);
-            SessionLaunch {
-                program: executable.to_string_lossy().into_owned(),
-                arguments: vec!["--fixture-pane".to_owned(), token.clone()],
-                cwd: Some(cwd),
-                environment: vec![
-                    ("TERMINAL_FIXTURE_TOKEN".to_owned(), token),
-                    (
-                        "TERMINAL_FIXTURE_INPUT".to_owned(),
-                        format!("focused-input-{}", index + 1),
-                    ),
-                ],
-            }
-        });
-        let mut expected = std::array::from_fn::<String, 4, _>(|index| {
-            format!(
-                "A1_FIXTURE|pane-{}|session-{}|exact-argument-{}|{}|pid=",
-                index + 1,
-                index + 1,
-                index + 1,
-                root.join(format!("pane-{}", index + 1)).to_string_lossy()
-            )
-        });
-        if cfg!(windows) {
-            for marker in &mut expected {
-                *marker = marker.to_ascii_lowercase();
-            }
-        }
-
-        let mut workspace = FixedWorkspace::spawn(80, 24, launches)?;
-        let topology = workspace.topology_json();
-        if !topology.contains("\"revision\":1")
-            || (1..=4).any(|index| {
-                !topology.contains(&format!("\"id\":\"pane-{index}\""))
-                    || !topology.contains(&format!("\"sessionId\":\"session-{index}\""))
-            })
-        {
-            return Err("2x2 topology does not contain four durable mappings".to_owned());
-        }
-
-        let process_ids = workspace.process_ids();
-        let unique_processes: HashSet<u32> = process_ids.into_iter().flatten().collect();
-        if unique_processes.len() != 4 {
-            return Err(format!(
-                "2x2 probe expected four independent process identities, received {process_ids:?}"
-            ));
-        }
-
-        let mut transcripts: [Vec<u8>; 4] = std::array::from_fn(|_| Vec::new());
-        let deadline = Instant::now() + Duration::from_secs(10);
-        loop {
-            let output = workspace.drain_all();
-            for (transcript, bytes) in transcripts.iter_mut().zip(output) {
-                transcript.extend(bytes);
-            }
-            workspace.inspect_all()?;
-            let observed_all = transcripts.iter().enumerate().all(|(index, bytes)| {
-                let text = String::from_utf8_lossy(bytes);
-                let comparable = if cfg!(windows) {
-                    text.to_ascii_lowercase()
-                } else {
-                    text.into_owned()
-                };
-                comparable.contains(&expected[index])
-            });
-            if observed_all {
-                break;
-            }
-            if Instant::now() >= deadline {
-                return Err(format!(
-                    "2x2 exact-command/environment/cwd probe timed out: {transcripts:?}"
-                ));
-            }
-            thread::sleep(Duration::from_millis(10));
-        }
-
-        for index in 0..4 {
-            workspace.focus(index)?;
-            let line_end = if cfg!(windows) { "\r\n" } else { "\n" };
-            workspace
-                .write_to_focused(format!("focused-input-{}{line_end}", index + 1).as_bytes())?;
-        }
-        let focused_topology = workspace.topology_json();
-        if !focused_topology.contains("\"revision\":4")
-            || !focused_topology.contains("\"focusedPaneId\":\"pane-4\"")
-        {
-            return Err("focused-pane topology did not advance atomically".to_owned());
-        }
-        let deadline = Instant::now() + Duration::from_secs(10);
-        loop {
-            let output = workspace.drain_all();
-            for (transcript, bytes) in transcripts.iter_mut().zip(output) {
-                transcript.extend(bytes);
-            }
-            workspace.inspect_all()?;
-            let isolated = transcripts.iter().enumerate().all(|(index, bytes)| {
-                let text = String::from_utf8_lossy(bytes);
-                let own = format!(
-                    "A1_INPUT_ACK|pane-{}|focused-input-{}",
-                    index + 1,
-                    index + 1
-                );
-                text.contains(&own)
-                    && (0..4).filter(|other| *other != index).all(|other| {
-                        !text.contains(&format!(
-                            "A1_INPUT_ACK|pane-{}|focused-input-{}",
-                            index + 1,
-                            other + 1
-                        ))
-                    })
-            });
-            if isolated {
-                break;
-            }
-            if Instant::now() >= deadline {
-                return Err(format!(
-                    "2x2 focused-input isolation probe timed out: {transcripts:?}"
-                ));
-            }
-            thread::sleep(Duration::from_millis(10));
-        }
-
-        let initial_frame_bytes = workspace.compose_probe_frame()?;
-        if initial_frame_bytes == 0 {
-            return Err("2x2 native frame composer produced no initial presentation".to_owned());
-        }
-        workspace.resize(100, 30)?;
-        let expected_layout = FixedLayout::new(100, 30)?;
-        for (index, size) in workspace.pty_sizes()?.iter().enumerate() {
-            let rect = expected_layout.panes[index];
-            if size.cols != rect.columns || size.rows != rect.rows {
-                return Err(format!(
-                    "{} PTY resize mismatch: expected {}x{}, received {}x{}",
-                    index + 1,
-                    rect.columns,
-                    rect.rows,
-                    size.cols,
-                    size.rows
-                ));
-            }
-        }
-        let updated_frame_bytes = workspace.compose_probe_frame()?;
-        if updated_frame_bytes == 0 {
-            return Err("2x2 native frame composer produced no updated presentation".to_owned());
-        }
-
-        for index in 0..4 {
-            workspace.write_to_pane(
-                index,
-                if cfg!(windows) {
-                    b"exit\r\n"
-                } else {
-                    b"exit\n"
-                },
-            )?;
-        }
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while !workspace.all_finished() {
-            workspace.drain_all();
-            workspace.inspect_all()?;
-            if Instant::now() >= deadline {
-                return Err("2x2 independent-process cleanup timed out".to_owned());
-            }
-            thread::sleep(Duration::from_millis(10));
-        }
-        workspace.verify_hot_path_isolation()?;
-        let hot_path = workspace.hot_path_json();
-        workspace.shutdown();
-        println!("{topology}");
-        println!("{hot_path}");
-        println!(
-            "{{\"probe\":\"2x2-passed\",\"topologyRevision\":1,\"panes\":4,\"sessions\":4,\"independentProcesses\":4,\"exactCommand\":true,\"environment\":true,\"cwd\":true,\"focusedInputIsolation\":true,\"nativeHotPathIsolation\":true,\"nodeRelay\":false,\"resize\":true,\"cleanup\":true}}"
-        );
-        Ok(())
-    })();
-    let cleanup = fs::remove_dir_all(&root);
-    if let Err(error) = cleanup
-        && result.is_ok()
-    {
-        return Err(format!("remove 2x2 probe root {}: {error}", root.display()));
-    }
-    result
-}
-
-fn run_interactive(arguments: &[String]) -> Result<(), String> {
-    let (program, command_args) = if arguments.first().is_some_and(|value| value == "--") {
-        let values = &arguments[1..];
-        if values.is_empty() {
-            return Err("--run -- requires a command".to_owned());
-        }
-        (values[0].clone(), values[1..].to_vec())
-    } else {
-        ("pi".to_owned(), Vec::new())
-    };
-    let program = resolve_command(&program)?;
-    let (columns, rows) =
-        terminal::size().map_err(|error| format!("read terminal size: {error}"))?;
-    let launches = SessionLaunch::repeated(program, command_args);
-    let mut workspace = FixedWorkspace::spawn(columns, rows, launches)?;
-    let _guard = TerminalModeGuard::enter()?;
-    workspace.run_interactive()
-}
-
-fn encode_key(
-    encoder: &KeyEncoder,
-    terminal: &GhosttyTerminal,
-    key: KeyEvent,
-) -> Result<Option<Vec<u8>>, String> {
-    if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
-        return Ok(None);
-    }
-    let mods = modifier_bits(key.modifiers);
-
-    let (ghost_key, text) = match key.code {
-        KeyCode::Char(character) => (key_for_character(character), Some(character.to_string())),
-        KeyCode::Enter => (ghostty::KEY_ENTER, None),
-        KeyCode::Backspace => (ghostty::KEY_BACKSPACE, None),
-        KeyCode::Tab | KeyCode::BackTab => (ghostty::KEY_TAB, None),
-        KeyCode::Esc => (ghostty::KEY_ESCAPE, None),
-        KeyCode::Left => (ghostty::KEY_ARROW_LEFT, None),
-        KeyCode::Right => (ghostty::KEY_ARROW_RIGHT, None),
-        KeyCode::Up => (ghostty::KEY_ARROW_UP, None),
-        KeyCode::Down => (ghostty::KEY_ARROW_DOWN, None),
-        KeyCode::Home => (ghostty::KEY_HOME, None),
-        KeyCode::End => (ghostty::KEY_END, None),
-        KeyCode::PageUp => (ghostty::KEY_PAGE_UP, None),
-        KeyCode::PageDown => (ghostty::KEY_PAGE_DOWN, None),
-        KeyCode::Delete => (ghostty::KEY_DELETE, None),
-        KeyCode::Insert => (ghostty::KEY_INSERT, None),
-        KeyCode::F(number) if number >= 1 => (ghostty::KEY_F1 + i32::from(number) - 1, None),
-        _ => return Ok(None),
-    };
-    encoder
-        .encode(
-            terminal,
-            ghost_key,
-            mods,
-            text.as_deref(),
-            key.kind == KeyEventKind::Repeat,
-        )
-        .map(Some)
-}
-
-fn modifier_bits(modifiers: KeyModifiers) -> u16 {
-    let mut mods = 0u16;
-    if modifiers.contains(KeyModifiers::SHIFT) {
-        mods |= ghostty::MOD_SHIFT;
-    }
-    if modifiers.contains(KeyModifiers::CONTROL) {
-        mods |= ghostty::MOD_CTRL;
-    }
-    if modifiers.contains(KeyModifiers::ALT) {
-        mods |= ghostty::MOD_ALT;
-    }
-    if modifiers.contains(KeyModifiers::SUPER) {
-        mods |= ghostty::MOD_SUPER;
-    }
-    mods
-}
-
 fn resolve_command(program: &str) -> Result<String, String> {
     if program.contains(['/', '\\']) || program.contains('.') {
         return Ok(program.to_owned());
@@ -1101,36 +931,4 @@ fn write_clipboard(stdout: &mut impl Write, bytes: &[u8]) -> Result<(), String> 
     stdout
         .flush()
         .map_err(|error| format!("flush clipboard selection: {error}"))
-}
-
-struct TerminalModeGuard;
-
-impl TerminalModeGuard {
-    fn enter() -> Result<Self, String> {
-        enable_raw_mode().map_err(|error| format!("enable terminal raw mode: {error}"))?;
-        let mut stdout = std::io::stdout().lock();
-        execute!(
-            stdout,
-            EnterAlternateScreen,
-            EnableBracketedPaste,
-            EnableMouseCapture,
-            Hide
-        )
-        .map_err(|error| format!("enter terminal workspace surface: {error}"))?;
-        Ok(Self)
-    }
-}
-
-impl Drop for TerminalModeGuard {
-    fn drop(&mut self) {
-        let mut stdout = std::io::stdout().lock();
-        let _ = execute!(
-            stdout,
-            DisableBracketedPaste,
-            DisableMouseCapture,
-            Show,
-            LeaveAlternateScreen
-        );
-        let _ = disable_raw_mode();
-    }
 }

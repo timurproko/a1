@@ -1,5 +1,7 @@
 import { writeSync } from "node:fs";
 
+export const CLEAR_EXIT_INTERVAL_MS = 500;
+
 // Protocol: reset modes on both screens; setting keyboard flags to zero is idempotent,
 // unlike repeatedly popping a keyboard-protocol stack owned by a parent application.
 // Resetting parent-screen margins homes the cursor, so preserve its restored position.

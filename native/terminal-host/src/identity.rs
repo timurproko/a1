@@ -106,9 +106,9 @@ mod platform {
                 std::io::Error::last_os_error()
             )));
         }
-        let leader = inspect_process(sid as u32)?.ok_or_else(|| {
-            IdentityError("Linux session leader exited during inspection".to_owned())
-        })?;
+        let Some(leader) = inspect_process(sid as u32)? else {
+            return Ok(format!("linux-detached-session:{sid}"));
+        };
         Ok(format!(
             "linux-session-leader:{}:{}",
             leader.pid, leader.start

@@ -1,4 +1,5 @@
 import {
+  OWNED_SETTING_DECLARATIONS,
   OWNED_UI_SETTINGS_VERSION,
   findOwnedUiSettingDeclaration,
   type OwnedUiSettingDeclaration,
@@ -180,6 +181,18 @@ export function settingValue(
   id: string,
 ): OwnedUiSettingValue | null {
   return resolution.settings.find(setting => setting.declaration.id === id)?.value ?? null;
+}
+
+/** Resolve the launch-routing flag without constructing the UI settings manager. */
+export function resolveResidentTabsSetting(document: OwnedUiSettingsDocument | null): boolean {
+  if (document === null || document.version !== OWNED_UI_SETTINGS_VERSION) return false;
+  const resolution = resolveOwnedUiSettings({
+    declarations: [OWNED_SETTING_DECLARATIONS.residentTabs],
+    migrations: [],
+    document,
+    currentVersion: OWNED_UI_SETTINGS_VERSION,
+  });
+  return settingValue(resolution, "residentTabs") === true;
 }
 
 export function documentFrom(resolution: OwnedUiSettingsResolution): OwnedUiSettingsDocument {

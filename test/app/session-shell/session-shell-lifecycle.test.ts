@@ -34,7 +34,7 @@ import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index
 import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { formatSessionResumeCommand, OwnedUiSessionShell, OwnedUiSessionShellRoot } from "../../../src/app/session-shell/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
-import { Runtime, fixture, InputImmediateScheduler, nextImmediate } from "./session-shell-fixture.js";
+import { Runtime, fixture, InputImmediateScheduler, nextImmediate, residentFixture } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
   it("applies and replaces the live bare-A1 canvas without changing transparent frames", async () => {
@@ -545,6 +545,41 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
       expect(terminal.active).toBe(false);
       expect(appendWorkflowResult).not.toHaveBeenCalledWith(expect.objectContaining({ command: "quit" }));
       expect(terminal.writes.join("")).toContain("\u001b[?1049l");
+    } finally { await shell.dispose(); }
+  });
+
+  it.each([
+    { route: "/quit", exit: (shell: OwnedUiSessionShell) => shell.submit("/quit") },
+    { route: "double Ctrl+C", exit: async (shell: OwnedUiSessionShell) => {
+      await shell.clearOrExit(1_000);
+      return shell.clearOrExit(1_200);
+    } },
+    { route: "empty-editor Ctrl+D", exit: async (shell: OwnedUiSessionShell) => {
+      shell.root.editor.setText("");
+      shell.root.handleInput("\x04");
+      return { outcome: "completed" as const, diagnostic: null };
+    } },
+  ])("detaches without stopping the resident session after $route", async ({ exit }) => {
+    const requestDetach = vi.fn(async () => true);
+    const { engine, shell, terminal } = await residentFixture({ requestDetach });
+    try {
+      await expect(exit(shell)).resolves.toMatchObject({ outcome: "completed" });
+      await vi.waitFor(() => expect(requestDetach).toHaveBeenCalledTimes(1));
+      expect(engine.calls).not.toContain("dispose");
+      expect(shell.runtime.active).toBe(true);
+      expect(terminal.active).toBe(true);
+    } finally { await shell.dispose(); }
+  });
+
+  it("keeps a resident session alive and reports an unavailable or stale detach", async () => {
+    const { engine, shell } = await residentFixture({
+      requestDetach: async () => false,
+      unavailableNotice: "Press Ctrl+C twice to leave; this agent keeps running.",
+    });
+    try {
+      await expect(shell.shutdown()).resolves.toMatchObject({ outcome: "rejected" });
+      expect(engine.calls).not.toContain("dispose");
+      expect(shell.root.render(100).join("\n")).toContain("Press Ctrl+C twice to leave; this agent keeps running.");
     } finally { await shell.dispose(); }
   });
 
