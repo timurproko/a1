@@ -16,11 +16,7 @@ export interface HelperPoolOptions {
   readonly idleMs?: number;
 }
 
-/**
- * Keeps one forked IPC helper ready so a request takes a live child instead of paying fork and module
- * load on its own critical path. The spare stays idle on its channel until it is taken; a spare that
- * exits or idles too long is dropped, and the next request forks cold and warms a replacement afterwards.
- */
+/** Holds one idle IPC helper; requests take it, and exits, expiry, or use trigger replacement. */
 export class HelperPool {
   readonly #fork: () => ChildProcess;
   readonly #stop: (child: ChildProcess) => void;
@@ -37,6 +33,9 @@ export class HelperPool {
 
   /** Whether a spare is currently held (ready or still starting). */
   get warmed(): boolean { return this.#spare !== undefined; }
+
+  /** Whether the held spare has announced that module loading is complete. */
+  get ready(): boolean { return this.#spare?.ready === true; }
 
   /** Opts the pool in and forks the first spare; from here on `replenish` keeps one ready after each request. */
   warm(): void {
