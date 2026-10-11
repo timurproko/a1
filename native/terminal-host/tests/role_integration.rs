@@ -128,6 +128,7 @@ struct AttachFixture {
     output: mpsc::Receiver<Vec<u8>>,
     retained: Vec<u8>,
     trace_path: PathBuf,
+    data_dir: PathBuf,
 }
 impl AttachFixture {
     fn spawn(
@@ -206,6 +207,7 @@ impl AttachFixture {
             output,
             retained: Vec::new(),
             trace_path,
+            data_dir: data.to_path_buf(),
         }
     }
     fn write(&mut self, bytes: &[u8]) {
@@ -235,7 +237,13 @@ impl AttachFixture {
         let output = String::from_utf8_lossy(&self.retained);
         let trace = std::fs::read_to_string(&self.trace_path)
             .unwrap_or_else(|error| format!("trace unavailable: {error}"));
-        format!("{output}\n--- holder trace ---\n{trace}")
+        let registry = std::fs::read_dir(self.data_dir.join("tabs"))
+            .ok()
+            .and_then(|mut roots| roots.next())
+            .and_then(Result::ok)
+            .and_then(|root| std::fs::read_to_string(root.path().join("registry.json")).ok())
+            .unwrap_or_else(|| "registry unavailable".into());
+        format!("{output}\n--- holder trace ---\n{trace}\n--- registry ---\n{registry}")
     }
     fn wait(&mut self, timeout: Duration) {
         let deadline = Instant::now() + timeout;
