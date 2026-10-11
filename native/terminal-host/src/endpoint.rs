@@ -202,7 +202,7 @@ impl OwnerEndpoint {
         })
     }
 
-    pub fn accept(&self) -> Result<EndpointStream, EndpointError> {
+    pub fn accept(&mut self) -> Result<EndpointStream, EndpointError> {
         let (stream, _) = self
             .listener
             .accept()

@@ -176,6 +176,12 @@ pub fn launch_resident_with_config<T: Serialize>(
         if result.exists() {
             let ready = std::fs::read_to_string(&result)
                 .map_err(|error| LaunchError(format!("read resident readiness: {error}")))?;
+            if let Some(message) = ready.strip_prefix("error:") {
+                return Err(LaunchError(format!(
+                    "resident child failed before readiness: {}",
+                    message.trim()
+                )));
+            }
             let pid = ready
                 .split(':')
                 .next()
@@ -243,7 +249,7 @@ pub fn run_resident_child(
     let context_bytes = std::fs::read(context)
         .map_err(|error| LaunchError(format!("read resident role context: {error}")))?;
     let _ = std::fs::remove_file(context);
-    match role {
+    let outcome = match role {
         "server" => {
             crate::roles::server::run_server_child(&profile, Path::new(ready), &context_bytes)
                 .map_err(LaunchError)
@@ -260,7 +266,12 @@ pub fn run_resident_child(
             }
         }
         _ => unreachable!(),
+    };
+    if let Err(error) = &outcome {
+        let message = error.0.replace(['\r', '\n'], " ");
+        let _ = std::fs::write(ready, format!("error:{message}\n"));
     }
+    outcome
 }
 
 struct ContextCleanup(PathBuf);
