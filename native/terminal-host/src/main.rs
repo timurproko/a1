@@ -5,8 +5,8 @@ mod workspace;
 use std::collections::HashSet;
 use std::env;
 use std::fs;
-use std::io::{Read, Write};
-use std::process::ExitCode;
+use std::io::{BufRead, Read, Write};
+use std::process::{Command, ExitCode};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -54,7 +54,22 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         Some("--probe-scroll") => probe_scroll(),
         Some("--probe-selection") => probe_selection(),
         Some("--probe-input") => probe_input(),
+        Some("--probe-contracts") => probe_contracts(),
+        Some("--probe-durable") => probe_durable_replacement(),
+        Some("--durable-replace-child") if args.len() == 3 => {
+            durable_replace_child(&args[1], &args[2])
+        }
+        Some("--probe-controller-boundary") => probe_controller_boundary(),
+        Some("--controller-boundary-child") if args.len() == 4 => {
+            controller_boundary_child(&args[1], &args[2], &args[3])
+        }
+        #[cfg(feature = "resident-fixtures")]
+        Some("--probe-resident-launch") => probe_resident_launch(),
         Some("--probe-2x2") => probe_two_by_two(),
+        Some("--resident-fixture-child") if args.len() == 4 => {
+            a1_session_lock::launch::run_fixture_child(&args[1], &args[2], &args[3])
+                .map_err(|error| error.to_string())
+        }
         Some("--topology-2x2") => {
             println!(
                 "{}",
@@ -75,7 +90,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         Some("--run") => run_interactive(&args[1..]),
         _ => {
             eprintln!(
-                "usage: a1-terminal-host --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-2x2 | --topology-2x2 | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
+                "usage: a1-terminal-host --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-contracts | --probe-durable | --probe-controller-boundary | --probe-resident-launch | --probe-2x2 | --topology-2x2 | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
             );
             Err("expected a mode".to_owned())
         }
@@ -214,6 +229,244 @@ fn probe_input() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(feature = "resident-fixtures")]
+fn probe_resident_launch() -> Result<(), String> {
+    let root = env::temp_dir().join(format!(
+        "a1-resident-launch-probe-{}-{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    fs::create_dir_all(&root).map_err(|error| format!("create resident launch probe: {error}"))?;
+    let result = (|| {
+        let (mut child, observation) = a1_session_lock::launch::launch_resident(
+            a1_session_lock::launch::ResidentRole::Fixture,
+            &root,
+        )
+        .map_err(|error| error.to_string())?;
+        if child.has_exited().map_err(|error| error.to_string())? {
+            return Err("resident fixture exited after verified readiness".to_owned());
+        }
+        println!(
+            "{{\"schema\":\"a1-resident-launch-probe-v1\",\"pid\":{},\"mode\":\"{}\",\"survived\":true}}",
+            observation.process.pid, observation.mode
+        );
+        child.terminate().map_err(|error| error.to_string())
+    })();
+    let _ = fs::remove_dir_all(&root);
+    result
+}
+
+fn controller_boundary_child(
+    generation: &str,
+    nonce: &str,
+    acknowledgement: &str,
+) -> Result<(), String> {
+    let generation = generation
+        .parse::<u64>()
+        .map_err(|error| format!("parse controller generation: {error}"))?;
+    let nonce = nonce
+        .parse::<u128>()
+        .map_err(|error| format!("parse controller nonce: {error}"))?;
+    let mut input = std::io::BufReader::new(std::io::stdin().lock());
+    let mut prior = String::new();
+    let mut marker = String::new();
+    input
+        .read_line(&mut prior)
+        .map_err(|error| format!("read prior PTY command: {error}"))?;
+    input
+        .read_line(&mut marker)
+        .map_err(|error| format!("read PTY marker: {error}"))?;
+    if prior.trim_end_matches(|value| value == '\r' || value == '\n') != "prior-command" {
+        return Err("controller marker overtook prior PTY input".to_owned());
+    }
+    let (_, acknowledgement_value) = a1_session_lock::controller::admit_fixture_stream(
+        marker
+            .trim_end_matches(|value| value == '\r' || value == '\n')
+            .as_bytes(),
+    )
+    .map_err(|error| error.to_string())?;
+    let (acknowledged_generation, acknowledged_nonce) = acknowledgement_value
+        .ok_or_else(|| "child did not observe a complete PTY marker".to_owned())?;
+    if acknowledged_generation != generation || acknowledged_nonce != nonce.to_be_bytes() {
+        return Err("child observed the wrong PTY marker".to_owned());
+    }
+    fs::write(
+        acknowledgement,
+        format!(
+            "{}:{:032x}",
+            acknowledged_generation,
+            u128::from_be_bytes(acknowledged_nonce)
+        ),
+    )
+    .map_err(|error| format!("write owner acknowledgement: {error}"))
+}
+
+fn probe_controller_boundary() -> Result<(), String> {
+    let generation = 23_u64;
+    let nonce = 0x00112233445566778899aabbccddeeff_u128;
+    let root = env::temp_dir().join(format!(
+        "a1-controller-boundary-{}-{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    fs::create_dir_all(&root)
+        .map_err(|error| format!("create controller boundary root: {error}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o700))
+            .map_err(|error| format!("protect controller boundary root: {error}"))?;
+    }
+    let acknowledgement = root.join("ack");
+    let result = (|| {
+        let pair = NativePtySystem::default()
+            .openpty(PtySize {
+                rows: 4,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|error| format!("open controller boundary PTY: {error}"))?;
+        let mut command = CommandBuilder::new(
+            env::current_exe().map_err(|error| format!("resolve controller child: {error}"))?,
+        );
+        command.args([
+            "--controller-boundary-child",
+            &generation.to_string(),
+            &nonce.to_string(),
+            &acknowledgement.to_string_lossy(),
+        ]);
+        let mut child = pair
+            .slave
+            .spawn_command(command)
+            .map_err(|error| format!("spawn controller boundary child: {error}"))?;
+        drop(pair.slave);
+        let mut writer = pair
+            .master
+            .take_writer()
+            .map_err(|error| format!("open controller boundary writer: {error}"))?;
+        writer
+            .write_all(b"prior-command\n")
+            .map_err(|error| format!("write prior PTY input: {error}"))?;
+        writer
+            .write_all(&a1_session_lock::controller::encode_boundary_marker(
+                generation,
+                nonce.to_be_bytes(),
+            ))
+            .map_err(|error| format!("write PTY marker: {error}"))?;
+        writer
+            .write_all(b"\n")
+            .map_err(|error| format!("complete PTY marker line: {error}"))?;
+        writer
+            .flush()
+            .map_err(|error| format!("flush controller boundary PTY: {error}"))?;
+        let deadline = Instant::now() + Duration::from_secs(4);
+        while !acknowledgement.exists() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
+        if !acknowledgement.exists() {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("controller boundary acknowledgement exceeded four seconds".to_owned());
+        }
+        let status = child
+            .wait()
+            .map_err(|error| format!("wait for controller boundary child: {error}"))?;
+        if !status.success() || !acknowledgement.exists() {
+            return Err(
+                "controller boundary child did not acknowledge after prior input".to_owned(),
+            );
+        }
+        let ack = fs::read_to_string(&acknowledgement)
+            .map_err(|error| format!("read controller acknowledgement: {error}"))?;
+        if ack != format!("{generation}:{nonce:032x}") {
+            return Err("controller acknowledgement did not match owner nonce".to_owned());
+        }
+        println!(
+            "{{\"schema\":\"a1-controller-boundary-probe-v1\",\"samePtyQueue\":true,\"ownerAcknowledgement\":true}}"
+        );
+        Ok(())
+    })();
+    let _ = fs::remove_dir_all(&root);
+    result
+}
+
+fn durable_replace_child(target: &str, kill_step: &str) -> Result<(), String> {
+    let kill_step = a1_session_lock::durable::DurabilityStep::parse(kill_step)
+        .ok_or_else(|| "unknown durability kill step".to_owned())?;
+    a1_session_lock::durable::replace_with_observer(
+        std::path::Path::new(target),
+        b"new durable bytes",
+        |step| {
+            if step == kill_step {
+                std::process::abort();
+            }
+            Ok(())
+        },
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn probe_durable_replacement() -> Result<(), String> {
+    let root = env::temp_dir().join(format!(
+        "a1-durable-probe-{}-{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    fs::create_dir_all(&root).map_err(|error| format!("create durability probe: {error}"))?;
+    let target = root.join("state.bin");
+    let executable = env::current_exe()
+        .map_err(|error| format!("resolve durability probe executable: {error}"))?;
+    let result = (|| {
+        for step in a1_session_lock::durable::ALL_DURABILITY_STEPS {
+            fs::write(&target, b"old durable bytes")
+                .map_err(|error| format!("seed durability probe: {error}"))?;
+            let status = Command::new(&executable)
+                .args([
+                    "--durable-replace-child",
+                    &target.to_string_lossy(),
+                    step.name(),
+                ])
+                .status()
+                .map_err(|error| format!("run durability kill child: {error}"))?;
+            if status.success() {
+                return Err(format!(
+                    "durability child did not terminate at {}",
+                    step.name()
+                ));
+            }
+            let bytes =
+                fs::read(&target).map_err(|error| format!("read durability result: {error}"))?;
+            if bytes != b"old durable bytes" && bytes != b"new durable bytes" {
+                return Err(format!(
+                    "durability boundary {} exposed partial bytes",
+                    step.name()
+                ));
+            }
+        }
+        println!(
+            "{{\"schema\":\"a1-durable-replacement-probe-v1\",\"killBoundaries\":5,\"oldOrNewOnly\":true}}"
+        );
+        Ok(())
+    })();
+    let _ = fs::remove_dir_all(&root);
+    result
+}
+
+fn probe_contracts() -> Result<(), String> {
+    let process = a1_session_lock::identity::inspect_process(std::process::id())
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "current process identity disappeared".to_owned())?;
+    let system = a1_session_lock::identity::current_system().map_err(|error| error.to_string())?;
+    let fixtures = a1_session_lock::protocol::fixture_set().map_err(|error| error.to_string())?;
+    let digest = a1_session_lock::protocol::fixture_manifest_digest(&fixtures);
+    println!(
+        "{{\"schema\":\"a1-terminal-host-contracts-v1\",\"pid\":{},\"startIdentity\":\"{}\",\"bootIdentity\":\"{}\",\"osSessionIdentity\":\"{}\",\"protocolGeneration\":1,\"fixtureDigest\":\"{}\"}}",
+        process.pid, process.start, system.boot, system.os_session, digest
+    );
+    Ok(())
+}
+
 fn probe() -> Result<(), String> {
     probe_trace("create terminal");
     let mut terminal = GhosttyTerminal::new(80, 24)?;
@@ -271,8 +524,7 @@ fn probe() -> Result<(), String> {
             pixel_height: 0,
         })
         .map_err(|error| format!("open probe PTY: {error}"))?;
-    let mut command = CommandBuilder::new("cmd.exe");
-    command.args(["/d", "/q", "/c", "exit 0"]);
+    let command = successful_probe_command();
     probe_trace("spawn PTY child");
     let mut child = pair
         .slave
@@ -303,6 +555,18 @@ fn probe() -> Result<(), String> {
         "{{\"probe\":\"passed\",\"pty\":\"started-and-cleaned\",\"terminalModel\":\"passed\"}}"
     );
     Ok(())
+}
+
+fn successful_probe_command() -> CommandBuilder {
+    if cfg!(windows) {
+        let mut command = CommandBuilder::new("cmd.exe");
+        command.args(["/d", "/q", "/c", "exit 0"]);
+        command
+    } else {
+        let mut command = CommandBuilder::new("/bin/sh");
+        command.args(["-c", "exit 0"]);
+        command
+    }
 }
 
 fn drain_probe_pty(mut reader: Box<dyn Read + Send>, mut writer: Box<dyn Write + Send>) {
@@ -337,8 +601,8 @@ fn fixture_pane(argument: &str) -> Result<(), String> {
         env::var("A1_PANE_ID").map_err(|_| "fixture pane identity is unavailable".to_owned())?;
     let session_id = env::var("A1_TERMINAL_SESSION_ID")
         .map_err(|_| "fixture terminal-session identity is unavailable".to_owned())?;
-    let token =
-        env::var("TERMINAL_FIXTURE_TOKEN").map_err(|_| "fixture token is unavailable".to_owned())?;
+    let token = env::var("TERMINAL_FIXTURE_TOKEN")
+        .map_err(|_| "fixture token is unavailable".to_owned())?;
     if token != argument {
         return Err("fixture exact argument did not match its environment".to_owned());
     }

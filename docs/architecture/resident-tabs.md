@@ -437,6 +437,14 @@ The v2 daemon was unreliable for structural reasons, and a forensic pass over it
 - **[Two clients type into one tab or a delayed slash command detaches the wrong terminal]** → One controller lease, a proven cross-channel input-admission barrier, immutable command-origin generations, and fail-closed ambiguous requests. A sideband acknowledgement alone is not sufficient.
 - **[Physical close, logout, and reboot cannot be tested hermetically]** → Owner-tree kills stand in for terminal close. Exact-artifact manual or isolated-worker records are required, and nothing is automated on an active workstation.
 
+## Milestone 1 implementation record
+
+The contract package keeps the existing proof binary and adds one shared Rust library plus a feature-gated Node-API 9 lock artifact. Process identity uses native process-start data together with Windows boot/logon LUIDs, Linux boot ID/session ID, and macOS boot time/audit session. Endpoints use a first-instance owner-only named pipe with client-token comparison on Windows and protected Unix sockets with per-accept peer credentials on Linux/macOS. Fixed resident roles use detached breakaway creation with a fixed WMI fallback on Windows and double-fork plus `setsid` on Unix; no public executable/argv launch input was added.
+
+Writer locks converge on Windows file IDs or Unix device/inode identities while retaining a canonical location gate through new-file bind. Durable replacement rejects detected remote filesystems, uses write-capable flush and write-through replacement on Windows, file/parent `fsync` on Linux, and `F_FULLFSYNC` plus parent synchronization on macOS; macOS records the explicit directory capability fallback when that call rejects a directory descriptor. Hosted abort-at-step and call-order fixtures prove only complete old-or-new process-crash behavior, not physical power-loss survival.
+
+Generation 1 is the bounded little-endian named-map MessagePack contract in this document. Its exact fixture manifest, decoder fuzz target, controller simulator, and nonce-bearing same-PTY-queue fixture are package artifacts. The only implementation-boundary deviation is intentional: the addon, roles, and primitives remain test artifacts with no product route or release packaging in milestone 1.
+
 ## Roadmap
 
 Each milestone is its own OpenSpec change and pull request, merged to `develop` behind `residentTabs: false`, so nothing user-visible changes until the preview is certified. A milestone starts only after the previous one merges, moves its requirements from [`resident-tabs-requirements.md`](resident-tabs-requirements.md) into its own spec delta, and covers Windows x64, Linux x64, and macOS arm64 together unless its change says otherwise.

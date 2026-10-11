@@ -297,15 +297,27 @@
           "platform": "win32",
           "architecture": "x64",
           "node": 24
+        },
+        {
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
         }
       ],
       "entries": [
-        "scripts/development/run-terminal-host-probe.mjs"
+        "scripts/development/run-terminal-host-probe.mjs",
+        "scripts/development/test-session-lock-addon.mjs"
       ],
       "tests": [],
       "support": [
         "native/terminal-host/",
         "scripts/development/run-terminal-host-probe.mjs",
+        "scripts/development/test-session-lock-addon.mjs",
         "scripts/development/run-terminal-host.mjs",
         "scripts/governance/check-terminal-host-provenance.mjs"
       ],
