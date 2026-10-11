@@ -29,7 +29,7 @@ describe("neutral private launch contract", () => {
       Object.defineProperty(environment, `UNRELATED_${index}`, { enumerable: true, get: () => { throw new Error("unrelated environment value was read"); } });
     }
     expect(readLaunchContext(environment, "warmup", platform)).toEqual(expected);
-    expect([...reads.values()]).toEqual(Object.keys(PRIVATE_ENVIRONMENT).map(() => 1));
+    expect([...reads.values()]).toEqual(Object.keys(environment).filter(key => key.startsWith("LAUNCH_CONTEXT_")).map(() => 1));
   });
 
   it.each(["win32", "linux", "darwin"] as const)("ignores inherited and non-enumerable private fields on %s", platform => {
@@ -78,6 +78,16 @@ describe("neutral private launch contract", () => {
   ])("rejects invalid current values: %j", value => {
     const environment = Object.fromEntries(Object.entries(value).map(([key, entry]) => [PRIVATE_ENVIRONMENT[key as keyof typeof PRIVATE_ENVIRONMENT], entry]));
     expect(() => readLaunchContext(environment)).toThrow(/Invalid private launch context/);
+  });
+
+  it("round-trips and validates the optional resident root command", () => {
+    const context = { ...release, residentRootExecutable: "/host", residentRootArguments: '["attach"]', residentFallback: "blocked" };
+    expect(readLaunchContext(withLaunchContext({}, context), "release")).toEqual(context);
+    expect(() => readLaunchContext({ [PRIVATE_ENVIRONMENT.residentRootExecutable]: "/host" })).toThrow(/incomplete/);
+    expect(() => readLaunchContext({
+      [PRIVATE_ENVIRONMENT.residentRootExecutable]: "/host",
+      [PRIVATE_ENVIRONMENT.residentRootArguments]: "not-json",
+    })).toThrow(/JSON argument list/);
   });
 
   it("requires all release fields even when some are valid", () => {

@@ -9,6 +9,7 @@ pub mod endpoint;
 pub mod identity;
 pub mod launch;
 pub mod protocol;
+pub mod roles;
 pub mod session_lock;
 
 #[cfg(feature = "node-addon")]

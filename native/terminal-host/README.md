@@ -1,62 +1,41 @@
 # A1 terminal host
 
-This Cargo package contains the existing composed-terminal proof binary plus the resident-tabs contract library and feature-gated Node-API session-lock artifact. Milestone 1 adds only tested primitives, protocol/core contracts, and fixture roles: no product launch path loads resident infrastructure or the addon. The host remains a console process inside the user's existing terminal and creates no desktop window or GUI/GPU runtime.
+This Cargo package provides the native resident-tab host and the feature-gated Node-API session-writer lock. The terminal byte path stays native: Node starts or attaches to the host and exchanges only tab metadata through the bridge.
+
+## Roles
+
+One binary exposes three product roles:
+
+- `server --detach --profile <root> --data-dir <dir> --runtime-dir <dir>` starts or joins the owner-scoped resident server and reports its verified endpoint.
+- `holder --tab <id> --incarnation <n>` is a fixed role reserved for the server. It is never a general child-process launcher.
+- `attach --endpoint <endpoint> --cwd <cwd> --clear-exit-ms <ms>` is the launch-instance root and owns the outer terminal.
+- `probe --profile <root> --data-dir <dir> --runtime-dir <dir>` performs resident discovery without starting a host.
+
+The former interactive `--run`, `--probe-2x2`, and `--topology-2x2` proof entries are not product paths. The retained non-interactive `--probe`, `--probe-scroll`, `--probe-selection`, and `--probe-input` modes certify the terminal model and encoders without opening an alternate screen.
 
 ## Stack
 
-- `libghostty-vt` pinned to `c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3` for terminal state and input semantics;
+- `libghostty-vt` pinned to `c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3`;
 - `portable-pty` 0.9.0 for PTY/ConPTY sessions;
-- Crossterm 0.29.0 for outer-terminal raw input and terminal mode control;
-- named-map MessagePack generation 1 with bounded framing and frozen fixtures;
-- Node-API 9 for the writer-held session-lock test artifact;
-- an A1-owned buffered frame composer and I/O-free controller-transfer core.
+- Crossterm 0.29.0 for outer-terminal modes and events;
+- generation-1 bounded named-map MessagePack with frozen fixtures;
+- milestone-1 native process identity, owner endpoint, detached fixed-role launch, durable replacement, writer lease, and controller-transfer contracts;
+- HMAC-SHA256 role credentials and an owner-only profile secret.
 
-## Build and non-interactive probe
+## Build and validation
 
-The crate builds in GitHub CI, not on workstations. Zig's package fetch for `libghostty-vt` unpacks upstream test data, including a deliberately malformed JPEG. Managed Windows antivirus quarantines it together with the processes above it, and on a machine running A1 that includes the installed `process-guardian.exe`. So `build.rs` refuses to build on a Windows host outside CI.
-
-A pull request that changes this package, its fixtures, or its run scripts selects three **Native terminal host** targets: Windows x64, Linux x64, and macOS arm64. Each installs Rust and Zig 0.15.2 and runs:
+The package is built by the three **Native terminal host** CI targets: Windows x64, Linux x64, and macOS arm64. Each installs Rust and Zig 0.15.2 and runs:
 
 ```powershell
 npm run test:terminal-host
 ```
 
-Each job uploads the debug terminal-host binary, native lock library, and generation-1 fixture manifest as `terminal-host-<platform>-<architecture>-attempt-<n>` for one day. Vendored native code is built for that exact platform and architecture with a baseline CPU model, never the hosted runner's native CPU. `terminal-host --version` reports the embedded `libghosttyTarget` and `libghosttyCpu` build contract. Linux additionally runs the decoder fuzz target for the bounded CI duration.
+The jobs upload the debug host binary, native lock library, and generation-1 fixture manifest. Vendored code is built for a baseline CPU. Linux also runs the bounded decoder fuzz target.
 
-On a Windows machine without restrictive antivirus, set `TERMINAL_HOST_LOCAL_BUILD=1` to build locally anyway. Maintainers inspecting only the Rust contract library may additionally set `TERMINAL_HOST_CONTRACTS_ONLY=1`; that diagnostic skips the libghostty build and cannot substitute for any selected binary/probe lane.
+On a Windows workstation, `build.rs` refuses the full Zig build unless `TERMINAL_HOST_LOCAL_BUILD=1` is set because managed antivirus can quarantine libghostty's deliberately malformed test fixture and parent processes. `TERMINAL_HOST_CONTRACTS_ONLY=1` permits contract-library diagnostics only and is not product evidence.
 
-The non-interactive gate runs identity, endpoint, writer-lock/addon, durable-replacement, protocol, controller-simulation, fixed-role launch, Rust layout/topology, retained-model/one-PTY, selection, native key/text/mouse/clipboard, and four-PTY integration probes. The 2×2 probe verifies durable pane/session mappings, exact argv, per-pane environment and cwd, distinct process identities, focused-input isolation, all-pane resize, and cleanup. It also emits bounded `a1-terminal-host-hot-path-v1` metadata proving four distinct native stream, input, terminal-model, render-damage, key-encoder, mouse-encoder, and selection identities. Raw PTY bytes, child input, and rendered cells remain in Rust and are not exported in the metadata. The gate does not enter alternate-screen mode.
+The non-interactive gate covers identity, owner endpoints, writer-lock/addon behavior, durable replacement, protocol fixtures, controller simulation, fixed-role detachment, credential separation, registry commit fencing, retained terminal state, and native input/selection encoders. Physical terminal-close and SSH-loss checks must run manually or on an attested isolated worker, never automatically on an active workstation.
 
-## Manual fullscreen proof
+## Development command
 
-Run only when you choose to test the current terminal manually:
-
-```powershell
-.\native\terminal-host\target\debug\terminal-host.exe --run
-```
-
-The proof opens one tab with four independent Pi sessions in a fixed revisioned 2×2 split. Pi is intentional here: milestone 1 proves the native PTY, rendering, input, isolation, and cleanup boundary with a complete interactive terminal workload, while A1 product loading and resident launch-route wiring remain deferred to later milestones. This command is not evidence that resident tabs are integrated into `a1` or `a1 pi`. `Alt+1` through `Alt+4` focus a pane; clicking inside a pane also focuses it. Keyboard and paste input route only to the focused pane. `Ctrl+Shift+Q` cleanly shuts down the host and all four owned process trees.
-
-When a child enables terminal mouse reporting, mouse press, release, motion, drag, and wheel events are encoded by `libghostty-vt` from pane-relative coordinates and route only to that pane. Otherwise mouse wheel scrolling and left-button selection remain host-owned and pane-scoped. Plain left-drag selects terminal text with one uniform white inverted style and copies it through the outer terminal's OSC 52 clipboard support. Double-click selects a word, and triple-click selects a line. Ctrl+C clears an active selection in the focused pane before it reaches that child; without selection, interrupt keys remain child-owned. Other keyboard scroll/navigation is not rebound by the host. Each pane owns independent retained state, dimensions, selection, render damage, PTY, and cleanup. The host preserves the outer terminal's default background and foreground unless a child explicitly sets colors.
-
-The host exits when all four children exit or when `Ctrl+Shift+Q` requests host cleanup. Ctrl+C remains child-owned except when clearing an active selection.
-
-To launch an executable other than the default `pi`, pass the same exact executable and argument vector to all four independent panes:
-
-```powershell
-.\native\terminal-host\target\debug\terminal-host.exe --run -- <executable> [args...]
-```
-
-To inspect the fixed durable topology without opening an interactive surface:
-
-```powershell
-.\native\terminal-host\target\debug\terminal-host.exe --topology-2x2
-```
-
-For a vanilla-Pi proof without changing `npm start`:
-
-```powershell
-npm run proof:terminal-host -- --run -- pi
-```
-
-Do not automate this command on an active workstation. Physical acceptance must be manual or run on an attested isolated worker.
+`npm run proof:terminal-host -- <role and arguments>` builds and invokes the exact binary. With no arguments it runs the bounded non-interactive model probe. Use the repository `./scripts/dev` launcher for interactive A1 validation rather than invoking Node entry points directly.

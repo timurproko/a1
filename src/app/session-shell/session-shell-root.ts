@@ -142,6 +142,11 @@ export interface OwnedUiShellEngineOptions {
   };
   /** Bare A1 selects the owned bounded viewport; comparison profiles stay pinned. */
   readonly sessionLayout?: "pinned" | "custom-viewport";
+  /** Resident tab quit routes detach the outer client without stopping this engine session. */
+  readonly residentTab?: {
+    requestDetach(): Promise<boolean>;
+    readonly unavailableNotice?: string;
+  };
 }
 
 /** Terminal, startup, viewport, and presentation-cadence seams; production leaves most at their defaults. */

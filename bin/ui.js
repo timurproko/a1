@@ -1,5 +1,23 @@
 #!/usr/bin/env node
 
+// Security: consume resident bridge credentials before any A1, Pi, or extension-capable module loads.
+const uiArguments = process.argv.slice(2);
+const tabArgument = uiArguments.indexOf("--tab");
+const tabMode = tabArgument !== -1;
+if (tabMode) uiArguments.splice(tabArgument, 1);
+/** @type {{ tabId: string, token: string, endpoint: string } | undefined} */
+let tabCredentials;
+if (tabMode) {
+  const tabId = process.env.A1_TAB_ID;
+  const token = process.env.A1_TAB_TOKEN;
+  const endpoint = process.env.A1_TAB_ENDPOINT;
+  if (!tabId || !token || !endpoint) throw new Error("A1 tab mode requires bridge credentials");
+  tabCredentials = { tabId, token, endpoint };
+}
+delete process.env.A1_TAB_ID;
+delete process.env.A1_TAB_TOKEN;
+delete process.env.A1_TAB_ENDPOINT;
+
 // Invariant: one terminal module identity per process, decided before any A1 or Pi module loads.
 const { installPinnedPiTuiResolver } = await import("./module-resolver.js");
 installPinnedPiTuiResolver(new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1").replace(/\/$/, ""));
@@ -51,8 +69,11 @@ const [
 identity.assertSinglePiTuiModuleAtLaunch(packageRootPath, (/** @type {string} */ message) => process.stderr.write(message));
 await startup.markStartupPhase(process.env, "ui-modules-loaded");
 
-const sessionSelection = parseSessionSelection(process.argv.slice(2));
-Promise.resolve().then(() => {
+const sessionSelection = parseSessionSelection(uiArguments);
+Promise.resolve().then(async () => {
+  const tab = tabCredentials === undefined ? undefined : {
+    bridge: new (await import("../dist/foundation/resident-tabs/bridge-client.js")).TabBridgeClient({ credentials: tabCredentials }),
+  };
   if (sessionSelection && profile !== "a1") throw new Error("session selection requires the normal A1 profile");
   return runSelectedInteractiveRuntime(profile, {
     ownedUi: async (profileId, ownedSurfaces) => {
@@ -69,6 +90,10 @@ Promise.resolve().then(() => {
         projectTrustPrompt: createConsoleProjectTrustPrompt({ presentation: profile === "a1" ? "bare" : "comparison" }),
         sessionForkPrompt: createConsoleSessionForkPrompt(),
         ...(sessionSelection === undefined ? {} : { sessionSelection }),
+        ...(tab === undefined ? {} : { tab }),
+        ...(launchContext.residentFallback === undefined ? {} : {
+          residentFallbackNotice: `Resident tabs unavailable (${launchContext.residentFallback}); running a single agent.`,
+        }),
       });
       runningApplication = application;
       return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });

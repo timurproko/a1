@@ -101,6 +101,7 @@ import {
 
 // Invariant: a disposed shell leaves the engine a host that holds no reference back to it.
 const DETACHED_WORKFLOW_INTERACTION: OwnedUiWorkflowInteractionHost = { prompt: async () => null, notify() {} };
+export const CLEAR_EXIT_INTERVAL_MS = 500;
 
 export {
   OwnedUiSessionShellRoot,
@@ -128,6 +129,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #host: OwnedUiTerminalHost;
   readonly #terminal: OwnedUiPresenterTerminal;
   readonly #cwd: string;
+  readonly #residentTabOptions: OwnedUiSessionShellOptions["engine"]["residentTab"];
   readonly #listeners = new Set<(view: OwnedUiSessionViewModel) => void>();
   readonly #unsubscribe: () => void;
   readonly #unsubscribePromptSuggestions: () => void;
@@ -202,6 +204,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
     this.#suggestionModelKey = modelKey(this.backend.session.view());
     this.#cwd = cwd;
+    this.#residentTabOptions = options.engine.residentTab;
     this.#routeHost = routeHost ?? null;
     this.#startupRoute = options.engine.startupRoute;
     this.#customViewport = sessionLayout === "custom-viewport";
@@ -866,7 +869,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   async clearOrExit(now = Date.now()): Promise<OwnedUiCommandResult> {
     this.#promptSuggestions?.abortPending();
-    if (now - this.#lastClearTime < 500) return this.shutdown();
+    if (now - this.#lastClearTime < CLEAR_EXIT_INTERVAL_MS) return this.shutdown();
     this.root.editor.setText("");
     this.#lastClearTime = now;
     this.#terminal.requestRender();
@@ -1244,11 +1247,22 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   }
 
   shutdown(): Promise<OwnedUiCommandResult> {
-    this.#shutdownPromise ??= this.#shutdown();
+    this.#shutdownPromise ??= this.#shutdown().finally(() => {
+      // Invariant: a rejected resident detach is retryable; ordinary shutdown has disposed the shell already.
+      if (!this.#disposed) this.#shutdownPromise = undefined;
+    });
     return this.#shutdownPromise;
   }
 
   async #shutdown(): Promise<OwnedUiCommandResult> {
+    const residentTab = this.#residentTab();
+    if (residentTab !== undefined) {
+      const detached = await residentTab.requestDetach().catch(() => false);
+      if (detached) return { outcome: "completed", diagnostic: null };
+      this.root.appendWorkflowStatus(residentTab.unavailableNotice ?? "Press Ctrl+C twice to leave; this agent keeps running.");
+      this.#terminal.requestRender();
+      return rejected("resident tab detach is unavailable");
+    }
     try {
       const quit = this.backend.workflows.executeWorkflow({ command: "quit", argument: "" });
       // Invariant: a slow or hung engine quit never holds the terminal past the cleanup deadline. The
@@ -1261,6 +1275,10 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     } finally {
       this.#resolveStoppedLifecycle();
     }
+  }
+
+  #residentTab(): OwnedUiSessionShellOptions["engine"]["residentTab"] {
+    return this.#residentTabOptions;
   }
 
   async runWorkflow(request: OwnedUiWorkflowRequest): Promise<OwnedUiCommandResult> {

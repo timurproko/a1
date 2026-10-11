@@ -164,14 +164,17 @@
       "paths": [
         "native/",
         "src/foundation/process-containment/",
-        "src/foundation/protocol/"
+        "src/foundation/protocol/",
+        "src/foundation/resident-tabs/"
       ],
       "testPaths": [
         "test/foundation/process-containment/",
-        "test/foundation/protocol/"
+        "test/foundation/protocol/",
+        "test/foundation/resident-tabs/"
       ],
       "integrationOwners": [
-        "unix-containment"
+        "unix-containment",
+        "terminal-host"
       ]
     },
     {

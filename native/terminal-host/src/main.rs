@@ -56,6 +56,10 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
             print_provenance();
             Ok(())
         }
+        Some("server") => resident_server_command(&args[1..]),
+        Some("probe") => resident_probe_command(&args[1..]),
+        Some("holder") => Err("holder role is started only by the resident server".to_owned()),
+        Some("attach") => resident_attach_command(&args[1..]),
         Some("--probe") => probe(),
         Some("--probe-scroll") => probe_scroll(),
         Some("--probe-selection") => probe_selection(),
@@ -71,17 +75,9 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         }
         #[cfg(feature = "resident-fixtures")]
         Some("--probe-resident-launch") => probe_resident_launch(),
-        Some("--probe-2x2") => probe_two_by_two(),
         Some("--resident-fixture-child") if args.len() == 4 => {
             contracts::launch::run_fixture_child(&args[1], &args[2], &args[3])
                 .map_err(|error| error.to_string())
-        }
-        Some("--topology-2x2") => {
-            println!(
-                "{}",
-                workspace::topology_json(0, workspace::TOPOLOGY_REVISION)
-            );
-            Ok(())
         }
         Some("--fixture-pane") if args.len() == 2 => fixture_pane(&args[1]),
         Some("--resolve") if args.len() == 2 => {
@@ -93,14 +89,126 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
             println!("{program} {}", arguments.join(" "));
             Ok(())
         }
-        Some("--run") => run_interactive(&args[1..]),
         _ => {
             eprintln!(
-                "usage: a1-terminal-host --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-contracts | --probe-durable | --probe-controller-boundary | --probe-resident-launch | --probe-2x2 | --topology-2x2 | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
+                "usage: a1-terminal-host server --detach --profile <path> --data-dir <path> --runtime-dir <path> | probe --profile <path> --data-dir <path> --runtime-dir <path> | attach --endpoint <endpoint> --cwd <path> --clear-exit-ms <ms> | --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-contracts | --probe-durable | --probe-controller-boundary | --probe-resident-launch | --resolve <command> | --resolve-shell"
             );
             Err("expected a mode".to_owned())
         }
     }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResidentServerMetadata {
+    pid: u32,
+    start_identity: String,
+    endpoint: String,
+    generation: u16,
+    verified: bool,
+    detachment_mode: String,
+}
+
+fn resident_server_command(arguments: &[String]) -> Result<(), String> {
+    if !arguments.iter().any(|value| value == "--detach") {
+        return Err("server role requires --detach".to_owned());
+    }
+    let profile = required_role_path(arguments, "--profile")?;
+    let data = required_role_path(arguments, "--data-dir")?;
+    let runtime = required_role_path(arguments, "--runtime-dir")?;
+    fs::create_dir_all(&data)
+        .map_err(|error| format!("create resident data directory: {error}"))?;
+    fs::create_dir_all(&runtime)
+        .map_err(|error| format!("create resident runtime directory: {error}"))?;
+    let _ = profile;
+    println!(
+        "{{\"outcome\":\"unavailable\",\"verified\":false,\"reason\":\"launch-not-verified\"}}"
+    );
+    Err("resident server transport is unavailable; running a single agent is required".to_owned())
+}
+
+fn resident_probe_command(arguments: &[String]) -> Result<(), String> {
+    let profile = required_role_path(arguments, "--profile")?;
+    let data = required_role_path(arguments, "--data-dir")?;
+    let token = contracts::endpoint::endpoint_token(&profile).map_err(|error| error.to_string())?;
+    let metadata_path = data.join("tabs").join(token).join("server.json");
+    let Some(metadata) = read_resident_metadata(&metadata_path)? else {
+        println!("{{\"outcome\":\"not-running\"}}");
+        return Err("resident server is not running".to_owned());
+    };
+    if metadata.generation != contracts::protocol::GENERATION {
+        println!("{{\"outcome\":\"incompatible-generation\"}}");
+        return Err("resident server generation is incompatible".to_owned());
+    }
+    let live = contracts::identity::inspect_process(metadata.pid)
+        .map_err(|error| error.to_string())?
+        .is_some_and(|identity| identity.start == metadata.start_identity);
+    if !live {
+        println!("{{\"outcome\":\"not-running\"}}");
+        return Err("resident server identity is no longer live".to_owned());
+    }
+    println!(
+        "{{\"outcome\":\"ready\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
+        serde_json::to_string(&metadata.endpoint).unwrap()
+    );
+    Ok(())
+}
+
+fn resident_attach_command(arguments: &[String]) -> Result<(), String> {
+    let endpoint = required_role_value(arguments, "--endpoint")?;
+    let _cwd = required_role_value(arguments, "--cwd")?;
+    let clear_exit = required_role_value(arguments, "--clear-exit-ms")?
+        .parse::<u64>()
+        .map_err(|_| "attach clear-exit interval is invalid".to_owned())?;
+    if clear_exit == 0 || endpoint.is_empty() {
+        return Err("attach contract is invalid".to_owned());
+    }
+    Err("resident attach transport is unavailable; running a single agent is required".to_owned())
+}
+
+fn required_role_value<'a>(arguments: &'a [String], flag: &str) -> Result<&'a str, String> {
+    arguments
+        .windows(2)
+        .find(|pair| pair[0] == flag)
+        .map(|pair| pair[1].as_str())
+        .ok_or_else(|| format!("resident role requires {flag}"))
+}
+
+fn required_role_path(arguments: &[String], flag: &str) -> Result<std::path::PathBuf, String> {
+    let path = std::path::PathBuf::from(required_role_value(arguments, flag)?);
+    fs::create_dir_all(&path).map_err(|error| format!("prepare {flag}: {error}"))?;
+    fs::canonicalize(&path).map_err(|error| format!("canonicalize {flag}: {error}"))
+}
+
+fn resident_endpoint(
+    profile: &std::path::Path,
+    runtime: &std::path::Path,
+) -> Result<String, String> {
+    if let Some(override_value) = env::var_os("A1_TABS_ENDPOINT") {
+        return Ok(override_value.to_string_lossy().into_owned());
+    }
+    let token = contracts::endpoint::endpoint_token(profile).map_err(|error| error.to_string())?;
+    if cfg!(windows) {
+        Ok(format!(r"\\.\pipe\a1-tabs-{token}"))
+    } else {
+        Ok(runtime
+            .join(format!("a1-tabs-{token}.sock"))
+            .to_string_lossy()
+            .into_owned())
+    }
+}
+
+fn read_resident_metadata(
+    path: &std::path::Path,
+) -> Result<Option<ResidentServerMetadata>, String> {
+    let bytes = match fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("read resident server metadata: {error}")),
+    };
+    serde_json::from_slice(&bytes)
+        .map(Some)
+        .map_err(|error| format!("registry unreadable: {error}"))
 }
 
 fn print_provenance() {

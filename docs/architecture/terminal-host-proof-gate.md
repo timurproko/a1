@@ -2,6 +2,8 @@
 
 The composed-terminal proof is a stop/go gate. A1 must not merge or productize composed terminal panes until the exact in-terminal spike artifact passes both technical and physical acceptance.
 
+This gate applies to split-pane composition only. The single-pane resident-tab path does not reuse or reinterpret its pending evidence; each resident milestone is certified independently by the staged requirements and platform evidence in [`resident-tabs.md`](resident-tabs.md).
+
 ## Go criteria
 
 A `go` decision requires all of the following:

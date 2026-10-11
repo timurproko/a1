@@ -1,6 +1,6 @@
 # Resident tabs — architecture and roadmap
 
-Status: planned. Nothing here is implemented until the milestone change that delivers it merges. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
+Status: staged implementation. Milestone 1 (contracts and platform primitives) is integrated; milestone 2's opt-in one-tab path is under implementation and safely falls back until the resident transport is verified. Later multi-tab, recovery, UX, packaging, and certification behavior remains planned until its named milestone merges. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
 
 ## Context
 
@@ -49,6 +49,15 @@ The read-only review used A1 `develop` at `b42b3c9e`, PR #586 at `8fdb7361`, `E:
 - A1's existing prompt history is asynchronous and can skip writes; it is not the durable-before-dispatch journal. The native host is a fixed 2×2 proof, not resident infrastructure. Its historical acceptance record still has pending technical/physical verdicts and must not be relabelled as accepted.
 - Before implementation, reconcile current `develop`, including #588's terminal-query/CI ownership and #667's surviving-owner terminal restoration. Update architecture/proof documentation during approved implementation to distinguish this single-pane resident certification from future split certification, preserving historical evidence unchanged.
 - herdr's Unix paths (socket bind as lock, Unix detach, the macOS per-user bootstrap port fix in #4100) are references for the macOS and Linux roles, not evidence for them.
+
+### Milestone 2 pinned launch contract (2026-10-11)
+
+- The preview flag is `residentTabs` in profile-local owned settings, version 14, default `false`; pre-UI routing treats absent, unreadable, oversized, and invalid values as off.
+- The host artifact resolves to `dist/native/<platform>-<arch>/a1-terminal-host[.exe]`, with hermetic `A1_TERMINAL_HOST_PATH`; discovery may use `A1_TABS_ENDPOINT`.
+- Tab children consume and erase `A1_TAB_ID`, `A1_TAB_TOKEN`, and `A1_TAB_ENDPOINT` before loading A1, Pi, extensions, or tools.
+- Client-scoped bridge detach binds `clientId` and `controllerRevision` captured when the command is admitted. The additive generation-1 `attachment` and `bridge.request` fixtures freeze that shape.
+- Launch fallback reasons are bounded to unsupported platform, missing artifact, failed probe, incompatible generation, unreadable registry, blocked recovery, unverified launch, and startup timeout. Fallback preserves resident records and presents exactly one direct-session notice.
+- Until milestone 4 adds quarantine and history recovery, an unreadable registry fails closed and is left untouched.
 
 ### Relation to the in-process prep refactors (2026-10-09/10)
 

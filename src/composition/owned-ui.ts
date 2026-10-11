@@ -39,6 +39,7 @@ import { createOwnedRouteHost, type OwnedReferenceProviders } from "./settings-r
 import { renderPiShellChangelogLines } from "../integrations/pi/components/shell-presenters-info.js";
 import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
+import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 
 /**
  * The session backend composition wires: the owned-UI port, the prompt-suggestion generator, and
@@ -87,6 +88,10 @@ export interface OwnedUiCompositionOptions {
   readonly checkForNewerRelease?: (options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>;
   /** Exact native process inspection injected by the shipped entry; absent SDK seams do not publish claims. */
   readonly inspectProcess?: (pid: number) => Promise<NativeProcessIdentity | null>;
+  /** Private credentials were consumed by the entry before composition or extensions loaded. */
+  readonly tab?: { readonly bridge: TabBridgeClient };
+  /** One prompt-adjacent notice explaining why an opted-in resident launch fell back. */
+  readonly residentFallbackNotice?: string;
 }
 
 export interface OwnedUiComposition {
@@ -191,6 +196,23 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   } catch (error) {
     await host.dispose();
     throw error;
+  }
+  const tabBridge = options.tab?.bridge ?? null;
+  let unsubscribeTabBridge = () => {};
+  if (tabBridge !== null) {
+    await tabBridge.start().catch(() => false);
+    tabBridge.status("starting");
+    const announceSession = () => {
+      const resume = backend.identity.currentSessionResumeMetadata();
+      tabBridge.session(resume === null ? null : `${resume.sessionDir}/${resume.sessionId}`, backend.session.view().status.footer?.sessionName ?? null);
+    };
+    announceSession();
+    unsubscribeTabBridge = backend.session.onEvent(event => {
+      if (event.type === "session-lifecycle") {
+        tabBridge.status(event.lifecycle === "busy" ? "working" : event.lifecycle === "starting" ? "starting" : "idle");
+      }
+      if (event.type === "session-view") announceSession();
+    });
   }
   let releaseNotes: ReleaseNoteCatalog | null = null;
   let releaseNotesFailure: unknown;
@@ -297,13 +319,17 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
           },
         }),
         ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
+        ...(tabBridge === null ? {} : { residentTab: { requestDetach: () => tabBridge.requestDetach() } }),
       },
       presentation: {
         ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
+        ...(tabBridge !== null ? { startup: { quiet: true } } : options.residentFallbackNotice === undefined ? {} : {
+          startup: { notices: [{ kind: "warning" as const, message: options.residentFallbackNotice }] },
+        }),
         ...(clipboardDiagnostics === null ? {} : { input: { onEvent: event => clipboardDiagnostics.runtime(event) } }),
         ...(viewportSettings === null ? {} : { viewportSettings }),
         ...(backgroundSettings === null ? {} : { backgroundSettings }),
-        ...(settings === null || !ownedSurfaces ? {} : {
+        ...(settings === null || !ownedSurfaces || tabBridge !== null ? {} : {
           quitOutro: { snapshot: () => quitOutroSettingsSnapshot(settings), interactive: process.stdout.isTTY === true },
         }),
       },
@@ -384,6 +410,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         }
         await releaseNoteClaim?.release();
         suggestionDiagnostics?.dispose(); clipboardDiagnostics?.dispose();
+        unsubscribeTabBridge();
+        tabBridge?.close();
         // Invariant: the host outlives the application; disposing it cancels host-level probes last.
         await host.dispose();
       }

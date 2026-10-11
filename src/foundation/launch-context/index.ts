@@ -8,6 +8,9 @@ export const PRIVATE_ENVIRONMENT = Object.freeze({
   releaseLayers: "LAUNCH_CONTEXT_RELEASE_LAYERS",
   launchProfile: "LAUNCH_CONTEXT_PROFILE",
   immutableWarmup: "LAUNCH_CONTEXT_WARMUP",
+  residentRootExecutable: "LAUNCH_CONTEXT_RESIDENT_ROOT_EXECUTABLE",
+  residentRootArguments: "LAUNCH_CONTEXT_RESIDENT_ROOT_ARGUMENTS",
+  residentFallback: "LAUNCH_CONTEXT_RESIDENT_FALLBACK",
 });
 
 /**
@@ -41,6 +44,9 @@ export interface LaunchContext {
   readonly releaseLayers?: string;
   readonly launchProfile?: "a1" | "pi";
   readonly immutableWarmup?: "1";
+  readonly residentRootExecutable?: string;
+  readonly residentRootArguments?: string;
+  readonly residentFallback?: string;
 }
 
 export type LaunchContextRequirement = "optional" | "profile" | "release" | "warmup";
@@ -77,6 +83,13 @@ export function readLaunchContext(
     throw invalidContext("launchProfile", "unsupported profile");
   }
   if (values.immutableWarmup !== undefined && values.immutableWarmup !== "1") throw invalidContext("immutableWarmup", "invalid permission flag");
+  if ((values.residentRootExecutable === undefined) !== (values.residentRootArguments === undefined)) throw invalidContext("residentRootExecutable", "resident root command is incomplete");
+  if (values.residentRootArguments !== undefined) {
+    try {
+      const argumentsValue: unknown = JSON.parse(values.residentRootArguments);
+      if (!Array.isArray(argumentsValue) || argumentsValue.some(value => typeof value !== "string")) throw new Error("not string arguments");
+    } catch { throw invalidContext("residentRootArguments", "invalid JSON argument list"); }
+  }
   if (values.releaseDigest !== undefined && !/^[a-f0-9]{64}$/.test(values.releaseDigest)) throw invalidContext("releaseDigest", "invalid digest");
   if (requirement === "profile") requireFields(values, ["launchProfile"]);
   if (requirement === "release" || requirement === "warmup") {

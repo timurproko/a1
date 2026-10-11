@@ -95,6 +95,21 @@ pub struct ControllerBoundary {
     pub nonce: [u8; 16],
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BridgeAttachment {
+    pub client_id: String,
+    pub controller_revision: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BridgeRequest {
+    pub action: String,
+    pub client_id: String,
+    pub controller_revision: u64,
+}
+
 pub fn encode_frame<T: Serialize>(value: &T) -> Result<Vec<u8>, ProtocolError> {
     let payload = rmp_serde::to_vec_named(value)
         .map_err(|error| ProtocolError::InvalidMessagePack(error.to_string()))?;
@@ -251,6 +266,29 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
                 body: ControllerBoundary {
                     generation: 2,
                     nonce: [0x5a; 16],
+                },
+            })?,
+        ),
+        (
+            "bridge-attachment.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "attachment".to_owned(),
+                request_id: None,
+                body: BridgeAttachment {
+                    client_id: "client-1".to_owned(),
+                    controller_revision: 7,
+                },
+            })?,
+        ),
+        (
+            "bridge-request-detach.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.request".to_owned(),
+                request_id: Some(9),
+                body: BridgeRequest {
+                    action: "detach".to_owned(),
+                    client_id: "client-1".to_owned(),
+                    controller_revision: 7,
                 },
             })?,
         ),

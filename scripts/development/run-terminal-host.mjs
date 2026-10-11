@@ -9,7 +9,7 @@ run(cargo, ["build", "--manifest-path", manifest], environment, "pipe");
 
 const executable = resolve("native/terminal-host/target/debug", platform() === "win32" ? "terminal-host.exe" : "terminal-host");
 const args = process.argv.slice(2);
-const hostArgs = args.length > 0 ? args : ["--run"];
+const hostArgs = args.length > 0 ? args : ["--probe"];
 run(executable, hostArgs, environment, "inherit");
 
 function run(command, args, env, stdio) {

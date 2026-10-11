@@ -15,9 +15,10 @@ import { selectUpdateLaunchRelease } from "./update-launch.js";
 import { consumeMaterializationProof, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease, type VerifyMaterializedReleaseOptions } from "./release-store.js";
 import { scheduleReleaseCleanup } from "./release-gc.js";
 import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDocument } from "./restart-certification.js";
-import { PRODUCT_TEXT } from "../../product-identity.js";
+import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { markStartupPhase } from "../startup/index.js";
-import { launchContractTarget, readLaunchContext, withLaunchContext } from "../launch-context/index.js";
+import { isCurrentLaunchContract, launchContractTarget, readLaunchContext, withLaunchContext, type LaunchContext } from "../launch-context/index.js";
+import { ensureTerminalHost, readResidentTabsSetting, type EnsureTerminalHostOptions, type EnsureTerminalHostResult } from "../resident-tabs/index.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
@@ -36,6 +37,9 @@ export interface BootstrapOptions {
   readonly releaseIsLaunchable?: (releaseRoot: string) => boolean;
   /** Test seam for bounded maintenance scheduled after stale endpoint sweeping. */
   readonly scheduleMaintenance?: (dataDir: string, paths: ReturnType<typeof resolveProductPaths>) => Promise<void>;
+  /** Test seams for resident launch routing before the guardian starts. */
+  readonly readResidentTabs?: (configDir: string, profileId: string) => Promise<boolean>;
+  readonly ensureTerminalHost?: (options: EnsureTerminalHostOptions) => Promise<EnsureTerminalHostResult>;
 }
 
 const RELEASE_RESELECTION_MESSAGE = "a1-release-reselection";
@@ -56,7 +60,22 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
 
   const launchSelected = async (release: MaterializedRelease): Promise<number> => {
-    const result = await launchUi(release, environment, sessionArgs);
+    let residentContext: LaunchContext = {};
+    const eligible = launchProfileId === "a1" && sessionArgs.length === 0 && isCurrentLaunchContract(release);
+    if (eligible && await (options.readResidentTabs ?? readResidentTabsSetting)(paths.configDir, launchProfileId)) {
+      const resident = await (options.ensureTerminalHost ?? ensureTerminalHost)({
+        releaseRoot: release.releaseRoot,
+        profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
+        dataDir: paths.dataDir,
+        runtimeDir: paths.runtimeDir,
+        environment,
+      });
+      residentContext = resident.status === "ready" ? {
+        residentRootExecutable: resident.executable,
+        residentRootArguments: JSON.stringify(["attach", "--endpoint", resident.endpoint, "--cwd", process.cwd(), "--clear-exit-ms", "500"]),
+      } : { residentFallback: resident.reason };
+    }
+    const result = await launchUi(release, environment, sessionArgs, residentContext);
     if (!result.releaseSuperseded) return result.code;
     if (retriesRemaining > 0) return await runBootstrapAttempt(options, retriesRemaining - 1);
     output.write(`${PRODUCT_TEXT.diagnostic("active release changed repeatedly during startup; launch could not converge")}\n`);
@@ -363,13 +382,21 @@ async function launchUi(
   release: MaterializedRelease,
   environment: NodeJS.ProcessEnv,
   sessionArgs: readonly string[],
+  residentContext: LaunchContext = {},
 ): Promise<{ readonly code: number; readonly releaseSuperseded: boolean }> {
   await markStartupPhase(environment, "bootstrap-selected");
   const entry = await resolveReleaseEntryPoint(release, "bin/guardian.js");
   return await new Promise((resolvePromise, rejectPromise) => {
     let releaseSuperseded = false;
+    const releaseEnv = releaseEnvironment(environment, release, readLaunchContext(environment, "profile").launchProfile);
+    const launchEnvironment = Object.keys(residentContext).length === 0 ? releaseEnv : withLaunchContext(
+      releaseEnv,
+      { ...readLaunchContext(releaseEnv), ...residentContext },
+      process.platform,
+      launchContractTarget(release),
+    );
     const child = spawn(process.execPath, [entry, ...sessionArgs], {
-      env: releaseEnvironment(environment, release, readLaunchContext(environment, "profile").launchProfile),
+      env: launchEnvironment,
       stdio: ["inherit", "inherit", "inherit", "ipc"],
       windowsHide: false,
     });
