@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+use serde::Serialize;
+
 use crate::identity::{ProcessIdentity, inspect_process};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -124,6 +126,14 @@ pub fn launch_resident(
     role: ResidentRole,
     profile: &Path,
 ) -> Result<(ResidentProcess, LaunchObservation), LaunchError> {
+    launch_resident_with_config(role, profile, &serde_json::json!({}))
+}
+
+pub fn launch_resident_with_config<T: Serialize>(
+    role: ResidentRole,
+    profile: &Path,
+    context: &T,
+) -> Result<(ResidentProcess, LaunchObservation), LaunchError> {
     let executable = std::env::current_exe()
         .map_err(|error| LaunchError(format!("resolve terminal-host artifact: {error}")))?;
     let artifact = std::fs::canonicalize(&executable)
@@ -135,13 +145,17 @@ pub fn launch_resident(
         std::process::id(),
         rand::random::<u64>()
     ));
+    let context_path = result.with_extension("context.json");
+    write_private_context(&context_path, context)?;
+    let _context_cleanup = ContextCleanup(context_path.clone());
     let mut command = Command::new(&artifact);
     command
         .args([
-            "--resident-fixture-child",
+            "--resident-role-child",
             role.argument(),
             &profile.to_string_lossy(),
             &result.to_string_lossy(),
+            &context_path.to_string_lossy(),
         ])
         .env_clear()
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
@@ -150,7 +164,8 @@ pub fn launch_resident(
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     let configured_mode = configure_detached(&mut command)?;
-    let mut child = spawn_with_fallback(command, &artifact, role, &profile, &result)?;
+    let mut child =
+        spawn_with_fallback(command, &artifact, role, &profile, &result, &context_path)?;
     let mode = if cfg!(windows) && child.child.is_none() {
         "windows-wmi-fixed-role".to_owned()
     } else {
@@ -203,39 +218,93 @@ pub fn launch_resident(
     ))
 }
 
-/// Fixed fixture entrypoint. Production server/holder role bodies are introduced by milestone 2.
-pub fn run_fixture_child(role: &str, profile: &str, ready: &str) -> Result<(), LaunchError> {
+/// Fixed-role entrypoint. The context path is created owner-only by the trusted parent and
+/// removed by the child immediately after it has been parsed.
+pub fn run_resident_child(
+    role: &str,
+    profile: &str,
+    ready: &str,
+    context: &str,
+) -> Result<(), LaunchError> {
     sanitize_fixture_environment();
     if !matches!(role, "fixture" | "server" | "holder") {
         return Err(LaunchError("unapproved resident role".to_owned()));
     }
     let profile = std::fs::canonicalize(profile)
-        .map_err(|error| LaunchError(format!("verify fixture profile: {error}")))?;
+        .map_err(|error| LaunchError(format!("verify resident profile: {error}")))?;
     let current_dir = std::env::current_dir()
         .and_then(std::fs::canonicalize)
-        .map_err(|error| LaunchError(format!("verify fixture cwd: {error}")))?;
+        .map_err(|error| LaunchError(format!("verify resident cwd: {error}")))?;
     if current_dir != profile {
         return Err(LaunchError(
-            "resident fixture cwd does not match its canonical profile".to_owned(),
+            "resident cwd does not match its canonical profile".to_owned(),
         ));
     }
-    std::fs::write(ready, format!("{}:{}\n", std::process::id(), role))
-        .map_err(|error| LaunchError(format!("write resident readiness: {error}")))?;
-    loop {
-        std::thread::sleep(Duration::from_secs(60));
+    let context_bytes = std::fs::read(context)
+        .map_err(|error| LaunchError(format!("read resident role context: {error}")))?;
+    let _ = std::fs::remove_file(context);
+    match role {
+        "server" => {
+            crate::roles::server::run_server_child(&profile, Path::new(ready), &context_bytes)
+                .map_err(LaunchError)
+        }
+        "holder" => {
+            crate::roles::holder::run_holder_child(&profile, Path::new(ready), &context_bytes)
+                .map_err(LaunchError)
+        }
+        "fixture" => {
+            std::fs::write(ready, format!("{}:{role}\n", std::process::id()))
+                .map_err(|error| LaunchError(format!("write resident readiness: {error}")))?;
+            loop {
+                std::thread::sleep(Duration::from_secs(60));
+            }
+        }
+        _ => unreachable!(),
     }
 }
 
+struct ContextCleanup(PathBuf);
+impl Drop for ContextCleanup {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+fn write_private_context(path: &Path, context: &impl Serialize) -> Result<(), LaunchError> {
+    use std::io::Write;
+    let bytes = serde_json::to_vec(context)
+        .map_err(|error| LaunchError(format!("encode resident role context: {error}")))?;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options
+        .open(path)
+        .map_err(|error| LaunchError(format!("create resident role context: {error}")))?;
+    file.write_all(&bytes)
+        .and_then(|()| file.sync_all())
+        .map_err(|error| LaunchError(format!("commit resident role context: {error}")))
+}
+
 fn sanitize_fixture_environment() {
-    let path = std::env::var_os("PATH").unwrap_or_default();
+    const RETAINED: &[&str] = &["PATH", "TEMP", "TMP", "SYSTEMROOT", "WINDIR"];
+    let retained = RETAINED
+        .iter()
+        .filter_map(|name| std::env::var_os(name).map(|value| (*name, value)))
+        .collect::<Vec<_>>();
     let keys = std::env::vars_os().map(|(key, _)| key).collect::<Vec<_>>();
-    // Security: this fixed-role fixture executes before starting threads. Rust 2024 marks
+    // Security: this fixed-role entry executes before starting threads. Rust 2024 marks
     // process-global environment mutation unsafe; this entrypoint has exclusive startup custody.
     unsafe {
         for key in keys {
             std::env::remove_var(key);
         }
-        std::env::set_var("PATH", path);
+        for (name, value) in retained {
+            std::env::set_var(name, value);
+        }
     }
 }
 
@@ -276,13 +345,14 @@ fn spawn_with_fallback(
     _role: ResidentRole,
     _profile: &Path,
     _result: &Path,
+    _context: &Path,
 ) -> Result<ResidentProcess, LaunchError> {
     #[cfg(windows)]
     {
         // Platform: GitHub and packaged launchers can retain descendants in a foreign job even
         // when direct breakaway creation succeeds. WMI creates this fixed role outside that job.
         drop(command);
-        return spawn_via_wmi(_artifact, _role, _profile, _result).map_err(LaunchError);
+        return spawn_via_wmi(_artifact, _role, _profile, _result, _context).map_err(LaunchError);
     }
     #[cfg(not(windows))]
     let mut command = command;
@@ -304,6 +374,7 @@ fn spawn_via_wmi(
     role: ResidentRole,
     profile: &Path,
     result: &Path,
+    context: &Path,
 ) -> Result<ResidentProcess, String> {
     use windows_sys::Win32::Storage::FileSystem::SYNCHRONIZE;
     use windows_sys::Win32::System::Threading::{
@@ -313,11 +384,12 @@ fn spawn_via_wmi(
     // outside the foreign job; no caller-supplied executable or argv is accepted.
     let quote = |value: &Path| value.to_string_lossy().replace('\'', "''");
     let command_line = format!(
-        "\"{}\" --resident-fixture-child {} \"{}\" \"{}\"",
+        "\"{}\" --resident-role-child {} \"{}\" \"{}\" \"{}\"",
         artifact.display(),
         role.argument(),
         profile.display(),
-        result.display()
+        result.display(),
+        context.display()
     )
     .replace('\'', "''");
     let script = format!(

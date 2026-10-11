@@ -6,6 +6,7 @@
 pub mod controller;
 pub mod durable;
 pub mod endpoint;
+pub mod ghostty;
 pub mod identity;
 pub mod launch;
 pub mod protocol;

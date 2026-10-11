@@ -1,8 +1,10 @@
+import { EventEmitter } from "node:events";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { encodeResidentFrame, ResidentFrameDecoder } from "../../../src/foundation/resident-tabs/protocol.js";
+import { TabBridgeClient } from "../../../src/foundation/resident-tabs/bridge-client.js";
+import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "../../../src/foundation/resident-tabs/protocol.js";
 import { ensureTerminalHost } from "../../../src/foundation/resident-tabs/ensure-terminal-host.js";
 import { readResidentTabsSetting } from "../../../src/foundation/resident-tabs/settings.js";
 
@@ -31,6 +33,33 @@ describe("resident tab launch contracts", () => {
     expect(decoder.push(frame.subarray(0, 3))).toEqual([]);
     expect(decoder.push(frame.subarray(3))).toEqual([{ type: "bridge.status", body: { seq: 1, state: "working" } }]);
     expect(frame.toString("utf8")).not.toContain("prompt");
+  });
+
+  it("reconnects the metadata bridge and replays only current status and session metadata", async () => {
+    class Transport extends EventEmitter {
+      readonly sent: ResidentEnvelope[] = [];
+      write(bytes: Uint8Array) { this.sent.push(...new ResidentFrameDecoder().push(bytes)); return true; }
+      destroy() { this.emit("close"); }
+    }
+    const transports: Transport[] = [];
+    const bridge = new TabBridgeClient({
+      credentials: { tabId: "tab-1", token: Buffer.alloc(32, 7).toString("base64"), endpoint: "fixture" },
+      connect: () => { const transport = new Transport(); transports.push(transport); return transport; },
+    });
+    const firstStart = bridge.start();
+    transports[0]!.emit("connect");
+    expect(transports[0]!.sent[0]).toMatchObject({ type: "hello", body: { role: "bridge", tabId: "tab-1" } });
+    transports[0]!.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, build: "host", features: [] } }));
+    await expect(firstStart).resolves.toBe(true);
+    bridge.status("working"); bridge.session("session.jsonl", "agent");
+    transports[0]!.emit("close");
+    const secondStart = bridge.start();
+    transports[1]!.emit("connect");
+    transports[1]!.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, build: "host", features: [] } }));
+    await expect(secondStart).resolves.toBe(true);
+    expect(transports[1]!.sent.map(message => message.type)).toEqual(["hello", "bridge.status", "bridge.session"]);
+    expect(JSON.stringify(transports[1]!.sent)).not.toContain("prompt");
+    bridge.close();
   });
 
   it("starts a missing host and waits for a verified generation-1 probe", async () => {

@@ -4,7 +4,7 @@ import { MAX_COPY_CONTROL_BYTES } from "./response-copy-protocol.js";
 import { PromptHistoryController } from "./prompt-history-controller.js";
 import type { PromptHistoryKind } from "../../contracts/owned-ui/index.js";
 import { PRODUCT_TEXT } from "../../product-identity.js";
-import { boundedCleanup } from "../../foundation/terminal-cleanup/terminal-reset.js";
+import { CLEAR_EXIT_INTERVAL_MS, boundedCleanup } from "../../foundation/terminal-cleanup/terminal-reset.js";
 import { assertOwnedUiCommand, OWNED_UI_HIDDEN_COMMAND_NAMES } from "../../contracts/owned-ui/index.js";
 import { assertPromptImages, ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type {
@@ -101,7 +101,6 @@ import {
 
 // Invariant: a disposed shell leaves the engine a host that holds no reference back to it.
 const DETACHED_WORKFLOW_INTERACTION: OwnedUiWorkflowInteractionHost = { prompt: async () => null, notify() {} };
-export const CLEAR_EXIT_INTERVAL_MS = 500;
 
 export {
   OwnedUiSessionShellRoot,

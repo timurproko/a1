@@ -29,6 +29,10 @@ export class TabBridgeClient {
   #sequence = 0;
   #request = 0;
   #attachment: TabAttachment | null = null;
+  #closed = false;
+  #retry: ReturnType<typeof setTimeout> | null = null;
+  #latestStatus: ResidentTabStatus | null = null;
+  #latestSession: { readonly file: string | null; readonly name: string | null } | null = null;
   readonly #pending = new Map<number, (accepted: boolean) => void>();
   #startWaiter: ((accepted: boolean) => void) | null = null;
 
@@ -37,16 +41,16 @@ export class TabBridgeClient {
   captureAttachment(): TabAttachment | null { return this.#attachment === null ? null : { ...this.#attachment }; }
 
   async start(timeoutMs = 4_000): Promise<boolean> {
-    if (this.#transport !== null) return this.available;
+    if (this.#closed || this.#transport !== null) return this.available;
     const transport = (this.#options.connect ?? (endpoint => connect(endpoint) as Socket))(this.#options.credentials.endpoint);
     this.#transport = transport;
     const decoder = new ResidentFrameDecoder();
     transport.on("data", bytes => {
       try { for (const message of decoder.push(bytes)) this.#receive(message); }
-      catch { this.#fail(); }
+      catch { if (this.#transport === transport) this.#fail(); }
     });
-    transport.once("close", () => this.#fail());
-    transport.once("error", () => this.#fail());
+    transport.once("close", () => { if (this.#transport === transport) this.#fail(); });
+    transport.once("error", () => { if (this.#transport === transport) this.#fail(); });
     return await new Promise<boolean>(resolvePromise => {
       let settled = false;
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -70,8 +74,14 @@ export class TabBridgeClient {
     });
   }
 
-  status(state: ResidentTabStatus): void { this.#send("bridge.status", { seq: ++this.#sequence, state }); }
-  session(file: string | null, name: string | null): void { this.#send("bridge.session", { file, name }); }
+  status(state: ResidentTabStatus): void {
+    this.#latestStatus = state;
+    this.#send("bridge.status", { seq: ++this.#sequence, state });
+  }
+  session(file: string | null, name: string | null): void {
+    this.#latestSession = { file, name };
+    this.#send("bridge.session", { file, name });
+  }
 
   async requestDetach(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
     if (!this.available || origin === null) return false;
@@ -84,7 +94,15 @@ export class TabBridgeClient {
     return await Promise.race([result, timeout]);
   }
 
-  close(): void { this.#transport?.destroy(); this.#fail(); }
+  close(): void {
+    this.#closed = true;
+    if (this.#retry !== null) clearTimeout(this.#retry);
+    this.#retry = null;
+    const transport = this.#transport;
+    this.#transport = null;
+    transport?.destroy();
+    this.#fail(false);
+  }
 
   #send(type: string, body: Readonly<Record<string, unknown>>, requestId?: number): void {
     if (this.#transport === null || (!this.#connected && type !== "hello")) return;
@@ -95,7 +113,10 @@ export class TabBridgeClient {
   #receive(message: ResidentEnvelope): void {
     if (message.type === "welcome" && message.body["generation"] === 1) {
       this.#connected = true;
+      this.#available = true;
       this.#startWaiter?.(true);
+      if (this.#latestStatus !== null) this.#send("bridge.status", { seq: ++this.#sequence, state: this.#latestStatus });
+      if (this.#latestSession !== null) this.#send("bridge.session", this.#latestSession);
       return;
     }
     if (message.type === "incompatible-generation") { this.#fail(); return; }
@@ -110,10 +131,19 @@ export class TabBridgeClient {
     }
   }
 
-  #fail(): void {
-    this.#available = false; this.#connected = false; this.#attachment = null;
+  #fail(retry = true): void {
+    const transport = this.#transport;
+    this.#available = false; this.#connected = false; this.#attachment = null; this.#transport = null;
+    transport?.destroy();
     this.#startWaiter?.(false); this.#startWaiter = null;
     for (const resolvePromise of this.#pending.values()) resolvePromise(false);
     this.#pending.clear();
+    if (retry && !this.#closed && this.#retry === null) {
+      this.#retry = setTimeout(() => {
+        this.#retry = null;
+        void this.start().then(connected => { if (!connected) this.#fail(); });
+      }, 250);
+      this.#retry.unref();
+    }
   }
 }

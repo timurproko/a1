@@ -162,18 +162,28 @@
     {
       "id": "native-containment",
       "paths": [
-        "native/",
+        "native/process-guardian/",
         "src/foundation/process-containment/",
-        "src/foundation/protocol/",
-        "src/foundation/resident-tabs/"
+        "src/foundation/protocol/"
       ],
       "testPaths": [
         "test/foundation/process-containment/",
-        "test/foundation/protocol/",
+        "test/foundation/protocol/"
+      ],
+      "integrationOwners": [
+        "unix-containment"
+      ]
+    },
+    {
+      "id": "terminal-host",
+      "paths": [
+        "native/terminal-host/",
+        "src/foundation/resident-tabs/"
+      ],
+      "testPaths": [
         "test/foundation/resident-tabs/"
       ],
       "integrationOwners": [
-        "unix-containment",
         "terminal-host"
       ]
     },

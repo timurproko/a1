@@ -1,6 +1,6 @@
 # Resident tabs — architecture and roadmap
 
-Status: staged implementation. Milestone 1 (contracts and platform primitives) is integrated; milestone 2's opt-in one-tab path is under implementation and safely falls back until the resident transport is verified. Later multi-tab, recovery, UX, packaging, and certification behavior remains planned until its named milestone merges. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
+Status: staged implementation. Milestone 1 (contracts and platform primitives) is integrated; milestone 2's opt-in one-tab runtime is implemented behind its default-off setting and remains uncertified until the three-platform native and physical-survival evidence passes. Discovery or verification failure safely falls back to the direct path. Later multi-tab, recovery, UX, packaging, and certification behavior remains planned until its named milestone merges. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
 
 ## Context
 
@@ -18,7 +18,7 @@ The first version is deliberately narrower than the eventual product. It is an o
 
 Existing assets:
 
-- **`native/terminal-host`** is a working in-terminal host. It uses `libghostty-vt` pinned at `c5a21edf`, `portable-pty` 0.9.0 (ConPTY on Windows, Unix PTYs elsewhere), crossterm 0.29, and an A1-owned damage-aware frame composer. It already has per-pane retained models, focused-input isolation, libghostty mouse and key encoding, host-owned selection with OSC 52 copy, resize, and verified cleanup. Today it is only a fixed 2×2 proof with no resident mode.
+- **`native/terminal-host`** is a working in-terminal host. It uses `libghostty-vt` pinned at `c5a21edf`, `portable-pty` 0.9.0 (ConPTY on Windows, Unix PTYs elsewhere), crossterm 0.29, and an A1-owned damage-aware frame composer. Its retained model and native encoders came from the fixed 2×2 proof; milestone 2 removed that interactive proof path and moved the model into the resident holder/attach roles. Three-platform certification remains separate from implementation.
 - **The supervisor, process-guardian, and launch guardian** provide the patterns for detached spawn, verified process identity (`--inspect-pid`), an endpoint probe with join-the-winner, and atomic metadata. The process-guardian already has Windows, macOS, and Linux implementations.
 - **The 2×2 spike evidence** in [`evidence/terminal-host-spike/`](evidence/terminal-host-spike/) is historical. Its verdicts stay pending and are not evidence for this design.
 
@@ -58,6 +58,8 @@ The read-only review used A1 `develop` at `b42b3c9e`, PR #586 at `8fdb7361`, `E:
 - Client-scoped bridge detach binds `clientId` and `controllerRevision` captured when the command is admitted. The additive generation-1 `attachment` and `bridge.request` fixtures freeze that shape.
 - Launch fallback reasons are bounded to unsupported platform, missing artifact, failed probe, incompatible generation, unreadable registry, blocked recovery, unverified launch, and startup timeout. Fallback preserves resident records and presents exactly one direct-session notice.
 - Until milestone 4 adds quarantine and history recovery, an unreadable registry fails closed and is left untouched.
+- Milestone 2 multiplexes authenticated attach, holder, bridge, and probe roles over the owner endpoint and sends a replaceable full current surface through each client's single-slot render lane. Dedicated holder endpoints and patch deltas remain multi-tab optimizations rather than claims of this one-tab milestone.
+- The native server, holder, attach, bridge reconnect, child containment, and role integration fixture are implemented, but this status is not certification: the Windows x64, Linux x64, macOS arm64, terminal-close, and SSH-loss evidence must still pass before the milestone is called accepted.
 
 ### Relation to the in-process prep refactors (2026-10-09/10)
 

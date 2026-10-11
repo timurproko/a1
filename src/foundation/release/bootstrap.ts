@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { restoreAfterOwnedExit } from "../terminal-cleanup/index.js";
+import { CLEAR_EXIT_INTERVAL_MS, restoreAfterOwnedExit } from "../terminal-cleanup/index.js";
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { resolve } from "node:path";
@@ -72,7 +72,11 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
       });
       residentContext = resident.status === "ready" ? {
         residentRootExecutable: resident.executable,
-        residentRootArguments: JSON.stringify(["attach", "--endpoint", resident.endpoint, "--cwd", process.cwd(), "--clear-exit-ms", "500"]),
+        residentRootArguments: JSON.stringify([
+          "attach", "--endpoint", resident.endpoint, "--cwd", process.cwd(), "--clear-exit-ms", String(CLEAR_EXIT_INTERVAL_MS),
+          "--profile", environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
+          "--data-dir", paths.dataDir, "--release-root", release.releaseRoot, "--node-executable", process.execPath,
+        ]),
       } : { residentFallback: resident.reason };
     }
     const result = await launchUi(release, environment, sessionArgs, residentContext);

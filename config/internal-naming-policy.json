@@ -149,17 +149,17 @@
       "role": "paneId",
       "key": "A1_PANE_ID",
       "exposure": "integration",
-      "owner": "native/terminal-host/src/workspace.rs",
-      "evidence": "native/terminal-host/src/main.rs",
-      "semantics": "Pane identity exported to launched programs"
+      "owner": "src/product-identity.json",
+      "evidence": "docs/architecture/internal-naming.md",
+      "semantics": "Reserved compatibility identity; the resident host does not currently emit it"
     },
     {
       "role": "terminalSessionId",
       "key": "A1_TERMINAL_SESSION_ID",
       "exposure": "integration",
-      "owner": "native/terminal-host/src/workspace.rs",
-      "evidence": "native/terminal-host/src/main.rs",
-      "semantics": "Session identity exported to launched programs"
+      "owner": "src/product-identity.json",
+      "evidence": "docs/architecture/internal-naming.md",
+      "semantics": "Reserved compatibility identity; the resident host does not currently emit it"
     },
     {
       "role": "tabEndpoint",

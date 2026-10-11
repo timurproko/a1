@@ -99,6 +99,8 @@ fn protect_directory(path: &Path) -> Result<(), String> {
         fs::set_permissions(path, fs::Permissions::from_mode(0o700))
             .map_err(|error| format!("protect credential directory: {error}"))?;
     }
+    #[cfg(windows)]
+    protect_windows_path(path)?;
     Ok(())
 }
 
@@ -110,7 +112,54 @@ fn protect_file(path: &Path) -> Result<(), String> {
         fs::set_permissions(path, fs::Permissions::from_mode(0o600))
             .map_err(|error| format!("protect credential file: {error}"))?;
     }
+    #[cfg(windows)]
+    protect_windows_path(path)?;
     Ok(())
+}
+
+#[cfg(windows)]
+fn protect_windows_path(path: &Path) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::LocalFree;
+    use windows_sys::Win32::Security::Authorization::{
+        ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
+    };
+    use windows_sys::Win32::Security::{DACL_SECURITY_INFORMATION, SetFileSecurityW};
+    let sddl = std::ffi::OsStr::new("D:P(A;;FA;;;OW)")
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let wide = path
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let mut descriptor = std::ptr::null_mut();
+    if unsafe {
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            sddl.as_ptr(),
+            SDDL_REVISION_1,
+            &mut descriptor,
+            std::ptr::null_mut(),
+        )
+    } == 0
+    {
+        return Err(format!(
+            "create credential ACL: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    let accepted =
+        unsafe { SetFileSecurityW(wide.as_ptr(), DACL_SECURITY_INFORMATION, descriptor) };
+    unsafe { LocalFree(descriptor) };
+    if accepted == 0 {
+        Err(format!(
+            "protect credential path: {}",
+            std::io::Error::last_os_error()
+        ))
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
