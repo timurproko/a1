@@ -42,9 +42,7 @@ const ready = resolve(root, "holder.ready");
 await writeFile(heldSession, "");
 await rm(ready, { force: true });
 const child = spawn(process.execPath, [import.meta.filename, "--holder", heldSession, ready], { stdio: "inherit", windowsHide: true });
-await waitForFile(ready, 5_000);
-const descendantPid = Number.parseInt((await readFile(ready, "utf8")).trim(), 10);
-if (!Number.isSafeInteger(descendantPid)) throw new Error("holder did not report its descendant");
+const descendantPid = await waitForPid(ready, 5_000);
 contended = false;
 try { addon.SessionLock.acquire(heldSession); } catch { contended = true; }
 if (!contended) throw new Error("second Node process acquired a held session");
@@ -58,11 +56,14 @@ addon.SessionLock.acquire(heldSession).release();
 try { process.kill(descendantPid, "SIGTERM"); } catch {}
 console.log("Session lock Node-API lifecycle, process-death release, and non-inherited grandchild custody OK");
 
-async function waitForFile(path, timeoutMs) {
+async function waitForPid(path, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    try { await import("node:fs/promises").then(fs => fs.access(path)); return; } catch {}
+    try {
+      const pid = Number.parseInt((await readFile(path, "utf8")).trim(), 10);
+      if (Number.isSafeInteger(pid)) return pid;
+    } catch {}
     await new Promise(resolveWait => setTimeout(resolveWait, 20));
   }
-  throw new Error(`timed out waiting for ${path}`);
+  throw new Error(`timed out waiting for a descendant pid in ${path}`);
 }
