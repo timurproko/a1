@@ -137,8 +137,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         return Err("resident server refused attach".to_owned());
     }
     let _: (Option<u64>, Welcome) = wire::body(&payload)?;
-    let (columns, outer_rows) = crossterm::terminal::size()
-        .map_err(|error| format!("read outer terminal size: {error}"))?;
+    let (columns, outer_rows) = outer_size()?;
     let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
     let environment = std::env::vars().collect::<Vec<_>>();
     wire::send(
@@ -315,6 +314,22 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             _ => {}
         }
     }
+}
+
+fn outer_size() -> Result<(u16, u16), String> {
+    #[cfg(feature = "resident-fixtures")]
+    if let Some((columns, rows)) = std::env::var("TERMINAL_HOST_FIXTURE_SIZE")
+        .ok()
+        .and_then(|value| {
+            value
+                .split_once('x')
+                .map(|(left, right)| (left.parse::<u16>().ok(), right.parse::<u16>().ok()))
+        })
+        .and_then(|(columns, rows)| columns.zip(rows))
+    {
+        return Ok((columns, rows));
+    }
+    crossterm::terminal::size().map_err(|error| format!("read outer terminal size: {error}"))
 }
 
 struct OuterTerminal {

@@ -145,6 +145,7 @@ impl AttachFixture {
             })
             .expect("attach pty");
         let mut command = CommandBuilder::new(executable);
+        command.env("TERMINAL_HOST_FIXTURE_SIZE", "100x24");
         command.args([
             "attach",
             "--endpoint",
