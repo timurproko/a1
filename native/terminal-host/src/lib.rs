@@ -13,3 +13,7 @@ pub mod session_lock;
 
 #[cfg(feature = "node-addon")]
 mod node_addon;
+
+#[cfg(test)]
+#[path = "../build_target.rs"]
+mod build_target;
