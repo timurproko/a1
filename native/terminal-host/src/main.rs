@@ -166,6 +166,9 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     )?;
     let context = contracts::roles::wire::ServerLaunchConfig {
         profile: profile.to_string_lossy().into_owned(),
+        os_session_identity: contracts::identity::current_system()
+            .map_err(|error| error.to_string())?
+            .os_session,
         data_dir: data.to_string_lossy().into_owned(),
         runtime_dir: runtime.to_string_lossy().into_owned(),
         endpoint: endpoint.clone(),

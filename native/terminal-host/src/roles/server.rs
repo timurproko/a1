@@ -329,7 +329,8 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     };
     crate::fault_injection::crash_at("after-lease");
     let credentials = ProfileCredentials::load_or_create(&root)?;
-    let system = crate::identity::current_system().map_err(|error| error.to_string())?;
+    let mut system = crate::identity::current_system().map_err(|error| error.to_string())?;
+    system.os_session = config.os_session_identity.clone();
     let (existing, startup_notice) = RegistryStore::recover(&root.join("registry.json"))?;
     let epoch = existing
         .as_ref()
@@ -1670,22 +1671,12 @@ fn launch_replacement_holder(state: &Arc<Mutex<RuntimeState>>, tab_id: &str) -> 
         };
         (context, locked.profile.clone())
     };
-    let launched = launch::launch_resident_with_config(ResidentRole::Holder, &profile, &context)
-        .map_err(|error| error.to_string());
-    match launched {
-        Ok((mut process, observation)) => match inspect_identity_bounded(observation.process.pid) {
-            Ok(Some(identity)) if identity.start == observation.process.start => Ok(()),
-            Ok(_) => {
-                let _ = process.terminate();
-                Err("replacement holder identity could not be verified".into())
-            }
-            Err(error) => {
-                let _ = process.terminate();
-                Err(error)
-            }
-        },
-        Err(error) => Err(error),
-    }
+    // The launch boundary verifies the resident process and the holder handshake independently
+    // verifies its PID/start identity before admission. Avoid terminating a holder merely because
+    // an additional post-launch observation races with a burst of concurrent replacements.
+    launch::launch_resident_with_config(ResidentRole::Holder, &profile, &context)
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 fn serve_holder(

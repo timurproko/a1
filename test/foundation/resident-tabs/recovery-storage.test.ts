@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { DraftCheckpointer } from "../../../src/foundation/resident-tabs/draft-checkpoint.js";
-import { ResidentTabFaultInjection } from "../../../src/foundation/resident-tabs/fault-injection.js";
+import { ResidentTabFaultInjection, residentTabFaultEnvironment } from "../../../src/foundation/resident-tabs/fault-injection.js";
 import { classifyMissingSession, PromptJournal } from "../../../src/foundation/resident-tabs/prompt-journal.js";
 import { ResidentTabRecovery, readSessionJournal } from "../../../src/foundation/resident-tabs/recovery.js";
 import { SettledTurnSynchronizer, synchronizeSessionFile } from "../../../src/foundation/resident-tabs/session-sync.js";
@@ -207,12 +207,12 @@ describe("resident session synchronization", () => {
 
 describe("resident tab fault injection", () => {
   it("refuses crash points outside a hermetic process", () => {
-    expect(() => new ResidentTabFaultInjection({ A1_TABS_FAULT_CRASH_POINT: "journal-before-append" })).toThrow(/hermetic/);
+    expect(() => new ResidentTabFaultInjection(residentTabFaultEnvironment("journal-before-append", false))).toThrow(/hermetic/);
   });
 
   it("activates only the named point in a hermetic process", () => {
     const hit: string[] = [];
-    const faults = new ResidentTabFaultInjection({ A1_TABS_FAULT_CRASH_POINT: "target", A1_TABS_HERMETIC_TEST: "1" }, point => {
+    const faults = new ResidentTabFaultInjection(residentTabFaultEnvironment("target"), point => {
       hit.push(point); throw new Error("crash");
     });
     faults.at("other");

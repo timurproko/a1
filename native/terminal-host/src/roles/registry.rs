@@ -279,7 +279,7 @@ fn write_history_generation(
 fn replace_registry(path: &Path, bytes: &[u8]) -> Result<(), durable::DurableError> {
     static EBUSY_INJECTED: std::sync::atomic::AtomicBool =
         std::sync::atomic::AtomicBool::new(false);
-    match crate::fault_injection::setting("A1_TABS_FAULT_REGISTRY_REPLACE").as_deref() {
+    match crate::fault_injection::registry_replace_setting().as_deref() {
         Some("ebusy-once") if !EBUSY_INJECTED.swap(true, std::sync::atomic::Ordering::SeqCst) => {
             Err(durable::DurableError(
                 "injected EBUSY replacement failure".into(),

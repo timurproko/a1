@@ -76,6 +76,7 @@ pub struct HolderLaunchConfig {
 #[serde(rename_all = "camelCase")]
 pub struct ServerLaunchConfig {
     pub profile: String,
+    pub os_session_identity: String,
     pub data_dir: String,
     pub runtime_dir: String,
     pub endpoint: String,

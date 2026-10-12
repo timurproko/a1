@@ -529,6 +529,10 @@ fn every_role_watchdog_records_and_terminates_only_its_frozen_process() {
         let mut roles = crash_roles(&frozen_runtime.join("tabs").join("crashes"));
         roles.extend(crash_roles(&runtime.join("tabs").join("crashes")));
         roles.extend(crash_roles(&credentials_root.join("diagnostics")));
+        let frozen_credentials_root = frozen_data
+            .join("tabs")
+            .join(endpoint::endpoint_token(&frozen_profile).expect("frozen profile token"));
+        roles.extend(crash_roles(&frozen_credentials_root.join("diagnostics")));
         if ["server", "holder", "attach"]
             .iter()
             .all(|role| roles.contains(*role))
@@ -561,7 +565,10 @@ fn registry_retries_transient_ebusy_and_fails_closed_on_enospc() {
         protect_runtime(&runtime);
         let address = fixture_endpoint(&runtime);
         let output = server_command(&executable, &profile, &data, &runtime, &address)
-            .env("A1_TABS_FAULT_REGISTRY_REPLACE", mode)
+            .env(
+                terminal_host_contracts::fault_injection::REGISTRY_REPLACE,
+                mode,
+            )
             .output()
             .expect("faulted registry server");
         assert_eq!(
@@ -670,7 +677,7 @@ fn ten_concurrent_tab_starts_respect_the_server_limit() {
         .expect("read converged registry")
         .expect("converged registry");
     for holder in registry.tabs.iter().filter_map(|tab| tab.holder_pid) {
-        terminate_launch_tree(holder);
+        terminate(holder);
     }
     let holder_deadline = Instant::now() + Duration::from_secs(45);
     let registry = loop {

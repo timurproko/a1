@@ -3,6 +3,10 @@ const HERMETIC = "A1_TABS_HERMETIC_TEST";
 
 export const RESIDENT_TAB_FAULT_ENVIRONMENT = Object.freeze([CRASH_POINT, HERMETIC] as const);
 
+export function residentTabFaultEnvironment(point: string, hermetic = true): NodeJS.ProcessEnv {
+  return Object.fromEntries(hermetic ? [[CRASH_POINT, point], [HERMETIC, "1"]] : [[CRASH_POINT, point]]);
+}
+
 /** Test-only crash points are inert unless the caller explicitly marks a hermetic process. */
 export class ResidentTabFaultInjection {
   readonly #point: string | undefined;
