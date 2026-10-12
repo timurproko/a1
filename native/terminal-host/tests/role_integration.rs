@@ -175,6 +175,68 @@ setInterval(() => {}, 1000);
 }
 
 #[test]
+fn crashed_child_restarts_in_the_same_holder_with_persisted_budget() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    let bin = directory(&release, "bin");
+    std::fs::write(
+        bin.join("ui.js"),
+        r#"
+const fs = require("node:fs");
+const path = require("node:path");
+const marker = path.join(__dirname, "first-child-crashed");
+if (!fs.existsSync(marker)) {
+  fs.writeFileSync(marker, "crashed");
+  process.stdout.write("first-incarnation\r\n");
+  setTimeout(() => process.exit(17), 250);
+} else {
+  process.stdout.write("recovered-incarnation\r\n");
+  process.stdin.resume();
+  setInterval(() => {}, 1000);
+}
+"#,
+    )
+    .expect("fake crash-recovery child");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    assert!(
+        attach.output_containing("first-incarnation", Duration::from_secs(15)),
+        "{}",
+        attach.output_text()
+    );
+    assert!(
+        attach.output_containing("recovered-incarnation", Duration::from_secs(15)),
+        "{}",
+        attach.output_text()
+    );
+    let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+        .expect("read recovery registry")
+        .expect("recovery registry");
+    let tab = registry.tabs.first().expect("recovered tab");
+    assert_eq!(tab.lifecycle, "running");
+    assert_eq!(tab.incarnation, 2);
+    assert_eq!(tab.restarts, 1);
+    assert_eq!(tab.last_exit.as_deref(), Some("exit 17"));
+    attach.write(b"\x03\x03");
+    attach.wait(Duration::from_secs(8));
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
 fn blocked_identity_inspection_times_out_without_stalling_server_progress() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
@@ -466,6 +528,7 @@ fn every_role_watchdog_records_and_terminates_only_its_frozen_process() {
     loop {
         let mut roles = crash_roles(&frozen_runtime.join("tabs").join("crashes"));
         roles.extend(crash_roles(&runtime.join("tabs").join("crashes")));
+        roles.extend(crash_roles(&credentials_root.join("diagnostics")));
         if ["server", "holder", "attach"]
             .iter()
             .all(|role| roles.contains(*role))
@@ -484,6 +547,43 @@ fn every_role_watchdog_records_and_terminates_only_its_frozen_process() {
         pids: server_pids(&credentials_root),
     };
     cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
+fn registry_retries_transient_ebusy_and_fails_closed_on_enospc() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    for (mode, succeeds) in [("ebusy-once", true), ("enospc", false)] {
+        let profile = directory(root.path(), &format!("profile-{mode}"));
+        let data = directory(root.path(), &format!("data-{mode}"));
+        let runtime = directory(root.path(), &format!("runtime-{mode}"));
+        protect_runtime(&runtime);
+        let address = fixture_endpoint(&runtime);
+        let output = server_command(&executable, &profile, &data, &runtime, &address)
+            .env("A1_TABS_FAULT_REGISTRY_REPLACE", mode)
+            .output()
+            .expect("faulted registry server");
+        assert_eq!(
+            output.status.success(),
+            succeeds,
+            "{mode}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let credentials_root = data
+            .join("tabs")
+            .join(endpoint::endpoint_token(&profile).expect("profile token"));
+        if succeeds {
+            let cleanup = Cleanup {
+                credentials_root: credentials_root.clone(),
+                pids: server_pids(&credentials_root),
+            };
+            assert!(credentials_root.join("registry.json").is_file());
+            drop(cleanup);
+        } else {
+            assert!(!credentials_root.join("registry.json").is_file());
+        }
+    }
 }
 
 #[test]
@@ -542,6 +642,58 @@ fn ten_concurrent_tab_starts_respect_the_server_limit() {
     assert_eq!(registry.tabs.len(), 10);
     assert!(registry.tabs.iter().all(|tab| tab.lifecycle == "running"));
     assert_eq!(holder_identities(&credentials_root).len(), 10);
+    for child in registry.tabs.iter().filter_map(|tab| tab.child_pid) {
+        terminate(child);
+    }
+    let restart_deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let restarted = RegistryStore::read(&credentials_root.join("registry.json"))
+            .expect("read restarted registry")
+            .expect("restarted registry");
+        if restarted.tabs.len() == 10
+            && restarted.tabs.iter().all(|tab| {
+                tab.lifecycle == "running"
+                    && tab.incarnation == 2
+                    && tab.restarts == 1
+                    && tab.child_pid.is_some()
+            })
+        {
+            break;
+        }
+        assert!(
+            Instant::now() < restart_deadline,
+            "ten child restarts did not converge: {restarted:?}"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+        .expect("read converged registry")
+        .expect("converged registry");
+    for holder in registry.tabs.iter().filter_map(|tab| tab.holder_pid) {
+        terminate_launch_tree(holder);
+    }
+    let holder_deadline = Instant::now() + Duration::from_secs(45);
+    let registry = loop {
+        let restarted = RegistryStore::read(&credentials_root.join("registry.json"))
+            .expect("read holder-restarted registry")
+            .expect("holder-restarted registry");
+        if restarted.tabs.len() == 10
+            && restarted.tabs.iter().all(|tab| {
+                tab.lifecycle == "running"
+                    && tab.incarnation == 3
+                    && tab.restarts == 2
+                    && tab.child_pid.is_some()
+                    && tab.holder_pid.is_some()
+            })
+        {
+            break restarted;
+        }
+        assert!(
+            Instant::now() < holder_deadline,
+            "ten holder restarts did not converge: {restarted:?}"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    };
     let stopping = registry
         .tabs
         .iter()

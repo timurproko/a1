@@ -65,6 +65,10 @@ pub struct HolderLaunchConfig {
     pub release_root: String,
     pub node_executable: String,
     pub environment: Vec<(String, String)>,
+    #[serde(default)]
+    pub session_file: Option<String>,
+    #[serde(default)]
+    pub recovery_journals: Vec<String>,
     pub server: ServerLaunchConfig,
 }
 
@@ -77,11 +81,16 @@ pub struct ServerLaunchConfig {
     pub endpoint: String,
     #[serde(default = "default_max_concurrent_starts")]
     pub max_concurrent_starts: usize,
+    #[serde(default = "default_unresponsive_restart_seconds")]
+    pub unresponsive_restart_seconds: u64,
     #[serde(default)]
     pub fault_environment: Vec<(String, String)>,
 }
 fn default_max_concurrent_starts() -> usize {
     2
+}
+fn default_unresponsive_restart_seconds() -> u64 {
+    120
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -171,11 +180,10 @@ pub struct HolderExit {
     pub signal: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BridgeStatus {
-    pub seq: u64,
-    pub state: String,
-}
+pub type BridgeStatus = protocol::BridgeStatus;
+pub type BridgeHeartbeat = protocol::BridgeHeartbeat;
+pub type HolderRespawn = protocol::HolderRespawn;
+pub type HolderSnapshot = protocol::HolderSnapshot;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BridgeSession {

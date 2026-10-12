@@ -4,7 +4,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct Watchdog {
@@ -64,29 +64,15 @@ pub fn write_record(
     age: Duration,
     thread_names: &[String],
 ) -> Result<PathBuf, String> {
-    std::fs::create_dir_all(runtime)
-        .map_err(|error| format!("create crash record directory: {error}"))?;
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
-    let path = runtime.join(format!("crash-{role}-{stamp}.json"));
-    let bytes = serde_json::to_vec_pretty(&serde_json::json!({
-        "role": role,
-        "pid": std::process::id(),
-        "reasonCode": "event-loop-stalled",
-        "lastTickAgeMs": age.as_millis(),
-        "threadNames": thread_names,
-    }))
-    .map_err(|error| error.to_string())?;
-    std::fs::write(&path, bytes).map_err(|error| format!("write crash record: {error}"))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
-            .map_err(|error| error.to_string())?;
-    }
-    Ok(path)
+    let _ = (age, thread_names);
+    crate::roles::diagnostics::write_crash(
+        runtime,
+        role,
+        u64::from(std::process::id()),
+        "event-loop-stalled",
+        &["watchdog-expired"],
+        None,
+    )
 }
 
 #[cfg(test)]
@@ -104,6 +90,6 @@ mod tests {
         .unwrap();
         let record = std::fs::read_to_string(path).unwrap();
         assert!(record.contains("event-loop-stalled"));
-        assert!(!record.contains("terminal"));
+        assert!(!record.contains("terminalContent"));
     }
 }

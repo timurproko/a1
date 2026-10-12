@@ -49,6 +49,8 @@ describe("owned UI setting declarations", () => {
       "promptImageLimit",
       "residentTabs",
       "tabsMaxConcurrentStarts",
+      "tabsUnresponsiveRestartSeconds",
+      "tabsStallNoticeSeconds",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "accentColor")).toMatchObject({
       label: "Accent color",
@@ -104,6 +106,12 @@ describe("owned UI setting declarations", () => {
       application: "restart",
       defaultValue: 2,
       allowedValues: [1, 2, 3, 4, 5, 6, 7, 8],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsUnresponsiveRestartSeconds")).toMatchObject({
+      application: "restart", defaultValue: 120, allowedValues: [60, 120, 300, 600],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsStallNoticeSeconds")).toMatchObject({
+      application: "restart", defaultValue: 300, allowedValues: [120, 300, 600, 1800],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarAppearance")).toMatchObject({
       label: "Scrollbar mode",

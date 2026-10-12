@@ -173,6 +173,13 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
             .and_then(|value| value.parse().ok())
             .unwrap_or(2)
             .clamp(1, 8),
+        unresponsive_restart_seconds: optional_role_value(
+            arguments,
+            "--unresponsive-restart-seconds",
+        )
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(120)
+        .clamp(30, 600),
         fault_environment: contracts::fault_injection::capture(),
     };
     let launched = contracts::launch::launch_resident_with_config(

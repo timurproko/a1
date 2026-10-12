@@ -25,14 +25,23 @@ describe("resident tab launch contracts", () => {
     expect(await readResidentTabLaunchSettings(root.path)).toEqual({
       residentTabs: true,
       maxConcurrentStarts: 2,
+      unresponsiveRestartSeconds: 120,
+      stallNoticeSeconds: 300,
     });
     await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({
       version: 15,
-      values: { residentTabs: true, tabsMaxConcurrentStarts: 8 },
+      values: {
+        residentTabs: true,
+        tabsMaxConcurrentStarts: 8,
+        tabsUnresponsiveRestartSeconds: 600,
+        tabsStallNoticeSeconds: 1800,
+      },
     }));
     expect(await readResidentTabLaunchSettings(root.path)).toEqual({
       residentTabs: true,
       maxConcurrentStarts: 8,
+      unresponsiveRestartSeconds: 600,
+      stallNoticeSeconds: 1800,
     });
     await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 14, values: { residentTabs: true } }));
     expect(await readResidentTabsSetting(root.path)).toBe(false);
@@ -93,6 +102,35 @@ describe("resident tab launch contracts", () => {
     await expect(secondStart).resolves.toBe(true);
     expect(transports[1]!.sent.map(message => message.type)).toEqual(["hello", "bridge.status", "bridge.session"]);
     expect(JSON.stringify(transports[1]!.sent)).not.toContain("prompt");
+    bridge.close();
+  });
+
+  it("emits event-loop heartbeats and sends an authenticated restart request", async () => {
+    class Transport extends EventEmitter {
+      readonly sent: ResidentEnvelope[] = [];
+      write(bytes: Uint8Array) { this.sent.push(...new ResidentFrameDecoder().push(bytes)); return true; }
+      destroy() { this.emit("close"); }
+    }
+    const transport = new Transport();
+    let heartbeat: (() => void) | undefined;
+    const bridge = new TabBridgeClient({
+      credentials: { tabId: "tab-1", token: Buffer.alloc(32, 4).toString("base64"), endpoint: "fixture" },
+      connect: () => transport,
+      setInterval: callback => { heartbeat = callback; return callback; },
+      clearInterval: () => { heartbeat = undefined; },
+    });
+    const start = bridge.start(); transport.emit("connect");
+    transport.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1 } }));
+    await start;
+    heartbeat?.(); heartbeat?.();
+    expect(transport.sent.filter(message => message.type === "bridge.heartbeat").map(message => message.body.seq)).toEqual([1, 2]);
+    transport.emit("data", encodeResidentFrame({ type: "attachment", body: { clientId: "client", controllerRevision: 7 } }));
+    const restarting = bridge.requestRestart();
+    const request = transport.sent.at(-1)!;
+    expect(request).toMatchObject({ type: "bridge.request", body: { action: "restart", clientId: "client", controllerRevision: 7 } });
+    if (request.requestId === undefined) throw new Error("restart request id missing");
+    transport.emit("data", encodeResidentFrame({ type: "bridge.result", requestId: request.requestId, body: { accepted: true } }));
+    await expect(restarting).resolves.toBe(true);
     bridge.close();
   });
 

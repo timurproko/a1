@@ -14,8 +14,8 @@ use crate::ghostty::GhosttyTerminal;
 use crate::protocol::{self, MAX_INPUT_BYTES, Welcome};
 use crate::roles::child_containment::ChildContainment;
 use crate::roles::wire::{
-    self, HolderExit, HolderLaunchConfig, Input, PasteStart, Resize, RoleHello, Surface,
-    SurfaceSubscription,
+    self, HolderExit, HolderLaunchConfig, HolderRespawn, Input, PasteStart, Resize, RoleHello,
+    Surface, SurfaceSubscription,
 };
 
 pub const HOLDER_INPUT_CAPACITY: usize = 1024 * 1024;
@@ -25,6 +25,8 @@ enum HolderCommand {
     PasteStart { bytes: usize, epoch: u64 },
     Resize(Resize),
     SurfaceSubscription(bool),
+    Respawn(HolderRespawn),
+    TerminateChild,
     Shutdown,
     Disconnected,
 }
@@ -206,12 +208,20 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         .map_err(|error| format!("decode holder context: {error}"))?;
     crate::fault_injection::install(&config.server.fault_environment);
     crate::fault_injection::validate_environment()?;
-    let watchdog_root = Path::new(&config.server.runtime_dir)
+    let profile_token = crate::endpoint::endpoint_token(Path::new(&config.server.profile))
+        .map_err(|error| error.to_string())?;
+    let diagnostics_root = Path::new(&config.server.data_dir)
         .join("tabs")
-        .join("crashes");
+        .join(&profile_token)
+        .join("diagnostics");
+    let _ = crate::roles::diagnostics::append_log(
+        &diagnostics_root,
+        &format!("holder-{}", config.tab_id),
+        "started",
+    );
     let watchdog = crate::shell::watchdog::start(
         "holder",
-        &watchdog_root,
+        &diagnostics_root,
         Duration::from_secs(15),
         vec![
             "holder-main".into(),
@@ -239,6 +249,24 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
     let mut command = CommandBuilder::new(&config.node_executable);
     command.arg(Path::new(&config.release_root).join("bin").join("ui.js"));
     command.arg("--tab");
+    let tab_data_dir = Path::new(&config.server.data_dir)
+        .join("tabs")
+        .join(profile_token)
+        .join(&config.tab_id);
+    command.arg("--tab-data-dir");
+    command.arg(&tab_data_dir);
+    command.arg("--tab-incarnation");
+    command.arg(config.incarnation.to_string());
+    if let Some(session) = config
+        .session_file
+        .as_deref()
+        .filter(|session_file| Path::new(session_file).is_file())
+        .map(str::to_owned)
+        .or_else(|| first_turn_session_id(&tab_data_dir))
+    {
+        command.arg("--session");
+        command.arg(session);
+    }
     command.cwd(&config.cwd);
     command.env_clear();
     for (name, value) in &config.environment {
@@ -313,6 +341,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         .map_err(|error| format!("write holder readiness: {error}"))?;
     crate::fault_injection::freeze_role("holder");
     let mut terminal = GhosttyTerminal::new(config.columns, config.rows)?;
+    let mut recovery_output = VecDeque::<u8>::new();
     terminal.mark_dirty()?;
     let mut revision = 0_u64;
     let mut input =
@@ -325,8 +354,12 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
     apply_holder_effects(ready_effects, &write_tx, &server)?;
     let mut pending_paste: Option<PendingPaste> = None;
     let mut stop_deadline: Option<std::time::Instant> = None;
+    let mut shutdown_holder = false;
     let mut subscribed = false;
-    let mut heartbeat = std::time::Instant::now();
+    let mut heartbeat = std::time::Instant::now()
+        .checked_sub(Duration::from_secs(5))
+        .unwrap_or_else(std::time::Instant::now);
+    let mut child_exited = false;
     loop {
         watchdog.bump();
         let mut changed = false;
@@ -371,6 +404,25 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                         },
                     )?);
                 }
+            } else if let HolderCommand::Respawn(respawn) = command {
+                if respawn.tab_id != config.tab_id || respawn.incarnation <= config.incarnation {
+                    continue;
+                }
+                watchdog.stop();
+                drop(_containment);
+                let mut next = config.clone();
+                next.incarnation = respawn.incarnation;
+                next.token = respawn.holder_token;
+                next.bridge_token = respawn.bridge_token;
+                next.session_file = if respawn.start_fresh {
+                    None
+                } else {
+                    respawn.session_file
+                };
+                next.recovery_journals = respawn.recovery_journals;
+                let context = serde_json::to_vec(&next)
+                    .map_err(|error| format!("encode holder respawn context: {error}"))?;
+                return run_holder_child(_profile, ready, &context);
             } else if let HolderCommand::SurfaceSubscription(enabled) = command {
                 subscribed = enabled;
                 if subscribed {
@@ -388,7 +440,15 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                         },
                     )?);
                 }
-            } else if matches!(command, HolderCommand::Shutdown) {
+            } else if matches!(
+                &command,
+                HolderCommand::TerminateChild | HolderCommand::Shutdown
+            ) {
+                shutdown_holder |= matches!(&command, HolderCommand::Shutdown);
+                if shutdown_holder && child_exited {
+                    watchdog.stop();
+                    return Ok(());
+                }
                 if stop_deadline.is_none() {
                     let _ = write_tx.send((vec![0x04], 0));
                     stop_deadline = Some(std::time::Instant::now() + Duration::from_secs(5));
@@ -434,6 +494,25 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                     Some(PendingPaste::Discard { remaining: bytes })
                 };
             } else if let HolderCommand::Input(message) = command {
+                if child_exited {
+                    let action = match message.bytes.as_slice() {
+                        b"r" | b"R" => Some("retry"),
+                        b"f" | b"F" => Some("fresh"),
+                        b"x" | b"X" => Some("close"),
+                        _ => None,
+                    };
+                    if let Some(action) = action {
+                        server.offer_control(wire::frame(
+                            "holder.recovery-action",
+                            None,
+                            wire::ResultBody {
+                                accepted: true,
+                                message: Some(action.into()),
+                            },
+                        )?)?;
+                    }
+                    continue;
+                }
                 if message.epoch < highest_epoch {
                     continue;
                 }
@@ -492,6 +571,10 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
             }
         }
         while let Ok(bytes) = output_rx.try_recv() {
+            recovery_output.extend(&bytes);
+            while recovery_output.len() > 2 * 1024 * 1024 {
+                recovery_output.pop_front();
+            }
             terminal.write(&bytes);
             let answers = terminal.take_responses();
             if !answers.is_empty() {
@@ -534,10 +617,51 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
             )?);
             heartbeat = std::time::Instant::now();
         }
-        if let Some(status) = child
-            .try_wait()
-            .map_err(|error| format!("inspect resident child: {error}"))?
+        if !child_exited
+            && let Some(status) = child
+                .try_wait()
+                .map_err(|error| format!("inspect resident child: {error}"))?
         {
+            child_exited = true;
+            terminal.mark_dirty()?;
+            let frame = terminal.frame_at(0, 1, true)?.into_bytes();
+            let recovery_root = tab_data_dir.join("recovery");
+            let _ = crate::roles::recovery_artifacts::write_last_screen(
+                &recovery_root,
+                config.incarnation,
+                &recovery_output.iter().copied().collect::<Vec<_>>(),
+            );
+            let child_record = crate::roles::diagnostics::newest_child_record(&diagnostics_root);
+            let _ = crate::roles::diagnostics::write_crash(
+                &diagnostics_root,
+                "holder",
+                config.incarnation,
+                "child-exit",
+                &["child-exited"],
+                child_record.as_deref(),
+            );
+            if subscribed {
+                revision = revision.saturating_add(1);
+                server.offer_surface(wire::frame(
+                    "surface",
+                    None,
+                    Surface {
+                        tab_id: config.tab_id.clone(),
+                        revision,
+                        bytes: frame,
+                        status: "crashed".into(),
+                    },
+                )?);
+            }
+            server.offer_control(wire::frame(
+                "holder.snapshot",
+                None,
+                wire::HolderSnapshot {
+                    tab_id: config.tab_id.clone(),
+                    incarnation: config.incarnation,
+                    status: "crashed".into(),
+                },
+            )?)?;
             server.offer_control(wire::frame(
                 "holder.exit",
                 None,
@@ -546,10 +670,39 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                     signal: status.signal().map(str::to_owned),
                 },
             )?)?;
-            return Ok(());
+            if shutdown_holder {
+                watchdog.stop();
+                return Ok(());
+            }
         }
         thread::sleep(Duration::from_millis(8));
     }
+}
+
+fn first_turn_session_id(tab_data_dir: &Path) -> Option<String> {
+    let path = tab_data_dir.join("journal.jsonl");
+    let bytes = std::fs::read(path).ok()?;
+    if bytes.len() > 8 * 1024 * 1024 {
+        return None;
+    }
+    for line in bytes.split(|byte| *byte == b'\n') {
+        let value = serde_json::from_slice::<serde_json::Value>(line).ok()?;
+        if value.get("type").and_then(serde_json::Value::as_str) == Some("submitted")
+            && value
+                .get("fileExisted")
+                .and_then(serde_json::Value::as_bool)
+                == Some(false)
+            && value
+                .get("sessionFile")
+                .is_some_and(serde_json::Value::is_null)
+        {
+            return value
+                .get("sessionId")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned);
+        }
+    }
+    None
 }
 
 fn input_rejected_message(error: InputAdmissionError) -> &'static str {
@@ -576,6 +729,8 @@ fn request_server_replacement(config: &HolderLaunchConfig) -> Result<(), String>
             &config.server.runtime_dir,
             "--max-concurrent-starts",
             &config.server.max_concurrent_starts.to_string(),
+            "--unresponsive-restart-seconds",
+            &config.server.unresponsive_restart_seconds.to_string(),
         ])
         .env("A1_TABS_ENDPOINT", &config.server.endpoint)
         .stdin(std::process::Stdio::null())
@@ -659,6 +814,14 @@ fn spawn_command_reader(
                 "shutdown" => {
                     let _ = command_tx.send(HolderCommand::Shutdown);
                 }
+                "holder.respawn" => {
+                    if let Ok((_, respawn)) = wire::body::<HolderRespawn>(&payload) {
+                        let _ = command_tx.send(HolderCommand::Respawn(respawn));
+                    }
+                }
+                "holder.terminate-child" => {
+                    let _ = command_tx.send(HolderCommand::TerminateChild);
+                }
                 "surface.subscription" => {
                     if let Ok((_, subscription)) = wire::body::<SurfaceSubscription>(&payload) {
                         let _ = command_tx
@@ -703,6 +866,32 @@ mod tests {
         assert_eq!(queue.pop(), None);
         assert!(input_rejected_message(InputAdmissionError::Capacity).contains("input rejected"));
     }
+    #[test]
+    fn first_turn_journal_restores_the_reserved_session_identity() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(
+            root.path().join("journal.jsonl"),
+            concat!(
+                "{\"type\":\"submitted\",\"id\":\"one\",\"sessionId\":\"reserved\",",
+                "\"sessionFile\":null,\"fileExisted\":false}\n"
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            first_turn_session_id(root.path()).as_deref(),
+            Some("reserved")
+        );
+        std::fs::write(
+            root.path().join("journal.jsonl"),
+            concat!(
+                "{\"type\":\"submitted\",\"id\":\"one\",\"sessionId\":\"old\",",
+                "\"sessionFile\":\"missing.jsonl\",\"fileExisted\":true}\n"
+            ),
+        )
+        .unwrap();
+        assert_eq!(first_turn_session_id(root.path()), None);
+    }
+
     #[test]
     fn admitted_large_paste_is_split_and_ordered() {
         let mut queue = BoundedInputQueue::new(MAX_INPUT_BYTES * 2 + 1);
