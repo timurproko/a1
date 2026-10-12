@@ -112,12 +112,39 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
         contracts::roles::credentials::ProfileCredentials::load_or_create(&credentials_root)?;
     let endpoint = resident_endpoint(&profile, &runtime)?;
     let start_gate_path = credentials_root.join("server-start.lock");
-    if !start_gate_path.exists() {
-        fs::write(&start_gate_path, b"a1 server start gate\n")
-            .map_err(|error| error.to_string())?;
+    match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&start_gate_path)
+    {
+        Ok(mut file) => file
+            .write_all(b"a1 server start gate\n")
+            .map_err(|error| error.to_string())?,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(format!("create host start gate: {error}")),
     }
-    let _start_gate = contracts::session_lock::SessionLock::acquire(&start_gate_path)
-        .map_err(|error| format!("host start gate held: {error}"))?;
+    let start_gate_deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let _start_gate = loop {
+        match contracts::session_lock::SessionLock::acquire(&start_gate_path) {
+            Ok(gate) => break gate,
+            Err(error) => {
+                // Concurrency: the gate winner may still be launching its detached server. A
+                // verified endpoint turns this contender into `already-running`; an unverified
+                // lock remains a bounded failure rather than starting a second registry writer.
+                if contracts::roles::server::probe(&endpoint, &credentials.client_token).is_ok() {
+                    println!(
+                        "{{\"outcome\":\"already-running\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
+                        serde_json::to_string(&endpoint).unwrap()
+                    );
+                    return Ok(());
+                }
+                if std::time::Instant::now() >= start_gate_deadline {
+                    return Err(format!("host start gate held: {error}"));
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        }
+    };
     if contracts::roles::server::probe(&endpoint, &credentials.client_token).is_ok() {
         println!(
             "{{\"outcome\":\"already-running\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",

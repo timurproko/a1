@@ -202,6 +202,62 @@
       "semantics": "Hermetic resident host artifact override for integration tests"
     },
     {
+      "role": "sessionLockPath",
+      "key": "A1_SESSION_LOCK_PATH",
+      "exposure": "integration",
+      "owner": "src/foundation/session-writer-lock/index.ts",
+      "evidence": "test/foundation/session-writer-lock/session-writer-lock.integration.test.ts",
+      "semantics": "Native session-writer lock addon override used by integration tests"
+    },
+    {
+      "role": "tabsFaultHangPty",
+      "key": "A1_TABS_FAULT_HANG_PTY",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only PTY creation hang used by native integration tests"
+    },
+    {
+      "role": "tabsFaultBlockPtyWrite",
+      "key": "A1_TABS_FAULT_BLOCK_PTY_WRITE",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only blocked PTY write used by native integration tests"
+    },
+    {
+      "role": "tabsFaultDelayIdentity",
+      "key": "A1_TABS_FAULT_DELAY_IDENTITY_MS",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only identity delay used by native integration tests"
+    },
+    {
+      "role": "tabsFaultDelayFsync",
+      "key": "A1_TABS_FAULT_DELAY_FSYNC_MS",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only durable-sync delay used by native integration tests"
+    },
+    {
+      "role": "tabsFaultCrashPoint",
+      "key": "A1_TABS_FAULT_CRASH_POINT",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only named crash point used by native integration tests"
+    },
+    {
+      "role": "tabsFaultStaleEpoch",
+      "key": "A1_TABS_FAULT_STALE_EPOCH",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only stale epoch injection used by native integration tests"
+    },
+    {
       "role": "sessionRuntimeId",
       "key": "A1_SESSION_RUNTIME_ID",
       "exposure": "integration",

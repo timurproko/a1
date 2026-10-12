@@ -62,6 +62,6 @@ pub fn crash_at(_point: &str) {}
 mod tests {
     #[test]
     fn release_contract_has_no_implicit_hook() {
-        assert!(!super::enabled("A1_TABS_FAULT_UNKNOWN"));
+        assert!(!super::enabled("UNREGISTERED_FAULT"));
     }
 }
