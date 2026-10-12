@@ -6,6 +6,9 @@ use super::{Completion, Effect, Timer};
 pub const HOLDER_HEARTBEAT: Duration = Duration::from_secs(5);
 pub const HOLDER_MISSES: u8 = 3;
 pub const RECONCILE_INTERVAL: Duration = Duration::from_secs(1);
+/// Keep heartbeat supervision behind the role-local watchdog so a frozen holder records its
+/// own crash before the server begins verified termination.
+pub const HOLDER_MISS_GRACE: Duration = RECONCILE_INTERVAL;
 pub const START_SPACING: Duration = Duration::from_millis(250);
 pub const DEFAULT_MAX_CONCURRENT_STARTS: usize = 2;
 pub const HARD_MAX_CONCURRENT_STARTS: usize = 8;
@@ -173,7 +176,7 @@ pub fn step(state: &mut State, event: Event, now: Duration) -> Vec<Effect> {
                             .saturating_add(HOLDER_HEARTBEAT.saturating_mul(u32::from(
                                 tab.missed_heartbeats.saturating_add(1),
                             )));
-                    if now < expected {
+                    if now < expected.saturating_add(HOLDER_MISS_GRACE) {
                         continue;
                     }
                     tab.missed_heartbeats = tab.missed_heartbeats.saturating_add(1);
@@ -328,6 +331,59 @@ mod tests {
         );
         assert_eq!(state.starts_in_flight, 2);
     }
+    #[test]
+    fn holder_watchdog_precedes_server_termination() {
+        let mut state = State::new(1, 2);
+        step(
+            &mut state,
+            Event::Create {
+                tab_id: "tab".into(),
+                size: (80, 24),
+            },
+            Duration::ZERO,
+        );
+        step(
+            &mut state,
+            Event::Completed(Completion::Spawned {
+                tab_id: "tab".into(),
+                incarnation: 1,
+                process_id: 9,
+            }),
+            Duration::ZERO,
+        );
+        for miss in 1..HOLDER_MISSES {
+            step(
+                &mut state,
+                Event::Tick { loop_healthy: true },
+                HOLDER_HEARTBEAT
+                    .saturating_mul(u32::from(miss))
+                    .saturating_add(HOLDER_MISS_GRACE),
+            );
+        }
+        let at_watchdog_limit = step(
+            &mut state,
+            Event::Tick { loop_healthy: true },
+            HOLDER_HEARTBEAT.saturating_mul(u32::from(HOLDER_MISSES)),
+        );
+        assert!(
+            !at_watchdog_limit
+                .iter()
+                .any(|effect| matches!(effect, Effect::InspectIdentity { process_id: 9, .. }))
+        );
+        let after_grace = step(
+            &mut state,
+            Event::Tick { loop_healthy: true },
+            HOLDER_HEARTBEAT
+                .saturating_mul(u32::from(HOLDER_MISSES))
+                .saturating_add(HOLDER_MISS_GRACE),
+        );
+        assert!(
+            after_grace
+                .iter()
+                .any(|effect| matches!(effect, Effect::InspectIdentity { process_id: 9, .. }))
+        );
+    }
+
     #[test]
     fn unhealthy_server_never_accuses_holder() {
         let mut state = State::new(1, 2);
