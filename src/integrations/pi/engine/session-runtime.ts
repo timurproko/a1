@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 import { observeCompactionProgress, type CompactionProgressObserver } from "./compaction-progress.js";
@@ -91,13 +91,8 @@ export interface PiEngineRuntimePorts {
  * events, compaction progress observation, the queued-input integration, and disposal order. The
  * adapter derives its view state from the session it is handed and never touches these directly.
  */
-function hasSessionContent(path: string | null): boolean {
-  if (path === null || !existsSync(path)) return false;
-  try {
-    return statSync(path).size > 0;
-  } catch {
-    return false;
-  }
+function hasSessionContent(path: string | null, session: AgentSession): boolean {
+  return path !== null && existsSync(path) && session.messages.length > 0;
 }
 
 export class PiEngineRuntime {
@@ -257,14 +252,16 @@ export class PiEngineRuntime {
   }
 
   currentSessionResumeMetadata(): PiSessionResumeMetadata | null {
-    const manager = this.#session?.sessionManager;
-    if (manager === undefined
+    const session = this.#session;
+    const manager = session?.sessionManager;
+    if (session === undefined
+      || manager === undefined
       || typeof manager.isPersisted !== "function"
       || typeof manager.getSessionId !== "function"
       || typeof manager.getSessionDir !== "function"
       || typeof manager.usesDefaultSessionDir !== "function"
       || manager.isPersisted() !== true
-      || !hasSessionContent(this.currentSessionFile())) return null;
+      || !hasSessionContent(this.currentSessionFile(), session)) return null;
     const sessionId = manager.getSessionId();
     const sessionDir = manager.getSessionDir();
     if (!sessionId || !sessionDir) return null;

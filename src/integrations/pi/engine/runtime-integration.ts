@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import {
   createAgentSessionFromServices,
@@ -69,9 +69,17 @@ class SessionWriterCoordinator {
     const handle = acquireSessionWriter(path);
     try {
       if (!handle.bound) {
+        const header = manager.getHeader();
+        if (header === null) throw new Error("new session is missing its generated header");
         mkdirSync(dirname(path), { recursive: true });
-        writeFileSync(path, "", { flag: "wx", mode: 0o600 });
-        handle.bind(path);
+        const descriptor = openSync(path, "wx", 0o600);
+        try {
+          handle.bind(path);
+          writeFileSync(descriptor, `${JSON.stringify(header)}\n`);
+        } finally {
+          closeSync(descriptor);
+        }
+        manager.setSessionFile(path);
       }
       return { handle, alreadyCurrent: false };
     } catch (error) {
