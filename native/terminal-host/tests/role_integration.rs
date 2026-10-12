@@ -1022,8 +1022,17 @@ fn internal_command(
         text(runtime),
     ];
     arguments.extend_from_slice(extra);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(profile).expect("profile token"));
+    let marker: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(credentials_root.join("server.json")).expect("server marker"),
+    )
+    .expect("server marker json");
+    let address = marker["endpoint"].as_str().expect("server marker endpoint");
     let output = Command::new(executable)
         .args(arguments)
+        .env("A1_TABS_ENDPOINT", address)
         .current_dir(release)
         .output()
         .expect("run internal tab command");

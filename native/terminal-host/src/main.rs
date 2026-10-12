@@ -95,6 +95,12 @@ struct ResidentServerMetadata {
     detachment_mode: String,
 }
 
+fn recorded_server_endpoint(root: &std::path::Path) -> Option<String> {
+    let bytes = fs::read(root.join("server.json")).ok()?;
+    let marker: ResidentServerMetadata = serde_json::from_slice(&bytes).ok()?;
+    marker.verified.then_some(marker.endpoint)
+}
+
 fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     if !arguments.iter().any(|value| value == "--detach") {
         return Err("server role requires --detach".to_owned());
@@ -283,10 +289,16 @@ fn resident_probe_command(arguments: &[String]) -> Result<(), String> {
     let data = required_role_path(arguments, "--data-dir")?;
     let runtime = required_role_path(arguments, "--runtime-dir")?;
     let token = contracts::endpoint::endpoint_token(&profile).map_err(|error| error.to_string())?;
-    let credentials = contracts::roles::credentials::ProfileCredentials::load_or_create(
-        &data.join("tabs").join(token),
-    )?;
-    let endpoint = resident_endpoint(&profile, &runtime)?;
+    let credentials_root = data.join("tabs").join(token);
+    let credentials =
+        contracts::roles::credentials::ProfileCredentials::load_or_create(&credentials_root)?;
+    let endpoint = optional_role_value(arguments, "--endpoint")
+        .map(str::to_owned)
+        .or_else(|| recorded_server_endpoint(&credentials_root));
+    let endpoint = match endpoint {
+        Some(endpoint) => endpoint,
+        None => resident_endpoint(&profile, &runtime)?,
+    };
     match contracts::roles::server::probe(&endpoint, &credentials.client_token) {
         Ok(()) => {
             println!(
@@ -341,10 +353,16 @@ fn resident_internal_command(arguments: &[String]) -> Result<(), String> {
     let data = required_role_path(arguments, "--data-dir")?;
     let runtime = required_role_path(arguments, "--runtime-dir")?;
     let token = contracts::endpoint::endpoint_token(&profile).map_err(|error| error.to_string())?;
-    let credentials = contracts::roles::credentials::ProfileCredentials::load_or_create(
-        &data.join("tabs").join(token),
-    )?;
-    let endpoint = resident_endpoint(&profile, &runtime)?;
+    let credentials_root = data.join("tabs").join(token);
+    let credentials =
+        contracts::roles::credentials::ProfileCredentials::load_or_create(&credentials_root)?;
+    let endpoint = optional_role_value(arguments, "--endpoint")
+        .map(str::to_owned)
+        .or_else(|| recorded_server_endpoint(&credentials_root));
+    let endpoint = match endpoint {
+        Some(endpoint) => endpoint,
+        None => resident_endpoint(&profile, &runtime)?,
+    };
     let mut stream = contracts::endpoint::connect(&endpoint).map_err(|error| error.to_string())?;
     contracts::roles::wire::send(
         &mut stream,

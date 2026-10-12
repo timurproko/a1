@@ -358,7 +358,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 if subscribed {
                     revision = revision.saturating_add(1);
                     terminal.mark_dirty()?;
-                    let frame = terminal.frame_at(0, config.rows, true)?.into_bytes();
+                    let frame = terminal.frame_at(0, 1, true)?.into_bytes();
                     server.offer_surface(wire::frame(
                         "surface",
                         None,
@@ -375,7 +375,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 if subscribed {
                     revision = revision.saturating_add(1);
                     terminal.mark_dirty()?;
-                    let frame = terminal.frame_at(0, config.rows, true)?.into_bytes();
+                    let frame = terminal.frame_at(0, 1, true)?.into_bytes();
                     server.offer_surface(wire::frame(
                         "surface",
                         None,
@@ -503,7 +503,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         if changed && subscribed {
             revision = revision.saturating_add(1);
             terminal.mark_dirty()?;
-            let frame = terminal.frame_at(0, config.rows, true)?.into_bytes();
+            let frame = terminal.frame_at(0, 1, true)?.into_bytes();
             server.offer_surface(wire::frame(
                 "surface",
                 None,
