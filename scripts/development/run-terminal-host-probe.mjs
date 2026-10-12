@@ -12,6 +12,7 @@ const environment = { ...process.env, ZIG: process.env.ZIG ?? "zig" };
 if (process.env.CI && environment.A1_PROBE_TRACE === undefined) environment.A1_PROBE_TRACE = "1";
 
 run(cargo, ["test", "--manifest-path", manifest, "--features", "resident-fixtures,fault-injection"], environment);
+assertNoFixtureProcesses(environment);
 run(process.execPath, [
   resolve("node_modules/vitest/vitest.mjs"), "run",
   "test/foundation/resident-tabs/recovery-storage.test.ts",
@@ -37,6 +38,36 @@ run(executable, ["--probe-resident-launch"], environment, PROBE_TIMEOUT_MS);
 run(executable, ["--probe-selection"], environment, PROBE_TIMEOUT_MS);
 run(executable, ["--probe-input"], environment, PROBE_TIMEOUT_MS);
 console.log("Terminal host binary/addon, contracts/durability/controller boundary, fixed-role launch, retained model, and native input/selection probes OK");
+
+function assertNoFixtureProcesses(env) {
+  const executable = resolve("native/terminal-host/target/debug", platform() === "win32" ? "terminal-host.exe" : "terminal-host");
+  let listing;
+  if (platform() === "win32") {
+    const command = [
+      "$items = @(Get-CimInstance Win32_Process |",
+      "Where-Object { $_.ExecutablePath -eq $env:A1_TERMINAL_HOST_LEAK_TARGET } |",
+      "Select-Object ProcessId, ParentProcessId, CommandLine);",
+      "$items | ConvertTo-Json -Compress",
+    ].join(" ");
+    listing = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], {
+      encoding: "utf8",
+      env: { ...env, A1_TERMINAL_HOST_LEAK_TARGET: executable },
+      windowsHide: true,
+    });
+  } else {
+    listing = spawnSync("ps", ["-axo", "pid=,ppid=,command="], { encoding: "utf8", env });
+  }
+  if (listing.error) throw listing.error;
+  if (listing.status !== 0) throw new Error(`fixture process inspection failed: ${listing.stderr}`);
+  const output = listing.stdout.trim();
+  const leaked = platform() === "win32"
+    ? output !== "" && output !== "[]"
+    : output.split("\n").filter(line => line.includes(executable));
+  if ((Array.isArray(leaked) && leaked.length > 0) || leaked === true) {
+    console.error(`terminal-host fixture processes survived the role suite:\n${output}`);
+    process.exit(1);
+  }
+}
 
 function runRefusal(executable, args, env) {
   const result = spawnSync(executable, args, { stdio: "inherit", env, windowsHide: true, timeout: PROBE_TIMEOUT_MS });
