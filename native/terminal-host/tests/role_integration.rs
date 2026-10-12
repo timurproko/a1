@@ -227,6 +227,26 @@ if (!fs.existsSync(marker)) {
         "{}",
         attach.output_text()
     );
+    let crash_deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+            .expect("read committed restart registry")
+            .expect("committed restart registry");
+        if registry
+            .tabs
+            .first()
+            .is_some_and(|tab| tab.lifecycle == "restarting" && tab.incarnation == 2)
+        {
+            break;
+        }
+        assert!(
+            Instant::now() < crash_deadline,
+            "restart budget was not committed before the injected crash: {registry:?}"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    std::thread::sleep(Duration::from_millis(500));
+    start_server(&executable, &profile, &data, &runtime, &address);
     let deadline = Instant::now() + Duration::from_secs(20);
     let registry = loop {
         let registry = RegistryStore::read(&credentials_root.join("registry.json"))
