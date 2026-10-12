@@ -65,21 +65,21 @@ A full local Zig build was not attempted because `build.rs` intentionally confin
 
 ## CI Windows x64
 
-Diagnostic run [38251026634](https://github.com/timurproko/a1/actions/runs/38251026634) validated implementation head `a8b6fc9a8adacda669e30914056084053a6beecb`.
+Diagnostic run [38261498413](https://github.com/timurproko/a1/actions/runs/38261498413) validated exact evidence head `1c4659f957ed9f6e0550705e3072480d575364d9`.
 
-- [Native terminal host (Windows x64)](https://github.com/timurproko/a1/actions/runs/38251026634/job/114817265410): 43 native unit/model tests passed, the manual million-schedule target was ignored by the ordinary run, all 8 native role-integration fixtures passed, and PTY/model/selection probes passed.
-- PR core and affected owners: 113 files and 1,298 tests passed in the reported partition, including session-writer, runtime-integration, settings, and governance tests.
-- Resource-sensitive partition and all selected rendering, package, history, startup, naming, and documentation jobs passed.
+- [Native terminal host (Windows x64)](https://github.com/timurproko/a1/actions/runs/38261498413/job/114853155878): 43 native unit/model tests passed, the manual million-schedule target was ignored by the ordinary run, all 8 native role-integration fixtures passed, and PTY/model/selection probes passed.
+- [PR core and affected owners](https://github.com/timurproko/a1/actions/runs/38261498413/job/114853155890): every reported partition passed, including session-writer, runtime-integration, settings, release-concurrency, and governance tests.
+- [Resource-sensitive partition](https://github.com/timurproko/a1/actions/runs/38261498413/job/114853155910) and all selected rendering, package, history, startup, naming, and documentation jobs passed.
 
 ## CI Linux x64
 
-- [Native terminal host (Linux x64)](https://github.com/timurproko/a1/actions/runs/38251026634/job/114817265350): 44 native unit/model tests passed, the manual million-schedule target was ignored by the ordinary run, all 8 native role-integration fixtures passed, the release-profile hook-refusal check passed, the Node-API session-lock probe passed, and PTY/model/selection probes passed.
-- [Unix integration (Linux)](https://github.com/timurproko/a1/actions/runs/38251026634/job/114817265409): all selected integration scopes passed.
+- [Native terminal host (Linux x64)](https://github.com/timurproko/a1/actions/runs/38261498413/job/114853156014): 44 native unit/model tests passed, the manual million-schedule target was ignored by the ordinary run, all 8 native role-integration fixtures passed, the release-profile hook-refusal check passed, the Node-API session-lock probe passed, and PTY/model/selection probes passed.
+- [Unix integration (Linux)](https://github.com/timurproko/a1/actions/runs/38261498413/job/114853155767): all selected integration scopes passed.
 
 ## CI macOS arm64
 
-- [Native terminal host (macOS arm64)](https://github.com/timurproko/a1/actions/runs/38251026634/job/114817266340): 44 native unit/model tests passed, the manual million-schedule target was ignored by the ordinary run, all 8 native role-integration fixtures passed, the release-profile hook-refusal check passed, the Node-API session-lock probe passed, and PTY/model/selection probes passed.
-- [Unix integration (macOS)](https://github.com/timurproko/a1/actions/runs/38251026634/job/114817265414): all selected integration scopes passed.
+- [Native terminal host (macOS arm64)](https://github.com/timurproko/a1/actions/runs/38261498413/job/114853155967): 43 native unit/model tests passed, the manual million-schedule target was ignored by the ordinary run, all 8 native role-integration fixtures passed, the release-profile hook-refusal check passed, the Node-API session-lock probe passed, and PTY/model/selection probes passed.
+- [Unix integration (macOS)](https://github.com/timurproko/a1/actions/runs/38261498413/job/114853156023): all selected integration scopes passed.
 
 ## Skips and interpretation
 
