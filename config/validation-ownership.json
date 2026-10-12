@@ -144,10 +144,12 @@
       "id": "pi",
       "paths": [
         "src/app/session-shell/",
+        "src/foundation/session-writer-lock/",
         "src/integrations/pi/",
         "scripts/pi/"
       ],
       "testPaths": [
+        "test/foundation/session-writer-lock/",
         "test/integrations/pi/components/",
         "test/integrations/pi/engine/",
         "test/integrations/pi/session-presenters/",

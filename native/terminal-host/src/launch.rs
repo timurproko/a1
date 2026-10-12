@@ -163,6 +163,12 @@ pub fn launch_resident_with_config<T: Serialize>(
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    #[cfg(feature = "fault-injection")]
+    for name in crate::fault_injection::VARIABLES {
+        if let Some(value) = std::env::var_os(name) {
+            command.env(name, value);
+        }
+    }
     let configured_mode = configure_detached(&mut command)?;
     let mut child =
         spawn_with_fallback(command, &artifact, role, &profile, &result, &context_path)?;

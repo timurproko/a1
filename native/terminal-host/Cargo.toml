@@ -10,10 +10,16 @@ publish = false
 name = "terminal_host_contracts"
 crate-type = ["rlib", "cdylib"]
 
+[[bin]]
+name = "fake-tab"
+path = "tests/fixtures/fake-tab/main.rs"
+required-features = ["resident-fixtures"]
+
 [features]
 default = []
 node-addon = ["dep:napi", "dep:napi-derive"]
 resident-fixtures = []
+fault-injection = []
 
 [dependencies]
 base64 = "=0.22.1"

@@ -21,6 +21,19 @@ pub struct SessionLock {
 }
 
 impl SessionLock {
+    /// Acquires path authority without rebinding to file identity. This is for ephemeral gates whose
+    /// contents are never replaced, not for session writers.
+    pub fn acquire_location(path: impl AsRef<Path>) -> Result<Self, LockError> {
+        let requested = absolute(path.as_ref())?;
+        let key = new_location_identity(&requested)?;
+        let reservation = LockedFile::acquire(&lock_path("location", &key)?)?;
+        Ok(Self {
+            requested,
+            reservation: Some(reservation),
+            identity: None,
+        })
+    }
+
     pub fn acquire(path: impl AsRef<Path>) -> Result<Self, LockError> {
         let requested = absolute(path.as_ref())?;
         if requested.exists() {

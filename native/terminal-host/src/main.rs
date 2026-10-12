@@ -1,4 +1,3 @@
-mod shell;
 use std::env;
 use std::fs;
 #[cfg(not(windows))]
@@ -37,6 +36,7 @@ fn main() -> ExitCode {
 }
 
 fn run_from_args(args: Vec<String>) -> Result<(), String> {
+    contracts::fault_injection::validate_environment()?;
     match args.first().map(String::as_str) {
         Some("--version") => {
             print_provenance();
@@ -46,6 +46,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         Some("probe") => resident_probe_command(&args[1..]),
         Some("holder") => Err("holder role is started only by the resident server".to_owned()),
         Some("attach") => resident_attach_command(&args[1..]),
+        Some("internal") => resident_internal_command(&args[1..]),
         Some("--probe") => probe(),
         Some("--probe-scroll") => probe_scroll(),
         Some("--probe-selection") => probe_selection(),
@@ -70,7 +71,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
             Ok(())
         }
         Some("--resolve-shell") => {
-            let (program, arguments) = shell::default_shell();
+            let (program, arguments) = contracts::shell::default_shell();
             println!("{program} {}", arguments.join(" "));
             Ok(())
         }
@@ -94,6 +95,12 @@ struct ResidentServerMetadata {
     detachment_mode: String,
 }
 
+fn recorded_server_endpoint(root: &std::path::Path) -> Option<String> {
+    let bytes = fs::read(root.join("server.json")).ok()?;
+    let marker: ResidentServerMetadata = serde_json::from_slice(&bytes).ok()?;
+    marker.verified.then_some(marker.endpoint)
+}
+
 fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     if !arguments.iter().any(|value| value == "--detach") {
         return Err("server role requires --detach".to_owned());
@@ -111,6 +118,40 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     let credentials =
         contracts::roles::credentials::ProfileCredentials::load_or_create(&credentials_root)?;
     let endpoint = resident_endpoint(&profile, &runtime)?;
+    let start_gate_path = runtime.join("server-start.lock");
+    match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&start_gate_path)
+    {
+        Ok(mut file) => file
+            .write_all(b"a1 server start gate\n")
+            .map_err(|error| error.to_string())?,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(format!("create host start gate: {error}")),
+    }
+    let start_gate_deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let _start_gate = loop {
+        match contracts::session_lock::SessionLock::acquire_location(&start_gate_path) {
+            Ok(gate) => break gate,
+            Err(error) => {
+                // Concurrency: the gate winner may still be launching its detached server. A
+                // verified endpoint turns this contender into `already-running`; an unverified
+                // lock remains a bounded failure rather than starting a second registry writer.
+                if contracts::roles::server::probe(&endpoint, &credentials.client_token).is_ok() {
+                    println!(
+                        "{{\"outcome\":\"already-running\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
+                        serde_json::to_string(&endpoint).unwrap()
+                    );
+                    return Ok(());
+                }
+                if std::time::Instant::now() >= start_gate_deadline {
+                    return Err(format!("host start gate held: {error}"));
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        }
+    };
     if contracts::roles::server::probe(&endpoint, &credentials.client_token).is_ok() {
         println!(
             "{{\"outcome\":\"already-running\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
@@ -118,11 +159,21 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
         );
         return Ok(());
     }
+    recover_recorded_server(&credentials_root)?;
+    record_server_start(
+        &credentials_root,
+        arguments.iter().any(|value| value == "--restart"),
+    )?;
     let context = contracts::roles::wire::ServerLaunchConfig {
         profile: profile.to_string_lossy().into_owned(),
         data_dir: data.to_string_lossy().into_owned(),
         runtime_dir: runtime.to_string_lossy().into_owned(),
         endpoint: endpoint.clone(),
+        max_concurrent_starts: optional_role_value(arguments, "--max-concurrent-starts")
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(2)
+            .clamp(1, 8),
+        fault_environment: contracts::fault_injection::capture(),
     };
     let launched = contracts::launch::launch_resident_with_config(
         contracts::launch::ResidentRole::Server,
@@ -152,7 +203,9 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
             return Err(message);
         }
     };
-    contracts::roles::server::probe(&endpoint, &credentials.client_token)?;
+    if !contracts::fault_injection::freeze_requested("server") {
+        contracts::roles::server::probe(&endpoint, &credentials.client_token)?;
+    }
     let metadata = ResidentServerMetadata {
         pid: observation.process.pid,
         start_identity: observation.process.start,
@@ -164,6 +217,7 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     let bytes = serde_json::to_vec_pretty(&metadata).map_err(|error| error.to_string())?;
     contracts::durable::replace(&credentials_root.join("server.json"), &bytes)
         .map_err(|error| error.to_string())?;
+    contracts::fault_injection::crash_at("after-marker");
     println!(
         "{{\"outcome\":\"started\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
         serde_json::to_string(&endpoint).unwrap()
@@ -171,11 +225,63 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn recover_recorded_server(root: &std::path::Path) -> Result<(), String> {
+    let path = root.join("server.json");
+    let bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(format!("read server owner marker: {error}")),
+    };
+    let record: ResidentServerMetadata = serde_json::from_slice(&bytes)
+        .map_err(|_| "host-recovery-blocked: owner marker is unreadable".to_owned())?;
+    let expected = contracts::identity::ProcessIdentity {
+        pid: record.pid,
+        start: record.start_identity,
+    };
+    match contracts::identity::inspect_process(record.pid).map_err(|error| error.to_string())? {
+        None => Ok(()),
+        Some(observed) if observed == expected => contracts::identity::terminate_verified(
+            &expected,
+            Duration::from_secs(5),
+            Duration::from_secs(5),
+        )
+        .map_err(|error| format!("host-recovery-blocked: {error}")),
+        Some(_) => Err("host-recovery-blocked: recorded owner identity is unverifiable".into()),
+    }
+}
+
+fn record_server_start(root: &std::path::Path, reset: bool) -> Result<(), String> {
+    let path = root.join("starts.json");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let mut starts = if reset {
+        Vec::new()
+    } else {
+        fs::read(&path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Vec<u64>>(&bytes).ok())
+            .unwrap_or_default()
+    };
+    starts.retain(|started| now.saturating_sub(*started) < 60);
+    if starts.len() >= 3 {
+        return Err("host-start-budget-exhausted".into());
+    }
+    starts.push(now);
+    let bytes = serde_json::to_vec(&starts).map_err(|error| error.to_string())?;
+    contracts::durable::replace(&path, &bytes).map_err(|error| error.to_string())
+}
+
 fn server_failure_reason(message: &str) -> &'static str {
     if message.contains("registry unreadable") || message.contains("read registry") {
         "registry-unreadable"
-    } else if message.contains("registry writer lease held") {
+    } else if message.contains("registry writer lease held")
+        || message.contains("host-recovery-blocked")
+    {
         "blocked"
+    } else if message.contains("host-start-budget-exhausted") {
+        "host-start-budget-exhausted"
     } else {
         "launch-not-verified"
     }
@@ -186,10 +292,16 @@ fn resident_probe_command(arguments: &[String]) -> Result<(), String> {
     let data = required_role_path(arguments, "--data-dir")?;
     let runtime = required_role_path(arguments, "--runtime-dir")?;
     let token = contracts::endpoint::endpoint_token(&profile).map_err(|error| error.to_string())?;
-    let credentials = contracts::roles::credentials::ProfileCredentials::load_or_create(
-        &data.join("tabs").join(token),
-    )?;
-    let endpoint = resident_endpoint(&profile, &runtime)?;
+    let credentials_root = data.join("tabs").join(token);
+    let credentials =
+        contracts::roles::credentials::ProfileCredentials::load_or_create(&credentials_root)?;
+    let endpoint = optional_role_value(arguments, "--endpoint")
+        .map(str::to_owned)
+        .or_else(|| recorded_server_endpoint(&credentials_root));
+    let endpoint = match endpoint {
+        Some(endpoint) => endpoint,
+        None => resident_endpoint(&profile, &runtime)?,
+    };
     match contracts::roles::server::probe(&endpoint, &credentials.client_token) {
         Ok(()) => {
             println!(
@@ -217,6 +329,7 @@ fn resident_attach_command(arguments: &[String]) -> Result<(), String> {
         .map_err(|_| "attach clear-exit interval is invalid".to_owned())?;
     let profile = required_role_path(arguments, "--profile")?;
     let data = required_role_path(arguments, "--data-dir")?;
+    let runtime = required_role_path(arguments, "--runtime-dir")?;
     let release_root = required_role_value(arguments, "--release-root")?;
     let node_executable = required_role_value(arguments, "--node-executable")?;
     if clear_exit == 0 || endpoint.is_empty() {
@@ -228,9 +341,159 @@ fn resident_attach_command(arguments: &[String]) -> Result<(), String> {
         clear_exit_ms: clear_exit,
         profile: &profile,
         data_dir: &data,
+        runtime_dir: &runtime,
         release_root,
         node_executable,
+        view_tab: optional_role_value(arguments, "--view"),
     })
+}
+
+fn resident_internal_command(arguments: &[String]) -> Result<(), String> {
+    let operation = arguments
+        .first()
+        .ok_or_else(|| "internal tab operation is required".to_owned())?;
+    let profile = required_role_path(arguments, "--profile")?;
+    let data = required_role_path(arguments, "--data-dir")?;
+    let runtime = required_role_path(arguments, "--runtime-dir")?;
+    let token = contracts::endpoint::endpoint_token(&profile).map_err(|error| error.to_string())?;
+    let credentials_root = data.join("tabs").join(token);
+    let credentials =
+        contracts::roles::credentials::ProfileCredentials::load_or_create(&credentials_root)?;
+    let endpoint = optional_role_value(arguments, "--endpoint")
+        .map(str::to_owned)
+        .or_else(|| recorded_server_endpoint(&credentials_root));
+    let endpoint = match endpoint {
+        Some(endpoint) => endpoint,
+        None => resident_endpoint(&profile, &runtime)?,
+    };
+    let mut stream = contracts::endpoint::connect(&endpoint).map_err(|error| error.to_string())?;
+    contracts::roles::wire::send(
+        &mut stream,
+        "hello",
+        Some(1),
+        contracts::roles::wire::RoleHello {
+            role: "internal".into(),
+            generation: contracts::protocol::GENERATION,
+            build: "a1-terminal-host".into(),
+            features: vec!["internal-tab-management".into()],
+            token: credentials.client_token.to_vec(),
+            tab_id: None,
+            pid: Some(std::process::id()),
+            start_identity: None,
+            incarnation: 0,
+            child_pid: None,
+            child_start_identity: None,
+            highest_epoch: 0,
+        },
+    )?;
+    for expected in ["welcome", "attached"] {
+        let payload = contracts::roles::wire::read_payload(&mut stream)?
+            .ok_or_else(|| "server closed internal command".to_owned())?;
+        if contracts::roles::wire::kind(&payload)?.message_type != expected {
+            return Err(format!("server refused internal command before {expected}"));
+        }
+    }
+    match operation.as_str() {
+        "tab-list" => {
+            contracts::roles::wire::send(
+                &mut stream,
+                "tab.list",
+                Some(2),
+                contracts::roles::wire::ResultBody {
+                    accepted: true,
+                    message: None,
+                },
+            )?;
+            let payload = read_internal_response(&mut stream, &["tab.list"])?;
+            let (_, list): (_, contracts::roles::wire::TabList) =
+                contracts::roles::wire::body(&payload)?;
+            println!(
+                "{}",
+                serde_json::to_string(&list).map_err(|error| error.to_string())?
+            );
+        }
+        "tab-create" => {
+            let cwd = required_role_value(arguments, "--cwd")?.to_owned();
+            let release_root = required_role_value(arguments, "--release-root")?.to_owned();
+            let node_executable = optional_role_value(arguments, "--node-executable")
+                .unwrap_or("node")
+                .to_owned();
+            contracts::roles::wire::send(
+                &mut stream,
+                "tab.create",
+                Some(2),
+                contracts::roles::wire::TabCreate {
+                    cwd,
+                    columns: 80,
+                    rows: 23,
+                    release_root,
+                    node_executable,
+                    environment: std::env::vars().collect(),
+                },
+            )?;
+            let payload =
+                read_internal_response(&mut stream, &["tab.created", "tab.create-failed"])?;
+            let response = contracts::roles::wire::kind(&payload)?;
+            if response.message_type == "tab.create-failed" {
+                let (_, result): (_, contracts::roles::wire::ResultBody) =
+                    contracts::roles::wire::body(&payload)?;
+                return Err(result
+                    .message
+                    .unwrap_or_else(|| "resident tab creation failed".into()));
+            }
+            let (_, created): (_, contracts::roles::wire::TabTarget) =
+                contracts::roles::wire::body(&payload)?;
+            println!(
+                "{}",
+                serde_json::to_string(&created).map_err(|error| error.to_string())?
+            );
+        }
+        "tab-close" => {
+            let tab_id = optional_role_value(arguments, "--tab")
+                .or_else(|| arguments.get(1).map(String::as_str))
+                .ok_or_else(|| "tab-close requires a tab id".to_owned())?
+                .to_owned();
+            contracts::roles::wire::send(
+                &mut stream,
+                "tab.close",
+                Some(2),
+                contracts::roles::wire::TabTarget { tab_id },
+            )?;
+            let _ = read_internal_response(&mut stream, &["tab.closed"])?;
+        }
+        _ => return Err("unrecognized internal tab operation".to_owned()),
+    }
+    let _ = contracts::roles::wire::send(
+        &mut stream,
+        "detach",
+        None,
+        contracts::roles::wire::ResultBody {
+            accepted: true,
+            message: None,
+        },
+    );
+    Ok(())
+}
+
+fn optional_role_value<'a>(arguments: &'a [String], flag: &str) -> Option<&'a str> {
+    arguments
+        .windows(2)
+        .find(|pair| pair[0] == flag)
+        .map(|pair| pair[1].as_str())
+}
+
+fn read_internal_response(
+    stream: &mut contracts::endpoint::EndpointStream,
+    expected: &[&str],
+) -> Result<Vec<u8>, String> {
+    loop {
+        let payload = contracts::roles::wire::read_payload(stream)?
+            .ok_or_else(|| "server closed internal command".to_owned())?;
+        let kind = contracts::roles::wire::kind(&payload)?;
+        if expected.contains(&kind.message_type.as_str()) {
+            return Ok(payload);
+        }
+    }
 }
 
 fn required_role_value<'a>(arguments: &'a [String], flag: &str) -> Result<&'a str, String> {

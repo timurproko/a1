@@ -279,13 +279,6 @@ Viewing a tab SHALL deliver a complete retained surface of cells, attributes, hy
 - **WHEN** a client views a tab that produced output for hours while detached
 - **THEN** it SHALL render the tab's current screen immediately without replaying the history
 
-#### Requirement: Slow clients never stall tabs
-Each client connection SHALL have a bounded reliable control lane and a single-slot render lane in which newer surface updates replace unsent ones. A client that falls behind SHALL receive a full surface once it drains. The server SHALL NOT block holders, other clients, or registry writes on a slow client, and holders SHALL NOT block children on output.
-
-##### Scenario: Suspended terminal
-- **WHEN** one attached terminal stops reading while tabs stream
-- **THEN** tabs and other clients SHALL continue normally and the stalled client SHALL show the current surface when it resumes
-
 #### Requirement: The tab bridge reports structured A1 state and controller identity
 Each A1 tab process SHALL receive a derived per-tab/per-incarnation credential and SHALL connect an authenticated bridge to the server that reports sequenced status from engine events, the Pi session file and name, whether its last prompt was interrupted, and semantic requests. Before terminal input from a new controller is accepted, the holder and child SHALL establish a causal input-admission boundary covering previously accepted input in native, PTY, and child buffers and acknowledge the new owner. A sideband marker acknowledgement alone SHALL NOT be treated as proof of ordering across channels. Client-scoped requests SHALL retain immutable controller identity/revision captured at command admission and SHALL be rejected when stale or ambiguous, never rebound to the controller current at execution. The server SHALL send visibility and rename notifications through the bridge, and A1 SHALL reduce animation work while hidden. Bridge messages SHALL NOT carry prompt, transcript, or terminal input content. The child SHALL consume bridge credentials into private memory and remove them from inherited environments before extension loading or descendant spawn; reconnect SHALL NOT restore them to the environment. A missing bridge SHALL degrade status and disable client-scoped child requests without breaking terminal input or attach-local detach.
 
@@ -338,13 +331,6 @@ Holders SHALL detect child exit immediately and the server SHALL detect holder e
 - **WHEN** a tab crashed after the user's prompt was persisted but before a reply settled
 - **THEN** the restarted tab SHALL be idle and SHALL offer the prompt without resubmitting it
 
-#### Requirement: The server heals itself without losing tabs or creating split brain
-When the server exits unexpectedly, attach clients SHALL show a non-blocking reconnecting indication, and any client or holder MAY start a replacement through the detach routine. The replacement SHALL acquire the released writer lease, increment the durable epoch, derive expected holder credentials, verify native identities/incarnations, and re-admit surviving holders; tabs whose holders are gone SHALL enter crash recovery. A live recorded owner SHALL be terminated only after exact identity verification, and an unverifiable owner or unavailable lease SHALL block replacement. After three starts within sixty seconds, clients SHALL show a stopped state with restart and quit actions, preserving diagnostics.
-
-##### Scenario: Server killed with no client attached
-- **WHEN** the server dies while no terminal runs `a1`
-- **THEN** a holder SHALL start the replacement, and the next `a1` SHALL reattach every tab with its current screen
-
 #### Requirement: Reboot and logout end tabs without losing sessions
 Resident processes SHALL end with the operating-system session; this version SHALL NOT restore tabs after reboot or logout. When the server starts under a new boot identity, or finds desired-running tabs without live verified holders after a new OS session, it SHALL move the previous tab set to registry history instead of starting those tabs, and bare `a1` SHALL start with one new tab. Every previous Pi session SHALL stay resumable through the normal session picker or `a1 --session`. A pending journaled prompt SHALL be offered, without replay, when its session is next opened in a tab within seven days. A reserved first-turn identity whose journal proves the session file was never created SHALL be recoverable the same way rather than treated as a missing transcript.
 
@@ -392,52 +378,8 @@ Defines the reliability contract of resident tabs: failure-domain isolation, cra
 
 ### ADDED Requirements
 
-#### Requirement: Failure domains are isolated processes
-The attach client, the resident server, each tab's session holder, and each tab's A1 process SHALL be separate operating-system processes. No process SHALL host another tab's pseudoterminal, terminal model, or A1 runtime. Termination or hang of the server SHALL NOT terminate or stall any holder or tab process; termination or hang of one holder or tab process SHALL NOT affect any other tab, the server, or any client; termination of a client SHALL NOT affect any resident process.
-
-##### Scenario: Kill every server process repeatedly
-- **WHEN** the server is killed ten times within one minute while five tabs stream
-- **THEN** all five tab processes SHALL keep running with unchanged process identities and no lost output in their retained screens
-
-##### Scenario: One tab's process tree hangs
-- **WHEN** one tab's child stops responding and stops reading its input
-- **THEN** every other tab SHALL keep accepting input and rendering at normal latency
-
-#### Requirement: Resident processes are crash-only and fail fast
-Every resident process SHALL be safe to terminate forcibly at any instruction. Its startup path SHALL be its recovery path, reconciling durable desired state with verified actual state. A detected internal invariant violation SHALL terminate only the affected process with a diagnostic record, and SHALL NOT be swallowed so that the process continues in an inconsistent state. Code SHALL NOT be hot-swapped into a running resident process; upgrades SHALL replace processes.
-
-##### Scenario: Server invariant violation
-- **WHEN** the server detects registry and topology state that contradict each other
-- **THEN** it SHALL write a crash record and exit, and its replacement SHALL recover from the durable registry and verified holders without affecting tabs
-
-##### Scenario: Forced termination during a registry write
-- **WHEN** the server is killed at any point during a registry commit
-- **THEN** the next server SHALL load either the complete prior or the complete new registry and SHALL NOT start empty
-
-#### Requirement: Control paths never block on external work
-Each resident role's state machine SHALL run on a single event loop that performs no blocking system call. Process spawn, pseudoterminal creation, process termination, identity inspection, file writes, and synchronization SHALL run off the event loop with explicit deadlines, and a missed deadline SHALL become a typed failure event. Pseudoterminal creation SHALL occur only inside that tab's holder, so a creation that never returns SHALL hang only that holder, which the server SHALL terminate and replace after its deadline. Termination of several tabs SHALL proceed concurrently and SHALL NOT delay unrelated operations.
-
-##### Scenario: Pseudoterminal creation never returns
-- **WHEN** pseudoterminal creation blocks indefinitely in a new tab's holder
-- **THEN** the server SHALL remain responsive, SHALL terminate that holder after the spawn deadline, retry within the restart budget, and every other tab SHALL be unaffected
-
-##### Scenario: Close a group of busy tabs
-- **WHEN** the user stops six tabs at once
-- **THEN** the server SHALL keep answering clients and heartbeats throughout, and every tab SHALL reach stopped or a reported termination failure within the bounded deadline
-
-#### Requirement: Pseudoterminal I/O is flow-controlled and never silently lossy
-Each holder SHALL read its pseudoterminal continuously on a dedicated reader so the child never blocks on output, and SHALL write input from a dedicated writer with a bounded queue so a child that stops reading never blocks the holder. When the input queue is full, A1 SHALL reject further input for that tab with a visible `not accepting input` indication and SHALL NOT silently drop, reorder, or truncate accepted input. Keystrokes sent while a tab is starting SHALL be queued in order up to the bound and delivered when it becomes ready, or rejected visibly. A paste SHALL reserve capacity for its complete bounded payload before any prefix is delivered. Admission atomicity SHALL NOT be described as atomic execution by the child: failure after admission SHALL report uncertain delivery and SHALL NOT trigger automatic replay.
-
-##### Scenario: Paste into a stalled child
-- **WHEN** the user pastes into a tab whose child is not reading input and the queue lacks capacity for the entire paste
-- **THEN** admission SHALL reject the paste with a visible indication before delivering any prefix
-
-##### Scenario: Child fails after paste admission
-- **WHEN** a paste was admitted but the child dies after reading only part of it
-- **THEN** A1 SHALL report uncertain delivery, SHALL NOT claim transactional child execution, and SHALL NOT replay the paste automatically
-
-#### Requirement: Liveness and progress are supervised separately
-Each resident role SHALL run an independent watchdog that detects its own event-loop stall, records diagnostics including thread state, and terminates only that process. The server SHALL supervise holders through five-second heartbeats and treat three missed ticks over a healthy supervision path as a holder timeout. Holders SHALL supervise their A1 process through bridge heartbeats emitted from its event loop. Server or bridge transport loss alone SHALL NOT be classified as a child hang or authorize child termination; child liveness SHALL be re-established before destructive recovery. An A1 process that is alive but has missed bridge heartbeats for 30 seconds SHALL be shown as unresponsive; after `tabsUnresponsiveRestartSeconds` (default 120) it SHALL be restarted from its session with its prompt journal and last screen preserved. A tab that is working but has produced no progress event for `tabsStallNoticeSeconds` (default 300) SHALL be shown as stalled with interrupt and restart actions and SHALL NOT be terminated automatically, because long-running tools are legitimate.
+#### Requirement: A1 child liveness and progress are supervised separately
+Holders SHALL supervise their A1 process through bridge heartbeats emitted from its event loop. Server or bridge transport loss alone SHALL NOT be classified as a child hang or authorize child termination; child liveness SHALL be re-established before destructive recovery. An A1 process that is alive but has missed bridge heartbeats for 30 seconds SHALL be shown as unresponsive; after `tabsUnresponsiveRestartSeconds` (default 120) it SHALL be restarted from its session with its prompt journal and last screen preserved. A tab that is working but has produced no progress event for `tabsStallNoticeSeconds` (default 300) SHALL be shown as stalled with interrupt and restart actions and SHALL NOT be terminated automatically, because long-running tools are legitimate.
 
 ##### Scenario: A1 event loop wedges
 - **WHEN** a tab's A1 process stops emitting bridge heartbeats but its process is alive
@@ -450,28 +392,6 @@ Each resident role SHALL run an independent watchdog that detects its own event-
 ##### Scenario: Provider stream stalls
 - **WHEN** a working tab receives no model or tool progress for five minutes
 - **THEN** its chip SHALL show stalled with interrupt and restart actions, and the tab SHALL NOT be killed automatically
-
-#### Requirement: Recovery is level-triggered reconciliation
-The server SHALL converge each tab's actual state toward its durable desired state through idempotent reconciliation rather than one-shot event handling. Terminal size, lifecycle, and holder presence SHALL be treated as desired state that is re-applied until observed. Every holder and tab-process incarnation SHALL carry a unique incarnation identity, and events from a superseded incarnation SHALL be discarded. Reconciliation SHALL be gated so that at most one start is in flight per tab.
-
-##### Scenario: Late exit event from a replaced child
-- **WHEN** an exit notification for a previous incarnation arrives after the tab was restarted
-- **THEN** the server SHALL discard it and the new incarnation SHALL keep running
-
-##### Scenario: Resize lost in transit
-- **WHEN** a resize message is lost or reordered
-- **THEN** the holder's size SHALL still converge to the latest desired size
-
-#### Requirement: Stale servers and registry writers are fenced out
-Exactly one server SHALL hold the owner-only operating-system registry-writer lease. A failed endpoint handshake SHALL NOT by itself authorize replacement: the starter SHALL verify the recorded owner's native process identity, terminate that owner, and acquire the released lease, or fail closed when verification or acquisition is unavailable. Each server start SHALL durably increment the registry epoch while holding the lease before it acts. Every registry mutation SHALL verify that the lease is still held and the durable epoch is current. Holders and bridges SHALL accept commands only from the highest epoch they have observed and SHALL reject lower epochs.
-
-##### Scenario: A hung server resumes after replacement
-- **WHEN** a verified hung server was terminated, its lease was acquired by a replacement, and stale work from the old incarnation is later delivered
-- **THEN** holders and bridges SHALL reject its epoch and no stale registry mutation SHALL commit
-
-##### Scenario: Timed-out owner cannot be verified
-- **WHEN** the endpoint does not answer but the recorded owner cannot be proven and terminated by native identity
-- **THEN** A1 SHALL report host recovery blocked and SHALL NOT start a second registry writer
 
 #### Requirement: Durable data is guaranteed per class
 A1 SHALL uphold these guarantees across forced termination of any process, including all resident processes at once:
@@ -513,36 +433,6 @@ A1 SHALL uphold these guarantees across forced termination of any process, inclu
 ##### Scenario: Antivirus holds the registry file
 - **WHEN** registry rename fails transiently because another process holds the file
 - **THEN** the server SHALL retry, keep serving from memory, report degraded health if the failure persists, and SHALL NOT drop or kill any tab
-
-#### Requirement: Session exclusivity is enforced by the operating system
-Every A1-owned runtime that writes a Pi session on a supported platform, whether resident, direct/fallback, or Pi-comparison, SHALL acquire the same profile-neutral native session-writer lease before opening it for writing, regardless of the resident setting. Direct modes SHALL NOT start a resident host, holder, or bridge to perform this check. The lease SHALL be an operating-system lock held by the writer process itself. Lease identity SHALL resolve case, junction/symlink, hard-link and existing-file aliases, and SHALL reserve a canonical parent/name for a new file without a gap when binding its created file identity. Lock custody SHALL follow the actual session writer lifetime; death of the holder alone SHALL NOT release exclusivity while the writer remains alive. Replacement SHALL require lease acquisition and verified exit of the previous writer/tree; unavailable proof SHALL block replacement. Session switching SHALL acquire the target before releasing the previous writer lease and preserve the old session on failed admission. Kernel cleanup SHALL release abandoned leases only once no live owner remains. Unmodified external Pi, older nonparticipating releases, and arbitrary file writers are outside this cooperative contract and SHALL NOT be claimed as covered.
-
-##### Scenario: Orphaned child still alive during recovery
-- **WHEN** recovery finds a session whose previous A1 process may still be running but cannot be verified
-- **THEN** the lease SHALL prevent a second process from appending to that session, and the tab SHALL report the conflict instead of starting
-
-##### Scenario: Holder dies before its writer exits
-- **WHEN** a holder is killed but its A1 writer has not yet been proven exited
-- **THEN** the writer-bound lease SHALL prevent a replacement from writing the same session, and uncertainty SHALL keep recovery blocked
-
-##### Scenario: Direct fallback targets a held session
-- **WHEN** a direct or fallback A1 runtime selects a session held by a resident writer
-- **THEN** admission SHALL fail safely or offer an explicit fork, and SHALL NOT start a second writer or silently attach the direct invocation
-
-##### Scenario: Session path alias
-- **WHEN** two A1-owned runtimes select aliases of the same session file
-- **THEN** both SHALL resolve the same lock authority and at most one SHALL open the session for writing
-
-##### Scenario: Session switch conflicts
-- **WHEN** a running session attempts to switch to a session already held elsewhere
-- **THEN** the switch SHALL be rejected without losing the old session or its lease
-
-#### Requirement: Concurrent tab starts do not corrupt shared profile state
-Tab starts SHALL be limited by `tabsMaxConcurrentStarts` and spaced so that concurrent Pi processes do not contend on profile authentication or settings locks beyond Pi's retry budget. Tab stops SHALL request graceful shutdown before forced termination so profile locks are released normally.
-
-##### Scenario: Start ten tabs at once
-- **WHEN** ten tabs start or restart at once
-- **THEN** every tab SHALL start with its configured models available
 
 #### Requirement: Diagnostics survive the failures they describe
 Resident logs SHALL rotate by size into bounded retained generations and SHALL never be deleted or truncated at startup. Every crash, watchdog termination, and unrequested child exit SHALL produce a distinct timestamped record containing role, incarnation, reason, recent structured events, and, for native processes, a backtrace, bounded in total size and age. Structured logs and crash records SHALL use allowlisted metadata and SHALL exclude credentials, prompt/transcript/terminal content, raw stderr, and arbitrary exception messages. Journals, last-screen snapshots, and optional separately captured child stderr SHALL be classified as sensitive recovery artifacts rather than sanitized diagnostics, restricted to the owner and bounded by size and age. Optional stderr SHALL retain at most three 5 MiB generations for at most seven days and SHALL NOT be inferred by scraping terminal cells. `a1 tabs doctor` SHALL export only allowlisted diagnostic data with host status, recent structured records, counters for restarts, stalls, resyncs, and degraded states, and platform detachment details; it SHALL exclude recovery content.
@@ -690,29 +580,6 @@ A supported session launch SHALL carry its validated target and effective sessio
 ## Capability: `launch-profiles`
 
 ### MODIFIED Requirements
-
-#### Requirement: Interactive launch forms are concurrently independent
-A1 SHALL permit multiple simultaneous instances of bare `a1`, prerelease `a1 pi`, or both. Profile selection, profile data, lifecycle state, process containment, and closure SHALL remain scoped to the originating invocation rather than a product-wide foreground slot. When resident tabs are enabled, concurrent bare-A1 instances of the same profile SHALL attach to that profile's single resident terminal host as independent clients; closing one client SHALL NOT affect another client or any resident tab. A1-owned runtimes in either profile SHALL share the native session-writer admission guard only when selecting the same canonical session file, regardless of the resident setting. The guard SHALL be independent of resident initialization: `a1 pi` and direct A1 SHALL start no host, holder, strip or bridge. Different session files SHALL remain independently writable, and unmodified external Pi or older nonparticipating builds SHALL NOT be claimed as covered.
-
-##### Scenario: Start the same profile twice
-- **WHEN** the user starts two instances of the same retained profile
-- **THEN** both SHALL launch independently without sharing foreground ownership
-
-##### Scenario: Start both profile forms
-- **WHEN** owned A1 or Pi-comparison instances are already active and another supported form is launched
-- **THEN** the new invocation SHALL start independently without requiring an existing instance to exit
-
-##### Scenario: Two bare A1 clients share resident tabs
-- **WHEN** two bare `a1` instances of one profile run with resident tabs enabled and one of them exits
-- **THEN** the remaining instance SHALL keep its tabs, active selection, and input unaffected, and every resident tab SHALL keep running
-
-##### Scenario: Comparison profile selects a session held by a tab
-- **WHEN** a Pi-comparison runtime selects the canonical file already held by a resident A1 tab
-- **THEN** the shared writer guard SHALL reject duplicate writing without starting resident infrastructure or changing the comparison UI into a tab client
-
-##### Scenario: Different session files across profiles
-- **WHEN** bare-A1 and Pi-comparison runtimes select distinct unheld session files
-- **THEN** both SHALL proceed concurrently without a product-wide foreground lock
 
 ## Capability: `cli-session-resume`
 

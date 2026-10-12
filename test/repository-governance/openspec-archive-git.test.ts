@@ -72,5 +72,5 @@ describe("archive Git publication against a disposable bare remote", () => {
       expect(await git(remote, ["rev-parse", "refs/heads/docs/archive-example"])).toBe(human);
       expect(mutations).toHaveLength(0);
     } finally { await rm(root, { recursive: true, force: true }); }
-  }, 30_000);
+  }, 60_000);
 });

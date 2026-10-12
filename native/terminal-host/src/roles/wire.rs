@@ -29,6 +29,14 @@ pub struct RoleHello {
     pub pid: Option<u32>,
     #[serde(default)]
     pub start_identity: Option<String>,
+    #[serde(default)]
+    pub incarnation: u64,
+    #[serde(default)]
+    pub child_pid: Option<u32>,
+    #[serde(default)]
+    pub child_start_identity: Option<String>,
+    #[serde(default)]
+    pub highest_epoch: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,6 +65,7 @@ pub struct HolderLaunchConfig {
     pub release_root: String,
     pub node_executable: String,
     pub environment: Vec<(String, String)>,
+    pub server: ServerLaunchConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,19 +75,67 @@ pub struct ServerLaunchConfig {
     pub data_dir: String,
     pub runtime_dir: String,
     pub endpoint: String,
+    #[serde(default = "default_max_concurrent_starts")]
+    pub max_concurrent_starts: usize,
+    #[serde(default)]
+    pub fault_environment: Vec<(String, String)>,
+}
+fn default_max_concurrent_starts() -> usize {
+    2
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Surface {
+    #[serde(default)]
+    pub tab_id: String,
     pub revision: u64,
     pub bytes: Vec<u8>,
     pub status: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SurfaceSubscription {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabCreate {
+    pub cwd: String,
+    pub columns: u16,
+    pub rows: u16,
+    pub release_root: String,
+    pub node_executable: String,
+    #[serde(default)]
+    pub environment: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabTarget {
+    pub tab_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabSummary {
+    pub tab_id: String,
+    pub name: String,
+    pub lifecycle: String,
+    pub cwd: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TabList {
+    pub tabs: Vec<TabSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PasteStart {
     pub bytes: usize,
+    #[serde(default)]
+    pub epoch: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,12 +143,16 @@ pub struct Input {
     pub bytes: Vec<u8>,
     #[serde(default)]
     pub paste: bool,
+    #[serde(default)]
+    pub epoch: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Resize {
     pub columns: u16,
     pub rows: u16,
+    #[serde(default)]
+    pub epoch: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,6 +160,9 @@ pub struct Resize {
 pub struct HolderReady {
     pub tab_id: String,
     pub pid: u32,
+    pub incarnation: u64,
+    pub child_pid: u32,
+    pub child_start_identity: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

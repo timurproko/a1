@@ -97,11 +97,26 @@ pub fn clear_handshake_deadline(_stream: &EndpointStream) -> Result<(), Endpoint
 
 #[cfg(windows)]
 pub fn connect(address: &str) -> Result<EndpointStream, EndpointError> {
-    std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(address)
-        .map_err(|error| EndpointError(format!("connect endpoint {address}: {error}")))
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    loop {
+        match std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(address)
+        {
+            Ok(stream) => return Ok(stream),
+            Err(error)
+                if error.raw_os_error() == Some(231) && std::time::Instant::now() < deadline =>
+            {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            Err(error) => {
+                return Err(EndpointError(format!(
+                    "connect endpoint {address}: {error}"
+                )));
+            }
+        }
+    }
 }
 
 #[derive(Debug)]

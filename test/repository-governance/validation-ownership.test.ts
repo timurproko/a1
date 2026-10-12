@@ -44,7 +44,8 @@ describe("bounded PR-core ownership", () => {
     const shared = select(["test/support/session-resume-fixture.ts"]);
     expect(shared.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(["release-package-update", "pi"]);
     expect(shared.owners.find(owner => owner.owner === "pi")?.reasons).toEqual([{ code: "shared-support",
-      paths: ["test/support/session-resume-fixture.ts", "test/integrations/pi/engine/runtime-integration.test.ts"] }]);
+      paths: ["test/support/session-resume-fixture.ts", "test/integrations/pi/engine/runtime-integration.test.ts",
+        "test/integrations/pi/engine/workflow-contexts-session-lock.test.ts"] }]);
     const renamed = select([{ status: "R", oldPath: "src/ui/components/old.ts", path: "src/features/launch/new.ts" }]);
     expect(renamed.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(expect.arrayContaining(["ui-rendering", "launch-startup"]));
   });
