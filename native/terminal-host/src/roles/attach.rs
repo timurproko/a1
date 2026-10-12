@@ -257,7 +257,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 "holder.exit" => {
                     terminal.write(render_strip("ended", "agent", columns).as_bytes())?;
                 }
-                "input.rejected" | "input.uncertain" => {
+                "viewer.status" | "input.rejected" | "input.uncertain" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
                     if let Some(message) = result.message {
                         terminal.write(render_notice(&message, columns).as_bytes())?;

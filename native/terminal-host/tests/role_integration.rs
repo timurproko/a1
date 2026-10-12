@@ -771,7 +771,12 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
     );
     assert!(read_only.output_containing("fake-tab-ready", Duration::from_secs(10)));
     read_only.write(b"must-not-reach-child\n");
-    assert!(read_only.output_containing("read-only-viewer", Duration::from_secs(5)));
+    assert!(
+        read_only.output_containing("read-only-viewer", Duration::from_secs(5)),
+        "{}",
+        read_only.output_text()
+    );
+    assert!(!read_only.output_containing("echo:must-not-reach-child", Duration::from_secs(1)));
     read_only.write(b"\x03\x03");
     assert!(read_only.wait(Duration::from_secs(8)).success());
 

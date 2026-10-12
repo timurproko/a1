@@ -783,7 +783,7 @@ fn serve_attach(
     allow_control: bool,
 ) -> Result<(), String> {
     let client_id = format!("client-{:016x}", rand::random::<u64>());
-    let revision = {
+    let (revision, controller) = {
         let mut locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
@@ -834,7 +834,7 @@ fn serve_attach(
                 },
             )?);
         }
-        revision
+        (revision, controller)
     };
     tx.offer_control(wire::frame(
         "attached",
@@ -845,6 +845,17 @@ fn serve_attach(
         },
     )?)
     .map_err(str::to_owned)?;
+    if !controller {
+        tx.offer_control(wire::frame(
+            "viewer.status",
+            None,
+            wire::ResultBody {
+                accepted: true,
+                message: Some("read-only-viewer".into()),
+            },
+        )?)
+        .map_err(str::to_owned)?;
+    }
 
     while let Some(payload) = wire::read_payload(&mut stream)? {
         let kind = wire::kind(&payload)?;
@@ -1018,6 +1029,17 @@ fn serve_attach(
                 }
                 if let Some(surface) = locked.surfaces.get(&target.tab_id).cloned() {
                     tx.offer_surface(wire::frame("surface", None, surface)?);
+                }
+                if next_revision.is_none() {
+                    tx.offer_control(wire::frame(
+                        "viewer.status",
+                        None,
+                        wire::ResultBody {
+                            accepted: true,
+                            message: Some("read-only-viewer".into()),
+                        },
+                    )?)
+                    .map_err(str::to_owned)?;
                 }
                 if let Some(controller_revision) = next_revision
                     && let Some(bridge) = locked.bridges.get(&target.tab_id)
