@@ -52,7 +52,8 @@ pub fn write_crash(
     recent_events: &[&str],
     child_record: Option<&str>,
 ) -> Result<PathBuf, String> {
-    if !matches!(role, "server" | "holder" | "child") || !REASONS.contains(&reason_code) {
+    if !matches!(role, "server" | "holder" | "attach" | "child") || !REASONS.contains(&reason_code)
+    {
         return Err("crash diagnostic classification is outside the allowlist".into());
     }
     if recent_events.iter().any(|event| {

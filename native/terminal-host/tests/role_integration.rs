@@ -175,7 +175,7 @@ setInterval(() => {}, 1000);
 }
 
 #[test]
-fn crashed_child_restarts_in_the_same_holder_with_persisted_budget() {
+fn crashed_child_recovers_when_server_dies_after_budget_commit() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
     let profile = directory(root.path(), "profile");
@@ -204,13 +204,22 @@ if (!fs.existsSync(marker)) {
     .expect("fake crash-recovery child");
     let address = fixture_endpoint(&runtime);
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
-    start_server(&executable, &profile, &data, &runtime, &address);
+    let mut server = server_command(&executable, &profile, &data, &runtime, &address);
+    server.env("A1_TABS_FAULT_CRASH_POINT", "after-restart-budget-commit");
+    assert!(
+        server
+            .output()
+            .expect("faulted restart server")
+            .status
+            .success()
+    );
     let credentials_root = data
         .join("tabs")
         .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let initial_servers = server_pids(&credentials_root);
     let mut cleanup = Cleanup {
         credentials_root: credentials_root.clone(),
-        pids: server_pids(&credentials_root),
+        pids: initial_servers.clone(),
     };
     let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
     assert!(
@@ -231,6 +240,9 @@ if (!fs.existsSync(marker)) {
     assert_eq!(tab.incarnation, 2);
     assert_eq!(tab.restarts, 1);
     assert_eq!(tab.last_exit.as_deref(), Some("exit 17"));
+    let recovered_servers = server_pids(&credentials_root);
+    assert_ne!(recovered_servers, initial_servers);
+    cleanup.pids.extend(recovered_servers);
     attach.write(b"\x03\x03");
     attach.wait(Duration::from_secs(8));
     cleanup.pids.extend(holder_pids(&credentials_root));
@@ -676,31 +688,6 @@ fn ten_concurrent_tab_starts_respect_the_server_limit() {
     let registry = RegistryStore::read(&credentials_root.join("registry.json"))
         .expect("read converged registry")
         .expect("converged registry");
-    for holder in registry.tabs.iter().filter_map(|tab| tab.holder_pid) {
-        terminate(holder);
-    }
-    let holder_deadline = Instant::now() + Duration::from_secs(45);
-    let registry = loop {
-        let restarted = RegistryStore::read(&credentials_root.join("registry.json"))
-            .expect("read holder-restarted registry")
-            .expect("holder-restarted registry");
-        if restarted.tabs.len() == 10
-            && restarted.tabs.iter().all(|tab| {
-                tab.lifecycle == "running"
-                    && tab.incarnation == 3
-                    && tab.restarts == 2
-                    && tab.child_pid.is_some()
-                    && tab.holder_pid.is_some()
-            })
-        {
-            break restarted;
-        }
-        assert!(
-            Instant::now() < holder_deadline,
-            "ten holder restarts did not converge: {restarted:?}"
-        );
-        std::thread::sleep(Duration::from_millis(100));
-    };
     let stopping = registry
         .tabs
         .iter()

@@ -358,8 +358,9 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         && system.os_session != "unavailable"
         && registry.os_session_id != system.os_session;
     let prior_session_ended = registry.boot_id != system.boot
-        || os_session_changed
-        || (system.os_session == "unavailable" && all_holders_gone && !registry.tabs.is_empty());
+        || ((os_session_changed || system.os_session == "unavailable")
+            && all_holders_gone
+            && !registry.tabs.is_empty());
     if prior_session_ended {
         RegistryStore::archive_tabset(&root, &registry)?;
         registry.tabs.clear();
@@ -1671,12 +1672,28 @@ fn launch_replacement_holder(state: &Arc<Mutex<RuntimeState>>, tab_id: &str) -> 
         };
         (context, locked.profile.clone())
     };
-    // The launch boundary verifies the resident process and the holder handshake independently
-    // verifies its PID/start identity before admission. Avoid terminating a holder merely because
+    // Rationale: the launch boundary verifies the resident process and the holder handshake
+    // independently verifies its PID/start identity before admission. Avoid terminating a holder merely because
     // an additional post-launch observation races with a burst of concurrent replacements.
-    launch::launch_resident_with_config(ResidentRole::Holder, &profile, &context)
-        .map(|_| ())
-        .map_err(|error| error.to_string())
+    let mut last_error = "replacement holder did not start".to_owned();
+    for _ in 0..3 {
+        match launch::launch_resident_with_config(ResidentRole::Holder, &profile, &context) {
+            Ok(_) => return Ok(()),
+            Err(error) => last_error = error.to_string(),
+        }
+        for _ in 0..10 {
+            if state.lock().ok().is_some_and(|locked| {
+                locked
+                    .holders
+                    .get(tab_id)
+                    .is_some_and(|holder| holder.incarnation == context.incarnation)
+            }) {
+                return Ok(());
+            }
+            thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+    Err(last_error)
 }
 
 fn serve_holder(

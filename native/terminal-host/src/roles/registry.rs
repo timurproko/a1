@@ -158,6 +158,7 @@ impl RegistryStore {
         let bytes = serde_json::to_vec_pretty(document).map_err(|error| error.to_string())?;
         crate::fault_injection::crash_at("registry-before-tabset-move");
         durable::replace(&path, &bytes).map_err(|error| error.to_string())?;
+        prune_tabsets(&history, std::time::SystemTime::now());
         crate::fault_injection::crash_at("registry-after-tabset-move");
         Ok(path)
     }
@@ -231,6 +232,30 @@ impl RegistryStore {
             return Err("registry writer lease was lost after commit".to_owned());
         }
         Ok(())
+    }
+}
+
+fn prune_tabsets(history: &Path, now: std::time::SystemTime) {
+    let mut tabsets = std::fs::read_dir(history)
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .filter(|entry| entry.file_name().to_string_lossy().starts_with("tabset-"))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    tabsets.sort_by_key(|entry| entry.file_name());
+    let excess = tabsets.len().saturating_sub(20);
+    for (index, entry) in tabsets.into_iter().enumerate() {
+        let expired = entry
+            .metadata()
+            .and_then(|metadata| metadata.modified())
+            .ok()
+            .and_then(|modified| now.duration_since(modified).ok())
+            .is_some_and(|age| age > std::time::Duration::from_secs(7 * 24 * 60 * 60));
+        if index < excess || expired {
+            let _ = std::fs::remove_file(entry.path());
+        }
     }
 }
 
@@ -442,6 +467,18 @@ mod tests {
         assert!(!transient_replacement_error(
             "No space left on device (os error 28)"
         ));
+    }
+
+    #[test]
+    fn prior_tab_sets_are_bounded() {
+        let root = tempfile::tempdir().unwrap();
+        for index in 0..25 {
+            std::fs::write(root.path().join(format!("tabset-{index:02}.json")), b"{}").unwrap();
+        }
+        prune_tabsets(root.path(), std::time::SystemTime::now());
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 20);
+        assert!(!root.path().join("tabset-00.json").exists());
+        assert!(root.path().join("tabset-24.json").exists());
     }
 
     #[test]
