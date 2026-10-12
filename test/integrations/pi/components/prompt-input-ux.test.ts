@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { CURSOR_MARKER, getKeybindings, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel, OwnedUiThinkingLevel } from "../../../../src/contracts/owned-ui/index.js";
-import { hyperlinkTargetAtColumn, LineInput, PromptInput, promptRule, renderInputRow } from "../../../../src/ui/components/index.js";
-import { applyPiTheme, createPiKeybindingsHost, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS } from "../../../../src/integrations/pi/components/index.js";
+import { hyperlinkTargetAtColumn, LineInput, PromptInput, renderInputRow } from "../../../../src/ui/components/index.js";
+import { applyPiTheme, createPiKeybindingsHost, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS, setPiAccentColor } from "../../../../src/integrations/pi/components/index.js";
 import { createPiShellThinkingSelector } from "../../../../src/integrations/pi/components/thinking-selector-dialog.js";
 import { KeybindingsManager, useWindowsKeybindings } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
@@ -15,7 +15,10 @@ import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities
 
 const LEVELS: readonly OwnedUiThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh"];
 const directories: string[] = [];
-afterEach(async () => { for (const path of directories.splice(0)) await rm(path, { recursive: true, force: true }); });
+afterEach(async () => {
+  setPiAccentColor("purple");
+  for (const path of directories.splice(0)) await rm(path, { recursive: true, force: true });
+});
 
 async function agentDir(bindings: Record<string, string | string[]> = {}): Promise<string> {
   const path = await mkdtemp(join(tmpdir(), "a1-input-ux-"));
@@ -57,8 +60,9 @@ async function editor(profile: "a1" | "pi" = "a1", bindings: Record<string, stri
 }
 
 describe("owned shared input and status presentation", () => {
-  it.each(["dark", "light"] as const)("matches search and submitted-prefix foreground in %s", async themeName => {
+  it.each(["dark", "light"] as const)("matches search, modal rules, and submitted-prefix foreground in %s", async themeName => {
     applyPiTheme(themeName, false, "truecolor");
+    setPiAccentColor("cyan");
     const { input, submit } = await editor();
     const compose = vi.spyOn(PromptInput.prototype, "render");
     try {
@@ -68,6 +72,8 @@ describe("owned shared input and status presentation", () => {
       expect(compose).toHaveBeenCalledTimes(2);
       expect(ghost[0]).toBe(search[0]);
       expect(ghost.at(-1)).toBe(search.at(-1));
+      expect(cellStyle(ghost[0]!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
+      expect(cellStyle(ghost.at(-1)!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
       const expected = cellStyle(piTheme().fg("muted", "❯"), "❯");
       expect(cellStyle(ghost[1]!, "❯")).toEqual(expected);
       expect(cellStyle(search[1]!, "❯")).toEqual(expected);
@@ -80,31 +86,57 @@ describe("owned shared input and status presentation", () => {
       for (const width of [2, 3, 12, 40, 80]) {
         const rows = input.render(width);
         expect(rows.every(row => visibleWidth(row) <= width)).toBe(true);
-        expect(rows[0]).toContain("\u001b[38;2;154;160;166m");
-        expect(rows.at(-1)).toContain("\u001b[38;2;154;160;166m");
+        if (width >= 12) {
+          expect(cellStyle(rows[0]!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
+          expect(cellStyle(rows.at(-1)!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
+        }
       }
       expect(input.getText()).toBe("draft 日本語\nsecond line");
     } finally { compose.mockRestore(); }
   });
 
-  it("keeps owned rules neutral across every level and bash mode while preserving pinned borders", async () => {
+  it("keeps owned rules on the modal border across every level and bash mode while preserving pinned borders", async () => {
     applyPiTheme("dark", false, "truecolor");
+    setPiAccentColor("orange");
     const owned = await editor();
     const pinned = await editor("pi");
     for (const level of LEVELS) {
       owned.input.setThinkingLevel(level);
       pinned.input.setThinkingLevel(level);
-      expect(cellStyle(owned.input.render(40)[0]!, "─")).toEqual(cellStyle(promptRule(40), "─"));
-      // Rationale: pinned 0.85.1 colors the whole rule in one span rather than one dash at a time.
+      expect(cellStyle(owned.input.render(40)[0]!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
+      // Rationale: pinned Pi colors the whole rule in one span rather than one dash at a time.
       if (level !== "off") expect(pinned.input.render(40)[0]).toContain(piTheme().getThinkingBorderColor(level)("─".repeat(40)));
     }
     owned.input.setText("!pwd");
     pinned.input.setText("!pwd");
-    expect(cellStyle(owned.input.render(40)[0]!, "─")).toEqual(cellStyle(promptRule(40), "─"));
+    expect(cellStyle(owned.input.render(40)[0]!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
     expect(pinned.input.render(40)[0]).toContain(piTheme().getBashModeBorderColor()("─".repeat(40)));
     expect(stripTerminalSequences(pinned.input.render(40).join("\n"))).not.toContain("❯");
     owned.input.setText("normal");
-    expect(cellStyle(owned.input.render(40)[0]!, "─")).toEqual(cellStyle(promptRule(40), "─"));
+    expect(cellStyle(owned.input.render(40)[0]!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
+  });
+
+  it("repaints a visible owned input after a live accent change without changing editor state", async () => {
+    applyPiTheme("dark", false, "truecolor");
+    setPiAccentColor("cyan");
+    const { input } = await editor();
+    input.setText("draft text");
+    input.render(40);
+    input.handlePointer?.({ kind: "press", button: 0, column: 3, row: 2 });
+    input.handlePointer?.({ kind: "motion", button: 0, column: 8, row: 2 });
+    input.handlePointer?.({ kind: "release", button: 0, column: 8, row: 2 });
+    const beforeRows = input.render(40);
+    const beforeStyle = cellStyle(beforeRows[0]!, "─");
+    expect(input.hasSelection()).toBe(true);
+
+    setPiAccentColor("pink");
+    const afterRows = input.render(40);
+    expect(cellStyle(afterRows[0]!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
+    expect(cellStyle(afterRows[0]!, "─")).not.toEqual(beforeStyle);
+    expect(afterRows.map(stripTerminalSequences)).toEqual(beforeRows.map(stripTerminalSequences));
+    expect(afterRows.map(visibleWidth)).toEqual(beforeRows.map(visibleWidth));
+    expect(input.getText()).toBe("draft text");
+    expect(input.hasSelection()).toBe(true);
   });
 
   it("keeps pointer selection aligned with the shared content inset and never copies chrome", async () => {

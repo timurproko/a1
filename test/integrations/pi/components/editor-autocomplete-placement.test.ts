@@ -120,8 +120,8 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
             }
           }
         }
-        // Rationale: the built-in dim colors remain distinct in RGB but both quantize to ANSI index 102.
-        expect(colors.size).toBe(mode === "truecolor" ? 2 : 1);
+        // Rationale: the selected accents stay distinct in both terminal color modes.
+        expect(colors.size).toBe(2);
       }
       editor.handleInput?.("\u001b"); editor.setText("! "); editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 40).menu.length).toBeGreaterThan(0);
