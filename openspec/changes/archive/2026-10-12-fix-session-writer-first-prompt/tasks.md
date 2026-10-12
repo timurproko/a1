@@ -19,4 +19,6 @@
 - `npm run typecheck`, `npm run check:architecture`, and `npm run check:code-documentation:changed` passed.
 - `npx openspec validate fix-session-writer-first-prompt --strict --no-interactive` and `git diff --check` passed.
 - The runtime test confirms a fresh first user message persists without `EEXIST`, retains one original session header and exclusive writer authority, and preserves the no-resume-hint behavior before conversation content exists.
-- Known gap disposition: no known implementation gap remains; a physical provider response is left to the built-candidate manual handoff because the regression targets the synchronous persistence boundary before any provider request.
+- The maintainer launched built implementation commit `e8bdd7fc` through `./scripts/dev`, submitted a real prompt, and confirmed that the agent responded normally without `EEXIST`.
+- Exact-head CI run [38275255687](https://github.com/timurproko/a1/actions/runs/38275255687) exposed two exit-resume-hint fixtures whose mocked manager could not rebuild session context. The repair derives conversation presence from the bound session messages already rendered by the shell; the focused runtime, writer-lock, and complete lifecycle suites then passed 4 files and 53 tests.
+- Known gap disposition: no known implementation gap remains.
