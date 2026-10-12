@@ -1,19 +1,19 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
- * Modifications: Retain pinned shell and actual public tool-definition renderers. Replace private
- * index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and
- * disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and
- * generic text helpers to public or locally attributed equivalents. Route bare-A1 built-in read ranges
- * through the secondary accent role. See docs/architecture/tool-image-presentation.md.
- * Deviations: current-tool-image-conversion-ownership, read-range-secondary-accent.
+ * Modifications: Retain pinned shell/public renderers. Own image conversion; replace private APIs with
+ * public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut
+ * hints. See docs/architecture/tool-image-presentation.md.
+ * Deviations: current-tool-image-conversion-ownership, read-range-secondary-accent,
+ * concise-tool-expand-shortcut-hint.
  */
 import { stripVTControlCharacters } from "node:util";
 import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { createReadToolDefinition, createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition,
-  createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, keyHint, type ToolDefinition,
+  createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, keyHint, keyText, type ToolDefinition,
   type ToolRenderers,
 } from "@earendil-works/pi-coding-agent";
+import { renderPiModalShortcutHints } from "../../theme.js";
 import { isPiAccentProjectionEnabled, piTheme } from "../theme/theme.js";
 import { ToolImagePresentation } from "../../tool-image-presentation.js";
 
@@ -22,8 +22,24 @@ type ToolPresentationResult = Parameters<NonNullable<ToolDefinition["renderResul
 	isError: boolean;
 	durationMs?: number;
 };
-/** The caller-side merge 0.85.1 performs before handing a definition to the component: built-in renderers fill the gaps. */
 type ToolRendererInput = ToolRenderers | ToolDefinition<any, any, any>;
+
+function conciseExpandHint(): string {
+	return renderPiModalShortcutHints([{ key: keyText("app.tools.expand"), action: "expand" }]);
+}
+
+function withConciseExpandHint(component: Component): Component {
+	return new Proxy(component, { get(target, property) {
+		if (property === "render") return (width: number) => {
+			const theme = piTheme(), key = keyText("app.tools.expand"), concise = conciseExpandHint();
+			const compact = theme.fg("dim", ` (${key} to expand)`);
+			return target.render(width).map(row => row.replaceAll(keyHint("app.tools.expand", "to expand"), concise)
+				.replaceAll(compact, `${theme.fg("dim", " (")}${concise}${theme.fg("dim", ")")}`));
+		};
+		const value: unknown = Reflect.get(target, property, target);
+		return typeof value === "function" ? value.bind(target) : value;
+	} });
+}
 
 export function mergeBuiltInRenderers(definition: ToolRendererInput | undefined, builtIn: ToolRendererInput | undefined): ToolRenderers | undefined {
 	if (definition === undefined) return builtIn;
@@ -41,7 +57,6 @@ const definitions = { read: createReadToolDefinition, bash: createBashToolDefini
 
 const FALLBACK_PREVIEW_LINES = 10;
 const COLLAPSED_ARGS_CHARS = 100;
-/** Locally attributed equivalent of pinned Pi's private generic tool-call formatter. */
 function formatToolCallWithArgs(title: string, args: unknown, expanded: boolean): string {
   const theme = piTheme();
   const header = theme.fg("toolTitle", theme.bold(title));
@@ -114,8 +129,6 @@ export class ToolExecutionComponent extends Container {
 		this.args = args;
 		this.builtInToolDefinition = Object.hasOwn(definitions, toolName)
       ? definitions[toolName as keyof typeof definitions](cwd) : undefined;
-		// Rationale: 0.85.1 moved the built-in renderer fallback to the caller; A1 keeps it here so every caller of
-		// the owned component gets the built-in edit/read/bash renderers without reaching into the tool registry.
 		this.toolDefinition = mergeBuiltInRenderers(toolDefinition, this.builtInToolDefinition);
 		this.showImages = options.showImages ?? true;
 		this.imageWidthCells = options.imageWidthCells ?? 60;
@@ -130,9 +143,6 @@ export class ToolExecutionComponent extends Container {
 
 		this.addChild(new Spacer(1));
 
-		// Always create all shell variants. contentBox is used for default renderer-based composition.
-		// selfRenderContainer is used when the tool renders its own framing.
-		// contentText is reserved for generic fallback rendering when no tool definition exists.
 		this.contentBox = new Box(1, 1, (text: string) => piTheme().bg("toolPendingBg", text));
 		this.contentText = new Text("", 1, 1, (text: string) => piTheme().bg("toolPendingBg", text));
 		this.contentTextRegion = this.createResultRegion(this.contentText);
@@ -202,7 +212,7 @@ export class ToolExecutionComponent extends Container {
 		const remaining = lines.length - displayLines.length;
 		let text = displayLines.map((line) => theme.fg("toolOutput", line)).join("\n");
 		if (remaining > 0) {
-			text += `${theme.fg("muted", `\n... (${remaining} more lines,`)} ${keyHint("app.tools.expand", "to expand")}${theme.fg("muted", ")")}`;
+			text += `${theme.fg("muted", `\n... (${remaining} more lines,`)} ${conciseExpandHint()}${theme.fg("muted", ")")}`;
 		}
 		return new Text(text, 0, 0);
 	}
@@ -241,7 +251,6 @@ export class ToolExecutionComponent extends Container {
 		this.updateDisplay();
 	}
 
-  /** End mount ownership without letting an obsolete conversion or extension callback repaint. */
   dispose(): void {
     this.disposed = true;
     this.images.dispose();
@@ -352,7 +361,6 @@ export class ToolExecutionComponent extends Container {
 				hasContent = true;
 			} else {
 				try {
-          // The built-in read call alone sees warning as secondary metadata; results and extensions retain warning.
 					const component = callRenderer(this.args,
             this.toolName === "read" && callRenderer === this.builtInToolDefinition?.renderCall && isPiAccentProjectionEnabled
               ? new Proxy(theme, {
@@ -367,7 +375,8 @@ export class ToolExecutionComponent extends Container {
               : theme,
             this.getRenderContext(this.callRendererComponent));
 					this.callRendererComponent = component;
-					renderContainer.addChild(this.createResultRegion(component));
+					renderContainer.addChild(this.createResultRegion(callRenderer === this.builtInToolDefinition?.renderCall
+						? withConciseExpandHint(component) : component));
 					hasContent = true;
 				} catch {
 					this.callRendererComponent = undefined;
@@ -393,7 +402,8 @@ export class ToolExecutionComponent extends Container {
 							this.getRenderContext(this.resultRendererComponent),
 						);
 						this.resultRendererComponent = component;
-						renderContainer.addChild(this.createResultRegion(component));
+						renderContainer.addChild(this.createResultRegion(resultRenderer === this.builtInToolDefinition?.renderResult
+							? withConciseExpandHint(component) : component));
 						hasContent = true;
 					} catch {
 						this.resultRendererComponent = undefined;
