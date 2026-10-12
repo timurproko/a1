@@ -4,12 +4,12 @@ import { PLAIN_THEME, type UiTheme } from "./theme.js";
 export const PROMPT_GLYPH = "❯ ";
 export const PROMPT_PREFIX_WIDTH = 2;
 
-export function promptRuleText(text: string): string {
-  return `\u001b[38;2;154;160;166m${text}\u001b[39m`;
+export function promptRuleText(text: string, theme: Pick<UiTheme, "fg"> = PLAIN_THEME): string {
+  return theme.fg("border", text);
 }
 
-export function promptRule(width: number): string {
-  return promptRuleText("─".repeat(Math.max(0, width)));
+export function promptRule(width: number, theme: Pick<UiTheme, "fg"> = PLAIN_THEME): string {
+  return promptRuleText("─".repeat(Math.max(0, width)), theme);
 }
 
 export function promptArrow(text: string, theme: Pick<UiTheme, "fg">): string {
@@ -40,7 +40,7 @@ export class PromptInput {
     metrics: PromptInputMetrics = { measure: displayWidth, truncate: truncateToWidth },
   ) { this.theme = theme; this.metrics = metrics; }
 
-  styleRule(text: string): string { return promptRuleText(text); }
+  styleRule(text: string): string { return promptRuleText(text, this.theme); }
 
   geometry(width: number, padding = 0, promptGlyph = PROMPT_GLYPH) {
     const prefixWidth = Math.min(this.metrics.measure(promptGlyph), Math.max(0, width));
@@ -74,8 +74,8 @@ export class PromptInput {
       ? promptArrow(promptGlyph, this.theme)
       : " ".repeat(prefixWidth)}${row}`));
     const rule = (fragment?: string): string => fragment === undefined
-      ? promptRule(width)
-      : fit(fragment + promptRule(Math.max(0, width - this.metrics.measure(fragment))));
+      ? promptRule(width, this.theme)
+      : fit(fragment + promptRule(Math.max(0, width - this.metrics.measure(fragment)), this.theme));
     return [
       ...(ruled ? [rule(body.topRule)] : []),
       ...rows,

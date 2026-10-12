@@ -227,7 +227,7 @@ export function caretCell(text: string): string {
 export interface InputRowOptions {
   /** Shown quietly while nothing has been typed, with the caret on its first cell. */
   readonly placeholder?: string;
-  /** Rules above and below, in the prompt's own grey. Default true. */
+  /** Rules above and below, in the active theme's border role. Default true. */
   readonly ruled?: boolean;
   /** Prompt marker including any following spacing. Defaults to the shared prompt glyph. */
   readonly promptGlyph?: string;
