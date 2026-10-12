@@ -373,9 +373,8 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         }
         while let Ok(command) = command_rx.try_recv() {
             if matches!(command, HolderCommand::Disconnected) {
-                let _ = request_server_replacement(&config);
                 let (replacement, epoch) =
-                    connect_holder(&config, true, Some(&child_identity), highest_epoch)?;
+                    reconnect_holder(&config, &child_identity, highest_epoch, &diagnostics_root)?;
                 if epoch < highest_epoch {
                     continue;
                 }
@@ -721,6 +720,7 @@ fn request_server_replacement(config: &HolderLaunchConfig) -> Result<(), String>
         .args([
             "server",
             "--detach",
+            "--resident-parent-holder",
             "--profile",
             &config.server.profile,
             "--data-dir",
@@ -743,6 +743,45 @@ fn request_server_replacement(config: &HolderLaunchConfig) -> Result<(), String>
     } else {
         Err(format!("server replacement stopped with {status}"))
     }
+}
+
+fn reconnect_holder(
+    config: &HolderLaunchConfig,
+    child: &crate::identity::ProcessIdentity,
+    highest_epoch: u64,
+    diagnostics_root: &Path,
+) -> Result<(endpoint::EndpointStream, u64), String> {
+    let role = format!("holder-{}", config.tab_id);
+    let mut backoff = Duration::from_millis(100);
+    for _ in 0..3 {
+        if request_server_replacement(config).is_err() {
+            let _ = crate::roles::diagnostics::append_log(
+                diagnostics_root,
+                &role,
+                "server-replacement-request-failed",
+            );
+        }
+        match connect_holder(config, false, Some(child), highest_epoch) {
+            Ok(replacement) => {
+                let _ = crate::roles::diagnostics::append_log(
+                    diagnostics_root,
+                    &role,
+                    "server-replacement-connected",
+                );
+                return Ok(replacement);
+            }
+            Err(_) => {
+                let _ = crate::roles::diagnostics::append_log(
+                    diagnostics_root,
+                    &role,
+                    "server-replacement-connect-failed",
+                );
+            }
+        }
+        thread::sleep(backoff);
+        backoff = backoff.saturating_mul(2).min(Duration::from_secs(2));
+    }
+    connect_holder(config, true, Some(child), highest_epoch)
 }
 
 fn connect_holder(

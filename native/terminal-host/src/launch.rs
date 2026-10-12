@@ -134,6 +134,24 @@ pub fn launch_resident_with_config<T: Serialize>(
     profile: &Path,
     context: &T,
 ) -> Result<(ResidentProcess, LaunchObservation), LaunchError> {
+    launch_resident_with_config_from(role, profile, context, false)
+}
+
+/// Starts a fixed resident role from an already detached, identity-verified resident process.
+pub fn launch_resident_with_config_from_resident<T: Serialize>(
+    role: ResidentRole,
+    profile: &Path,
+    context: &T,
+) -> Result<(ResidentProcess, LaunchObservation), LaunchError> {
+    launch_resident_with_config_from(role, profile, context, true)
+}
+
+fn launch_resident_with_config_from<T: Serialize>(
+    role: ResidentRole,
+    profile: &Path,
+    context: &T,
+    resident_parent: bool,
+) -> Result<(ResidentProcess, LaunchObservation), LaunchError> {
     let executable = std::env::current_exe()
         .map_err(|error| LaunchError(format!("resolve terminal-host artifact: {error}")))?;
     let artifact = std::fs::canonicalize(&executable)
@@ -170,8 +188,15 @@ pub fn launch_resident_with_config<T: Serialize>(
         }
     }
     let configured_mode = configure_detached(&mut command)?;
-    let mut child =
-        spawn_with_fallback(command, &artifact, role, &profile, &result, &context_path)?;
+    let mut child = spawn_with_fallback(
+        command,
+        &artifact,
+        role,
+        &profile,
+        &result,
+        &context_path,
+        resident_parent,
+    )?;
     let mode = if cfg!(windows) && child.child.is_none() {
         "windows-wmi-fixed-role".to_owned()
     } else {
@@ -368,13 +393,14 @@ fn spawn_with_fallback(
     profile: &Path,
     result: &Path,
     context: &Path,
+    resident_parent: bool,
 ) -> Result<ResidentProcess, LaunchError> {
     #[cfg(windows)]
     {
-        // Platform: the server must escape a possibly foreign launcher job through WMI. A holder is created
-        // by that already-independent server and must launch directly; recursively invoking WMI
-        // from the detached service can block in non-interactive Windows sessions.
-        if role != ResidentRole::Holder {
+        // Platform: a server requested by a terminal-contained caller must escape through WMI.
+        // A verified resident parent is already outside that containment and launches directly;
+        // recursively invoking WMI from the detached service can block in non-interactive sessions.
+        if role != ResidentRole::Holder && !resident_parent {
             drop(command);
             return spawn_via_wmi(artifact, role, profile, result, context).map_err(LaunchError);
         }

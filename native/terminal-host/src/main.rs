@@ -185,11 +185,22 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
         .clamp(30, 600),
         fault_environment: contracts::fault_injection::capture(),
     };
-    let launched = contracts::launch::launch_resident_with_config(
-        contracts::launch::ResidentRole::Server,
-        &profile,
-        &context,
-    );
+    let launched = if arguments
+        .iter()
+        .any(|value| value == "--resident-parent-holder")
+    {
+        contracts::launch::launch_resident_with_config_from_resident(
+            contracts::launch::ResidentRole::Server,
+            &profile,
+            &context,
+        )
+    } else {
+        contracts::launch::launch_resident_with_config(
+            contracts::launch::ResidentRole::Server,
+            &profile,
+            &context,
+        )
+    };
     let (_process, observation) = match launched {
         Ok(value) => value,
         Err(error) => {

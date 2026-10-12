@@ -1339,7 +1339,7 @@ fn wait_for_holder_started_server(
     runtime: &Path,
     address: &str,
 ) {
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let deadline = Instant::now() + Duration::from_secs(40);
     loop {
         let probe = Command::new(executable)
             .args([
