@@ -41,19 +41,6 @@ const definitions = { read: createReadToolDefinition, bash: createBashToolDefini
 
 const FALLBACK_PREVIEW_LINES = 10;
 const COLLAPSED_ARGS_CHARS = 100;
-/** Gives the built-in read call one secondary metadata role without changing result warnings. */
-function secondaryReadCallTheme(theme: ReturnType<typeof piTheme>): ReturnType<typeof piTheme> {
-  return new Proxy(theme, {
-    get(target, property) {
-      if (property === "fg") {
-        return (...args: Parameters<typeof target.fg>) => target.fg(args[0] === "warning" ? "mdHeading" : args[0], args[1]);
-      }
-      const value: unknown = Reflect.get(target, property, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  });
-}
-
 /** Locally attributed equivalent of pinned Pi's private generic tool-call formatter. */
 function formatToolCallWithArgs(title: string, args: unknown, expanded: boolean): string {
   const theme = piTheme();
@@ -365,12 +352,20 @@ export class ToolExecutionComponent extends Container {
 				hasContent = true;
 			} else {
 				try {
-          const callTheme = this.toolName === "read"
-            && callRenderer === this.builtInToolDefinition?.renderCall
-            && isPiAccentProjectionEnabled
-            ? secondaryReadCallTheme(theme)
-            : theme;
-					const component = callRenderer(this.args, callTheme, this.getRenderContext(this.callRendererComponent));
+          // The built-in read call alone sees warning as secondary metadata; results and extensions retain warning.
+					const component = callRenderer(this.args,
+            this.toolName === "read" && callRenderer === this.builtInToolDefinition?.renderCall && isPiAccentProjectionEnabled
+              ? new Proxy(theme, {
+                get(target, property) {
+                  if (property === "fg") {
+                    return (...args: Parameters<typeof target.fg>) => target.fg(args[0] === "warning" ? "mdHeading" : args[0], args[1]);
+                  }
+                  const value: unknown = Reflect.get(target, property, target);
+                  return typeof value === "function" ? value.bind(target) : value;
+                },
+              })
+              : theme,
+            this.getRenderContext(this.callRendererComponent));
 					this.callRendererComponent = component;
 					renderContainer.addChild(this.createResultRegion(component));
 					hasContent = true;

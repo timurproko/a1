@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-12T09:51:46.894Z",
+  "recordedAt": "2026-10-12T09:57:46.268Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -2724,7 +2724,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain pinned shell and actual public tool-definition renderers. Replace private index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and generic text helpers to public or locally attributed equivalents. Route bare-A1 built-in read ranges through the secondary accent role. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "7d1d32535a795ede2cd51e74c797fa78f2cfc12216ecaa6198f4e1b609906c63",
+      "localSha256": "ad0e3ea47482117be7b9cd6baf8ba246912f38d1267e3ddbbf9deebec900a299",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
