@@ -50,6 +50,25 @@ function exclusiveSessionWriterBackend(onBind?: (path: string) => void): LockBac
   };
 }
 
+async function appendFirstUserMessage(manager: SessionManager, text: string): Promise<string> {
+  const path = manager.getSessionFile()!;
+  const sessionId = manager.getSessionId();
+  expect(() => manager.appendMessage({ role: "user", content: text, timestamp: 1 })).not.toThrow();
+  const entries = (await readFile(path, "utf8")).trim().split("\n").map(line => JSON.parse(line) as {
+    type: string;
+    id?: string;
+    message?: { role?: string; content?: unknown };
+  });
+  expect(entries.filter(entry => entry.type === "session")).toHaveLength(1);
+  expect(entries[0]).toMatchObject({ type: "session", id: sessionId });
+  expect(entries).toContainEqual(expect.objectContaining({
+    type: "message",
+    message: expect.objectContaining({ role: "user", content: text }),
+  }));
+  expect(manager.getSessionId()).toBe(sessionId);
+  return path;
+}
+
 describe("official Pi runtime integration", () => {
   it("creates, rebinds, replaces, and disposes an isolated public runtime", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-"));
@@ -70,6 +89,38 @@ describe("official Pi runtime integration", () => {
 
     unbind();
     await expect(disposePiRuntimeIntegration(runtime)).resolves.toBeUndefined();
+  });
+
+  it("persists the first user message in a newly identity-bound session", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-first-prompt-"));
+    roots.push(root);
+    setSessionWriterLockBackendForTest(exclusiveSessionWriterBackend());
+    const runtime = await createPiRuntimeIntegration({
+      cwd: root,
+      agentDir: resolve(root, "agent"),
+      sessionDir: resolve(root, "sessions"),
+    });
+    const path = await appendFirstUserMessage(runtime.session.sessionManager, "ask me");
+    expect(() => acquireSessionWriter(path)).toThrow("session is open in another A1 process");
+    await disposePiRuntimeIntegration(runtime);
+  });
+
+  it("preserves parent metadata and first-message persistence for a root fork", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-root-fork-"));
+    roots.push(root);
+    setSessionWriterLockBackendForTest(exclusiveSessionWriterBackend());
+    const runtime = await createPiRuntimeIntegration({
+      cwd: root,
+      agentDir: resolve(root, "agent"),
+      sessionDir: resolve(root, "sessions"),
+    });
+    const sourceManager = runtime.session.sessionManager;
+    const sourcePath = await appendFirstUserMessage(sourceManager, "fork this prompt");
+    const result = await runtime.fork(sourceManager.getLeafId()!);
+    expect(result.cancelled).toBe(false);
+    expect(runtime.session.sessionManager.getHeader()).toMatchObject({ parentSession: sourcePath });
+    await appendFirstUserMessage(runtime.session.sessionManager, "forked session prompt");
+    await disposePiRuntimeIntegration(runtime);
   });
 
   it("holds the active writer and keeps it when a replacement target is held", async () => {
@@ -123,12 +174,12 @@ describe("official Pi runtime integration", () => {
       agentDir: resolve(root, "agent"),
       sessionDir: resolve(root, "sessions"),
     });
-    const firstPath = runtime.session.sessionManager.getSessionFile()!;
+    const firstPath = await appendFirstUserMessage(runtime.session.sessionManager, "first session prompt");
     expect(binds).toEqual([firstPath]);
     expect(() => acquireSessionWriter(firstPath)).toThrow("session is open in another A1 process");
 
     await runtime.newSession();
-    const secondPath = runtime.session.sessionManager.getSessionFile()!;
+    const secondPath = await appendFirstUserMessage(runtime.session.sessionManager, "new session prompt");
     expect(binds).toEqual([firstPath, secondPath]);
     expect(() => acquireSessionWriter(secondPath)).toThrow("session is open in another A1 process");
     const releasedFirst = acquireSessionWriter(firstPath);
