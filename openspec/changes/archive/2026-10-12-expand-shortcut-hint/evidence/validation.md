@@ -9,6 +9,10 @@ Recorded at `2026-10-12T16:41:02Z` for the approved built-in-renderer refinement
 - `openspec validate expand-shortcut-hint --strict` — passed.
 - `git diff --check` — passed.
 
+## Manual acceptance
+
+- At `2026-10-12T16:44:47Z`, the user retested PR #762 in the linked worktree and confirmed the corrected built-in collapsed hint works.
+
 ## Known gaps
 
 None.
