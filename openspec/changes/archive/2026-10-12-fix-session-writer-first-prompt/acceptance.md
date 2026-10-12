@@ -22,9 +22,9 @@ The maintainer integration decision accepts these scenarios:
     "`/new` and root-fork sessions preserve their generated identity and metadata and persist their first message normally.",
     "Existing-session conflict behavior remains intact, and a session with no conversation is not advertised as resumable."
   ],
-  "archiveDigest": "5bcd3ece43f383e7d5ced75047e55fe4f31066d494f29b7498568ccf8d49ab9d",
+  "archiveDigest": "4e06cc356f63ed0c29e6f9764235af7761de7fffaca767233903c319ecbd7d8a",
   "specDigest": "3e13e4c2991fe3a969b689a2fd0a5faa6a4405d095163fdb4edbec22b722fb5b",
-  "tasksDigest": "f013237cccd24ea3e77b412f7887b931d2ee2c022d9484be254a0781aeb9a0cb",
+  "tasksDigest": "9f1a2a9a4a8507ebb04f1d681792275d54bde90e9e2aee150a71ba90a30fa636",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
