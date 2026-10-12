@@ -76,6 +76,36 @@ describe("dependency certification lease release", () => {
     expect((await fs.readdir(resolve(entry.root, "dependency-certifications"))).filter(name => name.includes(".lock"))).toEqual([]);
   });
 
+  it("rechecks a transiently hidden lock before verifying release ownership", async () => {
+    const entry = await fixture();
+    const stat = fs.lstat;
+    let hiddenReads = 0;
+    const lstat = vi.spyOn(fs, "lstat").mockImplementation(async path => {
+      if (String(path) === entry.lock && hiddenReads < 2) {
+        hiddenReads += 1;
+        throw failure("ENOENT");
+      }
+      return stat(path);
+    });
+    await entry.publish();
+    expect(hiddenReads).toBe(2);
+    lstat.mockRestore();
+    await unchanged(entry);
+  });
+
+  it("accepts only its exact generation after a delayed reclaimer moves the active lock", async () => {
+    const entry = await fixture();
+    const rename = fs.rename;
+    const displaced = `${entry.lock}.abandoned-predecessor`;
+    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      await rename(from, to);
+      if (String(to) === entry.lock) await rename(entry.lock, displaced);
+    });
+    await entry.publish();
+    expect(JSON.parse(await fs.readFile(resolve(displaced, "owner.json"), "utf8"))).toMatchObject({ pid: process.pid });
+    await unchanged(entry);
+  });
+
   it.each(["retirement", "cleanup"])("bounds persistent %s contention by one shared deadline", async phase => {
     const entry = await fixture();
     const clock = releaseClock();

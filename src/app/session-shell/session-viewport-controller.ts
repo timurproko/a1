@@ -216,8 +216,8 @@ export class SessionViewportController {
     return frame;
   }
 
-  composeDockOnly(dockRows: readonly string[], width: number, height: number): TranscriptViewportFrame | null {
-    return this.#viewport.composeDockOnly(dockRows, width, height);
+  composeDockOnly(dockRows: readonly string[], width: number, height: number, explicitCopyDockRows = 0): TranscriptViewportFrame | null {
+    return this.#viewport.composeDockOnly(dockRows, width, height, explicitCopyDockRows);
   }
 
   /** Returns true when document wrapping may have changed. */
@@ -349,7 +349,7 @@ export class SessionViewportController {
       if (editorActive && this.#editor.hasSelection()) {
         if (this.#viewport.clearSelection()) this.#requestRender();
       } else if (this.#viewport.hasSelection) {
-        const copySelection = this.#viewport.captureSelectedText();
+        const copySelection = this.#viewport.captureSelectedText("explicit");
         this.#viewport.clearSelection();
         this.#stopSelectionAutoScroll();
         this.#requestRender();

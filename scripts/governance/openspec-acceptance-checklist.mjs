@@ -3,6 +3,8 @@ import { archiveFailure } from "./openspec-archive-policy.mjs";
 
 export const MIN_ACCEPTANCE_CHECKS = 1;
 export const MAX_ACCEPTANCE_CHECKS = 10;
+export const MIN_IMPLEMENTATION_PROGRESS_ITEMS = 2;
+export const MAX_IMPLEMENTATION_PROGRESS_ITEMS = 10;
 export const PHASE_FREE_VERSION3_BODY_POLICY = true;
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_CHECK_BYTES = 300;
@@ -14,6 +16,12 @@ const genericChecks = [
   /^(?:manually )?merge(?: this| the)? (?:acceptance )?(?:pull request|pr)?(?: to record acceptance)?\.?$/i,
   /^(?:confirm|verify)(?: the)? (?:openspec )?(?:requirements|specification|spec sync|synchronization)(?: are| is)? correct\.?$/i,
   /^(?:verify|confirm)(?: the)? implementation behaves as intended\.?$/i,
+];
+const genericImplementationItems = [
+  /^(?:run|wait for|check|verify|confirm)(?: the)? (?:required )?(?:ci|continuous integration|tests?|validation)(?: checks?)?(?: passes| passed| is green| succeeded)?\.?$/i,
+  /^(?:review|approve|accept)(?: the)? (?:implementation|change|pull request|pr)?\.?$/i,
+  /^(?:merge|archive|finalize)(?: this| the)? (?:implementation|change|pull request|pr)?\.?$/i,
+  /^(?:confirm )?(?:there are )?no (?:known )?(?:blocking |unresolved )?(?:gaps|issues)\.?$/i,
 ];
 
 const normalizedBody = value => {
@@ -78,6 +86,40 @@ export function parseImplementationAcceptanceChecks(body) {
   return parseAcceptanceSection(body, "Acceptance checks");
 }
 
+export function parseImplementationProgress(body, { requireComplete = false } = {}) {
+  const lines = normalizedBody(body).split("\n");
+  const headings = lines.flatMap((line, index) => line === "## Implementation" ? [index] : []);
+  if (headings.length !== 1) throw archiveFailure(headings.length ? "implementation-progress-duplicate-section" : "implementation-progress-missing");
+  const start = headings[0] + 1;
+  let end = lines.length;
+  for (let index = start; index < lines.length; index += 1) {
+    if (/^##\s+/.test(lines[index]) || lines[index] === "<details>") { end = index; break; }
+  }
+  const content = lines.slice(start, end).filter(line => line.trim());
+  const taskSyntax = content.some(line => /^\s*[-*+]\s+\[/.test(line));
+  if (!taskSyntax) return { format: "legacy", complete: true, items: content };
+  if (content.length < MIN_IMPLEMENTATION_PROGRESS_ITEMS || content.length > MAX_IMPLEMENTATION_PROGRESS_ITEMS) {
+    throw archiveFailure("implementation-progress-count");
+  }
+  const identities = new Set();
+  const items = content.map(line => {
+    const item = /^- \[([ x])\] (\S.*)$/.exec(line);
+    if (!item) throw archiveFailure("implementation-progress-item");
+    const text = item[2];
+    if (text !== text.trim() || Buffer.byteLength(text) < 20 || Buffer.byteLength(text) > MAX_CHECK_BYTES
+      || /[\r\n]/.test(text) || /^(?:#|>|```|~~~)/.test(text)
+      || /<\/?[A-Za-z][^>]*>|https?:\/\/|@[A-Za-z0-9_-]+/.test(text)) throw archiveFailure("implementation-progress-item");
+    const identity = normalizedCheck(text);
+    if (!identity || identities.has(identity)) throw archiveFailure("implementation-progress-duplicate");
+    if (genericImplementationItems.some(pattern => pattern.test(text))) throw archiveFailure("implementation-progress-generic");
+    identities.add(identity);
+    return { checked: item[1] === "x", text };
+  });
+  const complete = items.every(item => item.checked);
+  if (requireComplete && !complete) throw archiveFailure("implementation-progress-incomplete");
+  return { format: "checklist", complete, items };
+}
+
 function assertVersion3BodyLayout(body, { allowLegacyPhaseLine = false } = {}) {
   const lines = normalizedBody(body).split("\n");
   const firstLine = lines.find(line => line.trim());
@@ -123,6 +165,7 @@ export function parseImplementationAcceptanceScenarios(body, version, { allowLeg
   if (version === 2) return parseImplementationAcceptanceChecks(body);
   if (version === 3) {
     assertVersion3BodyLayout(body, { allowLegacyPhaseLine: allowLegacyVersion3Phase });
+    parseImplementationProgress(body, { requireComplete: true });
     return parseAcceptanceSection(body, "Acceptance");
   }
   throw archiveFailure("acceptance-version");

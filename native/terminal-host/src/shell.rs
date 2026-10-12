@@ -1,3 +1,6 @@
+pub mod watchdog;
+pub mod workers;
+
 #[cfg(windows)]
 mod platform {
     use std::env;

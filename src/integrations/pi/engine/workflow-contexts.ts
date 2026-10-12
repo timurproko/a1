@@ -4,6 +4,7 @@ import { dynamicObject, isRecord, requireCapability, stringProperty } from "./me
 import { ProjectTrustStore, SessionManager, type AgentSession, type AgentSessionRuntime } from "../startup-public.js";
 import { resolveConfiguredModelIds, scopedModelRecords, scopedModelReference, workflowOptions } from "./workflow-support.js";
 import type { OwnedUiModelInfo } from "../../../contracts/owned-ui/index.js";
+import { acquireExisting } from "../../../foundation/session-writer-lock/index.js";
 import type {
   PiAuthenticationProviderOption,
   PiModelsContext,
@@ -133,7 +134,14 @@ export class PiWorkflowContexts {
       renameSession: async (sessionFilePath, nextName) => {
         const next = (nextName ?? "").trim();
         if (!next) return;
-        SessionManager.open(sessionFilePath).appendSessionInfo(next);
+        const isCurrent = typeof currentSessionFilePath === "string"
+          && resolve(currentSessionFilePath) === resolve(sessionFilePath);
+        const writer = isCurrent ? undefined : acquireExisting(sessionFilePath);
+        try {
+          SessionManager.open(sessionFilePath).appendSessionInfo(next);
+        } finally {
+          writer?.release();
+        }
       },
     };
   }

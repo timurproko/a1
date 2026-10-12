@@ -40,14 +40,15 @@ describe("native host and launch executable boundaries", () => {
     expect(manifest.files).not.toContain("scripts");
   });
 
-  it("keeps pane hot-path instrumentation native and exports metadata only", async () => {
-    const workspace = await readFile("native/terminal-host/src/workspace.rs", "utf8");
+  it("keeps the resident terminal hot path native and the Node bridge metadata-only", async () => {
+    const holder = await readFile("native/terminal-host/src/roles/holder.rs", "utf8");
+    const attach = await readFile("native/terminal-host/src/roles/attach.rs", "utf8");
+    const bridge = await readFile("src/foundation/resident-tabs/protocol.ts", "utf8");
     const runner = await readFile("scripts/development/run-terminal-host-probe.mjs", "utf8");
-    expect(workspace).toContain("a1-terminal-host-hot-path-v1");
-    expect(workspace).toContain('nodeRelay\\\":false');
-    expect(workspace).toContain('rawPayloadExported\\\":false');
-    expect(workspace).toContain("stream_identity");
-    expect(workspace).toContain("input_identity");
+    expect(holder).toContain("GhosttyTerminal");
+    expect(holder).toContain("openpty");
+    expect(attach).toContain("OuterTerminal");
+    expect(bridge).not.toMatch(FORBIDDEN_NODE_PROTOCOL_PAYLOADS);
     expect(runner).toContain('stdio: "inherit"');
     expect(runner).not.toContain('stdio: "pipe"');
     expect(runner).not.toContain("encoding:");

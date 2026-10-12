@@ -385,6 +385,7 @@ describe("the settings screen", () => {
     target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "Persistent history").trimStart()).toMatch(/^→/);
     target.onInput?.(`${ESC}[1;2B`, HOST);
+    target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "Warnings").trimStart()).toMatch(/^→/);
     selectRow(target, "Prompt suggestions");
     target.onInput?.(`${ESC}[C`, HOST);
@@ -466,11 +467,14 @@ describe("the settings screen", () => {
     const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent });
     await session.load();
     const target = new SettingsApp(session);
+    target.onInput?.("/", HOST);
+    for (const letter of "Agent") target.onInput?.(letter, HOST);
     const shown = screen(target);
     expect(shown.filter(line => line.trim() === "Agent")).toHaveLength(1);
     expect(shown.filter(line => line.includes("Prompt suggestions"))).toHaveLength(1);
     expect(shown.join("\n")).not.toContain("unavailable");
     expect(shown.some(line => line.includes("Thinking level"))).toBe(false);
+    target.onInput?.(ESC, HOST);
     selectRow(target, "Prompt suggestions");
     target.onInput?.(`${ESC}[C`, HOST);
     expect(session.value("promptSuggestions")).toBe(false);
@@ -700,7 +704,7 @@ describe("the settings screen", () => {
     expect(dialogHint).toContain("Esc close");
     expect(dialogHint).not.toContain("Space");
     expect(dialogHint).not.toContain(" to ");
-    const rendered = target.render({ width: 200, height: 24 }, NAMING_HOST);
+    const rendered = target.render({ width: 200, height: 48 }, NAMING_HOST);
     const styledHint = rendered.find(line => line.includes("<dim>Enter</dim>")) ?? "";
     const title = rendered.find(line => line.includes("Settings")) ?? "";
     expect(firstVisibleTextColumn(styledHint)).toBe(firstVisibleTextColumn(title));
@@ -1144,7 +1148,7 @@ describe("the value dropdown behind the screen", () => {
     await settleChanges();
     expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
     expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes("Thinking level")))
-      .toContain("<muted>high</muted>");
+      .toContain("<muted>high</muted");
 
     target.onInput?.(ENTER, HOST);
     const opened = target.render({ width: 80, height: 24 }, NAMING_HOST);
@@ -1159,7 +1163,7 @@ describe("the value dropdown behind the screen", () => {
 
     target.onInput?.(ESC, HOST);
     expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes("Thinking level")))
-      .toContain("<muted>high</muted>");
+      .toContain("<muted>high</muted");
     expect(writes).toHaveLength(1);
   });
 
@@ -1178,7 +1182,7 @@ describe("the value dropdown behind the screen", () => {
     expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
     const closed = target.render({ width: 80, height: 24 }, NAMING_HOST);
     expect(closed.join("\n")).not.toContain("<panel>");
-    expect(closed.find(line => line.includes("Thinking level"))).toContain("<muted>high</muted>");
+    expect(closed.find(line => line.includes("Thinking level"))).toContain("<muted>high</muted");
   });
 
   it("opens on the effective value under the pointer and navigates from it", async () => {

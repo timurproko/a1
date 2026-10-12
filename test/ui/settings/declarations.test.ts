@@ -47,6 +47,8 @@ describe("owned UI setting declarations", () => {
       "promptSuggestions",
       "skillsPresentation",
       "promptImageLimit",
+      "residentTabs",
+      "tabsMaxConcurrentStarts",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "accentColor")).toMatchObject({
       label: "Accent color",
@@ -89,6 +91,20 @@ describe("owned UI setting declarations", () => {
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptSuggestions")?.description)
       .toContain("one background request, plus one bounded recovery request when needed");
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "residentTabs")).toMatchObject({
+      label: "Resident tabs",
+      section: { id: "generic", title: "Generic" },
+      application: "restart",
+      defaultValue: false,
+      allowedValues: [true, false],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsMaxConcurrentStarts")).toMatchObject({
+      label: "Concurrent tab starts",
+      section: { id: "generic", title: "Generic" },
+      application: "restart",
+      defaultValue: 2,
+      allowedValues: [1, 2, 3, 4, 5, 6, 7, 8],
+    });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarAppearance")).toMatchObject({
       label: "Scrollbar mode",
       section: { id: "scroll", title: "Scroll" },
@@ -192,7 +208,7 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(12);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(14);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))
@@ -216,7 +232,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 5, values: { quitEffect: "off" } },
     });
-    expect(resolved).toMatchObject({ version: 13, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 15, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
     expect(resolved.settings.some(setting => setting.declaration.id === "quitEffect")).toBe(false);
   });
@@ -230,7 +246,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 6, values: { quitEffect: "dissolve", quitEffectDurationMs: 1200 } },
     });
-    expect(resolved).toMatchObject({ version: 13, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 15, migrated: true, notices: [] });
     expect(resolved.preserved).toEqual({});
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: true, source: "default" });
   });
@@ -243,7 +259,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 7, values: { promptSuggestions: false, quitAnimation: false } },
     });
-    expect(resolved).toMatchObject({ version: 13, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 15, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "skillsPresentation")).toMatchObject({ value: "collapse", source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "promptSuggestions")).toMatchObject({ value: false, source: "stored" });
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
@@ -263,7 +279,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 8, values: { skillsPresentation: "expand", future: true } },
     });
-    expect(resolved).toMatchObject({ version: 13, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 15, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "promptImageLimit")).toMatchObject({ value: 8, source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "skillsPresentation")).toMatchObject({ value: "expand", source: "stored" });
     expect(resolved.preserved).toEqual({ future: true });
@@ -291,7 +307,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 9, values: { quitAnimation: false, future: true } },
     });
-    expect(resolved).toMatchObject({ version: 13, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 15, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "updateCheck")).toMatchObject({ value: true, source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
     expect(resolved.preserved).toEqual({ future: true });
@@ -315,7 +331,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 10, values: { updateCheck: false, future: true } },
     });
-    expect(resolved).toMatchObject({ version: 13, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 15, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "accentColor"))
       .toMatchObject({ value: "purple", source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "updateCheck"))
@@ -326,7 +342,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 11, values: { accentColor: "default" } },
     });
-    expect(renamed).toMatchObject({ version: 13, migrated: true, notices: [] });
+    expect(renamed).toMatchObject({ version: 15, migrated: true, notices: [] });
     expect(renamed.settings.find(setting => setting.declaration.id === "accentColor"))
       .toMatchObject({ value: "purple", source: "stored" });
 
@@ -347,7 +363,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 12, values: { accentColor: "blue", future: true } },
     });
-    expect(resolved).toMatchObject({ version: 13, migrated: true, notices: [] });
+    expect(resolved).toMatchObject({ version: 15, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "backgroundStyle"))
       .toMatchObject({ value: "transparent", source: "default" });
     expect(resolved.preserved).toEqual({ future: true });
@@ -359,6 +375,31 @@ describe("owned UI settings migrations", () => {
     expect(invalid.settings.find(setting => setting.declaration.id === "backgroundStyle"))
       .toMatchObject({ value: "transparent", source: "default" });
     expect(invalid.notices).toEqual([expect.objectContaining({ code: "value-rejected", settingId: "backgroundStyle" })]);
+  });
+
+  it("adds resident tabs without rewriting stored values", () => {
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[12]).toMatchObject({ to: 14 });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[12]?.migrate({ backgroundStyle: "dark", future: true }))
+      .toEqual({ backgroundStyle: "dark", future: true });
+    const resolved = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+      document: { version: 13, values: { backgroundStyle: "dark" } },
+    });
+    expect(resolved.settings.find(setting => setting.declaration.id === "residentTabs"))
+      .toMatchObject({ value: false, source: "default" });
+  });
+
+  it("adds the concurrent tab-start limit without rewriting stored values", () => {
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[13]).toMatchObject({ to: 15 });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[13]?.migrate({ residentTabs: true, future: true }))
+      .toEqual({ residentTabs: true, future: true });
+    const resolved = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+      document: { version: 14, values: { residentTabs: true } },
+    });
+    expect(resolved).toMatchObject({ version: 15, migrated: true, notices: [] });
+    expect(resolved.settings.find(setting => setting.declaration.id === "tabsMaxConcurrentStarts"))
+      .toMatchObject({ value: 2, source: "default" });
   });
 
   it("rejects a list with a gap or a wrong end version", () => {

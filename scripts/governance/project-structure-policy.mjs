@@ -4,7 +4,7 @@ import { PROHIBITED_STARTUP_ENTRIES } from "./startup-graph-policy.mjs";
 export const PROJECT_OWNERS = Object.freeze({
   "product-identity": Object.freeze({ id: "product-identity", layer: "foundation", sourceRoot: "src", testRoot: "test/product-identity", publicEntry: "src/product-identity.ts", mayImport: Object.freeze([]) }),
   cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release", "agent-engine-contracts"]),
-  composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "release", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters", "session-shell", "ui-apps", "ui-components", "owned-ui", "prompt-history", "prompt-suggestions", "launch"]),
+  composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "release", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters", "session-shell", "ui-apps", "ui-components", "owned-ui", "prompt-history", "prompt-suggestions", "launch", "resident-tabs"]),
   "session-shell": owner("session-shell", "app", "src/app/session-shell", "test/app/session-shell", [
     "owned-ui-contracts", "agent-engine-contracts", "presentation-contracts", "ui-components", "ui-apps", "owned-ui-settings",
     "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "terminal-cleanup", "owned-ui", "prompt-history", "prompt-suggestions", "launch",
@@ -17,12 +17,14 @@ export const PROJECT_OWNERS = Object.freeze({
   "prompt-history": owner("prompt-history", "feature", "src/features/prompt-history", "test/features/prompt-history", ["owned-ui-contracts"]),
   "terminal-cleanup": owner("terminal-cleanup", "foundation", "src/foundation/terminal-cleanup", "test/foundation/terminal-cleanup", []),
   "launch-context": owner("launch-context", "foundation", "src/foundation/launch-context", "test/foundation/launch-context", []),
+  "resident-tabs": owner("resident-tabs", "foundation", "src/foundation/resident-tabs", "test/foundation/resident-tabs", ["owned-ui-settings", "product-identity"]),
+  "session-writer-lock": owner("session-writer-lock", "foundation", "src/foundation/session-writer-lock", "test/foundation/session-writer-lock", []),
   startup: owner("startup", "foundation", "src/foundation/startup", "test/foundation/startup", ["launch-context"]),
   lifecycle: owner("lifecycle", "foundation", "src/foundation/lifecycle", "test/foundation/lifecycle", []),
   "process-containment": owner("process-containment", "foundation", "src/foundation/process-containment", "test/foundation/process-containment", ["lifecycle"]),
   "launch-guardian": owner("launch-guardian", "foundation", "src/foundation/launch-guardian", "test/foundation/launch-guardian", ["lifecycle", "process-containment", "protocol", "supervision", "startup", "launch-context"]),
   protocol: owner("protocol", "foundation", "src/foundation/protocol", "test/foundation/protocol", ["lifecycle"]),
-  release: owner("release", "foundation", "src/foundation/release", "test/foundation/release", ["lifecycle", "protocol", "startup", "terminal-cleanup", "launch-context"]),
+  release: owner("release", "foundation", "src/foundation/release", "test/foundation/release", ["lifecycle", "protocol", "startup", "terminal-cleanup", "launch-context", "resident-tabs"]),
   storage: owner("storage", "foundation", "src/foundation/storage", "test/foundation/storage", ["lifecycle"]),
   "owned-ui-contracts": owner("owned-ui-contracts", "foundation", "src/contracts/owned-ui", "test/contracts/owned-ui", []),
   "ui-components": owner("ui-components", "foundation", "src/ui/components", "test/ui/components", ["presentation-contracts"]),
@@ -30,7 +32,7 @@ export const PROJECT_OWNERS = Object.freeze({
   "owned-ui-settings": owner("owned-ui-settings", "foundation", "src/ui/settings", "test/ui/settings", ["agent-engine-contracts", "owned-ui-contracts"]),
   "agent-engine-contracts": owner("agent-engine-contracts", "foundation", "src/contracts/agent-engine", "test/contracts/agent-engine", []),
   "presentation-contracts": owner("presentation-contracts", "foundation", "src/contracts/presentation", "test/contracts/presentation", []),
-  "pi-engine-adapter": owner("pi-engine-adapter", "foundation", "src/integrations/pi/engine", "test/integrations/pi/engine", ["owned-ui-contracts", "agent-engine-contracts", "startup"]),
+  "pi-engine-adapter": owner("pi-engine-adapter", "foundation", "src/integrations/pi/engine", "test/integrations/pi/engine", ["owned-ui-contracts", "agent-engine-contracts", "startup", "session-writer-lock"]),
   "pi-component-adapter": owner("pi-component-adapter", "foundation", "src/integrations/pi/components", "test/integrations/pi/components", ["owned-ui-contracts", "presentation-contracts"]),
   "pi-tui-runtime-adapter": owner("pi-tui-runtime-adapter", "foundation", "src/integrations/pi/tui-runtime", "test/integrations/pi/tui-runtime", ["presentation-contracts", "terminal-cleanup"]),
   "pi-session-presenters": owner("pi-session-presenters", "foundation", "src/integrations/pi/session-presenters", "test/integrations/pi/session-presenters", [

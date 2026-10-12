@@ -27,7 +27,7 @@ import {
   stopPiThemeWatcher,
   type PiTerminalTheme,
 } from "../../../../src/integrations/pi/components/index.js";
-import { renderPiAccentPreview } from "../../../../src/integrations/pi/components/upstream/theme/theme.js";
+import { isPiAccentProjectionEnabled, renderPiAccentPreview } from "../../../../src/integrations/pi/components/upstream/theme/theme.js";
 import { DynamicBorder } from "../../../../src/integrations/pi/startup-public.js";
 import { capturePinnedTheme } from "./pinned-theme-upstream-fixture.js";
 import {
@@ -319,9 +319,11 @@ describe("pinned Pi theme and layout parity", () => {
     const base = loadPiTheme("dark", "truecolor");
     applyPiTheme("dark", false, "truecolor");
     setPiAccentColor("green");
+    expect(isPiAccentProjectionEnabled).toBe(true);
     expect(new DynamicBorder().render(8)[0]).toBe(piTheme().fg("border", "─".repeat(8)));
 
     setPiPackageBorderProjectionEnabled(false);
+    expect(isPiAccentProjectionEnabled).toBe(false);
     for (const token of ["accent", "border", "mdHeading", "mdListBullet"] as const) {
       expect(piTheme().fg(token, "probe"), token).toBe(base.fg(token, "probe"));
     }

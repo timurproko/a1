@@ -1,10 +1,10 @@
 import { ResponseCopyCoordinator } from "./response-copy-coordinator.js";
 import { createResponseCopyExecutor, hasAsyncClipboardOutput, responseCopyDestination, type OwnedResponseCopyExecutor } from "./response-copy-transport.js";
-import { MAX_COPY_CONTROL_BYTES } from "./response-copy-protocol.js";
+import { MAX_COPY_CONTROL_BYTES, type CopyResult } from "./response-copy-protocol.js";
 import { PromptHistoryController } from "./prompt-history-controller.js";
 import type { PromptHistoryKind } from "../../contracts/owned-ui/index.js";
 import { PRODUCT_TEXT } from "../../product-identity.js";
-import { boundedCleanup } from "../../foundation/terminal-cleanup/terminal-reset.js";
+import { CLEAR_EXIT_INTERVAL_MS, boundedCleanup } from "../../foundation/terminal-cleanup/terminal-reset.js";
 import { assertOwnedUiCommand, OWNED_UI_HIDDEN_COMMAND_NAMES } from "../../contracts/owned-ui/index.js";
 import { assertPromptImages, ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type {
@@ -128,6 +128,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #host: OwnedUiTerminalHost;
   readonly #terminal: OwnedUiPresenterTerminal;
   readonly #cwd: string;
+  readonly #residentTabOptions: OwnedUiSessionShellOptions["engine"]["residentTab"];
   readonly #listeners = new Set<(view: OwnedUiSessionViewModel) => void>();
   readonly #unsubscribe: () => void;
   readonly #unsubscribePromptSuggestions: () => void;
@@ -202,6 +203,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
     this.#suggestionModelKey = modelKey(this.backend.session.view());
     this.#cwd = cwd;
+    this.#residentTabOptions = options.engine.residentTab;
     this.#routeHost = routeHost ?? null;
     this.#startupRoute = options.engine.startupRoute;
     this.#customViewport = sessionLayout === "custom-viewport";
@@ -309,8 +311,11 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
           promptSuggestionController?.invalidate();
           this.#promptHistory?.synchronize();
         },
-        onCopyText: text => {
-          if (this.#responseCopy !== null) { void this.#responseCopy.submitText(text); return; }
+        onCopyText: (text, cut) => {
+          if (this.#responseCopy !== null) {
+            this.#trackCopy(this.#responseCopy.submitText(text), cut ? undefined : text.length);
+            return;
+          }
           const write = () => {
             if (this.#disposed) return Promise.resolve();
             this.#terminal.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
@@ -704,18 +709,19 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.root.usesDefaultInputSurface() && !this.#terminal.hasFocusedOverlay());
     if (routed.copySelection !== undefined) {
       const snapshot = routed.copySelection;
-      const acknowledgement = copyAcknowledgement(snapshot);
-      const intent = ++this.#copyIntentSequence;
-      void this.#responseCopy?.submit(snapshot, this.#pendingClipboardWrite).then(result => {
-        if (this.#disposed || !this.#terminal.running || intent !== this.#copyIntentSequence
-          || result.outcome !== "delivered" && result.outcome !== "submitted-unverified") return;
-        if (acknowledgement.hasNonWhitespace) {
-          this.root.showCopyAcknowledgement(`copied ${acknowledgement.characters} chars to clipboard`);
-        }
-      });
+      this.#trackCopy(this.#responseCopy?.submit(snapshot, this.#pendingClipboardWrite), copyCharacters(snapshot));
     }
     if (!routed.consumed) return routed.data === data ? undefined : { data: routed.data };
     return routed.data.length === 0 ? { consume: true } : { data: routed.data };
+  }
+
+  #trackCopy(delivery: Promise<CopyResult> | undefined, count?: number): void {
+    const intent = ++this.#copyIntentSequence;
+    void delivery?.then(({ outcome }) => {
+      if (count === undefined || this.#disposed || !this.#terminal.running || intent !== this.#copyIntentSequence
+        || outcome !== "delivered" && outcome !== "submitted-unverified") return;
+      this.root.showCopyAcknowledgement(`copied ${count} chars to clipboard`);
+    });
   }
 
   #promptSuggestionPresentationBlockReason(identity: OwnedUiPromptSuggestionIdentity): SuggestionDecision {
@@ -866,7 +872,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   async clearOrExit(now = Date.now()): Promise<OwnedUiCommandResult> {
     this.#promptSuggestions?.abortPending();
-    if (now - this.#lastClearTime < 500) return this.shutdown();
+    if (now - this.#lastClearTime < CLEAR_EXIT_INTERVAL_MS) return this.shutdown();
     this.root.editor.setText("");
     this.#lastClearTime = now;
     this.#terminal.requestRender();
@@ -1244,11 +1250,22 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   }
 
   shutdown(): Promise<OwnedUiCommandResult> {
-    this.#shutdownPromise ??= this.#shutdown();
+    this.#shutdownPromise ??= this.#shutdown().finally(() => {
+      // Invariant: a rejected resident detach is retryable; ordinary shutdown has disposed the shell already.
+      if (!this.#disposed) this.#shutdownPromise = undefined;
+    });
     return this.#shutdownPromise;
   }
 
   async #shutdown(): Promise<OwnedUiCommandResult> {
+    const residentTab = this.#residentTab();
+    if (residentTab !== undefined) {
+      const detached = await residentTab.requestDetach().catch(() => false);
+      if (detached) return { outcome: "completed", diagnostic: null };
+      this.root.appendWorkflowStatus(residentTab.unavailableNotice ?? "Press Ctrl+C twice to leave; this agent keeps running.");
+      this.#terminal.requestRender();
+      return rejected("resident tab detach is unavailable");
+    }
     try {
       const quit = this.backend.workflows.executeWorkflow({ command: "quit", argument: "" });
       // Invariant: a slow or hung engine quit never holds the terminal past the cleanup deadline. The
@@ -1261,6 +1278,10 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     } finally {
       this.#resolveStoppedLifecycle();
     }
+  }
+
+  #residentTab(): OwnedUiSessionShellOptions["engine"]["residentTab"] {
+    return this.#residentTabOptions;
   }
 
   async runWorkflow(request: OwnedUiWorkflowRequest): Promise<OwnedUiCommandResult> {
@@ -1996,15 +2017,14 @@ function isCoalescedStreamBlock(kind: OwnedUiSessionViewModel["transcript"][numb
   return kind === "assistant" || kind === "thinking" || kind === "tool-call" || kind === "tool-result";
 }
 
-function copyAcknowledgement(snapshot: SelectionCopySnapshot): { readonly characters: number; readonly hasNonWhitespace: boolean } {
-  if (snapshot.literal !== true) return { characters: snapshot.sourceUnits, hasNonWhitespace: true };
-  let characters = Math.max(0, snapshot.rows.length - 1);
-  let hasNonWhitespace = false;
-  for (const row of snapshot.rows) {
-    characters += row.text.length;
-    hasNonWhitespace ||= /\S/u.test(row.text);
+function copyCharacters(snapshot: SelectionCopySnapshot): number | undefined {
+  if (snapshot.literal !== true) return snapshot.sourceUnits;
+  let count = Math.max(0, snapshot.rows.length - 1), hasContent = false;
+  for (const { text } of snapshot.rows) {
+    count += text.length;
+    hasContent ||= /\S/u.test(text);
   }
-  return { characters, hasNonWhitespace };
+  return hasContent ? count : undefined;
 }
 
 export interface SessionResumeCommandMetadata {

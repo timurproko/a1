@@ -678,12 +678,23 @@ jobs:
           STARTUP_BUDGET_ENFORCEMENT: record
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-node${{ matrix.node }}-performance.json
         run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}.json
-      - name: Upload terminal host executable for manual proof
+      - name: Run bounded terminal-host decoder fuzzing
+        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost && matrix.platform == 'linux'
+        shell: bash
+        run: |
+          rustup toolchain install nightly-2026-10-01 --profile minimal --no-self-update
+          cargo +nightly-2026-10-01 install cargo-fuzz --version 0.13.2 --locked
+          cd native/terminal-host
+          cargo +nightly-2026-10-01 fuzz run decode_frame fuzz/corpus/decode_frame -- -max_total_time=30 -timeout=5
+      - name: Upload terminal host contract artifacts
         if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: terminal-host-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}
-          path: native/terminal-host/target/debug/terminal-host.exe
+          path: |
+            native/terminal-host/target/debug/${{ matrix.terminalHostBinary }}
+            .artifacts/terminal-host/a1_session_lock.node
+            native/terminal-host/protocol/fixtures.json
           if-no-files-found: error
           retention-days: 1
       - name: Add modular timing summary

@@ -1827,7 +1827,7 @@ Path-aware word boundaries SHALL affect only semantic word movement and word del
 - **THEN** word movement and deletion SHALL retain the pinned Pi boundary behavior rather than the bare-A1 path-aware override
 
 ### Requirement: Bare A1 declares shared input and status-level presentation
-Bare A1 SHALL use the shared agent/search input presentation and status-level color behavior as an explicit A1-owned customization over the pinned shell. This customization SHALL supersede pinned editor border coloring and thinking-label styling only in bare A1; it SHALL NOT change pinned `a1 pi` presentation, extension-provided custom editors, engine semantics, or other footer values. Bare-A1 keyboard defaults SHALL follow the declared level-cycle and model-selector shortcut policy instead of pinned defaults.
+Bare A1 SHALL use the shared agent/search input presentation and status-level color behavior as an explicit A1-owned customization over the pinned shell. This customization SHALL supersede pinned editor border coloring and thinking-label styling only in bare A1; it SHALL render shared input rules through the same active semantic `border` role as modal bars and SHALL NOT change pinned `a1 pi` presentation, extension-provided custom editors, engine semantics, or other footer values. Bare-A1 keyboard defaults SHALL follow the declared level-cycle and model-selector shortcut policy instead of pinned defaults.
 
 #### Scenario: Open the pinned comparison profile
 - **WHEN** the user starts `a1 pi`
@@ -1835,8 +1835,13 @@ Bare A1 SHALL use the shared agent/search input presentation and status-level co
 
 #### Scenario: Use the owned agent input
 - **WHEN** the user starts bare A1 with its default agent editor
-- **THEN** the input SHALL use the shared neutral rules and undimmed prefix specified for Settings search
+- **THEN** the input SHALL use the shared modal-border rules and undimmed prefix specified for ruled inputs
 - **AND** prompt history, paste chips, selection and copy, suggestions, streaming, submission, and bash execution SHALL retain their existing semantics
+
+#### Scenario: Change the owned accent live
+- **WHEN** the active bare-A1 accent changes while the default agent editor is visible
+- **THEN** both input rules SHALL repaint with the same derived border tone as modal rules
+- **AND** the input SHALL retain its text, cursor, selection, focus, and geometry
 
 ### Requirement: The status-bar level name carries the existing thinking color
 Bare A1 SHALL color the status-bar thinking-level name with the same active-theme mapping previously used for that level's editor bars. The level label SHALL update from authoritative session state after level cycling, setting changes, model changes, and session restoration. Only the level name SHALL receive that color; surrounding model, provider, usage, path, separators, and extension statuses SHALL retain their existing presentation. A selected model with level off SHALL show an off label using the existing off-level mapping; when no model is selected, the footer SHALL NOT invent an active level. Unsupported levels SHALL continue to use the engine's supported-level and clamping behavior rather than introducing a new cycle order.
@@ -1844,11 +1849,11 @@ Bare A1 SHALL color the status-bar thinking-level name with the same active-them
 #### Scenario: Cycle supported levels
 - **WHEN** the user cycles through a model's supported levels
 - **THEN** the visible level name SHALL update to the authoritative level and use the corresponding previous bar color
-- **AND** both input bars SHALL remain neutral and the level color SHALL NOT be muted by surrounding footer styling
+- **AND** both input bars SHALL remain on the semantic modal-border role and the level color SHALL NOT be muted by surrounding footer styling
 
 #### Scenario: Disable thinking
 - **WHEN** the selected model's authoritative level becomes off
-- **THEN** the status bar SHALL display the off label in the existing off-level color and the input bars SHALL remain neutral
+- **THEN** the status bar SHALL display the off label in the existing off-level color and the input bars SHALL remain on the semantic modal-border role
 
 #### Scenario: Change models or restore a session
 - **WHEN** a model change or session restoration changes the effective thinking level
@@ -1863,7 +1868,7 @@ Bare A1 SHALL color the status-bar thinking-level name with the same active-them
 - **THEN** its existing width and truncation policy SHALL remain intact and any visible level-name span SHALL retain its level foreground without coloring adjacent text
 
 ### Requirement: Graceful user quit returns control to the parent shell
-The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the existing clear/exit chord as complete graceful-exit requests. Each route SHALL stop the agent session, dispose the owned presentation, restore all terminal modes and screen state owned by A1, terminate the interactive A1 process successfully, and return control to the invoking shell without requiring another signal or keystroke. The built-in quit command's autocomplete description SHALL be exactly `Quit`.
+The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the existing clear/exit chord as complete graceful-exit requests. Each route SHALL stop the agent session, dispose the owned presentation, restore all terminal modes and screen state owned by A1, terminate the interactive A1 process successfully, and return control to the invoking shell without requiring another signal or keystroke. When the owned UI runs inside a resident tab, the attach client SHALL consume the second `Ctrl+C` of the chord as a local detach request, and `/quit` and `Ctrl+D` on an empty editor SHALL request through the tab bridge that the client attached when the command was admitted detach, honored only while that attachment is still current; a stale attachment or an unavailable bridge SHALL keep the tab process running and direct the user to `Ctrl+C` twice. The tab's agent session and A1 process SHALL keep running, the tab SHALL show no quit outro, and the detached client SHALL complete terminal restoration and parent-shell return. The built-in quit command's autocomplete description SHALL be exactly `Quit`.
 
 #### Scenario: Quit with the slash command
 - **WHEN** the user submits `/quit` from an active owned interactive session
@@ -1873,6 +1878,19 @@ The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the exis
 #### Scenario: Quit with the clear/exit chord
 - **WHEN** the user presses `Ctrl+C` twice within the existing clear/exit interval
 - **THEN** the second press SHALL complete the same graceful shutdown, terminal restoration, successful process exit, and parent-shell return as `/quit`
+
+#### Scenario: Quit inside a resident tab
+- **WHEN** the user submits `/quit` or presses `Ctrl+C` twice inside the resident A1 tab
+- **THEN** the attach client SHALL restore the terminal and exit successfully, and the tab's agent session SHALL keep running
+- **AND** `a1 pi` SHALL continue to stop its single agent session on quit
+
+#### Scenario: Resident tab bridge is unavailable
+- **WHEN** a quit route runs inside a resident tab whose bridge is unavailable
+- **THEN** A1 SHALL NOT exit the tab process and SHALL show a concise notice that pressing `Ctrl+C` twice leaves
+
+#### Scenario: Quit admitted under a previous attachment
+- **WHEN** a quit command admitted while one client was attached executes after that client has gone and another has attached
+- **THEN** A1 SHALL reject the stale request without detaching the new client or exiting the tab
 
 #### Scenario: An extension retains an event-loop handle
 - **WHEN** owned UI cleanup has completed but a loaded extension leaves a server, timer, or comparable event-loop handle active
@@ -3627,3 +3645,25 @@ One terminal host per process SHALL own the terminal runtime, damage-aware prese
 #### Scenario: An inactive presenter receives engine events
 - **WHEN** a presenter that is not active applies transcript events
 - **THEN** its root state SHALL update and no terminal write SHALL occur
+
+### Requirement: Bare-A1 read-call ranges use the secondary accent tone
+Built-in read call headers in bare A1 SHALL paint line-range suffixes with the active `mdHeading` role used by Settings section headings. This presentation SHALL leave read arguments and execution unchanged, keep real warnings on `warning`, preserve extension renderer ownership, and leave `a1 pi` on pinned presentation.
+
+#### Scenario: Render an offset and limit
+- **WHEN** bare A1 renders a built-in read call with offset 95 and limit 170
+- **THEN** the header SHALL show `:95-264` with the same effective foreground as the current Settings section-heading role
+- **AND** the read title, path, range calculation, spacing, and geometry SHALL remain unchanged
+
+#### Scenario: Change the accent while a read call is visible
+- **WHEN** the reader changes the bare-A1 accent while a built-in read call with a range is visible
+- **THEN** the range SHALL repaint with the newly derived secondary-heading tone
+- **AND** no range rendered later SHALL retain the prior accent family
+
+#### Scenario: Render read warnings and custom presentation
+- **WHEN** a read result emits a truncation or size warning, or an extension supplies its own read-call renderer
+- **THEN** actual warnings SHALL retain the semantic warning role
+- **AND** extension-owned presentation SHALL receive the ordinary theme without an A1 range-style override
+
+#### Scenario: Use the comparison profile
+- **WHEN** the same read call is rendered through `a1 pi`
+- **THEN** its complete call and result presentation SHALL retain pinned Pi theme semantics and bytes

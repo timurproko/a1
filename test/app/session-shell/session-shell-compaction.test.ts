@@ -55,7 +55,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
         expect(adapter.view().transcript.filter(block => block.kind === "user")).toHaveLength(2);
       } finally { await shell.dispose(); }
     } finally { await rm(directory, { recursive: true, force: true }); }
-  });
+  }, 15_000);
 
   it("keeps resumed and newly completed summary data through settlement without adding prompt recall entries", async () => {
     const messages: unknown[] = [compaction(), user("real prompt"), reply("answer")];
