@@ -227,14 +227,30 @@ if (!fs.existsSync(marker)) {
         "{}",
         attach.output_text()
     );
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let registry = loop {
+        let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+            .expect("read recovery registry")
+            .expect("recovery registry");
+        if registry.tabs.first().is_some_and(|tab| {
+            tab.lifecycle == "running" && tab.incarnation == 2 && tab.child_pid.is_some()
+        }) {
+            break registry;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "post-commit server recovery did not converge: {registry:?}"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    let _ = attach.wait(Duration::from_secs(8));
+    let mut recovered_attach =
+        AttachFixture::spawn(&executable, &address, &profile, &data, &release);
     assert!(
-        attach.output_containing("recovered-incarnation", Duration::from_secs(15)),
+        recovered_attach.output_containing("recovered-incarnation", Duration::from_secs(15)),
         "{}",
-        attach.output_text()
+        recovered_attach.output_text()
     );
-    let registry = RegistryStore::read(&credentials_root.join("registry.json"))
-        .expect("read recovery registry")
-        .expect("recovery registry");
     let tab = registry.tabs.first().expect("recovered tab");
     assert_eq!(tab.lifecycle, "running");
     assert_eq!(tab.incarnation, 2);
@@ -243,8 +259,8 @@ if (!fs.existsSync(marker)) {
     let recovered_servers = server_pids(&credentials_root);
     assert_ne!(recovered_servers, initial_servers);
     cleanup.pids.extend(recovered_servers);
-    attach.write(b"\x03\x03");
-    attach.wait(Duration::from_secs(8));
+    recovered_attach.write(b"\x03\x03");
+    recovered_attach.wait(Duration::from_secs(8));
     cleanup.pids.extend(holder_pids(&credentials_root));
 }
 

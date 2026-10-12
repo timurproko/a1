@@ -861,7 +861,9 @@ fn serve_peer(
                 .cloned()
                 .ok_or_else(|| "holder has no registry record".to_owned())?
         };
-        if hello.incarnation != recorded.incarnation {
+        let pending_respawn = recorded.lifecycle == "restarting"
+            && hello.incarnation.saturating_add(1) == recorded.incarnation;
+        if hello.incarnation != recorded.incarnation && !pending_respawn {
             return Err("holder incarnation does not match the registry".to_owned());
         }
         if let Some(recorded_pid) = recorded.holder_pid {
