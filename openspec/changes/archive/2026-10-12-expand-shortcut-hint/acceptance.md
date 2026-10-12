@@ -22,10 +22,10 @@ The maintainer integration decision accepts these scenarios:
     "Built-in preview content, omitted-line counts, custom bindings, and expansion behavior remain intact.",
     "Custom extension renderers and explicit `a1 pi` comparison output retain their existing presentation."
   ],
-  "archiveDigest": "67299d2e3d3801a3357a474304acc488e175ff91e30b62c09818dbf8cc0dc972",
+  "archiveDigest": "9e10b88269d35f5ba19b4204033eb5bfe6ce8cc4fa29ca56ee4e90230ef9c806",
   "specDigest": "e27fbb94ed364d14a3f31b889db013d70d7a22243e2b0671201c1cd3a5e58397",
   "tasksDigest": "3fef57da491a608a3aa773b6ef103df9c3f97bbf6b9d7ee7bbffde50a3443633",
-  "evidenceDigest": "817de45ae08ae0d142804a2b25ffaf847925aca5cfa5ad84e81ec6e3a5896407",
+  "evidenceDigest": "49bc2e3b0010956eaecc2d5c7b5e5db5ea1a7d8df98533afeea6e45bb73607dc",
   "knownGaps": []
 }
 ```
