@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-12-expand-shortcut-hint/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-12-expand-shortcut-hint/acceptance.md",
   "finalizedDate": "2026-10-12",
-  "specBaseSha": "d6cf677ebeac7392925ce4d2123e565cdd7783a6",
+  "specBaseSha": "0c771645678e69095c7722cc55f6a5e8c6b83448",
   "acceptanceScenarios": [
     "Collapsed generic fallback tool output displays `Ctrl+O expand)` with separate quiet-key and muted-action styling.",
     "A customized tool-expansion binding is display-cased while retaining the existing expansion action.",
