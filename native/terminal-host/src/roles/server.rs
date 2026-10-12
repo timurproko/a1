@@ -272,9 +272,10 @@ fn commit_registry(store: RegistryStore, document: RegistryDocument) -> Result<(
 }
 
 pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<(), String> {
-    crate::fault_injection::validate_environment()?;
     let config: ServerLaunchConfig = serde_json::from_slice(context)
         .map_err(|error| format!("decode server context: {error}"))?;
+    crate::fault_injection::install(&config.fault_environment);
+    crate::fault_injection::validate_environment()?;
     let data = Path::new(&config.data_dir);
     let token = crate::endpoint::endpoint_token(profile).map_err(|error| error.to_string())?;
     let root = data.join("tabs").join(token);

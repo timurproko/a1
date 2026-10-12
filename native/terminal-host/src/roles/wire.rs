@@ -77,6 +77,8 @@ pub struct ServerLaunchConfig {
     pub endpoint: String,
     #[serde(default = "default_max_concurrent_starts")]
     pub max_concurrent_starts: usize,
+    #[serde(default)]
+    pub fault_environment: Vec<(String, String)>,
 }
 fn default_max_concurrent_starts() -> usize {
     2

@@ -173,6 +173,7 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
             .and_then(|value| value.parse().ok())
             .unwrap_or(2)
             .clamp(1, 8),
+        fault_environment: contracts::fault_injection::capture(),
     };
     let launched = contracts::launch::launch_resident_with_config(
         contracts::launch::ResidentRole::Server,
@@ -401,8 +402,7 @@ fn resident_internal_command(arguments: &[String]) -> Result<(), String> {
                     message: None,
                 },
             )?;
-            let payload = contracts::roles::wire::read_payload(&mut stream)?
-                .ok_or_else(|| "server closed tab list".to_owned())?;
+            let payload = read_internal_response(&mut stream, &["tab.list"])?;
             let (_, list): (_, contracts::roles::wire::TabList) =
                 contracts::roles::wire::body(&payload)?;
             println!(
@@ -429,8 +429,8 @@ fn resident_internal_command(arguments: &[String]) -> Result<(), String> {
                     environment: std::env::vars().collect(),
                 },
             )?;
-            let payload = contracts::roles::wire::read_payload(&mut stream)?
-                .ok_or_else(|| "server closed tab create".to_owned())?;
+            let payload =
+                read_internal_response(&mut stream, &["tab.created", "tab.create-failed"])?;
             let response = contracts::roles::wire::kind(&payload)?;
             if response.message_type == "tab.create-failed" {
                 let (_, result): (_, contracts::roles::wire::ResultBody) =
@@ -477,6 +477,20 @@ fn optional_role_value<'a>(arguments: &'a [String], flag: &str) -> Option<&'a st
         .windows(2)
         .find(|pair| pair[0] == flag)
         .map(|pair| pair[1].as_str())
+}
+
+fn read_internal_response(
+    stream: &mut contracts::endpoint::EndpointStream,
+    expected: &[&str],
+) -> Result<Vec<u8>, String> {
+    loop {
+        let payload = contracts::roles::wire::read_payload(stream)?
+            .ok_or_else(|| "server closed internal command".to_owned())?;
+        let kind = contracts::roles::wire::kind(&payload)?;
+        if expected.contains(&kind.message_type.as_str()) {
+            return Ok(payload);
+        }
+    }
 }
 
 fn required_role_value<'a>(arguments: &'a [String], flag: &str) -> Result<&'a str, String> {

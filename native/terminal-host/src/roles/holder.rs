@@ -202,9 +202,10 @@ impl BoundedInputQueue {
 }
 
 pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result<(), String> {
-    crate::fault_injection::validate_environment()?;
     let config: HolderLaunchConfig = serde_json::from_slice(context)
         .map_err(|error| format!("decode holder context: {error}"))?;
+    crate::fault_injection::install(&config.server.fault_environment);
+    crate::fault_injection::validate_environment()?;
     let watchdog_root = Path::new(&config.server.runtime_dir)
         .join("tabs")
         .join("crashes");

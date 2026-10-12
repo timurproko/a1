@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
 pub(crate) const VARIABLES: &[&str] = &[
     "A1_TABS_FAULT_HANG_PTY",
     "A1_TABS_FAULT_BLOCK_PTY_WRITE",
@@ -10,9 +13,39 @@ pub(crate) const VARIABLES: &[&str] = &[
     "A1_TABS_FAULT_FREEZE_ROLE",
 ];
 
+static INSTALLED: OnceLock<HashMap<String, String>> = OnceLock::new();
+
+pub fn capture() -> Vec<(String, String)> {
+    #[cfg(feature = "fault-injection")]
+    {
+        VARIABLES
+            .iter()
+            .filter_map(|name| {
+                std::env::var(name)
+                    .ok()
+                    .map(|value| ((*name).into(), value))
+            })
+            .collect()
+    }
+    #[cfg(not(feature = "fault-injection"))]
+    {
+        Vec::new()
+    }
+}
+
+pub fn install(values: &[(String, String)]) {
+    let _ = INSTALLED.set(values.iter().cloned().collect());
+}
+
+fn value(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .or_else(|| INSTALLED.get().and_then(|values| values.get(name)).cloned())
+}
+
 pub fn freeze_role(role: &str) {
     #[cfg(feature = "fault-injection")]
-    if std::env::var("A1_TABS_FAULT_FREEZE_ROLE").as_deref() == Ok(role) {
+    if value("A1_TABS_FAULT_FREEZE_ROLE").as_deref() == Some(role) {
         loop {
             std::thread::sleep(std::time::Duration::from_secs(60));
         }
@@ -22,9 +55,7 @@ pub fn freeze_role(role: &str) {
 }
 
 pub fn validate_environment() -> Result<(), String> {
-    let present = VARIABLES
-        .iter()
-        .find(|name| std::env::var_os(name).is_some());
+    let present = VARIABLES.iter().find(|name| value(name).is_some());
     #[cfg(feature = "fault-injection")]
     {
         let _ = present;
@@ -44,7 +75,7 @@ pub fn validate_environment() -> Result<(), String> {
 
 #[cfg(feature = "fault-injection")]
 pub fn enabled(name: &str) -> bool {
-    VARIABLES.contains(&name) && std::env::var_os(name).is_some()
+    VARIABLES.contains(&name) && value(name).is_some()
 }
 #[cfg(not(feature = "fault-injection"))]
 pub fn enabled(_name: &str) -> bool {
@@ -56,7 +87,7 @@ pub fn delay(name: &str) {
     if !VARIABLES.contains(&name) {
         return;
     }
-    if let Ok(milliseconds) = std::env::var(name).unwrap_or_default().parse::<u64>() {
+    if let Ok(milliseconds) = value(name).unwrap_or_default().parse::<u64>() {
         std::thread::sleep(std::time::Duration::from_millis(milliseconds));
     }
 }
@@ -65,7 +96,7 @@ pub fn delay(_name: &str) {}
 
 #[cfg(feature = "fault-injection")]
 pub fn crash_at(point: &str) {
-    if std::env::var("A1_TABS_FAULT_CRASH_POINT").as_deref() == Ok(point) {
+    if value("A1_TABS_FAULT_CRASH_POINT").as_deref() == Some(point) {
         std::process::abort();
     }
 }
