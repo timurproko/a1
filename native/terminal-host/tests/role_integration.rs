@@ -1522,19 +1522,43 @@ fn terminate_launch_tree(pid: u32) {
 }
 #[cfg(unix)]
 fn terminate(pid: u32) {
+    let expected = terminal_host_contracts::identity::inspect_process(pid)
+        .ok()
+        .flatten();
     unsafe {
         libc::kill(pid as i32, libc::SIGTERM);
     }
+    wait_for_terminated_identity(expected);
 }
 #[cfg(windows)]
 fn terminate(pid: u32) {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
+    let expected = terminal_host_contracts::identity::inspect_process(pid)
+        .ok()
+        .flatten();
     let handle = unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid) };
     if !handle.is_null() {
         unsafe {
             TerminateProcess(handle, 125);
             CloseHandle(handle);
         }
+    }
+    wait_for_terminated_identity(expected);
+}
+
+fn wait_for_terminated_identity(
+    expected: Option<terminal_host_contracts::identity::ProcessIdentity>,
+) {
+    let Some(expected) = expected else { return };
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline
+        && terminal_host_contracts::identity::inspect_process(expected.pid)
+            .ok()
+            .flatten()
+            .as_ref()
+            == Some(&expected)
+    {
+        std::thread::sleep(Duration::from_millis(25));
     }
 }
