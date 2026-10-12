@@ -1,12 +1,22 @@
 import { ToolExecutionComponent as PinnedTool } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it } from "vitest";
-import { getCapabilities, setCapabilities, Text } from "@earendil-works/pi-tui";
+import { getCapabilities, setCapabilities, stripTerminalSequences, Text } from "@earendil-works/pi-tui";
 import { mergeBuiltInRenderers, ToolExecutionComponent as OwnedTool } from "../../../../src/integrations/pi/components/upstream/components/tool-execution.js";
 import { createBashToolDefinition, createEditToolDefinition, createFindToolDefinition, createGrepToolDefinition, createLsToolDefinition, createReadToolDefinition, createWriteToolDefinition } from "@earendil-works/pi-coding-agent";
 import { createTuiFacade, ensureTheme } from "../../../../src/integrations/pi/components/shell-shared-facade.js";
+import {
+  applyPiTheme,
+  piTheme,
+  setPiAccentColor,
+  setPiPackageBorderProjectionEnabled,
+} from "../../../../src/integrations/pi/components/theme.js";
 
 const caps = getCapabilities();
-afterEach(() => setCapabilities(caps));
+afterEach(() => {
+  setCapabilities(caps);
+  setPiPackageBorderProjectionEnabled(true);
+  setPiAccentColor("purple");
+});
 function pair(name: string, args: unknown, definition?: ConstructorParameters<typeof OwnedTool>[4]) {
   ensureTheme();
   setCapabilities({ ...caps, images: null, hyperlinks: true });
@@ -41,6 +51,87 @@ describe("source-derived tool shell with independent actual pinned renderers", (
       }
     }
     owned.dispose();
+  });
+
+  it("paints built-in read ranges with the live secondary accent", () => {
+    applyPiTheme("dark", false, "truecolor");
+    setPiPackageBorderProjectionEnabled(true);
+    const { owned } = pair("read", { path: "fixture.ts", offset: 95, limit: 170 });
+    const renderedRanges = new Set<string>();
+    try {
+      for (const color of ["purple", "green"] as const) {
+        setPiAccentColor(color);
+        owned.invalidate();
+        const rendered = owned.render(80).join("\n");
+        const range = piTheme().fg("mdHeading", ":95-264");
+        expect(rendered).toContain(range);
+        expect(rendered).not.toContain(piTheme().fg("warning", ":95-264"));
+        renderedRanges.add(range);
+      }
+      expect(renderedRanges.size).toBe(2);
+    } finally {
+      owned.dispose();
+    }
+  });
+
+  it.each([
+    [{ path: "fixture.ts", offset: 95 }, "read fixture.ts:95"],
+    [{ path: "fixture.ts", limit: 170 }, "read fixture.ts:1-170"],
+    [{ path: "skills/example/SKILL.md", offset: 95 }, "[skill] example:95"],
+    [{ path: "fixture.ts" }, "read fixture.ts"],
+  ])("preserves built-in read range formatting for %j", (args, expected) => {
+    const { owned, pinned } = pair("read", args);
+    try {
+      const ownedRows = owned.render(80).map(stripTerminalSequences);
+      const pinnedRows = pinned.render(80).map(stripTerminalSequences);
+      expect(ownedRows).toEqual(pinnedRows);
+      expect(ownedRows.join("\n")).toContain(expected);
+    } finally {
+      owned.dispose();
+    }
+  });
+
+  it("keeps read-result warnings and extension read renderers on their original theme roles", () => {
+    applyPiTheme("dark", false, "truecolor");
+    setPiPackageBorderProjectionEnabled(true);
+    setPiAccentColor("green");
+    const warningText = "[Truncated: showing 1 of 2 lines (1 line limit)]";
+    const builtIn = pair("read", { path: "fixture.ts", offset: 95, limit: 170 }).owned;
+    try {
+      builtIn.updateResult({
+        content: [{ type: "text", text: "fixture" }],
+        details: { truncation: { truncated: true, truncatedBy: "lines", outputLines: 1, totalLines: 2, maxLines: 1 } },
+        isError: false,
+      });
+      builtIn.setExpanded(true);
+      const rendered = builtIn.render(80).join("\n");
+      expect(rendered).toContain(piTheme().fg("warning", warningText));
+      expect(rendered).not.toContain(piTheme().fg("mdHeading", warningText));
+    } finally {
+      builtIn.dispose();
+    }
+
+    const definition = {
+      renderCall: (_args: unknown, theme: ReturnType<typeof piTheme>) => new Text(theme.fg("warning", ":95-264"), 0, 0),
+    } as unknown as ConstructorParameters<typeof OwnedTool>[4];
+    const { owned, pinned } = pair("read", { path: "fixture.ts", offset: 95, limit: 170 }, definition);
+    try {
+      expect(owned.render(80)).toEqual(pinned.render(80));
+      expect(owned.render(80).join("\n")).toContain(piTheme().fg("warning", ":95-264"));
+    } finally {
+      owned.dispose();
+    }
+  });
+
+  it("retains exact pinned read-range presentation when the accent projection is disabled", () => {
+    applyPiTheme("dark", false, "truecolor");
+    setPiPackageBorderProjectionEnabled(false);
+    const { owned, pinned } = pair("read", { path: "fixture.ts", offset: 95, limit: 170 });
+    try {
+      expect(owned.render(80)).toEqual(pinned.render(80));
+    } finally {
+      owned.dispose();
+    }
   });
 
   it.each(["default", "self"] as const)("preserves extension content, state, and previous components in %s shells", renderShell => {

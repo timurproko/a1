@@ -202,6 +202,9 @@ export function piCanvasBackgroundAnsi(style: OwnedUiBackgroundStyle): string | 
   return background === null ? null : backgroundAnsi(background, base.getColorMode());
 }
 
+/** Read-only live view of whether bare A1's semantic accent family is active. */
+export { packageBorderProjectionEnabled as isPiAccentProjectionEnabled };
+
 /** Keeps the complete comparison theme unmodified while bare A1 projects its semantic accent family. */
 export function setPiPackageBorderProjectionEnabled(enabled: boolean): void {
   if (packageBorderProjectionEnabled === enabled) return;
