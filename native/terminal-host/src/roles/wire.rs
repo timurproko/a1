@@ -29,6 +29,14 @@ pub struct RoleHello {
     pub pid: Option<u32>,
     #[serde(default)]
     pub start_identity: Option<String>,
+    #[serde(default)]
+    pub incarnation: u64,
+    #[serde(default)]
+    pub child_pid: Option<u32>,
+    #[serde(default)]
+    pub child_start_identity: Option<String>,
+    #[serde(default)]
+    pub highest_epoch: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +90,11 @@ pub struct Surface {
     pub revision: u64,
     pub bytes: Vec<u8>,
     pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SurfaceSubscription {
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,6 +158,9 @@ pub struct Resize {
 pub struct HolderReady {
     pub tab_id: String,
     pub pid: u32,
+    pub incarnation: u64,
+    pub child_pid: u32,
+    pub child_start_identity: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

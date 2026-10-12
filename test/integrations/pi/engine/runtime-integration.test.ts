@@ -30,7 +30,7 @@ afterEach(async () => {
   })));
 });
 
-function exclusiveSessionWriterBackend(): LockBackend {
+function exclusiveSessionWriterBackend(onBind?: (path: string) => void): LockBackend {
   const held = new Set<string>();
   return {
     acquire(path) {
@@ -42,6 +42,7 @@ function exclusiveSessionWriterBackend(): LockBackend {
         bindCreated(created) {
           if (created !== path || !existsSync(created)) throw new Error("invalid bind");
           bound = true;
+          onBind?.(path);
         },
         release() { held.delete(path); },
       };
@@ -110,6 +111,29 @@ describe("official Pi runtime integration", () => {
     await disposePiRuntimeIntegration(runtime);
     const reacquired = acquireSessionWriter(originalPath);
     reacquired.release();
+  });
+
+  it("binds every new runtime target before releasing the prior writer", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-bind-"));
+    roots.push(root);
+    const binds: string[] = [];
+    setSessionWriterLockBackendForTest(exclusiveSessionWriterBackend(path => binds.push(path)));
+    const runtime = await createPiRuntimeIntegration({
+      cwd: root,
+      agentDir: resolve(root, "agent"),
+      sessionDir: resolve(root, "sessions"),
+    });
+    const firstPath = runtime.session.sessionManager.getSessionFile()!;
+    expect(binds).toEqual([firstPath]);
+    expect(() => acquireSessionWriter(firstPath)).toThrow("session is open in another A1 process");
+
+    await runtime.newSession();
+    const secondPath = runtime.session.sessionManager.getSessionFile()!;
+    expect(binds).toEqual([firstPath, secondPath]);
+    expect(() => acquireSessionWriter(secondPath)).toThrow("session is open in another A1 process");
+    const releasedFirst = acquireSessionWriter(firstPath);
+    releasedFirst.release();
+    await disposePiRuntimeIntegration(runtime);
   });
 
   it("loads Windows NUL cleanup inline across session replacement without changing profile extensions", async () => {

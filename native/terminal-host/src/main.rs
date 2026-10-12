@@ -36,6 +36,7 @@ fn main() -> ExitCode {
 }
 
 fn run_from_args(args: Vec<String>) -> Result<(), String> {
+    contracts::fault_injection::validate_environment()?;
     match args.first().map(String::as_str) {
         Some("--version") => {
             print_provenance();
@@ -111,7 +112,7 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     let credentials =
         contracts::roles::credentials::ProfileCredentials::load_or_create(&credentials_root)?;
     let endpoint = resident_endpoint(&profile, &runtime)?;
-    let start_gate_path = credentials_root.join("server-start.lock");
+    let start_gate_path = runtime.join("server-start.lock");
     match fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -313,6 +314,7 @@ fn resident_attach_command(arguments: &[String]) -> Result<(), String> {
         .map_err(|_| "attach clear-exit interval is invalid".to_owned())?;
     let profile = required_role_path(arguments, "--profile")?;
     let data = required_role_path(arguments, "--data-dir")?;
+    let runtime = required_role_path(arguments, "--runtime-dir")?;
     let release_root = required_role_value(arguments, "--release-root")?;
     let node_executable = required_role_value(arguments, "--node-executable")?;
     if clear_exit == 0 || endpoint.is_empty() {
@@ -324,6 +326,7 @@ fn resident_attach_command(arguments: &[String]) -> Result<(), String> {
         clear_exit_ms: clear_exit,
         profile: &profile,
         data_dir: &data,
+        runtime_dir: &runtime,
         release_root,
         node_executable,
         view_tab: optional_role_value(arguments, "--view"),
@@ -356,6 +359,10 @@ fn resident_internal_command(arguments: &[String]) -> Result<(), String> {
             tab_id: None,
             pid: Some(std::process::id()),
             start_identity: None,
+            incarnation: 0,
+            child_pid: None,
+            child_start_identity: None,
+            highest_epoch: 0,
         },
     )?;
     for expected in ["welcome", "attached"] {
@@ -406,6 +413,14 @@ fn resident_internal_command(arguments: &[String]) -> Result<(), String> {
             )?;
             let payload = contracts::roles::wire::read_payload(&mut stream)?
                 .ok_or_else(|| "server closed tab create".to_owned())?;
+            let response = contracts::roles::wire::kind(&payload)?;
+            if response.message_type == "tab.create-failed" {
+                let (_, result): (_, contracts::roles::wire::ResultBody) =
+                    contracts::roles::wire::body(&payload)?;
+                return Err(result
+                    .message
+                    .unwrap_or_else(|| "resident tab creation failed".into()));
+            }
             let (_, created): (_, contracts::roles::wire::TabTarget) =
                 contracts::roles::wire::body(&payload)?;
             println!(

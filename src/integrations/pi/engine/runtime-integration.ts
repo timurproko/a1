@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import {
   createAgentSessionFromServices,
   createAgentSessionRuntime,
@@ -64,7 +66,18 @@ class SessionWriterCoordinator {
     const path = manager.getSessionFile();
     if (path === undefined) return undefined;
     if (this.#current?.path === path) return { handle: this.#current, alreadyCurrent: true };
-    return { handle: acquireSessionWriter(path), alreadyCurrent: false };
+    const handle = acquireSessionWriter(path);
+    try {
+      if (!handle.bound) {
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, "", { flag: "wx", mode: 0o600 });
+        handle.bind(path);
+      }
+      return { handle, alreadyCurrent: false };
+    } catch (error) {
+      handle.release();
+      throw error;
+    }
   }
 
   activate(pending: PendingSessionWriter | undefined): void {

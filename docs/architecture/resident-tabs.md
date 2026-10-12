@@ -1,6 +1,6 @@
 # Resident tabs — architecture and roadmap
 
-Status: staged implementation. Milestone 1 (contracts and platform primitives) is integrated; milestone 2's opt-in one-tab runtime is implemented behind its default-off setting, has passed its three-platform native workflow, and has complete isolated Windows physical-survival evidence. macOS and Linux physical survival remains explicitly uncertified and is deferred to milestone 6; CI evidence is not a substitute. Discovery or verification failure safely falls back to the direct path. Later multi-tab, recovery, UX, packaging, and certification behavior remains planned until its named milestone merges. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
+Status: staged implementation. Milestones 1 and 2 are integrated. Milestone 3's failure-isolated multi-tab host, bounded I/O, server recovery, watchdogs, and universal cooperative session-writer admission are implemented behind the default-off preview setting; exact-head three-platform CI evidence remains required before the change is accepted. Windows physical-survival evidence exists for milestone 2 only. macOS and Linux physical survival, complete UX, packaging, and certification remain deferred to later milestones; CI evidence is not a substitute. Discovery or verification failure safely falls back to the direct path. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
 
 ## Context
 
@@ -60,6 +60,17 @@ The read-only review used A1 `develop` at `b42b3c9e`, PR #586 at `8fdb7361`, `E:
 - Until milestone 4 adds quarantine and history recovery, an unreadable registry fails closed and is left untouched.
 - Milestone 2 multiplexes authenticated attach, holder, bridge, and probe roles over the owner endpoint and sends a replaceable full current surface through each client's single-slot render lane. Dedicated holder endpoints and patch deltas remain multi-tab optimizations rather than claims of this one-tab milestone.
 - The native server, holder, attach, bridge reconnect, child containment, and role integration fixture are implemented. Milestone 2 records complete Windows x64 terminal-close and OpenSSH-loss evidence; macOS arm64 and Linux x64 physical terminal/SSH evidence remains uncertified and is an explicit milestone-6 gate rather than an inferred milestone-2 result.
+
+### Milestone 3 failure-isolation contract (2026-10-14)
+
+- The native `core/server.rs` and `core/holder.rs` state machines are deterministic and I/O-free; the production holder uses the holder core for bounded input admission and ordered writer effects, and the production server uses the server core for heartbeat supervision. Blocking identity/termination work runs through the bounded worker shell with deadlines and stale-incarnation filtering.
+- Every attach, server, and holder role has an independent 15-second watchdog. Watchdog records are bounded, timestamped, owner-only metadata under the profile runtime directory; fault-only role freezes are refused by non-test release builds.
+- Holders read PTY output continuously, use one bounded input authority, reserve complete pastes before delivery, and emit a typed uncertain-delivery result after an admitted write failure. Server-to-client control lanes are frame/byte bounded; render lanes retain one replaceable full current surface. Holders stream surfaces only while at least one client views their tab.
+- Server replacement is serialized by `server-start.lock` in the profile runtime directory. Recovery verifies the recorded native owner before termination, waits boundedly for the registry-writer lease, increments the durable epoch, derives holder credentials, and re-admits only exact holder/child identities and incarnations. A durable three-start/sixty-second budget stops automatic replacement; explicit `--restart` clears it.
+- Registry records now retain holder and child pid/start identities and holder incarnation. Replacement treats unverifiable records as `holder-lost`; it never starts a duplicate writer from uncertain state.
+- `tabsMaxConcurrentStarts` is an owned version-15 setting, default 2 and bounded 1–8. The server also enforces the existing ten-tab hard default where no earlier `tabsMax` setting exists, spaces starts by at least 250 ms, and requests graceful tab shutdown before verified forced termination.
+- All A1-owned Pi runtimes use one profile-neutral session-writer guard regardless of `residentTabs`. A new target is reserved by canonical location, created as an empty owner-only placeholder, bound to stable file identity without a release gap, and only then exposed to Pi for session content. Runtime replacement acquires and binds the target before publishing it or releasing the prior writer; conflict paths preserve the source and may explicitly fork.
+- The generation-1 holder transport continues to use the authenticated owner endpoint and replaceable full surfaces. Dedicated holder endpoints and patch deltas remain later optimizations and are not milestone-3 claims.
 
 ### Relation to the in-process prep refactors (2026-10-09/10)
 
@@ -137,20 +148,20 @@ Alternatives considered:
   - the list of holders and client sessions;
   - fan-out of the active tab's surface to each client;
   - tab-bridge termination, and restore and restart policy.
-  It runs no A1 or Pi code and holds no PTY. That keeps it small and hardens it against the herdr single-point-of-failure problem.
+  It runs no A1 or Pi code and holds no PTY. That keeps it small and hardens it against the herdr single-point-of-failure problem. Generation 1 forwards replaceable full retained surfaces; patch deltas remain a later optimization.
 - **holder** is resident, one per tab. It owns:
   - exactly one PTY (ConPTY on Windows) and its child process tree;
   - one libghostty-vt retained model with bounded scrollback;
   - input encoding and the per-tab damage state.
   Because ConPTY belongs to its creating process, each tab has its own creator. A server crash therefore does not destroy a tab's ConPTY; holder failure affects only that tab. Actual child/tree exit and writer-lease release still require verification, not inference from the pseudoconsole closing.
-- **Why the server relays surfaces instead of clients connecting to holders directly.** It gives one authenticated endpoint per client, one ordering domain for focus and topology, and simpler multi-client arbitration. Measure the extra local pipe hop in the native hot-path evidence rather than assuming its latency. The server forwards encoded patches and does not re-render them.
+- **Why the server relays surfaces instead of clients connecting to holders directly.** It gives one authenticated endpoint per client, one ordering domain for focus and topology, and simpler multi-client arbitration. Measure the extra local pipe hop in the native hot-path evidence rather than assuming its latency. The server forwards encoded holder surfaces and does not re-render them.
 
 ### 3. Host scope, endpoints, writer authority, and credentials
 
 - There is **one server per OS user × canonical A1 profile root**, independent of the release cohort. Tabs must outlive release changes, and the supervisor is forbidden from retaining runtime processes.
   - Windows endpoint: `\\.\pipe\a1-tabs-<sha256(canonicalProfileHome)[0:20]>`.
   - macOS and Linux endpoint: a Unix domain socket `a1-tabs-<same profile hash>.sock` inside an owner-only (`0700`) per-user runtime directory (`$XDG_RUNTIME_DIR` when set, otherwise a private directory under the profile's runtime dir), kept short enough for the platform's socket path limit.
-  - Holders use `…-h-<tabId>` endpoints.
+  - Generation 1 admits holders over the authenticated owner endpoint. Dedicated `…-h-<tabId>` endpoints remain an optional later optimization.
   - Hermetic override: `A1_TABS_ENDPOINT`, together with the `A1_*_DIR` overrides.
 - **The endpoint is discovery; the writer lease is authority.** A starting server probes with a real handshake. If a live server answers, it exits as `already-running` and joins the winner. A failed probe does not authorize blind endpoint reclaim: the starter reads the owner marker, verifies pid and native start identity, requests termination, and waits for the owner-only OS-exclusive registry-writer lease. If the owner cannot be verified or the lease cannot be acquired, startup fails closed instead of creating split brain.
 - The ownership marker `{serverId, pid, startIdentity, bootNonce, generation, build}` is written atomically under the writer lease. Every registry mutation rechecks the held lease and current epoch before commit. A server removes an endpoint or marker only while both still identify it.
@@ -201,7 +212,7 @@ The channels carry bounded generation-1 frames: a u32 little-endian length follo
   - The server sends `bridge.visibility{visible}`, so a hidden A1 throttles animation, and `bridge.rename`, so a strip rename sets the Pi session name.
   - The bridge is advisory. A missing or broken bridge degrades that tab to process-level status and never breaks the tab.
 - **Backpressure:**
-  - Each client connection has a reliable, bounded control lane and a **single-slot render lane**. A newer patch set replaces an unsent one. A client that falls behind is re-sent a full surface once it drains.
+  - Each client connection has a reliable, bounded control lane and a **single-slot render lane**. A newer full current surface replaces an unsent one, so a client that drains never depends on a dropped intermediate revision.
   - The server never blocks a holder, another client, or registry writes on a slow client.
   - Holders parse their PTY continuously, whether or not the tab is viewed, so a PTY is never throttled and a child never blocks on output.
 
@@ -254,7 +265,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   - placement: `order`, `cwd`
   - session: `sessionFile`, `sessionDir`
   - lifecycle: `desired` (`running|stopped`), `lifecycle`, `attentionSeq`, `seenSeq` (volatile status is rebuilt from the bridge and is never persisted)
-  - holder: `holderPid`, `holderStartIdentity`, `release`
+  - holder: `holderPid`, `holderStartIdentity`, `childPid`, `childStartIdentity`, `incarnation`, `release`
   - restarts: `restarts`, `restartWindowStart`, `lastExit`
   - `registryRevision`, `epoch`, and `bootId`
 - **No per-tab credential is persisted in the registry.** The owner-only profile secret is stored separately and derives per-tab/per-incarnation credentials from recorded non-secret identities. The environment sent with `tab.create` is kept in holder memory only; a tab restarted after a crash reuses its holder's environment.

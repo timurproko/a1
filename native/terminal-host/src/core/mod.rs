@@ -33,6 +33,9 @@ pub enum Effect {
         peer: String,
         message: String,
     },
+    WritePty {
+        bytes: Vec<u8>,
+    },
     ArmTimer {
         timer: Timer,
         after: Duration,

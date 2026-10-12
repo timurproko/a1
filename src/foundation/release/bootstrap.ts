@@ -84,7 +84,8 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
         residentRootArguments: JSON.stringify([
           "attach", "--endpoint", resident.endpoint, "--cwd", process.cwd(), "--clear-exit-ms", String(CLEAR_EXIT_INTERVAL_MS),
           "--profile", environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
-          "--data-dir", paths.dataDir, "--release-root", release.releaseRoot, "--node-executable", process.execPath,
+          "--data-dir", paths.dataDir, "--runtime-dir", paths.runtimeDir,
+          "--release-root", release.releaseRoot, "--node-executable", process.execPath,
         ]),
       } : { residentFallback: resident.reason };
     }

@@ -15,6 +15,7 @@ use crate::protocol::{self, MAX_INPUT_BYTES, Welcome};
 use crate::roles::child_containment::ChildContainment;
 use crate::roles::wire::{
     self, HolderExit, HolderLaunchConfig, Input, PasteStart, Resize, RoleHello, Surface,
+    SurfaceSubscription,
 };
 
 pub const HOLDER_INPUT_CAPACITY: usize = 1024 * 1024;
@@ -23,6 +24,7 @@ enum HolderCommand {
     Input(Input),
     PasteStart { bytes: usize, epoch: u64 },
     Resize(Resize),
+    SurfaceSubscription(bool),
     Shutdown,
     Disconnected,
 }
@@ -85,6 +87,41 @@ impl HolderServerPeer {
             *slot = Some(frame);
         }
     }
+}
+
+fn apply_holder_effects(
+    effects: Vec<crate::core::Effect>,
+    write_tx: &mpsc::Sender<(Vec<u8>, usize)>,
+    server: &HolderServerPeer,
+) -> Result<(), String> {
+    for effect in effects {
+        match effect {
+            crate::core::Effect::WritePty { bytes } => {
+                let count = bytes.len();
+                write_tx
+                    .send((bytes, count))
+                    .map_err(|_| "resident PTY writer stopped".to_owned())?;
+            }
+            crate::core::Effect::Send { message, .. } => {
+                let (kind, notice) = if message.starts_with("input-uncertain:") {
+                    ("input.uncertain", message)
+                } else {
+                    ("input.rejected", message)
+                };
+                let _ = server.offer_control(wire::frame(
+                    kind,
+                    None,
+                    wire::ResultBody {
+                        accepted: false,
+                        message: Some(notice),
+                    },
+                )?);
+            }
+            crate::core::Effect::ArmTimer { .. } => {}
+            unexpected => return Err(format!("unexpected holder-core effect: {unexpected:?}")),
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -166,10 +203,14 @@ impl BoundedInputQueue {
 
 pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result<(), String> {
     crate::fault_injection::validate_environment()?;
-    let watchdog_root = ready.parent().unwrap_or_else(|| Path::new("."));
+    let config: HolderLaunchConfig = serde_json::from_slice(context)
+        .map_err(|error| format!("decode holder context: {error}"))?;
+    let watchdog_root = Path::new(&config.server.runtime_dir)
+        .join("tabs")
+        .join("crashes");
     let watchdog = crate::shell::watchdog::start(
         "holder",
-        watchdog_root,
+        &watchdog_root,
         Duration::from_secs(15),
         vec![
             "holder-main".into(),
@@ -177,16 +218,14 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
             "pty-writer".into(),
         ],
     );
-    let config: HolderLaunchConfig = serde_json::from_slice(context)
-        .map_err(|error| format!("decode holder context: {error}"))?;
-    let (stream, mut highest_epoch) = connect_holder(&config, false)?;
-    let (mut server, command_stream) = HolderServerPeer::start(stream)?;
-
     if crate::fault_injection::enabled("A1_TABS_FAULT_HANG_PTY") {
         loop {
             thread::sleep(Duration::from_secs(1));
         }
     }
+    let (stream, mut highest_epoch) = connect_holder(&config, false, None, 0)?;
+    let (mut server, command_stream) = HolderServerPeer::start(stream)?;
+
     let pty = NativePtySystem::default();
     let pair = pty
         .openpty(PtySize {
@@ -214,6 +253,9 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
     let child_pid = child
         .process_id()
         .ok_or_else(|| "resident child pid is unavailable".to_owned())?;
+    let child_identity = crate::identity::inspect_process(child_pid)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "resident child identity is unavailable".to_owned())?;
     let _containment = match ChildContainment::acquire(child_pid) {
         Ok(value) => value,
         Err(error) => {
@@ -268,60 +310,83 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
     spawn_command_reader(command_stream, command_tx.clone());
     std::fs::write(ready, format!("{}:holder\n", std::process::id()))
         .map_err(|error| format!("write holder readiness: {error}"))?;
+    crate::fault_injection::freeze_role("holder");
     let mut terminal = GhosttyTerminal::new(config.columns, config.rows)?;
     terminal.mark_dirty()?;
     let mut revision = 0_u64;
-    let mut input = BoundedInputQueue::default();
+    let mut input =
+        crate::core::holder::State::new(config.tab_id.clone(), config.incarnation, highest_epoch);
+    let ready_effects = crate::core::holder::step(
+        &mut input,
+        crate::core::holder::Event::PtyReady,
+        Duration::ZERO,
+    );
+    apply_holder_effects(ready_effects, &write_tx, &server)?;
     let mut pending_paste: Option<PendingPaste> = None;
     let mut stop_deadline: Option<std::time::Instant> = None;
+    let mut subscribed = false;
     let mut heartbeat = std::time::Instant::now();
     loop {
         watchdog.bump();
         let mut changed = false;
         while let Ok(result) = write_result_rx.try_recv() {
-            match result {
-                Ok(completed) => input.complete(completed),
-                Err(_) => {
-                    let notice = format!(
-                        "input delivery uncertain; admitted {} bytes, written {} bytes",
-                        input.admitted_bytes(),
-                        input.written_bytes()
-                    );
-                    let _ = server.offer_control(wire::frame(
-                        "input.uncertain",
-                        None,
-                        wire::ResultBody {
-                            accepted: false,
-                            message: Some(notice),
-                        },
-                    )?);
-                }
-            }
+            let event = match result {
+                Ok(completed) => crate::core::holder::Event::Written { bytes: completed },
+                Err(_) => crate::core::holder::Event::WriterFailed,
+            };
+            let effects = crate::core::holder::step(&mut input, event, Duration::ZERO);
+            apply_holder_effects(effects, &write_tx, &server)?;
         }
         while let Ok(command) = command_rx.try_recv() {
             if matches!(command, HolderCommand::Disconnected) {
                 let _ = request_server_replacement(&config);
-                let (replacement, epoch) = connect_holder(&config, true)?;
+                let (replacement, epoch) =
+                    connect_holder(&config, true, Some(&child_identity), highest_epoch)?;
                 if epoch < highest_epoch {
                     continue;
                 }
                 highest_epoch = epoch;
+                let epoch_effects = crate::core::holder::step(
+                    &mut input,
+                    crate::core::holder::Event::ServerEpoch(epoch),
+                    Duration::ZERO,
+                );
+                apply_holder_effects(epoch_effects, &write_tx, &server)?;
                 let (replacement_peer, replacement_reader) = HolderServerPeer::start(replacement)?;
                 server = replacement_peer;
                 spawn_command_reader(replacement_reader, command_tx.clone());
-                revision = revision.saturating_add(1);
-                terminal.mark_dirty()?;
-                let frame = terminal.frame_at(0, 1, true)?.into_bytes();
-                server.offer_surface(wire::frame(
-                    "surface",
-                    None,
-                    Surface {
-                        tab_id: config.tab_id.clone(),
-                        revision,
-                        bytes: frame,
-                        status: "idle".into(),
-                    },
-                )?);
+                if subscribed {
+                    revision = revision.saturating_add(1);
+                    terminal.mark_dirty()?;
+                    let frame = terminal.frame_at(0, config.rows, true)?.into_bytes();
+                    server.offer_surface(wire::frame(
+                        "surface",
+                        None,
+                        Surface {
+                            tab_id: config.tab_id.clone(),
+                            revision,
+                            bytes: frame,
+                            status: "idle".into(),
+                        },
+                    )?);
+                }
+            } else if let HolderCommand::SurfaceSubscription(enabled) = command {
+                subscribed = enabled;
+                if subscribed {
+                    revision = revision.saturating_add(1);
+                    terminal.mark_dirty()?;
+                    let frame = terminal.frame_at(0, config.rows, true)?.into_bytes();
+                    server.offer_surface(wire::frame(
+                        "surface",
+                        None,
+                        Surface {
+                            tab_id: config.tab_id.clone(),
+                            revision,
+                            bytes: frame,
+                            status: "idle".into(),
+                        },
+                    )?);
+                }
             } else if matches!(command, HolderCommand::Shutdown) {
                 if stop_deadline.is_none() {
                     let _ = write_tx.send((vec![0x04], 0));
@@ -372,8 +437,8 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                     continue;
                 }
                 highest_epoch = message.epoch;
-                let admitted = if !message.paste {
-                    input.admit_input(&message.bytes)
+                let bytes = if !message.paste {
+                    message.bytes
                 } else if let Some(pending) = pending_paste.as_mut() {
                     match pending {
                         PendingPaste::Collect { expected, bytes } => {
@@ -381,10 +446,23 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                             if bytes.len() == *expected {
                                 let complete = std::mem::take(bytes);
                                 pending_paste = None;
-                                input.admit_paste(&complete).map(|_| ())
+                                complete
                             } else if bytes.len() > *expected {
                                 pending_paste = None;
-                                Err(InputAdmissionError::MessageTooLarge)
+                                let _ = server.offer_control(wire::frame(
+                                    "input.rejected",
+                                    None,
+                                    wire::ResultBody {
+                                        accepted: false,
+                                        message: Some(
+                                            input_rejected_message(
+                                                InputAdmissionError::MessageTooLarge,
+                                            )
+                                            .into(),
+                                        ),
+                                    },
+                                )?);
+                                continue;
                             } else {
                                 continue;
                             }
@@ -398,29 +476,18 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                         }
                     }
                 } else {
-                    input.admit_paste(&message.bytes).map(|_| ())
+                    message.bytes
                 };
-                match admitted {
-                    Ok(()) => {
-                        while let Some(chunk) = input.take_for_write() {
-                            let count = chunk.len();
-                            write_tx
-                                .send((chunk, count))
-                                .map_err(|_| "resident PTY writer stopped".to_owned())?;
-                        }
-                    }
-                    Err(error) => {
-                        let notice = input_rejected_message(error).to_owned();
-                        let _ = server.offer_control(wire::frame(
-                            "input.rejected",
-                            None,
-                            wire::ResultBody {
-                                accepted: false,
-                                message: Some(notice),
-                            },
-                        )?);
-                    }
-                }
+                let effects = crate::core::holder::step(
+                    &mut input,
+                    crate::core::holder::Event::Input {
+                        epoch: message.epoch,
+                        bytes,
+                        paste: message.paste,
+                    },
+                    Duration::ZERO,
+                );
+                apply_holder_effects(effects, &write_tx, &server)?;
             }
         }
         while let Ok(bytes) = output_rx.try_recv() {
@@ -433,10 +500,10 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
             }
             changed = true;
         }
-        if changed {
+        if changed && subscribed {
             revision = revision.saturating_add(1);
             terminal.mark_dirty()?;
-            let frame = terminal.frame_at(0, 1, true)?.into_bytes();
+            let frame = terminal.frame_at(0, config.rows, true)?.into_bytes();
             server.offer_surface(wire::frame(
                 "surface",
                 None,
@@ -459,6 +526,9 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 wire::HolderReady {
                     tab_id: config.tab_id.clone(),
                     pid: std::process::id(),
+                    incarnation: config.incarnation,
+                    child_pid,
+                    child_start_identity: child_identity.start.clone(),
                 },
             )?);
             heartbeat = std::time::Instant::now();
@@ -522,6 +592,8 @@ fn request_server_replacement(config: &HolderLaunchConfig) -> Result<(), String>
 fn connect_holder(
     config: &HolderLaunchConfig,
     retry_forever: bool,
+    child: Option<&crate::identity::ProcessIdentity>,
+    highest_epoch: u64,
 ) -> Result<(endpoint::EndpointStream, u64), String> {
     let mut stream = connect_retry(&config.endpoint, retry_forever)?;
     let identity = crate::identity::inspect_process(std::process::id())
@@ -540,6 +612,10 @@ fn connect_holder(
             tab_id: Some(config.tab_id.clone()),
             pid: Some(std::process::id()),
             start_identity: Some(identity.start),
+            incarnation: config.incarnation,
+            child_pid: child.map(|identity| identity.pid),
+            child_start_identity: child.map(|identity| identity.start.clone()),
+            highest_epoch,
         },
     )?;
     let welcome = wire::read_payload(&mut stream)?
@@ -582,6 +658,12 @@ fn spawn_command_reader(
                 "shutdown" => {
                     let _ = command_tx.send(HolderCommand::Shutdown);
                 }
+                "surface.subscription" => {
+                    if let Ok((_, subscription)) = wire::body::<SurfaceSubscription>(&payload) {
+                        let _ = command_tx
+                            .send(HolderCommand::SurfaceSubscription(subscription.enabled));
+                    }
+                }
                 _ => {}
             }
         }
@@ -591,12 +673,15 @@ fn spawn_command_reader(
 
 fn connect_retry(address: &str, retry_forever: bool) -> Result<endpoint::EndpointStream, String> {
     let deadline = std::time::Instant::now() + Duration::from_secs(4);
+    let mut backoff = Duration::from_millis(100);
     loop {
         match endpoint::connect(address) {
             Ok(stream) => return Ok(stream),
             Err(error) if retry_forever || std::time::Instant::now() < deadline => {
                 let _ = error;
-                thread::sleep(Duration::from_millis(20));
+                let jitter = Duration::from_millis(rand::random::<u64>() % 50);
+                thread::sleep(backoff.saturating_add(jitter));
+                backoff = backoff.saturating_mul(2).min(Duration::from_secs(2));
             }
             Err(error) => return Err(error.to_string()),
         }

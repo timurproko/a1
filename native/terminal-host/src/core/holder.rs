@@ -14,6 +14,7 @@ pub struct State {
     pub queued_bytes: usize,
     pub admitted_bytes: u64,
     pub written_bytes: u64,
+    writer_busy: bool,
     queue: VecDeque<Vec<u8>>,
 }
 impl State {
@@ -26,6 +27,7 @@ impl State {
             queued_bytes: 0,
             admitted_bytes: 0,
             written_bytes: 0,
+            writer_busy: false,
             queue: VecDeque::new(),
         }
     }
@@ -48,7 +50,7 @@ pub enum Event {
     Tick,
 }
 
-pub fn step(state: &mut State, event: Event) -> Vec<Effect> {
+pub fn step(state: &mut State, event: Event, _now: Duration) -> Vec<Effect> {
     let mut effects = Vec::new();
     match event {
         Event::Start => effects.push(Effect::CreatePty {
@@ -84,6 +86,7 @@ pub fn step(state: &mut State, event: Event) -> Vec<Effect> {
             }
         }
         Event::Written { bytes } => {
+            state.writer_busy = false;
             state.queued_bytes = state.queued_bytes.saturating_sub(bytes);
             state.written_bytes = state.written_bytes.saturating_add(bytes as u64);
             flush(state, &mut effects);
@@ -115,14 +118,12 @@ pub fn step(state: &mut State, event: Event) -> Vec<Effect> {
 }
 
 fn flush(state: &mut State, effects: &mut Vec<Effect>) {
-    if !state.pty_ready {
+    if !state.pty_ready || state.writer_busy {
         return;
     }
     if let Some(bytes) = state.queue.pop_front() {
-        effects.push(Effect::Send {
-            peer: "pty-writer".into(),
-            message: format!("bytes:{}", bytes.len()),
-        });
+        state.writer_busy = true;
+        effects.push(Effect::WritePty { bytes });
     }
 }
 
@@ -139,6 +140,7 @@ mod tests {
                 bytes: vec![0; INPUT_CAPACITY + 1],
                 paste: true,
             },
+            Duration::ZERO,
         );
         assert_eq!(state.admitted_bytes, 0);
         assert!(
@@ -151,6 +153,7 @@ mod tests {
                 bytes: b"x".to_vec(),
                 paste: false,
             },
+            Duration::ZERO,
         );
         assert!(matches!(&stale[0], Effect::Send { message, .. } if message == "stale-epoch"));
     }

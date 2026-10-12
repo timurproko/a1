@@ -124,6 +124,7 @@ pub struct AttachOptions<'a> {
     pub clear_exit_ms: u64,
     pub profile: &'a Path,
     pub data_dir: &'a Path,
+    pub runtime_dir: &'a Path,
     pub release_root: &'a str,
     pub node_executable: &'a str,
     pub view_tab: Option<&'a str>,
@@ -133,10 +134,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     crate::fault_injection::validate_environment()?;
     let watchdog = crate::shell::watchdog::start(
         "attach",
-        &options.data_dir.join("tabs").join("crashes"),
+        &options.runtime_dir.join("tabs").join("crashes"),
         Duration::from_secs(15),
         vec!["attach-main".into(), "attach-reader".into()],
     );
+    crate::fault_injection::freeze_role("attach");
     let token =
         crate::endpoint::endpoint_token(options.profile).map_err(|error| error.to_string())?;
     let credentials =
@@ -155,6 +157,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             tab_id: options.view_tab.map(str::to_owned),
             pid: Some(std::process::id()),
             start_identity: None,
+            incarnation: 0,
+            child_pid: None,
+            child_start_identity: None,
+            highest_epoch: 0,
         },
     )?;
     let payload = wire::read_payload(&mut stream)?

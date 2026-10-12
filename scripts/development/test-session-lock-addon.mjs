@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, link, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { platform } from "node:os";
 import { resolve } from "node:path";
@@ -34,8 +34,32 @@ if (!reservation.bound) throw new Error("new session did not bind its file ident
 let contended = false;
 try { addon.SessionLock.acquire(newSession); } catch { contended = true; }
 if (!contended) throw new Error("second in-process writer acquired a held session");
+const hardAlias = resolve(root, "new-session-hard-link.jsonl");
+await rm(hardAlias, { force: true });
+await link(newSession, hardAlias);
+contended = false;
+try { addon.SessionLock.acquire(hardAlias); } catch { contended = true; }
+if (!contended) throw new Error("hard-link alias bypassed the held session identity");
 reservation.release();
-addon.SessionLock.acquire(newSession).release();
+addon.SessionLock.acquire(hardAlias).release();
+
+const realDirectory = resolve(root, "real-directory");
+const directoryAlias = resolve(root, "directory-alias");
+await rm(directoryAlias, { recursive: true, force: true });
+await mkdir(realDirectory, { recursive: true });
+const aliasedSession = resolve(realDirectory, "aliased.jsonl");
+await writeFile(aliasedSession, "");
+await symlink(realDirectory, directoryAlias, platform() === "win32" ? "junction" : "dir");
+const aliasLock = addon.SessionLock.acquire(aliasedSession);
+contended = false;
+try { addon.SessionLock.acquire(resolve(directoryAlias, "aliased.jsonl")); } catch { contended = true; }
+if (!contended) throw new Error("symbolic or junction alias bypassed the held session identity");
+if (platform() === "win32") {
+  contended = false;
+  try { addon.SessionLock.acquire(aliasedSession.toUpperCase()); } catch { contended = true; }
+  if (!contended) throw new Error("case alias bypassed the held session identity");
+}
+aliasLock.release();
 
 const heldSession = resolve(root, "held-session.jsonl");
 const ready = resolve(root, "holder.ready");
@@ -54,7 +78,7 @@ await new Promise((resolveExit, reject) => {
 try { process.kill(descendantPid, 0); } catch { throw new Error("holder descendant did not survive its parent"); }
 addon.SessionLock.acquire(heldSession).release();
 try { process.kill(descendantPid, "SIGTERM"); } catch {}
-console.log("Session lock Node-API lifecycle, process-death release, and non-inherited grandchild custody OK");
+console.log("Session lock Node-API aliases, bind continuity, process-death release, and non-inherited grandchild custody OK");
 
 async function waitForPid(path, timeoutMs) {
   const deadline = Date.now() + timeoutMs;

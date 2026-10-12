@@ -234,12 +234,28 @@
       "semantics": "Fault-feature-only identity delay used by native integration tests"
     },
     {
+      "role": "tabsFaultDelayHolderIdentity",
+      "key": "A1_TABS_FAULT_DELAY_HOLDER_IDENTITY_MS",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only holder-admission identity delay used by native integration tests"
+    },
+    {
       "role": "tabsFaultDelayFsync",
       "key": "A1_TABS_FAULT_DELAY_FSYNC_MS",
       "exposure": "integration",
       "owner": "native/terminal-host/src/fault_injection.rs",
       "evidence": "openspec/changes/resident-tabs-failure-isolation/design.md",
       "semantics": "Fault-feature-only durable-sync delay used by native integration tests"
+    },
+    {
+      "role": "tabsFaultDelayRegistryFsync",
+      "key": "A1_TABS_FAULT_DELAY_REGISTRY_FSYNC_MS",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only existing-registry sync delay used by native integration tests"
     },
     {
       "role": "tabsFaultCrashPoint",
@@ -256,6 +272,14 @@
       "owner": "native/terminal-host/src/fault_injection.rs",
       "evidence": "openspec/changes/resident-tabs-failure-isolation/design.md",
       "semantics": "Fault-feature-only stale epoch injection used by native integration tests"
+    },
+    {
+      "role": "tabsFaultFreezeRole",
+      "key": "A1_TABS_FAULT_FREEZE_ROLE",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only role-loop freeze used to prove watchdog isolation"
     },
     {
       "role": "sessionRuntimeId",

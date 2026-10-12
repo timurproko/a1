@@ -86,6 +86,11 @@ pub fn replace_with_observer(
             .map_err(|error| DurableError(format!("flush temporary replacement: {error}")))?;
         observe(DurabilityStep::BytesWritten)?;
         crate::fault_injection::delay("A1_TABS_FAULT_DELAY_FSYNC_MS");
+        if target.file_name().and_then(|name| name.to_str()) == Some("registry.json")
+            && target.exists()
+        {
+            crate::fault_injection::delay("A1_TABS_FAULT_DELAY_REGISTRY_FSYNC_MS");
+        }
         sync_file(&file)?;
         observe(DurabilityStep::FileSynchronized)?;
         drop(file);

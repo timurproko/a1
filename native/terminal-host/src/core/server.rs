@@ -36,6 +36,7 @@ pub struct TabState {
     pub start_attempts: u8,
     pub desired_size: (u16, u16),
     pub observed_size: Option<(u16, u16)>,
+    pub last_heartbeat_at: Duration,
 }
 impl TabState {
     pub fn new(size: (u16, u16)) -> Self {
@@ -48,6 +49,7 @@ impl TabState {
             start_attempts: 0,
             desired_size: size,
             observed_size: None,
+            last_heartbeat_at: Duration::ZERO,
         }
     }
 }
@@ -60,6 +62,7 @@ pub struct State {
     pub max_concurrent_starts: usize,
     pub starts_in_flight: usize,
     pub server_loop_healthy: bool,
+    pub next_start_at: Duration,
     start_queue: VecDeque<String>,
 }
 impl State {
@@ -71,6 +74,7 @@ impl State {
             max_concurrent_starts: max_concurrent_starts.clamp(1, HARD_MAX_CONCURRENT_STARTS),
             starts_in_flight: 0,
             server_loop_healthy: true,
+            next_start_at: Duration::ZERO,
             start_queue: VecDeque::new(),
         }
     }
@@ -88,7 +92,7 @@ pub enum Event {
     DeadlineMissed { tab_id: String, incarnation: u64 },
 }
 
-pub fn step(state: &mut State, event: Event) -> Vec<Effect> {
+pub fn step(state: &mut State, event: Event, now: Duration) -> Vec<Effect> {
     let mut effects = Vec::new();
     match event {
         Event::Create { tab_id, size } => {
@@ -142,6 +146,7 @@ pub fn step(state: &mut State, event: Event) -> Vec<Effect> {
             if let Some(tab) = state.tabs.get_mut(&tab_id) {
                 if tab.incarnation == incarnation {
                     tab.missed_heartbeats = 0;
+                    tab.last_heartbeat_at = now;
                 }
             }
         }
@@ -161,6 +166,14 @@ pub fn step(state: &mut State, event: Event) -> Vec<Effect> {
             if loop_healthy {
                 for (tab_id, tab) in &mut state.tabs {
                     if tab.lifecycle != Lifecycle::Running {
+                        continue;
+                    }
+                    let expected =
+                        tab.last_heartbeat_at
+                            .saturating_add(HOLDER_HEARTBEAT.saturating_mul(u32::from(
+                                tab.missed_heartbeats.saturating_add(1),
+                            )));
+                    if now < expected {
                         continue;
                     }
                     tab.missed_heartbeats = tab.missed_heartbeats.saturating_add(1);
@@ -195,7 +208,7 @@ pub fn step(state: &mut State, event: Event) -> Vec<Effect> {
                 process_id,
             } => {
                 if let Some(tab) = state.tabs.get_mut(&tab_id) {
-                    if tab.incarnation == incarnation {
+                    if tab.incarnation == incarnation && tab.lifecycle == Lifecycle::Starting {
                         state.starts_in_flight = state.starts_in_flight.saturating_sub(1);
                         tab.holder_pid = Some(process_id);
                         tab.lifecycle = Lifecycle::Running;
@@ -227,7 +240,7 @@ pub fn step(state: &mut State, event: Event) -> Vec<Effect> {
             incarnation,
         } => {
             if let Some(tab) = state.tabs.get_mut(&tab_id) {
-                if tab.incarnation == incarnation {
+                if tab.incarnation == incarnation && tab.lifecycle == Lifecycle::Starting {
                     state.starts_in_flight = state.starts_in_flight.saturating_sub(1);
                     tab.start_attempts = tab.start_attempts.saturating_add(1);
                     if tab.start_attempts >= 3 {
@@ -240,15 +253,22 @@ pub fn step(state: &mut State, event: Event) -> Vec<Effect> {
             }
         }
     }
-    reconcile(state, &mut effects);
+    reconcile(state, &mut effects, now);
     effects
 }
 
-fn reconcile(state: &mut State, effects: &mut Vec<Effect>) {
-    while state.starts_in_flight < state.max_concurrent_starts {
-        let Some(tab_id) = state.start_queue.pop_front() else {
-            break;
-        };
+fn reconcile(state: &mut State, effects: &mut Vec<Effect>, now: Duration) {
+    if state.starts_in_flight >= state.max_concurrent_starts {
+        return;
+    }
+    if now < state.next_start_at {
+        effects.push(Effect::ArmTimer {
+            timer: Timer::Reconcile,
+            after: state.next_start_at - now,
+        });
+        return;
+    }
+    while let Some(tab_id) = state.start_queue.pop_front() {
         let Some(tab) = state.tabs.get_mut(&tab_id) else {
             continue;
         };
@@ -258,6 +278,7 @@ fn reconcile(state: &mut State, effects: &mut Vec<Effect>) {
         tab.incarnation = tab.incarnation.saturating_add(1);
         tab.lifecycle = Lifecycle::Starting;
         state.starts_in_flight += 1;
+        state.next_start_at = now.saturating_add(START_SPACING);
         effects.push(Effect::Spawn {
             tab_id,
             incarnation: tab.incarnation,
@@ -267,6 +288,7 @@ fn reconcile(state: &mut State, effects: &mut Vec<Effect>) {
             timer: Timer::Reconcile,
             after: START_SPACING,
         });
+        break;
     }
 }
 
@@ -283,9 +305,10 @@ mod tests {
                     tab_id: format!("tab-{index}"),
                     size: (80, 24),
                 },
+                Duration::ZERO,
             );
         }
-        assert_eq!(state.starts_in_flight, 2);
+        assert_eq!(state.starts_in_flight, 1);
         let before = state.tabs["tab-0"].lifecycle;
         step(
             &mut state,
@@ -294,8 +317,16 @@ mod tests {
                 incarnation: 99,
                 process_id: 4,
             }),
+            Duration::from_millis(100),
         );
         assert_eq!(state.tabs["tab-0"].lifecycle, before);
+        assert_eq!(state.starts_in_flight, 1);
+        step(
+            &mut state,
+            Event::Tick { loop_healthy: true },
+            START_SPACING,
+        );
+        assert_eq!(state.starts_in_flight, 2);
     }
     #[test]
     fn unhealthy_server_never_accuses_holder() {
@@ -306,6 +337,7 @@ mod tests {
                 tab_id: "tab".into(),
                 size: (80, 24),
             },
+            Duration::ZERO,
         );
         step(
             &mut state,
@@ -314,13 +346,15 @@ mod tests {
                 incarnation: 1,
                 process_id: 9,
             }),
+            Duration::ZERO,
         );
-        for _ in 0..5 {
+        for tick in 1..=5 {
             step(
                 &mut state,
                 Event::Tick {
                     loop_healthy: false,
                 },
+                Duration::from_secs(tick),
             );
         }
         assert_eq!(state.tabs["tab"].lifecycle, Lifecycle::Running);

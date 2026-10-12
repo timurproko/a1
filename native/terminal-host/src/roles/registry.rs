@@ -21,6 +21,10 @@ pub struct TabRecord {
     pub incarnation: u64,
     pub holder_pid: Option<u32>,
     pub holder_start_identity: Option<String>,
+    #[serde(default)]
+    pub child_pid: Option<u32>,
+    #[serde(default)]
+    pub child_start_identity: Option<String>,
     pub release: String,
     pub last_exit: Option<String>,
 }
@@ -170,6 +174,8 @@ mod tests {
                 incarnation: 1,
                 holder_pid: None,
                 holder_start_identity: None,
+                child_pid: None,
+                child_start_identity: None,
                 release: "test".into(),
                 last_exit: None,
             }],

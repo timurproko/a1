@@ -1,11 +1,25 @@
-const VARIABLES: &[&str] = &[
+pub(crate) const VARIABLES: &[&str] = &[
     "A1_TABS_FAULT_HANG_PTY",
     "A1_TABS_FAULT_BLOCK_PTY_WRITE",
     "A1_TABS_FAULT_DELAY_IDENTITY_MS",
+    "A1_TABS_FAULT_DELAY_HOLDER_IDENTITY_MS",
     "A1_TABS_FAULT_DELAY_FSYNC_MS",
+    "A1_TABS_FAULT_DELAY_REGISTRY_FSYNC_MS",
     "A1_TABS_FAULT_CRASH_POINT",
     "A1_TABS_FAULT_STALE_EPOCH",
+    "A1_TABS_FAULT_FREEZE_ROLE",
 ];
+
+pub fn freeze_role(role: &str) {
+    #[cfg(feature = "fault-injection")]
+    if std::env::var("A1_TABS_FAULT_FREEZE_ROLE").as_deref() == Ok(role) {
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(60));
+        }
+    }
+    #[cfg(not(feature = "fault-injection"))]
+    let _ = role;
+}
 
 pub fn validate_environment() -> Result<(), String> {
     let present = VARIABLES
