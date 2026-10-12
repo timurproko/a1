@@ -288,7 +288,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
 |---|---|---|
 | Tab child exits or crashes | holder sees the child exit | If the exit was not requested: `crashed`. The holder respawns `ui.js --tab --session <file>` with backoff 1 s, 5 s, 30 s. After 3 restarts in 10 min: `failed`, with a banner `✗ <reason> — [r] retry · [f] start fresh · [alt+w] close`. An interrupted prompt (reported via the bridge, or detected as a trailing user entry) is offered back into the editor and never resent. Child stderr, if separately available, is a private content-bearing recovery artifact, never an ordinary diagnostic log. |
 | Holder crash | pipe EOF plus verified process identity/exit | Pseudoterminal loss is not proof that every descendant exited. Verify the old writer/tree is gone and acquire its writer lease before resuming in a new holder; otherwise keep the tab blocked without duplicate writers. |
-| Holder hang | holder control heartbeat every 5 s, 3 missed over a healthy supervision path | Terminate only the verified holder/tree within bounded deadlines, then follow the lease-gated recovery path. |
+| Holder hang | holder control heartbeat every 5 s, 3 missed over a healthy supervision path, then one heartbeat of grace for the holder-local watchdog record | Terminate only the verified holder/tree within bounded deadlines, then follow the lease-gated recovery path. |
 | A1 child hang | missing child event-loop heartbeat over a healthy bridge path | Warn at 30 s; restart at `tabsUnresponsiveRestartSeconds` (default 120), preserving journal/screen. A server/bridge transport outage alone is not proof of a child hang. |
 | Server crash | clients and holders see the pipe EOF | Holders keep running. A client or holder starts a replacement, which acquires the released writer lease, increments the epoch, derives expected credentials, and re-admits identity-verified holders. A live but unresponsive recorded owner is terminated only after native identity verification; an unverifiable owner blocks replacement. After 3 starts in 60 s, clients show `✗ tab host stopped — [r] restart · [q] quit`. |
 | Attach client crash or terminal close | the server sees the pipe EOF | Nothing happens to tabs. Pending requests stay `needs-input`. |
@@ -434,7 +434,7 @@ The v2 daemon was unreliable for structural reasons, and a forensic pass over it
 
 **Agents that stop making progress.** Liveness and progress are separate signals:
 
-- Holder heartbeat: a Rust main-loop tick every 5 s seen by the server; three missed ticks over an otherwise healthy supervision path trigger verified holder recovery.
+- Holder heartbeat: a Rust main-loop tick every 5 s seen by the server; three missed ticks over an otherwise healthy supervision path plus one heartbeat of grace trigger verified holder recovery. The grace keeps external termination behind the holder's 15-second process-local watchdog so its own crash evidence wins despite scheduler jitter.
 - A1 heartbeat: the child's Node event loop, seen through the bridge. After 30 s it shows `unresponsive`; after `tabsUnresponsiveRestartSeconds` (default 120) the tab restarts from its session with its journal and last screen preserved. A missing server or bridge transport degrades status, not proof of a child event-loop stall; reacquire liveness evidence before destructive recovery.
 - Agent progress: model or tool events. After `tabsStallNoticeSeconds` (default 300) it shows `stalled` with interrupt and restart actions. It is never auto-killed, because a legitimate tool can run for a long time.
 

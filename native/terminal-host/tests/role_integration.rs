@@ -1469,11 +1469,29 @@ struct Cleanup {
 }
 impl Drop for Cleanup {
     fn drop(&mut self) {
-        self.pids.extend(holder_pids(&self.credentials_root));
-        self.pids.sort_unstable();
-        self.pids.dedup();
-        for pid in self.pids.iter().rev().copied() {
-            terminate(pid);
+        // Concurrency: teardown reconciles because killing only a server makes holders replace it,
+        // while killing only a holder makes the server replace that holder. Signal the observed
+        // set as one batch, wait for exact identities, then rescan until no replacement remains.
+        for _ in 0..6 {
+            self.pids.extend(server_pids(&self.credentials_root));
+            self.pids.extend(holder_pids(&self.credentials_root));
+            self.pids.sort_unstable();
+            self.pids.dedup();
+            let batch = std::mem::take(&mut self.pids);
+            terminate_batch(&batch);
+            std::thread::sleep(Duration::from_millis(250));
+            let live = server_pids(&self.credentials_root)
+                .into_iter()
+                .chain(holder_pids(&self.credentials_root))
+                .any(|pid| {
+                    terminal_host_contracts::identity::inspect_process(pid)
+                        .ok()
+                        .flatten()
+                        .is_some()
+                });
+            if !live {
+                return;
+            }
         }
     }
 }
@@ -1520,23 +1538,37 @@ fn terminate_launch_tree(pid: u32) {
         CloseHandle(job);
     }
 }
-#[cfg(unix)]
 fn terminate(pid: u32) {
-    let expected = terminal_host_contracts::identity::inspect_process(pid)
-        .ok()
-        .flatten();
+    terminate_batch(&[pid]);
+}
+
+fn terminate_batch(pids: &[u32]) {
+    let expected = pids
+        .iter()
+        .filter_map(|pid| {
+            terminal_host_contracts::identity::inspect_process(*pid)
+                .ok()
+                .flatten()
+        })
+        .collect::<Vec<_>>();
+    for identity in &expected {
+        signal_terminate(identity.pid);
+    }
+    for identity in expected {
+        wait_for_terminated_identity(Some(identity));
+    }
+}
+
+#[cfg(unix)]
+fn signal_terminate(pid: u32) {
     unsafe {
         libc::kill(pid as i32, libc::SIGTERM);
     }
-    wait_for_terminated_identity(expected);
 }
 #[cfg(windows)]
-fn terminate(pid: u32) {
+fn signal_terminate(pid: u32) {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
-    let expected = terminal_host_contracts::identity::inspect_process(pid)
-        .ok()
-        .flatten();
     let handle = unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid) };
     if !handle.is_null() {
         unsafe {
@@ -1544,7 +1576,6 @@ fn terminate(pid: u32) {
             CloseHandle(handle);
         }
     }
-    wait_for_terminated_identity(expected);
 }
 
 fn wait_for_terminated_identity(

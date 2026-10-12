@@ -6,9 +6,9 @@ use super::{Completion, Effect, Timer};
 pub const HOLDER_HEARTBEAT: Duration = Duration::from_secs(5);
 pub const HOLDER_MISSES: u8 = 3;
 pub const RECONCILE_INTERVAL: Duration = Duration::from_secs(1);
-/// Keep heartbeat supervision behind the role-local watchdog so a frozen holder records its
-/// own crash before the server begins verified termination.
-pub const HOLDER_MISS_GRACE: Duration = RECONCILE_INTERVAL;
+/// Keep heartbeat supervision one full heartbeat behind the role-local watchdog. A one-tick
+/// margin races under scheduler jitter and can erase the frozen holder's own crash record.
+pub const HOLDER_MISS_GRACE: Duration = HOLDER_HEARTBEAT;
 pub const START_SPACING: Duration = Duration::from_millis(250);
 pub const DEFAULT_MAX_CONCURRENT_STARTS: usize = 2;
 pub const HARD_MAX_CONCURRENT_STARTS: usize = 8;
