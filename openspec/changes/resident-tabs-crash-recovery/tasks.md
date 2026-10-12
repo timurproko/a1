@@ -6,12 +6,12 @@ Unless a task says otherwise, every test runs on Windows x64, macOS, and Linux t
 
 ## 1. Baseline
 
-- [ ] 1.1 Reconcile the branch with current `develop` after milestone 3 merges. Record in `design.md` the actual module paths milestones 2 and 3 used for the server, holder, tab bridge, registry, and tab-mode child, and the id form used for `residentTabs`, and adjust the paths below to match before writing code.
+- [x] 1.1 Reconcile the branch with current `develop` after milestone 3 merges. Record in `design.md` the actual module paths milestones 2 and 3 used for the server, holder, tab bridge, registry, and tab-mode child, and the id form used for `residentTabs`, and adjust the paths below to match before writing code.
 - [ ] 1.2 Add named failure-injection points (design Decision 13) to the native crate and the Node tab-mode modules, enabled only by a hermetic `A1_*` test override and refused otherwise. Prove refusal outside hermetic runs with a unit test in each language.
 
 ## 2. Protocol additions
 
-- [ ] 2.1 Add the additive generation-1 messages and values from design Decision 12 to the protocol module in `native/terminal-host/src/protocol/` and the Node bridge codec, with a frozen fixture per new shape and the updated fixture digest. Prove that peers without them fall back to process-level status, with a mixed-feature handshake test.
+- [ ] 2.1 Add the additive generation-1 messages and values from design Decision 12 to `native/terminal-host/src/protocol.rs`, `native/terminal-host/src/roles/wire.rs`, and the Node codec/client under `src/foundation/resident-tabs/`, with a frozen fixture per new shape and the updated fixture digest. Prove that peers without them fall back to process-level status, with a mixed-feature handshake test.
 
 ## 3. Restart policy
 
@@ -30,7 +30,7 @@ Unless a task says otherwise, every test runs on Windows x64, macOS, and Linux t
 
 ## 5. Prompt journal
 
-- [ ] 5.1 Add the journal writer and reader (new file `src/features/resident-tabs/prompt-journal.ts`): an owner-only append-only `journal.jsonl` at `<dataDir>/tabs/<profile-token>/<tabId>/`, the `submitted`, `correlated`, `settled`, and `retired` records, synchronization on a write handle, and compaction by durable atomic replacement. Prove the record codec, owner-only modes or ACLs, and bounded size with unit tests.
+- [ ] 5.1 Add the journal writer and reader (new file `src/foundation/resident-tabs/prompt-journal.ts`): an owner-only append-only `journal.jsonl` at `<dataDir>/tabs/<profile-token>/<tabId>/`, the `submitted`, `correlated`, `settled`, and `retired` records, synchronization on a write handle, and compaction by durable atomic replacement. Prove the record codec, owner-only modes or ACLs, and bounded size with unit tests.
 - [ ] 5.2 Insert durable admission into `SessionShell.#submit` in `src/app/session-shell/session-shell.ts` in tab mode only, between `#rememberInput` and `#execute`, with a stable submission id and a 2 s timeout. Prove that a failed or slow journal keeps the prompt in the editor with a visible failure and dispatches nothing, and that direct mode and `a1 pi` are unchanged.
 - [ ] 5.3 Record `correlated` after Pi appends the user entry and `settled` after the settled-turn sync. Implement recovery that reconciles journal and session by id, entry id, and text match, retires idempotently, and offers unfinished prompts without resending. Prove with unit tests over synthetic journal and session pairs, including duplicate retirement and a lost correlation record.
 - [ ] 5.4 Implement first-turn recovery: `fileExisted: false` plus a missing session file starts the session at the reserved identity and offers the prompt. A missing file that previously existed makes the tab `failed` with the path and overwrites nothing. Prove both cases with process tests.
@@ -38,9 +38,9 @@ Unless a task says otherwise, every test runs on Windows x64, macOS, and Linux t
 
 ## 6. Drafts and session synchronization
 
-- [ ] 6.1 Add the draft checkpointer (new file `src/features/resident-tabs/draft-checkpoint.ts`): mark dirty on every editor change, write at most every 500 ms by temporary file and rename, and show `draft recovery degraded` and the bridge degraded flag when a write fails or the oldest unsaved change is older than one second. Restore the draft at restart. Prove with fake-timer and fault-injecting file-system unit tests.
+- [ ] 6.1 Add the draft checkpointer (new file `src/foundation/resident-tabs/draft-checkpoint.ts`): mark dirty on every editor change, write at most every 500 ms by temporary file and rename, and show `draft recovery degraded` and the bridge degraded flag when a write fails or the oldest unsaved change is older than one second. Restore the draft at restart. Prove with fake-timer and fault-injecting file-system unit tests.
 - [ ] 6.2 Add the continuous-typing test: drive thirty seconds of uninterrupted typing through the PTY, kill the child at a random instant, and assert that the recovered draft lacks at most the last second of input. Add a blocked-storage variant that asserts degraded state and no claim of the bound.
-- [ ] 6.3 Synchronize the session file with a write-capable `fs.fsync` after each settled `agent_end` and during graceful stop, off the input path, before the journal `settled` record (new file `src/features/resident-tabs/session-sync.ts`). Prove the call order and write access with unit tests, and that a sync failure leaves the journal entry unretired.
+- [ ] 6.3 Synchronize the session file with a write-capable `fs.fsync` after each settled `agent_end` and during graceful stop, off the input path, before the journal `settled` record (new file `src/foundation/resident-tabs/session-sync.ts`). Prove the call order and write access with unit tests, and that a sync failure leaves the journal entry unretired.
 
 ## 7. Registry failures
 
@@ -60,7 +60,7 @@ Unless a task says otherwise, every test runs on Windows x64, macOS, and Linux t
 
 ## 10. Reboot and logout
 
-- [ ] 10.1 Add the OS-session identity function to `native/terminal-host/src/platform/` (Windows logon session id and time, macOS audit session id, Linux logind session of the user manager, or `unavailable`). Prove that it is stable within one session and reports `unavailable` instead of guessing.
+- [ ] 10.1 Extend and verify the existing OS-session identity implementation in `native/terminal-host/src/identity.rs` (Windows logon session identity, macOS audit session id, Linux logind session of the user manager, or `unavailable`). Prove that it is stable within one session and reports `unavailable` instead of guessing.
 - [ ] 10.2 At server start, move the previous tab set to `registry-history/tabset-<bootId>-<ts>.json` in one durable mutation when boot or OS-session identity differs, or when all holders are gone with an unavailable session identity, and let bare `a1` create one new tab. Prove with simulated boot and session changes and a kill test at every step of the move.
 - [ ] 10.3 When a tab opens a session, pass matching unretired journals younger than seven days through the startup contract. The child adopts their entries by submission id, retires them in the source journal, and offers them idle. Prove idempotent adoption, seven-day expiry, and first-turn adoption with tests that simulate a reboot.
 

@@ -12,6 +12,21 @@ After milestone 3:
 - `bin/ui.js` already installs `installFatalExit` (`src/foundation/terminal-cleanup/fatal-exit.ts`), which writes allowlisted fatal records to `<runtimeDir>/crashes`. `src/features/prompt-history/` is asynchronous and may skip writes, so it is not a durability barrier.
 - Prompt submission runs through `SessionShell.#submit` in `src/app/session-shell/session-shell.ts`, which calls `#rememberInput` and then `#execute`.
 
+## Reconciled milestone-3 baseline
+
+This branch was reconciled with milestone 3 at `d6cf677e`. The implemented paths are:
+
+- server orchestration and bridge routing: `native/terminal-host/src/roles/server.rs`, with deterministic state in `native/terminal-host/src/core/server.rs`;
+- holder and child PTY ownership: `native/terminal-host/src/roles/holder.rs`, with holder state in `native/terminal-host/src/core/holder.rs`;
+- durable registry schema and commits: `native/terminal-host/src/roles/registry.rs`;
+- generation-1 native framing and role payloads: `native/terminal-host/src/protocol.rs` and `native/terminal-host/src/roles/wire.rs`;
+- Node bridge codec and client: `src/foundation/resident-tabs/protocol.ts` and `src/foundation/resident-tabs/bridge-client.ts`;
+- tab-mode child composition: `bin/ui.js`, `src/composition/owned-ui.ts`, and `src/app/session-shell/session-shell.ts`;
+- process, boot, and OS-session identity: `native/terminal-host/src/identity.rs` (the planned separate `platform/` module is therefore unnecessary); and
+- launch settings: the exact owned-setting identifiers are camel-case `residentTabs` and `tabsMaxConcurrentStarts`, resolved by `src/foundation/resident-tabs/settings.ts`.
+
+New Node recovery modules in this milestone stay beside the existing bridge under `src/foundation/resident-tabs/`; tests stay under `test/foundation/resident-tabs/`. This replaces the provisional `src/features/resident-tabs/` paths below without changing the intended ownership boundary.
+
 ## Goals / Non-Goals
 
 **Goals:**
