@@ -22,10 +22,10 @@ The maintainer integration decision accepts these scenarios:
     "Annotated rules, prompt arrows, text, caret, selection, wrapping, and pointer geometry retain their established behavior.",
     "Thinking-level and bash-mode changes leave bare-A1 bars on the modal-border role while `a1 pi` retains pinned borders."
   ],
-  "archiveDigest": "0661880e1cb9e12f3e6639a555cca80cf2a0ad5dbc1d667e79037d4125e47008",
+  "archiveDigest": "d6cb1827180d5dcab64382eac422c2711c8795bc0d3cff45d4adb4a0fbdd935a",
   "specDigest": "97cd11be732c3565a9224b15dc4adc43ed4949868f129af91197d8df18dbba64",
   "tasksDigest": "c78a866b945c485c03d9ab8a31527c85ba57dad56e30a26b0cd459772c674194",
-  "evidenceDigest": "e747e41b70654cfd39d040137bcd624a0035778f8f1d617fe59bd4fb8a256f2e",
+  "evidenceDigest": "5258cc6df84761dc58adc189f65710b99a153f3d889bf24678532fbe595302cc",
   "knownGaps": []
 }
 ```
