@@ -10,7 +10,7 @@ import { promptRuleText } from "../../../../src/ui/components/index.js";
 import { cellStyle } from "../../../support/ansi-cell-style.js";
 
 describe("history editor component boundary", () => {
-  it.each(["ordinary prompt", "!echo test"])("uses neutral status grey for history while preserving the input bars for %s", async text => {
+  it.each(["ordinary prompt", "!echo test"])("uses quiet history status with modal-border input bars for %s", async text => {
     const root = await mkdtemp(join(tmpdir(), "history-label-color-"));
     try {
       const editor = createPiShellEditor({
@@ -23,13 +23,13 @@ describe("history editor component boundary", () => {
       for (const level of ["low", "high"] as const) {
         editor.setThinkingLevel(level);
         const rows = editor.render(80);
-        const bar = promptRuleText;
+        const bar = (rule: string) => promptRuleText(rule, piTheme());
         expect(rows[0]).toContain(piTheme().fg("dim", "1/1 "));
         expect(rows[0]).not.toContain("History");
         expect(stripTerminalSequences(rows[0]!).indexOf("1/1")).toBe(3);
         expect(rows[0]).toContain(bar("── "));
         expect(rows[0]).not.toContain(bar("1/1 "));
-        // Rationale: pinned 0.85.1 colors a rule as spans rather than one dash at a time; the owned frame closes the rule with its own span.
+        // Rationale: pinned Pi colors a rule as spans rather than one dash at a time; the owned frame closes the rule with its own span.
         expect(rows[rows.length - 1]).toContain(bar("──"));
         expect(stripTerminalSequences(rows[rows.length - 1]!)).toBe("─".repeat(80));
       }
