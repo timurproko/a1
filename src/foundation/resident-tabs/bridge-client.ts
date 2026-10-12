@@ -29,6 +29,7 @@ export class TabBridgeClient {
   #transport: BridgeTransport | null = null;
   #connected = false;
   #available = true;
+  #features = new Set<string>();
   #sequence = 0;
   #request = 0;
   #attachment: TabAttachment | null = null;
@@ -81,7 +82,13 @@ export class TabBridgeClient {
 
   status(state: ResidentTabStatus, degraded = false): void {
     this.#latestStatus = { state, degraded };
-    this.#send("bridge.status", { seq: ++this.#sequence, state, ...(degraded ? { degraded: true } : {}) });
+    const recoveryState = state === "unresponsive" || state === "stalled" || state === "crashed" || state === "restarting" || state === "failed";
+    if (recoveryState && !this.#supports("recovery-status")) return;
+    this.#send("bridge.status", {
+      seq: ++this.#sequence,
+      state,
+      ...(degraded && this.#supports("recovery-status") ? { degraded: true } : {}),
+    });
   }
   degraded(degraded: boolean): void {
     this.status(this.#latestStatus?.state ?? "idle", degraded);
@@ -118,10 +125,12 @@ export class TabBridgeClient {
 
   #receive(message: ResidentEnvelope): void {
     if (message.type === "welcome" && message.body["generation"] === 1) {
+      const advertised = message.body["features"];
+      this.#features = new Set(Array.isArray(advertised) ? advertised.filter((feature): feature is string => typeof feature === "string") : []);
       this.#connected = true;
       this.#available = true;
       this.#startWaiter?.(true);
-      this.#startHeartbeat();
+      if (this.#supports("bridge-heartbeat")) this.#startHeartbeat();
       if (this.#latestStatus !== null) this.status(this.#latestStatus.state, this.#latestStatus.degraded);
       if (this.#latestSession !== null) this.#send("bridge.session", this.#latestSession);
       return;
@@ -139,7 +148,7 @@ export class TabBridgeClient {
   }
 
   async #requestAction(action: "detach" | "restart", origin: TabAttachment | null, timeoutMs: number): Promise<boolean> {
-    if (!this.available || origin === null) return false;
+    if (!this.available || origin === null || (action === "restart" && !this.#supports("bridge-restart"))) return false;
     const requestId = ++this.#request;
     const result = new Promise<boolean>(resolvePromise => this.#pending.set(requestId, resolvePromise));
     this.#send("bridge.request", { action, clientId: origin.clientId, controllerRevision: origin.controllerRevision }, requestId);
@@ -162,10 +171,14 @@ export class TabBridgeClient {
     this.#heartbeat = null;
   }
 
+  #supports(feature: string): boolean {
+    return this.#features.has("crash-recovery") || this.#features.has(feature);
+  }
+
   #fail(retry = true): void {
     const transport = this.#transport;
     this.#stopHeartbeat();
-    this.#available = false; this.#connected = false; this.#attachment = null; this.#transport = null;
+    this.#available = false; this.#connected = false; this.#features.clear(); this.#attachment = null; this.#transport = null;
     transport?.destroy();
     this.#startWaiter?.(false); this.#startWaiter = null;
     for (const resolvePromise of this.#pending.values()) resolvePromise(false);

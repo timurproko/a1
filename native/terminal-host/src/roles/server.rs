@@ -938,13 +938,20 @@ fn serve_peer(
                 hello.incarnation,
             )
         }
-        "bridge" => serve_bridge(
-            stream,
-            peer,
-            state,
-            hello.tab_id.unwrap_or_default(),
-            hello.incarnation,
-        ),
+        "bridge" => {
+            let heartbeat_supported = hello
+                .features
+                .iter()
+                .any(|feature| feature == "bridge-heartbeat" || feature == "crash-recovery");
+            serve_bridge(
+                stream,
+                peer,
+                state,
+                hello.tab_id.unwrap_or_default(),
+                hello.incarnation,
+                heartbeat_supported,
+            )
+        }
         _ => unreachable!(),
     }
 }
@@ -957,6 +964,9 @@ fn welcome(epoch: u64) -> Welcome {
             "resident-multi-tab".into(),
             "slow-client-isolation".into(),
             "crash-recovery".into(),
+            "bridge-heartbeat".into(),
+            "bridge-restart".into(),
+            "recovery-status".into(),
         ],
         frame_limit: protocol::MAX_FRAME_BYTES as u32,
         input_limit: protocol::MAX_INPUT_BYTES as u32,
@@ -2406,6 +2416,7 @@ fn serve_bridge(
     state: Arc<Mutex<RuntimeState>>,
     tab_id: String,
     incarnation: u64,
+    heartbeat_supported: bool,
 ) -> Result<(), String> {
     {
         let mut locked = state
@@ -2418,16 +2429,18 @@ fn serve_bridge(
                 incarnation,
             },
         );
-        let now = locked.core_started.elapsed();
-        let _ = crate::core::server::step(
-            &mut locked.core,
-            crate::core::server::Event::BridgeConnection {
-                tab_id: tab_id.clone(),
-                incarnation,
-                connected: true,
-            },
-            now,
-        );
+        if heartbeat_supported {
+            let now = locked.core_started.elapsed();
+            let _ = crate::core::server::step(
+                &mut locked.core,
+                crate::core::server::Event::BridgeConnection {
+                    tab_id: tab_id.clone(),
+                    incarnation,
+                    connected: true,
+                },
+                now,
+            );
+        }
         if let Some((client, revision)) = locked.attachment.current(&tab_id) {
             tx.offer_control(wire::frame(
                 "attachment",
@@ -2451,18 +2464,20 @@ fn serve_bridge(
         let kind = wire::kind(&payload)?;
         if kind.message_type == "bridge.heartbeat" {
             let (_, _heartbeat): (_, wire::BridgeHeartbeat) = wire::body(&payload)?;
-            let mut locked = state
-                .lock()
-                .map_err(|_| "resident state poisoned".to_owned())?;
-            let now = locked.core_started.elapsed();
-            let _ = crate::core::server::step(
-                &mut locked.core,
-                crate::core::server::Event::ChildHeartbeat {
-                    tab_id: tab_id.clone(),
-                    incarnation,
-                },
-                now,
-            );
+            if heartbeat_supported {
+                let mut locked = state
+                    .lock()
+                    .map_err(|_| "resident state poisoned".to_owned())?;
+                let now = locked.core_started.elapsed();
+                let _ = crate::core::server::step(
+                    &mut locked.core,
+                    crate::core::server::Event::ChildHeartbeat {
+                        tab_id: tab_id.clone(),
+                        incarnation,
+                    },
+                    now,
+                );
+            }
         } else if kind.message_type == "bridge.status" {
             let (_, status): (_, BridgeStatus) = wire::body(&payload)?;
             let mut locked = state
@@ -2613,16 +2628,18 @@ fn serve_bridge(
         .is_some_and(|bridge| bridge.incarnation == incarnation)
     {
         locked.bridges.remove(&tab_id);
-        let now = locked.core_started.elapsed();
-        let _ = crate::core::server::step(
-            &mut locked.core,
-            crate::core::server::Event::BridgeConnection {
-                tab_id: tab_id.clone(),
-                incarnation,
-                connected: false,
-            },
-            now,
-        );
+        if heartbeat_supported {
+            let now = locked.core_started.elapsed();
+            let _ = crate::core::server::step(
+                &mut locked.core,
+                crate::core::server::Event::BridgeConnection {
+                    tab_id: tab_id.clone(),
+                    incarnation,
+                    connected: false,
+                },
+                now,
+            );
+        }
     }
     let mut changed = false;
     if let Some(record) = locked

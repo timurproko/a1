@@ -115,6 +115,26 @@ describe("resident prompt journal", () => {
       .filter(record => record.type === "submitted" && record.id === submission.id)).toHaveLength(1);
   });
 
+  it("records durable admission latency", async () => {
+    const directory = await root();
+    const journal = new PromptJournal(join(directory, "journal.jsonl"));
+    await journal.initialize();
+    const samples: number[] = [];
+    for (let index = 0; index < 10; index += 1) {
+      const started = performance.now();
+      await journal.submit({
+        sessionId: "latency", sessionFile: null, incarnation: 1, fileExisted: false,
+        kind: "prompt", text: `sample-${index}`,
+      });
+      samples.push(performance.now() - started);
+    }
+    samples.sort((left, right) => left - right);
+    const p50 = samples[Math.floor(samples.length * 0.5)]!;
+    const p95 = samples[Math.floor(samples.length * 0.95)]!;
+    console.info(`resident journal admission latency platform=${process.platform} samples=10 p50=${p50.toFixed(3)}ms p95=${p95.toFixed(3)}ms`);
+    expect(p95).toBeLessThan(2_000);
+  });
+
   it("bounds append size", async () => {
     const directory = await root();
     const journal = new PromptJournal(join(directory, "journal.jsonl"), { maximumBytes: 120 });

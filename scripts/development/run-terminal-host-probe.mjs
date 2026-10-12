@@ -12,7 +12,16 @@ const environment = { ...process.env, ZIG: process.env.ZIG ?? "zig" };
 if (process.env.CI && environment.A1_PROBE_TRACE === undefined) environment.A1_PROBE_TRACE = "1";
 
 run(cargo, ["test", "--manifest-path", manifest, "--features", "resident-fixtures,fault-injection"], environment);
-run(process.execPath, [resolve("node_modules/vitest/vitest.mjs"), "run", "test/foundation/resident-tabs/recovery-storage.test.ts"], environment, PROBE_TIMEOUT_MS);
+run(process.execPath, [
+  resolve("node_modules/vitest/vitest.mjs"), "run",
+  "test/foundation/resident-tabs/recovery-storage.test.ts",
+  "test/foundation/resident-tabs/resident-tabs.test.ts",
+  "test/foundation/resident-tabs/tab-launch-context.test.ts",
+  "test/app/session-shell/session-shell-resident-recovery.test.ts",
+  "test/integrations/pi/engine/session-backend.test.ts",
+  "test/ui/settings/declarations.test.ts",
+  "test/ui/settings/sections.test.ts",
+], environment, PROBE_TIMEOUT_MS);
 run(cargo, ["build", "--release", "--manifest-path", manifest, "--features", "resident-fixtures"], environment);
 const releaseExecutable = resolve("native/terminal-host/target/release", platform() === "win32" ? "terminal-host.exe" : "terminal-host");
 runRefusal(releaseExecutable, ["--probe"], { ...environment, A1_TABS_FAULT_CRASH_POINT: "after-bind" });
