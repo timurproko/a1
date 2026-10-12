@@ -1062,6 +1062,15 @@ fn serve_attach(
                 if let Some((store, document)) = commit {
                     commit_registry(store, document)?;
                 }
+                tx.offer_control(wire::frame(
+                    "tab.closed",
+                    kind.request_id,
+                    wire::ResultBody {
+                        accepted: true,
+                        message: None,
+                    },
+                )?)
+                .map_err(str::to_owned)?;
             }
             "paste.start" | "input" | "resize" => {
                 let target = {
@@ -1301,36 +1310,57 @@ fn start_holder(
             }
         }
     }
+    let outcome = match launched {
+        Some((mut process, observation)) => {
+            match inspect_identity_bounded(observation.process.pid) {
+                Ok(Some(identity)) if identity.start == observation.process.start => {
+                    Ok(observation.process)
+                }
+                Ok(_) => {
+                    let _ = process.terminate();
+                    Err("holder identity could not be verified".to_owned())
+                }
+                Err(error) => {
+                    let _ = process.terminate();
+                    Err(error)
+                }
+            }
+        }
+        None => Err(last_error.unwrap_or_else(|| "holder start failed".into())),
+    };
     let mut locked = state
         .lock()
         .map_err(|_| "resident state poisoned".to_owned())?;
-    let Some((_, observation)) = launched else {
-        let reason = last_error.unwrap_or_else(|| "holder start failed".into());
-        if let Some(record) = locked
-            .registry
-            .tabs
-            .iter_mut()
-            .find(|tab| tab.tab_id == tab_id && tab.incarnation == incarnation)
-        {
-            record.lifecycle = "failed".into();
-            record.last_exit = Some(reason.clone());
+    match outcome {
+        Ok(identity) => {
+            if let Some(record) = locked
+                .registry
+                .tabs
+                .iter_mut()
+                .find(|tab| tab.tab_id == tab_id && tab.incarnation == incarnation)
+            {
+                record.holder_pid = Some(identity.pid);
+                record.holder_start_identity = Some(identity.start);
+                record.lifecycle = "running".into();
+            }
         }
-        locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
-        let document = locked.registry.clone();
-        let store = locked.registry_store.clone();
-        drop(locked);
-        commit_registry(store, document)?;
-        return Err(reason);
-    };
-    if let Some(record) = locked
-        .registry
-        .tabs
-        .iter_mut()
-        .find(|tab| tab.tab_id == tab_id && tab.incarnation == incarnation)
-    {
-        record.holder_pid = Some(observation.process.pid);
-        record.holder_start_identity = Some(observation.process.start);
-        record.lifecycle = "running".into();
+        Err(reason) => {
+            if let Some(record) = locked
+                .registry
+                .tabs
+                .iter_mut()
+                .find(|tab| tab.tab_id == tab_id && tab.incarnation == incarnation)
+            {
+                record.lifecycle = "failed".into();
+                record.last_exit = Some(reason.clone());
+            }
+            locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
+            let document = locked.registry.clone();
+            let store = locked.registry_store.clone();
+            drop(locked);
+            commit_registry(store, document)?;
+            return Err(reason);
+        }
     }
     locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
     let document = locked.registry.clone();

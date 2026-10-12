@@ -10,8 +10,17 @@ use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, P
 use terminal_host_contracts::endpoint;
 use terminal_host_contracts::roles::registry::RegistryStore;
 
+static ROLE_TEST_SERIAL: Mutex<()> = Mutex::new(());
+
+fn serialize_role_fixture() -> std::sync::MutexGuard<'static, ()> {
+    ROLE_TEST_SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 #[test]
 fn server_holder_and_attach_survive_client_loss_and_retain_output() {
+    let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
     let profile = directory(root.path(), "profile");
     let data = directory(root.path(), "data");
@@ -167,6 +176,7 @@ setInterval(() => {}, 1000);
 
 #[test]
 fn blocked_identity_inspection_times_out_without_stalling_server_progress() {
+    let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
     let profile = directory(root.path(), "profile");
     let data = directory(root.path(), "data");
@@ -251,6 +261,7 @@ fn blocked_identity_inspection_times_out_without_stalling_server_progress() {
 
 #[test]
 fn blocked_registry_sync_times_out_without_stalling_server_progress() {
+    let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
     let profile = directory(root.path(), "profile");
     let data = directory(root.path(), "data");
@@ -326,6 +337,7 @@ fn blocked_registry_sync_times_out_without_stalling_server_progress() {
 
 #[test]
 fn server_crash_points_recover_without_empty_or_split_registry_state() {
+    let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
     for point in ["after-lease", "after-epoch", "after-marker", "after-bind"] {
@@ -362,6 +374,7 @@ fn server_crash_points_recover_without_empty_or_split_registry_state() {
 
 #[test]
 fn every_role_watchdog_records_and_terminates_only_its_frozen_process() {
+    let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
     let release = directory(root.path(), "release");
@@ -380,12 +393,11 @@ fn every_role_watchdog_records_and_terminates_only_its_frozen_process() {
         &frozen_address,
     );
     frozen_server.env("A1_TABS_FAULT_FREEZE_ROLE", "server");
+    let frozen_server = frozen_server.output().expect("frozen server start");
     assert!(
-        frozen_server
-            .output()
-            .expect("frozen server start")
-            .status
-            .success()
+        frozen_server.status.success(),
+        "{}",
+        String::from_utf8_lossy(&frozen_server.stderr)
     );
 
     let profile = directory(root.path(), "profile");
@@ -476,6 +488,7 @@ fn every_role_watchdog_records_and_terminates_only_its_frozen_process() {
 
 #[test]
 fn ten_concurrent_tab_starts_respect_the_server_limit() {
+    let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
     let profile = directory(root.path(), "profile");
     let data = directory(root.path(), "data");
@@ -594,6 +607,7 @@ fn ten_concurrent_tab_starts_respect_the_server_limit() {
 
 #[test]
 fn recovery_refuses_unverifiable_owners_and_enforces_the_start_budget() {
+    let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
     let profile = directory(root.path(), "profile");
     let data = directory(root.path(), "data");
@@ -664,6 +678,7 @@ fn recovery_refuses_unverifiable_owners_and_enforces_the_start_budget() {
 
 #[test]
 fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
+    let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
     let profile = directory(root.path(), "profile");
     let data = directory(root.path(), "data");

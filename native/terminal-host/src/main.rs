@@ -132,7 +132,7 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     }
     let start_gate_deadline = std::time::Instant::now() + Duration::from_secs(5);
     let _start_gate = loop {
-        match contracts::session_lock::SessionLock::acquire(&start_gate_path) {
+        match contracts::session_lock::SessionLock::acquire_location(&start_gate_path) {
             Ok(gate) => break gate,
             Err(error) => {
                 // Concurrency: the gate winner may still be launching its detached server. A
@@ -457,6 +457,7 @@ fn resident_internal_command(arguments: &[String]) -> Result<(), String> {
                 Some(2),
                 contracts::roles::wire::TabTarget { tab_id },
             )?;
+            let _ = read_internal_response(&mut stream, &["tab.closed"])?;
         }
         _ => return Err("unrecognized internal tab operation".to_owned()),
     }

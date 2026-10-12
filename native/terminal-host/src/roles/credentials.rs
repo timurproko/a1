@@ -53,11 +53,7 @@ pub fn derive_credential(
 
 fn load_or_create_secret(path: &Path) -> Result<[u8; 32], String> {
     match fs::read(path) {
-        Ok(bytes) => {
-            return bytes
-                .try_into()
-                .map_err(|_| format!("{} does not contain 32 bytes", path.display()));
-        }
+        Ok(bytes) => return decode_secret_after_create_race(path, bytes),
         Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
             return Err(format!("read {}: {error}", path.display()));
         }
@@ -83,12 +79,22 @@ fn load_or_create_secret(path: &Path) -> Result<[u8; 32], String> {
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             let bytes = fs::read(path)
                 .map_err(|error| format!("read raced {}: {error}", path.display()))?;
-            bytes
-                .try_into()
-                .map_err(|_| format!("{} does not contain 32 bytes", path.display()))
+            decode_secret_after_create_race(path, bytes)
         }
         Err(error) => Err(format!("create {}: {error}", path.display())),
     }
+}
+
+fn decode_secret_after_create_race(path: &Path, mut bytes: Vec<u8>) -> Result<[u8; 32], String> {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+    while bytes.len() != 32 && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        bytes =
+            fs::read(path).map_err(|error| format!("read raced {}: {error}", path.display()))?;
+    }
+    bytes
+        .try_into()
+        .map_err(|_| format!("{} does not contain 32 bytes", path.display()))
 }
 
 fn protect_directory(path: &Path) -> Result<(), String> {
