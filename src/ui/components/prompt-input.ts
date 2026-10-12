@@ -4,15 +4,17 @@ import { PLAIN_THEME, type UiTheme } from "./theme.js";
 export const PROMPT_GLYPH = "❯ ";
 export const PROMPT_PREFIX_WIDTH = 2;
 
-export function promptRuleText(text: string, theme: Pick<UiTheme, "fg"> = PLAIN_THEME): string {
+type RuleTheme = Pick<UiTheme, "fg">;
+
+export function promptRuleText(text: string, theme: RuleTheme): string {
   return theme.fg("border", text);
 }
 
-export function promptRule(width: number, theme: Pick<UiTheme, "fg"> = PLAIN_THEME): string {
+export function promptRule(width: number, theme: RuleTheme): string {
   return promptRuleText("─".repeat(Math.max(0, width)), theme);
 }
 
-export function promptArrow(text: string, theme: Pick<UiTheme, "fg">): string {
+export function promptArrow(text: string, theme: RuleTheme): string {
   return theme.fg("muted", text);
 }
 
@@ -33,10 +35,10 @@ export interface PromptInputMetrics {
 
 /** Composes shared input chrome around controller-owned body rows without owning editing state. */
 export class PromptInput {
-  readonly theme: Pick<UiTheme, "fg">;
+  readonly theme: RuleTheme;
   readonly metrics: PromptInputMetrics;
   constructor(
-    theme: Pick<UiTheme, "fg"> = PLAIN_THEME,
+    theme: RuleTheme = PLAIN_THEME,
     metrics: PromptInputMetrics = { measure: displayWidth, truncate: truncateToWidth },
   ) { this.theme = theme; this.metrics = metrics; }
 

@@ -12,9 +12,10 @@ Implementation proceeded in the linked `E:/Git/a1/.worktrees/accent-input-bars` 
 
 ## Validation
 
-- `npx vitest run test/ui/components/prompt-input.test.ts test/integrations/pi/components/prompt-input-ux.test.ts test/integrations/pi/components/pinned-theme-parity.test.ts test/features/owned-ui/settings-app.test.ts test/integrations/pi/components/pinned-editor-input-parity.test.ts` — 5 files and 122 tests passed.
+- `npx vitest run test/ui/components/prompt-input.test.ts test/integrations/pi/components/prompt-input-ux.test.ts test/integrations/pi/components/history-editor-shell.test.ts test/integrations/pi/components/pinned-theme-parity.test.ts test/features/owned-ui/settings-app.test.ts test/integrations/pi/components/pinned-editor-input-parity.test.ts` — 6 files and 126 tests passed.
 - `npm run build` — passed and produced the repository-checkout candidate used for manual review.
 - `npm run typecheck` — passed after the build supplied the bin contract's generated `dist` imports.
+- `npm run check:architecture` — passed all architecture, product-identity, pinned-source-ledger, and terminal-host provenance checks with the startup graph within its byte budget.
 - `npm run check:code-documentation:changed` — passed with no violations.
 - `npx openspec validate accent-input-bars --strict` and `git diff --check` — passed.
 
