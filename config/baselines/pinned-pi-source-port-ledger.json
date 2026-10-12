@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-12T09:57:46.268Z",
+  "recordedAt": "2026-10-12T15:40:14.607Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -2722,9 +2722,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tool-execution.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Retain pinned shell and actual public tool-definition renderers. Replace private index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and generic text helpers to public or locally attributed equivalents. Route bare-A1 built-in read ranges through the secondary accent role. See docs/architecture/tool-image-presentation.md.",
+      "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise generic-collapse shortcut hints. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "ad0e3ea47482117be7b9cd6baf8ba246912f38d1267e3ddbbf9deebec900a299",
+      "localSha256": "f21f5a160afcff07ad5bae13404a26dd8e6b8b07ce561679390995e5a8498a70",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -2736,6 +2736,12 @@
           "id": "read-range-secondary-accent",
           "reason": "User-approved accent-read-line-range change: ordinary built-in read location metadata should follow bare A1's selected secondary accent instead of presenting as a warning.",
           "upstreamBehavior": "The explicit a1 pi comparison keeps pinned warning-colored ranges; bare A1 remaps only the built-in read call renderer while actual result warnings and extension renderers retain their original theme semantics.",
+          "acceptanceTest": "test/integrations/pi/components/tool-shell-parity.test.ts"
+        },
+        {
+          "id": "concise-tool-expand-shortcut-hint",
+          "reason": "User-approved expand-shortcut-hint change: generic collapsed tool output should use the same concise semantic key/action presentation as bare-A1 dialogs.",
+          "upstreamBehavior": "The explicit a1 pi comparison keeps pinned lowercase connective wording; bare A1 displays the effective expansion binding with shared key casing and distinct key/action roles without changing expansion behavior.",
           "acceptanceTest": "test/integrations/pi/components/tool-shell-parity.test.ts"
         }
       ],

@@ -1,19 +1,19 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
- * Modifications: Retain pinned shell and actual public tool-definition renderers. Replace private
- * index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and
- * disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and
- * generic text helpers to public or locally attributed equivalents. Route bare-A1 built-in read ranges
- * through the secondary accent role. See docs/architecture/tool-image-presentation.md.
- * Deviations: current-tool-image-conversion-ownership, read-range-secondary-accent.
+ * Modifications: Retain pinned shell/public renderers. Own image conversion; replace private APIs with
+ * public/local equivalents. Use bare-A1 secondary-accent read ranges and concise generic-collapse
+ * shortcut hints. See docs/architecture/tool-image-presentation.md.
+ * Deviations: current-tool-image-conversion-ownership, read-range-secondary-accent,
+ * concise-tool-expand-shortcut-hint.
  */
 import { stripVTControlCharacters } from "node:util";
 import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { createReadToolDefinition, createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition,
-  createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, keyHint, type ToolDefinition,
+  createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, keyText, type ToolDefinition,
   type ToolRenderers,
 } from "@earendil-works/pi-coding-agent";
+import { renderPiModalShortcutHints } from "../../theme.js";
 import { isPiAccentProjectionEnabled, piTheme } from "../theme/theme.js";
 import { ToolImagePresentation } from "../../tool-image-presentation.js";
 
@@ -202,7 +202,8 @@ export class ToolExecutionComponent extends Container {
 		const remaining = lines.length - displayLines.length;
 		let text = displayLines.map((line) => theme.fg("toolOutput", line)).join("\n");
 		if (remaining > 0) {
-			text += `${theme.fg("muted", `\n... (${remaining} more lines,`)} ${keyHint("app.tools.expand", "to expand")}${theme.fg("muted", ")")}`;
+			const expandHint = renderPiModalShortcutHints([{ key: keyText("app.tools.expand"), action: "expand" }]);
+			text += `${theme.fg("muted", `\n... (${remaining} more lines,`)} ${expandHint}${theme.fg("muted", ")")}`;
 		}
 		return new Text(text, 0, 0);
 	}

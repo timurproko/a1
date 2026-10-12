@@ -1,7 +1,8 @@
 import { ToolExecutionComponent as PinnedTool } from "@earendil-works/pi-coding-agent";
-import { afterEach, describe, expect, it } from "vitest";
-import { getCapabilities, setCapabilities, stripTerminalSequences, Text } from "@earendil-works/pi-tui";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { getCapabilities, getKeybindings, setCapabilities, setKeybindings, stripTerminalSequences, Text } from "@earendil-works/pi-tui";
 import { mergeBuiltInRenderers, ToolExecutionComponent as OwnedTool } from "../../../../src/integrations/pi/components/upstream/components/tool-execution.js";
+import { KeybindingsManager, type KeybindingsConfig } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { createBashToolDefinition, createEditToolDefinition, createFindToolDefinition, createGrepToolDefinition, createLsToolDefinition, createReadToolDefinition, createWriteToolDefinition } from "@earendil-works/pi-coding-agent";
 import { createTuiFacade, ensureTheme } from "../../../../src/integrations/pi/components/shell-shared-facade.js";
 import {
@@ -12,7 +13,13 @@ import {
 } from "../../../../src/integrations/pi/components/theme.js";
 
 const caps = getCapabilities();
+let previousKeybindings: ReturnType<typeof getKeybindings>;
+beforeEach(() => {
+  previousKeybindings = getKeybindings();
+  setKeybindings(KeybindingsManager.fromOwnedBindings());
+});
 afterEach(() => {
+  setKeybindings(previousKeybindings);
   setCapabilities(caps);
   setPiPackageBorderProjectionEnabled(true);
   setPiAccentColor("purple");
@@ -29,6 +36,26 @@ function pair(name: string, args: unknown, definition?: ConstructorParameters<ty
   return { owned: new OwnedTool(...params), pinned: new PinnedTool(...pinnedParams) };
 }
 
+function withToolKeybindings(bindings: KeybindingsConfig, run: (keys: KeybindingsManager) => void): void {
+  const previous = getKeybindings();
+  const keys = KeybindingsManager.fromOwnedBindings(bindings);
+  try {
+    setKeybindings(keys);
+    run(keys);
+  } finally {
+    setKeybindings(previous);
+  }
+}
+
+const fallbackDefinition = {
+  renderCall: () => new Text("custom", 0, 0),
+} as unknown as ConstructorParameters<typeof OwnedTool>[4];
+const longFallbackResult = {
+  content: [{ type: "text" as const, text: Array.from({ length: 12 }, (_, index) => `line ${index}`).join("\n") }],
+  details: {},
+  isError: false,
+};
+
 describe("source-derived tool shell with independent actual pinned renderers", () => {
   it.each([
     ["read", { path: "fixture.ts" }], ["bash", { command: "fixture" }],
@@ -37,7 +64,22 @@ describe("source-derived tool shell with independent actual pinned renderers", (
     ["ls", { path: "." }], ["unknown", { option: true }],
   ])("retains %s styling, arguments, partial/final state, expansion and fallback", (name, args) => {
     const { owned, pinned } = pair(String(name), args);
-    const check = () => { for (const width of [40, 80, 192]) expect(owned.render(width)).toEqual(pinned.render(width)); };
+    const check = () => {
+      for (const width of [40, 80, 192]) {
+        const ownedRows = owned.render(width);
+        const pinnedRows = pinned.render(width);
+        expect(ownedRows).toHaveLength(pinnedRows.length);
+        for (const [index, ownedRow] of ownedRows.entries()) {
+          const ownedPlain = stripTerminalSequences(ownedRow).trimEnd();
+          if (ownedPlain.includes("more lines, Ctrl+O expand)")) {
+            expect(ownedPlain.replace("Ctrl+O expand", "ctrl+o to expand"))
+              .toBe(stripTerminalSequences(pinnedRows[index]!).trimEnd());
+          } else {
+            expect(ownedRow).toBe(pinnedRows[index]);
+          }
+        }
+      }
+    };
     check();
     for (const tool of [owned, pinned]) { tool.updateArgs(args); tool.setArgsComplete(); tool.markExecutionStarted(); }
     const content = [{ type: "text" as const, text: "\u001b[31mred\u001b[0m\r\nwide 字🙂\t\u0000\uFFF9" },
@@ -51,6 +93,49 @@ describe("source-derived tool shell with independent actual pinned renderers", (
       }
     }
     owned.dispose();
+  });
+
+  it("uses concise semantic shortcut styling for collapsed generic fallback output", () => {
+    withToolKeybindings({}, () => {
+      const { owned, pinned } = pair("custom", {}, fallbackDefinition);
+      try {
+        for (const tool of [owned, pinned]) tool.updateResult(longFallbackResult);
+        const ownedFrame = owned.render(80).join("\n");
+        const pinnedFrame = pinned.render(80).join("\n");
+        expect(stripTerminalSequences(ownedFrame)).toContain("... (2 more lines, Ctrl+O expand)");
+        expect(ownedFrame).toContain(piTheme().fg("dim", "Ctrl+O"));
+        expect(ownedFrame).toContain(piTheme().fg("muted", "expand"));
+        expect(stripTerminalSequences(pinnedFrame)).toContain("... (2 more lines, ctrl+o to expand)");
+
+        owned.updateResult({ content: [{ type: "text", text: "line 0\nline 1" }], details: {}, isError: false });
+        expect(stripTerminalSequences(owned.render(80).join("\n"))).not.toContain("expand)");
+
+        owned.updateResult(longFallbackResult);
+        owned.setExpanded(true);
+        const expanded = stripTerminalSequences(owned.render(80).join("\n"));
+        expect(expanded).toContain("line 11");
+        expect(expanded).not.toContain("expand)");
+      } finally {
+        owned.dispose();
+      }
+    });
+  });
+
+  it("shows the effective expansion binding without changing its action", () => {
+    withToolKeybindings({ "app.tools.expand": "ctrl+r" }, keys => {
+      const { owned, pinned } = pair("custom", {}, fallbackDefinition);
+      try {
+        for (const tool of [owned, pinned]) tool.updateResult(longFallbackResult);
+        expect(keys.getKeys("app.tools.expand")).toEqual(["ctrl+r"]);
+        expect(keys.matches("\x12", "app.tools.expand")).toBe(true);
+        expect(stripTerminalSequences(owned.render(80).join("\n"))).toContain("Ctrl+R expand)");
+        expect(stripTerminalSequences(pinned.render(80).join("\n"))).toContain("ctrl+r to expand)");
+        owned.setExpanded(true);
+        expect(stripTerminalSequences(owned.render(80).join("\n"))).toContain("line 11");
+      } finally {
+        owned.dispose();
+      }
+    });
   });
 
   it("paints built-in read ranges with the live secondary accent", () => {
@@ -150,6 +235,7 @@ describe("source-derived tool shell with independent actual pinned renderers", (
     const result = { content: [{ type: "text" as const, text: "result" }, { type: "image" as const, mimeType: "image/jpeg", data: "AQID" }], details: { retained: true }, isError: false };
     for (const tool of [owned, pinned]) { tool.setArgsComplete(); tool.markExecutionStarted(); tool.updateResult(result, true); }
     expect(owned.render(80)).toEqual(pinned.render(80));
+    expect(stripTerminalSequences(owned.render(80).join("\n"))).not.toContain("expand)");
     expect(received).toEqual([{ content: result.content, details: result.details }, { content: result.content, details: result.details }]);
     expect(new Set(states).size).toBe(2);
     owned.invalidate();
