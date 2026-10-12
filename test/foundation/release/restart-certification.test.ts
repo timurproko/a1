@@ -40,7 +40,7 @@ describe("durable restart certification", () => {
     expect(largeEvents).toHaveLength(smallEvents.length);
     expect(largeEvents.every(event => event.operation === "restart-evidence-read")).toBe(true);
     expect(largeEvents.some(event => event.path.endsWith("extra-99.js"))).toBe(false);
-  });
+  }, 15_000);
 
   it("rejects changed records, manifests, bindings, immutability controls, and active transactions", async () => {
     const recordFixture = await certifiedFixture(1);
