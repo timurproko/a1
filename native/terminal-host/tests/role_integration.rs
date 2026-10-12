@@ -134,8 +134,7 @@ setInterval(() => {}, 1000);
     for pid in server_pids(&credentials_root) {
         terminate(pid);
     }
-    std::thread::sleep(Duration::from_millis(500));
-    start_server(&executable, &profile, &data, &runtime, &address);
+    wait_for_holder_started_server(&executable, &profile, &data, &runtime, &address);
     cleanup.pids.extend(server_pids(&credentials_root));
 
     let mut second = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
@@ -977,7 +976,7 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
     for pid in server_pids(&credentials_root) {
         terminate(pid);
     }
-    start_server(&executable, &profile, &data, &runtime, &address);
+    wait_for_holder_started_server(&executable, &profile, &data, &runtime, &address);
     cleanup.pids.extend(server_pids(&credentials_root));
     assert!(registry_epoch(&credentials_root) > epoch_before);
     assert_eq!(
@@ -1331,6 +1330,40 @@ fn start_server(executable: &Path, profile: &Path, data: &Path, runtime: &Path, 
         std::thread::sleep(Duration::from_millis(100));
     }
     panic!("server did not start: {diagnostic}");
+}
+
+fn wait_for_holder_started_server(
+    executable: &Path,
+    profile: &Path,
+    data: &Path,
+    runtime: &Path,
+    address: &str,
+) {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        let probe = Command::new(executable)
+            .args([
+                "probe",
+                "--profile",
+                text(profile),
+                "--data-dir",
+                text(data),
+                "--runtime-dir",
+                text(runtime),
+            ])
+            .env("A1_TABS_ENDPOINT", address)
+            .output()
+            .expect("probe holder-started server");
+        if probe.status.success() {
+            return;
+        }
+        let diagnostic = String::from_utf8_lossy(&probe.stderr);
+        assert!(
+            Instant::now() < deadline,
+            "holders did not start a replacement server: {diagnostic}"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
 }
 
 fn server_pids(root: &Path) -> Vec<u32> {
