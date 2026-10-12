@@ -224,7 +224,7 @@ export interface PiShellEditorOptions {
   readonly onFollowUp?: (() => void) | undefined;
   readonly onDequeue?: (() => void) | undefined;
   readonly onPromptSuggestionAccepted?: (text: string) => void;
-  readonly onCopyText?: (text: string) => void;
+  readonly onCopyText?: (text: string, cut: boolean) => void;
   readonly readClipboardContent?: (signal?: AbortSignal) => Promise<PiShellClipboardContent | null>;
   readonly beginClipboardPaste?: () => PiShellPasteReservation;
   readonly beginTextPaste?: (text: string) => PiShellPasteReservation;

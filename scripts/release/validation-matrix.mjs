@@ -16,7 +16,9 @@ export const DEVELOPMENT_VALIDATION_MATRIX = Object.freeze([
   { group: "compatibility", label: "Image and history compatibility", ...WINDOWS, node: 22, build: true, guardian: false, defender: false },
   { group: "containment", label: "Unix integration (Linux)", os: "ubuntu-24.04", platform: "linux", architecture: "x64", node: 24, build: true, guardian: true, defender: false, binary: "process-guardian" },
   { group: "containment", label: "Unix integration (macOS)", os: "macos-15", platform: "darwin", architecture: "arm64", node: 24, build: true, guardian: true, defender: false, binary: "process-guardian" },
-  { group: "terminal-host", label: "Native terminal host (Windows)", ...WINDOWS, node: 24, build: true, guardian: false, defender: false, terminalHost: true },
+  { group: "terminal-host", label: "Native terminal host (Windows x64)", ...WINDOWS, node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostBinary: "terminal-host.exe" },
+  { group: "terminal-host", label: "Native terminal host (Linux x64)", os: "ubuntu-24.04", platform: "linux", architecture: "x64", node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostBinary: "terminal-host" },
+  { group: "terminal-host", label: "Native terminal host (macOS arm64)", os: "macos-15", platform: "darwin", architecture: "arm64", node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostBinary: "terminal-host" },
 ].map(entry => Object.freeze(entry)));
 
 /** Map an integration owner to the modular job that executes it on a platform. */

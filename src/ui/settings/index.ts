@@ -9,7 +9,7 @@ export {
 export type { OwnedSettingId, OwnedSettingValueOf, OwnedUiSettingApplication, OwnedUiSettingDeclaration, OwnedUiSettingValue } from "./declarations.js";
 export { OWNED_UI_SETTINGS_MIGRATIONS, assertOwnedUiSettingsMigrations, migrationsFrom } from "./migrations.js";
 export type { OwnedUiSettingsMigration } from "./migrations.js";
-export { documentFrom, parseOwnedUiSettingsDocument, resolveOwnedUiSettings, settingValue } from "./resolution.js";
+export { documentFrom, parseOwnedUiSettingsDocument, resolveOwnedUiSettings, resolveResidentTabsSetting, settingValue } from "./resolution.js";
 export type {
   OwnedUiResolvedSetting,
   OwnedUiSettingSource,

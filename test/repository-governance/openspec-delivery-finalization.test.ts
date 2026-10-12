@@ -11,7 +11,7 @@ const requirement = (text: string) => `### Requirement: Example behavior\nThe sy
 const spec = (body: string) => `# example Specification\n\n## Purpose\n\nDefine an example capability with enough detail for finalization tests.\n\n## Requirements\n\n${body}`;
 const proposal = `## Why\n\nImprove example behavior.\n\n## What Changes\n\n- Improve it.\n\n## Capabilities\n\n### New Capabilities\n\nNone.\n\n### Modified Capabilities\n\n- \`example\`: Improve behavior.\n\n## Impact\n\nFixture only.\n`;
 const scenarios = ["Using the example preserves the updated observable behavior."];
-const body = (metadata: unknown = { version: 3, change: "example" }) => `## Proposal\n\nDeliver the example behavior through one atomic OpenSpec pull request.\n\n## Implementation\n\n- Implement the example behavior and its governance evidence.\n\n## Acceptance\n\n- ${scenarios[0]}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify(metadata)}\n\`\`\`\n\n</details>\n`;
+const body = (metadata: unknown = { version: 3, change: "example" }) => `## Proposal\n\nDeliver the example behavior through one atomic OpenSpec pull request.\n\n## Implementation\n\n- [x] Implement the example behavior and preserve its expected observable result.\n- [x] Record focused governance evidence for the completed example behavior.\n\n## Acceptance\n\n- ${scenarios[0]}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify(metadata)}\n\`\`\`\n\n</details>\n`;
 
 async function fixture({ incomplete = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "a1-delivery-finalization-"));
@@ -111,6 +111,14 @@ describe("in-branch OpenSpec delivery finalization", () => {
       specBaseSha: "a".repeat(40), date: "2026-09-15", toolRoot: resolve("node_modules/@fission-ai/openspec") }))
       .rejects.toThrow("tasks-incomplete");
     expect(await readFile(join(root, "openspec/changes/example/tasks.md"), "utf8")).toContain("[ ]");
+  });
+
+  it("refuses an incomplete PR-body Implementation checklist", async () => {
+    const root = await fixture();
+    const incompleteBody = body().replace("- [x] Implement the example behavior", "- [ ] Implement the example behavior");
+    await expect(prepareSinglePrDelivery({ root, change: "example", repository: "owner/repo", sourcePr: 42, body: incompleteBody,
+      specBaseSha: "a".repeat(40), date: "2026-09-15", toolRoot: resolve("node_modules/@fission-ai/openspec") }))
+      .rejects.toThrow("implementation-progress-incomplete");
   });
 
   it("rejects the superseded phase-prefixed layout during local finalization", async () => {
