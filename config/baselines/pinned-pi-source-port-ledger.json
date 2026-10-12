@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-09T18:36:02.081Z",
+  "recordedAt": "2026-10-12T09:51:46.894Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -2722,15 +2722,21 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tool-execution.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Retain pinned shell and actual public tool-definition renderers. Replace private index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and generic text helpers to public or locally attributed equivalents. See docs/architecture/tool-image-presentation.md.",
+      "modifications": "Retain pinned shell and actual public tool-definition renderers. Replace private index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and generic text helpers to public or locally attributed equivalents. Route bare-A1 built-in read ranges through the secondary accent role. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "f806e6d69d38df29bae29c2dcc33f0492d1ffe6f475a9a17edaf61db9a3cc1c7",
+      "localSha256": "7d1d32535a795ede2cd51e74c797fa78f2cfc12216ecaa6198f4e1b609906c63",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
           "reason": "User-approved continuation of preserve-agent-content-rendering task 3.3: public Pi 0.84.2 caches conversions by image position with no reset API. Preserve original inputs, renderer state and invocation identity while rejecting obsolete conversions and showing bounded pending/unavailable fallbacks.",
           "upstreamBehavior": "Actual built-in and extension renderers, styling, layout, partial/error state and hidden/non-Kitty image presentation remain pinned; stale replacement pixels and silent conversion failure are deliberately repaired only in the owned shell.",
           "acceptanceTest": "test/app/session-shell/transcript-image-conversion.test.ts"
+        },
+        {
+          "id": "read-range-secondary-accent",
+          "reason": "User-approved accent-read-line-range change: ordinary built-in read location metadata should follow bare A1's selected secondary accent instead of presenting as a warning.",
+          "upstreamBehavior": "The explicit a1 pi comparison keeps pinned warning-colored ranges; bare A1 remaps only the built-in read call renderer while actual result warnings and extension renderers retain their original theme semantics.",
+          "acceptanceTest": "test/integrations/pi/components/tool-shell-parity.test.ts"
         }
       ],
       "behaviorCategories": [
@@ -3503,7 +3509,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class, projecting A1's optional semantic accent, and deriving its owned fullscreen canvas.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "4fbe50e84f2c6bc9863552c26c01a58e675a76bfc47dfb20bd62adb09c121421",
+      "localSha256": "81f767b4923fdd737cd41c611f9f11dcc842bfcee9bf39c5ebe788b6801006b2",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",

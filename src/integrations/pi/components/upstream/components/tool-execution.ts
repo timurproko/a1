@@ -4,9 +4,9 @@
  * Modifications: Retain pinned shell and actual public tool-definition renderers. Replace private
  * index-keyed image conversion with current-source ownership, serial conversion, visible fallback, and
  * disposal; guard reentrant invalidation. Remap private types, definition factories, theme, and
- * generic text helpers to public or locally attributed equivalents. See
- * docs/architecture/tool-image-presentation.md.
- * Deviations: current-tool-image-conversion-ownership.
+ * generic text helpers to public or locally attributed equivalents. Route bare-A1 built-in read ranges
+ * through the secondary accent role. See docs/architecture/tool-image-presentation.md.
+ * Deviations: current-tool-image-conversion-ownership, read-range-secondary-accent.
  */
 import { stripVTControlCharacters } from "node:util";
 import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
@@ -14,7 +14,7 @@ import { createReadToolDefinition, createBashToolDefinition, createEditToolDefin
   createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, keyHint, type ToolDefinition,
   type ToolRenderers,
 } from "@earendil-works/pi-coding-agent";
-import { piTheme } from "../theme/theme.js";
+import { isPiAccentProjectionEnabled, piTheme } from "../theme/theme.js";
 import { ToolImagePresentation } from "../../tool-image-presentation.js";
 
 type ToolRenderContext = Parameters<NonNullable<ToolDefinition["renderCall"]>>[2];
@@ -41,6 +41,18 @@ const definitions = { read: createReadToolDefinition, bash: createBashToolDefini
 
 const FALLBACK_PREVIEW_LINES = 10;
 const COLLAPSED_ARGS_CHARS = 100;
+/** Gives the built-in read call one secondary metadata role without changing result warnings. */
+function secondaryReadCallTheme(theme: ReturnType<typeof piTheme>): ReturnType<typeof piTheme> {
+  return new Proxy(theme, {
+    get(target, property) {
+      if (property === "fg") {
+        return (...args: Parameters<typeof target.fg>) => target.fg(args[0] === "warning" ? "mdHeading" : args[0], args[1]);
+      }
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
 
 /** Locally attributed equivalent of pinned Pi's private generic tool-call formatter. */
 function formatToolCallWithArgs(title: string, args: unknown, expanded: boolean): string {
@@ -353,7 +365,12 @@ export class ToolExecutionComponent extends Container {
 				hasContent = true;
 			} else {
 				try {
-					const component = callRenderer(this.args, theme, this.getRenderContext(this.callRendererComponent));
+          const callTheme = this.toolName === "read"
+            && callRenderer === this.builtInToolDefinition?.renderCall
+            && isPiAccentProjectionEnabled
+            ? secondaryReadCallTheme(theme)
+            : theme;
+					const component = callRenderer(this.args, callTheme, this.getRenderContext(this.callRendererComponent));
 					this.callRendererComponent = component;
 					renderContainer.addChild(this.createResultRegion(component));
 					hasContent = true;
