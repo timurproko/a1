@@ -203,7 +203,9 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
             return Err(message);
         }
     };
-    contracts::roles::server::probe(&endpoint, &credentials.client_token)?;
+    if !contracts::fault_injection::freeze_requested("server") {
+        contracts::roles::server::probe(&endpoint, &credentials.client_token)?;
+    }
     let metadata = ResidentServerMetadata {
         pid: observation.process.pid,
         start_identity: observation.process.start,

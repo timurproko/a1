@@ -43,9 +43,19 @@ fn value(name: &str) -> Option<String> {
         .or_else(|| INSTALLED.get().and_then(|values| values.get(name)).cloned())
 }
 
+pub fn freeze_requested(role: &str) -> bool {
+    #[cfg(feature = "fault-injection")]
+    return value("A1_TABS_FAULT_FREEZE_ROLE").as_deref() == Some(role);
+    #[cfg(not(feature = "fault-injection"))]
+    {
+        let _ = role;
+        false
+    }
+}
+
 pub fn freeze_role(role: &str) {
     #[cfg(feature = "fault-injection")]
-    if value("A1_TABS_FAULT_FREEZE_ROLE").as_deref() == Some(role) {
+    if freeze_requested(role) {
         loop {
             std::thread::sleep(std::time::Duration::from_secs(60));
         }
