@@ -81,14 +81,13 @@ setInterval(() => {}, 1000);
     }
     let mut competing = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
     assert!(
-        competing.output_containing(
-            "a1 is attached in another terminal",
-            Duration::from_secs(10)
-        ),
+        competing.output_containing("fake-a1-ready", Duration::from_secs(10)),
         "{}",
         competing.output_text()
     );
-    assert!(!competing.wait(Duration::from_secs(5)).success());
+    competing.write(b"read-only-input\n");
+    competing.write(b"\x03\x03");
+    assert!(competing.wait(Duration::from_secs(8)).success());
     drop(competing);
     first.write(b"typed-value\n");
     assert!(

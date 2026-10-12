@@ -18,7 +18,7 @@ import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDoc
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { markStartupPhase } from "../startup/index.js";
 import { isCurrentLaunchContract, launchContractTarget, readLaunchContext, withLaunchContext, type LaunchContext } from "../launch-context/index.js";
-import { ensureTerminalHost, readResidentTabsSetting, selectResidentHost, type EnsureTerminalHostOptions, type EnsureTerminalHostResult } from "../resident-tabs/index.js";
+import { ensureTerminalHost, readResidentTabLaunchSettings, selectResidentHost, type EnsureTerminalHostOptions, type EnsureTerminalHostResult } from "../resident-tabs/index.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
@@ -61,17 +61,21 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
 
   const launchSelected = async (release: MaterializedRelease): Promise<number> => {
     let residentContext: LaunchContext = {};
+    const residentLaunchSettings = readResidentTabLaunchSettings(paths.configDir, launchProfileId);
     const resident = await selectResidentHost({
       profileId: launchProfileId,
       hasSessionSelection: sessionArgs.length > 0,
       currentLaunchContract: isCurrentLaunchContract(release),
-      readSetting: () => (options.readResidentTabs ?? readResidentTabsSetting)(paths.configDir, launchProfileId),
-      ensureHost: () => (options.ensureTerminalHost ?? ensureTerminalHost)({
+      readSetting: options.readResidentTabs === undefined
+        ? async () => (await residentLaunchSettings).residentTabs
+        : () => options.readResidentTabs!(paths.configDir, launchProfileId),
+      ensureHost: async () => (options.ensureTerminalHost ?? ensureTerminalHost)({
         releaseRoot: release.releaseRoot,
         profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
         dataDir: paths.dataDir,
         runtimeDir: paths.runtimeDir,
         environment,
+        maxConcurrentStarts: (await residentLaunchSettings).maxConcurrentStarts,
       }),
     });
     if (resident !== null) {

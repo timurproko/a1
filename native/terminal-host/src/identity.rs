@@ -23,6 +23,7 @@ impl fmt::Display for IdentityError {
 impl std::error::Error for IdentityError {}
 
 pub fn inspect_process(pid: u32) -> Result<Option<ProcessIdentity>, IdentityError> {
+    crate::fault_injection::delay("A1_TABS_FAULT_DELAY_IDENTITY_MS");
     platform::inspect_process(pid)
 }
 
@@ -39,6 +40,83 @@ pub fn same_process(left: &ProcessIdentity, right: &ProcessIdentity) -> bool {
 
 pub fn same_system_epoch(left: &SystemIdentity, right: &SystemIdentity) -> bool {
     left.boot == right.boot && left.os_session == right.os_session
+}
+
+pub fn terminate_verified(
+    identity: &ProcessIdentity,
+    graceful: std::time::Duration,
+    forced: std::time::Duration,
+) -> Result<(), IdentityError> {
+    if inspect_process(identity.pid)?.as_ref() != Some(identity) {
+        return Err(IdentityError(
+            "process identity cannot be verified for termination".into(),
+        ));
+    }
+    #[cfg(unix)]
+    {
+        if unsafe { libc::kill(identity.pid as i32, libc::SIGTERM) } != 0 {
+            return Err(IdentityError(format!(
+                "terminate process: {}",
+                std::io::Error::last_os_error()
+            )));
+        }
+        if wait_gone(identity, graceful)? {
+            return Ok(());
+        }
+        if unsafe { libc::kill(identity.pid as i32, libc::SIGKILL) } != 0 {
+            return Err(IdentityError(format!(
+                "force terminate process: {}",
+                std::io::Error::last_os_error()
+            )));
+        }
+        if wait_gone(identity, forced)? {
+            return Ok(());
+        }
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::Threading::{
+            OpenProcess, PROCESS_TERMINATE, TerminateProcess,
+        };
+        let handle = unsafe { OpenProcess(PROCESS_TERMINATE, 0, identity.pid) };
+        if handle.is_null() {
+            return Err(IdentityError(format!(
+                "open process for termination: {}",
+                std::io::Error::last_os_error()
+            )));
+        }
+        let accepted = unsafe { TerminateProcess(handle, 125) };
+        unsafe {
+            CloseHandle(handle);
+        }
+        if accepted == 0 {
+            return Err(IdentityError(format!(
+                "terminate process: {}",
+                std::io::Error::last_os_error()
+            )));
+        }
+        if wait_gone(identity, graceful + forced)? {
+            return Ok(());
+        }
+    }
+    Err(IdentityError(
+        "verified process did not exit before the deadline".into(),
+    ))
+}
+
+fn wait_gone(
+    identity: &ProcessIdentity,
+    timeout: std::time::Duration,
+) -> Result<bool, IdentityError> {
+    let deadline = std::time::Instant::now() + timeout;
+    while std::time::Instant::now() < deadline {
+        if inspect_process(identity.pid)?.as_ref() != Some(identity) {
+            return Ok(true);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    Ok(inspect_process(identity.pid)?.as_ref() != Some(identity))
 }
 
 #[cfg(target_os = "linux")]

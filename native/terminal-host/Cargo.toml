@@ -14,6 +14,7 @@ crate-type = ["rlib", "cdylib"]
 default = []
 node-addon = ["dep:napi", "dep:napi-derive"]
 resident-fixtures = []
+fault-injection = []
 
 [dependencies]
 base64 = "=0.22.1"

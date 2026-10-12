@@ -89,6 +89,20 @@ pub fn render_strip(status: &str, name: &str, columns: u16) -> String {
     format!("\x1b[1;1H{chip:<width$}", width = usize::from(columns))
 }
 
+pub fn render_notice(message: &str, columns: u16) -> String {
+    let mut notice = format!(" ! {message} ");
+    notice.retain(|value| !value.is_control());
+    let maximum = usize::from(columns);
+    if notice.chars().count() > maximum {
+        notice = notice
+            .chars()
+            .take(maximum.saturating_sub(1))
+            .collect::<String>()
+            + "…";
+    }
+    format!("\x1b[1;1H{notice:<width$}", width = maximum)
+}
+
 /// BEL is attention data and never reaches the outer terminal. Other bytes, including OSC 8/52
 /// and cursor-shape controls, stay in the native terminal stream.
 pub fn without_bell(bytes: &[u8]) -> Vec<u8> {
@@ -112,9 +126,17 @@ pub struct AttachOptions<'a> {
     pub data_dir: &'a Path,
     pub release_root: &'a str,
     pub node_executable: &'a str,
+    pub view_tab: Option<&'a str>,
 }
 
 pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
+    crate::fault_injection::validate_environment()?;
+    let watchdog = crate::shell::watchdog::start(
+        "attach",
+        &options.data_dir.join("tabs").join("crashes"),
+        Duration::from_secs(15),
+        vec!["attach-main".into(), "attach-reader".into()],
+    );
     let token =
         crate::endpoint::endpoint_token(options.profile).map_err(|error| error.to_string())?;
     let credentials =
@@ -130,7 +152,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             build: "a1-terminal-host".into(),
             features: vec!["double-ctrl-c".into()],
             token: credentials.client_token.to_vec(),
-            tab_id: None,
+            tab_id: options.view_tab.map(str::to_owned),
             pid: Some(std::process::id()),
             start_identity: None,
         },
@@ -167,6 +189,16 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             environment,
         },
     )?;
+    if let Some(tab_id) = options.view_tab {
+        wire::send(
+            &mut stream,
+            "tab.view",
+            None,
+            wire::TabTarget {
+                tab_id: tab_id.into(),
+            },
+        )?;
+    }
 
     let mut reader = stream
         .try_clone()
@@ -186,6 +218,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let started = Instant::now();
     let mut chord = DoubleCtrlC::new(options.clear_exit_ms);
     loop {
+        watchdog.bump();
         while let Ok(payload) = message_rx.try_recv() {
             if payload.is_empty() {
                 return Err("resident server connection closed".to_owned());
@@ -217,6 +250,12 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "holder.exit" => {
                     terminal.write(render_strip("ended", "agent", columns).as_bytes())?;
+                }
+                "input.rejected" | "input.uncertain" => {
+                    let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    if let Some(message) = result.message {
+                        terminal.write(render_notice(&message, columns).as_bytes())?;
+                    }
                 }
                 "error" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
@@ -263,6 +302,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     Input {
                         bytes,
                         paste: false,
+                        epoch: 0,
                     },
                 )?;
             }
@@ -272,7 +312,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     &mut stream,
                     "paste.start",
                     None,
-                    PasteStart { bytes: bytes.len() },
+                    PasteStart {
+                        bytes: bytes.len(),
+                        epoch: 0,
+                    },
                 )?;
                 for chunk in bytes.chunks(MAX_INPUT_BYTES) {
                     wire::send(
@@ -282,6 +325,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         Input {
                             bytes: chunk.to_vec(),
                             paste: true,
+                            epoch: 0,
                         },
                     )?;
                 }
@@ -295,6 +339,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     Resize {
                         columns: cols,
                         rows,
+                        epoch: 0,
                     },
                 )?;
             }
@@ -305,6 +350,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 Input {
                     bytes: b"\x1b[I".to_vec(),
                     paste: false,
+                    epoch: 0,
                 },
             )?,
             Event::FocusLost => wire::send(
@@ -314,6 +360,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 Input {
                     bytes: b"\x1b[O".to_vec(),
                     paste: false,
+                    epoch: 0,
                 },
             )?,
             Event::Mouse(mouse) => {
@@ -325,6 +372,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         Input {
                             bytes,
                             paste: false,
+                            epoch: 0,
                         },
                     )?;
                 }
@@ -543,6 +591,7 @@ mod tests {
         assert_eq!(without_bell(b"a\x07b"), b"ab");
         assert!(render_strip("working", "agent", 80).contains("agent"));
         assert!(!render_strip("working", "a\x07gent", 80).contains('\u{7}'));
+        assert!(render_notice("input rejected", 40).contains("input rejected"));
     }
     #[test]
     fn mode_restore_disables_every_enabled_outer_mode() {

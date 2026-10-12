@@ -1,6 +1,6 @@
 import type { OwnedUiBackgroundStyle, UiAccentColor } from "../../contracts/owned-ui/index.js";
 
-export const OWNED_UI_SETTINGS_VERSION = 14;
+export const OWNED_UI_SETTINGS_VERSION = 15;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
   "purple", "blue", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);
@@ -149,10 +149,19 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     id: "residentTabs",
     label: "Resident tabs",
     section: GENERIC_SECTION,
-    description: "Keep bare A1 running when its terminal closes and reattach on the next launch. Resident tabs have no stop command yet; turning this off prevents new resident launches but does not stop an existing tab.",
+    description: "Keep bare A1 running when its terminal closes and reattach on the next launch. Turning this off prevents new resident launches but does not stop existing tabs.",
     application: "restart",
     defaultValue: false,
     allowedValues: Object.freeze([true, false] as const),
+  }),
+  tabsMaxConcurrentStarts: Object.freeze({
+    id: "tabsMaxConcurrentStarts",
+    label: "Concurrent tab starts",
+    section: GENERIC_SECTION,
+    description: "Maximum A1 tabs started together. Starts remain spaced to protect shared profile files.",
+    application: "restart",
+    defaultValue: 2,
+    allowedValues: Object.freeze([1, 2, 3, 4, 5, 6, 7, 8] as const),
   }),
 } as const satisfies Readonly<Record<string, OwnedUiSettingDeclaration>>);
 

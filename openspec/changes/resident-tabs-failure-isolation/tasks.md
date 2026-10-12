@@ -6,7 +6,7 @@ Unless a task says otherwise, native tests live under `native/terminal-host/test
 
 ## 1. Baseline
 
-- [ ] 1.1 Rebase on `develop` with milestones 1 and 2 merged. Record in `design.md` the actual module paths that milestone 2 used for the server, holder, attach shells, and the registry. Record the in-process session-lock binding that milestone 1 pinned. If milestone 1 provides only an out-of-process lock, add the in-process binding (task 6.1) before any wiring task.
+- [x] 1.1 Rebase on `develop` with milestones 1 and 2 merged. Record in `design.md` the actual module paths that milestone 2 used for the server, holder, attach shells, and the registry. Record the in-process session-lock binding that milestone 1 pinned. If milestone 1 provides only an out-of-process lock, add the in-process binding (task 6.1) before any wiring task.
 
 ## 2. Sans-IO cores and the execution shell
 

@@ -79,6 +79,12 @@ pub struct Welcome {
     pub features: Vec<String>,
     pub frame_limit: u32,
     pub input_limit: u32,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub epoch: u64,
+}
+
+fn is_zero(value: &u64) -> bool {
+    *value == 0
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -244,6 +250,7 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
                     features: vec!["controller-boundary".to_owned()],
                     frame_limit: MAX_FRAME_BYTES as u32,
                     input_limit: MAX_INPUT_BYTES as u32,
+                    epoch: 0,
                 },
             })?,
         ),

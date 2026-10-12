@@ -17,6 +17,16 @@ On the Node side, Pi session writers are created or replaced at these points:
 
 None of these takes a writer lock today.
 
+### Merged milestone baseline
+
+Milestone 2's merged role shells are `native/terminal-host/src/roles/server.rs`,
+`native/terminal-host/src/roles/holder.rs`, and
+`native/terminal-host/src/roles/attach.rs`. Its durable registry authority is
+`native/terminal-host/src/roles/registry.rs`. Milestone 1's in-process Node
+binding is the feature-gated N-API `SessionLock` in
+`native/terminal-host/src/node_addon.rs`, backed directly by
+`native/terminal-host/src/session_lock.rs`; no helper process owns the lock.
+
 ## Goals / Non-Goals
 
 **Goals:**

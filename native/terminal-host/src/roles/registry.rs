@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::durable;
 use serde::{Deserialize, Serialize};
@@ -38,10 +38,12 @@ pub trait RegistryAuthority: Send + Sync {
     fn is_current(&self, epoch: u64) -> bool;
 }
 
+#[derive(Clone)]
 pub struct RegistryStore {
     path: PathBuf,
     epoch: u64,
     authority: Arc<dyn RegistryAuthority>,
+    commit_gate: Arc<Mutex<()>>,
 }
 
 impl RegistryStore {
@@ -50,6 +52,7 @@ impl RegistryStore {
             path,
             epoch,
             authority,
+            commit_gate: Arc::new(Mutex::new(())),
         }
     }
 
@@ -67,6 +70,10 @@ impl RegistryStore {
 
     /// A mutation is acknowledged only after durable replacement completes under current authority.
     pub fn commit(&self, document: &RegistryDocument) -> Result<(), String> {
+        let _gate = self
+            .commit_gate
+            .lock()
+            .map_err(|_| "registry commit gate poisoned".to_owned())?;
         validate(document)?;
         if document.epoch != self.epoch {
             return Err("registry epoch mismatch".to_owned());
@@ -80,7 +87,19 @@ impl RegistryStore {
         if !self.authority.is_current(self.epoch) {
             return Err("registry writer lease was lost before commit".to_owned());
         }
+        if let Some(current) = Self::read(&self.path)? {
+            if current.epoch == document.epoch
+                && current.registry_revision > document.registry_revision
+            {
+                return Ok(());
+            }
+            if current.epoch > document.epoch {
+                return Err("registry commit is fenced by a newer epoch".to_owned());
+            }
+        }
+        crate::fault_injection::crash_at("before-registry-commit");
         durable::replace(&self.path, &bytes).map_err(|error| error.to_string())?;
+        crate::fault_injection::crash_at("after-registry-commit");
         if !self.authority.is_current(self.epoch) {
             return Err("registry writer lease was lost after commit".to_owned());
         }

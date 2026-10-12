@@ -85,6 +85,7 @@ pub fn replace_with_observer(
         file.flush()
             .map_err(|error| DurableError(format!("flush temporary replacement: {error}")))?;
         observe(DurabilityStep::BytesWritten)?;
+        crate::fault_injection::delay("A1_TABS_FAULT_DELAY_FSYNC_MS");
         sync_file(&file)?;
         observe(DurabilityStep::FileSynchronized)?;
         drop(file);

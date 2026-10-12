@@ -15,9 +15,13 @@ import {
   resolvePiProjectTrustPreflight,
   type PiProjectTrustPreflightPrompt,
 } from "./project-trust-preflight.js";
-import { openSelectedPiSession, resolveSessionArgumentPath, type PiSessionForkPrompt, type PiSessionSelection } from "./session-selection.js";
+import { openSelectedPiSession, resolveSessionArgumentPath, takeSelectedSessionWriter, type PiSessionForkPrompt, type PiSessionSelection } from "./session-selection.js";
 import { markStartupPhase, type StartupPhase } from "../../../foundation/startup/startup-runtime.js";
 import { createWindowsNulCleanupExtension } from "./windows-filesystem-hygiene.js";
+import {
+  acquireSessionWriter,
+  type SessionWriterHandle,
+} from "../../../foundation/session-writer-lock/index.js";
 
 export interface PiRuntimeIntegrationOptions {
   readonly cwd: string;
@@ -45,6 +49,42 @@ export interface PiRuntimePreflightDependencies {
 export type PiSessionReplacement =
   | { readonly kind: "new" }
   | { readonly kind: "resume"; readonly sessionPath: string };
+
+interface PendingSessionWriter {
+  readonly handle: SessionWriterHandle;
+  readonly alreadyCurrent: boolean;
+}
+
+class SessionWriterCoordinator {
+  #current: SessionWriterHandle | undefined;
+
+  prepare(manager: SessionManager): PendingSessionWriter | undefined {
+    const selected = takeSelectedSessionWriter(manager);
+    if (selected !== undefined) return { handle: selected, alreadyCurrent: false };
+    const path = manager.getSessionFile();
+    if (path === undefined) return undefined;
+    if (this.#current?.path === path) return { handle: this.#current, alreadyCurrent: true };
+    return { handle: acquireSessionWriter(path), alreadyCurrent: false };
+  }
+
+  activate(pending: PendingSessionWriter | undefined): void {
+    if (pending === undefined || pending.alreadyCurrent) return;
+    const previous = this.#current;
+    this.#current = pending.handle;
+    previous?.release();
+  }
+
+  abandon(pending: PendingSessionWriter | undefined): void {
+    if (pending !== undefined && !pending.alreadyCurrent) pending.handle.release();
+  }
+
+  release(): void {
+    this.#current?.release();
+    this.#current = undefined;
+  }
+}
+
+const runtimeSessionWriters = new WeakMap<AgentSessionRuntime, SessionWriterCoordinator>();
 
 interface ConfiguredModelScope {
   readonly scopedModels: readonly ScopedModel[];
@@ -133,44 +173,55 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
       cwd: options.cwd, selection,
       ...(sessionDir === undefined ? {} : { sessionDir }),
       ...(options.sessionForkPrompt === undefined ? {} : { forkPrompt: options.sessionForkPrompt }),
+      guardWriter: true,
     });
+  const sessionWriters = new SessionWriterCoordinator();
   const createRuntime: CreateAgentSessionRuntimeFactory = async ({
     cwd,
     sessionManager: targetSessionManager,
     sessionStartEvent,
   }) => {
-    const { services, trust } = await createPiRuntimeServicesAfterTrust({
-      cwd,
-      agentDir: options.agentDir,
-      ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
-      ...(options.preflightDependencies === undefined ? {} : { preflightDependencies: options.preflightDependencies }),
-      ...(options.markStartupPhase === undefined ? {} : { markStartupPhase: options.markStartupPhase }),
-    });
-    const modelScope = await resolveConfiguredModelScope(services, options.signal);
-    const hasExistingSession = targetSessionManager.buildSessionContext().messages.length > 0;
-    const created = await createAgentSessionFromServices({
-      services,
-      sessionManager: targetSessionManager,
-      ...(sessionStartEvent ? { sessionStartEvent } : {}),
-      ...(modelScope.model && !hasExistingSession ? { model: modelScope.model } : {}),
-      ...(modelScope.thinkingLevel && !hasExistingSession ? { thinkingLevel: modelScope.thinkingLevel } : {}),
-      ...(modelScope.scopedModels.length > 0 ? { scopedModels: [...modelScope.scopedModels] } : {}),
-    });
-    await (options.markStartupPhase ?? defaultStartupPhaseMarker)("session-created");
-    return {
-      ...created,
-      services,
-      diagnostics: [
-        ...(trust.diagnostic === null ? [] : [{ type: "warning" as const, code: "project-trust", message: trust.diagnostic }]),
-        ...modelScope.diagnostics,
-      ],
-    };
+    const pendingWriter = sessionWriters.prepare(targetSessionManager);
+    try {
+      const { services, trust } = await createPiRuntimeServicesAfterTrust({
+        cwd,
+        agentDir: options.agentDir,
+        ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
+        ...(options.preflightDependencies === undefined ? {} : { preflightDependencies: options.preflightDependencies }),
+        ...(options.markStartupPhase === undefined ? {} : { markStartupPhase: options.markStartupPhase }),
+      });
+      const modelScope = await resolveConfiguredModelScope(services, options.signal);
+      const hasExistingSession = targetSessionManager.buildSessionContext().messages.length > 0;
+      const created = await createAgentSessionFromServices({
+        services,
+        sessionManager: targetSessionManager,
+        ...(sessionStartEvent ? { sessionStartEvent } : {}),
+        ...(modelScope.model && !hasExistingSession ? { model: modelScope.model } : {}),
+        ...(modelScope.thinkingLevel && !hasExistingSession ? { thinkingLevel: modelScope.thinkingLevel } : {}),
+        ...(modelScope.scopedModels.length > 0 ? { scopedModels: [...modelScope.scopedModels] } : {}),
+      });
+      sessionWriters.activate(pendingWriter);
+      await (options.markStartupPhase ?? defaultStartupPhaseMarker)("session-created");
+      return {
+        ...created,
+        services,
+        diagnostics: [
+          ...(trust.diagnostic === null ? [] : [{ type: "warning" as const, code: "project-trust", message: trust.diagnostic }]),
+          ...modelScope.diagnostics,
+        ],
+      };
+    } catch (error) {
+      sessionWriters.abandon(pendingWriter);
+      throw error;
+    }
   };
-  return createAgentSessionRuntime(createRuntime, {
+  const runtime = await createAgentSessionRuntime(createRuntime, {
     cwd: sessionManager.getCwd(),
     agentDir: options.agentDir,
     sessionManager,
   });
+  runtimeSessionWriters.set(runtime, sessionWriters);
+  return runtime;
 }
 
 function defaultStartupPhaseMarker(phase: StartupPhase): Promise<void> {
@@ -191,5 +242,10 @@ export async function replacePiRuntimeSession(runtime: AgentSessionRuntime, repl
 export async function disposePiRuntimeIntegration(runtime: AgentSessionRuntime): Promise<void> {
   runtime.setRebindSession(undefined);
   runtime.setBeforeSessionInvalidate(undefined);
-  await runtime.dispose();
+  try {
+    await runtime.dispose();
+  } finally {
+    runtimeSessionWriters.get(runtime)?.release();
+    runtimeSessionWriters.delete(runtime);
+  }
 }

@@ -26,7 +26,7 @@
     "build": "node scripts/development/check-environment.mjs && npm run clean && tsc -p tsconfig.build.json && node scripts/release/generate-release-notes-resource.mjs && node scripts/pi/build-pi-settings-metadata.mjs && node scripts/pi/build-startup-public.mjs && node scripts/development/build-process-guardian.mjs && node scripts/release/generate-runtime-payload-inventory.mjs",
     "build:process-guardian": "node scripts/development/build-process-guardian.mjs",
     "typecheck": "tsgo -p tsconfig.json --noEmit && tsgo -p tsconfig.bin.json",
-    "check:architecture": "node scripts/governance/check-architecture.mjs && node scripts/governance/check-product-identity-boundaries.mjs && node scripts/governance/check-package-identity.mjs && node scripts/governance/check-pinned-pi-source-ledger.mjs && node scripts/governance/check-terminal-host-provenance.mjs",
+    "check:architecture": "node scripts/governance/check-architecture.mjs && node scripts/governance/check-session-writer-guard.mjs && node scripts/governance/check-product-identity-boundaries.mjs && node scripts/governance/check-package-identity.mjs && node scripts/governance/check-pinned-pi-source-ledger.mjs && node scripts/governance/check-terminal-host-provenance.mjs",
     "check:names": "node scripts/governance/product-identifier-policy.mjs --check",
     "check:names:changed": "node scripts/governance/product-identifier-policy.mjs --check --selection .artifacts/validation/impact.json",
     "check:code-documentation": "node scripts/governance/check-code-documentation.mjs --mode full",
