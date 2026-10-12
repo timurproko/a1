@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-12T15:40:14.607Z",
+  "recordedAt": "2026-10-12T16:39:53.598Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
@@ -2722,9 +2722,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tool-execution.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise generic-collapse shortcut hints. See docs/architecture/tool-image-presentation.md.",
+      "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut hints. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "f21f5a160afcff07ad5bae13404a26dd8e6b8b07ce561679390995e5a8498a70",
+      "localSha256": "0da05ad948406a7f9693bb83188e2d2c20f15f63bf19fa4e5cb8b79862e72654",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -2740,8 +2740,8 @@
         },
         {
           "id": "concise-tool-expand-shortcut-hint",
-          "reason": "User-approved expand-shortcut-hint change: generic collapsed tool output should use the same concise semantic key/action presentation as bare-A1 dialogs.",
-          "upstreamBehavior": "The explicit a1 pi comparison keeps pinned lowercase connective wording; bare A1 displays the effective expansion binding with shared key casing and distinct key/action roles without changing expansion behavior.",
+          "reason": "User-approved expand-shortcut-hint change and refinement: generic and package built-in collapsed tool output should use the same concise semantic key/action presentation as bare-A1 dialogs.",
+          "upstreamBehavior": "The explicit a1 pi comparison keeps pinned lowercase connective wording; bare A1 adapts generic and internally selected built-in expansion hints to the effective display-cased binding and distinct key/action roles without changing renderer or expansion behavior.",
           "acceptanceTest": "test/integrations/pi/components/tool-shell-parity.test.ts"
         }
       ],
