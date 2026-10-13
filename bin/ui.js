@@ -2,7 +2,7 @@
 
 // Security: this helper has no A1, Pi, tool, or extension dependency and erases credentials before those modules load.
 const { assignFreshSessionRuntimeId, consumeTabLaunchContext, formatResidentFallbackNotice } = await import("./tab-launch-context.js");
-const { uiArguments, tabCredentials } = consumeTabLaunchContext(process.argv.slice(2), process.env);
+const { uiArguments, tabCredentials, tabDataDir, tabIncarnation } = consumeTabLaunchContext(process.argv.slice(2), process.env);
 
 // Invariant: one terminal module identity per process, decided before any A1 or Pi module loads.
 const { installPinnedPiTuiResolver } = await import("./module-resolver.js");
@@ -22,11 +22,13 @@ if (profile === "a1") {
 }
 const { installFatalExit } = await import("../dist/foundation/terminal-cleanup/fatal-exit.js");
 const { resolveProductPaths } = await import("../dist/foundation/lifecycle/paths.js");
-const { join } = await import("node:path");
+const { dirname, join } = await import("node:path");
 /** @type {{ dispose(): void | Promise<unknown> } | undefined} */
 let runningApplication;
 const fatal = profile === "a1" ? installFatalExit({
-  directory: join(resolveProductPaths().runtimeDir, "crashes"),
+  directory: tabDataDir === undefined
+    ? join(resolveProductPaths().runtimeDir, "crashes")
+    : join(dirname(tabDataDir), "diagnostics"),
   ...(launchContext.releaseId === undefined ? {} : { releaseId: launchContext.releaseId }),
   dispose: () => runningApplication?.dispose(),
 }) : undefined;
@@ -59,6 +61,8 @@ const sessionSelection = parseSessionSelection(uiArguments);
 Promise.resolve().then(async () => {
   const tab = tabCredentials === undefined ? undefined : {
     bridge: new (await import("../dist/foundation/resident-tabs/bridge-client.js")).TabBridgeClient({ credentials: tabCredentials }),
+    dataDir: /** @type {string} */ (tabDataDir),
+    incarnation: /** @type {number} */ (tabIncarnation),
   };
   if (sessionSelection && profile !== "a1") throw new Error("session selection requires the normal A1 profile");
   return runSelectedInteractiveRuntime(profile, {

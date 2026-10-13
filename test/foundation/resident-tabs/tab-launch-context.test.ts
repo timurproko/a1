@@ -23,10 +23,14 @@ describe("resident tab credential consumption", () => {
       A1_TAB_ENDPOINT: "private-endpoint",
       RETAINED: "yes",
     };
-    const result = consumeTabLaunchContext(["--tab", "--session", "saved.jsonl"], environment);
+    const result = consumeTabLaunchContext([
+      "--tab", "--tab-data-dir", "private/recovery/tab-1", "--tab-incarnation", "7", "--session", "saved.jsonl",
+    ], environment);
     expect(result).toEqual({
       uiArguments: ["--session", "saved.jsonl"],
       tabCredentials: { tabId: "tab-1", token: "private-token", endpoint: "private-endpoint" },
+      tabDataDir: "private/recovery/tab-1",
+      tabIncarnation: 7,
     });
     expect(names.map(name => environment[name])).toEqual([undefined, undefined, undefined]);
 

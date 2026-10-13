@@ -76,6 +76,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
         runtimeDir: paths.runtimeDir,
         environment,
         maxConcurrentStarts: (await residentLaunchSettings).maxConcurrentStarts,
+        unresponsiveRestartSeconds: (await residentLaunchSettings).unresponsiveRestartSeconds,
       }),
     });
     if (resident !== null) {

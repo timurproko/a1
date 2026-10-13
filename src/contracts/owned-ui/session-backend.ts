@@ -66,6 +66,7 @@ export interface OwnedUiSessionIdentityPort {
   /** Actual session replacements, excluding delivery-only invalidation of callbacks. */
   readonly sessionBindingGeneration: number;
   readonly disposed: boolean;
+  currentSessionFile(): string | null;
   currentSessionResumeMetadata(): OwnedUiSessionResumeMetadata | null;
 }
 

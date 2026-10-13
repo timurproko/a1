@@ -120,6 +120,17 @@ describe("owned UI settings sections", () => {
     expect(AGENT.descriptors.map(entry => entry.key)).toEqual(["autoCompact", "thinkingLevel", "providerProfile", "installId"]);
   });
 
+  it("shows resident supervision controls when resident tabs are enabled", () => {
+    const resolved = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
+      document: { version: 15, values: { residentTabs: true } },
+    });
+    const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: null });
+    expect(sections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual([
+      "updateCheck", "residentTabs", "tabsMaxConcurrentStarts", "tabsUnresponsiveRestartSeconds", "tabsStallNoticeSeconds",
+    ]);
+  });
+
   it.each<[string, AgentSettingsSnapshot | null]>([
     ["absent", null],
     ["failed", { ...AGENT, failure: "engine unavailable" }],
