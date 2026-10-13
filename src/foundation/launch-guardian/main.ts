@@ -28,11 +28,17 @@ interface GuardianControl {
   close(): void;
 }
 
+export interface LaunchGuardianRootCommand {
+  readonly executable: string;
+  readonly arguments: readonly string[];
+}
+
 export interface LaunchGuardianOptions {
   readonly profileId: LaunchProfileId;
   readonly releaseRoot: string;
   readonly uiEntry: string;
   readonly sessionSelection?: SessionSelection;
+  readonly rootCommand?: LaunchGuardianRootCommand;
   readonly environment?: NodeJS.ProcessEnv;
   readonly cwd?: string;
   readonly helperPath?: string;
@@ -85,7 +91,8 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
 
     let handle;
     try {
-      handle = await containment.spawn(process.execPath, [options.uiEntry, ...sessionArgs], {
+      const rootCommand = options.rootCommand ?? { executable: process.execPath, arguments: [options.uiEntry, ...sessionArgs] };
+      handle = await containment.spawn(rootCommand.executable, [...rootCommand.arguments], {
         cwd: options.cwd ?? process.cwd(),
         environment: environmentEntries(environment),
         ...(environment.TERM ? { terminalType: environment.TERM } : {}),

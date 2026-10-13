@@ -60,6 +60,12 @@ test("repository identity ignores transport-only URL rewrites and rejects ambigu
   assert.equal(f.identity.repository, "owner/repo");
 
   const realGit = gitRunner();
+  let inventoryAttempts = 0;
+  const retried = await discoverRepository(f.primary, async (cwd, args, options) => {
+    if (args.join(" ") === "worktree list --porcelain -z" && ++inventoryAttempts === 1) return "";
+    return realGit(cwd, args, options);
+  });
+  assert.equal(retried.repository, "owner/repo"); assert.equal(inventoryAttempts, 2);
   const discoverWith = value => discoverRepository(f.primary, async (cwd, args, options) =>
     args.join(" ") === "config --local --get-all remote.origin.url" ? value : realGit(cwd, args, options));
   await assert.rejects(discoverWith("git@github-account:owner/repo.git\n"), /unsupported-origin/);

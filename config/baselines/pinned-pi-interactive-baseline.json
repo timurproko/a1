@@ -5,18 +5,18 @@
   "recordedAt": "2026-08-16T18:24:43.909Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
+    "commit": "06a466935536f8c9bcacb2d5efc0fc021be1bdff",
     "license": "MIT",
     "packages": [
       {
         "name": "@earendil-works/pi-coding-agent",
-        "version": "1.1.0",
-        "integrity": "sha512-SeEi/4hdcHNgA9UWlefZl7ZZpm3dzi2OoxNjDHsBJ9o298LNOtbL4DGKgitlEj6uCTccvtw6f2hlCkTPVJ2RXg=="
+        "version": "1.2.0",
+        "integrity": "sha512-h/4WaVWv1VlCaY8x8qEN5U+7jbF/e7+Ck6moPeEOFn5juMTWwNAXjwgYM7gRgbBYh8Zppwt6qWvJDzNTf4GNEQ=="
       },
       {
         "name": "@earendil-works/pi-tui",
-        "version": "1.1.0",
-        "integrity": "sha512-v7wkS0y2ErZvZkSfemqd9RrBZJ5x6p8Ujsv7NdJj01IXJyFM0kNL6rMdcKcvTe7EVTd6ugvDB9VPZSoaBF9QxQ=="
+        "version": "1.2.0",
+        "integrity": "sha512-OdJCiYklkL3TqmdmGKUflHoLy9zw18GBYO0DPASZvGlP4RkDXAZzLLDt7cidJ6wUR7DBrKb13rrekDsXgMF60g=="
       }
     ]
   },
@@ -26,8 +26,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
       "sourceMap": "modes/interactive/interactive-mode.js.map",
-      "lines": 7110,
-      "sha256": "b38fc2eb1647d702f8bf09c6ba4e69dc6fda6941d6cb2edad214277aef8e8b8d"
+      "lines": 7122,
+      "sha256": "18c012b507b3b510ef61a49b488230ad752e8021fd693a2045fc27655e930b15"
     },
     {
       "id": "commands",
@@ -42,8 +42,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/core/keybindings.ts",
       "sourceMap": "core/keybindings.js.map",
-      "lines": 402,
-      "sha256": "e328f1c3b85926efbb42a960ba4b19f9b4a251f77640053659528706a340bd4e"
+      "lines": 360,
+      "sha256": "6ddb9730a831e02bc2b32a9650e9b2029379cc37ccf6cdbf9b5bb47f91de321f"
     },
     {
       "id": "tui-keybindings",
@@ -83,15 +83,15 @@
       "path": "packages/coding-agent/src/modes/interactive/components/status-indicator.ts",
       "sourceMap": "modes/interactive/components/status-indicator.js.map",
       "lines": 124,
-      "sha256": "1deb7f7ce7d05e4ab6ea8f088f36aac6a64273dfda8c1d46483c98297777cd2d"
+      "sha256": "80d33d17875b6f58af3878d3bb0b29d099e2b7a9fbfb0725a6cd4408bd535ab8"
     },
     {
       "id": "settings",
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/components/settings-selector.ts",
       "sourceMap": "modes/interactive/components/settings-selector.js.map",
-      "lines": 994,
-      "sha256": "a833edbe3851361466cdf0aa66b820620aef1c7a83d5cbd92d8dd60e528e0418"
+      "lines": 996,
+      "sha256": "b39e3a8e6fc469b9af832d02c604520d5cd95f2fda3aaa5d91a8381af270d9e2"
     },
     {
       "id": "model-selector",
@@ -122,8 +122,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/utils/clipboard.ts",
       "sourceMap": "utils/clipboard.js.map",
-      "lines": 146,
-      "sha256": "66d336dec60914a40bafde97a32ef1d3bae59fe53281651941c55e97ea4effaf"
+      "lines": 151,
+      "sha256": "b75a97f581b55a8ac199f9b0e13907c568a5c9b192733606110007663ceaafe9"
     }
   ],
   "requiredCategories": [
@@ -430,8 +430,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4873,
-          4905
+          4885,
+          4917
         ],
         "symbol": "disposeActiveSelector and showSelector",
         "anchors": [
@@ -522,8 +522,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          6525,
-          6694
+          6537,
+          6706
         ],
         "symbol": "session utility command handlers",
         "anchors": [
@@ -546,8 +546,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5222,
-          5427
+          5234,
+          5439
         ],
         "symbol": "model handlers and selectors",
         "anchors": [
@@ -569,8 +569,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4527,
-          4594
+          4539,
+          4606
         ],
         "symbol": "cycleThinkingLevel and toggleThinkingBlockVisibility",
         "anchors": [
@@ -593,7 +593,7 @@
         "source": "interactive",
         "lines": [
           3400,
-          3792
+          3804
         ],
         "symbol": "subscribeToAgent and handleEvent",
         "anchors": [
@@ -775,8 +775,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4291,
-          4378
+          4303,
+          4390
         ],
         "symbol": "shutdown, emergencyTerminalExit, uncaughtCrash, signal handlers, suspend",
         "anchors": [
@@ -798,8 +798,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          7090,
-          7108
+          7102,
+          7120
         ],
         "symbol": "stop",
         "anchors": [
@@ -900,50 +900,7 @@
       "tui.editor.undo",
       "tui.altScreen.previousPrompt",
       "tui.altScreen.nextPrompt",
-      "tui.altScreen.search",
-      "app.interrupt",
-      "app.clear",
-      "app.exit",
-      "app.suspend",
-      "app.thinking.cycle",
-      "app.thinking.save",
-      "app.model.cycleForward",
-      "app.model.cycleBackward",
-      "app.model.select",
-      "app.tools.expand",
-      "app.thinking.toggle",
-      "app.session.toggleNamedFilter",
-      "app.editor.external",
-      "app.message.copy",
-      "app.message.followUp",
-      "app.message.dequeue",
-      "app.clipboard.pasteImage",
-      "app.session.new",
-      "app.session.tree",
-      "app.session.fork",
-      "app.session.resume",
-      "app.tree.foldOrUp",
-      "app.tree.unfoldOrDown",
-      "app.tree.editLabel",
-      "app.tree.toggleLabelTimestamp",
-      "app.session.togglePath",
-      "app.session.toggleSort",
-      "app.session.rename",
-      "app.session.delete",
-      "app.session.deleteNoninvasive",
-      "app.models.save",
-      "app.models.enableAll",
-      "app.models.clearAll",
-      "app.models.toggleProvider",
-      "app.models.reorderUp",
-      "app.models.reorderDown",
-      "app.tree.filter.default",
-      "app.tree.filter.noTools",
-      "app.tree.filter.userOnly",
-      "app.tree.filter.labeledOnly",
-      "app.tree.filter.all",
-      "app.tree.filter.cycleForward",
-      "app.tree.filter.cycleBackward"
+      "tui.altScreen.search"
     ],
     "sessionEvents": [
       "agent_start",

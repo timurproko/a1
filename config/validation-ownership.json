@@ -144,10 +144,12 @@
       "id": "pi",
       "paths": [
         "src/app/session-shell/",
+        "src/foundation/session-writer-lock/",
         "src/integrations/pi/",
         "scripts/pi/"
       ],
       "testPaths": [
+        "test/foundation/session-writer-lock/",
         "test/integrations/pi/components/",
         "test/integrations/pi/engine/",
         "test/integrations/pi/session-presenters/",
@@ -162,7 +164,7 @@
     {
       "id": "native-containment",
       "paths": [
-        "native/",
+        "native/process-guardian/",
         "src/foundation/process-containment/",
         "src/foundation/protocol/"
       ],
@@ -172,6 +174,19 @@
       ],
       "integrationOwners": [
         "unix-containment"
+      ]
+    },
+    {
+      "id": "terminal-host",
+      "paths": [
+        "native/terminal-host/",
+        "src/foundation/resident-tabs/"
+      ],
+      "testPaths": [
+        "test/foundation/resident-tabs/"
+      ],
+      "integrationOwners": [
+        "terminal-host"
       ]
     },
     {

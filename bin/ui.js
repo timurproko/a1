@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+// Security: this helper has no A1, Pi, tool, or extension dependency and erases credentials before those modules load.
+const { assignFreshSessionRuntimeId, consumeTabLaunchContext, formatResidentFallbackNotice } = await import("./tab-launch-context.js");
+const { uiArguments, tabCredentials, tabDataDir, tabIncarnation } = consumeTabLaunchContext(process.argv.slice(2), process.env);
+
 // Invariant: one terminal module identity per process, decided before any A1 or Pi module loads.
 const { installPinnedPiTuiResolver } = await import("./module-resolver.js");
 installPinnedPiTuiResolver(new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1").replace(/\/$/, ""));
@@ -14,15 +18,17 @@ if (profile === "a1") {
     import("node:crypto"),
     import("../dist/product-identity.js"),
   ]);
-  process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] = randomUUID();
+  assignFreshSessionRuntimeId(process.env, PRODUCT_IDENTITY.environment.sessionRuntimeId, randomUUID);
 }
 const { installFatalExit } = await import("../dist/foundation/terminal-cleanup/fatal-exit.js");
 const { resolveProductPaths } = await import("../dist/foundation/lifecycle/paths.js");
-const { join } = await import("node:path");
+const { dirname, join } = await import("node:path");
 /** @type {{ dispose(): void | Promise<unknown> } | undefined} */
 let runningApplication;
 const fatal = profile === "a1" ? installFatalExit({
-  directory: join(resolveProductPaths().runtimeDir, "crashes"),
+  directory: tabDataDir === undefined
+    ? join(resolveProductPaths().runtimeDir, "crashes")
+    : join(dirname(tabDataDir), "diagnostics"),
   ...(launchContext.releaseId === undefined ? {} : { releaseId: launchContext.releaseId }),
   dispose: () => runningApplication?.dispose(),
 }) : undefined;
@@ -51,8 +57,13 @@ const [
 identity.assertSinglePiTuiModuleAtLaunch(packageRootPath, (/** @type {string} */ message) => process.stderr.write(message));
 await startup.markStartupPhase(process.env, "ui-modules-loaded");
 
-const sessionSelection = parseSessionSelection(process.argv.slice(2));
-Promise.resolve().then(() => {
+const sessionSelection = parseSessionSelection(uiArguments);
+Promise.resolve().then(async () => {
+  const tab = tabCredentials === undefined ? undefined : {
+    bridge: new (await import("../dist/foundation/resident-tabs/bridge-client.js")).TabBridgeClient({ credentials: tabCredentials }),
+    dataDir: /** @type {string} */ (tabDataDir),
+    incarnation: /** @type {number} */ (tabIncarnation),
+  };
   if (sessionSelection && profile !== "a1") throw new Error("session selection requires the normal A1 profile");
   return runSelectedInteractiveRuntime(profile, {
     ownedUi: async (profileId, ownedSurfaces) => {
@@ -69,6 +80,10 @@ Promise.resolve().then(() => {
         projectTrustPrompt: createConsoleProjectTrustPrompt({ presentation: profile === "a1" ? "bare" : "comparison" }),
         sessionForkPrompt: createConsoleSessionForkPrompt(),
         ...(sessionSelection === undefined ? {} : { sessionSelection }),
+        ...(tab === undefined ? {} : { tab }),
+        ...(launchContext.residentFallback === undefined ? {} : {
+          residentFallbackNotice: formatResidentFallbackNotice(launchContext.residentFallback),
+        }),
       });
       runningApplication = application;
       return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });

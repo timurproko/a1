@@ -108,10 +108,24 @@ export function parseWorktrees(text) {
   if (!rows.length || rows.some(row => !row.worktree || !row.HEAD || row.bare)) fail("worktree-inventory");
   return rows;
 }
+async function readWorktreeInventory(primary, git) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return parseWorktrees(await git(primary, ["worktree", "list", "--porcelain", "-z"]));
+    } catch (error) {
+      // Platform: heavily concurrent Windows Git fixture runs can return a successful but
+      // truncated worktree listing while another Git process is starting. Never accept it;
+      // retry twice, then preserve the existing fail-closed result.
+      if (error?.cleanupCode !== "worktree-inventory" || attempt >= 3) throw error;
+      await new Promise(resolveDelay => setTimeout(resolveDelay, 25 * attempt));
+    }
+  }
+}
+
 export async function discoverRepository(primaryPath, git = gitRunner()) {
   const primary = await canonical(primaryPath);
   const common = await canonical((await git(primary, ["rev-parse", "--path-format=absolute", "--git-common-dir"])).trim());
-  const rows = parseWorktrees(await git(primary, ["worktree", "list", "--porcelain", "-z"]));
+  const rows = await readWorktreeInventory(primary, git);
   if (await canonical(rows[0].worktree) !== primary) fail("primary-required");
   // Security: repository identity comes from this repository's literal configuration, not
   // `remote get-url`, because Git applies user-controlled `url.*.insteadOf` transport rewrites

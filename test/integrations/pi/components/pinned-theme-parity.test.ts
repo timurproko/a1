@@ -27,7 +27,7 @@ import {
   stopPiThemeWatcher,
   type PiTerminalTheme,
 } from "../../../../src/integrations/pi/components/index.js";
-import { renderPiAccentPreview } from "../../../../src/integrations/pi/components/upstream/theme/theme.js";
+import { isPiAccentProjectionEnabled, renderPiAccentPreview } from "../../../../src/integrations/pi/components/upstream/theme/theme.js";
 import { DynamicBorder } from "../../../../src/integrations/pi/startup-public.js";
 import { capturePinnedTheme } from "./pinned-theme-upstream-fixture.js";
 import {
@@ -125,9 +125,9 @@ describe("pinned Pi theme and layout parity", () => {
     const settings = JSON.parse(settingsMap).sourcesContent[0] as string;
     expect(interactive).toContain("private outputPad = 1;");
     expect(interactive).toContain("this.headerContainer.addChild(new Spacer(1))");
-    expect(settings).toContain("return this.settings.editorPaddingX ?? 0;");
-    expect(settings).toContain("return this.settings.outputPad === 0 ? 0 : 1;");
-    expect(settings).toContain("return this.settings.autocompleteMaxVisible ?? 5;");
+    expect(settings).toContain("return this.settings.editorPaddingX ?? SETTINGS_DEFAULTS.editorPaddingX;");
+    expect(settings).toContain("return this.settings.outputPad === 0 ? 0 : SETTINGS_DEFAULTS.outputPad;");
+    expect(settings).toContain("return this.settings.autocompleteMaxVisible ?? SETTINGS_DEFAULTS.autocompleteMaxVisible;");
     expect(PINNED_PI_LAYOUT).toMatchObject({
       editorPaddingX: 0,
       outputPad: 1,
@@ -319,9 +319,11 @@ describe("pinned Pi theme and layout parity", () => {
     const base = loadPiTheme("dark", "truecolor");
     applyPiTheme("dark", false, "truecolor");
     setPiAccentColor("green");
+    expect(isPiAccentProjectionEnabled).toBe(true);
     expect(new DynamicBorder().render(8)[0]).toBe(piTheme().fg("border", "─".repeat(8)));
 
     setPiPackageBorderProjectionEnabled(false);
+    expect(isPiAccentProjectionEnabled).toBe(false);
     for (const token of ["accent", "border", "mdHeading", "mdListBullet"] as const) {
       expect(piTheme().fg(token, "probe"), token).toBe(base.fg(token, "probe"));
     }
@@ -416,6 +418,18 @@ describe("pinned Pi theme and layout parity", () => {
       expect(piTheme().fg("accent", "x")).not.toBe("\u001b[38;2;4;5;6mx\u001b[39m");
       unsubscribe();
       stopPiThemeWatcher();
+
+      source.$schema = "https://pi.dev/schemas/theme.schema.json";
+      await writeFile(join(themes, "ocean.json"), JSON.stringify(source));
+      expect(loadPiTheme("ocean", "truecolor").name).toBe("ocean");
+      source.owner = "unsupported metadata";
+      await writeFile(join(themes, "ocean.json"), JSON.stringify(source));
+      expect(() => loadPiTheme("ocean")).toThrow("unsupported property owner");
+      delete source.owner;
+      source.colors.metadata = "#010203";
+      await writeFile(join(themes, "ocean.json"), JSON.stringify(source));
+      expect(() => loadPiTheme("ocean")).toThrow("unsupported color metadata");
+      delete source.colors.metadata;
 
       delete source.colors.accent;
       await writeFile(join(themes, "ocean.json"), JSON.stringify(source));

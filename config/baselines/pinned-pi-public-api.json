@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -39,7 +39,7 @@
         {
           "name": "AgentSession",
           "kind": "class",
-          "hash": "ed54d4c4e0bd31af13328f4793bae4892c0e45f1f1383592bdfd960874d61467",
+          "hash": "a5429d38b2fa3a851e50dbedfdf32a3254ff10b046b15c8be0f62b6d2c059f5f",
           "consumers": [
             "src/integrations/pi/engine/adapter.ts",
             "src/integrations/pi/engine/compaction-progress.ts",
@@ -133,7 +133,7 @@
         {
           "name": "AppKeybinding",
           "kind": "type",
-          "hash": "b54d73f96ad298852339263a87f4b0c87c5d0034f4c88c190c98a95ff42e9c3c",
+          "hash": "802173b25556e9ecbe4df1fe9426fc351fac49f83716cae28aee10bcfe2b6147",
           "consumers": []
         },
         {
@@ -220,15 +220,27 @@
           "consumers": []
         },
         {
-          "name": "BeforeAgentStartEvent",
+          "name": "BeforeAgentStartCustomEvent",
           "kind": "interface",
-          "hash": "8a703c16963d64d35648cde11fee24cbe39f409dff010c2d448d87ad6e338b51",
+          "hash": "09f4898aef757324828df23caf7207c152b0588a15c62a1ddd3cb4795d973cb5",
+          "consumers": []
+        },
+        {
+          "name": "BeforeAgentStartEvent",
+          "kind": "type",
+          "hash": "089fa57935dd8097b0fcd3eca3521e7a894830cf14f984bb3e76ed102a665780",
           "consumers": []
         },
         {
           "name": "BeforeAgentStartEventResult",
           "kind": "interface",
           "hash": "d15ac9492c2dc5e1c4676b3e98dd3ae71e7cc6b783fadbecb50bfab41a76d715",
+          "consumers": []
+        },
+        {
+          "name": "BeforeAgentStartUserEvent",
+          "kind": "interface",
+          "hash": "0b8b83a1492d39221a27819253b18271ff997d12891a7cce0b8a0573cef0b8f1",
           "consumers": []
         },
         {
@@ -345,7 +357,7 @@
         {
           "name": "CacheWarmingMode",
           "kind": "type",
-          "hash": "857d17d5d460c265efc352d7ce6e9b30f31c3d5b3cc5908a450751ab66885a19",
+          "hash": "a0bc8fd6c1b2c8485bad2ef5a7c2d61717bc9c99e84066f2cc4f00296301ed06",
           "consumers": []
         },
         {
@@ -411,7 +423,7 @@
         {
           "name": "CompactionModelOverride",
           "kind": "interface",
-          "hash": "7d43984879de12bbff5e46611b663febafb2cc0736f63d5093e25bef85168ebe",
+          "hash": "bd0043f54f5cdad7ae4bd46f5931395ef4a879d7c058d04f6e220f331ddc7621",
           "consumers": []
         },
         {
@@ -423,7 +435,7 @@
         {
           "name": "CompactionSettings",
           "kind": "interface",
-          "hash": "34c3ed262f3b623a48f417cc5e7c1a5540800234c74ad52654376a1b585dfb9d",
+          "hash": "ed61ea78d253e337d5c8a7caf3af0471fddd72a55efd3124d7ce9fc8816df0be",
           "consumers": []
         },
         {
@@ -879,7 +891,7 @@
         {
           "name": "DefaultProjectTrust",
           "kind": "type",
-          "hash": "be93302196892b95076af687bbdae4a7e922f54a2a3c38079d87b1ad6b0f2635",
+          "hash": "c4a06f4019c3de4c6b4b6eb4b16e6aa9af7a99ad2a3d51c40fd882c29ace45b0",
           "consumers": []
         },
         {
@@ -1104,7 +1116,7 @@
         {
           "name": "ExtensionRunner",
           "kind": "class",
-          "hash": "679aa4ec0fd61e93a02df32dba6f962a2758ccfa7668d08afdb85df2ee351589",
+          "hash": "0ec9d3d3ee0209bca5abc018a33942952d00f1ba54bb2a2199605fff662a02c9",
           "consumers": []
         },
         {
@@ -1242,7 +1254,7 @@
         {
           "name": "FullscreenExitOutput",
           "kind": "type",
-          "hash": "cd25b8a21cb32f2f36a53f362d9cd3bd70ee5dfe2594c394e0c5572330af12ed",
+          "hash": "fa4e4b35f3fb7644e891d758dc927cb009708a9d28b87ca8182b79ef403bf6c9",
           "consumers": []
         },
         {
@@ -1416,7 +1428,7 @@
         {
           "name": "ImageSettings",
           "kind": "interface",
-          "hash": "3b4d0d83c64e650cb957c3c1cdf4ea103c8bcce571557692cd84b323846cbed8",
+          "hash": "054398a555ff3fa3e94552e99bc22f4f17927b6727902040223d4a80f8f65778",
           "consumers": []
         },
         {
@@ -1557,6 +1569,7 @@
           "hash": "a7bcc9317a3dbfe99ca22356022fa06caed8fc542b780f430c9688274b9dbbb5",
           "consumers": [
             "src/integrations/pi/components/upstream/components/status-indicator.ts",
+            "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -1864,7 +1877,7 @@
         {
           "name": "PackageSource",
           "kind": "type",
-          "hash": "17267d26540455da81cd8fd56289d70be72eb884f7d1a2a8a96e4e2d0e4d84e7",
+          "hash": "46b4b1bfa8eb552c340db69e5756a522ead8493f7db26950efcbeecbca4b9d83",
           "consumers": []
         },
         {
@@ -2071,7 +2084,7 @@
         {
           "name": "QuietStartup",
           "kind": "type",
-          "hash": "701ed7c2984ab8e64ed1430a3462f8f143a9872ff19e9d7b09c36291accc5219",
+          "hash": "83182eeea751a40b9f80d3e2b79067b30c2de7175789f801401cd8f4d80c99ca",
           "consumers": []
         },
         {
@@ -2245,7 +2258,7 @@
         {
           "name": "RetrySettings",
           "kind": "interface",
-          "hash": "b16cd1ec56bec546419522c81d9e0dc1813dd7e916c2afa94c51755679e70456",
+          "hash": "281fb1385419a7ac213f6b14d36a27acf58a44ac9ce1db5660973b4a7fbf3f6f",
           "consumers": []
         },
         {
@@ -2616,7 +2629,7 @@
         {
           "name": "Theme",
           "kind": "class",
-          "hash": "2e3f2a8c183517fe7416c58149d4976631db875fa4bc2b82c488f007208ac493",
+          "hash": "0cbe982cb8c91a30e212cb043a6d54ecb95d50756e68ad8ba1cf5a62723c248c",
           "consumers": [
             "src/integrations/pi/components/upstream/components/mermaid.ts",
             "src/integrations/pi/components/upstream/theme/theme-controller.ts",
@@ -2633,13 +2646,13 @@
         {
           "name": "ThemeBg",
           "kind": "type",
-          "hash": "e8e771e2464f86dfda4ee2d492250025bc6fbde8dc630902e94eb0746d07ea4b",
+          "hash": "00c4688ff56cba6d35c83a5861bbf84e15dc0d6113190d4c37c7e43028e20b9c",
           "consumers": []
         },
         {
           "name": "ThemeColor",
           "kind": "type",
-          "hash": "098b4b0aa70b3a90316e3ef0c16a174bc9bd0632ccf6b99a02444ec4720fded3",
+          "hash": "562aefc46a9349dc8bc51c0161c0e6a2a89bcbfec0c352b014165343a6e96a3c",
           "consumers": [
             "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
@@ -2663,7 +2676,7 @@
         {
           "name": "ThemeToken",
           "kind": "type",
-          "hash": "f68fd158136731f5cbdfd502bf3327d89b61f425e96a566aee2095e50e618e8d",
+          "hash": "90f1240a1aa48b48d15fb34211a73c575377498c9070d0fce34dbd9824f07ecf",
           "consumers": []
         },
         {
@@ -2709,7 +2722,7 @@
         {
           "name": "ToolDefinition",
           "kind": "interface",
-          "hash": "be12421087c1a29c59b310003c163d3637c196a66d1dd10a861b177c94c049bb",
+          "hash": "53737a1d0b31201810dfe15213d5f451163decc076f2afe7c0ebec5375450ba7",
           "consumers": [
             "src/integrations/pi/components/upstream/components/tool-execution.ts"
           ]
@@ -2763,7 +2776,7 @@
         {
           "name": "ToolInfo",
           "kind": "type",
-          "hash": "2cc7fd11a2f363130aba8aea7a80b7074b7ed8943e922b57ab4ade46e4df65dd",
+          "hash": "4069b16fbc990c325de5b3291a63a43c3e5903ca09b93d3fad309a86850569da",
           "consumers": []
         },
         {
@@ -2781,7 +2794,7 @@
         {
           "name": "ToolNamespace",
           "kind": "interface",
-          "hash": "e404097b35bdffecd0cd2eebf4b5c88808679fd09cc925e0b3034bd31715a0a1",
+          "hash": "f85efef834c38985b9369f7195d9216f4e05b56cb6579fafb80b815214887f5b",
           "consumers": []
         },
         {
@@ -2867,7 +2880,7 @@
         {
           "name": "TuiMode",
           "kind": "type",
-          "hash": "361445061b1aeab59dfa89dc84dc4a6e888bee415b2edb428561dc7042a37300",
+          "hash": "e02727601b1ff0ad23ec54533f271b902c55d3f092625e12c15a879ec1258102",
           "consumers": []
         },
         {
@@ -3033,7 +3046,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -3581,7 +3594,9 @@
           "name": "Key",
           "kind": "const",
           "hash": "847a96b66a8fb66c38b648e4d33dd711165320f56e5f5dc3a9c4fcb2cbcecf1c",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts"
+          ]
         },
         {
           "name": "Keybinding",
@@ -3856,6 +3871,14 @@
             "src/integrations/pi/components/upstream/program-status-reporter.ts",
             "src/integrations/pi/tui-runtime/adapter.ts",
             "src/integrations/pi/tui-runtime/contracts.ts"
+          ]
+        },
+        {
+          "name": "renderFakeCursor",
+          "kind": "function",
+          "hash": "445ac4abd4e66e6b4436b404a416caade8809b37bd209322b493da6304648e90",
+          "consumers": [
+            "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
         },
         {

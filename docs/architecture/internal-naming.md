@@ -31,7 +31,7 @@ The exact externally branded key/member authority is `config/internal-naming-pol
 | `A1_PROCESS_GUARDIAN_PATH` | Explicit executable override in `src/foundation/process-containment/native-guardian-containment.ts`, also configured by CI; exact existing exposure-review entry. |
 | `A1_PROBE_TRACE` | Opt-in diagnostics read by native terminal-host code; exact existing exposure-review entry. |
 | `A1_BUILD_VERBOSE`, `A1_DEV_SHELL` | Developer invocation controls in the build helper and development launcher; exact existing exposure-review entries. |
-| `A1_PANE_ID`, `A1_TERMINAL_SESSION_ID` | Produced by `native/terminal-host/src/workspace.rs` and exported to launched programs; external integration names, unchanged. |
+| `A1_PANE_ID`, `A1_TERMINAL_SESSION_ID` | Reserved compatibility identities retained in the product identity manifest; the resident host does not currently emit them. |
 
 Pending review preserves a possible external interface, not an obsolete private alias. Once a setting is established as private, it cannot keep its branded spelling through that category.
 

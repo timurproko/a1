@@ -719,6 +719,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
         get sessionBindingGeneration() { return engine.bindingGeneration; },
         get disposed() { return isDisposed(); },
         currentSessionResumeMetadata: () => engine.currentSessionResumeMetadata(),
+        currentSessionFile: () => engine.currentSessionFile(),
       },
       session: {
         start: () => this.start(),

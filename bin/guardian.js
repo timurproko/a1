@@ -16,8 +16,13 @@ const profileId = readLaunchContext(process.env, "profile").launchProfile;
 if (releaseRoot === undefined || profileId === undefined) throw new Error("A1 launch context is incomplete");
 
 const sessionSelection = parseSessionSelection(process.argv.slice(2));
+const rootCommand = launchContext.residentRootExecutable === undefined ? undefined : {
+  executable: launchContext.residentRootExecutable,
+  arguments: JSON.parse(launchContext.residentRootArguments ?? "[]"),
+};
 Promise.resolve().then(() => runLaunchGuardian({
   ...(sessionSelection === undefined ? {} : { sessionSelection }),
+  ...(rootCommand === undefined ? {} : { rootCommand }),
   profileId,
   releaseRoot,
   uiEntry: resolve(releaseRoot, "bin", "ui.js"),

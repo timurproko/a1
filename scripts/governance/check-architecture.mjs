@@ -274,10 +274,20 @@ async function inspectRepositoryStructure() {
   const generatedSegments = /(?:^|\/)(?:node_modules|logs?|sessions?|cache|caches|browser-profile|browser-profiles|dist|coverage)(?:\/|$)/i;
   const nestedAuthority = /(?:^|\/)(?:package(?:-lock)?\.json)$/;
   for (const path of paths) {
-    if (genericSourceSegments.test(path)) errors.push(`${path}: generic source dumping-ground directory is forbidden`);
+    if (genericSourceSegments.test(path) && !path.startsWith("native/terminal-host/src/core/")) {
+      errors.push(`${path}: generic source dumping-ground directory is forbidden`);
+    }
     if (path.startsWith("src/") && generatedSegments.test(path)) errors.push(`${path}: generated or runtime state is forbidden in production source`);
     if (nestedAuthority.test(path) && !["package.json", "package-lock.json", "packages/a1-install/package.json"].includes(path)) errors.push(`${path}: nested package manifest or lockfile is forbidden`);
     if (path.startsWith("test/") && /\.test\.ts$/.test(path) && !testOwnerForPath(path)) errors.push(`${path}: test has no declared owner`);
+  }
+
+  const forbiddenCoreImport = /\b(?:std::(?:fs|net|process|thread|os)|windows_sys|libc|portable_pty)::?/;
+  for (const path of paths.filter(path => path.startsWith("native/terminal-host/src/core/") && path.endsWith(".rs"))) {
+    const source = await readFile(resolve(root, path), "utf8");
+    if (forbiddenCoreImport.test(source)) {
+      errors.push(`${path}: sans-IO core imports filesystem, network, process, thread, or platform APIs`);
+    }
   }
 
   const staleMarkers = /(?:during (?:the )?redesign|terminal redesign|milestone branch|will be added later|temporary lifecycle-only)/i;

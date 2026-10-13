@@ -73,6 +73,22 @@ describe("launch guardian", () => {
     expect(ids[0]).not.toBe(ids[1]);
   });
 
+  it("uses the resident attach command as the contained instance root", async () => {
+    const control = new FakeControl();
+    const fixture = containmentFixture(Promise.resolve({ kind: "exited", exitCode: 0 }));
+    await runLaunchGuardian({
+      ...options(control, fixture.containment, fixture.inspector),
+      profileId: "a1",
+      rootCommand: { executable: "D:/release/native/a1-terminal-host.exe", arguments: ["attach", "--endpoint", "fixture"] },
+    });
+    expect(fixture.containment.spawn).toHaveBeenCalledWith(
+      "D:/release/native/a1-terminal-host.exe",
+      ["attach", "--endpoint", "fixture"],
+      expect.objectContaining({ cwd: "D:/workspace" }),
+    );
+    expect(control.commands.at(-1)).toMatchObject({ outcome: { kind: "exited", exitCode: 0 } });
+  });
+
   it("does not infer a fresh launch selection from inherited active-session metadata", async () => {
     const control = new FakeControl();
     const fixture = containmentFixture(Promise.resolve({ kind: "exited", exitCode: 0 }));

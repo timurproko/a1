@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
+ * Provenance: @earendil-works/pi-coding-agent 1.2.0 (MIT), commit 06a466935536f8c9bcacb2d5efc0fc021be1bdff,
  * packages/coding-agent/src/modes/interactive/theme/theme.ts.
  * Modifications: Source-synchronized theme port: retain pinned theme schema, variable/color
  * resolution, built-in and custom loading, terminal detection, and layout defaults while constructing
@@ -89,6 +89,9 @@ const FOREGROUND_COLORS: readonly ThemeColor[] = [
 const BACKGROUND_COLORS: readonly PiThemeBackground[] = [
   "selectedBg", "searchMatchBg", "userMessageBg", "customMessageBg", "toolPendingBg", "toolSuccessBg", "toolErrorBg",
 ];
+const THEME_ROOT_KEYS = new Set(["$schema", "name", "appearance", "vars", "colors", "export"]);
+const THEME_COLOR_KEYS = new Set<string>([...FOREGROUND_COLORS, ...BACKGROUND_COLORS]);
+const THEME_EXPORT_KEYS = new Set(["pageBg", "cardBg", "infoBg"]);
 export interface PiAccentProjection {
   readonly accent: Color;
   readonly border: Color;
@@ -201,6 +204,9 @@ export function piCanvasBackgroundAnsi(style: OwnedUiBackgroundStyle): string | 
   const background = derivePiCanvasBackground(style, accent);
   return background === null ? null : backgroundAnsi(background, base.getColorMode());
 }
+
+/** Read-only live view of whether bare A1's semantic accent family is active. */
+export { packageBorderProjectionEnabled as isPiAccentProjectionEnabled };
 
 /** Keeps the complete comparison theme unmodified while bare A1 projects its semantic accent family. */
 export function setPiPackageBorderProjectionEnabled(enabled: boolean): void {
@@ -541,6 +547,20 @@ function validateThemeJson(label: string, value: unknown): PiThemeJson {
     || (value.vars !== undefined && !isRecord(value.vars))) {
     throw new Error(`Invalid theme "${label}": expected name, colors, and optional vars objects`);
   }
+  const unsupportedRootKey = Object.keys(value).find(key => !THEME_ROOT_KEYS.has(key));
+  if (unsupportedRootKey !== undefined) {
+    throw new Error(`Invalid theme "${label}": unsupported property ${unsupportedRootKey}`);
+  }
+  if (value.$schema !== undefined && typeof value.$schema !== "string") {
+    throw new Error(`Invalid theme "${label}": $schema must be a string`);
+  }
+  if (value.export !== undefined) {
+    if (!isRecord(value.export)) throw new Error(`Invalid theme "${label}": export must be an object`);
+    for (const [key, color] of Object.entries(value.export)) {
+      if (!THEME_EXPORT_KEYS.has(key)) throw new Error(`Invalid theme "${label}": unsupported export color ${key}`);
+      validateColor(color, `${label}.export.${key}`);
+    }
+  }
   if (value.name.includes("/")) throw new Error(`Invalid theme name "${value.name}"`);
   if (value.appearance !== undefined && value.appearance !== "dark" && value.appearance !== "light") {
     throw new Error(`Invalid theme "${label}": appearance must be dark or light`);
@@ -553,6 +573,7 @@ function validateThemeJson(label: string, value: unknown): PiThemeJson {
   }
   const colors: Record<string, ColorValue> = {};
   for (const [key, color] of Object.entries(value.colors)) {
+    if (!THEME_COLOR_KEYS.has(key)) throw new Error(`Invalid theme "${label}": unsupported color ${key}`);
     validateColor(color, `${label}.colors.${key}`);
     colors[key] = color;
   }

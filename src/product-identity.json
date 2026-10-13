@@ -28,6 +28,11 @@
     "skipVersionCheck": "A1_SKIP_VERSION_CHECK",
     "startupTrace": "A1_STARTUP_TRACE",
     "suggestionDiagnostics": "A1_SUGGESTION_DIAGNOSTICS",
+    "tabEndpoint": "A1_TAB_ENDPOINT",
+    "tabId": "A1_TAB_ID",
+    "tabToken": "A1_TAB_TOKEN",
+    "tabsEndpoint": "A1_TABS_ENDPOINT",
+    "terminalHostPath": "A1_TERMINAL_HOST_PATH",
     "terminalSessionId": "A1_TERMINAL_SESSION_ID"
   },
   "state": {

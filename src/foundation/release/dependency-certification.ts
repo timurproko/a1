@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { chmod, lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, resolve } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { immutablePlatformPolicy } from "./immutable-platform.js";
 
@@ -190,7 +190,7 @@ async function releasePublicationLock(path: string, token: string): Promise<void
   while (true) {
     try {
       if (!retired) {
-        await assertPublicationLockOwner(path, token);
+        if (!await assertPublicationLockOwner(path, token)) return;
         await rename(path, released);
         retired = true;
       }
@@ -213,20 +213,51 @@ async function releasePublicationLock(path: string, token: string): Promise<void
 }
 
 /** Ownership uncertainty is never authority to retire a missing, linked, or replaced generation. */
-async function assertPublicationLockOwner(path: string, token: string): Promise<void> {
-  try {
-    const metadata = await lstat(path);
-    if (!metadata.isDirectory() || metadata.isSymbolicLink() || await realpath(path) !== path) throw new Error("invalid lock directory");
-    const ownerPath = resolve(path, "owner.json");
-    const ownerMetadata = await lstat(ownerPath);
-    if (!ownerMetadata.isFile() || ownerMetadata.isSymbolicLink() || await realpath(ownerPath) !== ownerPath) throw new Error("invalid owner file");
-    const owner: unknown = JSON.parse(await readFile(ownerPath, "utf8"));
-    if (!owner || typeof owner !== "object" || !("pid" in owner) || !("token" in owner)
-      || owner.pid !== process.pid || owner.token !== token) throw new Error("owner generation differs");
-  } catch (error) {
-    if (isReleaseContention(error)) throw error;
-    throw new Error("publication lease release ownership could not be verified", { cause: error });
+async function assertPublicationLockOwner(path: string, token: string): Promise<boolean> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const metadata = await lstat(path);
+      if (!metadata.isDirectory() || metadata.isSymbolicLink() || await realpath(path) !== path) throw new Error("invalid lock directory");
+      const ownerPath = resolve(path, "owner.json");
+      const ownerMetadata = await lstat(ownerPath);
+      if (!ownerMetadata.isFile() || ownerMetadata.isSymbolicLink() || await realpath(ownerPath) !== ownerPath) throw new Error("invalid owner file");
+      const owner: unknown = JSON.parse(await readFile(ownerPath, "utf8"));
+      if (!owner || typeof owner !== "object" || !("pid" in owner) || !("token" in owner)
+        || owner.pid !== process.pid || owner.token !== token) throw new Error("owner generation differs");
+      return true;
+    } catch (error) {
+      // Platform: Windows can briefly hide a directory immediately after a successful rename
+      // when independent publishers are contending. Re-read the complete identity; never treat
+      // absence as ownership and never retire a generation whose token differs.
+      if (hasCode(error, "ENOENT") && attempt < 3) {
+        await new Promise(resolvePromise => setTimeout(resolvePromise, 20 * attempt));
+        continue;
+      }
+      // Concurrency: a delayed abandoned-owner reclaimer can move a successor generation after
+      // reading the predecessor. If our exact token is now in a managed tombstone, no active
+      // generation belongs to this release call and returning without mutation is fail-safe.
+      if (hasCode(error, "ENOENT") && await publicationLockWasRetired(path, token)) return false;
+      if (isReleaseContention(error)) throw error;
+      throw new Error("publication lease release ownership could not be verified", { cause: error });
+    }
   }
+}
+
+async function publicationLockWasRetired(path: string, token: string): Promise<boolean> {
+  const directory = dirname(path);
+  const prefix = `${basename(path)}.`;
+  const entries = await readdir(directory, { withFileTypes: true });
+  if (entries.length > 256) return false;
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.isSymbolicLink() || !entry.name.startsWith(prefix)
+      || (!entry.name.includes(".abandoned-") && !entry.name.includes(".released-"))) continue;
+    const ownerPath = resolve(directory, entry.name, "owner.json");
+    const owner = await readFile(ownerPath, "utf8")
+      .then(source => JSON.parse(source) as { pid?: unknown; token?: unknown })
+      .catch(() => null);
+    if (owner?.pid === process.pid && owner.token === token) return true;
+  }
+  return false;
 }
 
 function isReleaseContention(error: unknown): boolean {

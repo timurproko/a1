@@ -149,17 +149,153 @@
       "role": "paneId",
       "key": "A1_PANE_ID",
       "exposure": "integration",
-      "owner": "native/terminal-host/src/workspace.rs",
-      "evidence": "native/terminal-host/src/main.rs",
-      "semantics": "Pane identity exported to launched programs"
+      "owner": "src/product-identity.json",
+      "evidence": "docs/architecture/internal-naming.md",
+      "semantics": "Reserved compatibility identity; the resident host does not currently emit it"
     },
     {
       "role": "terminalSessionId",
       "key": "A1_TERMINAL_SESSION_ID",
       "exposure": "integration",
-      "owner": "native/terminal-host/src/workspace.rs",
+      "owner": "src/product-identity.json",
+      "evidence": "docs/architecture/internal-naming.md",
+      "semantics": "Reserved compatibility identity; the resident host does not currently emit it"
+    },
+    {
+      "role": "tabEndpoint",
+      "key": "A1_TAB_ENDPOINT",
+      "exposure": "integration",
+      "owner": "bin/ui.js",
+      "evidence": "test/foundation/resident-tabs/resident-tabs.test.ts",
+      "semantics": "Authenticated child bridge endpoint consumed before extension loading"
+    },
+    {
+      "role": "tabId",
+      "key": "A1_TAB_ID",
+      "exposure": "integration",
+      "owner": "bin/ui.js",
+      "evidence": "test/foundation/resident-tabs/resident-tabs.test.ts",
+      "semantics": "Resident tab identity consumed before extension loading"
+    },
+    {
+      "role": "tabToken",
+      "key": "A1_TAB_TOKEN",
+      "exposure": "integration",
+      "owner": "bin/ui.js",
+      "evidence": "test/foundation/resident-tabs/resident-tabs.test.ts",
+      "semantics": "Resident bridge credential consumed before extension loading"
+    },
+    {
+      "role": "tabsEndpoint",
+      "key": "A1_TABS_ENDPOINT",
+      "exposure": "integration",
+      "owner": "src/foundation/resident-tabs/ensure-terminal-host.ts",
       "evidence": "native/terminal-host/src/main.rs",
-      "semantics": "Session identity exported to launched programs"
+      "semantics": "Hermetic resident endpoint override for native integration tests"
+    },
+    {
+      "role": "terminalHostPath",
+      "key": "A1_TERMINAL_HOST_PATH",
+      "exposure": "integration",
+      "owner": "src/foundation/resident-tabs/ensure-terminal-host.ts",
+      "evidence": "test/foundation/resident-tabs/resident-tabs.test.ts",
+      "semantics": "Hermetic resident host artifact override for integration tests"
+    },
+    {
+      "role": "sessionLockPath",
+      "key": "A1_SESSION_LOCK_PATH",
+      "exposure": "integration",
+      "owner": "src/foundation/session-writer-lock/index.ts",
+      "evidence": "test/foundation/session-writer-lock/session-writer-lock.integration.test.ts",
+      "semantics": "Native session-writer lock addon override used by integration tests"
+    },
+    {
+      "role": "tabsFaultHangPty",
+      "key": "A1_TABS_FAULT_HANG_PTY",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/archive/2026-10-12-resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only PTY creation hang used by native integration tests"
+    },
+    {
+      "role": "tabsFaultBlockPtyWrite",
+      "key": "A1_TABS_FAULT_BLOCK_PTY_WRITE",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/archive/2026-10-12-resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only blocked PTY write used by native integration tests"
+    },
+    {
+      "role": "tabsFaultDelayIdentity",
+      "key": "A1_TABS_FAULT_DELAY_IDENTITY_MS",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/archive/2026-10-12-resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only identity delay used by native integration tests"
+    },
+    {
+      "role": "tabsFaultDelayHolderIdentity",
+      "key": "A1_TABS_FAULT_DELAY_HOLDER_IDENTITY_MS",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/archive/2026-10-12-resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only holder-admission identity delay used by native integration tests"
+    },
+    {
+      "role": "tabsFaultDelayFsync",
+      "key": "A1_TABS_FAULT_DELAY_FSYNC_MS",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/archive/2026-10-12-resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only durable-sync delay used by native integration tests"
+    },
+    {
+      "role": "tabsFaultDelayRegistryFsync",
+      "key": "A1_TABS_FAULT_DELAY_REGISTRY_FSYNC_MS",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/archive/2026-10-12-resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only existing-registry sync delay used by native integration tests"
+    },
+    {
+      "role": "tabsFaultRegistryReplace",
+      "key": "A1_TABS_FAULT_REGISTRY_REPLACE",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/archive/2026-10-13-resident-tabs-crash-recovery/design.md",
+      "semantics": "Fault-feature-only transient or persistent registry replacement failure used by native integration tests"
+    },
+    {
+      "role": "tabsHermeticTest",
+      "key": "A1_TABS_HERMETIC_TEST",
+      "exposure": "integration",
+      "owner": "src/foundation/resident-tabs/fault-injection.ts",
+      "evidence": "test/foundation/resident-tabs/recovery-storage.test.ts",
+      "semantics": "Marks an isolated resident-tab storage process in which named crash points may run"
+    },
+    {
+      "role": "tabsFaultCrashPoint",
+      "key": "A1_TABS_FAULT_CRASH_POINT",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/archive/2026-10-12-resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only named crash point used by native integration tests"
+    },
+    {
+      "role": "tabsFaultStaleEpoch",
+      "key": "A1_TABS_FAULT_STALE_EPOCH",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/archive/2026-10-12-resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only stale epoch injection used by native integration tests"
+    },
+    {
+      "role": "tabsFaultFreezeRole",
+      "key": "A1_TABS_FAULT_FREEZE_ROLE",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/archive/2026-10-12-resident-tabs-failure-isolation/design.md",
+      "semantics": "Fault-feature-only role-loop freeze used to prove watchdog isolation"
     },
     {
       "role": "sessionRuntimeId",

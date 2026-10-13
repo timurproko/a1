@@ -65,6 +65,200 @@
   },
   "occurrences": [
     {
+      "id": "docs/architecture/evidence/terminal-host-spike/manual-one-pane-terminal-host.md:5:48",
+      "path": "docs/architecture/evidence/terminal-host-spike/manual-one-pane-terminal-host.md",
+      "locationKind": "content",
+      "line": 5,
+      "column": 48,
+      "value": "addone",
+      "context": "- Artifact: `native/terminal-host/target/debug/addone-terminal-host.exe`",
+      "matchedCase": "lower",
+      "primaryClass": "paths",
+      "classes": [
+        "paths",
+        "artifacts",
+        "native-names",
+        "current-docs-specs",
+        "historical-records"
+      ]
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/manual-two-by-two-basic-terminal-host.md:7:48",
+      "path": "docs/architecture/evidence/terminal-host-spike/manual-two-by-two-basic-terminal-host.md",
+      "locationKind": "content",
+      "line": 7,
+      "column": 48,
+      "value": "addone",
+      "context": "- Artifact: `native/terminal-host/target/debug/addone-terminal-host.exe`",
+      "matchedCase": "lower",
+      "primaryClass": "paths",
+      "classes": [
+        "paths",
+        "artifacts",
+        "native-names",
+        "current-docs-specs",
+        "historical-records"
+      ]
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/manual-two-by-two-basic-terminal-host.md:28:106",
+      "path": "docs/architecture/evidence/terminal-host-spike/manual-two-by-two-basic-terminal-host.md",
+      "locationKind": "content",
+      "line": 28,
+      "column": 106,
+      "value": "AddOne",
+      "context": "Production tabs and panes are expected later to use authoritative arbitrary layouts selected through the AddOne UI. The proof implementation may be removed or replaced after the exact-artifact 2×2 gate is finished; it must not become the...",
+      "matchedCase": "title-or-mixed",
+      "primaryClass": "artifacts",
+      "classes": [
+        "artifacts",
+        "current-docs-specs",
+        "historical-records"
+      ]
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:2:14",
+      "path": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json",
+      "locationKind": "content",
+      "line": 2,
+      "column": 14,
+      "value": "addone",
+      "context": "\"schema\": \"addone-multi-agent-milestone-baseline-v1\",",
+      "matchedCase": "lower",
+      "primaryClass": "schemas",
+      "classes": [
+        "schemas",
+        "current-docs-specs",
+        "historical-records"
+      ]
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:21:26",
+      "path": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json",
+      "locationKind": "content",
+      "line": 21,
+      "column": 26,
+      "value": "addone",
+      "context": "\"name\": \"@timurproko/addone\",",
+      "matchedCase": "lower",
+      "primaryClass": "paths",
+      "classes": [
+        "paths",
+        "current-docs-specs",
+        "historical-records"
+      ]
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:29:31",
+      "path": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json",
+      "locationKind": "content",
+      "line": 29,
+      "column": 31,
+      "value": "addone",
+      "context": "\"filename\": \"timurproko-addone-0.1.5-dev.10.tgz\",",
+      "matchedCase": "lower",
+      "primaryClass": "artifacts",
+      "classes": [
+        "artifacts",
+        "current-docs-specs",
+        "historical-records"
+      ]
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:47:6",
+      "path": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json",
+      "locationKind": "content",
+      "line": 47,
+      "column": 6,
+      "value": "addone",
+      "context": "\"addone\": {",
+      "matchedCase": "lower",
+      "primaryClass": "current-docs-specs",
+      "classes": [
+        "current-docs-specs",
+        "historical-records"
+      ]
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:102:16",
+      "path": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json",
+      "locationKind": "content",
+      "line": 102,
+      "column": 16,
+      "value": "addone",
+      "context": "\"schema\": \"addone-development-preview-platform-verdict-v2\",",
+      "matchedCase": "lower",
+      "primaryClass": "schemas",
+      "classes": [
+        "schemas",
+        "current-docs-specs",
+        "historical-records"
+      ]
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:2:14",
+      "path": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json",
+      "locationKind": "content",
+      "line": 2,
+      "column": 14,
+      "value": "addone",
+      "context": "\"schema\": \"addone-multi-agent-owned-ui-prerequisite-v1\",",
+      "matchedCase": "lower",
+      "primaryClass": "schemas",
+      "classes": [
+        "schemas",
+        "current-docs-specs",
+        "historical-records"
+      ]
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:11:29",
+      "path": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json",
+      "locationKind": "content",
+      "line": 11,
+      "column": 29,
+      "value": "addone",
+      "context": "\"package\": \"@timurproko/addone@0.1.5-dev.11\",",
+      "matchedCase": "lower",
+      "primaryClass": "paths",
+      "classes": [
+        "paths",
+        "current-docs-specs",
+        "historical-records"
+      ]
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:13:51",
+      "path": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json",
+      "locationKind": "content",
+      "line": 13,
+      "column": 51,
+      "value": "addone",
+      "context": "\"workflowRun\": \"https://github.com/timurproko/addone/actions/runs/32030101549\",",
+      "matchedCase": "lower",
+      "primaryClass": "paths",
+      "classes": [
+        "paths",
+        "current-docs-specs",
+        "historical-records"
+      ]
+    },
+    {
+      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:21:82",
+      "path": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json",
+      "locationKind": "content",
+      "line": 21,
+      "column": 82,
+      "value": "AddOne",
+      "context": "\"extensionBoundary\": \"validated public ExtensionUIContext translated through AddOne-owned contracts\",",
+      "matchedCase": "title-or-mixed",
+      "primaryClass": "current-docs-specs",
+      "classes": [
+        "current-docs-specs",
+        "historical-records"
+      ]
+    },
+    {
       "id": "docs/architecture/toolchain.md:102:37",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
@@ -184,204 +378,10 @@
       ]
     },
     {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/manual-one-pane-terminal-host.md:5:48",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/manual-one-pane-terminal-host.md",
-      "locationKind": "content",
-      "line": 5,
-      "column": 48,
-      "value": "addone",
-      "context": "- Artifact: `native/terminal-host/target/debug/addone-terminal-host.exe`",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "artifacts",
-        "native-names",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/manual-two-by-two-basic-terminal-host.md:7:48",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/manual-two-by-two-basic-terminal-host.md",
-      "locationKind": "content",
-      "line": 7,
-      "column": 48,
-      "value": "addone",
-      "context": "- Artifact: `native/terminal-host/target/debug/addone-terminal-host.exe`",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "artifacts",
-        "native-names",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/manual-two-by-two-basic-terminal-host.md:28:106",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/manual-two-by-two-basic-terminal-host.md",
-      "locationKind": "content",
-      "line": 28,
-      "column": 106,
-      "value": "AddOne",
-      "context": "Production tabs and panes are expected later to use authoritative arbitrary layouts selected through the AddOne UI. The proof implementation may be removed or replaced after the exact-artifact 2×2 gate is finished; it must not become the...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "artifacts",
-      "classes": [
-        "artifacts",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json:2:14",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-multi-agent-milestone-baseline-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json:21:26",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json",
-      "locationKind": "content",
-      "line": 21,
-      "column": 26,
-      "value": "addone",
-      "context": "\"name\": \"@timurproko/addone\",",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json:29:31",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json",
-      "locationKind": "content",
-      "line": 29,
-      "column": 31,
-      "value": "addone",
-      "context": "\"filename\": \"timurproko-addone-0.1.5-dev.10.tgz\",",
-      "matchedCase": "lower",
-      "primaryClass": "artifacts",
-      "classes": [
-        "artifacts",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json:47:6",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json",
-      "locationKind": "content",
-      "line": 47,
-      "column": 6,
-      "value": "addone",
-      "context": "\"addone\": {",
-      "matchedCase": "lower",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json:102:16",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json",
-      "locationKind": "content",
-      "line": 102,
-      "column": 16,
-      "value": "addone",
-      "context": "\"schema\": \"addone-development-preview-platform-verdict-v2\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/owned-ui-foundation-prerequisite.json:2:14",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/owned-ui-foundation-prerequisite.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-multi-agent-owned-ui-prerequisite-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/owned-ui-foundation-prerequisite.json:11:29",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/owned-ui-foundation-prerequisite.json",
-      "locationKind": "content",
-      "line": 11,
-      "column": 29,
-      "value": "addone",
-      "context": "\"package\": \"@timurproko/addone@0.1.5-dev.11\",",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/owned-ui-foundation-prerequisite.json:13:51",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/owned-ui-foundation-prerequisite.json",
-      "locationKind": "content",
-      "line": 13,
-      "column": 51,
-      "value": "addone",
-      "context": "\"workflowRun\": \"https://github.com/timurproko/addone/actions/runs/32030101549\",",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/owned-ui-foundation-prerequisite.json:21:82",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/owned-ui-foundation-prerequisite.json",
-      "locationKind": "content",
-      "line": 21,
-      "column": 82,
-      "value": "AddOne",
-      "context": "\"extensionBoundary\": \"validated public ExtensionUIContext translated through AddOne-owned contracts\",",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/specs/a1-shell/spec.md:101:391",
+      "id": "openspec/specs/a1-shell/spec.md:110:391",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 101,
+      "line": 110,
       "column": 391,
       "value": "addone",
       "context": "The official npm distribution SHALL be named `@timurproko/a1`, SHALL begin its independent stable version lineage at `0.1.0`, and SHALL declare only `a1` as a public executable. Internal process entry files MAY remain in the package payl...",
@@ -393,10 +393,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:113:52",
+      "id": "openspec/specs/a1-shell/spec.md:122:52",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 113,
+      "line": 122,
       "column": 52,
       "value": "addone",
       "context": "- **THEN** every published version of `@timurproko/addone` SHALL carry an npm deprecation directing users to `@timurproko/a1`, and current product behavior SHALL continue to reject the obsolete identity",
@@ -409,10 +409,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:116:322",
+      "id": "openspec/specs/a1-shell/spec.md:125:322",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 116,
+      "line": 125,
       "column": 322,
       "value": "addone",
       "context": "Version discovery, self-update, installed metadata lookup, immutable release derivation, release validation, publication evidence, and registry verification SHALL use `@timurproko/a1` as the sole accepted package identity. The product SH...",
@@ -423,10 +423,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:120:84",
+      "id": "openspec/specs/a1-shell/spec.md:129:84",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 120,
+      "line": 129,
       "column": 84,
       "value": "addone",
       "context": "- **THEN** it SHALL accept `@timurproko/a1` metadata and SHALL reject `@timurproko/addone` as an unexpected package identity",
@@ -1266,5 +1266,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-10-01T16:37:56.216Z"
+  "generatedAt": "2026-10-11T18:25:15.511Z"
 }
