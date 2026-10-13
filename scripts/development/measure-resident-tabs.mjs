@@ -62,6 +62,7 @@ import { join } from "node:path";
 import { TabBridgeClient } from ${JSON.stringify(bridgeUrl)};
 const marker = Buffer.from("\\x1b]a1;standby-promote\\x07");
 const standby = process.argv.includes("--tab-standby");
+process.stdin.setRawMode?.(true);
 if (standby) await new Promise((resolve, reject) => {
   let buffered = Buffer.alloc(0);
   process.stdin.on("error", reject);
@@ -86,7 +87,7 @@ process.stdin.setRawMode?.(true);
 process.stdout.write(\`measurement-ready:\${process.hrtime.bigint()}\\r\\n\`);
 let pending = "";
 process.stdin.on("data", chunk => {
-  pending += bridge.consumeControllerBoundaryInput(chunk.toString("utf8"));
+  pending += bridge.consumeControllerBoundaryInput(chunk.toString("utf8")).replaceAll("\\x03", "");
   for (;;) {
     const newline = pending.indexOf("\\n");
     if (newline < 0) break;
