@@ -26,10 +26,10 @@ The maintainer integration decision accepts these scenarios:
     "Settings always keeps its shortcut hints in the status row instead of replacing them with notices.",
     "Former standalone choices import without modifying the old file, and remaining choices survive restart and replacement releases."
   ],
-  "archiveDigest": "05ecfda7566a9540551870bffcff33eeab3c929ad6177ef48a1289059b48ba0d",
+  "archiveDigest": "2cbc2fe4412faf4e1e42f5e867a402bc8e8902c9b2c16002404c88008c4c9309",
   "specDigest": "979a9313227ad957d473807a0d20c239bfcff34c1ce0f105bccbc9d45537e441",
-  "tasksDigest": "525544a9153595c7a35917c3fd48d2b60a9617c3a37c6c23b9fc44ed320aa2f4",
-  "evidenceDigest": "c472add96934a7858bc9c81da31fe6290bdde9b43211959423857109748e4002",
+  "tasksDigest": "0ecea74c468e2919b1d3ebf10a7a9f2df7a14b6a40b6d1ffee956a8aa7719dde",
+  "evidenceDigest": "2495f806efdc955be943c7b19fa07186397dd4f8076080d6f01ff8185e3a3dc5",
   "knownGaps": []
 }
 ```
