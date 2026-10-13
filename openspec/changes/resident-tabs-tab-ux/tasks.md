@@ -37,7 +37,7 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 ## 6. Resident session selection
 
-- [ ] 6.1 Route bare `a1 --session`/`--session-dir` through the launching attach client; focus a live holder by canonical file identity only in that client or create a tab whose child acquires the writer lease first. Prove aliases converge and later bare launches do not reuse the selection.
+- [x] 6.1 Route bare `a1 --session`/`--session-dir` through the launching attach client; focus a live holder by canonical file identity only in that client or create a tab whose child acquires the writer lease first. Prove aliases converge and later bare launches do not reuse the selection.
 - [x] 6.2 Add argument-free `a1 solo` as the explicit direct single-agent route, list it in help, reject extra arguments, and omit the Tabs settings section in that runtime. In direct mode, report a writer conflict and offer interactive fork through the existing path; fail non-interactively without starting a host or changing the resident session.
 
 ## 7. Extension fidelity
@@ -50,7 +50,7 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 - [ ] 8.2 Enforce `tabsMax` on every creation path and the internal concurrent-start gate. Exercise ten concurrent starts per platform with models available.
 - [x] 8.3 Implement child auto-naming after the first settled turn with bounded budget/timeout/retry, ≤16-character lowercase hyphenated normalization, deterministic fallback, and user-rename precedence. Reproduce v2's 600 ms rainbow, 45 ms/character typing, and 300 ms settle animation for automatic names only.
 - [ ] 8.4 Implement one hidden standby: no session or writer lease before promotion, exact cwd/environment match, committed session identity before input, retarget on mismatch, skip untrusted cwd, exclude from strip and `tabsMax`, and tolerate standby failure without affecting tabs.
-- [ ] 8.5 Prove every open tab keeps its process until explicit close and that no suspension setting, timer, lifecycle, or `◌` glyph exists.
+- [x] 8.5 Prove every open tab keeps its process until explicit close and that no suspension setting, timer, lifecycle, or `◌` glyph exists.
 
 ## 9. Performance
 
