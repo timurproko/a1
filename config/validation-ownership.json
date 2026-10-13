@@ -180,10 +180,12 @@
       "id": "terminal-host",
       "paths": [
         "native/terminal-host/",
-        "src/foundation/resident-tabs/"
+        "src/foundation/resident-tabs/",
+        "src/features/resident-tab/"
       ],
       "testPaths": [
-        "test/foundation/resident-tabs/"
+        "test/foundation/resident-tabs/",
+        "test/features/resident-tab/"
       ],
       "integrationOwners": [
         "terminal-host"

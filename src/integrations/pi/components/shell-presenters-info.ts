@@ -3,7 +3,7 @@ import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleW
 import { PRODUCT_TEXT } from "../../../product-identity.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { getPiHotkeysMarkdownTheme, getPiMarkdownTheme, paintPiBorder, PINNED_PI_LAYOUT, piTheme } from "./theme.js";
-import { RESIDENT_TAB_SHORTCUTS } from "../../../features/resident-tab/shortcuts.js";
+import { RESIDENT_TAB_SHORTCUTS } from "../../../features/resident-tab/index.js";
 import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";
 
 export interface PiShellSessionInfoPresentation {

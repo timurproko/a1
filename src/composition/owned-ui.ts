@@ -41,8 +41,7 @@ import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
-import { deriveResidentTabStatus } from "../features/resident-tab/status-deriver.js";
-import { fallbackAutoName } from "../features/resident-tab/auto-name.js";
+import { deriveResidentTabStatus, fallbackAutoName } from "../features/resident-tab/index.js";
 
 /**
  * The session backend composition wires: the owned-UI port, the prompt-suggestion generator, and

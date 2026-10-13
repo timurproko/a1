@@ -41,7 +41,7 @@ export async function generateAutoName(
       const name = response === null ? null : normalizeAutoName(response);
       if (name !== null) return name;
     } catch {
-      // Best effort: one retry, then deterministic fallback.
+      // Rationale: naming is best effort; one retry precedes the deterministic fallback.
     } finally {
       clearTimeout(timer);
     }

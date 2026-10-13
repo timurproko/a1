@@ -1,4 +1,4 @@
-import type { ResidentTabStatus } from "../../foundation/resident-tabs/bridge-client.js";
+export type ResidentTabDerivedStatus = "starting" | "working" | "needs-input" | "done-unseen" | "idle" | "failed";
 
 export interface ResidentTabFacts {
   readonly lifecycle: string;
@@ -8,7 +8,7 @@ export interface ResidentTabFacts {
   readonly settledUnseen?: boolean;
 }
 
-export function deriveResidentTabStatus(facts: ResidentTabFacts): ResidentTabStatus {
+export function deriveResidentTabStatus(facts: ResidentTabFacts): ResidentTabDerivedStatus {
   if (facts.lifecycle === "failed") return "failed";
   if (facts.pendingRequests > 0) return "needs-input";
   if (facts.lifecycle === "busy" || facts.queuedInput > 0) return "working";
