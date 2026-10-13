@@ -93,14 +93,10 @@ process.stdout.write(\`measurement-ready:\${process.hrtime.bigint()}\\r\\n\`);
 let pending = "";
 process.stdin.on("data", chunk => {
   pending += bridge.consumeControllerBoundaryInput(chunk.toString("utf8")).replaceAll("\\x03", "");
-  for (;;) {
-    const newline = pending.indexOf("\\n");
-    if (newline < 0) break;
-    const line = pending.slice(0, newline).replace(/\\r$/u, "");
-    pending = pending.slice(newline + 1);
-    const match = /^measure:([a-z0-9-]+):(\\d+)$/u.exec(line);
-    if (match) process.stdout.write(\`measurement:\${match[1]}:\${match[2]}:\${process.hrtime.bigint()}\\r\\n\`);
+  for (const token of pending.match(/[a-z]/gu) ?? []) {
+    process.stdout.write(\`measurement:\${token}:\${process.hrtime.bigint()}\\r\\n\`);
   }
+  pending = "";
 });
 `;
 }
@@ -113,7 +109,11 @@ async function createAttach(spawnPty, host, context, viewTab = null) {
     "--node-executable", process.execPath,
   ];
   if (viewTab) arguments_.push("--view", viewTab);
-  const terminal = spawnPty(host, arguments_, {
+  // Platform: node-pty's direct posix_spawnp of the freshly linked host is unreliable
+  // on macOS runners. env immediately execs the same host without relaying I/O.
+  const executable = process.platform === "darwin" ? "/usr/bin/env" : host;
+  const executableArguments = process.platform === "darwin" ? [host, ...arguments_] : arguments_;
+  const terminal = spawnPty(executable, executableArguments, {
     cols: 100, rows: 24, cwd: context.root,
     env: context.environment,
   });
@@ -174,9 +174,9 @@ async function collectMeasurements(host) {
     });
     const first = await createAttach(spawn, host, context);
     attachments.push(first);
-    await first.waitFor(/measurement-ready:(\d+)/u, "cold tab paint");
-    const cold = await measureInput(first, "cold");
-    sample.coldLaunchMs = milliseconds(cold.processedNs - coldStartNs);
+    const coldPaint = await first.waitFor(/measurement-ready:(\d+)/u, "cold tab paint");
+    const cold = await measureInput(first, "a", "cold");
+    sample.coldLaunchMs = milliseconds(coldPaint.receivedNs - coldStartNs);
 
     // Performance: the fixture marks readiness below the session boundary, so only matching
     // standby promotion—not standby startup—is included in the warm measurement.
@@ -187,12 +187,14 @@ async function collectMeasurements(host) {
     ]));
     const second = await createAttach(spawn, host, context, created.tabId);
     attachments.push(second);
-    await second.waitFor(/measurement-ready:(\d+)/u, "promoted standby paint");
-    const warm = await measureInput(second, "warm");
-    sample.warmCreateMs = milliseconds(warm.processedNs - warmStartNs);
+    const warmPaint = await second.waitFor(/measurement-ready:(\d+)/u, "promoted standby paint");
+    const warm = await measureInput(second, "b", "warm");
+    sample.warmCreateMs = milliseconds(warmPaint.receivedNs - warmStartNs);
 
     const hot = [];
-    for (let index = 0; index < 20; index++) hot.push(await measureInput(second, `hot-${index}`));
+    for (let index = 0; index < 20; index++) {
+      hot.push(await measureInput(second, String.fromCharCode("c".charCodeAt(0) + index), `hot-${index}`));
+    }
     second.terminal.write("\x03\x03");
     await new Promise(resolvePromise => second.terminal.onExit(resolvePromise));
 
@@ -201,7 +203,7 @@ async function collectMeasurements(host) {
     attachments.push(reattached);
     const paint = await reattached.waitFor(/measurement-ready:(\d+)/u, "reattach first paint");
     sample.reattachPaintMs = milliseconds(paint.receivedNs - reattachStartNs);
-    const reattach = await measureInput(reattached, "reattach");
+    const reattach = await measureInput(reattached, "w", "reattach");
     sample.reattachInputMs = milliseconds(reattach.processedNs - reattachStartNs);
 
     const all = [cold, warm, reattach, ...hot];
@@ -218,12 +220,11 @@ async function collectMeasurements(host) {
   }
 }
 
-async function measureInput(attach, id) {
+async function measureInput(attach, token, description) {
   const sentNs = process.hrtime.bigint();
-  attach.terminal.write(`measure:${id}:${sentNs}\n`);
-  const escaped = id.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const observed = await attach.waitFor(new RegExp(`measurement:${escaped}:(\\d+):(\\d+)`, "u"), `processed input ${id}`);
-  return { sentNs: BigInt(observed.match[1]), processedNs: BigInt(observed.match[2]), receivedNs: observed.receivedNs };
+  attach.terminal.write(token);
+  const observed = await attach.waitFor(new RegExp(`measurement:${token}:(\\d+)`, "u"), `processed input ${description}`);
+  return { sentNs, processedNs: BigInt(observed.match[1]), receivedNs: observed.receivedNs };
 }
 
 async function main() {
