@@ -74,12 +74,13 @@ describe("trusted archive workflow wiring", () => {
       permissions: ["contents: read", "pull-requests: read"],
       trustedSource: "default-branch", concurrency: "openspec-finalization-", authority: ["single-pr-finalization-publication"],
     });
-    expect(source).toContain("types: [synchronize, ready_for_review, reopened, edited]");
+    expect(source).toContain("types: [opened, synchronize, ready_for_review, reopened, edited]");
     expect(source).toContain("branches: [develop]");
     expect(source).toContain("cancel-in-progress: false");
     expect(source).toContain("timeout-minutes: 10");
-    expect(source).toContain("github.event.pull_request.draft == false");
+    expect(source).not.toContain("github.event.pull_request.draft == false");
     expect(source).toContain("github.event.pull_request.merged != true");
+    expect(source).toContain("Promote or finalize the candidate");
     expect(source).toContain("persist-credentials: false");
     expect(source).toContain("npm ci --ignore-scripts");
     expect(source).toContain("OPENSPEC_ARCHIVE_APP_ID:");

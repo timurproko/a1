@@ -18,7 +18,7 @@ const finalizedHeadFromBody = (text: string) => {
   const implementation = parseImplementation(text);
   return implementation?.version === 3 ? implementation.finalizedHead : undefined;
 };
-const body = (metadata: unknown = { version: 3, change: "example" }) => `## Proposal\n\nDeliver the example behavior.\n\n## Implementation\n\n- Implement it.\n\n## Acceptance\n\n- Using the example preserves the updated observable behavior.\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify(metadata, null, 2)}\n\`\`\`\n\n</details>\n`;
+const body = (metadata: unknown = { version: 3, change: "example" }) => `## Proposal\n\nDeliver the example behavior.\n\n## Implementation\n\n- [x] Implement the updated example behavior and its focused fixture evidence.\n- [x] Reconcile the detailed example tasks and delivery documentation.\n\n## Acceptance\n\n- Using the example preserves the updated observable behavior.\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify(metadata, null, 2)}\n\`\`\`\n\n</details>\n`;
 
 async function git(cwd: string, args: string[]) {
   return (await execute("git", args, { cwd, timeout: 30_000, env: { ...process.env, GIT_CONFIG_GLOBAL: join(cwd, "..", "no-config"), GIT_CONFIG_NOSYSTEM: "1" } })).stdout.trim();
@@ -64,21 +64,27 @@ async function fixture() {
     "src/app.txt": "feature\n",
   });
   await git(seed, ["push", "--quiet", "origin", "feature/example"]);
-  const state = { body: body(), draft: false, state: "open", bodyReads: [] as string[] };
+  const state = { body: body(), draft: false, state: "open", bodyReads: [] as string[], readyCalls: 0 };
   const mutations: { path: string; method: string; body: { body: string } }[] = [];
   const reader = { repository: "owner/repo", prefix: "/repos/owner/repo",
     async get(path: string) {
       if (path.endsWith("/git/ref/heads/develop")) return { object: { sha: await git(root, ["--git-dir", remote, "rev-parse", "refs/heads/develop"]) } };
       if (path.endsWith("/pulls/7")) {
         state.bodyReads.push(state.body);
-        return { number: 7, state: state.state, draft: state.draft, body: state.body,
-          base: { ref: "develop", repo: { full_name: "owner/repo" } },
+        return { number: 7, node_id: "PR_example", state: state.state, draft: state.draft, body: state.body,
+          base: { ref: "develop", sha: await git(root, ["--git-dir", remote, "rev-parse", "refs/heads/develop"]),
+            repo: { full_name: "owner/repo" } },
           head: { ref: "feature/example", sha: await git(root, ["--git-dir", remote, "rev-parse", "refs/heads/feature/example"]), repo: { full_name: "owner/repo" } } };
       }
       throw new Error(`unexpected read ${path}`);
     } };
   const publisher = { repository: "owner/repo", actor: "archive-app[bot]", actorEmail: "1+archive-app[bot]@users.noreply.github.com", token: null,
-    async mutate(path: string, method: string, value: { body: string }) { mutations.push({ path, method, body: value }); state.body = value.body; return { number: 7 }; } };
+    async mutate(path: string, method: string, value: { body: string }) { mutations.push({ path, method, body: value }); state.body = value.body; return { number: 7 }; },
+    async ready(number: number, nodeId: string) {
+      expect({ number, nodeId }).toEqual({ number: 7, nodeId: "PR_example" });
+      state.readyCalls += 1;
+      state.draft = false;
+    } };
   const remoteHead = () => git(root, ["--git-dir", remote, "rev-parse", "refs/heads/feature/example"]);
   const remoteFile = async (path: string, ref: string | undefined = "refs/heads/feature/example") => await git(root, ["--git-dir", remote, "show", `${ref}:${path}`]);
   const reconcile = (overrides: Record<string, unknown> = {}) => reconcileFinalization({ reader, publisher, number: 7, toolRoot, remoteUrl: remote, date: "2026-09-16", ...overrides });
@@ -87,6 +93,49 @@ async function fixture() {
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))); });
 
 describe("trusted finalization publication", () => {
+  it("promotes one exact complete draft, then finalizes only on the ready event", async () => {
+    const f = await fixture();
+    f.state.draft = true;
+    const before = await f.remoteHead();
+    await expect(f.reconcile()).resolves.toMatchObject({ disposition: "promoted", head: before, promoted: true });
+    expect(f.state).toMatchObject({ draft: false, readyCalls: 1 });
+    expect(await f.remoteHead()).toBe(before);
+    expect(f.mutations).toHaveLength(0);
+
+    await expect(f.reconcile()).resolves.toMatchObject({ disposition: "finalized" });
+    expect(await f.remoteHead()).not.toBe(before);
+    expect(f.state.readyCalls).toBe(1);
+  }, 120_000);
+
+  it("leaves incomplete, legacy, and raced draft snapshots unchanged", async () => {
+    const incomplete = await fixture();
+    incomplete.state.draft = true;
+    incomplete.state.body = incomplete.state.body.replace("- [x] Implement the updated", "- [ ] Implement the updated");
+    await expect(incomplete.reconcile()).resolves.toMatchObject({
+      disposition: "skipped", reason: "draft-implementation-progress-incomplete",
+    });
+    expect(incomplete.state).toMatchObject({ draft: true, readyCalls: 0 });
+
+    const legacy = await fixture();
+    legacy.state.draft = true;
+    legacy.state.body = legacy.state.body.replace(/- \[x\] Implement[^\n]+\n- \[x\] Reconcile[^\n]+/u, "- Implement the example behavior.");
+    await expect(legacy.reconcile()).resolves.toMatchObject({
+      disposition: "skipped", reason: "draft-implementation-progress-legacy-draft",
+    });
+    expect(legacy.state).toMatchObject({ draft: true, readyCalls: 0 });
+
+    const raced = await fixture();
+    raced.state.draft = true;
+    const reader = { ...raced.reader, async get(path: string) {
+      if (path.endsWith("/pulls/7") && raced.state.bodyReads.length === 1) raced.state.body = `${raced.state.body}\n`;
+      return await raced.reader.get(path);
+    } };
+    await expect(raced.reconcile({ reader })).resolves.toMatchObject({
+      disposition: "retry", reason: "draft-changed-before-ready",
+    });
+    expect(raced.state).toMatchObject({ draft: true, readyCalls: 0 });
+  }, 120_000);
+
   it("finalizes an active ready head, updates the body afterwards, and is a no-op on its own output", async () => {
     const f = await fixture();
     const before = await f.remoteHead();
@@ -224,6 +273,11 @@ describe("trusted finalization publication", () => {
     const base = { ref: "develop", repo: { full_name: "owner/repo" } };
     const head = { ref: "feature/x", sha: "a".repeat(40), repo: { full_name: "owner/repo" } };
     expect(classifyFinalizationCandidate({ state: "open", draft: true, body: body(), base, head }, "owner/repo")).toEqual({ skip: "draft" });
+    expect(classifyFinalizationCandidate({ state: "open", draft: true, body: body(), base, head }, "owner/repo", { allowDraft: true }))
+      .toMatchObject({ draft: true, implementation: { change: "example" } });
+    expect(classifyFinalizationCandidate({ state: "open", draft: true, body: body(), base,
+      head: { ...head, repo: { full_name: "fork/repo" } } }, "owner/repo", { allowDraft: true }))
+      .toEqual({ skip: "draft-ineligible-identity" });
     expect(classifyFinalizationCandidate({ state: "closed", draft: false, body: body(), base, head }, "owner/repo")).toEqual({ skip: "closed" });
     expect(classifyFinalizationCandidate({ state: "open", draft: false, body: "plain", base, head }, "owner/repo")).toEqual({ skip: "unassociated" });
     expect(classifyFinalizationCandidate({ state: "open", draft: false, body: body({ version: 2, change: "example" }), base, head }, "owner/repo")).toEqual({ skip: "legacy-version-2" });

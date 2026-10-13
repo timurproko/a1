@@ -3,7 +3,7 @@ name: OpenSpec finalization
 on:
   pull_request_target:
     branches: [develop]
-    types: [synchronize, ready_for_review, reopened, edited]
+    types: [opened, synchronize, ready_for_review, reopened, edited]
   workflow_dispatch:
     inputs:
       pr:
@@ -26,7 +26,7 @@ concurrency:
 jobs:
   finalize:
     name: Finalize the ready single-PR delivery
-    if: github.event_name != 'pull_request_target' || (github.event.pull_request.draft == false && github.event.pull_request.merged != true)
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.merged != true
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
@@ -48,7 +48,7 @@ jobs:
       - name: Install pinned trusted tooling without hooks
         run: npm ci --ignore-scripts
 
-      - name: Finalize the candidate from trusted policy with the App identity
+      - name: Promote or finalize the candidate from trusted policy with the App identity
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
