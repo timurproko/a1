@@ -58,5 +58,5 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 ## 10. Documentation and validation
 
-- [ ] 10.1 Update `docs/architecture/resident-tabs.md` and `resident-tabs-requirements.md` to the approved v2 appearance, per-tab accents, unbound navigation/reorder actions, strip-only management, automatic control transfer, the two resident-only Tabs settings, explicit `a1 solo`, internal supervision/start/prewarm constants, detach wording, always-on bare-A1 routing, and no idle suspension. Move this change's delivered requirements out of the target file.
+- [x] 10.1 Update `docs/architecture/resident-tabs.md` and `resident-tabs-requirements.md` to the approved v2 appearance, per-tab accents, unbound navigation/reorder actions, strip-only management, automatic control transfer, the two resident-only Tabs settings, explicit `a1 solo`, internal supervision/start/prewarm constants, detach wording, always-on bare-A1 routing, and no idle suspension. Move this change's delivered requirements out of the target file.
 - [ ] 10.2 Run focused TypeScript and native suites, bounded decoder fuzzing, two-client/fidelity/performance harnesses on all three platforms, strict OpenSpec validation, and documentation governance. Record independent evidence and confirm `a1 solo` and `a1 pi` stay direct without a Tabs settings section.

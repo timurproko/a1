@@ -2350,7 +2350,10 @@ fn launch_standby(state: &Arc<Mutex<RuntimeState>>, mut start: AttachStart) -> R
         let mut locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
-        if locked.standby.is_some() {
+        if locked.standby.is_some()
+            || !locked.holders_starting.is_empty()
+            || locked.active_starts > 0
+        {
             return Ok(());
         }
         locked.standby = Some(StandbyTab {
