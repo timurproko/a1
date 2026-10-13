@@ -557,7 +557,7 @@ impl Drop for OuterTerminal {
 }
 
 fn print_hint() {
-    println!("\x1b[2m1 tab still running · run a1 to return\x1b[0m");
+    println!("\x1b[2m1 agent still running run a1 to return.\x1b[0m");
 }
 fn encode_key(code: KeyCode, modifiers: KeyModifiers) -> Vec<u8> {
     match code {

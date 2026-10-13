@@ -125,6 +125,15 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
       return { ...values };
     },
   }),
+  Object.freeze({
+    to: 16,
+    description: "Expose only the tab limit and auto-name controls; make concurrent starts internal.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      const migrated: Record<string, unknown> = { ...values };
+      delete migrated.tabsMaxConcurrentStarts;
+      return migrated;
+    },
+  }),
 ]);
 
 export function assertOwnedUiSettingsMigrations(

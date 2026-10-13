@@ -17,21 +17,26 @@ async function temporaryDirectory(prefix: string) {
 }
 
 describe("resident tab launch contracts", () => {
-  it("resolves only an explicit valid profile setting", async () => {
+  it("resolves approved tab settings while keeping start and prewarm limits internal", async () => {
     const root = await temporaryDirectory("resident-setting-"); cleanups.push(root.cleanup);
     await mkdir(join(root.path, "settings"), { recursive: true });
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 15, values: { residentTabs: true } }));
+    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 16, values: { residentTabs: true } }));
     expect(await readResidentTabsSetting(root.path)).toBe(true);
     expect(await readResidentTabLaunchSettings(root.path)).toEqual({
       residentTabs: true,
+      tabsMax: 10,
+      tabsAutoName: true,
       maxConcurrentStarts: 2,
+      prewarmCount: 1,
       unresponsiveRestartSeconds: 120,
       stallNoticeSeconds: 300,
     });
     await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({
-      version: 15,
+      version: 16,
       values: {
         residentTabs: true,
+        tabsMax: 24,
+        tabsAutoName: false,
         tabsMaxConcurrentStarts: 8,
         tabsUnresponsiveRestartSeconds: 600,
         tabsStallNoticeSeconds: 1800,
@@ -39,13 +44,16 @@ describe("resident tab launch contracts", () => {
     }));
     expect(await readResidentTabLaunchSettings(root.path)).toEqual({
       residentTabs: true,
-      maxConcurrentStarts: 8,
+      tabsMax: 24,
+      tabsAutoName: false,
+      maxConcurrentStarts: 2,
+      prewarmCount: 1,
       unresponsiveRestartSeconds: 600,
       stallNoticeSeconds: 1800,
     });
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 14, values: { residentTabs: true } }));
+    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 15, values: { residentTabs: true } }));
     expect(await readResidentTabsSetting(root.path)).toBe(false);
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 15, values: { residentTabs: "yes" } }));
+    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 16, values: { residentTabs: "yes" } }));
     expect(await readResidentTabsSetting(root.path)).toBe(false);
   });
 
