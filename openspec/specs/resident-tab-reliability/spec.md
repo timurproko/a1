@@ -1,7 +1,7 @@
 # resident-tab-reliability Specification
 
 ## Purpose
-Define the process isolation, supervision, durable recovery, and failure-presentation guarantees that keep resident tabs recoverable without affecting healthy tabs.
+TBD - created by archiving change resident-tabs-failure-isolation. Update Purpose after archive.
 
 ## Requirements
 
