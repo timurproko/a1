@@ -1413,6 +1413,17 @@ fn serve_attach(
                     false,
                 )
             };
+        // Protocol: admission must precede every surface or notice; queue it before the client
+        // becomes visible to holders whose surface offers wake this writer immediately.
+        tx.offer_control(wire::frame(
+            "attached",
+            None,
+            BridgeAttachment {
+                client_id: client_id.clone(),
+                controller_revision: revision,
+            },
+        )?)
+        .map_err(str::to_owned)?;
         locked.clients.insert(
             client_id.clone(),
             ClientSession {
@@ -1466,15 +1477,6 @@ fn serve_attach(
         )?)
         .map_err(str::to_owned)?;
     }
-    tx.offer_control(wire::frame(
-        "attached",
-        None,
-        BridgeAttachment {
-            client_id: client_id.clone(),
-            controller_revision: revision,
-        },
-    )?)
-    .map_err(str::to_owned)?;
     while let Some(payload) = wire::read_payload(&mut stream)? {
         let kind = wire::kind(&payload)?;
         match kind.message_type.as_str() {

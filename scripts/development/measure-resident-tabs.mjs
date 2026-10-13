@@ -211,7 +211,7 @@ async function collectMeasurements(host) {
     const warmCheckpoint = first.checkpoint();
     const warmStartNs = process.hrtime.bigint();
     first.terminal.write("\x1ba");
-    // Determinism: the original tab can repaint its own ready line after the checkpoint, so only
+    // Rationale: the original tab can repaint its own ready line after the checkpoint, so only
     // a different readiness timestamp proves the promoted tab painted and listens for input.
     const warmPaint = await first.waitFor(new RegExp(`measurement-ready:(?!${coldPaint.match[1]}\\b)(\\d+)`, "u"), "promoted standby paint", 15_000, warmCheckpoint);
     const warm = await measureInput(first, "b", "warm");
