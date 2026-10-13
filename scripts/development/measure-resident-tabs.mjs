@@ -39,7 +39,7 @@ export function summarizeResidentTabMeasurements(samples, directStartupBudgetMs)
 }
 
 function run(host, arguments_, options = {}) {
-  const result = spawnSync(host, arguments_, { encoding: "utf8", windowsHide: true, ...options });
+  const result = spawnSync(host, arguments_, { encoding: "utf8", windowsHide: true, timeout: 30_000, ...options });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${basename(host)} ${arguments_.slice(0, 2).join(" ")} failed (${result.status}): ${result.stderr || result.stdout}`);
   return result.stdout.trim();
@@ -101,6 +101,20 @@ process.stdin.on("data", chunk => {
 `;
 }
 
+async function prepareNodePty() {
+  if (process.platform !== "darwin") return;
+  let helpers = 0;
+  for (const directory of ["build/Release", `prebuilds/darwin-${process.arch}`]) {
+    try {
+      await chmod(resolve("node_modules", "node-pty", directory, "spawn-helper"), 0o755);
+      helpers += 1;
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+  if (helpers === 0) throw new Error("node-pty macOS spawn helper is missing");
+}
+
 async function createAttach(spawnPty, host, context, viewTab = null) {
   const arguments_ = [
     "attach", "--endpoint", context.endpoint, "--cwd", context.root,
@@ -109,11 +123,7 @@ async function createAttach(spawnPty, host, context, viewTab = null) {
     "--node-executable", process.execPath,
   ];
   if (viewTab) arguments_.push("--view", viewTab);
-  // Platform: node-pty's direct posix_spawnp of the freshly linked host is unreliable
-  // on macOS runners. env immediately execs the same host without relaying I/O.
-  const executable = process.platform === "darwin" ? "/usr/bin/env" : host;
-  const executableArguments = process.platform === "darwin" ? [host, ...arguments_] : arguments_;
-  const terminal = spawnPty(executable, executableArguments, {
+  const terminal = spawnPty(host, arguments_, {
     cols: 100, rows: 24, cwd: context.root,
     env: context.environment,
   });
@@ -125,10 +135,10 @@ async function createAttach(spawnPty, host, context, viewTab = null) {
     if (data.includes("\x1b[6n")) terminal.write("\x1b[24;100R");
     for (const waiter of waiters) waiter();
   });
-  const waitFor = async (pattern, description, timeoutMs = 15_000) => {
+  const waitFor = async (pattern, description, timeoutMs = 15_000, after = 0) => {
     const started = Date.now();
     for (;;) {
-      const match = pattern.exec(output);
+      const match = pattern.exec(output.slice(after));
       if (match) return { match, receivedNs: process.hrtime.bigint() };
       if (Date.now() - started >= timeoutMs) throw new Error(`timed out waiting for ${description}; output=${JSON.stringify(output.slice(-2_000))}`);
       await new Promise(resolvePromise => {
@@ -138,7 +148,7 @@ async function createAttach(spawnPty, host, context, viewTab = null) {
       });
     }
   };
-  return { terminal, waitFor, output: () => output };
+  return { terminal, waitFor, checkpoint: () => output.length, output: () => output };
 }
 
 function internal(host, context, operation, extra = []) {
@@ -148,7 +158,21 @@ function internal(host, context, operation, extra = []) {
   ], { cwd: context.root, env: context.environment });
 }
 
+async function killAttach(terminal) {
+  await new Promise((resolvePromise, reject) => {
+    const timeout = setTimeout(() => reject(new Error("timed out stopping measurement attach client")), 5_000);
+    terminal.onExit(() => {
+      clearTimeout(timeout);
+      resolvePromise();
+    });
+    terminal.kill();
+  });
+}
+
 async function collectMeasurements(host) {
+  // Platform: node-pty publishes its macOS spawn helper without executable mode,
+  // which makes every PTY launch fail in posix_spawnp before the host can start.
+  await prepareNodePty();
   const { spawn } = await import("node-pty");
   const root = await mkdtemp(join(tmpdir(), "a1-resident-measure-"));
   const context = {
@@ -179,24 +203,25 @@ async function collectMeasurements(host) {
     sample.coldLaunchMs = milliseconds(coldPaint.receivedNs - coldStartNs);
 
     // Performance: the fixture marks readiness below the session boundary, so only matching
-    // standby promotion—not standby startup—is included in the warm measurement.
+    // standby promotion—not standby startup—is included in the warm measurement. Creating the
+    // tab through the already attached client also measures the real shortcut-to-paint path and
+    // excludes an unrelated second terminal's startup negotiation.
     await waitUntil(async () => (await readdir(context.data, { recursive: true })).some(path => path.endsWith("standby-ready")), "matching standby readiness");
+    const existingTabIds = new Set(JSON.parse(internal(host, context, "tab-list")).tabs.map(tab => tab.tabId));
+    const warmCheckpoint = first.checkpoint();
     const warmStartNs = process.hrtime.bigint();
-    const created = JSON.parse(internal(host, context, "tab-create", [
-      "--cwd", root, "--release-root", context.release, "--node-executable", process.execPath,
-    ]));
-    const second = await createAttach(spawn, host, context, created.tabId);
-    attachments.push(second);
-    const warmPaint = await second.waitFor(/measurement-ready:(\d+)/u, "promoted standby paint");
-    const warm = await measureInput(second, "b", "warm");
+    first.terminal.write("\x1ba");
+    const warmPaint = await first.waitFor(/measurement-ready:(\d+)/u, "promoted standby paint", 15_000, warmCheckpoint);
+    const warm = await measureInput(first, "b", "warm");
     sample.warmCreateMs = milliseconds(warmPaint.receivedNs - warmStartNs);
+    const created = JSON.parse(internal(host, context, "tab-list")).tabs.find(tab => !existingTabIds.has(tab.tabId));
+    if (!created) throw new Error("promoted standby was absent from the tab list");
 
     const hot = [];
     for (let index = 0; index < 20; index++) {
-      hot.push(await measureInput(second, String.fromCharCode("c".charCodeAt(0) + index), `hot-${index}`));
+      hot.push(await measureInput(first, String.fromCharCode("c".charCodeAt(0) + index), `hot-${index}`));
     }
-    second.terminal.write("\x03\x03");
-    await new Promise(resolvePromise => second.terminal.onExit(resolvePromise));
+    await killAttach(first.terminal);
 
     const reattachStartNs = process.hrtime.bigint();
     const reattached = await createAttach(spawn, host, context, created.tabId);
@@ -247,7 +272,11 @@ async function main() {
   }
   const summary = { schema: "a1-resident-tabs-performance-v1", ...summarizeResidentTabMeasurements(samples, directStartupBudgetMs), samples };
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
-  if (Object.values(summary.measurements).some(result => !result.passed)) process.exitCode = 1;
+  const failed = Object.entries(summary.measurements).filter(([, result]) => !result.passed);
+  if (failed.length > 0) {
+    console.error(`resident latency budgets exceeded: ${failed.map(([metric, result]) => `${metric}=${result.p95Ms}ms>${result.budgetMs}ms`).join(", ")}`);
+    process.exitCode = 1;
+  }
 }
 
 if (process.argv[1]?.endsWith("measure-resident-tabs.mjs")) await main();

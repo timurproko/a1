@@ -8,7 +8,7 @@ function argument(name) {
 }
 
 function run(host, flag) {
-  const result = spawnSync(host, [flag], { encoding: "utf8", windowsHide: true });
+  const result = spawnSync(host, [flag], { encoding: "utf8", windowsHide: true, timeout: 30_000 });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${flag} failed (${result.status}): ${result.stderr || result.stdout}`);
   return result.stdout.trim().split(/\r?\n/u).filter(Boolean);
