@@ -1,65 +1,46 @@
-<<<<<<< a1
-import { getKeybindings, matchesKey, CURSOR_MARKER, sliceByColumn, truncateToWidth, visibleWidth, SelectList, type AutocompleteProvider, type AutocompleteSuggestions, type Component, type Focusable, type TUI, type TuiMouseEvent, type TuiMouseEventResult, type SelectListLayoutOptions, type SelectListTheme } from "@earendil-works/pi-tui";
+/**
+ * Provenance: @earendil-works/pi-tui 1.2.0 (MIT), commit 06a466935536f8c9bcacb2d5efc0fc021be1bdff,
+ * packages/tui/src/components/editor.ts.
+ * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
+ * types, typed persistent-history hooks, semantic border state with the user-approved numeric-only
+ * history label with a three-cell inset and separate centered history-overflow cue, and history-count
+ * retention during cursor placement within recalled multiline text. Public terminal runtime/exports
+ * remain shared and unchanged. See docs/architecture/history-editor-provenance.md.
+ * Deviations: compact-history-counter-label, history-overflow-cue-separation,
+ * history-recall-cursor-retention, persistent-history-owned-editor-boundary.
+ */
+import {
+  CURSOR_MARKER,
+  SelectList,
+  getKeybindings,
+  matchesKey,
+  renderFakeCursor,
+  sliceByColumn,
+  truncateToWidth,
+  visibleWidth,
+  type AutocompleteProvider,
+  type AutocompleteSuggestions,
+  type Component,
+  type Focusable,
+  type SelectListLayoutOptions,
+  type SelectListTheme,
+  type TUI,
+  type TuiMouseEvent,
+  type TuiMouseEventResult,
+} from "@earendil-works/pi-tui";
 import { decodePrintableKey } from "./printable-key.js";
 import { KillRing } from "./kill-ring.js";
 import { UndoStack } from "./undo-stack.js";
-import { autocompleteBoundaryRegex, autocompleteSeparatorRegex, cjkBreakRegex, getGraphemeSegmenter, getWordSegmenter, isWhitespaceChar } from "./text-helpers.js";
+import {
+  autocompleteBoundaryRegex,
+  autocompleteSeparatorRegex,
+  cjkBreakRegex,
+  getGraphemeSegmenter,
+  getWordSegmenter,
+  isWhitespaceChar,
+} from "./text-helpers.js";
 import { findWordBackward, findWordForward } from "./word-navigation.js";
 import type { EditorInteractionPort, EditorRecallPort } from "../../editor-interaction.js";
-||||||| pi 1.1.0
-import type { AutocompleteProvider, AutocompleteSuggestions } from "../autocomplete.ts";
-import { getKeybindings } from "../keybindings.ts";
-import { decodePrintableKey, matchesKey } from "../keys.ts";
-import { KillRing } from "../kill-ring.ts";
-import {
-	type Component,
-	CURSOR_MARKER,
-	type Focusable,
-	type TUI,
-	type TuiMouseEvent,
-	type TuiMouseEventResult,
-} from "../tui.ts";
-import { UndoStack } from "../undo-stack.ts";
-import {
-	autocompleteBoundaryRegex,
-	autocompleteSeparatorRegex,
-	cjkBreakRegex,
-	getGraphemeSegmenter,
-	getWordSegmenter,
-	isWhitespaceChar,
-	sliceByColumn,
-	visibleWidth,
-} from "../utils.ts";
-import { findWordBackward, findWordForward } from "../word-navigation.ts";
-import { SelectList, type SelectListLayoutOptions, type SelectListTheme } from "./select-list.ts";
-=======
-import type { AutocompleteProvider, AutocompleteSuggestions } from "../autocomplete.ts";
-import { getKeybindings } from "../keybindings.ts";
-import { decodePrintableKey, matchesKey } from "../keys.ts";
-import { KillRing } from "../kill-ring.ts";
-import {
-	type Component,
-	CURSOR_MARKER,
-	type Focusable,
-	renderFakeCursor,
-	type TUI,
-	type TuiMouseEvent,
-	type TuiMouseEventResult,
-} from "../tui.ts";
-import { UndoStack } from "../undo-stack.ts";
-import {
-	autocompleteBoundaryRegex,
-	autocompleteSeparatorRegex,
-	cjkBreakRegex,
-	getGraphemeSegmenter,
-	getWordSegmenter,
-	isWhitespaceChar,
-	sliceByColumn,
-	visibleWidth,
-} from "../utils.ts";
-import { findWordBackward, findWordForward } from "../word-navigation.ts";
-import { SelectList, type SelectListLayoutOptions, type SelectListTheme } from "./select-list.ts";
->>>>>>> pi 1.2.0
 
 const graphemeSegmenter = getGraphemeSegmenter();
 const wordSegmenter = getWordSegmenter();

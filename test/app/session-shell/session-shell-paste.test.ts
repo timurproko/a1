@@ -5,7 +5,7 @@ import { type ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, renderFakeCursor, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { Markdown } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
@@ -28,6 +28,14 @@ vi.mock("node:worker_threads", async importOriginal => {
 import { screenshotPng } from "../../fixtures/image-sources.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { Session, fixture, observedPasteFixture, nextImmediate } from "./session-shell-fixture.js";
+
+const [FAKE_CURSOR_START = "", FAKE_CURSOR_END = ""] = renderFakeCursor("\0").split("\0");
+
+function fakeCursorPayload(row: string): string {
+  const start = row.indexOf(FAKE_CURSOR_START);
+  const end = row.indexOf(FAKE_CURSOR_END, start + FAKE_CURSOR_START.length);
+  return start < 0 || end < 0 ? "" : row.slice(start + FAKE_CURSOR_START.length, end);
+}
 
 describe("OwnedUiSessionShell paste and clipboard", () => {
   it("reserves and settles the cold first Ctrl+V exactly once before any mouse paste", async () => {
@@ -1033,7 +1041,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     terminal.input("\u001b[D"); // Invariant: Left focuses the adjacent chip as one item.
     await nextImmediate();
     const focusedChip = shell.root.render(60).find(row => stripTerminalSequences(row).includes("https://example.com")) ?? "";
-    expect(focusedChip).toContain("\u001b[7m");
+    expect(focusedChip).toContain(FAKE_CURSOR_START);
     expect(focusedChip).toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
     expect(focusedChip).not.toContain(CURSOR_MARKER);
     expect(stripTerminalSequences(focusedChip)).toContain(urlChip);
@@ -1057,11 +1065,11 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
 
     terminal.input("\u001b[1;5C"); // Invariant: Ctrl+Right treats the chip as one item.
     await nextImmediate();
-    expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
+    expect(shell.root.render(60).join("\n")).toContain(FAKE_CURSOR_START);
     terminal.input("\u001b[1;5C"); // Invariant: collapse at the chip's far edge.
     terminal.input("\u001b[1;5D"); // Invariant: Ctrl+Left selects the whole chip, never its interior.
     await nextImmediate();
-    expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
+    expect(shell.root.render(60).join("\n")).toContain(FAKE_CURSOR_START);
     terminal.input("\u001b[1;5D"); // Invariant: collapse at its near edge before the mouse check.
     await nextImmediate();
 
@@ -1071,7 +1079,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     terminal.input(`\u001b[<0;${chipColumn};${chipRow}M`);
     terminal.input(`\u001b[<0;${chipColumn};${chipRow}m`);
     shell.runtime.renderNow();
-    expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
+    expect(shell.root.render(60).join("\n")).toContain(FAKE_CURSOR_START);
 
     const redrawsBeforeDrag = shell.runtime.fullRedraws;
     terminal.input(`\u001b[<0;${chipColumn};${chipRow}M`);
@@ -1224,9 +1232,9 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     await nextImmediate();
 
     const row = shell.root.editor.render(180).find(line => stripTerminalSequences(line).includes("Clipboard (6).png")) ?? "";
-    const reversed = [...row.matchAll(/\u001b\[7m([^\u001b]*)\u001b\[0m/gu)].map(match => match[1] ?? "");
-    expect(reversed).toContain(chips.at(-1));
-    expect(reversed.some(text => text.includes("Clipboard (5).png"))).toBe(false);
+    const focused = stripTerminalSequences(fakeCursorPayload(row));
+    expect(focused).toBe(chips.at(-1));
+    expect(focused).not.toContain("Clipboard (5).png");
 
     await shell.dispose();
   });
@@ -1253,7 +1261,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     terminal.input("\u0016");
     await firstSettled;
     expect(shell.root.editor.getText()).toBe(`first${chip}`);
-    expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
+    expect(shell.root.render(60).join("\n")).toContain(FAKE_CURSOR_START);
 
     clipboardText = "second";
     const secondSettled = waitForPasteSettlement();

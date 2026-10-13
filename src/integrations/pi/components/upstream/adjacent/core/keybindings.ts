@@ -1,13 +1,24 @@
+/**
+ * Provenance: @earendil-works/pi-coding-agent 1.2.0 (MIT), commit 06a466935536f8c9bcacb2d5efc0fc021be1bdff,
+ * packages/coding-agent/src/core/keybindings.ts.
+ * Modifications: Mechanical source port with Node import prefixes, public package-root agent-directory
+ * resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model
+ * selection, Tab tree-filter cycling, tree-local navigation aliases, cross-platform Alt+Up
+ * queued-message restoration, and an implicit Ctrl+C selection-cancel alias omitted from shortcut
+ * labels.
+ * Deviations: keybindings-public-config-boundary, owned-level-cycle-shortcut,
+ * owned-input-keybinding-aliases, owned-session-tree-dialog, owned-dialog-ctrl-c-cancel.
+ */
 import {
 	type Keybinding,
 	type KeybindingDefinitions,
 	type KeybindingsConfig,
 	type KeyId,
+	Key,
 	matchesKey,
 	TUI_KEYBINDINGS,
 	KeybindingsManager as TuiKeybindingsManager,
 } from "@earendil-works/pi-tui";
-<<<<<<< a1
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
@@ -69,67 +80,6 @@ export interface AppKeybindings {
 }
 
 export type AppKeybinding = keyof AppKeybindings;
-||||||| pi 1.1.0
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
-import { getAgentDir } from "../config.ts";
-import { stripBom } from "../utils/text.ts";
-
-export interface AppKeybindings {
-	"app.interrupt": true;
-	"app.clear": true;
-	"app.exit": true;
-	"app.suspend": true;
-	"app.thinking.cycle": true;
-	"app.thinking.save": true;
-	"app.model.cycleForward": true;
-	"app.model.cycleBackward": true;
-	"app.model.select": true;
-	"app.tools.expand": true;
-	"app.thinking.toggle": true;
-	"app.session.toggleNamedFilter": true;
-	"app.editor.external": true;
-	"app.message.copy": true;
-	"app.message.followUp": true;
-	"app.message.dequeue": true;
-	"app.clipboard.pasteImage": true;
-	"app.session.new": true;
-	"app.session.tree": true;
-	"app.session.fork": true;
-	"app.session.resume": true;
-	"app.tree.foldOrUp": true;
-	"app.tree.unfoldOrDown": true;
-	"app.tree.editLabel": true;
-	"app.tree.toggleLabelTimestamp": true;
-	"app.session.togglePath": true;
-	"app.session.toggleSort": true;
-	"app.session.rename": true;
-	"app.session.delete": true;
-	"app.session.deleteNoninvasive": true;
-	"app.models.save": true;
-	"app.models.enableAll": true;
-	"app.models.clearAll": true;
-	"app.models.toggleProvider": true;
-	"app.models.reorderUp": true;
-	"app.models.reorderDown": true;
-	"app.tree.filter.default": true;
-	"app.tree.filter.noTools": true;
-	"app.tree.filter.userOnly": true;
-	"app.tree.filter.labeledOnly": true;
-	"app.tree.filter.all": true;
-	"app.tree.filter.cycleForward": true;
-	"app.tree.filter.cycleBackward": true;
-}
-
-export type AppKeybinding = keyof AppKeybindings;
-=======
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
-import { Compile } from "typebox/compile";
-import { getAgentDir } from "../config.ts";
-import { stripBom } from "../utils/text.ts";
-import { KeybindingValueSchema } from "./key-id-schema.ts";
->>>>>>> pi 1.2.0
 
 export function useWindowsKeybindings(
 	platform: NodeJS.Platform = process.platform,
@@ -138,9 +88,30 @@ export function useWindowsKeybindings(
 	return platform === "win32" || (platform === "linux" && Boolean(env.WSL_DISTRO_NAME || env.WSL_INTEROP));
 }
 
+declare module "@earendil-works/pi-tui" {
+	interface Keybindings extends AppKeybindings {}
+}
+
 const windowsKeybindings = useWindowsKeybindings();
 
-const APP_KEYBINDINGS = {
+export const KEYBINDINGS = {
+	...TUI_KEYBINDINGS,
+	"tui.editor.undo": {
+		...TUI_KEYBINDINGS["tui.editor.undo"],
+		defaultKeys: process.platform === "win32" ? "ctrl+z" : windowsKeybindings ? "alt+z" : "ctrl+-",
+	},
+	"tui.altScreen.previousPrompt": {
+		...TUI_KEYBINDINGS["tui.altScreen.previousPrompt"],
+		defaultKeys: windowsKeybindings ? "ctrl+up" : ["ctrl+shift+up", "ctrl+up"],
+	},
+	"tui.altScreen.nextPrompt": {
+		...TUI_KEYBINDINGS["tui.altScreen.nextPrompt"],
+		defaultKeys: windowsKeybindings ? "ctrl+down" : ["ctrl+shift+down", "ctrl+down"],
+	},
+	"tui.altScreen.search": {
+		...TUI_KEYBINDINGS["tui.altScreen.search"],
+		defaultKeys: windowsKeybindings ? "ctrl+f" : "ctrl+shift+f",
+	},
 	"app.interrupt": { defaultKeys: "escape", description: "Cancel or abort" },
 	"app.clear": { defaultKeys: "ctrl+c", description: "Clear editor" },
 	"app.exit": { defaultKeys: "ctrl+d", description: "Exit when editor is empty" },
@@ -288,7 +259,6 @@ const APP_KEYBINDINGS = {
 	},
 } as const satisfies KeybindingDefinitions;
 
-<<<<<<< a1
 /** Pi actions with bare-A1 aliases; the comparison profile keeps KEYBINDINGS unchanged. */
 const OWNED_INPUT_KEYBINDINGS = {
 	...KEYBINDINGS,
@@ -323,37 +293,6 @@ const OWNED_INPUT_KEYBINDINGS = {
 	"owned.tree.last": { defaultKeys: "end", description: "Select last tree entry" },
 } as const satisfies KeybindingDefinitions;
 
-||||||| pi 1.1.0
-=======
-export type AppKeybinding = keyof typeof APP_KEYBINDINGS;
-export type AppKeybindings = { [K in AppKeybinding]: true };
-
-declare module "@earendil-works/pi-tui" {
-	interface Keybindings extends AppKeybindings {}
-}
-
-export const KEYBINDINGS = {
-	...TUI_KEYBINDINGS,
-	"tui.editor.undo": {
-		...TUI_KEYBINDINGS["tui.editor.undo"],
-		defaultKeys: process.platform === "win32" ? "ctrl+z" : windowsKeybindings ? "alt+z" : "ctrl+-",
-	},
-	"tui.altScreen.previousPrompt": {
-		...TUI_KEYBINDINGS["tui.altScreen.previousPrompt"],
-		defaultKeys: windowsKeybindings ? "ctrl+up" : ["ctrl+shift+up", "ctrl+up"],
-	},
-	"tui.altScreen.nextPrompt": {
-		...TUI_KEYBINDINGS["tui.altScreen.nextPrompt"],
-		defaultKeys: windowsKeybindings ? "ctrl+down" : ["ctrl+shift+down", "ctrl+down"],
-	},
-	"tui.altScreen.search": {
-		...TUI_KEYBINDINGS["tui.altScreen.search"],
-		defaultKeys: windowsKeybindings ? "ctrl+f" : "ctrl+shift+f",
-	},
-	...APP_KEYBINDINGS,
-} as const satisfies KeybindingDefinitions;
-
->>>>>>> pi 1.2.0
 const KEYBINDING_NAME_MIGRATIONS = {
 	cursorUp: "tui.editor.cursorUp",
 	cursorDown: "tui.editor.cursorDown",
@@ -420,13 +359,32 @@ function isLegacyKeybindingName(key: string): key is keyof typeof KEYBINDING_NAM
 	return key in KEYBINDING_NAME_MIGRATIONS;
 }
 
-const validateKeybindingValue = Compile(KeybindingValueSchema);
+const KEYBINDING_MODIFIERS = ["ctrl", "shift", "alt", "super"] as const;
+const BASE_KEY_PATTERN = `(?:[a-z0-9]|${Object.values(Key)
+	.flatMap((value) => (typeof value === "string" ? [value.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")] : []))
+	.join("|")})`;
+const DUPLICATE_MODIFIER_PATTERN = KEYBINDING_MODIFIERS
+	.map((modifier) => `${modifier}\\+.*${modifier}\\+`)
+	.join("|");
+const KEY_ID_PATTERN = new RegExp(
+	`^(?!.*(?:${DUPLICATE_MODIFIER_PATTERN}))(?:(?:${KEYBINDING_MODIFIERS.join("|")})\\+){0,4}${BASE_KEY_PATTERN}$`,
+);
+
+function isKeyId(value: unknown): value is KeyId {
+	return typeof value === "string" && KEY_ID_PATTERN.test(value);
+}
 
 function toKeybindingsConfig(value: Record<string, unknown>): KeybindingsConfig {
 	const config: KeybindingsConfig = {};
 	for (const [key, binding] of Object.entries(value)) {
 		if (key === "$schema") continue;
-		if (validateKeybindingValue.Check(binding)) config[key] = binding;
+		if (isKeyId(binding)) {
+			config[key] = binding;
+			continue;
+		}
+		if (Array.isArray(binding) && binding.every(isKeyId)) {
+			config[key] = binding;
+		}
 	}
 	return config;
 }

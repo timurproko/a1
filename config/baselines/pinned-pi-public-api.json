@@ -3594,7 +3594,9 @@
           "name": "Key",
           "kind": "const",
           "hash": "847a96b66a8fb66c38b648e4d33dd711165320f56e5f5dc3a9c4fcb2cbcecf1c",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts"
+          ]
         },
         {
           "name": "Keybinding",
@@ -3875,7 +3877,9 @@
           "name": "renderFakeCursor",
           "kind": "function",
           "hash": "445ac4abd4e66e6b4436b404a416caade8809b37bd209322b493da6304648e90",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/history/editor-core.ts"
+          ]
         },
         {
           "name": "renderImage",

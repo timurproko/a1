@@ -2661,7 +2661,8 @@
       "version": "1.2.0",
       "summary": "runs started by `pi.sendMessage(..., { triggerTurn: true })` go through the same setup as prompts.",
       "since": "1.2.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "A1 hosts the public AgentSession runtime unchanged, so extension-triggered turns retain Pi's starting-run serialization and before_agent_start lifecycle."
     },
     {
       "id": "changelog:1.2.0:clipboard-copies-over-remote-sessions",
@@ -2670,7 +2671,8 @@
       "version": "1.2.0",
       "summary": "`PI_CLIPBOARD_OSC52=1` sends copied text to a remote client's clipboard when Pi cannot detect the remote session, such as a multiplexer attached from another machine.",
       "since": "1.2.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "A1 routes text-copy workflows through Pi's public copyToClipboard export, preserving its PI_CLIPBOARD_OSC52 behavior without a private adapter."
     },
     {
       "id": "changelog:1.2.0:codemode-improvements",
@@ -2679,7 +2681,8 @@
       "version": "1.2.0",
       "summary": "tool declarations show input constraints such as integer, minimum/maximum, and default, and codemode rows show elapsed and total time.",
       "since": "1.2.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "The pinned built-in codemode extension loaded by A1's public session factory owns declaration generation and duration details, which flow through the existing custom-tool renderer contract."
     },
     {
       "id": "changelog:1.2.0:per-key-openrouter-model-lists",
@@ -2688,7 +2691,8 @@
       "version": "1.2.0",
       "summary": "with an OpenRouter key, Pi lists only the models that key may use, with the key's context size, max output, and prices, including regional endpoints set in `models.json`.",
       "since": "1.2.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "A1 reuses Pi's public model registry and session services, so credential-scoped OpenRouter discovery, cached metadata, and configured regional base URLs remain package-owned."
     },
     {
       "id": "changelog:1.2.0:published-configuration-schemas",
@@ -2697,7 +2701,8 @@
       "version": "1.2.0",
       "summary": "add `$schema` to `settings.json`, `models.json`, keybindings, and themes for editor validation and completion.",
       "since": "1.2.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Pi's public settings and model loaders remain authoritative; A1's owned keybinding and theme ports accept the published $schema property while retaining Pi 1.2 validation semantics."
     }
   ]
 }
