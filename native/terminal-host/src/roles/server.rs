@@ -1047,11 +1047,13 @@ fn writer_loop(
 }
 
 fn canonical_session_identity(value: &str) -> String {
-    std::fs::canonicalize(value)
-        .unwrap_or_else(|_| Path::new(value).to_path_buf())
-        .to_string_lossy()
-        .replace('\\', "/")
-        .to_lowercase()
+    crate::session_lock::session_identity(Path::new(value)).unwrap_or_else(|_| {
+        std::fs::canonicalize(value)
+            .unwrap_or_else(|_| Path::new(value).to_path_buf())
+            .to_string_lossy()
+            .replace('\\', "/")
+            .to_lowercase()
+    })
 }
 
 fn accepts_bridge_sequence(seen: Option<(u64, u64)>, incarnation: u64, sequence: u64) -> bool {

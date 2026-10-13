@@ -1,6 +1,6 @@
 # Resident tabs — architecture and roadmap
 
-Status: staged implementation. Milestones 1–4 are integrated. Milestone 5 completes the foreground UX, routes bare `a1` through resident tabs, and adds argument-free `a1 solo` as the explicit direct single-agent route. Windows physical-survival evidence exists for milestone 2 only. macOS and Linux physical survival, packaging, maintenance commands, and certification remain deferred to milestone 6; CI evidence is not a substitute. Discovery or verification failure safely falls back to the direct path. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
+Status: staged implementation. Milestones 1–4 are integrated. Milestone 5 implements the foreground UX, routes bare `a1` through tabs, and adds argument-free `a1 solo` as the explicit direct single-agent route. Windows physical-survival evidence exists for milestone 2 only. macOS and Linux physical survival, packaging, maintenance commands, and certification remain deferred to milestone 6; CI evidence is not a substitute. Discovery or verification failure safely falls back to the direct path. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
 
 ## Context
 
@@ -52,7 +52,7 @@ The read-only review used A1 `develop` at `b42b3c9e`, PR #586 at `8fdb7361`, `E:
 
 ### Milestone 2 pinned launch contract (2026-10-11)
 
-- The preview flag is `residentTabs` in profile-local owned settings, version 14, default `false`; pre-UI routing treats absent, unreadable, oversized, and invalid values as off.
+- Bare `a1` always requests the resident tab route. Tab enablement is not persisted or configurable; host discovery or verification failure uses the bounded direct single-agent fallback.
 - The host artifact resolves to `dist/native/<platform>-<arch>/a1-terminal-host[.exe]`, with hermetic `A1_TERMINAL_HOST_PATH`; discovery may use `A1_TABS_ENDPOINT`.
 - Tab children consume and erase `A1_TAB_ID`, `A1_TAB_TOKEN`, and `A1_TAB_ENDPOINT` before loading A1, Pi, extensions, or tools.
 - Client-scoped bridge detach binds `clientId` and `controllerRevision` captured when the command is admitted. The additive generation-1 `attachment` and `bridge.request` fixtures freeze that shape.
@@ -79,7 +79,7 @@ The read-only review used A1 `develop` at `b42b3c9e`, PR #586 at `8fdb7361`, `E:
 - Tab-mode submission is durably journaled before dispatch, correlated with the session entry, synchronized after settlement, and retired idempotently. Recovery reconciles identity and exact text without collapsing duplicate prompts or automatically replaying work. Periodic draft checkpoints expose a degraded state when the one-second healthy-storage envelope cannot be met.
 - Registry replacement retries transient failures, quarantines unreadable state, recovers only from the newest valid bounded history, and fails closed when no valid generation remains. A changed boot or OS-session identity archives the prior tab set instead of restoring it; journals younger than seven days can be adopted when their sessions are explicitly reopened.
 - Last-screen and fixture-only stderr files are private bounded recovery artifacts. Structured server, holder, attach, and child crash records use allowlisted fields, rotate without startup truncation, and remain physically separate from recovery content.
-- Milestone 4 adds only the minimal lifecycle states, failed-tab banner, and retry/fresh/close handling needed to expose recovery. Rich strip behavior, general shortcuts, mouse interactions, naming, prewarm, idle suspension, and two-client UX remain milestone 5. `a1 tabs doctor`, packaging, physical terminal/SSH-loss acceptance, and complete certification remain milestone 6.
+- Milestone 4 added the minimal lifecycle states, failed-tab banner, and retry/fresh/close handling needed to expose recovery. Milestone 5 adds the rich strip, shortcuts, mouse interactions, naming, prewarm, no-idle-suspension contract, and two-client UX. `a1 tabs doctor`, packaging, physical terminal/SSH-loss acceptance, and complete certification remain milestone 6.
 
 ### Relation to the in-process prep refactors (2026-10-09/10)
 
