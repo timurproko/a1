@@ -163,6 +163,24 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     defaultValue: 2,
     allowedValues: Object.freeze([1, 2, 3, 4, 5, 6, 7, 8] as const),
   }),
+  tabsUnresponsiveRestartSeconds: Object.freeze({
+    id: "tabsUnresponsiveRestartSeconds",
+    label: "Unresponsive tab restart",
+    section: GENERIC_SECTION,
+    description: "Seconds of continuously healthy supervision without a tab heartbeat before A1 restarts that tab.",
+    application: "restart",
+    defaultValue: 120,
+    allowedValues: Object.freeze([60, 120, 300, 600] as const),
+  }),
+  tabsStallNoticeSeconds: Object.freeze({
+    id: "tabsStallNoticeSeconds",
+    label: "Tab stall notice",
+    section: GENERIC_SECTION,
+    description: "Seconds without model or tool progress before a working tab shows a stall notice; A1 never kills a stalled tab automatically.",
+    application: "restart",
+    defaultValue: 300,
+    allowedValues: Object.freeze([120, 300, 600, 1800] as const),
+  }),
 } as const satisfies Readonly<Record<string, OwnedUiSettingDeclaration>>);
 
 export type OwnedSettingId = keyof typeof OWNED_SETTING_DECLARATIONS;

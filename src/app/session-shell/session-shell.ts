@@ -12,6 +12,7 @@ import type {
   OwnedUiCommandResult,
   OwnedUiDialog,
   OwnedUiDialogHost,
+  OwnedUiEvent,
   OwnedUiPromptSuggestionIdentity,
   OwnedUiSessionBackend,
   OwnedUiSessionPresenters,
@@ -148,6 +149,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #routeHost: UiRouteHost | null;
   #startupRoute: NonNullable<OwnedUiSessionShellOptions["engine"]["startupRoute"]> | undefined;
   #startupRouteTimer: ReturnType<typeof setTimeout> | undefined;
+  #residentProgressTimer: ReturnType<typeof setTimeout> | undefined;
+  #residentWorking = false;
+  #residentStalled = false;
   #dialogHandle: { hide(): void } | undefined;
   #sequence = 0;
   #editorRevision = 0;
@@ -295,6 +299,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         onDequeue: () => this.restoreQueuedInput(),
         onEditorChange: text => {
           this.#editorRevision++;
+          this.#residentTabOptions?.checkpoint?.(text);
           promptSuggestionController?.abortPending();
           if (text.length === 0) {
             // Concurrency: the editor synchronizes deletion-owned autocomplete after onChange.
@@ -353,6 +358,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       // Invariant: the presenter owns its root (theme subscription and helper clients) and disposes it once the
       // terminal no longer renders it.
       constructed.push(() => this.root.dispose());
+      this.#restoreResidentInput();
       const initialPiSettings = this.backend.settings.snapshot();
       this.#programStatus = new ProgramStatusReporter(
         status => this.#terminal.setProgramStatus(status),
@@ -556,6 +562,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
           if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#settleStoppedLifecycle();
           return;
         }
+        this.#observeResidentProgress(event);
         // Performance: a streamed chunk names one block, and touching only that block is what keeps the
         // cost of a chunk the same in a long session as in a new one. Everything else
         // resynchronizes the view, which is cheap next to re-reading the transcript.
@@ -856,15 +863,36 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const type = this.view().lifecycle === "busy" ? "steer" as const : "prompt" as const;
     this.#rememberInput(this.root.omitUnsentPromptImages(displayInput).trim(), type);
     this.root.resumeViewportFollowing();
-    const finishSending = prepared.images.length === 0 ? () => {} : this.root.beginImageSubmissionStatus();
+    const command = {
+      type,
+      correlationId: this.#correlation(type),
+      sessionId: this.backend.identity.sessionId,
+      text: input,
+      ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
+    } as const;
+    let submission: { readonly id: string } | undefined;
     try {
-      return await this.#execute({
-        type,
-        correlationId: this.#correlation(type),
-        sessionId: this.backend.identity.sessionId,
+      submission = await this.#residentTabOptions?.admit?.({
+        sessionId: command.sessionId,
+        sessionFile: this.#currentSessionFile(),
+        kind: type,
         text: input,
         ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
-      }, displayInput);
+      });
+    } catch {
+      if (this.root.editor.getText().length === 0) this.root.editor.setText(displayInput);
+      const message = "Prompt was not sent because its recovery journal could not be synchronized.";
+      this.#reportSubmissionError(undefined, message);
+      return rejected(message);
+    }
+    const finishSending = prepared.images.length === 0 ? () => {} : this.root.beginImageSubmissionStatus();
+    try {
+      const result = await this.#execute(command, displayInput);
+      if (submission !== undefined && result.outcome !== "rejected") {
+        this.#residentTabOptions?.dispatched?.();
+        await this.#residentTabOptions?.correlated?.(submission.id, command.correlationId).catch(() => undefined);
+      }
+      return result;
     } finally {
       finishSending();
     }
@@ -1280,8 +1308,67 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     }
   }
 
+  #restoreResidentInput(): void {
+    const recovered = this.#residentTabOptions?.recovered;
+    if (recovered === undefined) return;
+    const prompts = recovered.prompts.map(prompt => prompt.text).filter(Boolean);
+    if (prompts.length > 0) {
+      this.root.editor.setText(prompts[0]!);
+      if (recovered.draft) this.root.editor.addToHistory(recovered.draft);
+      for (const additional of prompts.slice(1)) this.root.editor.addToHistory(additional);
+      this.root.appendWorkflowStatus(recovered.draft
+        ? `Recovered an unfinished prompt; the prior draft and ${Math.max(0, prompts.length - 1)} additional prompt${prompts.length === 2 ? "" : "s"} are in editor history.`
+        : `Recovered an unfinished prompt${prompts.length > 1 ? `; ${prompts.length - 1} additional prompts are in editor history` : ""}.`);
+    } else if (recovered.draft) {
+      this.root.editor.setText(recovered.draft);
+      this.root.appendWorkflowStatus("Recovered the editor draft from the previous tab process.");
+    }
+  }
+
+  #currentSessionFile(): string | null {
+    const direct = this.backend.identity.currentSessionFile?.();
+    if (direct !== undefined && direct !== null) return direct;
+    const resume = this.backend.identity.currentSessionResumeMetadata();
+    return resume === null ? null : `${resume.sessionDir}/${resume.sessionId}`;
+  }
+
   #residentTab(): OwnedUiSessionShellOptions["engine"]["residentTab"] {
     return this.#residentTabOptions;
+  }
+
+  #observeResidentProgress(event: OwnedUiEvent): void {
+    const resident = this.#residentTabOptions;
+    const seconds = resident?.stallNoticeSeconds;
+    if (resident === undefined || seconds === undefined) return;
+    if (event.type === "session-lifecycle") {
+      this.#residentWorking = event.lifecycle === "busy";
+      if (!this.#residentWorking) {
+        if (this.#residentProgressTimer !== undefined) clearTimeout(this.#residentProgressTimer);
+        this.#residentProgressTimer = undefined;
+        this.#residentStalled = false;
+        resident.reportStatus?.("idle");
+        return;
+      }
+    } else if (!this.#residentWorking || ![
+      "transcript-block", "session-view", "assistant-message-completed", "agent-run-started",
+    ].includes(event.type)) {
+      return;
+    }
+    if (this.#residentStalled) {
+      this.#residentStalled = false;
+      resident.reportStatus?.("working");
+    }
+    if (this.#residentProgressTimer !== undefined) clearTimeout(this.#residentProgressTimer);
+    this.#residentProgressTimer = setTimeout(() => {
+      this.#residentProgressTimer = undefined;
+      if (this.#disposed || !this.#residentWorking) return;
+      this.#residentStalled = true;
+      resident.reportStatus?.("stalled");
+      const minutes = Math.max(1, Math.round(seconds / 60));
+      this.root.appendWorkflowStatus(`No progress for ${minutes} min — Esc interrupts · /restart-tab restarts`);
+      this.#terminal.requestRender();
+    }, seconds * 1_000);
+    this.#residentProgressTimer.unref?.();
   }
 
   async runWorkflow(request: OwnedUiWorkflowRequest): Promise<OwnedUiCommandResult> {
@@ -1526,6 +1613,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     attempt(() => {
       if (this.#startupRouteTimer !== undefined) clearTimeout(this.#startupRouteTimer);
       this.#startupRouteTimer = undefined;
+      if (this.#residentProgressTimer !== undefined) clearTimeout(this.#residentProgressTimer);
+      this.#residentProgressTimer = undefined;
     });
     attempt(() => this.#promptSuggestions?.dispose());
     attempt(() => this.#unsubscribePromptSuggestions());
@@ -1557,6 +1646,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       try { this.root.dispose(); } catch (error) { settled.push(error); }
       await historyCleanup.catch(() => false); // Security: background durability outcomes never enter terminal output.
       await boundedCleanup(() => pasteCleanup).catch(error => settled.push(error));
+      await boundedCleanup(() => this.#residentTabOptions?.gracefulStop?.(this.#currentSessionFile()) ?? Promise.resolve())
+        .catch(error => settled.push(error));
       await boundedCleanup(() => this.backend.extensions.unbindExtensionUi()).catch(error => settled.push(error));
       return settled;
     };
@@ -1743,6 +1834,12 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const name = separator < 0 ? body : body.slice(0, separator);
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
     if (this.#routeHost?.claims(name)) return this.#openOwnedRoute(name);
+    if (name === "restart-tab" && this.#residentTabOptions?.requestRestart !== undefined) {
+      const accepted = await this.#residentTabOptions.requestRestart().catch(() => false);
+      this.root.appendWorkflowStatus(accepted ? "Restarting resident tab…" : "Resident tab restart is unavailable.");
+      this.#terminal.requestRender();
+      return accepted ? { outcome: "completed", diagnostic: null } : rejected("resident tab restart is unavailable");
+    }
     if (this.#isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     if (this.#skillsCollapsed()) {
       if (name === SKILLS_COMMAND_NAME) return this.#runSkillsCommand(text, argument);

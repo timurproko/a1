@@ -73,7 +73,9 @@ pub fn render_strip(status: &str, name: &str, columns: u16) -> String {
     let glyph = match status {
         "starting" => "… ",
         "working" => "◐ ",
-        "ended" => "✗ ",
+        "restarting" => "↻ ",
+        "unresponsive" | "stalled" | "degraded" => "! ",
+        "crashed" | "failed" | "ended" => "✗ ",
         _ => "",
     };
     let mut chip = format!(" {glyph}{name} ");
@@ -223,6 +225,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     terminal.write(render_strip("starting", "agent", columns).as_bytes())?;
     let started = Instant::now();
     let mut chord = DoubleCtrlC::new(options.clear_exit_ms);
+    let mut failed = false;
     loop {
         watchdog.bump();
         while let Ok(payload) = message_rx.try_recv() {
@@ -233,6 +236,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             match kind.message_type.as_str() {
                 "surface" => {
                     let (_, surface): (_, Surface) = wire::body(&payload)?;
+                    failed = surface.status == "failed";
                     terminal.write(render_strip(&surface.status, "agent", columns).as_bytes())?;
                     terminal.write(&without_bell(&surface.bytes))?;
                 }
@@ -255,9 +259,21 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     return Err("a1 is attached in another terminal".to_owned());
                 }
                 "holder.exit" => {
-                    terminal.write(render_strip("ended", "agent", columns).as_bytes())?;
+                    terminal.write(render_strip("crashed", "agent", columns).as_bytes())?;
                 }
-                "viewer.status" | "input.rejected" | "input.uncertain" => {
+                "failure.status" => {
+                    let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    failed = true;
+                    let reason = result.message.unwrap_or_else(|| "tab failed".into());
+                    terminal.write(
+                        render_notice(
+                            &format!("✗ {reason} — [r] retry · [f] start fresh · [alt+w] close"),
+                            columns,
+                        )
+                        .as_bytes(),
+                    )?;
+                }
+                "viewer.status" | "input.rejected" | "input.uncertain" | "recovery.notice" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
                     if let Some(message) = result.message {
                         terminal.write(render_notice(&message, columns).as_bytes())?;
@@ -301,6 +317,21 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     print_hint();
                     return Ok(());
                 }
+                let bytes = if failed {
+                    match (key.code, key.modifiers) {
+                        (KeyCode::Char(value @ ('r' | 'R' | 'f' | 'F')), KeyModifiers::NONE) => {
+                            vec![value as u8]
+                        }
+                        (KeyCode::Char('w' | 'W'), modifiers)
+                            if modifiers.contains(KeyModifiers::ALT) =>
+                        {
+                            b"x".to_vec()
+                        }
+                        _ => continue,
+                    }
+                } else {
+                    bytes
+                };
                 wire::send(
                     &mut stream,
                     "input",
@@ -313,6 +344,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 )?;
             }
             Event::Paste(text) => {
+                if failed {
+                    continue;
+                }
                 let bytes = text.into_bytes();
                 wire::send(
                     &mut stream,
@@ -349,7 +383,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     },
                 )?;
             }
-            Event::FocusGained => wire::send(
+            Event::FocusGained if !failed => wire::send(
                 &mut stream,
                 "input",
                 None,
@@ -359,7 +393,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     epoch: 0,
                 },
             )?,
-            Event::FocusLost => wire::send(
+            Event::FocusLost if !failed => wire::send(
                 &mut stream,
                 "input",
                 None,

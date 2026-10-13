@@ -1557,6 +1557,7 @@
           "hash": "a7bcc9317a3dbfe99ca22356022fa06caed8fc542b780f430c9688274b9dbbb5",
           "consumers": [
             "src/integrations/pi/components/upstream/components/status-indicator.ts",
+            "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },

@@ -159,17 +159,6 @@ Bare `a1` SHALL connect to the profile's resident server, show every tab, and vi
 - **THEN** both SHALL show the same tabs and each SHALL keep its own viewed tab
 - **AND** only the current input controller of a tab SHALL send input or resize its PTY while the other client remains a read-only viewer until it claims control
 
-#### Requirement: Tab failure is presented and recoverable per tab
-A crashed or failed tab SHALL show its reason in its own surface with `[r] retry`, `[f] start fresh`, and `[alt+w] close`. When a restarted tab's last user prompt had no settled reply, A1 SHALL offer that prompt back into the editor and SHALL NOT resend it. Other tabs SHALL remain fully operable.
-
-##### Scenario: One tab crashes
-- **WHEN** one tab's A1 process exits unexpectedly during a turn
-- **THEN** only that tab SHALL show crash and restart state, and other tabs SHALL keep streaming and accepting input
-
-##### Scenario: Restart budget exhausted
-- **WHEN** a tab crashes three times within ten minutes
-- **THEN** it SHALL show failed with retry, fresh, and close actions and SHALL NOT restart automatically again
-
 #### Requirement: Tab shortcuts are declared, configurable, and conflict-checked
 Tab shortcuts SHALL be declared with action identities, SHALL be configurable through a keybindings file, SHALL be checked at launch against A1's shortcut registry and user keybindings with conflicts reported, and SHALL appear in `/hotkeys` inside A1 tabs. The attach client SHALL consume a matched tab shortcut before input encoding and SHALL forward every other input to the viewed tab; the only `Ctrl+C` handling SHALL be the double-press detach. Defaults SHALL NOT use `Alt+[`, `Alt+]`, `Alt+Left`, `Alt+Right`, `Ctrl+L`, `Alt+Up`, or `Shift+Tab`.
 
@@ -320,28 +309,6 @@ Clients SHALL authenticate with a random owner-only client token. One random own
 - **WHEN** a process of another operating-system user connects
 - **THEN** endpoint access control SHALL refuse it
 
-#### Requirement: Crashed and hung tabs restart within a bounded budget
-Holders SHALL detect child exit immediately and the server SHALL detect holder exit and heartbeat hangs within a bounded timeout, terminating verified hung trees gracefully then forcibly. An unrequested exit SHALL restart the tab by resuming its Pi session with increasing backoff; after three restarts within ten minutes the tab SHALL become failed and require retry, fresh start, or close. Restarts SHALL NOT resend an interrupted prompt. If child standard error is separately available, it SHALL be captured only as private bounded recovery data, not as a sanitized diagnostic log, and SHALL be excluded from the doctor bundle.
-
-##### Scenario: Tab process killed
-- **WHEN** a tab's A1 process is killed externally
-- **THEN** the holder SHALL restart it from its session and the tab SHALL show its transcript again
-
-##### Scenario: Interrupted turn after restart
-- **WHEN** a tab crashed after the user's prompt was persisted but before a reply settled
-- **THEN** the restarted tab SHALL be idle and SHALL offer the prompt without resubmitting it
-
-#### Requirement: Reboot and logout end tabs without losing sessions
-Resident processes SHALL end with the operating-system session; this version SHALL NOT restore tabs after reboot or logout. When the server starts under a new boot identity, or finds desired-running tabs without live verified holders after a new OS session, it SHALL move the previous tab set to registry history instead of starting those tabs, and bare `a1` SHALL start with one new tab. Every previous Pi session SHALL stay resumable through the normal session picker or `a1 --session`. A pending journaled prompt SHALL be offered, without replay, when its session is next opened in a tab within seven days. A reserved first-turn identity whose journal proves the session file was never created SHALL be recoverable the same way rather than treated as a missing transcript.
-
-##### Scenario: Reboot with three tabs
-- **WHEN** the machine reboots with three running tabs and the user runs `a1`
-- **THEN** A1 SHALL start one new tab, and all three previous sessions SHALL be listed in the session picker with every committed transcript entry
-
-##### Scenario: First-turn session file does not yet exist
-- **WHEN** a reboot leaves a durable reserved session identity and pending journal but Pi had not created the first session file
-- **THEN** opening that identity SHALL offer the prompt idle rather than treat it as a missing existing transcript or automatically resend it
-
 #### Requirement: Updates retain the active resident cohort
 Installing or activating a release SHALL NOT terminate the server, holders, or tab processes. Resident binaries and tab processes SHALL run from immutable release directories, and every release used by a live verified resident process SHALL be retained. In this version a same-generation newer client MAY attach with unsupported optional operations disabled, while the existing resident cohort remains on its release until all tabs stop. A generation mismatch SHALL report that the host must be stopped explicitly and SHALL NOT kill or recycle tabs. Automatic endpoint handoff and idle release recycling require a later change.
 
@@ -374,76 +341,9 @@ The terminal-host binary SHALL ship for Windows x64, Linux x64, and macOS arm64 
 
 ### Purpose
 
-Defines the reliability contract of resident tabs: failure-domain isolation, crash-only recovery, non-blocking execution, progress supervision, the explicit data-durability guarantees, fencing, diagnostics preservation, and the verification program that gates release.
+Defines the remaining reliability verification program that gates preview certification and later default enablement. Milestone 4 delivers crash recovery, liveness/progress supervision, durable recovery data, and diagnostic preservation, but does not implement or certify the `a1 tabs doctor` export; that export remains milestone 6 work.
 
 ### ADDED Requirements
-
-#### Requirement: A1 child liveness and progress are supervised separately
-Holders SHALL supervise their A1 process through bridge heartbeats emitted from its event loop. Server or bridge transport loss alone SHALL NOT be classified as a child hang or authorize child termination; child liveness SHALL be re-established before destructive recovery. An A1 process that is alive but has missed bridge heartbeats for 30 seconds SHALL be shown as unresponsive; after `tabsUnresponsiveRestartSeconds` (default 120) it SHALL be restarted from its session with its prompt journal and last screen preserved. A tab that is working but has produced no progress event for `tabsStallNoticeSeconds` (default 300) SHALL be shown as stalled with interrupt and restart actions and SHALL NOT be terminated automatically, because long-running tools are legitimate.
-
-##### Scenario: A1 event loop wedges
-- **WHEN** a tab's A1 process stops emitting bridge heartbeats but its process is alive
-- **THEN** its chip SHALL show unresponsive within 30 seconds, and after the configured interval the tab SHALL restart from its session with the pending prompt offered back
-
-##### Scenario: Server loss interrupts bridge delivery
-- **WHEN** the server dies or the bridge transport fails while a child remains alive
-- **THEN** holders SHALL keep the child running, report degraded status, and SHALL NOT apply the child heartbeat restart deadline solely to the transport outage
-
-##### Scenario: Provider stream stalls
-- **WHEN** a working tab receives no model or tool progress for five minutes
-- **THEN** its chip SHALL show stalled with interrupt and restart actions, and the tab SHALL NOT be killed automatically
-
-#### Requirement: Durable data is guaranteed per class
-A1 SHALL uphold these guarantees across forced termination of any process, including all resident processes at once:
-- Each submitted prompt SHALL have a stable submission ID bound to its session/incarnation and SHALL be synchronized to an owner-only per-tab journal before agent dispatch. Failed or timed-out journal admission SHALL preserve the editor prompt, report the failure, and dispatch nothing. Asynchronous prompt history SHALL NOT substitute for this barrier. A journal entry SHALL be retired only after the corresponding identified session entry is synchronized; settled completion SHALL also be durably correlated so recovery does not offer a completed submission as unfinished. Recovery SHALL reconcile journal/session records by identity, offer unfinished prompts without automatic resend, and cover the first turn before Pi creates its session file.
-- Committed Pi session entries SHALL never be lost on process termination. A1 SHALL synchronize the session file to stable storage after each settled turn and on graceful stop, so settled turns also survive power loss.
-- A tab's session identity and file path SHALL be durably recorded in the registry before the tab accepts input.
-- The editor draft SHALL be checkpointed periodically with a maximum one-second dirty interval while storage and the event loop are healthy, including continuous typing with no idle interval. A failed or late checkpoint SHALL expose degraded recovery and SHALL NOT silently retain the one-second loss guarantee.
-- When a tab's A1 process dies, its holder SHALL keep the last retained screen visible as a read-only snapshot and SHALL write it with bounded scrollback to an owner-only recovery file, retained for seven days, so streamed but uncommitted output remains readable.
-- Registry mutations SHALL be synchronized with write access sufficient for the platform's flush semantics, SHALL retry transient rename failures with backoff, and SHALL NOT be acknowledged as committed until their durability barrier succeeds. Persistent failure SHALL reject new durable mutations while retaining live observed state in memory, report degraded health, and never rebuild state from an older file over newer memory. Each platform's file and replacement/directory metadata durability primitives and supported-filesystem limits SHALL be specified and tested, including a write-capable flush with write-through replacement on Windows and `F_FULLFSYNC` on macOS; API-call occurrence alone SHALL NOT certify power-loss survival.
-
-##### Scenario: Power loss after a settled turn
-- **WHEN** the machine loses power after a turn has settled
-- **THEN** after reboot that session SHALL contain that turn when it is resumed
-
-##### Scenario: Crash during the first turn of a new tab
-- **WHEN** a new tab's A1 process is killed before its first reply completes
-- **THEN** the restarted tab SHALL offer the original prompt from the journal even though Pi had not created a session file
-
-##### Scenario: Journal admission fails
-- **WHEN** a submitted prompt cannot be durably journaled before dispatch
-- **THEN** the editor SHALL retain it with a visible failure and the agent SHALL receive no submission
-
-##### Scenario: Crash between session synchronization and journal retirement
-- **WHEN** a submission's session entry is synchronized but the journal still contains its submission ID at crash time
-- **THEN** recovery SHALL reconcile the records without duplicating the session entry or dispatching the prompt, and SHALL offer it only if the turn remains unfinished
-
-##### Scenario: Continuous typing before a crash
-- **WHEN** the user types continuously for thirty seconds with healthy storage and the tab is then killed
-- **THEN** recovery SHALL contain all but at most the last second of draft changes without requiring an inactivity interval
-
-##### Scenario: Draft checkpoint stalls
-- **WHEN** the draft checkpoint exceeds its dirty-interval bound because storage fails or blocks
-- **THEN** A1 SHALL report degraded recovery when observable and SHALL NOT claim the one-second draft-loss bound remains satisfied
-
-##### Scenario: Crash mid-stream
-- **WHEN** a tab's A1 process dies while a reply streams
-- **THEN** the streamed text SHALL remain visible in the read-only last-screen snapshot and in its recovery file
-
-##### Scenario: Antivirus holds the registry file
-- **WHEN** registry rename fails transiently because another process holds the file
-- **THEN** the server SHALL retry, keep serving from memory, report degraded health if the failure persists, and SHALL NOT drop or kill any tab
-
-#### Requirement: Diagnostics survive the failures they describe
-Resident logs SHALL rotate by size into bounded retained generations and SHALL never be deleted or truncated at startup. Every crash, watchdog termination, and unrequested child exit SHALL produce a distinct timestamped record containing role, incarnation, reason, recent structured events, and, for native processes, a backtrace, bounded in total size and age. Structured logs and crash records SHALL use allowlisted metadata and SHALL exclude credentials, prompt/transcript/terminal content, raw stderr, and arbitrary exception messages. Journals, last-screen snapshots, and optional separately captured child stderr SHALL be classified as sensitive recovery artifacts rather than sanitized diagnostics, restricted to the owner and bounded by size and age. Optional stderr SHALL retain at most three 5 MiB generations for at most seven days and SHALL NOT be inferred by scraping terminal cells. `a1 tabs doctor` SHALL export only allowlisted diagnostic data with host status, recent structured records, counters for restarts, stalls, resyncs, and degraded states, and platform detachment details; it SHALL exclude recovery content.
-
-##### Scenario: Two crashes in a row
-- **WHEN** a tab crashes, restarts, and crashes again
-- **THEN** both crash records SHALL be preserved and distinguishable
-
-##### Scenario: Extension writes sensitive stderr
-- **WHEN** a child extension writes a prompt, credential-like text, or terminal control sequence to stderr
-- **THEN** that raw content SHALL NOT appear in structured logs, crash records, or the doctor bundle, and any separately captured copy SHALL remain private bounded recovery data
 
 #### Requirement: Reliability evidence matches the enablement stage
 The server state machine SHALL be implemented independently of I/O and SHALL be exercised by deterministic simulation and property tests that inject arbitrary interleavings of process death, message loss, reordering, delay, stale epochs, controller transfer, client churn, and mutations, asserting that no committed mutation is lost, only one registry writer exists, no session gains two live tabs, client-scoped requests remain attributable, and every desired-running tab converges to running or failed. Every persistence and IPC step SHALL expose a failure-injection point exercised by crash-point tests. Protocol decoders and surface encoders SHALL be fuzzed, and bounded chaos/fault-injection suites on each platform SHALL gate the opt-in preview. Implementation SHALL progress through contracts and platform primitives, one persistent tab, failure isolation, crash recovery, complete UX, and packaged certification, each delivered as its own change behind `residentTabs: false`, with evidence at each milestone before dependent behavior is enabled. Intermediate demonstrations SHALL NOT count as shipping acceptance. Historical v2/herdr results, Unix-only tests, and pending 2×2 proof records SHALL NOT substitute for exact-package resident evidence on each platform.

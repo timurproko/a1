@@ -258,6 +258,22 @@
       "semantics": "Fault-feature-only existing-registry sync delay used by native integration tests"
     },
     {
+      "role": "tabsFaultRegistryReplace",
+      "key": "A1_TABS_FAULT_REGISTRY_REPLACE",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/archive/2026-10-13-resident-tabs-crash-recovery/design.md",
+      "semantics": "Fault-feature-only transient or persistent registry replacement failure used by native integration tests"
+    },
+    {
+      "role": "tabsHermeticTest",
+      "key": "A1_TABS_HERMETIC_TEST",
+      "exposure": "integration",
+      "owner": "src/foundation/resident-tabs/fault-injection.ts",
+      "evidence": "test/foundation/resident-tabs/recovery-storage.test.ts",
+      "semantics": "Marks an isolated resident-tab storage process in which named crash points may run"
+    },
+    {
       "role": "tabsFaultCrashPoint",
       "key": "A1_TABS_FAULT_CRASH_POINT",
       "exposure": "integration",
