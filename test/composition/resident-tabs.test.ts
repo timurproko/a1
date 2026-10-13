@@ -58,7 +58,7 @@ describe("resident tab composition bridge", () => {
     value.event({ type: "session-lifecycle", lifecycle: "idle" });
     value.changeSession({ sessionDir: "D:/sessions", sessionId: "two.jsonl" }, "renamed");
     value.event({ type: "session-view" });
-    expect(value.bridge.status.mock.calls.map(call => call[0])).toEqual(["starting", "working", "idle"]);
+    expect(value.bridge.status.mock.calls.map(call => call[0])).toEqual(["starting", "working", "idle", "idle"]);
     expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/two.jsonl", "renamed", "user");
   });
 

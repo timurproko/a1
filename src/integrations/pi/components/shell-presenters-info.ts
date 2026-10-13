@@ -3,6 +3,7 @@ import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleW
 import { PRODUCT_TEXT } from "../../../product-identity.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { getPiHotkeysMarkdownTheme, getPiMarkdownTheme, paintPiBorder, PINNED_PI_LAYOUT, piTheme } from "./theme.js";
+import { RESIDENT_TAB_SHORTCUTS } from "../../../features/resident-tab/shortcuts.js";
 import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";
 
 export interface PiShellSessionInfoPresentation {
@@ -228,6 +229,16 @@ export function hotkeysMarkdown(
       : `\`${label}\``;
   }).join(" / ")} | ${description} |`;
   let markdown = ["**Navigation**", "| Key | Action |", "|-----|--------|", row(["tui.editor.cursorUp", "tui.editor.cursorDown", "tui.editor.cursorLeft", "tui.editor.cursorRight"], "Move cursor / browse history"), row(["tui.editor.cursorWordLeft", "tui.editor.cursorWordRight"], "Move by word"), row(["tui.editor.cursorLineStart"], profile === "a1" ? "Start of prompt line" : "Start of line"), row(["tui.editor.cursorLineEnd"], profile === "a1" ? "End of prompt line" : "End of line"), ...(profile === "a1" ? ["| `Ctrl+Home` | Start of content |", "| `Ctrl+End` | End of content / follow output |"] : []), row(["tui.editor.jumpForward"], "Jump forward to character"), row(["tui.editor.jumpBackward"], "Jump backward to character"), row(["tui.editor.pageUp", "tui.editor.pageDown"], "Scroll by page"), "", "**Editing**", "| Key | Action |", "|-----|--------|", row(["tui.input.submit"], "Send message"), row(["tui.input.newLine"], `New line${process.platform === "win32" ? " (Ctrl+Enter on Windows Terminal)" : ""}`), row(["tui.editor.deleteWordBackward"], "Delete word backwards"), row(["tui.editor.deleteWordForward"], "Delete word forwards"), row(["tui.editor.deleteToLineStart"], "Delete to start of line"), row(["tui.editor.deleteToLineEnd"], "Delete to end of line"), row(["tui.editor.yank"], "Paste the most-recently-deleted text"), row(["tui.editor.yankPop"], "Cycle through the deleted text after pasting"), row(["tui.editor.undo"], "Undo"), "", "**Other**", "| Key | Action |", "|-----|--------|", row(["tui.input.tab"], "Path completion / accept autocomplete"), row(["app.interrupt"], "Cancel autocomplete / abort streaming"), row(["app.clear"], "Clear editor (first) / exit (second)"), row(["app.exit"], "Exit (when editor is empty)"), row(["app.suspend"], "Suspend to background"), row(["app.thinking.cycle"], "Cycle thinking level"), row(["app.model.cycleForward", "app.model.cycleBackward"], "Cycle models"), row(["app.model.select"], profile === "a1" ? "Open the Models dialog" : "Open model selector"), row(["app.tools.expand"], "Toggle tool output expansion"), row(["app.thinking.toggle"], "Toggle thinking block visibility"), row(["app.editor.external"], "Edit message in external editor"), row(["app.message.copy"], "Copy selection or last assistant message"), row(["app.message.followUp"], "Queue follow-up message"), row(["app.message.dequeue"], "Restore queued messages"), row(["app.clipboard.pasteImage"], profile === "a1" ? "Paste image or text from clipboard" : "Paste files on macOS, images, or text from clipboard"), "| `/` | Slash commands |", "| `!` | Run bash command |", "| `!!` | Run bash command (excluded from context) |", ...(profile === "a1" ? ["", "**Models dialog**", "| Key | Action |", "|-----|--------|", "| `Space` | Toggle the selected model in the cycling scope |", "| `Tab` | Switch the all/scoped filter |", row(["app.models.save"], "Save the scope to settings"), row(["app.models.enableAll"], "Scope every listed model"), row(["app.models.clearAll"], "Clear the listed models from the scope"), row(["app.models.toggleProvider"], "Toggle the selected model's provider"), row(["app.models.reorderUp", "app.models.reorderDown"], "Reorder the cycling scope")] : [])].join("\n");
+  if (profile === "a1" && process.env.A1_TAB_ID) {
+    const configured = (bindings ?? {}) as Readonly<Record<string, unknown>>;
+    markdown += "\n\n**Tabs**\n| Key | Action |\n|-----|--------|\n";
+    markdown += RESIDENT_TAB_SHORTCUTS.filter(shortcut => shortcut.scope === "global").map(shortcut => {
+      const value = configured[shortcut.id];
+      const assigned = typeof value === "string" ? [value] : Array.isArray(value) ? value.filter((key): key is string => typeof key === "string") : shortcut.defaultKey === null ? [] : [shortcut.defaultKey];
+      const label = assigned.length === 0 ? "Unbound" : `\`${assigned.map(shortcutDisplay).join("/")}\``;
+      return `| ${label} | ${shortcut.description} |`;
+    }).join("\n");
+  }
   const shortcuts = getShortcuts(bindings ?? keys.getEffectiveConfig());
   if (shortcuts.length > 0) {
     markdown += "\n\n**Extensions**\n| Key | Action |\n|-----|--------|\n";

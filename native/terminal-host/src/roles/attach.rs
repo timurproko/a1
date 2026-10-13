@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::{Write, stdout};
 use std::path::Path;
 use std::sync::mpsc;
@@ -22,6 +23,115 @@ pub const ENTER_OUTER_MODES: &[u8] =
     b"\x1b[?1049h\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1006h\x1b[?2026h";
 pub const RESTORE_OUTER_MODES: &[u8] =
     b"\x1b[?2026l\x1b[?1006l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?1049l";
+
+#[derive(Debug, Default)]
+struct TabBindings {
+    by_key: HashMap<String, String>,
+}
+
+impl TabBindings {
+    fn load(profile: &Path) -> Self {
+        let defaults = [
+            ("tabs.new", "alt+a"),
+            ("tabs.close", "alt+w"),
+            ("tabs.rename", "f2"),
+            ("tabs.jump1", "alt+1"),
+            ("tabs.jump2", "alt+2"),
+            ("tabs.jump3", "alt+3"),
+            ("tabs.jump4", "alt+4"),
+            ("tabs.jump5", "alt+5"),
+            ("tabs.jump6", "alt+6"),
+            ("tabs.jump7", "alt+7"),
+            ("tabs.jump8", "alt+8"),
+            ("tabs.jump9", "alt+9"),
+            ("tabs.jump10", "alt+0"),
+        ];
+        let mut actions = defaults
+            .into_iter()
+            .map(|(action, key)| (action.to_owned(), vec![key.to_owned()]))
+            .collect::<HashMap<_, _>>();
+        if let Ok(bytes) = std::fs::read(profile.join("keybindings.json"))
+            && let Ok(document) = serde_json::from_slice::<serde_json::Value>(&bytes)
+            && let Some(object) = document.as_object()
+        {
+            for action in [
+                "tabs.new",
+                "tabs.close",
+                "tabs.rename",
+                "tabs.jump1",
+                "tabs.jump2",
+                "tabs.jump3",
+                "tabs.jump4",
+                "tabs.jump5",
+                "tabs.jump6",
+                "tabs.jump7",
+                "tabs.jump8",
+                "tabs.jump9",
+                "tabs.jump10",
+                "tabs.next",
+                "tabs.previous",
+                "tabs.moveRight",
+                "tabs.moveLeft",
+            ] {
+                if let Some(value) = object.get(action) {
+                    let keys = match value {
+                        serde_json::Value::String(key) => vec![key.to_lowercase()],
+                        serde_json::Value::Array(values) => values
+                            .iter()
+                            .filter_map(|value| value.as_str().map(str::to_lowercase))
+                            .collect(),
+                        serde_json::Value::Null => Vec::new(),
+                        _ => continue,
+                    };
+                    actions.insert(action.to_owned(), keys);
+                }
+            }
+        }
+        let mut by_key = HashMap::new();
+        let mut conflicts = std::collections::HashSet::new();
+        for (action, keys) in actions {
+            for key in keys {
+                if by_key.insert(key.clone(), action.clone()).is_some() {
+                    conflicts.insert(key);
+                }
+            }
+        }
+        for key in conflicts {
+            by_key.remove(&key);
+        }
+        Self { by_key }
+    }
+
+    fn action(&self, key: &crossterm::event::KeyEvent) -> Option<&str> {
+        self.by_key
+            .get(&key_token(key.code, key.modifiers))
+            .map(String::as_str)
+    }
+}
+
+fn key_token(code: KeyCode, modifiers: KeyModifiers) -> String {
+    let key = match code {
+        KeyCode::Char(value) => value.to_ascii_lowercase().to_string(),
+        KeyCode::F(number) => format!("f{number}"),
+        KeyCode::Left => "left".into(),
+        KeyCode::Right => "right".into(),
+        KeyCode::Up => "up".into(),
+        KeyCode::Down => "down".into(),
+        _ => return String::new(),
+    };
+    let mut parts = Vec::new();
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        parts.push("ctrl");
+    }
+    if modifiers.contains(KeyModifiers::ALT) {
+        parts.push("alt");
+    }
+    if modifiers.contains(KeyModifiers::SHIFT) {
+        parts.push("shift");
+    }
+    parts.push(&key);
+    parts.join("+")
+}
 #[cfg(unix)]
 const KITTY_QUERY: &[u8] = b"\x1b[?u\x1b[c";
 const KITTY_ENABLE: &[u8] = b"\x1b[>1u";
@@ -315,6 +425,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut pending_close: Option<String> = None;
     let mut registry_revision = 0u64;
     let mut drag: Option<(String, u16, Instant)> = None;
+    let bindings = TabBindings::load(options.profile);
     loop {
         watchdog.bump();
         while let Ok(payload) = message_rx.try_recv() {
@@ -531,28 +642,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     }
                     continue;
                 }
-                if key.code == KeyCode::F(2) {
-                    if let Some(tab_id) = viewed.clone() {
-                        let name = tabs
-                            .iter()
-                            .find(|tab| tab.id == tab_id)
-                            .map(|tab| tab.name.clone())
-                            .unwrap_or_default();
-                        rename = Some((tab_id, name));
-                        terminal.write(
-                            render_notice("Rename: type a name · Enter save · Esc cancel", columns)
-                                .as_bytes(),
-                        )?;
-                    }
-                    continue;
-                }
-                if key.modifiers.contains(KeyModifiers::ALT) {
-                    match key.code {
-                        KeyCode::Char('a' | 'A') => {
-                            wire::send(&mut stream, "tab.create", None, create.clone())?;
-                            continue;
-                        }
-                        KeyCode::Char('w' | 'W') => {
+                if let Some(action) = bindings.action(&key) {
+                    match action {
+                        "tabs.new" => wire::send(&mut stream, "tab.create", None, create.clone())?,
+                        "tabs.close" => {
                             if let Some(tab_id) = viewed.clone() {
                                 let busy =
                                     tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
@@ -576,14 +669,67 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     )?;
                                 }
                             }
-                            continue;
                         }
-                        KeyCode::Char(value @ ('0'..='9')) => {
-                            let index = if value == '0' {
-                                9
-                            } else {
-                                value.to_digit(10).unwrap_or(1) as usize - 1
-                            };
+                        "tabs.rename" => {
+                            if let Some(tab_id) = viewed.clone() {
+                                let name = tabs
+                                    .iter()
+                                    .find(|tab| tab.id == tab_id)
+                                    .map(|tab| tab.name.clone())
+                                    .unwrap_or_default();
+                                rename = Some((tab_id, name));
+                                terminal.write(
+                                    render_notice(
+                                        "Rename: type a name · Enter save · Esc cancel",
+                                        columns,
+                                    )
+                                    .as_bytes(),
+                                )?;
+                            }
+                        }
+                        "tabs.next" | "tabs.previous" => {
+                            if !tabs.is_empty() {
+                                let current = viewed
+                                    .as_ref()
+                                    .and_then(|id| tabs.iter().position(|tab| &tab.id == id))
+                                    .unwrap_or(0);
+                                let index = if action == "tabs.next" {
+                                    (current + 1) % tabs.len()
+                                } else {
+                                    (current + tabs.len() - 1) % tabs.len()
+                                };
+                                let tab_id = tabs[index].id.clone();
+                                viewed = Some(tab_id.clone());
+                                wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
+                            }
+                        }
+                        "tabs.moveRight" | "tabs.moveLeft" => {
+                            if let Some(tab_id) = viewed.clone()
+                                && let Some(current) = tabs.iter().position(|tab| tab.id == tab_id)
+                            {
+                                let target_index = if action == "tabs.moveRight" {
+                                    (current + 1).min(tabs.len().saturating_sub(1))
+                                } else {
+                                    current.saturating_sub(1)
+                                };
+                                wire::send(
+                                    &mut stream,
+                                    "tab.reorder",
+                                    None,
+                                    TabReorder {
+                                        tab_id,
+                                        target_index,
+                                        expected_revision: registry_revision,
+                                    },
+                                )?;
+                            }
+                        }
+                        jump if jump.starts_with("tabs.jump") => {
+                            let index = jump
+                                .trim_start_matches("tabs.jump")
+                                .parse::<usize>()
+                                .unwrap_or(1)
+                                .saturating_sub(1);
                             if let Some(tab) = tabs.get(index) {
                                 viewed = Some(tab.id.clone());
                                 wire::send(
@@ -594,13 +740,13 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                         tab_id: tab.id.clone(),
                                     },
                                 )?;
-                                strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                                terminal.write(strip_frame.bytes.as_bytes())?;
                             }
-                            continue;
                         }
                         _ => {}
                     }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    terminal.write(strip_frame.bytes.as_bytes())?;
+                    continue;
                 }
                 let bytes = encode_key(key.code, key.modifiers);
                 if bytes.is_empty() {

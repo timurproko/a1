@@ -469,12 +469,20 @@ export async function bindResidentTabBridge(
   };
   let working = false;
   let autoNameAttempted = false;
+  const reportStatus = (lifecycle?: string) => {
+    const view = backend.session.view();
+    tabBridge.status(deriveResidentTabStatus({
+      lifecycle: lifecycle ?? view.lifecycle,
+      pendingRequests: view.dialog == null ? 0 : 1,
+      queuedInput: 0,
+    }), false, view.dialog == null ? 0 : 1, 0);
+  };
   announceSession();
   return backend.session.onEvent(event => {
     if (event.type === "session-lifecycle") {
       const wasWorking = working;
       working = event.lifecycle === "busy";
-      tabBridge.status(deriveResidentTabStatus({ lifecycle: event.lifecycle, pendingRequests: 0, queuedInput: 0 }));
+      reportStatus(event.lifecycle);
       if (wasWorking && !working && recovery !== null) {
         void recovery.settled(currentSessionFile()).catch(() => tabBridge.degraded(true));
       }
@@ -491,7 +499,10 @@ export async function bindResidentTabBridge(
         }
       }
     }
-    if (event.type === "session-view") announceSession();
+    if (event.type === "session-view") {
+      announceSession();
+      reportStatus();
+    }
   });
 }
 
