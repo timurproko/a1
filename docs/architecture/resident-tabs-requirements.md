@@ -72,8 +72,8 @@ Background attention SHALL be conveyed only by the tab status icons. A1 SHALL NO
 - **WHEN** a program running in a tab writes a bell character
 - **THEN** the outer terminal SHALL NOT receive it
 
-#### Requirement: Tabs are created, switched, and reordered from keyboard, mouse, and commands
-A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A`, the `+` chip, or `/new-tab [name]`, and SHALL view it. `Alt+.` and `Alt+,` SHALL view the next and previous tab with wrap-around; `Alt+1` through `Alt+9` SHALL view that tab and `Alt+0` the tenth; `Alt+>` and `Alt+<` SHALL move the viewed tab right and left. On the strip row, a left click SHALL view a chip, dragging a chip after 250 ms or pointer movement SHALL reorder it with a `│` drop marker, and a right click SHALL open a `Rename`/`Close` menu. `/tabs` SHALL open a picker listing every tab with name, status, and cwd. Reordering SHALL use expected registry revisions. When `tabsMax` is reached, creation affordances SHALL create nothing and SHALL state the limit. A prewarmed standby tab SHALL be used for creation when available.
+#### Requirement: Tabs are created, switched, and reordered from keyboard and mouse
+A1 SHALL create and view a new A1 tab in the client's launch cwd from `Alt+A` or the `+` chip. `Alt+1` through `Alt+9` SHALL view that tab and `Alt+0` the tenth. `tabs.next`, `tabs.previous`, `tabs.moveRight`, and `tabs.moveLeft` SHALL be assignable in `keybindings.json` but unbound by default. On the strip row, a left click SHALL view a chip, dragging a chip after 250 ms or pointer movement SHALL reorder it with a `│` drop marker, and a right click SHALL open a `Rename`/`Close` menu. Reordering SHALL use expected registry revisions. When `tabsMax` is reached, creation affordances SHALL create nothing and SHALL state the limit. A prewarmed standby tab SHALL be used for creation when available. A1 SHALL expose no `/new-tab` or `/tabs` command.
 
 ##### Scenario: Create from the keyboard
 - **WHEN** the user presses `Alt+A`
@@ -99,7 +99,7 @@ A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A`, the `+` ch
 - **THEN** auto-naming SHALL NOT change that name
 
 #### Requirement: Closing a tab stops only that session after confirmation when busy
-`Alt+W`, the chip menu, and `/close` SHALL close a tab. When the tab is working, awaiting input, or reports queued input, A1 SHALL ask `Stop "<name>"? Enter stop · Esc cancel` before acting. Closing SHALL request graceful shutdown of that tab's A1 process, terminate its verified tree after a bounded deadline, remove the tab from every client, and leave its Pi session resumable. Closing the last tab SHALL leave the strip with `+` and a hint rather than quit.
+`Alt+W`, the always-visible `×`, and the chip menu SHALL close a tab. A1 SHALL expose no `/close` command. When the tab is working, awaiting input, or reports queued input, A1 SHALL ask `Stop "<name>"? Enter stop · Esc cancel` before acting. Closing SHALL request graceful shutdown of that tab's A1 process, terminate its verified tree after a bounded deadline, remove the tab from every client, and leave its Pi session resumable. Closing the last tab SHALL leave the strip with `+` and a hint rather than quit.
 
 ##### Scenario: Close a working tab and cancel
 - **WHEN** the user presses `Alt+W` on a streaming tab and then `Esc`
@@ -317,11 +317,11 @@ Installing or activating a release SHALL NOT terminate the server, holders, or t
 - **THEN** the turn and resident process identities SHALL remain uninterrupted and their immutable release SHALL remain retained
 
 #### Requirement: Resident resources are bounded and observable
-A1 SHALL enforce configurable limits on tab count, concurrent starts, scrollback, and client queues, each with a hard cap. When idle suspension is enabled (default 60 minutes), an idle tab with no pending request, queued input, or viewer SHALL stop its A1 process, show suspended, and resume its session on view or prompt. The server SHALL exit only after ten minutes with no running tabs and no clients. Logs SHALL rotate and SHALL exclude terminal content, prompt text, and credentials. `a1 tabs host status` SHALL report server identity, build, generation, detachment mode, tab count, and log locations.
+A1 SHALL expose only `tabsMax` and `tabsAutoName` as tab UX settings. Concurrent starts SHALL use internal default 2/hard cap 8, and prewarm SHALL use internal count/hard cap 1. Every open tab SHALL retain its holder and A1 process until explicit close; A1 SHALL provide no idle-suspension setting, timer, lifecycle, or glyph. The server SHALL exit only after ten minutes with no running tabs and no clients. Logs SHALL rotate and SHALL exclude terminal content, prompt text, and credentials. `a1 tabs host status` SHALL report server identity, build, generation, detachment mode, tab count, and log locations.
 
-##### Scenario: Idle suspension
-- **WHEN** an unviewed idle tab reaches the suspension interval
-- **THEN** its A1 process SHALL stop, its chip SHALL show suspended, and viewing it SHALL resume the session with no lost transcript
+##### Scenario: Unviewed idle tab remains running
+- **WHEN** an open tab remains unviewed and idle
+- **THEN** its process SHALL continue running until the tab is explicitly closed
 
 #### Requirement: Resident tabs have non-interactive maintenance commands
 A1 SHALL provide `a1 tabs` to list tabs with identity, name, status, and cwd; `a1 tabs stop <id>` and `a1 tabs stop --all`; `a1 tabs host status` and `a1 tabs host stop`, which stops tabs gracefully before the server; and `a1 tabs doctor`, which creates a bounded redacted diagnostic bundle. These commands SHALL NOT start an interactive runtime, SHALL NOT start a server merely to report that none runs, and SHALL fail concisely with nonzero status on invalid arguments.

@@ -62,12 +62,12 @@ export async function readResidentTabLaunchSettings(
       document,
       currentVersion: OWNED_UI_SETTINGS_VERSION,
     });
-    const tabsMax = settingValue(resolution, "tabsMax");
+    const tabsMax = (document as { values?: Record<string, unknown> }).values?.["tabsMax"] ?? settingValue(resolution, "tabsMax");
     const unresponsive = settingValue(resolution, "tabsUnresponsiveRestartSeconds");
     const stall = settingValue(resolution, "tabsStallNoticeSeconds");
     return {
       residentTabs: settingValue(resolution, "residentTabs") === true,
-      tabsMax: typeof tabsMax === "number" ? tabsMax : DEFAULTS.tabsMax,
+      tabsMax: typeof tabsMax === "number" && Number.isFinite(tabsMax) ? Math.max(1, Math.min(50, Math.trunc(tabsMax))) : DEFAULTS.tabsMax,
       tabsAutoName: settingValue(resolution, "tabsAutoName") === true,
       maxConcurrentStarts: RESIDENT_TABS_MAX_CONCURRENT_STARTS,
       prewarmCount: RESIDENT_TABS_PREWARM_COUNT,
