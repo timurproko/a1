@@ -6,6 +6,9 @@ import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 
+const productIdentity = JSON.parse(await readFile(new URL("../../src/product-identity.json", import.meta.url), "utf8"));
+const tabsEndpointEnvironment = productIdentity.environment.tabsEndpoint;
+
 const budgets = Object.freeze({
   warmCreateMs: 250,
   reattachPaintMs: 300,
@@ -154,7 +157,7 @@ async function collectMeasurements(host) {
     release: join(root, "release"),
     endpoint: process.platform === "win32" ? `\\\\.\\pipe\\a1-resident-measure-${process.pid}-${Date.now()}` : join(root, "resident.sock"),
   };
-  context.environment = { ...process.env, TERM: "xterm-256color", A1_TABS_ENDPOINT: context.endpoint };
+  context.environment = { ...process.env, TERM: "xterm-256color", [tabsEndpointEnvironment]: context.endpoint };
   for (const directory of [context.profile, context.data, context.runtime, join(context.release, "bin")]) {
     await mkdir(directory, { recursive: true });
     if (process.platform !== "win32") await chmod(directory, 0o700);
