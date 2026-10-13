@@ -7,6 +7,7 @@ export const PRIVATE_ENVIRONMENT = Object.freeze({
   releaseDigest: "LAUNCH_CONTEXT_RELEASE_DIGEST",
   releaseLayers: "LAUNCH_CONTEXT_RELEASE_LAYERS",
   launchProfile: "LAUNCH_CONTEXT_PROFILE",
+  launchMode: "LAUNCH_CONTEXT_MODE",
   immutableWarmup: "LAUNCH_CONTEXT_WARMUP",
   residentRootExecutable: "LAUNCH_CONTEXT_RESIDENT_ROOT_EXECUTABLE",
   residentRootArguments: "LAUNCH_CONTEXT_RESIDENT_ROOT_ARGUMENTS",
@@ -43,6 +44,7 @@ export interface LaunchContext {
   readonly releaseDigest?: string;
   readonly releaseLayers?: string;
   readonly launchProfile?: "a1" | "pi";
+  readonly launchMode?: "tabs" | "solo";
   readonly immutableWarmup?: "1";
   readonly residentRootExecutable?: string;
   readonly residentRootArguments?: string;
@@ -82,6 +84,10 @@ export function readLaunchContext(
   if (values.launchProfile !== undefined && values.launchProfile !== "a1" && values.launchProfile !== "pi") {
     throw invalidContext("launchProfile", "unsupported profile");
   }
+  if (values.launchMode !== undefined && values.launchMode !== "tabs" && values.launchMode !== "solo") {
+    throw invalidContext("launchMode", "unsupported launch mode");
+  }
+  if (values.launchProfile === "pi" && values.launchMode === "tabs") throw invalidContext("launchMode", "Pi comparison cannot use tabs");
   if (values.immutableWarmup !== undefined && values.immutableWarmup !== "1") throw invalidContext("immutableWarmup", "invalid permission flag");
   if ((values.residentRootExecutable === undefined) !== (values.residentRootArguments === undefined)) throw invalidContext("residentRootExecutable", "resident root command is incomplete");
   if (values.residentRootArguments !== undefined) {

@@ -22,7 +22,7 @@ import { ensureTerminalHost, readResidentTabLaunchSettings, selectResidentHost, 
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
-  readonly launchIntent?: { readonly kind: "interactive"; readonly profileId: LaunchProfileId; readonly sessionSelection?: SessionSelection };
+  readonly launchIntent?: { readonly kind: "interactive"; readonly profileId: LaunchProfileId; readonly launchMode: "tabs" | "solo"; readonly sessionSelection?: SessionSelection };
   readonly environment?: NodeJS.ProcessEnv;
   readonly output?: Pick<NodeJS.WriteStream, "write">;
   /**
@@ -37,8 +37,7 @@ export interface BootstrapOptions {
   readonly releaseIsLaunchable?: (releaseRoot: string) => boolean;
   /** Test seam for bounded maintenance scheduled after stale endpoint sweeping. */
   readonly scheduleMaintenance?: (dataDir: string, paths: ReturnType<typeof resolveProductPaths>) => Promise<void>;
-  /** Test seams for resident launch routing before the guardian starts. */
-  readonly readResidentTabs?: (configDir: string, profileId: string) => Promise<boolean>;
+  /** Test seam for resident launch routing before the guardian starts. */
   readonly ensureTerminalHost?: (options: EnsureTerminalHostOptions) => Promise<EnsureTerminalHostResult>;
 }
 
@@ -49,12 +48,15 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
 }
 
 async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: number): Promise<number> {
-  const environment = withLaunchContext(options.environment ?? process.env, { launchProfile: options.launchIntent?.profileId ?? "a1" });
-  await markStartupPhase(environment, "bootstrap-start");
   const launchProfileId = options.launchIntent?.profileId ?? "a1";
+  const launchMode = options.launchIntent?.launchMode ?? (launchProfileId === "a1" ? "tabs" : "solo");
+  const environment = withLaunchContext(options.environment ?? process.env, { launchProfile: launchProfileId, launchMode });
+  await markStartupPhase(environment, "bootstrap-start");
   assertLaunchProfileId(launchProfileId);
   const sessionArgs = sessionSelectionArguments(options.launchIntent?.sessionSelection);
-  if (sessionArgs.length > 0 && launchProfileId !== "a1") throw new Error("session selection requires the normal A1 profile");
+  if (sessionArgs.length > 0 && (launchProfileId !== "a1" || launchMode === "solo")) {
+    throw new Error("session selection requires the normal tabbed A1 launch");
+  }
   const output = options.output ?? process.stderr;
   const paths = resolveProductPaths(environment);
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
@@ -64,11 +66,8 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
     const residentLaunchSettings = readResidentTabLaunchSettings(paths.configDir, launchProfileId);
     const resident = await selectResidentHost({
       profileId: launchProfileId,
-      hasSessionSelection: sessionArgs.length > 0,
       currentLaunchContract: isCurrentLaunchContract(release),
-      readSetting: options.readResidentTabs === undefined
-        ? async () => (await residentLaunchSettings).residentTabs
-        : () => options.readResidentTabs!(paths.configDir, launchProfileId),
+      solo: launchMode === "solo",
       ensureHost: async () => (options.ensureTerminalHost ?? ensureTerminalHost)({
         releaseRoot: release.releaseRoot,
         profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
@@ -437,12 +436,14 @@ async function launchUi(
  * version instead of failing while an installation is being replaced.
  */
 export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: MaterializedRelease, profile?: LaunchProfileId): NodeJS.ProcessEnv {
+  const launchMode = readLaunchContext(environment).launchMode;
   return withLaunchContext(environment, {
     releaseId: release.releaseId,
     releaseLayers: (release.dependencyLayers ?? []).map(layer => layer.layerId).join(","),
     releaseRoot: release.releaseRoot,
     releaseDigest: release.contentDigest,
     ...(profile === undefined ? {} : { launchProfile: profile }),
+    ...(launchMode === undefined ? {} : { launchMode }),
   }, process.platform, launchContractTarget(release));
 }
 

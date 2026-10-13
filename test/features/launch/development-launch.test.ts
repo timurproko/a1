@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
@@ -90,7 +90,7 @@ describe("repository-local development launch", () => {
       expect(JSON.parse(owned.stdout)).toMatchObject({
         launchArguments: [],
         directProfile: "a1",
-        residentTabs: true,
+        launchMode: "tabs",
         selectedEntry: "bin/cli.js",
         profileConfigurationRoot: resolve(profileHome, ".a1/agent"),
         environment: {
@@ -101,7 +101,7 @@ describe("repository-local development launch", () => {
       expect(JSON.parse(pi.stdout)).toMatchObject({
         launchArguments: ["pi"],
         directProfile: "pi",
-        residentTabs: false,
+        launchMode: "solo",
         selectedEntry: "bin/ui.js",
         profileConfigurationRoot: null,
         environment: { PI_CODING_AGENT_DIR: null, NODE_DISABLE_COMPILE_CACHE: "1" },
@@ -112,23 +112,21 @@ describe("repository-local development launch", () => {
     }
   });
 
-  it("uses the direct development entry when tabs are explicitly disabled", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-development-direct-"));
-    const configDir = resolve(root, "config");
-    const profileHome = resolve(root, "profile");
-    await mkdir(resolve(configDir, "settings"), { recursive: true });
-    await writeFile(resolve(configDir, "settings/a1.json"), JSON.stringify({ version: 16, values: { residentTabs: false } }));
+  it("uses the direct development entry for explicit solo mode", async () => {
+    const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-solo-"));
     try {
-      const result = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment"], {
-        env: { ...process.env, A1_CONFIG_DIR: configDir, A1_PROFILE_HOME: profileHome },
+      const result = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", "solo"], {
+        env: { ...process.env, A1_PROFILE_HOME: profileHome },
       });
       expect(JSON.parse(result.stdout)).toMatchObject({
+        launchArguments: ["solo"],
+        childArguments: [],
         directProfile: "a1",
-        residentTabs: false,
+        launchMode: "solo",
         selectedEntry: "bin/ui.js",
       });
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await rm(profileHome, { recursive: true, force: true });
     }
   });
 
@@ -138,9 +136,9 @@ describe("repository-local development launch", () => {
     const args = ["--session-dir", "D:/session's store", "--session", "D:\\session files\\saved.jsonl"];
     try {
       const selected = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", ...args], { env });
-      expect(JSON.parse(selected.stdout)).toMatchObject({ directProfile: "a1", residentTabs: true, selectedEntry: "bin/cli.js", childArguments: args });
+      expect(JSON.parse(selected.stdout)).toMatchObject({ directProfile: "a1", launchMode: "tabs", selectedEntry: "bin/cli.js", childArguments: args });
       const fresh = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment"], { env });
-      expect(JSON.parse(fresh.stdout)).toMatchObject({ directProfile: "a1", residentTabs: true, selectedEntry: "bin/cli.js", childArguments: [] });
+      expect(JSON.parse(fresh.stdout)).toMatchObject({ directProfile: "a1", launchMode: "tabs", selectedEntry: "bin/cli.js", childArguments: [] });
     } finally {
       await rm(profileHome, { recursive: true, force: true });
     }

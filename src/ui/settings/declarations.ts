@@ -147,15 +147,6 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     defaultValue: 8,
     allowedValues: Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const),
   }),
-  residentTabs: Object.freeze({
-    id: "residentTabs",
-    label: "Enable tabs",
-    section: TABS_SECTION,
-    description: "Keep bare A1 running in tabs and reattach on the next launch. Turning this off prevents new resident launches but does not stop existing tabs.",
-    application: "restart",
-    defaultValue: true,
-    allowedValues: Object.freeze([true, false] as const),
-  }),
   tabsMax: Object.freeze({
     id: "tabsMax",
     label: "Maximum tabs",

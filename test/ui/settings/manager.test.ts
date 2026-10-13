@@ -89,6 +89,17 @@ afterEach(() => {
 });
 
 describe("owned settings manager", () => {
+  it("omits empty sections when a launch hides their owned settings", () => {
+    const manager = new OwnedSettingsManager({
+      configDir: root,
+      profileId: "a1",
+      hiddenOwnedSettingIds: ["tabsMax", "tabsAutoName"],
+    });
+    expect(manager.sections().find(section => section.id === "tabs")).toBeUndefined();
+    expect(manager.value("tabsMax")).toBe(10);
+    expect(manager.value("tabsAutoName")).toBe(true);
+  });
+
   it.each(["available", "absent", "failed", "read-only"] as const)(
     "preserves owned Agent choices and routes them to A1 with %s engine settings",
     async state => {

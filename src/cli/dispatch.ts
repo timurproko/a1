@@ -1,4 +1,4 @@
-import { interactiveLaunchIntent, parseSessionSelection, type InteractiveLaunchIntent, type LaunchProfileId, type SessionSelection } from "../features/launch/index.js";
+import { interactiveLaunchIntent, parseSessionSelection, type InteractiveLaunchIntent, type InteractiveLaunchMode, type LaunchProfileId, type SessionSelection } from "../features/launch/index.js";
 import type { CliCapabilities } from "./capabilities.js";
 import type { PackageCommandRequest } from "./packages.js";
 import type { SessionContextRequest } from "./session-context.js";
@@ -31,6 +31,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "",
     "--session <path|id>",
     "--session-dir <dir> --session <path|id>",
+    "solo",
     ...(capabilities.developmentComparison ? ["pi"] : []),
     "help",
     "version",
@@ -56,6 +57,7 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command}`,
     `  ${command} --session <path|id>`,
     `  ${command} --session-dir <dir> --session <path|id>`,
+    `  ${command} solo`,
     ...(capabilities.developmentComparison ? [`  ${command} pi`] : []),
     `  ${command} help`,
     `  ${command} version`,
@@ -81,7 +83,7 @@ export function cliHelp(capabilities: CliCapabilities): string {
   ].join("\n");
 }
 
-const PROFILE_WORDS = new Set(["pi"]);
+const PROFILE_WORDS = new Set(["pi", "solo"]);
 
 export async function dispatchCli(
   arguments_: readonly string[],
@@ -107,7 +109,7 @@ export async function dispatchCli(
     output.stderr(`${command.message}\n`);
     return 2;
   }
-  if (command.kind === "launch") return await handlers.launch(interactiveLaunchIntent(command.profileId, command.sessionSelection));
+  if (command.kind === "launch") return await handlers.launch(interactiveLaunchIntent(command.profileId, command.sessionSelection, command.launchMode));
   if (command.kind === "version") return await handlers.version();
   if (command.kind === "packages") return await handlers.packages(command.request);
   if (command.kind === "session-context") return await handlers.sessionContext(command.request);
@@ -119,7 +121,7 @@ export type CliCommand =
   | { readonly kind: "help" }
   | { readonly kind: "package-help"; readonly verb: PackageCliVerb; readonly namespace: PackageCommandNamespace }
   | { readonly kind: "package-error"; readonly diagnostic: PackageSyntaxDiagnostic; readonly namespace: PackageCommandNamespace }
-  | { readonly kind: "launch"; readonly profileId: LaunchProfileId; readonly sessionSelection?: SessionSelection }
+  | { readonly kind: "launch"; readonly profileId: LaunchProfileId; readonly launchMode: InteractiveLaunchMode; readonly sessionSelection?: SessionSelection }
   | { readonly kind: "version" }
   | { readonly kind: "update"; readonly channel: UpdateChannel; readonly target?: string }
   | { readonly kind: "packages"; readonly request: PackageCommandRequest }
@@ -127,13 +129,13 @@ export type CliCommand =
   | { readonly kind: "error"; readonly message: string };
 
 export function parseCliCommand(arguments_: readonly string[], capabilities: CliCapabilities): CliCommand {
-  if (arguments_.length === 0) return { kind: "launch", profileId: "a1" };
+  if (arguments_.length === 0) return { kind: "launch", profileId: "a1", launchMode: "tabs" };
   const [command, ...rest] = arguments_;
 
   if (command === "--session" || command === "--session-dir") {
     try {
       const sessionSelection = parseSessionSelection(arguments_);
-      return { kind: "launch", profileId: "a1", ...(sessionSelection === undefined ? {} : { sessionSelection }) };
+      return { kind: "launch", profileId: "a1", launchMode: "tabs", ...(sessionSelection === undefined ? {} : { sessionSelection }) };
     } catch (error) {
       return { kind: "error", message: PRODUCT_TEXT.diagnostic(`could not parse session launch: ${error instanceof Error ? error.message : String(error)}`) };
     }
@@ -145,8 +147,9 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
   }
   if (command === "pi") {
     if (rest.length > 0) return parsePackageCommand(rest, "pi");
-    return capabilities.developmentComparison ? { kind: "launch", profileId: "pi" } : { kind: "noop" };
+    return capabilities.developmentComparison ? { kind: "launch", profileId: "pi", launchMode: "solo" } : { kind: "noop" };
   }
+  if (command === "solo") return withoutArguments(rest, { kind: "launch", profileId: "a1", launchMode: "solo" });
   if (command === "update") return parseUpdate(rest);
   if (command === "session") return parseSessionContext(rest);
   if (command?.startsWith("update:")) return { kind: "noop" };

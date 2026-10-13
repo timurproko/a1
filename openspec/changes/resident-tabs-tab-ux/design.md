@@ -4,7 +4,7 @@ The product design, decisions, and roadmap live in [`docs/architecture/resident-
 
 ## Context
 
-After milestone 4, bare `a1` with `residentTabs=true` runs the native attach client, resident server, and one holder per tab on Windows x64, macOS, and Linux. Tabs survive terminal closure, fail independently, and restart into their sessions. Milestone 2 added a minimal authenticated bridge (credentials, session file, process-level status, detach request) and a basic strip. Milestone 1 proved the controller-transfer barrier in the sans-IO core but no product path uses it yet.
+After milestone 4, bare `a1` can run the native attach client, resident server, and one holder per tab on Windows x64, macOS, and Linux. Tabs survive terminal closure, fail independently, and restart into their sessions. Milestone 2 added a minimal authenticated bridge (credentials, session file, process-level status, detach request) and a basic strip. Milestone 1 proved the controller-transfer barrier in the sans-IO core but no product path uses it yet.
 
 Relevant current code:
 
@@ -25,7 +25,7 @@ Relevant current code:
 
 - The complete foreground UX of architecture Decision 11 on all three platforms, with status from engine events only (architecture Decision 7).
 - Two attached clients that can never misattribute input or a client-scoped command.
-- Auto-naming with the v2 title animation, one prewarmed standby, and a user-configurable tab limit after the core UX passes its tests. Tabs default on behind a Yes/No setting in the Tabs section; Open tabs keep their processes and are never idle-suspended.
+- Auto-naming with the v2 title animation, one prewarmed standby, and a user-configurable tab limit after the core UX passes its tests. Bare `a1` always uses tabs, while `a1 solo` is direct and exposes no Tabs settings section. Open tabs keep their processes and are never idle-suspended.
 - Measured performance per platform against declared budgets.
 
 **Non-Goals:**
@@ -95,9 +95,11 @@ On detach the client restores the outer terminal (milestone 2 path) and prints `
 
 ### 10. Resident session selection and direct conflicts
 
-`bin/cli.js` → `src/cli/dispatch.ts` already parses `--session`/`--session-dir` with `parseSessionSelection`. With `residentTabs=true`, the launch path resolves the target with `resolveSessionArgumentPath` and passes it to its own attach client, which sends `tab.create{kind:"a1", cwd, env, session}` with its client id. The server looks up the canonical file identity (milestone-1 lock identity) among live tabs: if a tab holds it, that client views it; otherwise the new tab's child acquires the writer lease before opening it, and on lease conflict the tab fails with the reason instead of writing. The selection is never stored as a server default.
+`bin/cli.js` → `src/cli/dispatch.ts` already parses `--session`/`--session-dir` with `parseSessionSelection`. Bare `a1` resolves the target with `resolveSessionArgumentPath` and passes it to its own attach client, which sends `tab.create{kind:"a1", cwd, env, session}` with its client id. The server looks up the canonical file identity (milestone-1 lock identity) among live tabs: if a tab holds it, that client views it; otherwise the new tab's child acquires the writer lease before opening it, and on lease conflict the tab fails with the reason instead of writing. The selection is never stored as a server default.
 
-In direct mode (`residentTabs=false` or fallback), a lease conflict found by milestone 3's guard prints `Session is open in another A1 process.` and, when stdin is a terminal, offers `[f] fork into a new session · [q] quit` using the existing fork path (`runtime.fork` in `workflow-runner.ts`, prompt in `src/features/owned-ui/session-fork-prompt.ts`); non-interactive invocations exit nonzero. It never starts a host.
+`src/cli/dispatch.ts` recognizes argument-free `a1 solo` as a normal A1-profile launch with resident routing explicitly bypassed. Help lists it beside bare `a1`; extra arguments are rejected rather than silently reinterpreted. The launch intent carries this mode through bootstrap, and the settings composition hides the complete Tabs section for the solo runtime.
+
+In direct mode (`a1 solo`, `a1 pi`, or resident fallback), a lease conflict found by milestone 3's guard prints `Session is open in another A1 process.` and, when stdin is a terminal, offers `[f] fork into a new session · [q] quit` using the existing fork path (`runtime.fork` in `workflow-runner.ts`, prompt in `src/features/owned-ui/session-fork-prompt.ts`); non-interactive invocations exit nonzero. It never starts a host.
 
 ### 11. Text-terminal extension fidelity certification
 
@@ -105,7 +107,7 @@ A fixture extension (`test/fixtures/extensions/text-terminal-fidelity/`, new) re
 
 ### 12. Prewarm, limits, and settings
 
-The existing `residentTabs` declaration moves from Generic to the Tabs section, is labeled `Enable tabs`, retains the Yes/No values, and changes its default to Yes. `tabsMax` (default 10, range 1–50) and `tabsAutoName` (default on) appear beneath it only while Enable tabs is Yes; choosing No leaves only Enable tabs visible in the Tabs section. Out-of-range `tabsMax` values clamp with one notice. The settings version migration removes stored `tabsMaxConcurrentStarts`, `tabsUnresponsiveRestartSeconds`, and `tabsStallNoticeSeconds`; concurrent starts become an internal default of 2 with hard cap 8, unresponsive restart remains internally fixed at 120 seconds, and the stall notice remains internally fixed at 300 seconds. Prewarm is an internal count of 1 with hard cap 1. The repository-local development launcher follows the same setting and host route as an installed bare-A1 launch so enabling tabs visibly presents the strip during manual testing. The resolved user-facing values and internal constants are passed to the server on attach; the server applies the latest values it receives.
+The `residentTabs` declaration is removed. Bare `a1` always selects resident routing, while the new `a1 solo` launch form explicitly selects the direct single-agent runtime. `tabsMax` (default 10, range 1–50) and `tabsAutoName` (default on) are the only settings in the Tabs section during resident launches; the entire section is absent in solo mode. Out-of-range `tabsMax` values clamp with one notice. The settings version migration removes stored `residentTabs`, `tabsMaxConcurrentStarts`, `tabsUnresponsiveRestartSeconds`, and `tabsStallNoticeSeconds`; concurrent starts become an internal default of 2 with hard cap 8, unresponsive restart remains internally fixed at 120 seconds, and the stall notice remains internally fixed at 300 seconds. Prewarm is an internal count of 1 with hard cap 1. The repository-local development launcher follows the selected bare or solo route so bare launch reaches the production resident bootstrap and solo launches `ui.js` directly. The resolved user-facing values and internal constants are passed to the server on attach; the server applies the latest values it receives.
 
 **Prewarm.** When the internal prewarm count is 1, no visible start is pending, and visible tabs are below `tabsMax`, the server starts one hidden standby holder running `ui.js --tab --standby` in the cwd and environment of the most recent creating client. The standby loads Pi, settings, and extensions but reserves no session and holds no writer lease. Promotion on `tab.create` requires an exact cwd and environment-digest match; the child then reserves a new session identity, commits it to the registry before accepting input (architecture Decision 8), and becomes visible. A mismatch starts a cold tab and retargets the standby. The standby is excluded from the strip and `tabsMax` accounting, and is stopped when the server's idle-exit timer starts.
 

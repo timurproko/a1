@@ -17,7 +17,6 @@ export const RESIDENT_TABS_PREWARM_COUNT = 1;
 export const RESIDENT_TABS_PREWARM_CAP = 1;
 
 export interface ResidentTabLaunchSettings {
-  readonly residentTabs: boolean;
   readonly tabsMax: number;
   readonly tabsAutoName: boolean;
   readonly maxConcurrentStarts: number;
@@ -27,7 +26,6 @@ export interface ResidentTabLaunchSettings {
 }
 
 const DEFAULTS: ResidentTabLaunchSettings = Object.freeze({
-  residentTabs: true,
   tabsMax: 10,
   tabsAutoName: true,
   maxConcurrentStarts: RESIDENT_TABS_MAX_CONCURRENT_STARTS,
@@ -51,7 +49,6 @@ export async function readResidentTabLaunchSettings(
     if (document === null) return DEFAULTS;
     const resolution = resolveOwnedUiSettings({
       declarations: [
-        OWNED_SETTING_DECLARATIONS.residentTabs,
         OWNED_SETTING_DECLARATIONS.tabsMax,
         OWNED_SETTING_DECLARATIONS.tabsAutoName,
       ],
@@ -61,7 +58,6 @@ export async function readResidentTabLaunchSettings(
     });
     const tabsMax = (document as { values?: Record<string, unknown> }).values?.["tabsMax"] ?? settingValue(resolution, "tabsMax");
     return {
-      residentTabs: settingValue(resolution, "residentTabs") === true,
       tabsMax: typeof tabsMax === "number" && Number.isFinite(tabsMax) ? Math.max(1, Math.min(50, Math.trunc(tabsMax))) : DEFAULTS.tabsMax,
       tabsAutoName: settingValue(resolution, "tabsAutoName") === true,
       maxConcurrentStarts: RESIDENT_TABS_MAX_CONCURRENT_STARTS,
@@ -72,8 +68,4 @@ export async function readResidentTabLaunchSettings(
   } catch {
     return DEFAULTS;
   }
-}
-
-export async function readResidentTabsSetting(configDir: string, profileId = "a1"): Promise<boolean> {
-  return (await readResidentTabLaunchSettings(configDir, profileId)).residentTabs;
 }

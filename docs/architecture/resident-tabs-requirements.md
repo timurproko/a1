@@ -11,7 +11,7 @@ Defines the bare-A1 tab presentation for several independent resident A1 agent s
 ### ADDED Requirements
 
 #### Requirement: Bare A1 presents resident A1 sessions as tabs
-When resident tabs are enabled, bare `a1` SHALL present a one-row tab strip at the top of the terminal and the viewed tab's terminal surface in all remaining rows. Each tab SHALL be an independent resident terminal session running the complete A1 owned UI with its own Pi agent session, extensions, transcript, editor, queue, model, thinking level, notices, and cwd. Only the viewed tab SHALL receive keyboard, paste, focus, and surface mouse input. The strip SHALL be present even when a single tab exists. `a1 pi` SHALL NOT present a tab strip.
+On a supported platform, bare `a1` SHALL present a one-row tab strip at the top of the terminal and the viewed tab's terminal surface in all remaining rows. Each tab SHALL be an independent resident terminal session running the complete A1 owned UI with its own Pi agent session, extensions, transcript, editor, queue, model, thinking level, notices, and cwd. Only the viewed tab SHALL receive keyboard, paste, focus, and surface mouse input. The strip SHALL be present even when a single tab exists. `a1 solo` and `a1 pi` SHALL NOT present a tab strip.
 
 ##### Scenario: First launch with no tabs
 - **WHEN** the user runs bare `a1` and the profile has no resident tabs
@@ -174,7 +174,7 @@ Tab shortcuts SHALL be declared with action identities, SHALL be configurable th
 
 ### Purpose
 
-Defines the opt-in resident capability (Windows x64, Linux x64, macOS arm64) that keeps bare-A1 tabs alive independently of any terminal: the native resident server, per-tab session holders, and attach client, together with their protocols, controller attribution, durable registry, writer authority, derived credentials, detachment, crash/reboot recovery, limits, diagnostics, and preview certification.
+Defines the resident capability (Windows x64, Linux x64, macOS arm64) that keeps bare-A1 tabs alive independently of any terminal: the native resident server, per-tab session holders, and attach client, together with their protocols, controller attribution, durable registry, writer authority, derived credentials, detachment, crash/reboot recovery, limits, diagnostics, and preview certification.
 
 ### ADDED Requirements
 
@@ -317,7 +317,7 @@ Installing or activating a release SHALL NOT terminate the server, holders, or t
 - **THEN** the turn and resident process identities SHALL remain uninterrupted and their immutable release SHALL remain retained
 
 #### Requirement: Resident resources are bounded and observable
-A1 SHALL expose only `residentTabs`, `tabsMax`, and `tabsAutoName` as tab UX settings in Settings > Tabs. `residentTabs` SHALL be labeled `Enable tabs`, offer Yes and No, and default to Yes. `tabsMax` and `tabsAutoName` SHALL be hidden while Enable tabs is No, leaving only the enable control visible. Concurrent starts SHALL use internal default 2/hard cap 8, prewarm SHALL use internal count/hard cap 1, and unresponsive-restart/stall-notice timing SHALL remain internal at 120/300 seconds. Every open tab SHALL retain its holder and A1 process until explicit close; A1 SHALL provide no idle-suspension setting, timer, lifecycle, or glyph. The server SHALL exit only after ten minutes with no running tabs and no clients. Logs SHALL rotate and SHALL exclude terminal content, prompt text, and credentials. `a1 tabs host status` SHALL report server identity, build, generation, detachment mode, tab count, and log locations.
+A1 SHALL expose only `tabsMax` and `tabsAutoName` as tab UX settings in Settings > Tabs during resident tab launches. Direct `a1 solo` and `a1 pi` launches SHALL expose no Tabs settings section. Tab enablement SHALL NOT be a persisted setting. Concurrent starts SHALL use internal default 2/hard cap 8, prewarm SHALL use internal count/hard cap 1, and unresponsive-restart/stall-notice timing SHALL remain internal at 120/300 seconds. Every open tab SHALL retain its holder and A1 process until explicit close; A1 SHALL provide no idle-suspension setting, timer, lifecycle, or glyph. The server SHALL exit only after ten minutes with no running tabs and no clients. Logs SHALL rotate and SHALL exclude terminal content, prompt text, and credentials. `a1 tabs host status` SHALL report server identity, build, generation, detachment mode, tab count, and log locations.
 
 ##### Scenario: Unviewed idle tab remains running
 - **WHEN** an open tab remains unviewed and idle
@@ -331,7 +331,7 @@ A1 SHALL provide `a1 tabs` to list tabs with identity, name, status, and cwd; `a
 - **THEN** A1 SHALL report no running tabs and SHALL NOT start a server
 
 #### Requirement: Resident support is packaged, certified, and reversible
-The terminal-host binary SHALL ship for Windows x64, Linux x64, and macOS arm64 with artifact hashes, pinned source provenance, licenses, notices, and immutable-release placement verified before execution. `Enable tabs` SHALL default to Yes, and each platform SHALL require exact-package automated suites plus manual or isolated-worker physical evidence for terminal closure, remote-session loss, input fidelity, extension text UI, recovery, and rendering. Physical automation SHALL NOT run on an active workstation. When the setting is No, the platform unsupported, or the server cannot start safely, bare `a1` SHALL run the direct single-agent owned UI, with one notice for an attempted fallback; registry records and sessions SHALL be preserved. Each additional platform requires a separate approved change and evidence.
+The terminal-host binary SHALL ship for Windows x64, Linux x64, and macOS arm64 with artifact hashes, pinned source provenance, licenses, notices, and immutable-release placement verified before execution. Bare `a1` SHALL use tabs on supported builds, and each platform SHALL require exact-package automated suites plus manual or isolated-worker physical evidence for terminal closure, remote-session loss, input fidelity, extension text UI, recovery, and rendering. Physical automation SHALL NOT run on an active workstation. Explicit `a1 solo` SHALL run the direct single-agent owned UI without initializing the resident host. When the platform is unsupported or the server cannot start safely, bare `a1` SHALL fall back to that direct path with one notice; registry records and sessions SHALL be preserved. Each additional platform requires a separate approved change and evidence.
 
 ##### Scenario: Server cannot start
 - **WHEN** the terminal-host binary is missing, unverified, or fails its start budget
@@ -341,18 +341,18 @@ The terminal-host binary SHALL ship for Windows x64, Linux x64, and macOS arm64 
 
 ### Purpose
 
-Defines the remaining reliability verification program that gates preview certification and later default enablement. Milestone 4 delivers crash recovery, liveness/progress supervision, durable recovery data, and diagnostic preservation, but does not implement or certify the `a1 tabs doctor` export; that export remains milestone 6 work.
+Defines the remaining reliability verification program that gates preview certification and continued bare-A1 enablement. Milestone 4 delivers crash recovery, liveness/progress supervision, durable recovery data, and diagnostic preservation, but does not implement or certify the `a1 tabs doctor` export; that export remains milestone 6 work.
 
 ### ADDED Requirements
 
 #### Requirement: Reliability evidence matches the enablement stage
-The server state machine SHALL be implemented independently of I/O and SHALL be exercised by deterministic simulation and property tests that inject arbitrary interleavings of process death, message loss, reordering, delay, stale epochs, controller transfer, client churn, and mutations, asserting that no committed mutation is lost, only one registry writer exists, no session gains two live tabs, client-scoped requests remain attributable, and every desired-running tab converges to running or failed. Every persistence and IPC step SHALL expose a failure-injection point exercised by crash-point tests. Protocol decoders and surface encoders SHALL be fuzzed, and bounded chaos/fault-injection suites on each platform SHALL gate resident certification. Implementation SHALL progress through contracts and platform primitives, one persistent tab, failure isolation, crash recovery, complete UX, and packaged certification, each delivered as its own change; milestones 1–4 remain behind `residentTabs: false`, and milestone 5 changes it to default Yes. Evidence is required at each milestone before dependent behavior is enabled. Intermediate demonstrations SHALL NOT count as shipping acceptance. Historical v2/herdr results, Unix-only tests, and pending 2×2 proof records SHALL NOT substitute for exact-package resident evidence on each platform.
+The server state machine SHALL be implemented independently of I/O and SHALL be exercised by deterministic simulation and property tests that inject arbitrary interleavings of process death, message loss, reordering, delay, stale epochs, controller transfer, client churn, and mutations, asserting that no committed mutation is lost, only one registry writer exists, no session gains two live tabs, client-scoped requests remain attributable, and every desired-running tab converges to running or failed. Every persistence and IPC step SHALL expose a failure-injection point exercised by crash-point tests. Protocol decoders and surface encoders SHALL be fuzzed, and bounded chaos/fault-injection suites on each platform SHALL gate resident certification. Implementation SHALL progress through contracts and platform primitives, one persistent tab, failure isolation, crash recovery, complete UX, and packaged certification, each delivered as its own change; milestones 1–4 remain behind `residentTabs: false`, and milestone 5 removes the toggle, routes bare `a1` through resident tabs, and adds `a1 solo` as the explicit direct path. Evidence is required at each milestone before dependent behavior is enabled. Intermediate demonstrations SHALL NOT count as shipping acceptance. Historical v2/herdr results, Unix-only tests, and pending 2×2 proof records SHALL NOT substitute for exact-package resident evidence on each platform.
 
 Before resident tabs are certified for a platform, a separately authorized isolated-worker soak on that platform of at least 24 hours SHALL exercise ten tabs under high-rate output and random termination of servers, holders, tab processes, and clients, controller and resize churn, blocked writes, pseudoterminal creation hangs, and rename denial. It SHALL assert zero lost journaled prompts, zero lost committed entries, zero orphaned processes, zero duplicate tabs, bounded memory and handle growth, reattach p95 under 300 ms, tab restart under 3 s, and server recovery under 2 s. Each later platform SHALL earn equivalent implementation and exact-package evidence before certification; evidence SHALL NOT be inferred across platforms.
 
-##### Scenario: Default-on tabs change resident code
-- **WHEN** resident behavior changes while Enable tabs defaults to Yes
-- **THEN** deterministic, crash-point, fuzz, bounded chaos, and exact-package physical evidence SHALL remain required without inferring certification from the default
+##### Scenario: Always-on tabs change resident code
+- **WHEN** resident behavior changes while bare `a1` uses tabs
+- **THEN** deterministic, crash-point, fuzz, bounded chaos, and exact-package physical evidence SHALL remain required without inferring certification from the launch default
 
 ##### Scenario: Prototype evidence is available
 - **WHEN** a reference prototype has a passing benchmark or another platform's detach tests pass
@@ -371,24 +371,31 @@ Before resident tabs are certified for a platform, a separately authorized isola
 ### MODIFIED Requirements
 
 #### Requirement: Interactive launch forms use the owned Pi UI pipeline
-Bare `a1` SHALL launch the A1-owned product surface. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed. On a supported platform (Windows x64, Linux x64, macOS arm64), `Enable tabs` SHALL default to Yes and bare `a1` SHALL run the native terminal-host attach client over resident tabs, each of which SHALL run the same owned product UI in its own holder-owned pseudoterminal; pseudoterminals, terminal models, and composition SHALL exist only inside the resident terminal-host capability, and `a1 pi` SHALL retain its direct presentation without resident infrastructure. Direct and Pi-comparison runtimes SHALL share only the canonical session-writer admission guard with resident runtimes; this guard SHALL NOT initialize a terminal host. Choosing No or using an unsupported platform SHALL leave bare `a1` on the direct owned path.
+Bare `a1` SHALL launch the A1-owned product surface through resident tabs on supported platforms (Windows x64, Linux x64, macOS arm64). Argument-free `a1 solo` SHALL launch the same owned product surface directly as one agent, without a tab strip, Tabs settings section, or resident-host initialization. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed. Each resident tab SHALL run the same owned product UI in its own holder-owned pseudoterminal; pseudoterminals, terminal models, and composition SHALL exist only inside the resident terminal-host capability. Direct solo and Pi-comparison runtimes SHALL share only the canonical session-writer admission guard with resident runtimes; this guard SHALL NOT initialize a terminal host. An unsupported platform or resident-host startup failure SHALL leave bare `a1` on the direct owned path.
 
 ##### Scenario: Launch bare A1
 - **WHEN** the user runs `a1`
 - **THEN** A1 SHALL start the owned product UI without requiring a profile argument
 
 ##### Scenario: Launch after a prior exit
-- **WHEN** the user runs bare A1 after a previous owned foreground session exited
-- **THEN** with resident tabs disabled A1 SHALL start a fresh owned session without replaying the prior retained terminal surface
-- **AND** with resident tabs enabled A1 SHALL reattach to the running tabs and present their current retained surfaces
+- **WHEN** the user runs bare A1 after a previous resident foreground client exited
+- **THEN** A1 SHALL reattach to the running tabs and present their current retained surfaces
 
 ##### Scenario: Launch bare A1 with resident tabs
-- **WHEN** the user runs `a1` on a supported platform with Enable tabs at its default Yes value
+- **WHEN** the user runs `a1` on a supported platform
 - **THEN** every tab SHALL run the owned product UI, and Node SHALL NOT read, relay, or render tab terminal bytes
 
-##### Scenario: Resident tabs are not enabled
-- **WHEN** Enable tabs is set to No or the platform is unsupported
-- **THEN** bare A1 SHALL use the direct single-agent owned path and SHALL NOT start the resident host
+##### Scenario: Launch solo A1
+- **WHEN** the user runs argument-free `a1 solo`
+- **THEN** A1 SHALL start a fresh direct single-agent owned UI without a tab strip or Tabs settings section and SHALL NOT start the resident host
+
+##### Scenario: Reject solo arguments
+- **WHEN** the user supplies an argument after `a1 solo`
+- **THEN** A1 SHALL reject the command without starting an interactive runtime
+
+##### Scenario: Resident tabs are unsupported
+- **WHEN** the platform is unsupported or the resident host cannot start safely
+- **THEN** bare A1 SHALL use the direct single-agent owned path and SHALL NOT leave an unverified resident host running
 
 ##### Scenario: Launch the Pi comparison
 - **WHEN** the user runs prerelease `a1 pi`
@@ -399,14 +406,14 @@ Bare `a1` SHALL launch the A1-owned product surface. Explicit prerelease `a1 pi`
 - **THEN** A1 SHALL reject the unsupported profile and SHALL NOT silently select another runtime
 
 #### Requirement: Interactive launch forms share one non-detachable instance boundary
-The immutable interactive launcher SHALL establish the same non-detachable launch-instance ownership boundary before selecting bare `a1` or prerelease `a1 pi`. Both forms SHALL retain the shared owned rendering and input pipeline inside that boundary. The lifecycle layer SHALL own process containment and cleanup without reading terminal input, parsing output, reconstructing display state, or selecting a second rendering path. When resident tabs are enabled, bare `a1`'s launch instance SHALL own its attach client and every ordinary descendant that client creates, without enabling job-wide breakaway, while the resident server, session holders, and tab processes SHALL belong to the explicit resident terminal-host capability.
+The immutable interactive launcher SHALL establish the same non-detachable launch-instance ownership boundary before selecting bare `a1`, `a1 solo`, or prerelease `a1 pi`. All forms SHALL retain the shared owned rendering and input pipeline inside that boundary. The lifecycle layer SHALL own process containment and cleanup without reading terminal input, parsing output, reconstructing display state, or selecting a second rendering path. Bare `a1`'s launch instance SHALL own its attach client and every ordinary descendant that client creates, without enabling job-wide breakaway, while the resident server, session holders, and tab processes SHALL belong to the explicit resident terminal-host capability.
 
-##### Scenario: Launch owned A1
-- **WHEN** the shell selects bare `a1` with resident tabs disabled or unsupported
+##### Scenario: Launch owned A1 directly
+- **WHEN** the shell selects `a1 solo` or bare `a1` must use unsupported-platform fallback
 - **THEN** the owned product UI and every process it creates SHALL belong to that command's launch instance
 
 ##### Scenario: Launch owned A1 with resident tabs
-- **WHEN** the shell selects bare `a1` while resident tabs are enabled
+- **WHEN** the shell selects bare `a1` on a supported platform
 - **THEN** the attach client SHALL belong to that command's launch instance
 - **AND** the resident server, holders, and tab processes SHALL be started only through the explicit resident capability and SHALL NOT be members of the launch instance
 
@@ -434,7 +441,7 @@ A launch instance SHALL own its selected root runtime and every agent, extension
 - **THEN** A1 SHALL retain it within terminate-on-close ownership rather than silently detaching it
 
 ##### Scenario: Resident tabs outlive a bare-A1 instance
-- **WHEN** a bare-A1 launch instance with resident tabs enabled closes normally or through terminal loss
+- **WHEN** a bare-A1 attach launch instance closes normally or through terminal loss
 - **THEN** A1 SHALL terminate that instance's attach-client process tree and SHALL leave the resident server, holders, and tab processes running
 
 ##### Scenario: Processes started inside a tab
@@ -450,7 +457,7 @@ A launch instance SHALL own its selected root runtime and every agent, extension
 - **THEN** the surviving terminal-restoration owner SHALL restore the invoking terminal, while guardians remain lifecycle-only and resident tabs continue
 
 #### Requirement: Explicit session selection belongs to the originating launch instance
-A supported session launch SHALL carry its validated target and effective session-directory selection intact through release selection, bootstrap, containment, and owned runtime startup. A supported retry or handoff SHALL preserve that same selection. Launch metadata SHALL remain per invocation, SHALL NOT become a supervisor-wide default or leak through inherited stale session metadata, and SHALL NOT require terminal parsing or shell command evaluation. Session launch failures SHALL retain the existing instance cleanup guarantees. When resident tabs are enabled, a bare-A1 session launch SHALL deliver its selection to the resident server, which SHALL open it as a tab or focus the tab already holding it.
+A supported session launch SHALL carry its validated target and effective session-directory selection intact through release selection, bootstrap, containment, and owned runtime startup. A supported retry or handoff SHALL preserve that same selection. Launch metadata SHALL remain per invocation, SHALL NOT become a supervisor-wide default or leak through inherited stale session metadata, and SHALL NOT require terminal parsing or shell command evaluation. Session launch failures SHALL retain the existing instance cleanup guarantees. A bare-A1 session launch SHALL deliver its selection to the resident server, which SHALL open it as a tab or focus the tab already holding it; safe unsupported-platform fallback MAY launch the selected session directly.
 
 ##### Scenario: Launch an explicit session through an immutable release
 - **WHEN** the installed command selects a persisted session and launches an approved immutable release
@@ -467,14 +474,14 @@ A supported session launch SHALL carry its validated target and effective sessio
 ##### Scenario: Start bare A1 after a resume invocation
 - **WHEN** a bare launch follows an explicit resume launch or inherits unrelated session metadata from its parent environment
 - **THEN** it SHALL NOT reuse the previous selection implicitly
-- **AND** with resident tabs disabled it SHALL start a fresh session, while with resident tabs enabled it SHALL reattach to the existing tabs or create one fresh tab when none exist
+- **AND** it SHALL reattach to the existing tabs or create one fresh tab when none exist
 
 ##### Scenario: Resume fails after containment starts
 - **WHEN** target resolution or runtime initialization fails within an owned launch instance
 - **THEN** the failure SHALL propagate to the invoking command and the instance's processes SHALL be cleaned up without affecting other instances
 
 ##### Scenario: Select a session held by a resident tab
-- **WHEN** resident tabs are enabled and `a1 --session <id>` names a session already owned by a live resident tab
+- **WHEN** `a1 --session <id>` names a session already owned by a live resident tab
 - **THEN** A1 SHALL focus that tab and SHALL NOT open the session in a second tab
 
 ## Capability: `launch-profiles`
@@ -486,7 +493,7 @@ A supported session launch SHALL carry its validated target and effective sessio
 ### MODIFIED Requirements
 
 #### Requirement: Normal A1 accepts explicit session selection
-Stable and prerelease builds SHALL support `a1 --session <path|id>` with an optional `--session-dir <dir>` before or after `--session`. Each option SHALL occur at most once and require a nonempty value. `--session-dir` alone, missing values, duplicate options, unknown trailing options, and extra positional arguments in this recognized grammar SHALL fail with a focused diagnostic and nonzero exit status before supervisor or interactive startup. Help SHALL list the supported forms. With resident tabs disabled, bare `a1` SHALL continue to start a fresh session. With resident tabs enabled, bare `a1` SHALL reattach to the profile's resident tabs, creating one fresh tab only when none exist, and a session launch SHALL open the selected session as a new tab or focus the tab already holding it. Every A1-owned session launch and in-runtime session switch on a supported platform SHALL honor the shared canonical session-writer lease, including direct/fallback launches with resident tabs disabled. A direct conflict SHALL fail safely or offer an explicit fork, not silently attach, overwrite, or start another writer. Failed switches SHALL preserve the old session and its lease; direct lease checks SHALL NOT initialize a resident host.
+Stable and prerelease builds SHALL support `a1 --session <path|id>` with an optional `--session-dir <dir>` before or after `--session`. Each option SHALL occur at most once and require a nonempty value. `--session-dir` alone, missing values, duplicate options, unknown trailing options, and extra positional arguments in this recognized grammar SHALL fail with a focused diagnostic and nonzero exit status before supervisor or interactive startup. Help SHALL list the supported forms. Bare `a1` SHALL reattach to the profile's resident tabs, creating one fresh tab only when none exist, and a session launch SHALL open the selected session as a new tab or focus the tab already holding it. `a1 solo` SHALL reject session-selection arguments. Every A1-owned session launch and in-runtime session switch on a supported platform SHALL honor the shared canonical session-writer lease, including solo and direct fallback launches. A direct conflict SHALL fail safely or offer an explicit fork, not silently attach, overwrite, or start another writer. Failed switches SHALL preserve the old session and its lease; direct lease checks SHALL NOT initialize a resident host.
 
 ##### Scenario: Select an existing session by ID
 - **WHEN** the user supplies `a1 --session <id>` for a saved A1 session
@@ -505,15 +512,15 @@ Stable and prerelease builds SHALL support `a1 --session <path|id>` with an opti
 - **THEN** help SHALL include both supported session-selection forms without launching an interactive runtime
 
 ##### Scenario: Bare launch with resident tabs running
-- **WHEN** resident tabs are enabled, two tabs are running, and the user runs bare `a1`
+- **WHEN** two tabs are running and the user runs bare `a1`
 - **THEN** A1 SHALL show both tabs and SHALL NOT create a third tab
 
 ##### Scenario: Session launch with resident tabs running
-- **WHEN** resident tabs are enabled and the user runs `a1 --session <id>` for a session no participating writer holds
+- **WHEN** the user runs `a1 --session <id>` for a session no participating writer holds
 - **THEN** A1 SHALL acquire its lease, add a tab resuming that session alongside the existing tabs, and activate it
 
-##### Scenario: Disable tabs while a selected session remains live
-- **WHEN** the user disables resident tabs and directly selects a session still held by a live tab
+##### Scenario: Direct fallback selects a resident session
+- **WHEN** unsupported-platform fallback directly selects a session still held by a live tab
 - **THEN** direct launch SHALL report the writer conflict without starting another writer or altering the resident session
 
 ##### Scenario: Resume an aliased session
@@ -569,7 +576,7 @@ The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the exis
 ### ADDED Requirements
 
 #### Requirement: Cohort updates and retention preserve resident tabs
-Cohort update coordination SHALL stop and drain launch instances only. It SHALL NOT terminate the resident terminal-host server, session holders, or tab processes. In this opt-in version a compatible resident cohort remains on its immutable release until all of its tabs stop; automatic server handoff and idle-boundary recycling are deferred. Immutable release retention SHALL treat the recorded release of every live verified resident server, holder, and tab process as current ownership, and SHALL NOT collect that release while any such process uses it. A superseded supervisor cohort SHALL retire according to its own launch-instance work regardless of resident tabs.
+Cohort update coordination SHALL stop and drain launch instances only. It SHALL NOT terminate the resident terminal-host server, session holders, or tab processes. In this version a compatible resident cohort remains on its immutable release until all of its tabs stop; automatic server handoff and idle-boundary recycling are deferred. Immutable release retention SHALL treat the recorded release of every live verified resident server, holder, and tab process as current ownership, and SHALL NOT collect that release while any such process uses it. A superseded supervisor cohort SHALL retire according to its own launch-instance work regardless of resident tabs.
 
 ##### Scenario: Update with resident tabs running
 - **WHEN** an update activates a new release while resident processes run from the previous release

@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Explicit session selection belongs to the originating launch instance
-A supported session launch SHALL carry its validated target and effective session-directory selection intact through release selection, bootstrap, containment, and owned runtime startup. A supported retry or handoff SHALL preserve that same selection. Launch metadata SHALL remain per invocation, SHALL NOT become a supervisor-wide default or leak through inherited stale session metadata, and SHALL NOT require terminal parsing or shell command evaluation. Session launch failures SHALL retain the existing instance cleanup guarantees. When resident tabs are enabled, a bare-A1 session launch SHALL deliver its selection through its own attach client to the resident server, which SHALL open it as a tab or focus the tab already holding it in that client only; the selection SHALL NOT become a server-wide default for later launches.
+A supported session launch SHALL carry its validated target and effective session-directory selection intact through release selection, bootstrap, containment, and owned runtime startup. A supported retry or handoff SHALL preserve that same selection. Launch metadata SHALL remain per invocation, SHALL NOT become a supervisor-wide default or leak through inherited stale session metadata, and SHALL NOT require terminal parsing or shell command evaluation. Session launch failures SHALL retain the existing instance cleanup guarantees. A bare-A1 session launch SHALL deliver its selection through its own attach client to the resident server, which SHALL open it as a tab or focus the tab already holding it in that client only; the selection SHALL NOT become a server-wide default for later launches.
 
 #### Scenario: Launch an explicit session through an immutable release
 - **WHEN** the installed command selects a persisted session and launches an approved immutable release
@@ -18,12 +18,12 @@ A supported session launch SHALL carry its validated target and effective sessio
 #### Scenario: Start bare A1 after a resume invocation
 - **WHEN** a bare launch follows an explicit resume launch or inherits unrelated session metadata from its parent environment
 - **THEN** it SHALL NOT reuse the previous selection implicitly
-- **AND** with resident tabs disabled it SHALL start fresh, while with resident tabs enabled it SHALL reattach or create one fresh tab only when none exist
+- **AND** bare `a1` SHALL reattach or create one fresh tab only when none exist, while `a1 solo` SHALL start fresh
 
 #### Scenario: Resume fails after containment starts
 - **WHEN** target resolution or runtime initialization fails within an owned launch instance
 - **THEN** the failure SHALL propagate and cleanup SHALL not affect other instances
 
 #### Scenario: Select a session held by a resident tab
-- **WHEN** resident tabs are enabled and `a1 --session <id>` names a session held by a live resident tab
+- **WHEN** `a1 --session <id>` names a session held by a live resident tab
 - **THEN** A1 SHALL focus that tab in the launching client only and SHALL NOT open a second writer

@@ -81,7 +81,7 @@ describe("owned UI settings sections", () => {
     expect(entries("appearance")).toEqual(["accentColor", "backgroundStyle", "quitAnimation"]);
     expect(entries("scroll")).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
     expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryMaxItems"]);
-    expect(entries("tabs")).toEqual(["residentTabs", "tabsMax", "tabsAutoName"]);
+    expect(entries("tabs")).toEqual(["tabsMax", "tabsAutoName"]);
     expect(entries("quit")).toBeUndefined();
     expect(findOwnedUiSettingsEntry(sections, "quitAnimation", "a1")).toMatchObject({
       label: "Quit animation", value: true, origin: "default", application: "live", choices: [true, false],
@@ -120,23 +120,16 @@ describe("owned UI settings sections", () => {
     expect(AGENT.descriptors.map(entry => entry.key)).toEqual(["autoCompact", "thinkingLevel", "providerProfile", "installId"]);
   });
 
-  it("shows dependent tab controls only while tabs are enabled", () => {
-    const enabled = resolveOwnedUiSettings({
-      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
-      document: { version: 16, values: { residentTabs: true } },
-    });
-    const enabledSections = buildOwnedUiSettingsSections({ resolution: enabled, agent: null });
-    expect(enabledSections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual(["updateCheck"]);
-    expect(enabledSections.find(section => section.id === "tabs")?.entries.map(entry => entry.id)).toEqual([
-      "residentTabs", "tabsMax", "tabsAutoName",
-    ]);
-
-    const disabled = resolveOwnedUiSettings({
+  it("shows only the approved resident tab controls", () => {
+    const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
       document: { version: 16, values: { residentTabs: false } },
     });
-    const disabledSections = buildOwnedUiSettingsSections({ resolution: disabled, agent: null });
-    expect(disabledSections.find(section => section.id === "tabs")?.entries.map(entry => entry.id)).toEqual(["residentTabs"]);
+    const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: null });
+    expect(sections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual(["updateCheck"]);
+    expect(sections.find(section => section.id === "tabs")?.entries.map(entry => entry.id)).toEqual([
+      "tabsMax", "tabsAutoName",
+    ]);
   });
 
   it.each<[string, AgentSettingsSnapshot | null]>([

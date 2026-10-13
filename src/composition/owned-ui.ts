@@ -73,6 +73,8 @@ export interface OwnedUiCompositionOptions {
    * session settings-free, which is what the pinned comparison paths use.
    */
   readonly profileId?: string;
+  /** Hide resident-only tab controls for the explicit direct single-agent launch. */
+  readonly hideTabSettings?: boolean;
   /**
    * Whether A1's product-specific surfaces are reachable. Comparison profiles
    * use the same composition with those surfaces withheld.
@@ -92,7 +94,7 @@ export interface OwnedUiCompositionOptions {
   readonly inspectProcess?: (pid: number) => Promise<NativeProcessIdentity | null>;
   /** Private credentials were consumed by the entry before composition or extensions loaded. */
   readonly tab?: { readonly bridge: TabBridgeClient; readonly dataDir: string; readonly incarnation: number };
-  /** One prompt-adjacent notice explaining why an opted-in resident launch fell back. */
+  /** One prompt-adjacent notice explaining why a resident launch fell back. */
   readonly residentFallbackNotice?: string;
 }
 
@@ -177,6 +179,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       configDir: resolveProductPaths().configDir,
       profileId: options.profileId,
       agentProvider: () => backend.settingsPort(),
+      ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsMax", "tabsAutoName"] } : {}),
       hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
       agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
     });

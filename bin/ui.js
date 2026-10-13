@@ -76,6 +76,7 @@ Promise.resolve().then(async () => {
         cwd: process.cwd(),
         profileId,
         ownedSurfaces,
+        ...(launchContext.launchMode === "solo" ? { hideTabSettings: true } : {}),
         ...(processInspector === null ? {} : { inspectProcess: pid => processInspector.observe(pid) }),
         projectTrustPrompt: createConsoleProjectTrustPrompt({ presentation: profile === "a1" ? "bare" : "comparison" }),
         sessionForkPrompt: createConsoleSessionForkPrompt(),

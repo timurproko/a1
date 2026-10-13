@@ -127,9 +127,10 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
   }),
   Object.freeze({
     to: 16,
-    description: "Enable tabs by default and keep only tab UX controls in the Tabs section.",
+    description: "Make bare A1 tabs unconditional and keep only tab UX controls.",
     migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
       const migrated: Record<string, unknown> = { ...values };
+      delete migrated.residentTabs;
       delete migrated.tabsMaxConcurrentStarts;
       delete migrated.tabsUnresponsiveRestartSeconds;
       delete migrated.tabsStallNoticeSeconds;

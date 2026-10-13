@@ -1,7 +1,11 @@
 ## ADDED Requirements
 
 ### Requirement: Bare A1 presents resident A1 sessions as tabs
-When resident tabs are enabled, bare `a1` SHALL present a v2-style one-row tab strip at the top of the terminal and the viewed tab's terminal surface in all remaining rows. Each tab SHALL be an independent resident terminal session running the complete A1 owned UI with its own Pi agent session, extensions, transcript, editor, queue, model, thinking level, notices, and cwd. Only the viewed tab SHALL receive keyboard, paste, focus, and surface mouse input. The strip SHALL be present even when a single tab exists, and SHALL remain with a `+` chip and a hint when no tab exists. Extension components using the certified text-terminal contract SHALL behave as in direct single-agent bare A1 on Windows x64, macOS arm64, and Linux x64; inline image protocols SHALL use the text fallback. `a1 pi` SHALL NOT present a tab strip.
+Bare `a1` SHALL present a v2-style one-row tab strip at the top of the terminal and the viewed tab's terminal surface in all remaining rows. Each tab SHALL be an independent resident terminal session running the complete A1 owned UI with its own Pi agent session, extensions, transcript, editor, queue, model, thinking level, notices, and cwd. Only the viewed tab SHALL receive keyboard, paste, focus, and surface mouse input. The strip SHALL be present even when a single tab exists, and SHALL remain with a `+` chip and a hint when no tab exists. Extension components using the certified text-terminal contract SHALL behave as in direct single-agent bare A1 on Windows x64, macOS arm64, and Linux x64; inline image protocols SHALL use the text fallback. `a1 solo` and `a1 pi` SHALL NOT present a tab strip.
+
+#### Scenario: Explicit solo launch
+- **WHEN** the user runs `a1 solo`
+- **THEN** A1 SHALL launch one direct single-agent owned UI without resident infrastructure or a Tabs settings section
 
 #### Scenario: First launch with no tabs
 - **WHEN** the user runs bare `a1` and the profile has no resident tabs

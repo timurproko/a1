@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { TabBridgeClient } from "../../../src/foundation/resident-tabs/bridge-client.js";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "../../../src/foundation/resident-tabs/protocol.js";
 import { ensureTerminalHost } from "../../../src/foundation/resident-tabs/ensure-terminal-host.js";
-import { readResidentTabLaunchSettings, readResidentTabsSetting } from "../../../src/foundation/resident-tabs/settings.js";
+import { readResidentTabLaunchSettings } from "../../../src/foundation/resident-tabs/settings.js";
 import { selectResidentHost } from "../../../src/foundation/resident-tabs/routing.js";
 
 const cleanups: (() => Promise<void>)[] = [];
@@ -20,10 +20,8 @@ describe("resident tab launch contracts", () => {
   it("resolves approved tab settings while keeping start and prewarm limits internal", async () => {
     const root = await temporaryDirectory("resident-setting-"); cleanups.push(root.cleanup);
     await mkdir(join(root.path, "settings"), { recursive: true });
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 16, values: { residentTabs: true } }));
-    expect(await readResidentTabsSetting(root.path)).toBe(true);
+    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 16, values: { residentTabs: false } }));
     expect(await readResidentTabLaunchSettings(root.path)).toEqual({
-      residentTabs: true,
       tabsMax: 10,
       tabsAutoName: true,
       maxConcurrentStarts: 2,
@@ -43,7 +41,6 @@ describe("resident tab launch contracts", () => {
       },
     }));
     expect(await readResidentTabLaunchSettings(root.path)).toEqual({
-      residentTabs: true,
       tabsMax: 24,
       tabsAutoName: false,
       maxConcurrentStarts: 2,
@@ -55,36 +52,23 @@ describe("resident tab launch contracts", () => {
     expect((await readResidentTabLaunchSettings(root.path)).tabsMax).toBe(50);
     await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 16, values: { residentTabs: true, tabsMax: -2 } }));
     expect((await readResidentTabLaunchSettings(root.path)).tabsMax).toBe(1);
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 15, values: { residentTabs: true } }));
-    expect(await readResidentTabsSetting(root.path)).toBe(true);
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 15, values: { residentTabs: false } }));
-    expect(await readResidentTabsSetting(root.path)).toBe(false);
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 16, values: { residentTabs: "yes" } }));
-    expect(await readResidentTabsSetting(root.path)).toBe(true);
+    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 15, values: { residentTabs: false, tabsMax: 12 } }));
+    expect((await readResidentTabLaunchSettings(root.path)).tabsMax).toBe(12);
   });
 
-  it("routes selected sessions only when resident tabs are enabled", async () => {
-    const readSetting = vi.fn(async () => false);
+  it("routes bare A1 through the resident host while solo and comparison stay direct", async () => {
     const ensureHost = vi.fn(async () => ({ status: "ready" as const, executable: "host", endpoint: "endpoint" }));
-    await expect(selectResidentHost({
-      profileId: "a1", hasSessionSelection: false, currentLaunchContract: true, readSetting, ensureHost,
-    })).resolves.toBeNull();
-    expect(readSetting).toHaveBeenCalledOnce();
-    expect(ensureHost).not.toHaveBeenCalled();
-
-    readSetting.mockClear();
     for (const selection of [
-      { profileId: "pi" as const, hasSessionSelection: false, currentLaunchContract: true },
-      { profileId: "a1" as const, hasSessionSelection: false, currentLaunchContract: false },
+      { profileId: "pi" as const, solo: true, currentLaunchContract: true },
+      { profileId: "a1" as const, solo: true, currentLaunchContract: true },
+      { profileId: "a1" as const, solo: false, currentLaunchContract: false },
     ]) {
-      await expect(selectResidentHost({ ...selection, readSetting, ensureHost })).resolves.toBeNull();
+      await expect(selectResidentHost({ ...selection, ensureHost })).resolves.toBeNull();
     }
-    expect(readSetting).not.toHaveBeenCalled();
     expect(ensureHost).not.toHaveBeenCalled();
 
-    readSetting.mockResolvedValueOnce(true);
     await expect(selectResidentHost({
-      profileId: "a1", hasSessionSelection: true, currentLaunchContract: true, readSetting, ensureHost,
+      profileId: "a1", solo: false, currentLaunchContract: true, ensureHost,
     })).resolves.toMatchObject({ status: "ready" });
     expect(ensureHost).toHaveBeenCalledOnce();
   });

@@ -37,8 +37,8 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 ## 6. Resident session selection
 
-- [ ] 6.1 With `residentTabs=true`, route `a1 --session`/`--session-dir` through the launching attach client; focus a live holder by canonical file identity only in that client or create a tab whose child acquires the writer lease first. Prove aliases converge and later bare launches do not reuse the selection.
-- [ ] 6.2 In direct mode, report a writer conflict and offer interactive fork through the existing path; fail non-interactively without starting a host or changing the resident session.
+- [ ] 6.1 Route bare `a1 --session`/`--session-dir` through the launching attach client; focus a live holder by canonical file identity only in that client or create a tab whose child acquires the writer lease first. Prove aliases converge and later bare launches do not reuse the selection.
+- [ ] 6.2 Add argument-free `a1 solo` as the explicit direct single-agent route, list it in help, reject extra arguments, and omit the Tabs settings section in that runtime. In direct mode, report a writer conflict and offer interactive fork through the existing path; fail non-interactively without starting a host or changing the resident session.
 
 ## 7. Extension fidelity
 
@@ -46,7 +46,7 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 ## 8. Auto-name, limits, and prewarm
 
-- [ ] 8.1 Move `residentTabs` to Settings > Tabs as `Enable tabs` (Yes/No, default Yes), show `tabsMax` (default 10, range 1–50) and `tabsAutoName` (default on) beneath it only while enabled, and add clamping, version migration, settings-screen, launch-reader, and repository-local launch tests. Retire user-facing `tabsMaxConcurrentStarts`, `tabsUnresponsiveRestartSeconds`, and `tabsStallNoticeSeconds`; use internal concurrent-start default 2/hard cap 8, prewarm count 1/hard cap 1, unresponsive restart 120 seconds, and stall notice 300 seconds.
+- [x] 8.1 Remove the `residentTabs` setting, show only `tabsMax` (default 10, range 1–50) and `tabsAutoName` (default on) in resident Settings > Tabs, hide that section completely in `a1 solo`, and add clamping, version migration, settings-screen, launch-routing, and repository-local launch tests. Retire stored `residentTabs` and user-facing `tabsMaxConcurrentStarts`, `tabsUnresponsiveRestartSeconds`, and `tabsStallNoticeSeconds`; use internal concurrent-start default 2/hard cap 8, prewarm count 1/hard cap 1, unresponsive restart 120 seconds, and stall notice 300 seconds.
 - [ ] 8.2 Enforce `tabsMax` on every creation path and the internal concurrent-start gate. Exercise ten concurrent starts per platform with models available.
 - [ ] 8.3 Implement child auto-naming after the first settled turn with bounded budget/timeout/retry, ≤16-character lowercase hyphenated normalization, deterministic fallback, and user-rename precedence. Reproduce v2's 600 ms rainbow, 45 ms/character typing, and 300 ms settle animation for automatic names only.
 - [ ] 8.4 Implement one hidden standby: no session or writer lease before promotion, exact cwd/environment match, committed session identity before input, retarget on mismatch, skip untrusted cwd, exclude from strip and `tabsMax`, and tolerate standby failure without affecting tabs.
@@ -58,5 +58,5 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 ## 10. Documentation and validation
 
-- [ ] 10.1 Update `docs/architecture/resident-tabs.md` and `resident-tabs-requirements.md` to the approved v2 appearance, per-tab accents, unbound navigation/reorder actions, strip-only management, automatic control transfer, the three approved Tabs settings, internal supervision/start/prewarm constants, detach wording, default-on enablement, and no idle suspension. Move this change's delivered requirements out of the target file.
-- [ ] 10.2 Run focused TypeScript and native suites, bounded decoder fuzzing, two-client/fidelity/performance harnesses on all three platforms, strict OpenSpec validation, and documentation governance. Record independent evidence and confirm `residentTabs=false` leaves bare `a1` and `a1 pi` unchanged.
+- [ ] 10.1 Update `docs/architecture/resident-tabs.md` and `resident-tabs-requirements.md` to the approved v2 appearance, per-tab accents, unbound navigation/reorder actions, strip-only management, automatic control transfer, the two resident-only Tabs settings, explicit `a1 solo`, internal supervision/start/prewarm constants, detach wording, always-on bare-A1 routing, and no idle suspension. Move this change's delivered requirements out of the target file.
+- [ ] 10.2 Run focused TypeScript and native suites, bounded decoder fuzzing, two-client/fidelity/performance harnesses on all three platforms, strict OpenSpec validation, and documentation governance. Record independent evidence and confirm `a1 solo` and `a1 pi` stay direct without a Tabs settings section.
