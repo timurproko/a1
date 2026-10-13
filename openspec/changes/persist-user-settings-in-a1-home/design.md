@@ -15,7 +15,7 @@ Internal implementation names must remain product-neutral. The current product k
 - Present users with one familiar global profile `settings.json`.
 - Keep Pi root settings and product-specific settings logically isolated despite sharing a file.
 - Own locking, atomic replacement, merging, and collision refusal at one generic storage boundary.
-- Persist only product values that differ from declarations while preserving unknown newer values.
+- Persist a flat product object containing only values that differ from declarations while preserving unknown newer properties and exposing no schema metadata.
 - Route every normal-A1 Pi settings manager through the same boundary.
 
 **Non-Goals:**
@@ -37,26 +37,23 @@ The normal A1 profile keeps `<effective-home>/.a1/agent/settings.json`. Pi setti
   "theme": "dark",
   "showImages": true,
   "a1": {
-    "version": 14,
-    "values": {
-      "accentColor": "cyan",
-      "scrollbarSpeed": "fast"
-    }
+    "accentColor": "cyan",
+    "scrollbarSpeed": "fast"
   }
 }
 ```
 
-A top-level section was chosen over prefixed keys because it gives product migrations one version and prevents product fields from looking like Pi settings. A second file was rejected because it recreates the user-visible persistence problem. Placing product keys directly at the root was rejected because collisions and ownership would be ambiguous.
+A flat top-level section was chosen over prefixed keys because it keeps product fields from looking like Pi settings while remaining obvious to users. A schema version and nested `values` object were rejected as implementation metadata users should not have to understand. A second file was rejected because it recreates the user-visible persistence problem. Placing product keys directly at the root was rejected because collisions and ownership would be ambiguous.
 
 ### 2. Put a product-neutral shared store beneath both managers
 
 A generic `SharedProfileSettingsStore`-style component will own the global profile file and accept the namespace key as data. The exact implementation name may vary, but SHALL NOT contain the A1 brand. It provides:
 
 - a structural Pi `SettingsStorage` view for `SettingsManager.fromStorage(...)`;
-- a product-section read/write view for `OwnedSettingsManager`; and
+- a flat product-object read/write view for `OwnedSettingsManager`; and
 - ordinary project-scope storage behavior for Pi's trusted project settings.
 
-For a global Pi read, the store removes the reserved product section before invoking Pi's callback. For a Pi write, it parses the callback result, refuses a returned reserved key, then merges the unchanged product section back. Product operations receive only the nested versioned document and replace only that section. Thus neither side depends on the other's parser preserving unknown values.
+For a global Pi read, the store removes the reserved product object before invoking Pi's callback. For a Pi write, it parses the callback result, refuses a returned reserved key, then merges the unchanged product object back. Product operations receive and replace only that flat object. Thus neither side depends on the other's parser preserving unknown values.
 
 A facade above an ordinary `SettingsManager.create(...)` was rejected because package operations and queued Pi writes could still bypass it. Deep-importing Pi's private file storage was rejected by the public API boundary. The public structural storage callback gives the required control without copying Pi behavior.
 
@@ -80,13 +77,13 @@ A process-local mutex alone was rejected because updates may leave multiple rele
 
 ### 6. Store only deviations from defaults
 
-The product `values` object contains accepted declared values only when they differ from their current declaration defaults, plus unknown keys preserved for downgrade safety. Accepting a default removes that declared key. When no non-default or unknown value remains, the whole product section is omitted.
+The flat product object contains accepted declared values only when they differ from current declaration defaults, plus unknown properties preserved for downgrade safety. Accepting a default removes that declared property. When no non-default or unknown value remains, the whole product object is omitted.
 
-The version remains beside `values` whenever the section exists. Resolution still overlays stored values on declarations, so an omitted key is always the default. This keeps the user-facing file concise and makes the requested behavior explicit rather than serializing a full default snapshot.
+The object contains no schema version, `values` wrapper, or other implementation metadata. Resolution overlays its recognized properties on declarations, so an omitted key is always the default. Future compatibility transforms are selected idempotently by recognizable legacy keys or value shapes, leaving current and unknown properties unchanged. This keeps the user-facing file concise without serializing a full default snapshot or exposing migration machinery.
 
 ### 7. Import the former standalone document lazily
 
-When the shared file has no product section, the manager may read the former `<configDir>/settings/a1.json` as a compatibility source. The shared section always wins when present. Startup performs no migration write. On the next accepted product change, the manager filters resolved declarations against defaults, preserves unknown keys, writes the shared section, and leaves the old file unchanged.
+When the shared file has no product object, the manager may read the former `<configDir>/settings/a1.json` as a compatibility source. Its historical version is consumed only while importing that old format and is never copied into the shared object. The shared object always wins when present. Startup performs no migration write. On the next accepted product change, the manager filters resolved declarations against defaults, preserves unknown keys, writes the flat object, and leaves the old file unchanged.
 
 Eager moves and dual writes were rejected because they complicate rollback and create two authorities. An unreadable shared section does not fall back to stale standalone values.
 
@@ -102,6 +99,6 @@ Eager moves and dual writes were rejected because they complicate rollback and c
 
 1. Introduce and verify the generic shared store and manager factory before routing production constructors through it.
 2. Route runtime, trust-preflight, and package settings managers through the shared storage view.
-3. Read an existing embedded section; otherwise read the former standalone document; otherwise resolve defaults.
-4. On the next accepted product change, persist only non-default values and unknown keys into the embedded section without changing the former file.
+3. Read an existing flat product object; otherwise read the former standalone document; otherwise resolve defaults.
+4. On the next accepted product change, persist only non-default values and unknown keys directly in the product object, without schema metadata or changes to the former file.
 5. Keep the old standalone file intact for rollback. Newer changes made only in the embedded section are intentionally unavailable to binaries predating this contract.

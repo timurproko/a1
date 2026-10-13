@@ -13,8 +13,8 @@
 
 ## 3. Persist product settings in the namespace
 
-- [ ] 3.1 Adapt owned-settings resolution and writes to the versioned product section, storing only non-default declarations while preserving unknown keys; verify changing away from and back to defaults adds and removes the expected JSON without touching Pi root settings.
-- [ ] 3.2 Add missing-section compatibility reads from the former standalone document and lazy migration on the next accepted change; verify section precedence, unreadable-section refusal, byte-identical legacy preservation, and replacement-release persistence.
+- [ ] 3.1 Adapt owned-settings resolution and writes to a flat product object with no schema metadata, storing only non-default declarations while preserving unknown keys; verify changing away from and back to defaults adds and removes direct properties without touching Pi root settings.
+- [ ] 3.2 Replace embedded version migrations with idempotent key/shape compatibility transforms, and add missing-object import from the former standalone document; verify object precedence, ambiguous-shape refusal, byte-identical legacy preservation, and replacement-release persistence.
 
 ## 4. Guard compatibility
 

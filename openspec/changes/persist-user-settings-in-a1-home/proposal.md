@@ -7,7 +7,7 @@ The Settings screen combines Pi/Agent settings and A1-specific settings, but the
 ## What Changes
 
 - Use `<effective-home>/.a1/agent/settings.json` as the single user-facing settings file for both Pi/Agent and A1-specific preferences.
-- Store A1-specific preferences in one reserved top-level `a1` section with its own versioned `values` object, leaving Pi's root keys and schema unchanged.
+- Store A1-specific preferences directly in one reserved top-level `a1` object, leaving Pi's root keys and schema unchanged and exposing no product schema metadata.
 - Persist only A1 values that differ from their declared defaults; changing a value back to its default removes that A1 key.
 - Add a collision gate that fails compatibility when pinned Pi claims the reserved `a1` key, rather than silently sharing a name.
 - Coordinate A1 and Pi writes through the same file-lock protocol and merge only the owning namespace so either writer preserves the other's values, including concurrent updates.
@@ -22,7 +22,7 @@ None.
 
 ### Modified Capabilities
 
-- `owned-ui-settings`: Embed the versioned A1 settings document in the shared agent `settings.json`, elide defaults, and define compatibility migration.
+- `owned-ui-settings`: Embed a flat, metadata-free A1 settings object in the shared agent `settings.json`, elide defaults, and define shape-based compatibility migration.
 - `launch-profiles`: Require every normal A1 version to resolve the same shared user settings file under the selected A1 agent profile.
 - `pi-settings-runtime`: Define namespace ownership, collision refusal, and lossless coordinated writes between Pi and A1 settings.
 
