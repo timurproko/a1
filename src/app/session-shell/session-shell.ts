@@ -1365,7 +1365,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.#residentStalled = true;
       resident.reportStatus?.("stalled");
       const minutes = Math.max(1, Math.round(seconds / 60));
-      this.root.appendWorkflowStatus(`No progress for ${minutes} min — Esc interrupts · /restart-tab restarts`);
+      this.root.appendWorkflowStatus(`No progress for ${minutes} min — Esc interrupts · use the tab restart action to restart`);
       this.#terminal.requestRender();
     }, seconds * 1_000);
     this.#residentProgressTimer.unref?.();
@@ -1825,7 +1825,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   }
 
   hotkeysPresentation(): PiShellHotkeysPresentation {
-    return this.root.hotkeysPresentation();
+    const presentation = this.root.hotkeysPresentation();
+    return this.#residentTabOptions === undefined ? presentation : { ...presentation, residentTabs: true };
   }
 
   async #slashCommand(text: string): Promise<OwnedUiCommandResult> {
@@ -1834,12 +1835,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const name = separator < 0 ? body : body.slice(0, separator);
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
     if (this.#routeHost?.claims(name)) return this.#openOwnedRoute(name);
-    if (name === "restart-tab" && this.#residentTabOptions?.requestRestart !== undefined) {
-      const accepted = await this.#residentTabOptions.requestRestart().catch(() => false);
-      this.root.appendWorkflowStatus(accepted ? "Restarting resident tab…" : "Resident tab restart is unavailable.");
-      this.#terminal.requestRender();
-      return accepted ? { outcome: "completed", diagnostic: null } : rejected("resident tab restart is unavailable");
-    }
     if (this.#isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     if (this.#skillsCollapsed()) {
       if (name === SKILLS_COMMAND_NAME) return this.#runSkillsCommand(text, argument);

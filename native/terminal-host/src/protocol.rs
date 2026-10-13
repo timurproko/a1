@@ -360,6 +360,17 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
             })?,
         ),
         (
+            "bridge-boundary.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.boundary".to_owned(),
+                request_id: None,
+                body: ControllerBoundary {
+                    generation: 7,
+                    nonce: [0x07; 16],
+                },
+            })?,
+        ),
+        (
             "bridge-attachment.msgpack".to_owned(),
             encode_frame(&Envelope {
                 message_type: "attachment".to_owned(),

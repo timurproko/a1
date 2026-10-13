@@ -241,7 +241,28 @@ pub fn render_with_hover(
     bytes.push_str("\x1b[38;2;170;170;170m");
     bytes.push_str(&clock);
     bytes.push_str("\x1b[0m");
+    if palette_fallback_requested() {
+        for (rgb, palette) in [
+            ("\x1b[48;2;38;38;38m", "\x1b[48;5;235m"),
+            ("\x1b[48;2;48;48;48m", "\x1b[48;5;236m"),
+            ("\x1b[48;2;55;55;55m", "\x1b[48;5;237m"),
+            ("\x1b[38;2;170;170;170m", "\x1b[38;5;248m"),
+            ("\x1b[38;2;255;255;255m", "\x1b[38;5;15m"),
+        ] {
+            bytes = bytes.replace(rgb, palette);
+        }
+    }
     StripFrame { bytes, hits }
+}
+
+fn palette_fallback_requested() -> bool {
+    if std::env::var("A1_TERMINAL_COLOR_MODE").is_ok_and(|value| value == "palette") {
+        return true;
+    }
+    std::env::var("TERM").is_ok_and(|term| term.contains("256color"))
+        && std::env::var("COLORTERM").map_or(true, |value| {
+            !matches!(value.as_str(), "truecolor" | "24bit")
+        })
 }
 
 pub fn animations_active(tabs: &[StripTab]) -> bool {
@@ -346,6 +367,28 @@ mod tests {
         assert_eq!(status_glyph("done-unseen"), "✓ ");
         assert_eq!(status_glyph("failed"), "✗ ");
         assert_eq!(status_glyph("suspended"), "");
+    }
+
+    #[test]
+    fn lays_out_unicode_and_fifty_tabs_at_reference_widths() {
+        let tabs = (0..50)
+            .map(|index| {
+                let name = match index % 4 {
+                    0 => format!("ascii-agent-{index}"),
+                    1 => format!("开发助手{index}"),
+                    2 => format!("family-👨‍👩‍👧‍👦-{index}"),
+                    _ => format!("e\u{301}-agent-{index}"),
+                };
+                tab(&format!("tab-{index}"), &name)
+            })
+            .collect::<Vec<_>>();
+        for columns in [80, 120, 200] {
+            let frame = render(&tabs, Some("tab-49"), columns);
+            assert!(frame.hits.iter().all(|(_, end, _)| *end <= columns));
+            assert!(frame.bytes.contains("×"));
+            assert!(frame.bytes.contains(" + "));
+            assert!(frame.bytes.contains("开发助手49"));
+        }
     }
 
     #[test]

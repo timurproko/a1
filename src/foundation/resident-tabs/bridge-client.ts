@@ -46,6 +46,7 @@ export class TabBridgeClient {
   readonly #pending = new Map<number, (accepted: boolean) => void>();
   #startWaiter: ((accepted: boolean) => void) | null = null;
   readonly #commandListeners = new Set<(command: TabBridgeCommand) => void>();
+  #boundaryInputRemainder = "";
 
   constructor(options: TabBridgeOptions) { this.#options = options; }
   get available(): boolean { return this.#available && this.#connected; }
@@ -80,7 +81,7 @@ export class TabBridgeClient {
       transport.once("connect", () => {
         this.#send("hello", {
           role: "bridge", generation: 1, build: this.#options.build ?? "a1",
-          features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "bridge-visibility", "bridge-rename", "bridge-stop", "recovery-journal"],
+          features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "bridge-visibility", "bridge-rename", "bridge-stop", "controller-boundary", "recovery-journal"],
           token: [...Buffer.from(this.#options.credentials.token, "base64")], tabId: this.#options.credentials.tabId,
           pid: this.#options.pid ?? process.pid, startIdentity: this.#options.startIdentity ?? `${process.pid}:node`,
         }, ++this.#request);
@@ -124,6 +125,48 @@ export class TabBridgeClient {
 
   requestRestart(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
     return this.#requestAction("restart", origin, timeoutMs);
+  }
+
+  consumeControllerBoundaryInput(data: string): string {
+    const prefix = "\x1bP+a1;controller=";
+    const suffix = "\x1b\\";
+    let pending = this.#boundaryInputRemainder + data;
+    this.#boundaryInputRemainder = "";
+    let output = "";
+    while (pending.length > 0) {
+      const start = pending.indexOf(prefix);
+      if (start === -1) {
+        let retained = 0;
+        const maximum = Math.min(prefix.length - 1, pending.length);
+        for (let length = maximum; length > 0; length--) {
+          if (pending.endsWith(prefix.slice(0, length))) { retained = length; break; }
+        }
+        const split = pending.length - retained;
+        output += pending.slice(0, split);
+        this.#boundaryInputRemainder = pending.slice(split);
+        break;
+      }
+      output += pending.slice(0, start);
+      const end = pending.indexOf(suffix, start + prefix.length);
+      if (end === -1) {
+        this.#boundaryInputRemainder = pending.slice(start);
+        break;
+      }
+      const body = pending.slice(start + prefix.length, end);
+      const separator = body.indexOf(";");
+      const generation = Number(body.slice(0, separator));
+      const nonceHex = body.slice(separator + 1);
+      if (separator > 0 && Number.isSafeInteger(generation) && generation > 0 && /^[0-9a-f]{32}$/u.test(nonceHex)) {
+        this.#send("bridge.boundary", {
+          generation,
+          nonce: [...Buffer.from(nonceHex, "hex")],
+        });
+      } else {
+        output += pending.slice(start, end + suffix.length);
+      }
+      pending = pending.slice(end + suffix.length);
+    }
+    return output;
   }
 
   close(): void {

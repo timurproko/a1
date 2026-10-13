@@ -147,6 +147,13 @@ describe("resident tab launch contracts", () => {
     if (request.requestId === undefined) throw new Error("restart request id missing");
     transport.emit("data", encodeResidentFrame({ type: "bridge.result", requestId: request.requestId, body: { accepted: true } }));
     await expect(restarting).resolves.toBe(true);
+    const marker = "\x1bP+a1;controller=8;07070707070707070707070707070707\x1b\\";
+    expect(bridge.consumeControllerBoundaryInput(`before${marker.slice(0, 12)}`)).toBe("before");
+    expect(bridge.consumeControllerBoundaryInput(`${marker.slice(12)}after`)).toBe("after");
+    expect(transport.sent.at(-1)).toMatchObject({
+      type: "bridge.boundary",
+      body: { generation: 8, nonce: Array(16).fill(7) },
+    });
     bridge.close();
   });
 

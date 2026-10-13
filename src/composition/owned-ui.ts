@@ -41,7 +41,7 @@ import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
-import { deriveResidentTabStatus, fallbackAutoName } from "../features/resident-tab/index.js";
+import { deriveResidentTabStatus, generateAutoName } from "../features/resident-tab/index.js";
 
 /**
  * The session backend composition wires: the owned-UI port, the prompt-suggestion generator, and
@@ -50,6 +50,7 @@ import { deriveResidentTabStatus, fallbackAutoName } from "../features/resident-
  */
 export interface ComposedSessionBackend extends PiSessionPresenterBackend, OwnedUiPromptSuggestionGeneratorPort {
   settingsPort(): AgentSettingsPort | null;
+  generateResidentTabName(instruction: string, maxTokens: number, signal: AbortSignal): Promise<string | null>;
 }
 
 /** The process-level engine host as composition drives it: sessions, the live accent, and disposal. */
@@ -224,11 +225,17 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     backend.identity.sessionId,
   );
   if (tabBridge !== null && settings !== null && ownedSurfaces) tabBridge.accent(settings.value("accentColor"));
+  let residentTabVisible = true;
+  let applyResidentTabVisibility = () => {};
+  let removeControllerBoundaryInput = () => {};
   const unsubscribeTabBridge = tabBridge === null ? () => {} : await bindResidentTabBridge(
     tabBridge,
     backend,
     tabRecovery,
-    { autoName: settings?.value("tabsAutoName") ?? true },
+    {
+      autoName: settings?.value("tabsAutoName") ?? true,
+      onVisibility: visible => { residentTabVisible = visible; applyResidentTabVisibility(); },
+    },
   );
   let releaseNotes: ReleaseNoteCatalog | null = null;
   let releaseNotesFailure: unknown;
@@ -341,7 +348,6 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
         ...(tabBridge === null || tabRecovery === null ? {} : { residentTab: {
           requestDetach: () => tabBridge.requestDetach(),
-          requestRestart: () => tabBridge.requestRestart(),
           reportStatus: status => tabBridge.status(status),
           stallNoticeSeconds: 300,
           admit: input => tabRecovery.admit({ ...input, incarnation: options.tab!.incarnation }),
@@ -378,6 +384,12 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     // Invariant: one terminal host owns the process terminal; the session presenter reaches it only through
     // the host and paints once attached.
     terminalHost = createdTerminalHost = new OwnedUiTerminalHost(sessionTerminalHostOptions(presenterOptions));
+    if (tabBridge !== null) {
+      applyResidentTabVisibility = () => terminalHost.setPresentationVisible(residentTabVisible);
+      removeControllerBoundaryInput = terminalHost.runtime.addPreInputListener(data => ({
+        data: tabBridge.consumeControllerBoundaryInput(data),
+      }));
+    }
     presenter = new OwnedUiSessionPresenter(terminalHost, presenterOptions);
     presentRecoveryDegraded = degraded => {
       if (!degraded) return;
@@ -419,6 +431,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       if (exitNoticePath) exitNotice = import("../app/session-shell/exit-notice.js")
         .then(module => module.armExitNotice(backend, exitNoticePath), () => null);
       presenter.start();
+      applyResidentTabVisibility();
       void announceNewerRelease().catch(() => undefined);
     },
     flush: () => backend.session.flushEvents(),
@@ -432,6 +445,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       } finally {
         // Invariant: the shared spares outlive every shell and stop only after the last one is disposed.
         clipboardServices?.dispose();
+        removeControllerBoundaryInput();
         unsubscribeAccent();
         sessionRuntimeDisposed = true;
         if (sessionRuntimeRefreshTimer !== null) clearInterval(sessionRuntimeRefreshTimer);
@@ -457,9 +471,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
 
 export async function bindResidentTabBridge(
   tabBridge: TabBridgeClient,
-  backend: Pick<ComposedSessionBackend, "identity" | "session" | "workflows">,
+  backend: Pick<ComposedSessionBackend, "identity" | "session" | "workflows" | "generateResidentTabName">,
   recovery: Pick<ResidentTabRecovery, "settled"> | null = null,
-  options: { readonly autoName?: boolean } = {},
+  options: { readonly autoName?: boolean; readonly onVisibility?: (visible: boolean) => void } = {},
 ): Promise<() => void> {
   await tabBridge.start().catch(() => false);
   tabBridge.status("starting");
@@ -486,7 +500,9 @@ export async function bindResidentTabBridge(
   };
   announceSession();
   const unsubscribeCommands = typeof tabBridge.onCommand === "function" ? tabBridge.onCommand(command => {
-    if (command.type === "rename") {
+    if (command.type === "visibility") {
+      options.onVisibility?.(command.visible);
+    } else if (command.type === "rename") {
       void backend.workflows.executeWorkflow({ command: "name", argument: command.name }).catch(() => {});
     } else if (command.type === "stop") {
       void backend.session.dispose().catch(() => {});
@@ -507,12 +523,15 @@ export async function bindResidentTabBridge(
         const currentName = view.status.footer?.sessionName;
         const prompt = view.transcript.find(block => block.kind === "user")?.text.trim();
         if (prompt && (currentName == null || /^agent(?: \d+)?$/i.test(currentName))) {
-          const name = fallbackAutoName(prompt);
-          pendingAutoName = name;
-          void backend.workflows.executeWorkflow({ command: "name", argument: name }).then(result => {
+          void generateAutoName(
+            prompt,
+            request => backend.generateResidentTabName(request.prompt, request.maxTokens, request.signal),
+          ).then(async name => {
+            pendingAutoName = name;
+            const result = await backend.workflows.executeWorkflow({ command: "name", argument: name });
             if (result.outcome === "completed") tabBridge.session(currentSessionFile(), name, "auto");
             else if (pendingAutoName === name) pendingAutoName = null;
-          }).catch(() => { if (pendingAutoName === name) pendingAutoName = null; });
+          }).catch(() => { pendingAutoName = null; });
         }
       }
     }

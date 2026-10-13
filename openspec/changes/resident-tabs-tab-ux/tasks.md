@@ -4,35 +4,35 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 ## 1. Baseline
 
-- [ ] 1.1 Reconcile with current `develop` after milestones 1–4. Re-copy the canonical text of `cli-session-resume` "Normal A1 accepts explicit session selection" and `launch-instance-lifecycle` "Explicit session selection belongs to the originating launch instance" from `openspec/specs/`, reapply this change's edits, and record any implementation-boundary deviation in `design.md`.
+- [x] 1.1 Reconcile with current `develop` after milestones 1–4. Re-copy the canonical text of `cli-session-resume` "Normal A1 accepts explicit session selection" and `launch-instance-lifecycle` "Explicit session selection belongs to the originating launch instance" from `openspec/specs/`, reapply this change's edits, and record any implementation-boundary deviation in `design.md`.
 - [x] 1.2 Remove the milestone-2 minimal bridge requirement with reason and migration pointing to "The tab bridge reports structured A1 state and controller identity"; pass strict OpenSpec validation.
 
 ## 2. Tab bridge and status
 
-- [ ] 2.1 Add the complete bridge messages to protocol generation 1 as additive optional shapes with `unknown` fallbacks, frozen fixtures, updated fixture digest, and decoder fuzz coverage. Include sequenced status, pending requests, queued input, heartbeat, session/name source, interrupted prompt, resolved tab accent, visibility, rename, graceful stop, and origin-stamped detach requests. Prove milestone-4 peer interoperability with new methods disabled.
+- [x] 2.1 Add the complete bridge messages to protocol generation 1 as additive optional shapes with `unknown` fallbacks, frozen fixtures, updated fixture digest, and decoder fuzz coverage. Include sequenced status, pending requests, queued input, heartbeat, session/name source, interrupted prompt, resolved tab accent, visibility, rename, graceful stop, and origin-stamped detach requests. Prove milestone-4 peer interoperability with new methods disabled.
 - [ ] 2.2 Add a pure status deriver from Pi/owned engine events plus pending-request and queued-input counts. Register every extension UI and trust/permission prompting path, continue status reports while hidden, and prove terminal output/titles cannot influence status.
-- [ ] 2.3 Wire the authenticated child bridge only under `--tab`; keep credentials out of inherited environments and bridge captures free of prompts, transcripts, terminal bytes, and credentials. Degrade to process status and attach-local actions when unavailable.
-- [ ] 2.4 Add the deterministic server-core status state machine with sequence/incarnation rejection, attention/seen fan-out, persistence coalescing, per-tab accent propagation, and no suspended state. Throttle hidden child animation without stopping status or heartbeat reports.
+- [x] 2.3 Wire the authenticated child bridge only under `--tab`; keep credentials out of inherited environments and bridge captures free of prompts, transcripts, terminal bytes, and credentials. Degrade to process status and attach-local actions when unavailable.
+- [x] 2.4 Add the deterministic server-core status state machine with sequence/incarnation rejection, attention/seen fan-out, persistence coalescing, per-tab accent propagation, and no suspended state. Throttle hidden child animation without stopping status or heartbeat reports.
 
 ## 3. V2 strip and mouse
 
-- [ ] 3.1 Add the native top strip using the v2 fixed presentation: normal RGB `38,38,38`/`170,170,170`, hover background `48,48,48`, active `55,55,55`/white, palette fallback, wallpaper-backed empty state, and right-aligned 12-hour clock. Do not add presentation settings.
-- [ ] 3.2 Implement grapheme/display-width chip layout with a 20-column cap, status decoration, always-visible `×`, viewed-chip-visible overflow `…`, reserved `+`, and empty hint. Golden-test ASCII, CJK, emoji ZWJ, combining marks, narrow terminals, and 50 tabs.
-- [ ] 3.3 Render working frames at v2's 80 ms cadence in each tab's reported A1 accent; render warning/success/error/dim semantic glyphs; drop BEL and every sound/notification sequence on each platform.
-- [ ] 3.4 Add overflow and right-click `Rename`/`Close` overlays, grapheme-aware inline rename with client/server validation, click-to-view, click-`×` close, `+` create, and 250 ms/one-column drag reorder with revision fencing and `│` marker.
+- [x] 3.1 Add the native top strip using the v2 fixed presentation: normal RGB `38,38,38`/`170,170,170`, hover background `48,48,48`, active `55,55,55`/white, palette fallback, wallpaper-backed empty state, and right-aligned 12-hour clock. Do not add presentation settings.
+- [x] 3.2 Implement grapheme/display-width chip layout with a 20-column cap, status decoration, always-visible `×`, viewed-chip-visible overflow `…`, reserved `+`, and empty hint. Golden-test ASCII, CJK, emoji ZWJ, combining marks, narrow terminals, and 50 tabs.
+- [x] 3.3 Render working frames at v2's 80 ms cadence in each tab's reported A1 accent; render warning/success/error/dim semantic glyphs; drop BEL and every sound/notification sequence on each platform.
+- [x] 3.4 Add overflow and right-click `Rename`/`Close` overlays, grapheme-aware inline rename with client/server validation, click-to-view, click-`×` close, `+` create, and 250 ms/one-column drag reorder with revision fencing and `│` marker.
 
 ## 4. Assignable shortcuts and host actions
 
-- [ ] 4.1 Declare tab actions in `src/features/resident-tab/shortcuts.ts`. Default only new (`Alt+A`), close (`Alt+W`), rename (`F2`), jump 1–10 (`Alt+1`…`Alt+0`), and failed-banner retry/fresh. Declare next/previous/move-left/move-right unbound but assignable through `keybindings.json`; conflict-check assigned bindings and list effective assignments in `/hotkeys`.
-- [ ] 4.2 Match decoded crossterm, kitty, and legacy key events before libghostty-vt encoding; consume assigned actions, consume out-of-range jumps without changing tabs, and forward unmatched input. Render failed/stalled banner actions from the effective table without exposing `/restart-tab`.
+- [x] 4.1 Declare tab actions in `src/features/resident-tab/shortcuts.ts`. Default only new (`Alt+A`), close (`Alt+W`), rename (`F2`), jump 1–10 (`Alt+1`…`Alt+0`), and failed-banner retry/fresh. Declare next/previous/move-left/move-right unbound but assignable through `keybindings.json`; conflict-check assigned bindings and list effective assignments in `/hotkeys`.
+- [x] 4.2 Match decoded crossterm, kitty, and legacy key events before libghostty-vt encoding; consume assigned actions, consume out-of-range jumps without changing tabs, and forward unmatched input. Render failed/stalled banner actions from the effective table without exposing `/restart-tab`.
 - [ ] 4.3 Extract the clear/exit interval and implement fixed double-`Ctrl+C` detach: first press reaches the tab, second is consumed locally, and a selection-clearing press does not arm the chord.
-- [ ] 4.4 Add no tab-management slash commands: do not expose `/new-tab`, `/close`, `/tabs`, `/quit-all`, or `/restart-tab`. Keep existing `/name` synchronized with tab/session naming and keep existing `/quit` and empty-editor `Ctrl+D` as origin-stamped local-client detach routes.
+- [x] 4.4 Add no tab-management slash commands: do not expose `/new-tab`, `/close`, `/tabs`, `/quit-all`, or `/restart-tab`. Keep existing `/name` synchronized with tab/session naming and keep existing `/quit` and empty-editor `Ctrl+D` as origin-stamped local-client detach routes.
 - [ ] 4.5 Implement close from `×`, `Alt+W`, context menu, and failed/stalled UI: busy confirmation, `desired=stopped`, 5-second graceful bridge stop, verified-tree termination, platform graceful fallback, last-tab empty state, and resumable committed session.
 
 ## 5. Automatic concurrent-client control
 
-- [ ] 5.1 Wire the milestone-1 controller-transfer barrier through server, holder, child, and attach client. Automatically claim the viewed tab on focus gain; when focus reporting is absent or a claim is pending, hold the first input and deliver it only after acknowledgement. Do not require `Enter` and do not render a persistent view-only banner.
-- [ ] 5.2 Release controllers on detach/disconnect, accept resize only from the current controller, reject stale revisions without bytes, and allow the newly active terminal to reclaim automatically through the same barrier.
+- [x] 5.1 Wire the milestone-1 controller-transfer barrier through server, holder, child, and attach client. Automatically claim the viewed tab on focus gain; when focus reporting is absent or a claim is pending, hold the first input and deliver it only after acknowledgement. Do not require `Enter` and do not render a persistent view-only banner.
+- [x] 5.2 Release controllers on detach/disconnect, accept resize only from the current controller, reject stale revisions without bytes, and allow the newly active terminal to reclaim automatically through the same barrier.
 - [ ] 5.3 Stamp `/quit` and empty-editor `Ctrl+D` at command admission; apply only while the origin controller remains current. Rejected or bridge-less requests keep A1 and the tab running and direct the user to double `Ctrl+C`. Print `1 agent still running run a1 to return.` or `N agents still running run a1 to return.` after detach. Prove two-client behavior on Windows x64, macOS arm64, and Linux x64.
 
 ## 6. Resident session selection
@@ -48,7 +48,7 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 - [x] 8.1 Remove the `residentTabs` setting, show only `tabsMax` (default 10, range 1–50) and `tabsAutoName` (default on) in resident Settings > Tabs, hide that section completely in `a1 solo`, and add clamping, version migration, settings-screen, launch-routing, and repository-local launch tests. Retire stored `residentTabs` and user-facing `tabsMaxConcurrentStarts`, `tabsUnresponsiveRestartSeconds`, and `tabsStallNoticeSeconds`; use internal concurrent-start default 2/hard cap 8, prewarm count 1/hard cap 1, unresponsive restart 120 seconds, and stall notice 300 seconds.
 - [ ] 8.2 Enforce `tabsMax` on every creation path and the internal concurrent-start gate. Exercise ten concurrent starts per platform with models available.
-- [ ] 8.3 Implement child auto-naming after the first settled turn with bounded budget/timeout/retry, ≤16-character lowercase hyphenated normalization, deterministic fallback, and user-rename precedence. Reproduce v2's 600 ms rainbow, 45 ms/character typing, and 300 ms settle animation for automatic names only.
+- [x] 8.3 Implement child auto-naming after the first settled turn with bounded budget/timeout/retry, ≤16-character lowercase hyphenated normalization, deterministic fallback, and user-rename precedence. Reproduce v2's 600 ms rainbow, 45 ms/character typing, and 300 ms settle animation for automatic names only.
 - [ ] 8.4 Implement one hidden standby: no session or writer lease before promotion, exact cwd/environment match, committed session identity before input, retarget on mismatch, skip untrusted cwd, exclude from strip and `tabsMax`, and tolerate standby failure without affecting tabs.
 - [ ] 8.5 Prove every open tab keeps its process until explicit close and that no suspension setting, timer, lifecycle, or `◌` glyph exists.
 

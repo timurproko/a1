@@ -19,6 +19,10 @@ Relevant current code:
 - Width: `displayWidth` and `truncateToWidth` in `src/ui/components/text.ts` (Node), and nothing yet in `native/terminal-host`.
 - Latency budgets: `docs/architecture/terminal-host-proof-gate.md` (input-to-process p95 ≤ 16 ms, output-to-present p95 ≤ 33 ms) and `src/foundation/startup/startup-budget.ts`.
 
+### Develop reconciliation
+
+Reconciled against `origin/develop` at `9982758e573e239458c6880f6ff9928a984e23aa`. The modified `cli-session-resume` requirement “Normal A1 accepts explicit session selection” and `launch-instance-lifecycle` requirement “Explicit session selection belongs to the originating launch instance” retain the canonical requirement text and scenarios, with only this change's normal-A1 tab routing, direct `a1 solo`, and writer-lease additions. No implementation-boundary deviation was required.
+
 ## Goals / Non-Goals
 
 **Goals:**

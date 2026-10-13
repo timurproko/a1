@@ -25,6 +25,7 @@ enum HolderCommand {
     PasteStart { bytes: usize, epoch: u64 },
     Resize(Resize),
     SurfaceSubscription(bool),
+    ControllerBoundary(protocol::ControllerBoundary),
     Respawn(HolderRespawn),
     TerminateChild,
     Shutdown,
@@ -496,6 +497,16 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                     )?);
                     Some(PendingPaste::Discard { remaining: bytes })
                 };
+            } else if let HolderCommand::ControllerBoundary(boundary) = command {
+                write_tx
+                    .send((
+                        crate::controller::encode_boundary_marker(
+                            boundary.generation,
+                            boundary.nonce,
+                        ),
+                        0,
+                    ))
+                    .map_err(|_| "resident PTY writer stopped".to_owned())?;
             } else if let HolderCommand::Input(message) = command {
                 if child_exited {
                     let action = match message.bytes.as_slice() {
@@ -841,6 +852,12 @@ fn spawn_command_reader(
                 "input" => {
                     if let Ok((_, input)) = wire::body::<Input>(&payload) {
                         let _ = command_tx.send(HolderCommand::Input(input));
+                    }
+                }
+                "controller-boundary" => {
+                    if let Ok((_, boundary)) = wire::body::<protocol::ControllerBoundary>(&payload)
+                    {
+                        let _ = command_tx.send(HolderCommand::ControllerBoundary(boundary));
                     }
                 }
                 "paste.start" => {

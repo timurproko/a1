@@ -12,7 +12,12 @@ export interface PiShellHotkeySection {
 export function renderPiShellHotkeySections(presentation: PiShellHotkeysPresentation, width: number): readonly PiShellHotkeySection[] {
   ensureTheme();
   const shortcuts: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]> = presentation.getShortcuts ?? (() => []);
-  const markdown = hotkeysMarkdown(presentation.bindings, shortcuts, presentation.profile ?? "pi");
+  const markdown = hotkeysMarkdown(
+    presentation.bindings,
+    shortcuts,
+    presentation.profile ?? "pi",
+    presentation.residentTabs,
+  );
   const sections: { title: string; lines: string[] }[] = [];
   for (const line of markdown.split("\n")) {
     const heading = /^\*\*(.+)\*\*$/.exec(line)?.[1];

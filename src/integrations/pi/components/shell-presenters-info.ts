@@ -189,15 +189,17 @@ export interface PiShellHotkeysPresentation {
   readonly bindings?: KeybindingsConfig;
   readonly getShortcuts?: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]>;
   readonly profile?: "pi" | "a1";
+  readonly residentTabs?: boolean;
 }
 
 export function createPiShellHotkeys(
   bindings?: KeybindingsConfig,
   getShortcuts: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]> = () => [],
   profile: "pi" | "a1" = "pi",
+  residentTabs = false,
 ): PiShellComponentPort {
   ensureTheme();
-  const markdown = hotkeysMarkdown(bindings, getShortcuts, profile);
+  const markdown = hotkeysMarkdown(bindings, getShortcuts, profile, residentTabs);
   const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder(paintPiBorder)); container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "Keyboard Shortcuts")), 1, 0)); container.addChild(new Spacer(1)); container.addChild(hotkeysMarkdownComponent(markdown)); container.addChild(new DynamicBorder(paintPiBorder));
   return componentPort(container);
 }
@@ -205,7 +207,12 @@ export function createPiShellHotkeys(
 /** The keyboard-shortcut document rows the feed presenter shows, without its spacer, borders, and heading. */
 export function renderPiShellHotkeysLines(presentation: PiShellHotkeysPresentation, width: number): readonly string[] {
   ensureTheme();
-  return hotkeysMarkdownComponent(hotkeysMarkdown(presentation.bindings, presentation.getShortcuts ?? (() => []), presentation.profile ?? "pi")).render(width);
+  return hotkeysMarkdownComponent(hotkeysMarkdown(
+    presentation.bindings,
+    presentation.getShortcuts ?? (() => []),
+    presentation.profile ?? "pi",
+    presentation.residentTabs,
+  )).render(width);
 }
 
 function hotkeysMarkdownComponent(markdown: string): Markdown {
@@ -216,6 +223,7 @@ export function hotkeysMarkdown(
   bindings: KeybindingsConfig | undefined,
   getShortcuts: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]>,
   profile: "pi" | "a1",
+  residentTabs = false,
 ): string {
   const keys = profile === "a1" ? KeybindingsManager.fromOwnedBindings(bindings) : new KeybindingsManager(bindings);
   // Compatibility: the owned viewport consumes these physical chords before editor actions.
@@ -229,12 +237,24 @@ export function hotkeysMarkdown(
       : `\`${label}\``;
   }).join(" / ")} | ${description} |`;
   let markdown = ["**Navigation**", "| Key | Action |", "|-----|--------|", row(["tui.editor.cursorUp", "tui.editor.cursorDown", "tui.editor.cursorLeft", "tui.editor.cursorRight"], "Move cursor / browse history"), row(["tui.editor.cursorWordLeft", "tui.editor.cursorWordRight"], "Move by word"), row(["tui.editor.cursorLineStart"], profile === "a1" ? "Start of prompt line" : "Start of line"), row(["tui.editor.cursorLineEnd"], profile === "a1" ? "End of prompt line" : "End of line"), ...(profile === "a1" ? ["| `Ctrl+Home` | Start of content |", "| `Ctrl+End` | End of content / follow output |"] : []), row(["tui.editor.jumpForward"], "Jump forward to character"), row(["tui.editor.jumpBackward"], "Jump backward to character"), row(["tui.editor.pageUp", "tui.editor.pageDown"], "Scroll by page"), "", "**Editing**", "| Key | Action |", "|-----|--------|", row(["tui.input.submit"], "Send message"), row(["tui.input.newLine"], `New line${process.platform === "win32" ? " (Ctrl+Enter on Windows Terminal)" : ""}`), row(["tui.editor.deleteWordBackward"], "Delete word backwards"), row(["tui.editor.deleteWordForward"], "Delete word forwards"), row(["tui.editor.deleteToLineStart"], "Delete to start of line"), row(["tui.editor.deleteToLineEnd"], "Delete to end of line"), row(["tui.editor.yank"], "Paste the most-recently-deleted text"), row(["tui.editor.yankPop"], "Cycle through the deleted text after pasting"), row(["tui.editor.undo"], "Undo"), "", "**Other**", "| Key | Action |", "|-----|--------|", row(["tui.input.tab"], "Path completion / accept autocomplete"), row(["app.interrupt"], "Cancel autocomplete / abort streaming"), row(["app.clear"], "Clear editor (first) / exit (second)"), row(["app.exit"], "Exit (when editor is empty)"), row(["app.suspend"], "Suspend to background"), row(["app.thinking.cycle"], "Cycle thinking level"), row(["app.model.cycleForward", "app.model.cycleBackward"], "Cycle models"), row(["app.model.select"], profile === "a1" ? "Open the Models dialog" : "Open model selector"), row(["app.tools.expand"], "Toggle tool output expansion"), row(["app.thinking.toggle"], "Toggle thinking block visibility"), row(["app.editor.external"], "Edit message in external editor"), row(["app.message.copy"], "Copy selection or last assistant message"), row(["app.message.followUp"], "Queue follow-up message"), row(["app.message.dequeue"], "Restore queued messages"), row(["app.clipboard.pasteImage"], profile === "a1" ? "Paste image or text from clipboard" : "Paste files on macOS, images, or text from clipboard"), "| `/` | Slash commands |", "| `!` | Run bash command |", "| `!!` | Run bash command (excluded from context) |", ...(profile === "a1" ? ["", "**Models dialog**", "| Key | Action |", "|-----|--------|", "| `Space` | Toggle the selected model in the cycling scope |", "| `Tab` | Switch the all/scoped filter |", row(["app.models.save"], "Save the scope to settings"), row(["app.models.enableAll"], "Scope every listed model"), row(["app.models.clearAll"], "Clear the listed models from the scope"), row(["app.models.toggleProvider"], "Toggle the selected model's provider"), row(["app.models.reorderUp", "app.models.reorderDown"], "Reorder the cycling scope")] : [])].join("\n");
-  if (profile === "a1" && process.env.A1_TAB_ID) {
+  if (profile === "a1" && residentTabs) {
     const configured = (bindings ?? {}) as Readonly<Record<string, unknown>>;
     markdown += "\n\n**Tabs**\n| Key | Action |\n|-----|--------|\n";
+    const claimed = new Set<string>();
+    for (const [action, value] of Object.entries(configured)) {
+      if (action.startsWith("tabs.")) continue;
+      const keys = typeof value === "string" ? [value] : Array.isArray(value) ? value : [];
+      for (const key of keys) if (typeof key === "string") claimed.add(key.toLowerCase());
+    }
     markdown += RESIDENT_TAB_SHORTCUTS.filter(shortcut => shortcut.scope === "global").map(shortcut => {
       const value = configured[shortcut.id];
-      const assigned = typeof value === "string" ? [value] : Array.isArray(value) ? value.filter((key): key is string => typeof key === "string") : shortcut.defaultKey === null ? [] : [shortcut.defaultKey];
+      const assigned = (typeof value === "string" ? [value] : Array.isArray(value) ? value.filter((key): key is string => typeof key === "string") : shortcut.defaultKey === null ? [] : [shortcut.defaultKey])
+        .filter(key => {
+          const normalized = key.toLowerCase();
+          if (claimed.has(normalized)) return false;
+          claimed.add(normalized);
+          return true;
+        });
       const label = assigned.length === 0 ? "Unbound" : `\`${assigned.map(shortcutDisplay).join("/")}\``;
       return `| ${label} | ${shortcut.description} |`;
     }).join("\n");

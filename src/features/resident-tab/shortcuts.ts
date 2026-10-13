@@ -16,20 +16,20 @@ const jumps = Array.from({ length: 10 }, (_, index): ResidentTabShortcut => ({
   id: `tabs.jump${index + 1}` as ResidentTabAction,
   defaultKey: `alt+${(index + 1) % 10}`,
   scope: "global",
-  description: `View resident tab ${index + 1}`,
+  description: `View A1 tab ${index + 1}`,
 }));
 
 export const RESIDENT_TAB_SHORTCUTS: readonly ResidentTabShortcut[] = Object.freeze([
-  { id: "tabs.new", defaultKey: "alt+a", scope: "global", description: "New resident tab" },
-  { id: "tabs.close", defaultKey: "alt+w", scope: "global", description: "Close resident tab" },
-  { id: "tabs.rename", defaultKey: "f2", scope: "global", description: "Rename resident tab" },
+  { id: "tabs.new", defaultKey: "alt+a", scope: "global", description: "New A1 tab" },
+  { id: "tabs.close", defaultKey: "alt+w", scope: "global", description: "Close A1 tab" },
+  { id: "tabs.rename", defaultKey: "f2", scope: "global", description: "Rename A1 tab" },
   ...jumps,
-  { id: "tabs.next", defaultKey: null, scope: "global", description: "View next resident tab" },
-  { id: "tabs.previous", defaultKey: null, scope: "global", description: "View previous resident tab" },
-  { id: "tabs.moveRight", defaultKey: null, scope: "global", description: "Move resident tab right" },
-  { id: "tabs.moveLeft", defaultKey: null, scope: "global", description: "Move resident tab left" },
-  { id: "tabs.retry", defaultKey: "r", scope: "failed-banner", description: "Retry failed resident tab" },
-  { id: "tabs.fresh", defaultKey: "f", scope: "failed-banner", description: "Start failed resident tab fresh" },
+  { id: "tabs.next", defaultKey: null, scope: "global", description: "View next A1 tab" },
+  { id: "tabs.previous", defaultKey: null, scope: "global", description: "View previous A1 tab" },
+  { id: "tabs.moveRight", defaultKey: null, scope: "global", description: "Move A1 tab right" },
+  { id: "tabs.moveLeft", defaultKey: null, scope: "global", description: "Move A1 tab left" },
+  { id: "tabs.retry", defaultKey: "r", scope: "failed-banner", description: "Retry failed A1 tab" },
+  { id: "tabs.fresh", defaultKey: "f", scope: "failed-banner", description: "Start failed A1 tab fresh" },
 ]);
 
 export function residentTabShortcutRegistry(assignments: Readonly<Partial<Record<ResidentTabAction, string | null>>> = {}): ShortcutRegistry<ResidentTabAction> {

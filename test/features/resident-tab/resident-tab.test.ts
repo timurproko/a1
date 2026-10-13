@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fallbackAutoName, generateAutoName, normalizeAutoName } from "../../../src/features/resident-tab/auto-name.js";
 import { deriveResidentTabStatus } from "../../../src/features/resident-tab/status-deriver.js";
 import { RESIDENT_TAB_SHORTCUTS, residentTabShortcutRegistry } from "../../../src/features/resident-tab/shortcuts.js";
+import { hotkeysMarkdown } from "../../../src/integrations/pi/components/shell-presenters-info.js";
 
 describe("resident tab auto naming", () => {
   it("normalizes and bounds names", () => {
@@ -36,6 +37,17 @@ describe("resident tab shortcuts", () => {
       expect(RESIDENT_TAB_SHORTCUTS.find(shortcut => shortcut.id === id)?.defaultKey).toBeNull();
     }
     expect(residentTabShortcutRegistry({ "tabs.next": "alt+]" }).resolve("alt+]", "global")).toBe("tabs.next");
+  });
+
+  it("lists effective assignments and suppresses conflicts in resident hotkeys", () => {
+    const markdown = hotkeysMarkdown({
+      "tabs.next": ["alt+]"],
+      "tabs.close": ["ctrl+x"],
+      "tui.editor.deleteToLineEnd": ["ctrl+x"],
+    }, () => [], "a1", true);
+    expect(markdown).toContain("**Tabs**");
+    expect(markdown).toContain("`Alt+]` | View next A1 tab");
+    expect(markdown).toContain("Unbound | Close A1 tab");
   });
 
   it("provides only the approved global defaults", () => {

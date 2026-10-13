@@ -182,6 +182,17 @@ struct ClientSession {
 struct BridgePeer {
     peer: Peer,
     incarnation: u64,
+    controller_boundary: bool,
+}
+
+struct PendingControllerTransfer {
+    client_id: String,
+    revision: u64,
+    previous_client_id: Option<String>,
+    nonce: [u8; 16],
+    core: crate::controller::ControllerCore,
+    held_frames: Vec<Vec<u8>>,
+    held_bytes: usize,
 }
 
 struct RuntimeState {
@@ -197,6 +208,7 @@ struct RuntimeState {
     bridge_status_sequences: HashMap<String, (u64, u64)>,
     status_persist_pending: std::collections::HashSet<String>,
     status_last_persist: HashMap<String, std::time::Instant>,
+    pending_controller_transfers: HashMap<String, PendingControllerTransfer>,
     holders: HashMap<String, HolderSession>,
     launches: HashMap<String, AttachStart>,
     holders_terminating: std::collections::HashSet<String>,
@@ -516,6 +528,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         bridge_status_sequences: HashMap::new(),
         status_persist_pending: std::collections::HashSet::new(),
         status_last_persist: HashMap::new(),
+        pending_controller_transfers: HashMap::new(),
         holders: HashMap::new(),
         launches,
         holders_terminating: std::collections::HashSet::new(),
@@ -960,6 +973,10 @@ fn serve_peer(
                 .features
                 .iter()
                 .any(|feature| feature == "bridge-heartbeat" || feature == "crash-recovery");
+            let controller_boundary = hello
+                .features
+                .iter()
+                .any(|feature| feature == "controller-boundary");
             serve_bridge(
                 stream,
                 peer,
@@ -967,6 +984,7 @@ fn serve_peer(
                 hello.tab_id.unwrap_or_default(),
                 hello.incarnation,
                 heartbeat_supported,
+                controller_boundary,
             )
         }
         _ => unreachable!(),
@@ -983,6 +1001,10 @@ fn welcome(epoch: u64) -> Welcome {
             "crash-recovery".into(),
             "bridge-heartbeat".into(),
             "bridge-restart".into(),
+            "controller-boundary".into(),
+            "bridge-visibility".into(),
+            "bridge-rename".into(),
+            "bridge-stop".into(),
             "recovery-status".into(),
         ],
         frame_limit: protocol::MAX_FRAME_BYTES as u32,
@@ -1134,37 +1156,57 @@ fn broadcast_tab_status(locked: &RuntimeState, surface: &Surface) -> Result<(), 
     Ok(())
 }
 
+struct ControlClaim {
+    attachment: Option<(Peer, BridgeAttachment)>,
+    pending: bool,
+}
+
 fn claim_client_control(
     locked: &mut RuntimeState,
     client_id: &str,
     allow_control: bool,
-) -> Result<Option<(Peer, BridgeAttachment)>, String> {
+) -> Result<ControlClaim, String> {
     if !allow_control {
-        return Ok(None);
+        return Ok(ControlClaim {
+            attachment: None,
+            pending: false,
+        });
     }
     let Some(viewed_tab) = locked
         .clients
         .get(client_id)
         .map(|client| client.viewed_tab.clone())
     else {
-        return Ok(None);
+        return Ok(ControlClaim {
+            attachment: None,
+            pending: false,
+        });
     };
     if locked
         .clients
         .get(client_id)
         .is_some_and(|client| client.controller)
     {
-        return Ok(None);
+        return Ok(ControlClaim {
+            attachment: None,
+            pending: false,
+        });
+    }
+    if let Some(pending) = locked.pending_controller_transfers.get(&viewed_tab) {
+        return Ok(ControlClaim {
+            attachment: None,
+            pending: pending.client_id == client_id,
+        });
     }
     let previous = locked
         .attachment
         .current(&viewed_tab)
-        .map(|(id, _)| id.to_owned());
+        .map(|(id, revision)| (id.to_owned(), revision));
     let revision = locked
         .attachment
         .transfer(&viewed_tab, client_id.to_owned());
-    if let Some(previous) = previous
-        && let Some(client) = locked.clients.get_mut(&previous)
+    if let Some((previous_id, _)) = previous.as_ref()
+        && let Some(client) = locked.clients.get_mut(previous_id)
     {
         client.controller = false;
         client.controller_revision = 0;
@@ -1177,19 +1219,117 @@ fn claim_client_control(
             },
         )?);
     }
+    let can_boundary = previous.is_some()
+        && locked.holders.contains_key(&viewed_tab)
+        && locked
+            .bridges
+            .get(&viewed_tab)
+            .is_some_and(|bridge| bridge.controller_boundary);
+    if can_boundary {
+        let old_revision = previous.as_ref().map_or(0, |(_, revision)| *revision);
+        let nonce = rand::random::<[u8; 16]>();
+        let mut core = crate::controller::ControllerCore::new(old_revision);
+        core.freeze(old_revision, revision)
+            .map_err(|error| error.to_string())?;
+        core.begin_drain().map_err(|error| error.to_string())?;
+        let _ = core
+            .write_boundary(nonce)
+            .map_err(|error| error.to_string())?;
+        let holder = locked
+            .holders
+            .get(&viewed_tab)
+            .expect("checked holder")
+            .peer
+            .clone();
+        holder
+            .offer_control(wire::frame(
+                "controller-boundary",
+                None,
+                protocol::ControllerBoundary {
+                    generation: revision,
+                    nonce,
+                },
+            )?)
+            .map_err(str::to_owned)?;
+        locked.pending_controller_transfers.insert(
+            viewed_tab,
+            PendingControllerTransfer {
+                client_id: client_id.to_owned(),
+                revision,
+                previous_client_id: previous.as_ref().map(|(id, _)| id.clone()),
+                nonce,
+                core,
+                held_frames: Vec::new(),
+                held_bytes: 0,
+            },
+        );
+        if let Some(client) = locked.clients.get_mut(client_id) {
+            client.controller = false;
+            client.controller_revision = revision;
+        }
+        return Ok(ControlClaim {
+            attachment: None,
+            pending: true,
+        });
+    }
     if let Some(client) = locked.clients.get_mut(client_id) {
         client.controller = true;
         client.controller_revision = revision;
     }
-    Ok(locked.bridges.get(&viewed_tab).map(|bridge| {
-        (
-            bridge.peer.clone(),
-            BridgeAttachment {
-                client_id: client_id.to_owned(),
-                controller_revision: revision,
-            },
-        )
-    }))
+    Ok(ControlClaim {
+        attachment: locked.bridges.get(&viewed_tab).map(|bridge| {
+            (
+                bridge.peer.clone(),
+                BridgeAttachment {
+                    client_id: client_id.to_owned(),
+                    controller_revision: revision,
+                },
+            )
+        }),
+        pending: false,
+    })
+}
+
+fn cancel_controller_transfer(
+    locked: &mut RuntimeState,
+    tab_id: &str,
+    client_id: &str,
+) -> Result<(), String> {
+    let Some(mut pending) = locked.pending_controller_transfers.remove(tab_id) else {
+        return Ok(());
+    };
+    if pending.client_id != client_id {
+        locked
+            .pending_controller_transfers
+            .insert(tab_id.to_owned(), pending);
+        return Ok(());
+    }
+    let _ = pending.core.cancel_transfer();
+    if let Some(previous) = pending
+        .previous_client_id
+        .filter(|previous| locked.clients.contains_key(previous))
+    {
+        let revision = locked.attachment.transfer(tab_id, previous.clone());
+        if let Some(client) = locked.clients.get_mut(&previous) {
+            client.controller = true;
+            client.controller_revision = revision;
+        }
+        if let Some(bridge) = locked.bridges.get(tab_id) {
+            let _ = bridge.peer.offer_control(wire::frame(
+                "attachment",
+                None,
+                BridgeAttachment {
+                    client_id: previous,
+                    controller_revision: revision,
+                },
+            )?);
+        }
+    } else {
+        locked
+            .attachment
+            .detach(tab_id, client_id, pending.revision);
+    }
+    Ok(())
 }
 
 fn serve_attach(
@@ -1488,6 +1628,11 @@ fn serve_attach(
                         client.controller_revision,
                     )
                 });
+                if let Some((previous_tab, _, _)) = previous.as_ref()
+                    && previous_tab != &target.tab_id
+                {
+                    cancel_controller_transfer(&mut locked, previous_tab, &client_id)?;
+                }
                 if let Some((previous_tab, true, previous_revision)) = previous.as_ref() {
                     locked
                         .attachment
@@ -1669,6 +1814,65 @@ fn serve_attach(
                 )?)
                 .map_err(str::to_owned)?;
             }
+            "tab.restart" => {
+                let (_, target): (_, TabTarget) = wire::body(&payload)?;
+                let restart = {
+                    let mut locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    let authorized = locked.clients.get(&client_id).is_some_and(|client| {
+                        client.controller && client.viewed_tab == target.tab_id
+                    });
+                    if !authorized {
+                        None
+                    } else {
+                        let changed = locked
+                            .registry
+                            .tabs
+                            .iter_mut()
+                            .find(|record| record.tab_id == target.tab_id)
+                            .is_some_and(|record| {
+                                record.requested_restart = true;
+                                true
+                            });
+                        if changed {
+                            locked.registry.registry_revision =
+                                locked.registry.registry_revision.saturating_add(1);
+                        }
+                        locked.holders.get(&target.tab_id).map(|holder| {
+                            (
+                                holder.peer.clone(),
+                                locked.registry_store.clone(),
+                                locked.registry.clone(),
+                            )
+                        })
+                    }
+                };
+                let accepted = if let Some((holder, store, document)) = restart {
+                    commit_registry(store, document)?;
+                    holder
+                        .offer_control(wire::frame(
+                            "holder.terminate-child",
+                            None,
+                            wire::ResultBody {
+                                accepted: true,
+                                message: Some("explicit restart".into()),
+                            },
+                        )?)
+                        .is_ok()
+                } else {
+                    false
+                };
+                tx.offer_control(wire::frame(
+                    "tab.restarted",
+                    kind.request_id,
+                    wire::ResultBody {
+                        accepted,
+                        message: (!accepted).then(|| "restart is unavailable".into()),
+                    },
+                )?)
+                .map_err(str::to_owned)?;
+            }
             "tab.close" => {
                 let (_, target): (_, TabTarget) = wire::body(&payload)?;
                 let mut locked = state
@@ -1717,13 +1921,13 @@ fn serve_attach(
                 .map_err(str::to_owned)?;
             }
             "tab.claimInput" => {
-                let bridge = {
+                let claim = {
                     let mut locked = state
                         .lock()
                         .map_err(|_| "resident state poisoned".to_owned())?;
                     claim_client_control(&mut locked, &client_id, allow_control)?
                 };
-                if let Some((peer, attachment)) = bridge {
+                if let Some((peer, attachment)) = claim.attachment {
                     let _ = peer.offer_control(wire::frame("attachment", None, attachment)?);
                 }
                 tx.offer_control(wire::frame(
@@ -1737,25 +1941,74 @@ fn serve_attach(
                 .map_err(str::to_owned)?;
             }
             "paste.start" | "input" | "resize" => {
-                let target = {
+                let accepted = {
                     let mut locked = state
                         .lock()
                         .map_err(|_| "resident state poisoned".to_owned())?;
-                    if kind.message_type != "resize" {
-                        let bridge = claim_client_control(&mut locked, &client_id, allow_control)?;
-                        if let Some((peer, attachment)) = bridge {
-                            let _ =
-                                peer.offer_control(wire::frame("attachment", None, attachment)?);
+                    let claim = if kind.message_type == "resize" {
+                        ControlClaim {
+                            attachment: None,
+                            pending: false,
                         }
+                    } else {
+                        claim_client_control(&mut locked, &client_id, allow_control)?
+                    };
+                    if let Some((peer, attachment)) = claim.attachment {
+                        let _ = peer.offer_control(wire::frame("attachment", None, attachment)?);
                     }
-                    locked
+                    let viewed_tab = locked
                         .clients
                         .get(&client_id)
-                        .filter(|client| client.controller)
-                        .and_then(|client| locked.holders.get(&client.viewed_tab))
-                        .map(|holder| (holder.peer.clone(), locked.registry.epoch))
+                        .map(|client| client.viewed_tab.clone());
+                    let epoch = locked.registry.epoch;
+                    let frame = match kind.message_type.as_str() {
+                        "paste.start" => {
+                            let (_, mut body): (_, PasteStart) = wire::body(&payload)?;
+                            body.epoch = epoch;
+                            wire::frame("paste.start", kind.request_id, body)?
+                        }
+                        "input" => {
+                            let (_, mut body): (_, Input) = wire::body(&payload)?;
+                            body.epoch = epoch;
+                            wire::frame("input", kind.request_id, body)?
+                        }
+                        _ => {
+                            let (_, mut body): (_, Resize) = wire::body(&payload)?;
+                            body.epoch = epoch;
+                            wire::frame("resize", kind.request_id, body)?
+                        }
+                    };
+                    if claim.pending {
+                        viewed_tab
+                            .as_ref()
+                            .and_then(|tab_id| locked.pending_controller_transfers.get_mut(tab_id))
+                            .filter(|pending| pending.client_id == client_id)
+                            .is_some_and(|pending| {
+                                let Some(total) = pending.held_bytes.checked_add(frame.len())
+                                else {
+                                    return false;
+                                };
+                                if total > 1024 * 1024 {
+                                    return false;
+                                }
+                                pending.held_bytes = total;
+                                pending.held_frames.push(frame);
+                                true
+                            })
+                    } else {
+                        viewed_tab
+                            .as_ref()
+                            .and_then(|tab_id| {
+                                locked
+                                    .clients
+                                    .get(&client_id)
+                                    .filter(|client| client.controller)
+                                    .and_then(|_| locked.holders.get(tab_id))
+                            })
+                            .is_some_and(|holder| holder.peer.offer_control(frame).is_ok())
+                    }
                 };
-                let Some((holder, epoch)) = target else {
+                if !accepted {
                     tx.offer_control(wire::frame(
                         "input.rejected",
                         kind.request_id,
@@ -1765,26 +2018,7 @@ fn serve_attach(
                         },
                     )?)
                     .map_err(str::to_owned)?;
-                    continue;
-                };
-                let frame = match kind.message_type.as_str() {
-                    "paste.start" => {
-                        let (_, mut body): (_, PasteStart) = wire::body(&payload)?;
-                        body.epoch = epoch;
-                        wire::frame("paste.start", kind.request_id, body)?
-                    }
-                    "input" => {
-                        let (_, mut body): (_, Input) = wire::body(&payload)?;
-                        body.epoch = epoch;
-                        wire::frame("input", kind.request_id, body)?
-                    }
-                    _ => {
-                        let (_, mut body): (_, Resize) = wire::body(&payload)?;
-                        body.epoch = epoch;
-                        wire::frame("resize", kind.request_id, body)?
-                    }
-                };
-                holder.offer_control(frame).map_err(str::to_owned)?;
+                }
             }
             "detach" => break,
             _ => {}
@@ -1799,6 +2033,7 @@ fn serve_attach(
                 .attachment
                 .detach(&session.viewed_tab, &client_id, session.controller_revision);
         }
+        cancel_controller_transfer(&mut locked, &session.viewed_tab, &client_id)?;
         let still_viewed = locked
             .clients
             .values()
@@ -2849,6 +3084,7 @@ fn serve_bridge(
     tab_id: String,
     incarnation: u64,
     heartbeat_supported: bool,
+    controller_boundary: bool,
 ) -> Result<(), String> {
     {
         let mut locked = state
@@ -2859,6 +3095,7 @@ fn serve_bridge(
             BridgePeer {
                 peer: tx.clone(),
                 incarnation,
+                controller_boundary,
             },
         );
         if heartbeat_supported {
@@ -2993,6 +3230,49 @@ fn serve_bridge(
             drop(locked);
             if let Some(delay) = status_persist {
                 persist_status_after(state.clone(), tab_id.clone(), delay);
+            }
+        } else if kind.message_type == "bridge.boundary" {
+            let (_, boundary): (_, protocol::ControllerBoundary) = wire::body(&payload)?;
+            let nonce = boundary.nonce;
+            let mut locked = state
+                .lock()
+                .map_err(|_| "resident state poisoned".to_owned())?;
+            let Some(mut pending) = locked.pending_controller_transfers.remove(&tab_id) else {
+                continue;
+            };
+            if pending.revision != boundary.generation || pending.nonce != nonce {
+                locked
+                    .pending_controller_transfers
+                    .insert(tab_id.clone(), pending);
+                continue;
+            }
+            pending
+                .core
+                .acknowledge_boundary(boundary.generation, nonce)
+                .map_err(|error| error.to_string())?;
+            if locked.attachment.current(&tab_id)
+                != Some((pending.client_id.as_str(), pending.revision))
+            {
+                continue;
+            }
+            if let Some(client) = locked.clients.get_mut(&pending.client_id) {
+                client.controller = true;
+                client.controller_revision = pending.revision;
+            } else {
+                continue;
+            }
+            let _ = tx.offer_control(wire::frame(
+                "attachment",
+                None,
+                BridgeAttachment {
+                    client_id: pending.client_id,
+                    controller_revision: pending.revision,
+                },
+            )?);
+            if let Some(holder) = locked.holders.get(&tab_id) {
+                for frame in pending.held_frames {
+                    holder.peer.offer_control(frame).map_err(str::to_owned)?;
+                }
             }
         } else if kind.message_type == "bridge.session" {
             let (_, session): (_, BridgeSession) = wire::body(&payload)?;
@@ -3152,6 +3432,13 @@ fn serve_bridge(
     }
     if !removed_current {
         return Ok(());
+    }
+    if let Some(client_id) = locked
+        .pending_controller_transfers
+        .get(&tab_id)
+        .map(|pending| pending.client_id.clone())
+    {
+        cancel_controller_transfer(&mut locked, &tab_id, &client_id)?;
     }
     let mut changed = false;
     if let Some(record) = locked

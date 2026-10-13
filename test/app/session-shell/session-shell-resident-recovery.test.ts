@@ -24,13 +24,11 @@ describe("resident session recovery admission", () => {
     await shell.dispose();
   });
 
-  it("routes /restart-tab through the authenticated resident bridge action", async () => {
-    const requestRestart = vi.fn(async () => true);
-    const { engine, shell } = await residentFixture({ requestDetach: async () => true, requestRestart });
+  it("does not expose a /restart-tab management command", async () => {
+    const { engine, shell } = await residentFixture({ requestDetach: async () => true });
     await expect(shell.submit("/restart-tab")).resolves.toMatchObject({ outcome: "completed" });
-    expect(requestRestart).toHaveBeenCalledOnce();
-    expect(engine.session.calls).not.toContain("prompt:/restart-tab");
-    expect(shell.root.render(100).join("\n")).toContain("Restarting resident tab");
+    expect(engine.session.calls).toContain("prompt:/restart-tab");
+    expect(shell.root.render(100).join("\n")).not.toContain("Restarting resident tab");
     await shell.dispose();
   });
 
