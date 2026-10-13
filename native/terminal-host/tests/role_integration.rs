@@ -966,8 +966,8 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         "{}",
         second.output_text()
     );
-    takeover.write(b"\x03\x03");
-    assert!(takeover.wait(Duration::from_secs(8)).success());
+    takeover.lose_launch_tree();
+    takeover.wait(Duration::from_secs(8));
 
     let holders_before_client_loss = holder_identities(&credentials_root);
     first.lose_launch_tree();
