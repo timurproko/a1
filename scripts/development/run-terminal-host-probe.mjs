@@ -45,13 +45,13 @@ function assertNoFixtureProcesses(env) {
   if (platform() === "win32") {
     const command = [
       "$items = @(Get-CimInstance Win32_Process |",
-      "Where-Object { $_.ExecutablePath -eq $env:A1_TERMINAL_HOST_LEAK_TARGET } |",
+      "Where-Object { $_.ExecutablePath -eq $env:TERMINAL_HOST_FIXTURE_EXECUTABLE } |",
       "Select-Object ProcessId, ParentProcessId, CommandLine);",
       "$items | ConvertTo-Json -Compress",
     ].join(" ");
     listing = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], {
       encoding: "utf8",
-      env: { ...env, A1_TERMINAL_HOST_LEAK_TARGET: executable },
+      env: { ...env, TERMINAL_HOST_FIXTURE_EXECUTABLE: executable },
       windowsHide: true,
     });
   } else {

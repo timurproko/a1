@@ -1472,26 +1472,21 @@ impl Drop for Cleanup {
         // Concurrency: teardown reconciles because killing only a server makes holders replace it,
         // while killing only a holder makes the server replace that holder. Signal the observed
         // set as one batch, wait for exact identities, then rescan until no replacement remains.
-        for _ in 0..6 {
+        let replacement_deadline = Instant::now() + Duration::from_secs(5);
+        loop {
             self.pids.extend(server_pids(&self.credentials_root));
             self.pids.extend(holder_pids(&self.credentials_root));
             self.pids.sort_unstable();
             self.pids.dedup();
             let batch = std::mem::take(&mut self.pids);
             terminate_batch(&batch);
-            std::thread::sleep(Duration::from_millis(250));
-            let live = server_pids(&self.credentials_root)
-                .into_iter()
-                .chain(holder_pids(&self.credentials_root))
-                .any(|pid| {
-                    terminal_host_contracts::identity::inspect_process(pid)
-                        .ok()
-                        .flatten()
-                        .is_some()
-                });
-            if !live {
+            if Instant::now() >= replacement_deadline {
                 return;
             }
+            // Concurrency: a holder may already have started a synchronous server launch. The
+            // launch contract has a four-second deadline, so keep rescanning past that deadline
+            // even while registry identities are briefly absent.
+            std::thread::sleep(Duration::from_millis(250));
         }
     }
 }
