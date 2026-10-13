@@ -1264,21 +1264,38 @@ fn serve_attach(
                 }
             }
             "tab.list" => {
-                let tabs = state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?
-                    .registry
-                    .tabs
-                    .iter()
-                    .map(|tab| TabSummary {
-                        tab_id: tab.tab_id.clone(),
-                        name: tab.display_name.clone(),
-                        lifecycle: tab.lifecycle.clone(),
-                        cwd: tab.cwd.clone(),
-                    })
-                    .collect();
-                tx.offer_control(wire::frame("tab.list", kind.request_id, TabList { tabs })?)
-                    .map_err(str::to_owned)?;
+                let (revision, tabs) = {
+                    let locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    let mut tabs = locked
+                        .registry
+                        .tabs
+                        .iter()
+                        .map(|tab| TabSummary {
+                            tab_id: tab.tab_id.clone(),
+                            name: tab.display_name.clone(),
+                            name_source: tab.name_source.clone(),
+                            lifecycle: tab.lifecycle.clone(),
+                            cwd: tab.cwd.clone(),
+                        })
+                        .collect::<Vec<_>>();
+                    tabs.sort_by_key(|tab| {
+                        locked
+                            .registry
+                            .tabs
+                            .iter()
+                            .find(|record| record.tab_id == tab.tab_id)
+                            .map_or(u32::MAX, |record| record.order)
+                    });
+                    (locked.registry.registry_revision, tabs)
+                };
+                tx.offer_control(wire::frame(
+                    "tab.list",
+                    kind.request_id,
+                    TabList { revision, tabs },
+                )?)
+                .map_err(str::to_owned)?;
             }
             "tab.view" => {
                 let (_, target): (_, TabTarget) = wire::body(&payload)?;
@@ -1356,6 +1373,51 @@ fn serve_attach(
                         },
                     )?);
                 }
+            }
+            "tab.reorder" => {
+                let (_, reorder): (_, wire::TabReorder) = wire::body(&payload)?;
+                let commit = {
+                    let mut locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    if locked.registry.registry_revision != reorder.expected_revision {
+                        None
+                    } else if let Some(from) = locked
+                        .registry
+                        .tabs
+                        .iter()
+                        .position(|tab| tab.tab_id == reorder.tab_id)
+                    {
+                        let tab = locked.registry.tabs.remove(from);
+                        let target = reorder.target_index.min(locked.registry.tabs.len());
+                        locked.registry.tabs.insert(target, tab);
+                        for (index, tab) in locked.registry.tabs.iter_mut().enumerate() {
+                            tab.order = index as u32;
+                        }
+                        locked.registry.registry_revision =
+                            locked.registry.registry_revision.saturating_add(1);
+                        Some((locked.registry_store.clone(), locked.registry.clone()))
+                    } else {
+                        None
+                    }
+                };
+                let accepted = commit.is_some();
+                if let Some((store, document)) = commit {
+                    commit_registry(store, document)?;
+                }
+                tx.offer_control(wire::frame(
+                    "tab.reordered",
+                    kind.request_id,
+                    wire::ResultBody {
+                        accepted,
+                        message: if accepted {
+                            None
+                        } else {
+                            Some("stale tab order".into())
+                        },
+                    },
+                )?)
+                .map_err(str::to_owned)?;
             }
             "tab.rename" => {
                 let (_, rename): (_, wire::TabRename) = wire::body(&payload)?;

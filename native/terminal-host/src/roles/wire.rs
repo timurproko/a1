@@ -150,15 +150,25 @@ pub struct TabRename {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TabReorder {
+    pub tab_id: String,
+    pub target_index: usize,
+    pub expected_revision: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TabSummary {
     pub tab_id: String,
     pub name: String,
+    pub name_source: String,
     pub lifecycle: String,
     pub cwd: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TabList {
+    pub revision: u64,
     pub tabs: Vec<TabSummary>,
 }
 

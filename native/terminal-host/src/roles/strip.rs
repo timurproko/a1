@@ -1,4 +1,8 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+pub const TITLE_RAINBOW_MS: u128 = 600;
+pub const TITLE_TYPE_MS_PER_CHAR: u128 = 45;
+pub const TITLE_SETTLE_MS: u128 = 300;
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
@@ -7,8 +11,16 @@ use unicode_width::UnicodeWidthStr;
 pub struct StripTab {
     pub id: String,
     pub name: String,
+    pub name_source: String,
     pub status: String,
     pub accent: Option<String>,
+    pub title_animation: Option<TitleAnimation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TitleAnimation {
+    pub from: String,
+    pub started_at: Instant,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,7 +65,18 @@ fn truncate(value: &str, width: usize) -> String {
 fn status_glyph(status: &str) -> &'static str {
     match status {
         "starting" | "restoring" => "… ",
-        "working" => "◐ ",
+        "working" => match SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+            / 80
+            % 4
+        {
+            0 => "◐ ",
+            1 => "◓ ",
+            2 => "◑ ",
+            _ => "◒ ",
+        },
         "needs-input" | "unresponsive" | "stalled" | "degraded" => "! ",
         "done-unseen" => "✓ ",
         "restarting" => "↻ ",
@@ -81,10 +104,43 @@ fn accent(status: &str, value: Option<&str>) -> &'static str {
     }
 }
 
+fn animated_name(tab: &StripTab) -> (String, Option<String>) {
+    let Some(animation) = &tab.title_animation else {
+        return (tab.name.clone(), None);
+    };
+    let elapsed = animation.started_at.elapsed().as_millis();
+    if elapsed < TITLE_RAINBOW_MS {
+        let hue = ((elapsed / 4) % 360) as u16;
+        return (
+            animation.from.clone(),
+            Some(format!(
+                "\x1b[38;2;{};{};{}m",
+                128 + hue % 127,
+                90 + hue % 100,
+                220
+            )),
+        );
+    }
+    let typing = elapsed - TITLE_RAINBOW_MS;
+    let characters = tab.name.chars().count();
+    let count = ((typing / TITLE_TYPE_MS_PER_CHAR) + 1).min(characters as u128) as usize;
+    if count < characters {
+        return (
+            tab.name.chars().take(count).collect(),
+            Some("\x1b[38;2;210;120;220m".into()),
+        );
+    }
+    if typing < characters as u128 * TITLE_TYPE_MS_PER_CHAR + TITLE_SETTLE_MS {
+        return (tab.name.clone(), Some("\x1b[38;2;190;150;200m".into()));
+    }
+    (tab.name.clone(), None)
+}
+
 fn chip(tab: &StripTab, active: bool) -> (String, usize, usize) {
     let glyph = status_glyph(&tab.status);
     let fixed = 4 + if glyph.is_empty() { 0 } else { 2 };
-    let name = truncate(&clean(&tab.name), 20usize.saturating_sub(fixed));
+    let (animated, title_color) = animated_name(tab);
+    let name = truncate(&clean(&animated), 20usize.saturating_sub(fixed));
     let width = fixed + UnicodeWidthStr::width(name.as_str());
     let background = if active {
         "\x1b[48;2;55;55;55m\x1b[38;2;255;255;255m"
@@ -92,7 +148,8 @@ fn chip(tab: &StripTab, active: bool) -> (String, usize, usize) {
         "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m"
     };
     let glyph_color = accent(&tab.status, tab.accent.as_deref());
-    let text = format!("{background} {glyph_color}{glyph}\x1b[39m{name} × \x1b[0m");
+    let title_color = title_color.as_deref().unwrap_or("\x1b[39m");
+    let text = format!("{background} {glyph_color}{glyph}{title_color}{name} \x1b[39m× \x1b[0m");
     (text, width, 3)
 }
 
@@ -167,6 +224,20 @@ pub fn render(tabs: &[StripTab], viewed: Option<&str>, columns: u16) -> StripFra
     StripFrame { bytes, hits }
 }
 
+pub fn animations_active(tabs: &[StripTab]) -> bool {
+    tabs.iter().any(|tab| {
+        tab.status == "working"
+            || tab.title_animation.as_ref().is_some_and(|animation| {
+                animation.started_at.elapsed()
+                    < Duration::from_millis(
+                        (TITLE_RAINBOW_MS
+                            + tab.name.chars().count() as u128 * TITLE_TYPE_MS_PER_CHAR
+                            + TITLE_SETTLE_MS) as u64,
+                    )
+            })
+    })
+}
+
 pub fn hit(frame: &StripFrame, column: u16) -> Option<&StripHit> {
     frame
         .hits
@@ -214,8 +285,10 @@ mod tests {
         StripTab {
             id: id.into(),
             name: name.into(),
+            name_source: "default".into(),
             status: "idle".into(),
             accent: None,
+            title_animation: None,
         }
     }
 
