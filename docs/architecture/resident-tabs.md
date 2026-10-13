@@ -359,7 +359,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
 
 The settings live in the owned settings screen, each with a hard cap.
 
-- User-facing Tabs settings are `residentTabs`, labeled `Enable tabs` (Yes/No, default Yes), `tabsMax` (default 10, range 1–50), and `tabsAutoName` (default on).
+- User-facing Tabs settings are `residentTabs`, labeled `Enable tabs` (Yes/No, default Yes), `tabsMax` (default 10, range 1–50), and `tabsAutoName` (default on). When Enable tabs is No, the latter two are hidden so the section shows only the control that can re-enable tabs.
 - Unresponsive restart and stall-notice timing are internal fixed behavior at 120 and 300 seconds; concurrent starts use internal default 2/hard cap 8 and prewarm uses internal count/hard cap 1.
 - Every open tab keeps its holder and A1 process until explicit close. There is no idle-suspension setting, timer, lifecycle, or glyph.
 - Scrollback is capped at 10 MiB per holder, and the replay after a server restart is the retained model itself.
@@ -516,7 +516,7 @@ On 2026-10-13 the user refined milestone 5:
 - Keep `Alt+A`, `Alt+W`, `F2`, and numbered jumps; leave next/previous and move actions unbound but assignable.
 - Add no tab-management slash commands; retain existing `/name`, `/quit`, and empty-editor `Ctrl+D` semantics.
 - Automatically transfer control to the active terminal through the causal barrier without an `Enter` takeover or view-only banner.
-- Put `residentTabs` in Tabs as `Enable tabs` (Yes/No, default Yes), retain `tabsMax` and `tabsAutoName` there, and remove unresponsive-restart and stall-notice controls from the user-facing surface; keep their timing, concurrent starts, and one prewarm internal.
+- Put `residentTabs` in Tabs as `Enable tabs` (Yes/No, default Yes), show `tabsMax` and `tabsAutoName` there only while enabled, and remove unresponsive-restart and stall-notice controls from the user-facing surface; keep their timing, concurrent starts, and one prewarm internal.
 - Keep every open tab process running until explicit close; remove idle suspension and its `◌` glyph.
 - Use `1 agent still running run a1 to return.` / `N agents still running run a1 to return.` after local detach.
 

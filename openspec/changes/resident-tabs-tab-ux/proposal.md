@@ -16,7 +16,7 @@ This is milestone 5 of 6. It starts after `resident-tabs-contracts` (#586), `res
 - Wire the milestone-1 controller-transfer barrier for two clients, automatically claiming the viewed tab when a terminal gains focus or first sends input. `/quit` and empty-editor `Ctrl+D` retain immutable origin stamping and detach only their current origin; double `Ctrl+C` remains attach-local.
 - Route `a1 --session X` to focus the holding tab in the launching client or open it in a new tab; a direct-mode conflict fails safe or offers a fork.
 - Certify text-terminal extension fidelity against direct bare A1 on each platform; image requests use the text fallback.
-- Put `residentTabs` in Settings > Tabs as `Enable tabs` (Yes/No, default Yes), add `tabsMax` and `tabsAutoName` there, and remove the user-facing unresponsive-restart and stall-notice controls while retaining their internal fixed behavior. Keep concurrent starts (2, hard cap 8) and one prewarmed standby as internal constants. Auto-naming is on by default, uses the tab model, never overrides a user rename, and animates exactly like v2.
+- Put `residentTabs` in Settings > Tabs as `Enable tabs` (Yes/No, default Yes), show `tabsMax` and `tabsAutoName` there only while enabled, and remove the user-facing unresponsive-restart and stall-notice controls while retaining their internal fixed behavior. Keep concurrent starts (2, hard cap 8) and one prewarmed standby as internal constants. Auto-naming is on by default, uses the tab model, never overrides a user rename, and animates exactly like v2.
 - Measure cold launch, warm tab creation, reattach, input-to-process, and output-to-present latency against declared budgets on each platform.
 
 ## Capabilities

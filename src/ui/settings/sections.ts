@@ -60,7 +60,10 @@ export function buildOwnedUiSettingsSections(
   input: BuildOwnedUiSettingsSectionsInput,
 ): readonly OwnedUiSettingsSection[] {
   const grouped = new Map<string, { title: string; entries: OwnedUiSettingsEntry[] }>();
+  const residentTabsEnabled = input.resolution.settings
+    .find(setting => setting.declaration.id === "residentTabs")?.value === true;
   for (const setting of input.resolution.settings) {
+    if (!residentTabsEnabled && ["tabsMax", "tabsAutoName"].includes(setting.declaration.id)) continue;
     const section = setting.declaration.section ?? { id: "a1", title: "A1" };
     const group = grouped.get(section.id) ?? { title: section.title, entries: [] };
     group.entries.push({

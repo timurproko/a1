@@ -120,16 +120,23 @@ describe("owned UI settings sections", () => {
     expect(AGENT.descriptors.map(entry => entry.key)).toEqual(["autoCompact", "thinkingLevel", "providerProfile", "installId"]);
   });
 
-  it("shows only the approved tab controls in the Tabs section", () => {
-    const resolved = resolveOwnedUiSettings({
+  it("shows dependent tab controls only while tabs are enabled", () => {
+    const enabled = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
       document: { version: 16, values: { residentTabs: true } },
     });
-    const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: null });
-    expect(sections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual(["updateCheck"]);
-    expect(sections.find(section => section.id === "tabs")?.entries.map(entry => entry.id)).toEqual([
+    const enabledSections = buildOwnedUiSettingsSections({ resolution: enabled, agent: null });
+    expect(enabledSections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual(["updateCheck"]);
+    expect(enabledSections.find(section => section.id === "tabs")?.entries.map(entry => entry.id)).toEqual([
       "residentTabs", "tabsMax", "tabsAutoName",
     ]);
+
+    const disabled = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
+      document: { version: 16, values: { residentTabs: false } },
+    });
+    const disabledSections = buildOwnedUiSettingsSections({ resolution: disabled, agent: null });
+    expect(disabledSections.find(section => section.id === "tabs")?.entries.map(entry => entry.id)).toEqual(["residentTabs"]);
   });
 
   it.each<[string, AgentSettingsSnapshot | null]>([
