@@ -10,8 +10,9 @@ The Settings screen combines Pi/Agent settings and A1-specific settings, but the
 - Store A1-specific preferences directly in one reserved top-level `a1` object, leaving Pi's root keys and schema unchanged and exposing no product schema metadata.
 - Persist only A1 values that differ from their declared defaults; changing a value back to its default removes that A1 key.
 - Add a collision gate that fails compatibility when pinned Pi claims the reserved `a1` key, rather than silently sharing a name.
-- Coordinate A1 and Pi writes through the same file-lock protocol and merge only the owning namespace so either writer preserves the other's values, including concurrent updates.
-- Read the former standalone A1 settings document only when the shared file has no `a1` section, then migrate non-destructively into the shared section on the next accepted A1 change.
+- Leave Pi's settings manager unchanged; update `a1` through a Pi-compatible locked read-modify-write that rereads current JSON and preserves every root setting.
+- Verify each pinned Pi version preserves the unknown `a1` object whenever Pi writes one of its own settings.
+- Read the former standalone A1 settings document only when the shared file has no `a1` object, then migrate non-destructively into the shared object on the next accepted A1 change.
 - Add focused restart, update/reinstall, migration, collision, and concurrent-write coverage.
 
 ## Capabilities
@@ -24,8 +25,8 @@ None.
 
 - `owned-ui-settings`: Embed a flat, metadata-free A1 settings object in the shared agent `settings.json`, elide defaults, and define shape-based compatibility migration.
 - `launch-profiles`: Require every normal A1 version to resolve the same shared user settings file under the selected A1 agent profile.
-- `pi-settings-runtime`: Define namespace ownership, collision refusal, and lossless coordinated writes between Pi and A1 settings.
+- `pi-settings-runtime`: Require pinned Pi writes to preserve the product object and define collision refusal plus lossless locked A1 updates.
 
 ## Impact
 
-Expected implementation affects owned-settings persistence, launch/profile wiring, resident-tabs preflight reads, the pinned-Pi compatibility inventory, package dependencies for compatible file locking, and focused tests. Pi's existing root setting names, engine settings API, project settings, vanilla `~/.pi`, release/control-state paths, and the Settings UI remain unchanged.
+Expected implementation affects owned-settings persistence, resident-tabs preflight reads, the pinned-Pi compatibility inventory, package dependencies for compatible file locking, and focused tests. Pi settings-manager construction and APIs, project settings, package/trust/runtime wiring, vanilla `~/.pi`, release/control-state paths, and the Settings UI remain unchanged.

@@ -1,27 +1,23 @@
 # Tasks
 
-## 1. Own the shared profile document
+## 1. Add safe namespace updates
 
-- [ ] 1.1 Implement a product-neutral shared profile settings store with injected namespace identity, Pi-compatible cross-process locking, atomic replacement, and owner-scoped merge views; verify focused storage tests cover root/namespace isolation, malformed input, interrupted writes, and overlapping writers.
+- [ ] 1.1 Implement a product-neutral helper that updates one injected root namespace through Pi-compatible cross-process locking and atomic read-modify-write; verify focused tests cover creation, replacement, removal, malformed JSON, non-object collisions, interrupted writes, and overlapping writers.
 - [ ] 1.2 Add the compatible lock implementation as an explicitly pinned direct dependency and verify dependency/public-boundary governance accepts no private Pi import or branded reusable storage name.
 
-## 2. Route every settings consumer through the store
+## 2. Persist product settings in the shared file
 
-- [ ] 2.1 Create a generic pinned-settings-manager factory over the public structural storage contract and route normal runtime plus project-trust preflight through it; verify startup and trust tests preserve global/project behavior and report storage failures.
-- [ ] 2.2 Route A1 package operations through the same manager factory and verify install, remove, update, and concurrent runtime setting writes preserve both Pi root properties and the product namespace.
-- [ ] 2.3 Wire owned-UI composition and resident-tabs preflight to the shared product-section view; verify both consumers resolve the same section before and after restart.
+- [ ] 2.1 Read and write the flat product object through `OwnedSettingsManager`, storing only non-default declarations while preserving unknown properties; verify changing away from and back to defaults adds and removes direct properties without touching Pi root settings.
+- [ ] 2.2 Route resident-tabs preflight to the same product object and verify pre-UI and owned-UI consumers resolve identical values across restart.
+- [ ] 2.3 Replace embedded version migrations with idempotent key/shape compatibility transforms, and import the former standalone document only when the shared object is absent; verify object precedence, ambiguous-shape refusal, byte-identical legacy preservation, and replacement-release persistence.
 
-## 3. Persist product settings in the namespace
+## 3. Lock in Pi compatibility
 
-- [ ] 3.1 Adapt owned-settings resolution and writes to a flat product object with no schema metadata, storing only non-default declarations while preserving unknown keys; verify changing away from and back to defaults adds and removes direct properties without touching Pi root settings.
-- [ ] 3.2 Replace embedded version migrations with idempotent key/shape compatibility transforms, and add missing-object import from the former standalone document; verify object precedence, ambiguous-shape refusal, byte-identical legacy preservation, and replacement-release persistence.
+- [ ] 3.1 Add file-backed conformance proving pinned Pi setters and package persistence preserve an unknown product-object fixture without changing existing settings-manager construction.
+- [ ] 3.2 Add inventory and runtime collision checks for the identity-derived namespace; verify a synthetic Pi `a1` root field or existing non-object property fails closed without modifying the file.
+- [ ] 3.3 Add end-to-end coverage proving Pi settings changes, A1-owned changes, concurrent writes, restarts, and simulated updates retain one valid `~/.a1/agent/settings.json` containing both logical backends.
 
-## 4. Guard compatibility
+## 4. Integration validation
 
-- [ ] 4.1 Add pinned-Pi inventory and runtime collision checks for the product-identity namespace and verify a synthetic Pi `a1` root field fails closed without modifying the settings file.
-- [ ] 4.2 Add end-to-end storage coverage proving Pi settings manager writes, A1-owned changes, package operations, restarts, and simulated updates retain one valid `~/.a1/agent/settings.json` with both logical backends intact.
-
-## 5. Integration validation
-
-- [ ] 5.1 Run focused settings, launch, trust, package, resident-routing, dependency-governance, and collision suites plus repository typechecking, then record exact results and known-gap disposition in implementation evidence.
-- [ ] 5.2 Build the interactive candidate and hand off a restart check that changes Pi-backed and A1-owned values, confirms one shared file contains root and namespaced data, restores one A1 value to default, and verifies all remaining choices survive relaunch.
+- [ ] 4.1 Run focused settings, resident-routing, package, pinned-Pi compatibility, dependency-governance, and collision suites plus repository typechecking, then record exact results and known-gap disposition in implementation evidence.
+- [ ] 4.2 Build the interactive candidate and hand off a restart check that changes Pi-backed and A1-owned values, confirms one shared file contains root and namespaced data, restores one A1 value to default, and verifies all remaining choices survive relaunch.
