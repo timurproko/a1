@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -42,6 +42,15 @@ function run(host, arguments_, options = {}) {
   return result.stdout.trim();
 }
 
+async function waitUntil(probe, description, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await probe()) return;
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
+  }
+  throw new Error(`timed out waiting for ${description}`);
+}
+
 function milliseconds(nanoseconds) {
   return Number(nanoseconds) / 1_000_000;
 }
@@ -52,24 +61,27 @@ import { join } from "node:path";
 import { TabBridgeClient } from ${JSON.stringify(bridgeUrl)};
 const marker = Buffer.from("\\x1b]a1;standby-promote\\x07");
 const standby = process.argv.includes("--tab-standby");
+const dataIndex = process.argv.indexOf("--tab-data-dir");
+const dataDir = process.argv[dataIndex + 1];
+mkdirSync(dataDir, { recursive: true });
 process.stdin.setRawMode?.(true);
-if (standby) await new Promise((resolve, reject) => {
+if (standby) {
+  writeFileSync(join(dataDir, "standby-ready"), "ready\\n");
+  await new Promise((resolve, reject) => {
   let buffered = Buffer.alloc(0);
   process.stdin.on("error", reject);
   process.stdin.on("data", chunk => {
     buffered = Buffer.concat([buffered, chunk]).subarray(-marker.length);
     if (buffered.equals(marker)) { process.stdin.removeAllListeners("data"); resolve(); }
   });
-  process.stdin.resume();
-});
+    process.stdin.resume();
+  });
+}
 const credentials = { tabId: process.env.A1_TAB_ID, token: process.env.A1_TAB_TOKEN, endpoint: process.env.A1_TAB_ENDPOINT };
 for (const name of ["A1_TAB_ID", "A1_TAB_TOKEN", "A1_TAB_ENDPOINT"]) delete process.env[name];
 const bridge = new TabBridgeClient({ credentials });
 if (!await bridge.start()) throw new Error("fixture bridge did not connect");
 bridge.onCommand(command => { if (command.type === "stop") { bridge.close(); process.exit(0); } });
-const dataIndex = process.argv.indexOf("--tab-data-dir");
-const dataDir = process.argv[dataIndex + 1];
-mkdirSync(dataDir, { recursive: true });
 const session = join(dataDir, "measurement-session.jsonl");
 writeFileSync(session, "{}\\n", { flag: "a" });
 bridge.session(session, "measurement", "default");
@@ -163,9 +175,9 @@ async function collectMeasurements(host) {
     const cold = await measureInput(first, "cold");
     sample.coldLaunchMs = milliseconds(cold.processedNs - coldStartNs);
 
-    // Performance: session reporting starts one hidden standby asynchronously; keep its startup
-    // outside the matching-standby promotion measurement while retaining the real holder path.
-    await new Promise(resolvePromise => setTimeout(resolvePromise, 1_500));
+    // Performance: the fixture marks readiness below the session boundary, so only matching
+    // standby promotion—not standby startup—is included in the warm measurement.
+    await waitUntil(async () => (await readdir(context.data, { recursive: true })).some(path => path.endsWith("standby-ready")), "matching standby readiness");
     const warmStartNs = process.hrtime.bigint();
     const created = JSON.parse(internal(host, context, "tab-create", [
       "--cwd", root, "--release-root", context.release, "--node-executable", process.execPath,
