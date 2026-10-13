@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Bare A1 presents resident A1 sessions as tabs
-When resident tabs are enabled, bare `a1` SHALL present a one-row tab strip at the top of the terminal and the viewed tab's terminal surface in all remaining rows. Each tab SHALL be an independent resident terminal session running the complete A1 owned UI with its own Pi agent session, extensions, transcript, editor, queue, model, thinking level, notices, and cwd. Only the viewed tab SHALL receive keyboard, paste, focus, and surface mouse input. The strip SHALL be present even when a single tab exists, and SHALL remain with a `+` chip and a hint when no tab exists. Extension components that use the certified text-terminal contract SHALL behave in a tab as in direct single-agent bare A1 on Windows x64, macOS, and Linux; inline image protocols SHALL use the existing text fallback. `a1 pi` SHALL NOT present a tab strip.
+When resident tabs are enabled, bare `a1` SHALL present a v2-style one-row tab strip at the top of the terminal and the viewed tab's terminal surface in all remaining rows. Each tab SHALL be an independent resident terminal session running the complete A1 owned UI with its own Pi agent session, extensions, transcript, editor, queue, model, thinking level, notices, and cwd. Only the viewed tab SHALL receive keyboard, paste, focus, and surface mouse input. The strip SHALL be present even when a single tab exists, and SHALL remain with a `+` chip and a hint when no tab exists. Extension components using the certified text-terminal contract SHALL behave as in direct single-agent bare A1 on Windows x64, macOS arm64, and Linux x64; inline image protocols SHALL use the text fallback. `a1 pi` SHALL NOT present a tab strip.
 
 #### Scenario: First launch with no tabs
 - **WHEN** the user runs bare `a1` and the profile has no resident tabs
@@ -19,164 +19,164 @@ When resident tabs are enabled, bare `a1` SHALL present a one-row tab strip at t
 #### Scenario: Extension custom UI in a tab
 - **WHEN** an extension renders a custom interactive component using the certified text-terminal contract
 - **THEN** keyboard, mouse, paste, selection, clipboard, hyperlinks, cursor, Unicode, and alternate-screen behavior SHALL match direct single-agent bare A1 on the same platform
-- **AND** an inline-image request SHALL use the existing text fallback rather than imply unsupported image-protocol parity
+- **AND** an inline-image request SHALL use the existing text fallback
 
 #### Scenario: Pi comparison profile
 - **WHEN** the user runs `a1 pi`
 - **THEN** no tab strip, resident server, holder, or tab bridge SHALL be involved
 
-### Requirement: Tab chips follow the declared strip layout
-Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. Viewed, hovered, and other chips SHALL use distinct colors resolved from the A1 theme's declared roles, which A1 SHALL resolve from its settings at launch and pass to the attach client. When chips do not fit, the viewed chip SHALL stay visible, remaining tabs SHALL collapse into a `…` chip that opens a keyboard-navigable menu marking the viewed tab, and a trailing `+` chip SHALL always be reserved. The strip SHALL NOT wrap to a second row.
+### Requirement: Tab chips reproduce the approved v2 strip
+The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. The empty state SHALL use the v2 wallpaper treatment and the right edge SHALL show its 12-hour clock. Each chip SHALL render one space, an optional status glyph and space, the display name, one space, an always-visible `×`, and one space, with a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible, remaining tabs SHALL collapse into a keyboard-navigable `…` menu, and a trailing `+` SHALL always be reserved. The strip SHALL NOT wrap.
 
 #### Scenario: Wide names are clipped by display width
 - **WHEN** a tab name contains CJK characters or emoji wider than the chip allows
-- **THEN** the chip SHALL be clipped with `…` at a grapheme boundary and SHALL NOT exceed 20 columns
+- **THEN** its name SHALL clip with `…` at a grapheme boundary while the complete chip remains within 20 columns
 
 #### Scenario: More tabs than fit
 - **WHEN** the terminal cannot fit every chip
-- **THEN** the viewed chip SHALL remain visible, a `…` chip SHALL list the hidden tabs, and next, previous, and jump keys SHALL still reach hidden tabs
+- **THEN** the viewed chip SHALL remain visible, `…` SHALL list hidden tabs, and assigned navigation or jump keys SHALL still reach them
 
-#### Scenario: Theme change
-- **WHEN** the user selects a different A1 theme and relaunches bare `a1`
-- **THEN** the strip SHALL use the new theme's roles for viewed, hovered, other, warning, success, error, and dim elements
+#### Scenario: Close button is always present
+- **WHEN** any visible tab chip is rendered
+- **THEN** its `×` SHALL remain visible and clicking it SHALL invoke that tab's ordinary close flow
 
 ### Requirement: Tab status comes from the tab bridge, not the screen
-Each chip SHALL show a glyph from the tab's structured status: shared progress frames while working, a yellow `?` in the warning color while an extension, trust, or permission request awaits the user, `✓` in the success color when a turn settled while no client viewed the tab and it has not been viewed since, `✗` in the error color when the last turn errored or the tab crashed or failed, dim progress frames while starting or restoring, dim `◌` while suspended, and no glyph when idle. A1 tab status SHALL be derived from sequenced engine events reported by A1 inside the tab through the authenticated tab bridge. It SHALL NOT be derived from terminal output, rendered cells, titles, or timing. A tab whose bridge is unavailable SHALL show only process-level states. Viewing a tab in any client SHALL clear its `✓` in every client.
+Each chip SHALL show structured status: progress frames while working, yellow `?` while an extension, trust, or permission request awaits the user, `✓` when a turn settled while no client viewed the tab and it has not been viewed since, `✗` when the last turn errored or the tab crashed or failed, dim progress frames while starting or restoring, and no glyph when idle. Working frames SHALL use the resolved A1 accent reported by that specific tab. Status SHALL derive from sequenced engine events through the authenticated tab bridge, never terminal output, rendered cells, titles, or timing. A missing bridge SHALL degrade to process-level states and the launch accent. Viewing a tab in any client SHALL clear its `✓` everywhere. Open tabs SHALL have no suspended state or `◌` glyph.
 
 #### Scenario: Background tab needs input
 - **WHEN** an extension in a background tab requests confirmation
-- **THEN** that chip SHALL show a yellow `?` until the request is answered
+- **THEN** that chip SHALL show yellow `?` until the request is answered
 
 #### Scenario: Background tab finishes
 - **WHEN** a background tab's agent completes a turn
-- **THEN** its chip SHALL show `✓` until any client views it, after which the glyph SHALL clear everywhere
+- **THEN** its chip SHALL show `✓` until any client views it, then clear everywhere
 
-#### Scenario: Terminal-looking output cannot fake a status
+#### Scenario: Working tabs have independent accents
+- **WHEN** two working tabs report different resolved A1 accents
+- **THEN** each chip's progress frame SHALL use its own reported accent
+
+#### Scenario: Terminal-looking output cannot fake status
 - **WHEN** a tab prints spinner characters, `✓`, or a title containing status words
-- **THEN** the chip status SHALL remain determined by the bridge only
+- **THEN** chip status SHALL remain determined only by the bridge
 
 #### Scenario: Out-of-order status
-- **WHEN** a status report with a lower sequence number or a superseded incarnation arrives after a newer one
-- **THEN** the server SHALL discard it and the chip SHALL keep the newer status
+- **WHEN** a report has a lower sequence or superseded incarnation
+- **THEN** the server SHALL discard it and retain the newer status
 
 ### Requirement: Tab status icons are the only attention signal
-Background attention SHALL be conveyed only by the tab status icons. A1 SHALL NOT emit a terminal bell, sound, terminal notification sequence, or operating-system notification for tab status changes, and SHALL NOT forward a bell character written by a tab's program to the outer terminal. No setting SHALL enable such a signal.
+Background attention SHALL be conveyed only by chip status icons. A1 SHALL NOT emit a terminal bell, sound, terminal notification sequence, or operating-system notification for status changes, and SHALL NOT forward BEL written by a tab. No setting SHALL enable such a signal.
 
 #### Scenario: Background tab needs the user
-- **WHEN** a background tab enters needs-input or finishes a turn
-- **THEN** only its chip icon SHALL change, and no bell, sound, or notification SHALL be produced
+- **WHEN** a background tab needs input or finishes
+- **THEN** only its chip icon SHALL change
 
-#### Scenario: A tab's program rings the bell
-- **WHEN** a program running in a tab writes a bell character
+#### Scenario: A tab program rings the bell
+- **WHEN** a program writes BEL
 - **THEN** the outer terminal SHALL NOT receive it
 
-### Requirement: Tabs are created, switched, and reordered from keyboard, mouse, and commands
-A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A`, the `+` chip, or `/new-tab [name]`, and SHALL view it in the client that requested it. `Alt+.` and `Alt+,` SHALL view the next and previous tab with wrap-around; `Alt+1` through `Alt+9` SHALL view that tab and `Alt+0` the tenth; `Alt+>` and `Alt+<` SHALL move the viewed tab right and left. On the strip row, a left click SHALL view a chip, dragging a chip after 250 ms or pointer movement SHALL reorder it with a `│` drop marker, and a right click SHALL open a `Rename`/`Close` menu. `/tabs` SHALL open a picker listing every tab with name, status, and cwd. Reordering SHALL use expected registry revisions. When `tabsMax` is reached, creation affordances SHALL create nothing and SHALL state the limit. A prewarmed standby tab whose cwd and environment match the request SHALL be used for creation when available; otherwise the tab SHALL start normally. Each client SHALL keep its own viewed tab.
+### Requirement: Tabs are managed from the strip, mouse, and assignable actions
+A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A` or `+` and view it in that client. `Alt+1` through `Alt+9` SHALL view those tabs and `Alt+0` the tenth. Actions for next, previous, move-right, and move-left SHALL exist for assignment but have no default keys. Left click SHALL view, the always-visible `×` SHALL close, right click SHALL open `Rename`/`Close`, and dragging after 250 ms or one column of movement SHALL reorder with a `│` marker and expected revision. No `/new-tab`, `/close`, `/tabs`, `/quit-all`, or `/restart-tab` command SHALL be exposed. At `tabsMax`, creation SHALL do nothing and state the limit. A matching prewarmed standby SHALL be used when available. Each client SHALL keep its own viewed tab.
 
-#### Scenario: Create from the keyboard
+#### Scenario: Create from keyboard
 - **WHEN** the user presses `Alt+A`
-- **THEN** a new tab SHALL appear after the last tab, named by the default naming rule, and become viewed with an empty editor
+- **THEN** a new default-named tab SHALL appear after the last tab and become viewed with an empty editor
 
-#### Scenario: Jump beyond the tab count
+#### Scenario: Create from strip
+- **WHEN** the user clicks `+`
+- **THEN** the same creation flow SHALL run
+
+#### Scenario: Jump beyond count
 - **WHEN** the user presses `Alt+7` with three tabs
-- **THEN** the viewed tab SHALL NOT change and the key SHALL NOT reach the tab
+- **THEN** view SHALL not change and the key SHALL not reach the tab
 
-#### Scenario: Concurrent reorder from two terminals
-- **WHEN** two attached clients reorder tabs from the same registry revision
-- **THEN** exactly one reorder SHALL apply and both clients SHALL converge on the committed order
+#### Scenario: Concurrent reorder
+- **WHEN** two clients reorder from the same registry revision
+- **THEN** exactly one SHALL apply and both SHALL converge
 
 #### Scenario: Tab limit reached
-- **WHEN** the number of tabs equals `tabsMax` and the user presses `Alt+A`
+- **WHEN** tab count equals `tabsMax` and creation is requested
 - **THEN** no tab SHALL be created and the strip SHALL state the limit
 
-#### Scenario: Prewarmed tab is promoted
-- **WHEN** a standby tab matching the client's cwd and environment is ready and the user creates a tab
-- **THEN** the standby SHALL become the new visible tab and a replacement standby SHALL start later within the start limit
-
-### Requirement: Tabs are renamed inline and names are the Pi session names
-`F2`, the chip menu, and `/name <name>` SHALL rename a tab. `F2` and the menu SHALL open an inline chip editor in which `Enter` commits, and `Esc` or a click elsewhere cancels. A committed name SHALL be trimmed, stripped of control characters, nonempty, and at most 64 characters; invalid input SHALL keep the editor open with a concise reason. A committed name SHALL become the tab's Pi session name, SHALL be visible in every client, and SHALL be marked user-provided. New tabs SHALL be named `agent`, or `agent N` with the smallest free N. When `tabsAutoName` is enabled (default), A1 in the tab SHALL propose a lowercase hyphenated name of at most 16 characters after the first turn settles, using the tab's model with a bounded budget and a deterministic fallback from the first prompt, and SHALL never override a user-provided name.
+### Requirement: Tabs are renamed inline and names are Pi session names
+`F2`, the chip menu, and existing `/name <name>` SHALL rename a tab. Inline rename SHALL use `Enter` to commit and `Esc` or click elsewhere to cancel. Names SHALL be trimmed, control-free, nonempty, and at most 64 characters; invalid input SHALL retain the editor with a concise reason. A committed name SHALL become the Pi session name, appear in every client, and be user-provided. Defaults SHALL be `agent` or the smallest free `agent N`. With `tabsAutoName` on by default, A1 SHALL propose a lowercase hyphenated name of at most 16 characters after the first settled turn with bounded model work and deterministic fallback, never overriding a user name. An automatic rename SHALL reproduce v2's title transition: 600 ms moving rainbow, typing at 45 ms per character, and 300 ms settle; manual renames SHALL not animate.
 
 #### Scenario: Rename inline
-- **WHEN** the user presses `F2`, types `auth-refactor`, and presses `Enter`
-- **THEN** every client SHALL show `auth-refactor` and the tab's Pi session name SHALL be `auth-refactor`
+- **WHEN** the user enters `auth-refactor` with `F2`
+- **THEN** every client and the Pi session SHALL use `auth-refactor`
 
-#### Scenario: User name survives auto-naming
-- **WHEN** the user renames a tab before its first turn settles
-- **THEN** auto-naming SHALL NOT change that name
+#### Scenario: User name survives auto-name
+- **WHEN** the user renames before auto-naming completes
+- **THEN** auto-naming SHALL NOT change it
 
-#### Scenario: Auto-naming fails
-- **WHEN** the model call for a name fails twice or exceeds its budget
-- **THEN** the tab SHALL take the deterministic name derived from its first prompt and the turn SHALL be unaffected
+#### Scenario: Auto-name animates
+- **WHEN** an automatic name replaces a default name
+- **THEN** the visible title SHALL use the v2 rainbow, typing, and settle phases
 
-#### Scenario: Invalid inline name
-- **WHEN** the user commits an empty or whitespace-only name
-- **THEN** the editor SHALL stay open with a concise reason and the name SHALL NOT change
+#### Scenario: Auto-name fails
+- **WHEN** model naming fails twice or times out
+- **THEN** deterministic prompt-derived naming SHALL be used without affecting the turn
 
 ### Requirement: Closing a tab stops only that session after confirmation when busy
-`Alt+W`, the chip menu, and `/close` SHALL close a tab, including a failed tab whose banner is viewed. `/restart-tab` SHALL restart the tab from its session, with the same confirmation when busy. When the tab is working, awaiting input, or reports queued input, A1 SHALL ask `Stop "<name>"? Enter stop · Esc cancel` before acting. Closing SHALL request graceful shutdown of that tab's A1 process, terminate its verified tree after a bounded deadline, remove the tab from every client, and leave its Pi session resumable. Closing the last tab SHALL leave the strip with `+` and a hint rather than quit. `/quit-all` SHALL stop every tab, asking once for confirmation when any tab is busy, and SHALL then detach its origin client with the ordinary resume hint.
+`Alt+W`, `×`, and the chip menu SHALL close a tab, including a failed tab. A working tab, a tab awaiting input, or one with queued input SHALL ask `Stop "<name>"? Enter stop · Esc cancel`. Closing SHALL request graceful shutdown, terminate the verified tree after a bounded deadline, remove the tab everywhere, and leave its Pi session resumable. Closing the last tab SHALL leave `+` and a hint rather than quit. Failed/stalled UI MAY offer restart, but no restart slash command SHALL exist.
 
-#### Scenario: Close a working tab and cancel
-- **WHEN** the user presses `Alt+W` on a streaming tab and then `Esc`
-- **THEN** the tab SHALL remain and its agent SHALL continue
+#### Scenario: Cancel closing a working tab
+- **WHEN** the user closes a streaming tab and presses `Esc`
+- **THEN** it SHALL remain and continue
 
-#### Scenario: Close an idle tab
-- **WHEN** the user presses `Alt+W` on an idle tab
-- **THEN** the tab SHALL close without confirmation and other tabs SHALL be unaffected
+#### Scenario: Close idle tab
+- **WHEN** the user clicks `×` on an idle tab
+- **THEN** it SHALL close without confirmation and other tabs SHALL be unaffected
 
 #### Scenario: Closed session remains resumable
-- **WHEN** a closed tab's session is selected with `/resume` or `a1 --session`
-- **THEN** its transcript SHALL open in a tab with no lost committed entries
+- **WHEN** a closed session is selected later
+- **THEN** it SHALL open with no lost committed entries
 
-#### Scenario: Close a failed tab with a rebound key
-- **WHEN** the close action is rebound and the user presses the new key on a failed tab's banner
-- **THEN** the tab SHALL close without confirmation and the banner hint SHALL have shown the rebound key
+#### Scenario: Child ignores graceful stop
+- **WHEN** the child does not exit by the deadline
+- **THEN** its verified tree SHALL be terminated and SHALL NOT restart
 
-#### Scenario: Child ignores graceful shutdown
-- **WHEN** a closed tab's A1 process does not exit within the graceful deadline
-- **THEN** its verified process tree SHALL be terminated and the tab SHALL NOT be restarted
+### Requirement: The active terminal automatically controls its viewed tab
+Each tab SHALL have at most one input-controller client and monotonic revision. Transfer SHALL use the controller barrier across native, PTY, and child buffers. Focus gain SHALL automatically claim the viewed tab; when focus reporting is unavailable or no claim is complete, first input SHALL claim and be held until acknowledgement. No `Enter` takeover or persistent view-only prompt SHALL be required. Input and resize SHALL carry the current revision; stale clients SHALL deliver no bytes. `/quit` and empty-editor `Ctrl+D` SHALL capture immutable origin identity/revision and detach only their current originating attach client while keeping A1 and the tab running. Ambiguous attribution SHALL reject the request and direct the user to double `Ctrl+C`. A detaching client SHALL print `1 agent still running run a1 to return.` or `N agents still running run a1 to return.` as applicable. Terminal bytes and prompt content SHALL NOT enter the bridge.
 
-### Requirement: Concurrent clients use one attributable input controller
-Each tab SHALL have at most one input-controller client and a monotonic controller revision. Transfer SHALL use the controller-transfer barrier: freeze old-controller admission, account for accepted input in native, PTY and child buffers, and establish a child-observed causal boundary before acknowledging the new owner and admitting its input. A sideband acknowledgement alone SHALL NOT establish that boundary. Input and PTY resize messages SHALL carry the current controller revision; stale or read-only clients SHALL be rejected without delivering bytes. A read-only client SHALL show that another terminal controls the tab and how to take control. Client-scoped child requests, including `/quit`, `Ctrl+D` on an empty editor, `/new-tab`, `/tabs` selection, `/close`, `/restart-tab`, and `/quit-all`, SHALL capture an immutable origin controller identity/revision at command admission, SHALL NOT be rebound at execution, and SHALL apply only while that origin remains current. `/quit` and empty-editor `Ctrl+D` SHALL detach only their origin client. Ambiguous attribution SHALL reject the request without affecting either client and SHALL direct the user to `Ctrl+C` twice; attach-local actions SHALL remain available. A detaching client SHALL restore the outer terminal and print `N tabs still running · run a1 to return`, singular for one, or the resume hint when no tab runs. Terminal bytes and prompt content SHALL NOT enter the bridge.
+#### Scenario: Second terminal becomes active
+- **WHEN** a second terminal gains focus on a controlled tab
+- **THEN** the causal boundary and new owner SHALL be acknowledged automatically before its input is delivered
 
-#### Scenario: A second terminal takes control
-- **WHEN** a second client atomically claims a tab currently controlled by another client
-- **THEN** the causal boundary and new owner SHALL be acknowledged before its first terminal input is delivered, the prior client SHALL become read-only, and previously buffered commands SHALL NOT be attributed to the new controller
+#### Scenario: Focus reporting is unavailable
+- **WHEN** a terminal's first input arrives without a completed focus claim
+- **THEN** that input SHALL be held, the claim SHALL complete safely, and the input SHALL then be delivered once
 
-#### Scenario: Stale detach request arrives
-- **WHEN** a bridge detach request names a controller revision that has been superseded
-- **THEN** the server SHALL reject it and SHALL NOT detach either client
+#### Scenario: Stale detach request
+- **WHEN** a detach request names a superseded revision
+- **THEN** neither client SHALL detach
 
-#### Scenario: Delayed quit from a previous controller
-- **WHEN** client A submits `/quit`, the input is delayed in a PTY or child queue, and client B claims control before it executes
-- **THEN** the request SHALL retain A's old generation or be rejected as ambiguous, SHALL NOT detach B, and SHALL NOT stop the tab
-
-#### Scenario: Controller boundary cannot be proven
-- **WHEN** transport loss or incomplete input-boundary evidence prevents reliable command attribution
-- **THEN** client-scoped child commands SHALL remain disabled with a concise notice, terminal input SHALL remain usable, and local double-`Ctrl+C` SHALL still detach only its attach client
+#### Scenario: Delayed quit from previous controller
+- **WHEN** client A's `/quit` executes after client B gains control
+- **THEN** it SHALL retain A's old generation or be rejected, SHALL NOT detach B, and SHALL NOT stop A1 or the tab
 
 #### Scenario: Two terminals view different tabs
-- **WHEN** bare `a1` runs in two terminals of one profile
-- **THEN** both SHALL show the same tabs, each SHALL keep its own viewed tab, and only the current input controller of a tab SHALL send input or resize its PTY
+- **WHEN** bare `a1` runs in two terminals
+- **THEN** both SHALL show the same collection, retain their own viewed tabs, and automatically control only through current revisions
 
-#### Scenario: Quit from the controlling terminal
-- **WHEN** the controlling client submits `/quit` while two tabs run
-- **THEN** only that client SHALL detach, its terminal SHALL show `2 tabs still running · run a1 to return`, and the other client and both tabs SHALL be unaffected
+#### Scenario: Quit local A1 attach
+- **WHEN** the current controller submits `/quit` while two agents run
+- **THEN** only that attach client SHALL exit and print `2 agents still running run a1 to return.` while both agents and the other client continue
 
 ### Requirement: Tab shortcuts are declared, configurable, and conflict-checked
-Tab shortcuts SHALL be declared with action identities, SHALL be configurable through a keybindings file, SHALL be checked at launch against A1's shortcut registry and user keybindings with conflicts reported, and SHALL appear in `/hotkeys` inside A1 tabs. A conflicting tab binding SHALL be disabled and reported rather than dispatched ambiguously. The attach client SHALL consume a matched tab shortcut before input encoding and SHALL forward every other input to the viewed tab; the only `Ctrl+C` handling SHALL be the double-press detach, which SHALL forward the first press unchanged and consume a second press within A1's clear/exit interval. Defaults SHALL be `Alt+A` new tab, `Alt+W` close, `F2` rename, `Alt+1` through `Alt+9` and `Alt+0` jump, `Alt+.` and `Alt+,` next and previous, and `Alt+>` and `Alt+<` move, plus `r` retry and `f` start fresh scoped to a failed tab's banner. Defaults SHALL NOT use `Alt+[`, `Alt+]`, `Alt+Left`, `Alt+Right`, `Ctrl+L`, `Alt+Up`, or `Shift+Tab`.
+Tab actions SHALL have stable identities, accept `keybindings.json` assignments, be checked against A1 and Pi bindings, and appear under Tabs in `/hotkeys`. Conflicts SHALL disable and report the assigned tab binding. The attach client SHALL consume matched actions before encoding and forward unmatched input. Defaults SHALL be `Alt+A` new, `Alt+W` close, `F2` rename, `Alt+1`…`Alt+0` jump, plus failed-banner `r` retry and `f` fresh. `tabs.next`, `tabs.previous`, `tabs.moveRight`, and `tabs.moveLeft` SHALL be unbound by default but assignable. Double `Ctrl+C` SHALL remain fixed: first press forwarded, second within A1's clear/exit interval consumed as local detach.
 
 #### Scenario: Hotkeys listing
-- **WHEN** the user opens `/hotkeys` inside an A1 tab
-- **THEN** a Tabs section SHALL list the effective tab shortcuts
+- **WHEN** `/hotkeys` opens inside a tab
+- **THEN** assigned tab shortcuts SHALL be listed and unbound actions SHALL remain discoverable as assignable
 
-#### Scenario: Collision with a user binding
-- **WHEN** a user keybinding assigns `Alt+A` to an A1 editor action
-- **THEN** launch SHALL report the conflict rather than dispatch the key ambiguously
+#### Scenario: User assigns next tab
+- **WHEN** `tabs.next` receives a free key assignment
+- **THEN** that key SHALL switch tabs and `/hotkeys` SHALL show it
 
-#### Scenario: Rebind a tab shortcut
-- **WHEN** the keybindings file assigns the new-tab action to a different free key
-- **THEN** that key SHALL create a tab, `Alt+A` SHALL reach the viewed tab, and `/hotkeys` SHALL show the new key
+#### Scenario: Collision
+- **WHEN** a tab action is assigned to an existing editor binding
+- **THEN** launch SHALL report and disable the conflict
 
 #### Scenario: Leave with Ctrl+C twice
-- **WHEN** the user presses `Ctrl+C` twice within the clear/exit interval in any tab
-- **THEN** the tab SHALL receive exactly one `Ctrl+C`, the client SHALL detach, and the tab's process SHALL keep running
+- **WHEN** the user presses `Ctrl+C` twice within the interval
+- **THEN** the tab SHALL receive exactly one press, the local attach client SHALL exit, and the tab process SHALL continue

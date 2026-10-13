@@ -24,13 +24,13 @@ Stable and prerelease builds SHALL support `a1 --session <path|id>` with an opti
 - **THEN** A1 SHALL show both tabs and SHALL NOT create a third tab
 
 #### Scenario: Session launch with resident tabs running
-- **WHEN** resident tabs are enabled and the user runs `a1 --session <id>` for a session no participating writer holds
-- **THEN** A1 SHALL acquire its lease, add a tab resuming that session alongside the existing tabs, and view it in the launching client
+- **WHEN** resident tabs are enabled and `a1 --session <id>` selects a session no participating writer holds
+- **THEN** A1 SHALL acquire its lease, add a tab resuming it, and view it in the launching client
 
-#### Scenario: Session launch names a session held by a tab
-- **WHEN** resident tabs are enabled and `a1 --session <id>` names a session a live tab holds
-- **THEN** A1 SHALL view that tab in the launching client and SHALL NOT start a second tab on the file
+#### Scenario: Session launch names a held session
+- **WHEN** resident tabs are enabled and the selected session is held by a live tab
+- **THEN** A1 SHALL view that tab in the launching client and SHALL NOT start a second writer
 
-#### Scenario: Direct launch selects a session held by a tab
-- **WHEN** resident tabs are disabled and the user directly selects a session still held by a live tab
-- **THEN** direct launch SHALL report the writer conflict or offer an explicit fork, and SHALL NOT start another writer or alter the resident session
+#### Scenario: Direct launch selects a held session
+- **WHEN** resident tabs are disabled and a selected session remains held by a live tab
+- **THEN** direct launch SHALL report the conflict or offer an explicit fork without altering the resident session

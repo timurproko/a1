@@ -18,12 +18,12 @@ A supported session launch SHALL carry its validated target and effective sessio
 #### Scenario: Start bare A1 after a resume invocation
 - **WHEN** a bare launch follows an explicit resume launch or inherits unrelated session metadata from its parent environment
 - **THEN** it SHALL NOT reuse the previous selection implicitly
-- **AND** with resident tabs disabled it SHALL start a fresh session, while with resident tabs enabled it SHALL reattach to the existing tabs or create one fresh tab when none exist
+- **AND** with resident tabs disabled it SHALL start fresh, while with resident tabs enabled it SHALL reattach or create one fresh tab only when none exist
 
 #### Scenario: Resume fails after containment starts
 - **WHEN** target resolution or runtime initialization fails within an owned launch instance
-- **THEN** the failure SHALL propagate to the invoking command and the instance's processes SHALL be cleaned up without affecting other instances
+- **THEN** the failure SHALL propagate and cleanup SHALL not affect other instances
 
 #### Scenario: Select a session held by a resident tab
-- **WHEN** resident tabs are enabled and `a1 --session <id>` names a session already owned by a live resident tab
-- **THEN** A1 SHALL focus that tab in the launching client and SHALL NOT open the session in a second tab
+- **WHEN** resident tabs are enabled and `a1 --session <id>` names a session held by a live resident tab
+- **THEN** A1 SHALL focus that tab in the launching client only and SHALL NOT open a second writer

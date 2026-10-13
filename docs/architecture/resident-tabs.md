@@ -251,13 +251,12 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
 | `done-unseen` | the turn settled while no client viewed the tab | `✓` success |
 | `error` | the last turn's `stopReason` was error | `✗` error |
 | `crashed` / `restarting` / `failed` | holder or child exit | `✗` error plus a banner |
-| `suspended` | idle suspension | dim `◌` |
 
 - `seen` is tracked server-side, so viewing a tab in any client clears `✓` everywhere.
 - A tab with a broken bridge shows only process-level states.
 - Future CLI tabs will derive status from process state, and may use BEL or OSC 9/777 from the program as an attention input.
-- The glyph set is the same in every client.
-- **Icons are the only attention signal (user decision).** There is no bell, sound, terminal notification, or OS notification. The status icon is the signal: spinner = working, `✓` = finished, red `✗` = failed, yellow `?` = needs you.
+- The glyph set is the same in every client. A working spinner uses the resolved A1 accent reported by that specific tab.
+- **Icons are the only attention signal (user decision).** There is no bell, sound, terminal notification, or OS notification. The status icon is the signal: accent spinner = working, `✓` = finished, red `✗` = failed, yellow `?` = needs you.
 
 ### 8. Durable state
 
@@ -309,10 +308,12 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
 
 ### 11. Foreground UX
 
-- **Strip.** Row 0, drawn by the attach client:
-  - Chips are at most 20 columns, clipped with `…` by grapheme width (fixing v2's UTF-16 bug), with no separators.
-  - A `…` overflow menu holds tabs that do not fit, and `+` is always reserved.
-  - Theme roles are resolved by Node at launch from A1 settings and passed to the client, so the colors follow the A1 theme.
+- **Strip.** Row 0, drawn by the attach client, reproduces the approved v2 default appearance:
+  - normal chips use RGB background `38,38,38` with foreground `170,170,170`, hover uses `48,48,48`, and the viewed chip uses `55,55,55` with white text, plus v2's palette fallback;
+  - the empty state uses the v2 wallpaper treatment and the right edge shows its 12-hour clock;
+  - chips are at most 20 columns, clipped with `…` by grapheme width, with no separators and an always-visible `×` close control;
+  - a `…` overflow menu holds tabs that do not fit, and `+` is always reserved;
+  - these presentation choices are fixed, not settings, while each working spinner uses that tab's reported A1 accent.
 - **Keys.** These are intercepted by the attach client before input encoding. They are configurable through a keybindings file and conflict-checked against A1's registry at launch.
 
   | Key | Action |
@@ -321,8 +322,8 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   | `Alt+W` | close |
   | `F2` | rename |
   | `Alt+1`…`Alt+9`, `Alt+0` | jump to a tab |
-  | `Alt+.` / `Alt+,` | next / previous, wrapping |
-  | `Alt+>` / `Alt+<` | move the tab right / left |
+  | unbound (`tabs.next` / `tabs.previous`) | next / previous, wrapping |
+  | unbound (`tabs.moveRight` / `tabs.moveLeft`) | move the tab right / left |
   | `Ctrl+C` `Ctrl+C` | detach (leave `a1`; tabs keep running) |
 
   - `Alt+[` and `Alt+]` are avoided because `ESC [` is the CSI introducer in legacy encodings.
@@ -330,41 +331,37 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   - **`Ctrl+C` twice leaves, in every tab (user decision).** The client forwards the first `Ctrl+C` to the tab unchanged, so a single press still clears, copies, or interrupts. It consumes the second press within the existing clear/exit interval as the detach request and does not forward it. The tab therefore never receives a second `Ctrl+C` from the chord, which removes v2's bug where `Ctrl+C+C` killed the agent. The trade-off: a future CLI tab cannot receive two quick `Ctrl+C`s. Pressing them more slowly than the interval still reaches the program.
 - **Mouse on row 0:**
   - click activates a tab;
+  - the always-visible `×` closes its tab;
   - right-click opens `Rename`/`Close`;
   - dragging reorders, with a `│` drop marker, after 250 ms or once the pointer moves;
   - `+` creates a tab.
-- **Commands inside A1 tabs** travel through the bridge:
-  - `/new-tab [name]`
-  - `/close`
-  - `/name <name>` (existing; it also renames the tab)
-  - `/tabs` (a picker with status and cwd)
-  - `/quit-all`
+- **Commands inside A1 tabs:** existing `/name <name>` also renames the tab. Milestone 5 adds no tab-management slash commands: `/new-tab`, `/close`, `/tabs`, `/quit-all`, and `/restart-tab` are not exposed.
 - **Naming:**
   - Default names are `agent` or `agent N`.
   - When `tabsAutoName` is on (the default, by user decision), the tab's model proposes a hyphenated lowercase name of at most 16 characters after the first settled turn. It uses a small budget and one retry, with a fallback derived from the first prompt, and it runs inside the child.
   - A user rename sets `nameSource=user`, and auto-naming never overrides it.
+  - An automatic rename uses v2's title transition: 600 ms moving rainbow, typing at 45 ms per character, then a 300 ms settle. Manual renames do not animate.
   - Rename is inline in the chip: `Enter` commits, and `Esc` or a click elsewhere cancels. The name is trimmed, must not be empty, is at most 64 characters, and has control characters stripped.
-- **Close.** When a tab is `working` or `needs-input`, or its bridge reports queued input, the strip asks `Stop "<name>"? Enter stop · Esc cancel` before closing. Closing sends the child a graceful shutdown, waits a bounded time, terminates the tree, and removes the tab. Its session stays resumable. Closing the last tab leaves the strip with `+` and a hint.
+- **Close.** `Alt+W`, the always-visible `×`, and the right-click menu close a tab. When it is `working` or `needs-input`, or its bridge reports queued input, the strip asks `Stop "<name>"? Enter stop · Esc cancel`. Closing sends the child a graceful shutdown, waits a bounded time, terminates the tree, and removes the tab. Its session stays resumable. Closing the last tab leaves the strip with `+` and a hint.
 - **Detach.**
   - `Ctrl+C` twice detaches from any tab and is handled by the attach client, so it works even when the bridge is down. Inside an A1 tab, `/quit` and empty-editor `Ctrl+D` send a detach request carrying the immutable command-origin controller identity and revision; stale, ambiguous or unavailable attribution keeps the tab running and directs the user to `Ctrl+C` twice.
-  - The client restores the terminal. When tabs are still running, it prints `N tabs still running · run a1 to return`; otherwise it prints the resume hint.
-  - `/quit-all` stops every tab, with confirmation if any is busy.
+  - The client restores the terminal. When agents are still running, it prints `1 agent still running run a1 to return.` or `N agents still running run a1 to return.`; otherwise it prints the resume hint.
 - **Launch and reattach:**
   - Bare `a1` ensures the server and attaches.
   - With zero tabs, it creates one A1 tab in the launch cwd.
   - Otherwise it views the last active tab from its retained surface without byte-history replay. Measure retained first paint and first input separately from bootstrap; status for the remaining tabs arrives without subscribing to their surfaces.
   - `a1 --session X` opens X in a new tab, or focuses the tab holding it.
   - A new tab's cwd is the client's launch cwd.
-  - Prewarm (`tabsPrewarm`, default 1) keeps one hidden standby A1 tab ready after the survival/recovery milestones. Measure A1 warm promotion directly; v2's tens-of-milliseconds result is reference evidence only.
-- **Several terminals.** Each client has its own active tab, but each tab has one explicit input controller. A second client may view read-only or claim control through Decision 5's causal input barrier. Only the controller may send input or set PTY size. Delayed slash commands preserve their submission origin; stale or unprovable attribution affects neither client and falls back to attach-local actions.
+  - One internal prewarmed standby keeps a hidden A1 process ready after the survival/recovery milestones. It is not a setting. Measure A1 warm promotion directly; v2's tens-of-milliseconds result is reference evidence only.
+- **Several terminals.** Each client has its own active tab, but each tab has one explicit input controller. Focus gain automatically claims the viewed tab through Decision 5's causal input barrier; if focus reporting is unavailable, first input starts the claim and is held until acknowledgement. There is no `Enter` takeover or persistent view-only banner. Only the current controller may send input or set PTY size. Delayed `/quit` and empty-editor `Ctrl+D` preserve their submission origin; stale or unprovable attribution affects neither client and falls back to attach-local double-`Ctrl+C`.
 - **Background attention.** Only the chip icon changes. There is no bell, sound, or notification, and no setting for one.
 
 ### 12. Limits and resources
 
 The settings live in the owned settings screen, each with a hard cap.
 
-- `tabsMax` defaults to 10, with a hard cap of 50. `tabsMaxConcurrentStarts` defaults to 2.
-- `tabsSuspendIdleAfterMinutes` defaults to 60, by user decision. An idle tab with no pending request, no queued input, and no viewer stops its child after that interval and shows `◌`. Focusing or prompting it resumes the session. Extension in-memory state is lost, which the settings text says.
+- User-facing Tabs settings are `tabsMax` (default 10, range 1–50) and `tabsAutoName` (default on). Concurrent starts use internal default 2/hard cap 8 and prewarm uses internal count/hard cap 1.
+- Every open tab keeps its holder and A1 process until explicit close. There is no idle-suspension setting, timer, lifecycle, or glyph.
 - Scrollback is capped at 10 MiB per holder, and the replay after a server restart is the retained model itself.
 - The server exits after 10 minutes with no running tabs and no clients.
 - Structured diagnostic logs are `terminal-host-server.log` and `terminal-host-holder-<tab>.log`, rotated at 5 MiB with three kept. Use allowlisted fields/reason codes, not arbitrary exception strings, prompt text, terminal content, or credentials.
@@ -486,7 +483,7 @@ Each milestone is its own OpenSpec change and pull request, merged to `develop` 
 | 2 | `resident-tabs-persistent-tab` (PR #746) | The three native roles with one full A1 text UI, minimal authenticated registry and bridge, bounded I/O, explicit opt-in and direct fallback. Terminal and client closure, detached output, retained reattach, input, and surviving-owner terminal restoration. |
 | 3 | `resident-tabs-failure-isolation` (PR #747) | Two tabs, server replacement with unchanged holder/child identities, isolated holder/child failure and hang, slow client and blocked writer isolation, exclusive registry epochs, the session-writer lock wired into every A1 launch mode, and no duplicate starts. |
 | 4 | `resident-tabs-crash-recovery` (PR #748) | Crash restart into the session, durable-before-dispatch journaling, periodic drafts during continuous typing, correlation/retirement crash points, missing first-turn versus missing existing session, corruption/rename/disk failures, last-screen recovery, and sensitive-recovery/diagnostic separation. After reboot, previous sessions stay resumable, with no tab restore. |
-| 5 | `resident-tabs-tab-ux` (PR #749) | Strip, shortcuts, mouse, commands, rename/reorder/close, status and needs-input, detach and resume, two attached clients with the controller-transfer barrier, and extension text fidelity. Then auto-naming, one prewarmed tab, and 60-minute idle suspension with the recorded defaults. |
+| 5 | `resident-tabs-tab-ux` (PR #749) | Approved v2-style strip with always-visible close buttons, per-agent accent status and needs-input, mouse, assignable shortcuts with unbound navigation/reorder actions, rename/reorder/close, local detach/resume, automatic two-terminal controller transfer, and extension text fidelity. Then animated auto-naming, `tabsMax`, and one internal prewarmed tab; open tabs are never idle-suspended. |
 | 6 | `resident-tabs-certification` (PR #750) | Packaging and release retention on every platform, maintenance commands, bounded resources, deterministic/property/crash/fuzz/chaos evidence and exact-package physical acceptance per platform, including SSH loss, forced attach death, conflict-safe direct rollback, and performance measured separately for cold launch, warm tab creation, reattach, and recovery. |
 
 A failed milestone keeps the preview disabled and its pull request open until fixed. Each milestone 2–6 PR is a draft that holds its full plan (proposal, design, tasks, spec deltas) and starts implementation only after the previous milestone merges.
@@ -507,16 +504,25 @@ The user made these decisions on 2026-09-24:
 - Every tab is a terminal session running the full A1 UI, so extensions stay native and CLI tabs can follow. This replaces the structured-worker design.
 - There is one tab set per profile.
 - LLM auto-naming is on by default.
-- Idle suspension is on after 60 minutes.
 - Icons are the only attention signal, with no bell, sound, or notification: spinner = working, `✓` = finished, red `✗` = failed, yellow `?` = needs the user.
 - `Ctrl+C` twice leaves `a1` from any tab while tabs keep running. There is no separate detach key.
 - Reliability is a first-class, release-gating requirement (Decision 16).
+
+On 2026-10-13 the user refined milestone 5:
+
+- Match the v2 default strip appearance, add an always-visible `×`, and color each working spinner with that tab's resolved A1 accent.
+- Keep `Alt+A`, `Alt+W`, `F2`, and numbered jumps; leave next/previous and move actions unbound but assignable.
+- Add no tab-management slash commands; retain existing `/name`, `/quit`, and empty-editor `Ctrl+D` semantics.
+- Automatically transfer control to the active terminal through the causal barrier without an `Enter` takeover or view-only banner.
+- Expose only `tabsMax` and `tabsAutoName` as new Tabs settings; keep concurrent starts and one prewarm as internal constants.
+- Keep every open tab process running until explicit close; remove idle suspension and its `◌` glyph.
+- Use `1 agent still running run a1 to return.` / `N agents still running run a1 to return.` after local detach.
 
 On 2026-10-10 the user confirmed this resident design over in-process tabs and set the first version's scope:
 
 - Deliver as six milestone pull requests, each merged behind `residentTabs: false`; PR #586 carries this roadmap and milestone 1.
 - Target Windows x64, Linux x64, and macOS arm64 in the first version; every additional target requires its own approved plan and evidence.
 - Keep crash recovery (restart into the session, prompt journal, drafts); drop reboot and logout restore to a follow-up.
-- Keep auto-naming, idle suspension with prewarm, and two attached clients.
+- Keep auto-naming, one prewarmed standby, and two attached clients.
 - Hosting only: worktree isolation and agent coordination are separate follow-ups.
 - Retire the earlier `evolve-bare-a1-into-multi-agent-workspace` plan (#745); split layouts are a follow-up idea.
