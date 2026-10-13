@@ -2,79 +2,106 @@
 
 ## Context
 
-See `proposal.md` for motivation. A1 currently has two intentionally separate settings backends: Pi's engine stores Agent-section values below the selected agent profile (`<home>/.a1/agent`), while `OwnedSettingsManager` stores A1-owned values below `resolveProductPaths().configDir`. The latter defaults to `%APPDATA%/a1` on Windows and an XDG configuration root on Unix. Composition and the pre-UI resident-tabs reader both assume that control-state root.
+See `proposal.md` for motivation. The Settings screen currently combines two persistence systems: pinned Pi's `SettingsManager` owns `<home>/.a1/agent/settings.json`, while `OwnedSettingsManager` writes `<configDir>/settings/a1.json`. The UI hides that distinction, so retaining the familiar Pi file does not retain A1-specific choices.
 
-The platform config/data/runtime roots also own update caches, release state, endpoints, and other lifecycle data. Their defaults are public and explicitly required to remain unchanged, so relocating the entire product config root to `.a1` would be broader and riskier than relocating user preferences alone. Repository-local development additionally injects `A1_CONFIG_DIR` intentionally to keep test and checkout state isolated.
+Pinned Pi exposes `SettingsManager.fromStorage(...)`, whose storage callback is a public structural boundary for global and project JSON. Pi's default file storage performs locked read-modify-write operations and preserves unknown root keys today, but relying on that incidental unknown-key behavior would not give A1 explicit namespace isolation or control of atomicity. Normal A1 constructs settings managers in runtime startup, project-trust preflight, and package operations; all three must use the same storage contract.
+
+Internal implementation names must remain product-neutral. The current product key is supplied from validated `PRODUCT_IDENTITY.commandName`, so the shipped JSON section is `a1` without hardcoding that brand into reusable storage types.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Give normal installed launches one effective-home-derived root for A1-owned preferences across package and release replacement.
-- Keep one precedence rule across ordinary UI startup and pre-UI settings reads.
-- Carry existing preferences forward without mutating or deleting the former document during startup.
-- Preserve explicit configuration overrides as hermetic isolation boundaries.
+- Present users with one familiar global profile `settings.json`.
+- Keep Pi root settings and product-specific settings logically isolated despite sharing a file.
+- Own locking, atomic replacement, merging, and collision refusal at one generic storage boundary.
+- Persist only product values that differ from declarations while preserving unknown newer values.
+- Route every normal-A1 Pi settings manager through the same boundary.
 
 **Non-Goals:**
 
-- Relocate update caches, release metadata, runtime control state, prompt history, or databases.
-- Merge A1-owned declarations into Pi's `settings.json` format or change Agent-setting persistence.
-- Synchronize settings between machines, operating-system users, or distinct explicit overrides.
-- Make old binaries that predate this contract understand later writes under `.a1`.
+- Reimplement Pi setting semantics, getters, setters, migrations, or project-setting behavior.
+- Expose product settings to Pi as engine descriptors or root fields.
+- Change the vanilla `a1 pi` profile under `<home>/.pi/agent`.
+- Synchronize profile settings between operating-system users or machines.
+- Make binaries predating this contract understand the embedded section.
 
 ## Decisions
 
-### 1. Add a dedicated owned-settings path contract
+### 1. Use one namespaced global settings document
 
-Launch-profile path resolution will expose the A1-owned settings roots separately from `ProductPaths`. Without an explicit `A1_CONFIG_DIR`, the primary config root for `OwnedSettingsManager` will be the existing `managedStateRoot` (`<effective-home>/.a1`), producing `<effective-home>/.a1/settings/<profile-id>.json`. Pi continues to receive `<effective-home>/.a1/agent`.
+The normal A1 profile keeps `<effective-home>/.a1/agent/settings.json`. Pi settings retain their current root shape. Product-specific settings use one root section whose key is injected from `PRODUCT_IDENTITY.commandName`:
 
-When `A1_CONFIG_DIR` is explicitly present, its normalized value remains the sole owned-settings root and no home or compatibility fallback is consulted. This preserves repository-local launches, test fixtures, portable/custom deployments, and the public meaning of the override.
+```json
+{
+  "theme": "dark",
+  "showImages": true,
+  "a1": {
+    "version": 14,
+    "values": {
+      "accentColor": "cyan",
+      "scrollbarSpeed": "fast"
+    }
+  }
+}
+```
 
-Changing `resolveProductPaths().configDir` itself was rejected because it would also relocate update-check caches, release-note state, resident host routing state, and other control data. Storing A1 declarations in `.a1/agent/settings.json` was rejected because the A1 and Pi schemas, migrations, ownership boundaries, and downgrade behavior are deliberately independent.
+A top-level section was chosen over prefixed keys because it gives product migrations one version and prevents product fields from looking like Pi settings. A second file was rejected because it recreates the user-visible persistence problem. Placing product keys directly at the root was rejected because collisions and ownership would be ambiguous.
 
-### 2. Use missing-only compatibility fallback with primary precedence
+### 2. Put a product-neutral shared store beneath both managers
 
-For an unoverridden launch, the former platform config root is retained as one compatibility source. Reads follow this order:
+A generic `SharedProfileSettingsStore`-style component will own the global profile file and accept the namespace key as data. The exact implementation name may vary, but SHALL NOT contain the A1 brand. It provides:
 
-1. Read the `.a1` profile document when it exists.
-2. Only when that path is absent, read the former platform-config profile document.
-3. When both are absent, resolve declared defaults.
+- a structural Pi `SettingsStorage` view for `SettingsManager.fromStorage(...)`;
+- a product-section read/write view for `OwnedSettingsManager`; and
+- ordinary project-scope storage behavior for Pi's trusted project settings.
 
-An existing but unreadable, malformed, oversized, unsupported, or migration-failing primary document follows the current fail-safe/default behavior and does not fall through to stale legacy values. This distinguishes "not migrated yet" from "the user has a primary document that needs attention."
+For a global Pi read, the store removes the reserved product section before invoking Pi's callback. For a Pi write, it parses the callback result, refuses a returned reserved key, then merges the unchanged product section back. Product operations receive only the nested versioned document and replace only that section. Thus neither side depends on the other's parser preserving unknown values.
 
-Merging the two documents was rejected because conflicts would have no trustworthy per-key chronology. Falling back after any primary error was rejected because it could silently revive values the user had replaced or intentionally removed.
+A facade above an ordinary `SettingsManager.create(...)` was rejected because package operations and queued Pi writes could still bypass it. Deep-importing Pi's private file storage was rejected by the public API boundary. The public structural storage callback gives the required control without copying Pi behavior.
 
-### 3. Migrate lazily through the existing atomic write path
+### 3. Centralize settings-manager construction
 
-Reading a former document performs no filesystem mutation. The settings resolution retains its accepted values and unknown keys. On the next accepted A1-owned change, the existing document serialization and temporary-sibling rename write that complete resolved state to the primary `.a1` path. The former document remains untouched for audit and rollback safety.
+A product-neutral factory will create pinned settings managers over the shared store. Runtime startup, global-only project-trust preflight, and package operations will all use that factory. Existing test seams may inject a manager, but production construction for the normal A1 profile will have no independent writer to the global file.
 
-An eager startup move was rejected because reads are currently side-effect free, startup may be read-only, and a failed move could make an older installation lose its only known document. Writing both locations was rejected because dual authorities would drift and would keep the former platform path permanently authoritative.
+The prerelease Pi comparison retains Pi's ordinary `.pi` profile and default behavior because it must not consume the product section. Engine getters, setters, flush behavior, and the existing A1 engine settings port remain unchanged above storage.
 
-### 4. Share root selection across UI and pre-UI consumers
+### 4. Derive and guard the namespace
 
-Composition will construct `OwnedSettingsManager` with the resolved primary and optional compatibility root rather than calling `resolveProductPaths().configDir` directly. The resident-tabs bootstrap reader will receive the same roots and apply the same missing-only precedence before deciding whether resident routing is enabled. Other consumers of `ProductPaths.configDir`, including update caches and release-note acknowledgement, remain unchanged.
+The store receives the namespace from validated product identity; reusable types, classes, and functions use terms such as `shared`, `profile`, `product`, or `namespace`, never an embedded A1 brand.
 
-Root selection will be centralized; document parsing can remain within the existing settings modules. Focused tests will assert identical primary/fallback/override choices at both consumption points so future startup optimization cannot reintroduce split behavior.
+A compatibility test derives the complete pinned Pi root setting inventory and asserts that the product key is absent. Pi-upgrade validation therefore blocks a candidate that introduces `a1`. Runtime merge code independently rejects any Pi callback result containing the reserved key before touching disk. Silent precedence was rejected because either choice could destroy user data.
 
-### 5. Prove persistence independently of release identity
+### 5. Coordinate every writer with compatible locking and atomic replacement
 
-Tests will construct different package/release identities under one effective home and verify that both resolve the same owned-settings file and selected values. Coverage will also exercise primary-over-fallback precedence, fallback-to-primary lazy write with unknown-key preservation, absent-file defaults, explicit-override isolation, and resident preflight reads. Existing Pi integration coverage remains the authority for engine writes to `.a1/agent/settings.json`; a focused boundary assertion will ensure the new A1 write does not alter that file.
+The shared store will use the same adjacent lock protocol as pinned Pi, added as a direct pinned dependency rather than imported from Pi's private dependency tree. Under that lock it rereads the current file, applies one owner-scoped merge, writes a temporary sibling, and atomically replaces the target. The lock covers parsing through replacement, so overlapping A1 versions, runtime writes, and package operations merge against current bytes rather than stale startup snapshots.
 
-A UI snapshot test alone was rejected because it could pass while each release still reads a different storage path.
+A process-local mutex alone was rejected because updates may leave multiple release cohorts alive. Unlocked atomic rename was rejected because two valid complete writes could still lose one another.
+
+### 6. Store only deviations from defaults
+
+The product `values` object contains accepted declared values only when they differ from their current declaration defaults, plus unknown keys preserved for downgrade safety. Accepting a default removes that declared key. When no non-default or unknown value remains, the whole product section is omitted.
+
+The version remains beside `values` whenever the section exists. Resolution still overlays stored values on declarations, so an omitted key is always the default. This keeps the user-facing file concise and makes the requested behavior explicit rather than serializing a full default snapshot.
+
+### 7. Import the former standalone document lazily
+
+When the shared file has no product section, the manager may read the former `<configDir>/settings/a1.json` as a compatibility source. The shared section always wins when present. Startup performs no migration write. On the next accepted product change, the manager filters resolved declarations against defaults, preserves unknown keys, writes the shared section, and leaves the old file unchanged.
+
+Eager moves and dual writes were rejected because they complicate rollback and create two authorities. An unreadable shared section does not fall back to stale standalone values.
 
 ## Risks / Trade-offs
 
-- **[An older binary launched after migration still reads the former document]** → Keep that document intact; the compatibility guarantee applies to binaries implementing this contract, and no unsafe reverse synchronization is attempted.
-- **[Two documents contain different values]** → The `.a1` primary wins as a whole document; no ambiguous per-key merge occurs.
-- **[A malformed primary hides a valid former document]** → Preserve and report the primary through existing unreadable-settings behavior instead of silently resurrecting stale preferences.
-- **[Pre-UI and UI readers drift]** → Centralize root selection and cover both consumers with the same precedence fixtures.
-- **[Development runs unexpectedly modify real user preferences]** → Keep the launcher's explicit `A1_CONFIG_DIR` authoritative and disable home fallback whenever it is present.
+- **[A storage adapter can diverge from Pi's file semantics]** → Exercise pinned `SettingsManager` against the adapter and include the adapter in every Pi-upgrade compatibility run.
+- **[An older A1 release can write through Pi's default storage]** → Use Pi-compatible cross-process locking; its current unknown-root merge preserves the section, while new releases no longer depend on that behavior among themselves.
+- **[Pi later claims the product namespace]** → Block the upgrade in both static compatibility validation and runtime merge safeguards.
+- **[Atomic replacement behaves differently across platforms]** → Reuse the repository's established sibling-replacement pattern and cover Windows and Unix fixtures in CI.
+- **[The standalone document and embedded section disagree]** → Embedded state wins as one whole product document; no per-key chronology is invented.
 
 ## Migration Plan
 
-1. Ship root resolution and compatibility reads before any writer targets `.a1`.
-2. On first launch, use an existing `.a1` document, otherwise read the former platform document, otherwise use defaults.
-3. On the user's next accepted A1-owned change, atomically write the complete resolved document to `.a1`; do not delete or rewrite the former source.
-4. Subsequent launches use `.a1` exclusively because the primary now exists.
-
-Rollback requires no destructive migration reversal: the former document remains available to old versions, though it intentionally does not receive changes made after the new primary was created.
+1. Introduce and verify the generic shared store and manager factory before routing production constructors through it.
+2. Route runtime, trust-preflight, and package settings managers through the shared storage view.
+3. Read an existing embedded section; otherwise read the former standalone document; otherwise resolve defaults.
+4. On the next accepted product change, persist only non-default values and unknown keys into the embedded section without changing the former file.
+5. Keep the old standalone file intact for rollback. Newer changes made only in the embedded section are intentionally unavailable to binaries predating this contract.
