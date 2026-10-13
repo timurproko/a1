@@ -48,10 +48,10 @@ const adjacentCodingAgentMaps = [
   "utils/clipboard.js.map",
 ];
 const interactiveAssets = [
-  "modes/interactive/assets/clankolas.png",
-  "modes/interactive/theme/dark.json",
-  "modes/interactive/theme/light.json",
-  "modes/interactive/theme/theme-schema.json",
+  { packageRelative: "dist/modes/interactive/assets/clankolas.png", upstreamRelative: "src/modes/interactive/assets/clankolas.png" },
+  { packageRelative: "dist/modes/interactive/theme/dark.json", upstreamRelative: "src/modes/interactive/theme/dark.json" },
+  { packageRelative: "dist/modes/interactive/theme/light.json", upstreamRelative: "src/modes/interactive/theme/light.json" },
+  { packageRelative: "schemas/theme.schema.json", upstreamRelative: "schemas/theme.schema.json" },
 ];
 const packageAuthorities = [
   {
@@ -241,10 +241,10 @@ async function discoverPinnedAuthorities() {
   }
   for (const path of adjacentCodingAgentMaps) await addSourceAuthority(expected, coding, join(coding.packageRoot, "dist", path));
   for (const path of await sourceMapsUnder(join(tui.packageRoot, "dist"))) await addSourceAuthority(expected, tui, path);
-  for (const distRelative of interactiveAssets) {
-    const path = join(coding.packageRoot, "dist", distRelative);
+  for (const asset of interactiveAssets) {
+    const path = join(coding.packageRoot, asset.packageRelative);
     const content = await readFile(path);
-    const upstreamPath = `${coding.sourceRoot}/${distRelative.replace(/^modes\/interactive\//, "src/modes/interactive/")}`;
+    const upstreamPath = `${coding.sourceRoot}/${asset.upstreamRelative}`;
     expected.set(authorityKey(coding.name, upstreamPath), {
       kind: "asset",
       sourceMap: null,

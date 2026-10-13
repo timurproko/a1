@@ -148,12 +148,12 @@ for (const sourceMap of await sourceMapsUnder(tui.distRoot)) {
   records.push(await sourceMapRecord(tui, sourceMap, "public-tui-package"));
 }
 for (const asset of [
-  "modes/interactive/assets/clankolas.png",
-  "modes/interactive/theme/dark.json",
-  "modes/interactive/theme/light.json",
-  "modes/interactive/theme/theme-schema.json",
+  { distRelative: "modes/interactive/assets/clankolas.png" },
+  { distRelative: "modes/interactive/theme/dark.json" },
+  { distRelative: "modes/interactive/theme/light.json" },
+  { distRelative: "../schemas/theme.schema.json", upstreamRelative: "schemas/theme.schema.json" },
 ]) {
-  records.push(await assetRecord(codingAgent, asset));
+  records.push(await assetRecord(codingAgent, asset.distRelative, asset.upstreamRelative));
 }
 
 records.sort((left, right) => left.package.localeCompare(right.package) || left.upstreamPath.localeCompare(right.upstreamPath));
@@ -294,7 +294,12 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
     acceptanceTasks: acceptanceTasks(upstreamPath, categories),
     tests: testTargets(upstreamPath, categories),
   };
-  preserveReviewedFields(record, previousRecords.get(id));
+  // Rationale: Pi 1.2 moved theme validation and token declarations into public theme support modules;
+  // the first upgrade scan may have provisionally classified those new modules as owned copies.
+  if (upstreamPath !== "packages/coding-agent/src/modes/interactive/theme/theme-schema.ts"
+    && upstreamPath !== "packages/coding-agent/src/modes/interactive/theme/theme-tokens.ts") {
+    preserveReviewedFields(record, previousRecords.get(id));
+  }
   if (record.classification === "host-adaptation" && record.implementationStatus === "adapter-present-conformance-pending") {
     record.implementationStatus = "adapter-present-conformance-passed";
   }
@@ -321,13 +326,14 @@ async function fileExists(path) {
   }
 }
 
-async function assetRecord(pkg, distRelative) {
+async function assetRecord(pkg, distRelative, declaredUpstreamRelative) {
   const path = join(pkg.distRoot, distRelative);
   const content = await readFile(path);
-  const upstreamRelative = distRelative.replace(/^modes\/interactive\//, "src/modes/interactive/");
+  const upstreamRelative = declaredUpstreamRelative
+    ?? distRelative.replace(/^modes\/interactive\//, "src/modes/interactive/");
   const upstreamPath = `${pkg.sourceRoot}/${upstreamRelative}`;
   const categories = behaviorCategories(upstreamPath);
-  const publicThemeAsset = /\/theme\/(?:dark|light|theme-schema)\.json$/.test(upstreamPath);
+  const publicThemeAsset = /\/(?:theme\/(?:dark|light|theme-schema)\.json|schemas\/theme\.schema\.json)$/.test(upstreamPath);
   const publicBundledAsset = publicThemeAsset || upstreamPath.endsWith("/assets/clankolas.png");
   const id = `${packageSlug(pkg.name)}:${upstreamRelative}`;
   const record = {
@@ -358,7 +364,9 @@ async function assetRecord(pkg, distRelative) {
     acceptanceTasks: acceptanceTasks(upstreamPath, categories),
     tests: testTargets(upstreamPath, categories),
   };
-  preserveReviewedFields(record, previousRecords.get(id));
+  if (upstreamRelative !== "schemas/theme.schema.json") {
+    preserveReviewedFields(record, previousRecords.get(id));
+  }
   return record;
 }
 
@@ -397,7 +405,9 @@ function classify(packageName, upstreamPath) {
       modifications: "None planned; import the exact component or helper from the pinned public coding-agent package root.",
     };
   }
-  if (upstreamPath === "packages/coding-agent/src/modes/interactive/theme/theme.ts") {
+  if (upstreamPath === "packages/coding-agent/src/modes/interactive/theme/theme.ts"
+    || upstreamPath === "packages/coding-agent/src/modes/interactive/theme/theme-schema.ts"
+    || upstreamPath === "packages/coding-agent/src/modes/interactive/theme/theme-tokens.ts") {
     return {
       classification: "public-api-reuse",
       localDestination: "src/integrations/pi/components/index.ts",
@@ -446,7 +456,7 @@ function behaviorCategories(path) {
 
 function acceptanceTasks(path, categories) {
   const tasks = new Set();
-  if (path.includes("/theme/")) tasks.add("7.4");
+  if (path.includes("/theme/") || path.endsWith("/schemas/theme.schema.json")) tasks.add("7.4");
   if (categories.includes("startup-composition")) tasks.add("7.7");
   if (categories.includes("stateful-components")) tasks.add("7.5");
   if (categories.some(category => ["editor", "autocomplete", "keybindings", "clipboard"].includes(category))) tasks.add("7.6");
@@ -460,6 +470,9 @@ function acceptanceTasks(path, categories) {
 }
 
 function testTargets(path, categories) {
+  if (/\/theme\/(?:theme-schema|theme-tokens)\.ts$/.test(path) || path.endsWith("/schemas/theme.schema.json")) {
+    return ["test/integrations/pi/components/pinned-theme-parity.test.ts"];
+  }
   const tests = new Set();
   if (path.includes("/theme/")) tests.add("test/integrations/pi/components/pinned-theme-parity.test.ts");
   if (path.includes("/components/")) tests.add("test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts");

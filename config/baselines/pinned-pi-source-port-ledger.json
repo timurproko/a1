@@ -2,21 +2,21 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-12T16:39:53.598Z",
+  "recordedAt": "2026-10-13T08:21:51.644Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "abe508e1b89912adde45528136c3221eb69acdd7",
+    "commit": "06a466935536f8c9bcacb2d5efc0fc021be1bdff",
     "license": "MIT",
     "packages": [
       {
         "name": "@earendil-works/pi-coding-agent",
-        "version": "1.1.0",
-        "integrity": "sha512-SeEi/4hdcHNgA9UWlefZl7ZZpm3dzi2OoxNjDHsBJ9o298LNOtbL4DGKgitlEj6uCTccvtw6f2hlCkTPVJ2RXg=="
+        "version": "1.2.0",
+        "integrity": "sha512-h/4WaVWv1VlCaY8x8qEN5U+7jbF/e7+Ck6moPeEOFn5juMTWwNAXjwgYM7gRgbBYh8Zppwt6qWvJDzNTf4GNEQ=="
       },
       {
         "name": "@earendil-works/pi-tui",
-        "version": "1.1.0",
-        "integrity": "sha512-v7wkS0y2ErZvZkSfemqd9RrBZJ5x6p8Ujsv7NdJj01IXJyFM0kNL6rMdcKcvTe7EVTd6ugvDB9VPZSoaBF9QxQ=="
+        "version": "1.2.0",
+        "integrity": "sha512-OdJCiYklkL3TqmdmGKUflHoLy9zw18GBYO0DPASZvGlP4RkDXAZzLLDt7cidJ6wUR7DBrKb13rrekDsXgMF60g=="
       }
     ]
   },
@@ -34,11 +34,11 @@
     "behaviorAuthority": "config/baselines/pinned-pi-interactive-baseline.json"
   },
   "summary": {
-    "modules": 130,
-    "sourceModules": 126,
+    "modules": 131,
+    "sourceModules": 127,
     "assets": 4,
     "classifications": {
-      "public-api-reuse": 65,
+      "public-api-reuse": 66,
       "owned-presentation": 32,
       "host-adaptation": 33
     },
@@ -47,6 +47,43 @@
     "unmappedBehaviorIds": []
   },
   "records": [
+    {
+      "id": "pi-coding-agent:schemas/theme.schema.json",
+      "kind": "asset",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/schemas/theme.schema.json",
+      "sourceMap": null,
+      "bytes": 11378,
+      "sha256": "f526a690b63c6303296f683c9df6077ddc290ee9acb1bc27eedef169c0caad59",
+      "classification": "public-api-reuse",
+      "localDestination": "src/integrations/pi/components/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; resolve through pinned public theme APIs.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.4",
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/integrations/pi/components/pinned-theme-parity.test.ts"
+      ]
+    },
     {
       "id": "pi-coding-agent:src/cli/startup-ui",
       "kind": "source",
@@ -198,8 +235,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "upstreamPath": "packages/coding-agent/src/core/agent-session.ts",
       "sourceMap": "core/agent-session.js.map",
-      "lines": 4399,
-      "sha256": "19186bf8a79876131a296fe17333c6276a671f8f48401df238c9814eeba0f5df",
+      "lines": 4424,
+      "sha256": "e2bbf746779fbed5a8c36f023842bf271252d1fd6f17f5a32f70a0d1c63f0b65",
       "classification": "host-adaptation",
       "localDestination": "src/integrations/pi/engine/index.ts",
       "implementationStatus": "adapter-present-conformance-passed",
@@ -304,8 +341,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "upstreamPath": "packages/coding-agent/src/core/extensions/runner.ts",
       "sourceMap": "core/extensions/runner.js.map",
-      "lines": 1561,
-      "sha256": "2a3bd7f81623928070eb956cdac37b861a787297046f9ce7af0522ff6d41a98a",
+      "lines": 1566,
+      "sha256": "3cd6d1ad18e8e4c7adf722aed9291bc64f06e3a7d461755c21e3cba4819f4e5e",
       "classification": "host-adaptation",
       "localDestination": "src/integrations/pi/engine/index.ts",
       "implementationStatus": "adapter-present-conformance-passed",
@@ -355,8 +392,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "upstreamPath": "packages/coding-agent/src/core/extensions/types.ts",
       "sourceMap": "core/extensions/types.js.map",
-      "lines": 2274,
-      "sha256": "d9a24065cc9830dc8bdc8d2e41299ad6ce125b3d156a0de1674faeabcb439122",
+      "lines": 2305,
+      "sha256": "cb54c7a4fedb3473bb995694bbc1f2988c144fb0b802bfd1b656816bc25d0f25",
       "classification": "host-adaptation",
       "localDestination": "src/integrations/pi/engine/index.ts",
       "implementationStatus": "adapter-present-conformance-passed",
@@ -469,15 +506,15 @@
       "package": "@earendil-works/pi-coding-agent",
       "upstreamPath": "packages/coding-agent/src/core/keybindings.ts",
       "sourceMap": "core/keybindings.js.map",
-      "lines": 402,
-      "sha256": "e328f1c3b85926efbb42a960ba4b19f9b4a251f77640053659528706a340bd4e",
+      "lines": 360,
+      "sha256": "6ddb9730a831e02bc2b32a9650e9b2029379cc37ccf6cdbf9b5bb47f91de321f",
       "classification": "owned-presentation",
       "localDestination": "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model selection, Tab tree-filter cycling, tree-local navigation aliases, cross-platform Alt+Up queued-message restoration, and an implicit Ctrl+C selection-cancel alias omitted from shortcut labels.",
       "upgradeStrategy": "three-way",
-      "localSha256": "ae62703ba4914c3edbffdcab6089cf67570b9021c041d83d124a95fdc6c0fe02",
+      "localSha256": "b752f3d55b99e1608d989de03076cb1245001de4c4b7a900dd9a23651d23dc35",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
@@ -537,8 +574,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "upstreamPath": "packages/coding-agent/src/core/model-runtime.ts",
       "sourceMap": "core/model-runtime.js.map",
-      "lines": 1035,
-      "sha256": "5f07a8c675f8ec6acffebf91fd0675910bdbd6348e6e100cf35ad4993fc84b30",
+      "lines": 1042,
+      "sha256": "ba6db976a8947167cb867eded70dfa96475182a3723ce2c7c9a88db5afeab756",
       "classification": "host-adaptation",
       "localDestination": "src/integrations/pi/engine/index.ts",
       "implementationStatus": "adapter-present-conformance-passed",
@@ -643,8 +680,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "upstreamPath": "packages/coding-agent/src/core/resource-loader.ts",
       "sourceMap": "core/resource-loader.js.map",
-      "lines": 1284,
-      "sha256": "dbe87c11983b8dac949377904f4cf0511155771498ba88d2fefb0cd0d5dd9e28",
+      "lines": 1288,
+      "sha256": "ccc798224d070e7a18c918f74be48c15eacc67f76aaa66b9809c015327b555d4",
       "classification": "host-adaptation",
       "localDestination": "src/integrations/pi/engine/index.ts",
       "implementationStatus": "adapter-present-conformance-passed",
@@ -783,8 +820,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "upstreamPath": "packages/coding-agent/src/core/settings-manager.ts",
       "sourceMap": "core/settings-manager.js.map",
-      "lines": 1557,
-      "sha256": "d916365ae21bce0f9a4f3ad15690e290ceca0aad958013e3280779b0cde0b074",
+      "lines": 1429,
+      "sha256": "754fc0ee6289fda207136f9b5a389cab6ef4de2e35cc69c8010967ca9d371624",
       "classification": "host-adaptation",
       "localDestination": "src/integrations/pi/engine/index.ts",
       "implementationStatus": "adapter-present-conformance-passed",
@@ -931,7 +968,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Unchanged image bytes are losslessly encoded in an attributed owned JSON resource by scripts/pi/update-command-resources.mjs. Source bytes and digest are verified against this pinned asset authority; runtime reads only the owned resource, never the dependency directory.",
       "upgradeStrategy": "three-way",
-      "localSha256": "7b1fe91362ed4e2657bf8506221862c07d57dae7d2aa52f898a38b1d6ba9e408",
+      "localSha256": "b006ca6e9eebb98c4e7cdce5c5b8adcff14a8d64dfa58d46af9476b588632894",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -1308,7 +1345,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with ECMAScript private fields; imports remain on the public Pi TUI package root.",
       "upgradeStrategy": "three-way",
-      "localSha256": "f41b3459bc4959ab969b45be027aead2e43ad5580430e0c14f1b87c6e1e3a98f",
+      "localSha256": "6ead6c0d85a2875c0e5e68a3c402260af23df5be29491b375349b27e84f042f6",
       "approvedDeviations": [
         {
           "id": "countdown-owned-private-fields",
@@ -1353,7 +1390,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete with a one-cell outer gutter. Bare A1 also clears a sole top-level slash-command search on Escape and completes a selected or exact completed tunnel command with `:` and reopens the menu on its tunnel rows, and synchronously retains then refreshes an exact top-level command menu after Tab applies its row.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "f7fae9b04e49afe8d97353d3a4af829d373c3cc6284baa2def6ba003bdd3c5f9",
+      "localSha256": "b055e923a0438481a5690f705a8b6d03c0788273569331e55f533f9a0695201e",
       "approvedDeviations": [
         {
           "id": "owned-shared-input-frame",
@@ -1566,7 +1603,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries. The unchanged image is loaded lazily from its attributed, verified owned resource, preserving pinned image/fallback rows without runtime dependency-directory reads or package mutation. Command-outcome parity exercises the restored presentation.",
       "upgradeStrategy": "three-way",
-      "localSha256": "4fa20d70d2ca8282bec01d5b4ca5c76cf17eea13293ae660ea250ca534dd7308",
+      "localSha256": "3479c382bfa16c4f83e4d40091803fef76a129ec2de6355ce742a4cf66d19a2f",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -1667,7 +1704,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle; bare A1 uses the shared semantic modal shortcut row and compact padded modal frame.",
       "upgradeStrategy": "three-way",
-      "localSha256": "4b64633c3e6d5d96f0661d16f65757c6be70feefa3746fca936b7ee602338cdb",
+      "localSha256": "6ab0f080d843545394b67427416a1e56d1b40d3ae8eae343f7fa603fa6890d1f",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1714,7 +1751,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving input, timeout, focus, submission, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "735bd2bcbd684d8cebfa053b9436365e1e919514584de5358927867b59427dee",
+      "localSha256": "9043849ad9c96f3219dee59d8a404229ca9af3db380ad99ef8d72586e8969328",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1764,7 +1801,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving options, timeout, navigation, selection, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "e5a9f0167b7a7423e2276b069fc7eb4aa67ab6851fd0cc573ad0e3b88cab864a",
+      "localSha256": "3ea5a16d24274048205f4fabd1963428c29fe2683d165fe0dbdf688b79c51592",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1854,7 +1891,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; preserves the latest physical route for virtual models; an explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and reserves its linked pull-request badge before path truncation while preserving the remaining footer layout and formatting; replacement surfaces may suppress a thinking level they already present.",
       "upgradeStrategy": "three-way",
-      "localSha256": "589774d8aa47357deb697d6d306c0612e592d5eb135a11e99c2f8bcf1b13e916",
+      "localSha256": "67e6f01798e851519e71ab441fa46f3b935e9dc9f3f7099ece2dba87ea387678",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -2035,7 +2072,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
       "upgradeStrategy": "three-way",
-      "localSha256": "781e72435e950434b144cb9cc715163fc9f6a92ed4f2675ba9422f2e51219052",
+      "localSha256": "80fee5ff72f1ce72742ff7511725fae964391258319af2da5ab901a14aa8b176",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -2155,7 +2192,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Remapped the private theme import to A1's public-backed adapter and composed the fixed-color logo into the owned startup header.",
       "upgradeStrategy": "three-way",
-      "localSha256": "50b48d881d61ce8cb863546f2f35bf2a2d69783ffd4b493d5feeabfbd3ee9605",
+      "localSha256": "f6a151655ff35b32367d919c4bb124ac0fc6b4af732472bba20a080690807704",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -2225,7 +2262,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities, and bare A1 uses the shared semantic modal shortcut row and compact padded modal frame while immediately closing on the implicit Ctrl+C selection-cancel alias without advertising it.",
       "upgradeStrategy": "three-way",
-      "localSha256": "3ba7cfc321ef48d6e5981694d159d9269039f1d18f601f335f6b29b35d2869b2",
+      "localSha256": "f31d95761a6690ebd7e04332a346a232ce00cc88ce97399e45fbf2e6d9f47889",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2279,7 +2316,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session search port with only the public SessionInfo type import remapped.",
       "upgradeStrategy": "three-way",
-      "localSha256": "5f89dfb7217d0752ebc9b9516c7ca6667b07a6bc913259c04e260bf9cdecf619",
+      "localSha256": "2838f55a7d9dbc9df1369f2c551fd52ab77e474b4883da6f16e1ea8f0af12ec3",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2319,7 +2356,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal frame with standalone title, standard outer rules, stable filter/status row, progressive result paging, aligned result columns, Session Tree selection roles, quiet in-field query syntax guidance, and one-line bottom dynamic feedback and searchable-dialog shortcut footer. Selected session rows use the blue selection surface while preserving title and metadata foregrounds; the active session title uses success green independently of keyboard selection, with ordinary text weight.",
       "upgradeStrategy": "three-way",
-      "localSha256": "b0c9b1b3e045b606c0643f2cbfcfe8d7f3e3dea6a275c7af930f7d3c9071e36f",
+      "localSha256": "edb1c6844d49932f826fbad1bd3447f683f1a6670d9e60cd89abf0008590562d",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2371,8 +2408,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "upstreamPath": "packages/coding-agent/src/modes/interactive/components/settings-selector.ts",
       "sourceMap": "modes/interactive/components/settings-selector.js.map",
-      "lines": 994,
-      "sha256": "a833edbe3851361466cdf0aa66b820620aef1c7a83d5cbd92d8dd60e528e0418",
+      "lines": 996,
+      "sha256": "b39e3a8e6fc469b9af832d02c604520d5cd95f2fda3aaa5d91a8381af270d9e2",
       "classification": "public-api-reuse",
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "available-through-pinned-package",
@@ -2485,7 +2522,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port uses A1's public pi-tui instance, owned theme boundary, and root-instance keybinding registry because the public coding-agent component closes over a second nested pi-tui singleton and cannot observe A1's keybindings.",
       "upgradeStrategy": "three-way",
-      "localSha256": "36922932e1fde06cf66c3d9fe1bfaf23f64ab124842cd24f80242bcf1ce482e1",
+      "localSha256": "651116d827e37b7760c781ce2222e58154aed3091b75829b9cad432e9c7c1290",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components",
@@ -2517,14 +2554,14 @@
       "upstreamPath": "packages/coding-agent/src/modes/interactive/components/status-indicator.ts",
       "sourceMap": "modes/interactive/components/status-indicator.js.map",
       "lines": 124,
-      "sha256": "1deb7f7ce7d05e4ab6ea8f088f36aac6a64273dfda8c1d46483c98297777cd2d",
+      "sha256": "80d33d17875b6f58af3878d3bb0b29d099e2b7a9fbfb0725a6cd4408bd535ab8",
       "classification": "owned-presentation",
       "localDestination": "src/integrations/pi/components/upstream/components/status-indicator.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with public package-root keybinding, Loader, and owned theme/countdown imports plus ECMAScript private fields.",
       "upgradeStrategy": "three-way",
-      "localSha256": "98249ba8daf725b9e9aef7d391e94740626f24b1f7696c732115c8cf0c093eef",
+      "localSha256": "3f0b081c33d0d4f06c2e4e4d319a020c769191b2a6fe4982e637feb7031aaa3d",
       "approvedDeviations": [
         {
           "id": "status-indicator-public-boundaries",
@@ -2607,7 +2644,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Integrated invalidation-aware text into A1's owned startup header and notices; repository formatting only.",
       "upgradeStrategy": "three-way",
-      "localSha256": "44676af388dd9d5f34b25ce0c564f8489ae8081164e980858bbc7775d73dd95a",
+      "localSha256": "2cccc2dffe01e28bef4dae08dd3dd9d70d5102bd0d78228cf36e0e5ca17dc1ac",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -2646,7 +2683,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering exclusive radio-style default markers before level names, an item-adjacent active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space, closes through the implicit Ctrl+C-capable selection-cancel action, and uses the shared compact semantic shortcut row with Type/search guidance without advertising that alias. All list and border colors use the owned theme and its explicit color mode. Selected rows use the shared bare-A1 blue selection surface only around the rendered item span, with the existing accent arrow, normal-text level, and preserved current/default/description roles. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "d05f14fbd95bba30d9b8ede485d23713134442ae2eaa4d2cd31415dc5c828c0c",
+      "localSha256": "f0581142827049d5a5b8f59c5de53b429fb8b1a905569dc72041aeb550da960e",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2724,7 +2761,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut hints. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "0da05ad948406a7f9693bb83188e2d2c20f15f63bf19fa4e5cb8b79862e72654",
+      "localSha256": "75b20665de72548dafbe6d9358a040b13ef9a7dd9956b1163e96d68786045f90",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -2786,7 +2823,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation excluding internal bookkeeping, standard search input, blue full-row menu-arrow selection that preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed timestamps, numeric result counters without duplicate label-time status, and a stateful time on/off shortcut, semantic role colors with session naming for the system root, standard paging/first-last/non-root containing-branch folding keys with a permanently expanded system session entry even behind hidden metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic Type/search shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "e6fdf7ae2f422eecefbfdd766e6cc9bdc2c7cc555eb6c31dc6967028880674eb",
+      "localSha256": "e7ce88e31be172e467b538d9e8f1a7db87ac33528d349e9250cfededd910608e",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2839,7 +2876,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options, remapped owned theme imports, the shared bare-A1 modal shortcut row and compact padded modal frame, and standard semantic trust styling with marker-free choice geometry.",
       "upgradeStrategy": "three-way",
-      "localSha256": "27f4eebab21cd19e5bace4e92ef267614d108bb37a832e10cdfeec6a3b878e65",
+      "localSha256": "462a4fb83232ed928dc467936061a46aadfd17c00e9bff176fbbc63317510c9c",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -3000,7 +3037,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: retain temporary prompt file, asynchronous inherited-stdio editor process, completion readback, and best-effort cleanup behind the owned extension-editor component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "b6116e501ff48e9c6a198f501b02e8c67a2d523b91671326ef1836aff2592be5",
+      "localSha256": "598c8166ab6a3c682166fa2e146fe96672bff47b09913fc150266cd52b3feb41",
       "approvedDeviations": [],
       "behaviorCategories": [
         "editor",
@@ -3029,8 +3066,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "upstreamPath": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
       "sourceMap": "modes/interactive/interactive-mode.js.map",
-      "lines": 7110,
-      "sha256": "b38fc2eb1647d702f8bf09c6ba4e69dc6fda6941d6cb2edad214277aef8e8b8d",
+      "lines": 7122,
+      "sha256": "18c012b507b3b510ef61a49b488230ad752e8021fd693a2045fc27655e930b15",
       "classification": "host-adaptation",
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "adapter-present-conformance-passed",
@@ -3166,7 +3203,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source-synchronized port preserving pinned model search terms for stateful scoped-model filtering.",
       "upgradeStrategy": "three-way",
-      "localSha256": "3c2f17ccf362620e1fcbbeda06f7002a98d073932f790e9a025f9d5fec018787",
+      "localSha256": "eb6d0429a9ad069167bf88e9e4b7201be07618b0e96a513316ffc29552a87152",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -3207,7 +3244,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Remap Pi session events to A1's neutral run events, inject the terminal reporter, use A1's application identity, and clear dialog state when the owned session changes.",
       "upgradeStrategy": "three-way",
-      "localSha256": "b22a0f6f33af1f8e26538f91252d6fb0275526a5569e2ea8b1302d84e169a069",
+      "localSha256": "e1872d60db254b4e4580615cdc6528b335a547c3c92ee8c254231a3146879760",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -3258,8 +3295,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/dark.json",
       "sourceMap": null,
-      "bytes": 2334,
-      "sha256": "c11a588b714d35300293079b425fb09a3693d4b2d453585d211b08163c648b75",
+      "bytes": 2250,
+      "sha256": "e1f96982f8cb7d2a48eca7db03c9cb282cb1e14a243680cd855638ecd6a251b6",
       "classification": "public-api-reuse",
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "available-through-pinned-package",
@@ -3298,8 +3335,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/light.json",
       "sourceMap": null,
-      "bytes": 2332,
-      "sha256": "f590c51c2bc8b238891efd0e983473ed2e2a6487b6692cc1d4b2845165e703f7",
+      "bytes": 2248,
+      "sha256": "2dee6a4be7f765e7fd7728166b7ebf8c29e4ce313f8ec6b38ae50699e3abc2f3",
       "classification": "public-api-reuse",
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "available-through-pinned-package",
@@ -3383,7 +3420,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed A1 theme adapter, and added explicit disposal.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "6af76e37271491dcf9f490afecce4a8f8556d226bc5b0e5c5468d32d76fb9904",
+      "localSha256": "ed08c687f70b0072cfcf8da8656046894b098d333f4845afd3727002fcb190a0",
       "approvedDeviations": [
         {
           "id": "theme-controller-owned-boundaries",
@@ -3424,19 +3461,19 @@
       ]
     },
     {
-      "id": "pi-coding-agent:src/modes/interactive/theme/theme-json",
+      "id": "pi-coding-agent:src/modes/interactive/theme/theme-schema",
       "kind": "source",
       "scope": "interactive-tree",
       "package": "@earendil-works/pi-coding-agent",
-      "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/theme-json.ts",
-      "sourceMap": "modes/interactive/theme/theme-json.js.map",
-      "lines": 149,
-      "sha256": "48d2ba48735eafb24e4812cf7c0d9b5c7e26253e6731616432850154079b3545",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/theme-schema.ts",
+      "sourceMap": "modes/interactive/theme/theme-schema.js.map",
+      "lines": 147,
+      "sha256": "6440ccc6aa0576f0f9447584b707b3bf09f2b77aed64687f4598db261588474b",
       "classification": "public-api-reuse",
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None; the owned theme unit validates theme JSON itself, and the pinned package installs this validator for its own themes.",
+      "modifications": "None planned; use pinned public theme exports and package-owned built-in assets.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -3461,19 +3498,19 @@
       ]
     },
     {
-      "id": "pi-coding-agent:src/modes/interactive/theme/theme-schema.json",
-      "kind": "asset",
+      "id": "pi-coding-agent:src/modes/interactive/theme/theme-tokens",
+      "kind": "source",
       "scope": "interactive-tree",
       "package": "@earendil-works/pi-coding-agent",
-      "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
-      "sourceMap": null,
-      "bytes": 9905,
-      "sha256": "8787918132dbf7aaee1be2ab30ee6306c715dad609cd85e448df595bb02e2a56",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/theme-tokens.ts",
+      "sourceMap": "modes/interactive/theme/theme-tokens.js.map",
+      "lines": 122,
+      "sha256": "6c38a169da4f85ee04bc31980a13ef6a498b6be68e63faceda4f5a1e5c632ecf",
       "classification": "public-api-reuse",
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; resolve through pinned public theme APIs.",
+      "modifications": "None planned; use pinned public theme exports and package-owned built-in assets.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -3494,10 +3531,7 @@
         "7.21"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-theme-parity.test.ts",
-        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/tui-runtime/adapter.test.ts"
+        "test/integrations/pi/components/pinned-theme-parity.test.ts"
       ]
     },
     {
@@ -3507,15 +3541,15 @@
       "package": "@earendil-works/pi-coding-agent",
       "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/theme.ts",
       "sourceMap": "modes/interactive/theme/theme.js.map",
-      "lines": 1161,
-      "sha256": "7f80e57eedbd29271882f1e58746eca0ab408dc092a6b700c8042d2507d4aff1",
+      "lines": 1087,
+      "sha256": "07ff17a690749afa8b3b1724efd271859ff889255fd494606230fec99ec1c1ba",
       "classification": "owned-presentation",
       "localDestination": "src/integrations/pi/components/upstream/theme/theme.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class, projecting A1's optional semantic accent, and deriving its owned fullscreen canvas.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "81f767b4923fdd737cd41c611f9f11dcc842bfcee9bf39c5ebe788b6801006b2",
+      "localSha256": "bcf9ea82b386fcdaf52f80b12e017ac941e11f6016af80bae8a8cc81eb43ab3d",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",
@@ -3602,8 +3636,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "upstreamPath": "packages/coding-agent/src/utils/clipboard.ts",
       "sourceMap": "utils/clipboard.js.map",
-      "lines": 146,
-      "sha256": "66d336dec60914a40bafde97a32ef1d3bae59fe53281651941c55e97ea4effaf",
+      "lines": 151,
+      "sha256": "b75a97f581b55a8ac199f9b0e13907c568a5c9b192733606110007663ceaafe9",
       "classification": "host-adaptation",
       "localDestination": "src/integrations/pi/engine/index.ts",
       "implementationStatus": "adapter-present-conformance-passed",
@@ -3850,15 +3884,15 @@
       "package": "@earendil-works/pi-tui",
       "upstreamPath": "packages/tui/src/components/editor.ts",
       "sourceMap": "components/editor.js.map",
-      "lines": 2473,
-      "sha256": "30a47fd49042579be7b85262677df62d4ff37a8f9a3a0e6c41ce3cf1d402b9c3",
+      "lines": 2474,
+      "sha256": "48c6a498527df4f645f66574904bdc82c1a4021b29ff81674132219043d4d016",
       "classification": "owned-presentation",
       "localDestination": "src/integrations/pi/components/upstream/history/editor-core.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, semantic border state with the user-approved numeric-only history label with a three-cell inset and separate centered history-overflow cue, and history-count retention during cursor placement within recalled multiline text. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "d55666a26f902d92501e3bf88615ebeb0b5ae3fa1b3001b4ac86578f994711e3",
+      "localSha256": "4fed9ef160d1ce0e52302952ab4aa80c367bacb38ab1ee4ff68ce715851e325b",
       "approvedDeviations": [
         {
           "id": "compact-history-counter-label",
@@ -3989,8 +4023,8 @@
       "package": "@earendil-works/pi-tui",
       "upstreamPath": "packages/tui/src/components/input.ts",
       "sourceMap": "components/input.js.map",
-      "lines": 495,
-      "sha256": "416ceeb28f10b7146f6a284f276589797763b604d439574fbdc2a3ca52c00234",
+      "lines": 502,
+      "sha256": "0ad90bf7464e4da90e75596007b365edc45fcb371c4dbee563d4122b13247a11",
       "classification": "public-api-reuse",
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "available-through-pinned-package",
@@ -4503,8 +4537,8 @@
       "package": "@earendil-works/pi-tui",
       "upstreamPath": "packages/tui/src/index.ts",
       "sourceMap": "index.js.map",
-      "lines": 195,
-      "sha256": "b9e4d600469841fcbcaa5278a2985f1863723ba6779df2c53d52e72d3856f457",
+      "lines": 196,
+      "sha256": "1a4ad10ce2da3e6664078771352dbd40b02920a9a07f7f6d25f699c72e22ff3e",
       "classification": "public-api-reuse",
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "available-through-pinned-package",
@@ -4573,15 +4607,15 @@
       "package": "@earendil-works/pi-tui",
       "upstreamPath": "packages/tui/src/keys.ts",
       "sourceMap": "keys.js.map",
-      "lines": 1402,
-      "sha256": "b972facce4233a4623239fc38029e28cae15d0fb326558c0c09dc02cf4345fa7",
+      "lines": 1456,
+      "sha256": "40cd0229bbc36cdcac24f3bdd2fce53f060ff4fe6f8522e239135212033d37f2",
       "classification": "owned-presentation",
       "localDestination": "src/integrations/pi/components/upstream/history/printable-key.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "1965b15b8ec6831f13d27b4c0ad9780bf25109baa92164ce0d8368d85057714b",
+      "localSha256": "13e68858cf05ff1c3c9858f7c705693f6dc76f7cc1678df1bc54aa957a3e163a",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",
@@ -4625,7 +4659,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "207cb4059ec976b4765d783f59ec5b1b4339b10d157af854214f460e1d63ad74",
+      "localSha256": "dc9e112aebab19501be3e28eabc92e31e6fb5de388bf6036c2fe7b75f9024418",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",
@@ -4945,8 +4979,8 @@
       "package": "@earendil-works/pi-tui",
       "upstreamPath": "packages/tui/src/stdin-buffer.ts",
       "sourceMap": "stdin-buffer.js.map",
-      "lines": 445,
-      "sha256": "a96af34c1c304a033b482b57ded426f4a51a5d1158f01c2d9daee5225fe60914",
+      "lines": 481,
+      "sha256": "82da9ff728e77269bbfa24c28eda81f26f744efef9e05113c2401ed52c823054",
       "classification": "host-adaptation",
       "localDestination": "src/integrations/pi/tui-runtime/index.ts",
       "implementationStatus": "adapter-present-conformance-passed",
@@ -5016,7 +5050,7 @@
       "upstreamPath": "packages/tui/src/terminal-image.ts",
       "sourceMap": "terminal-image.js.map",
       "lines": 764,
-      "sha256": "50d3cc601d47c9971f5251e853bb972ffbe6908c769cad7147e37b4dbfa84f97",
+      "sha256": "fa09e7725f1158e1bb3b53c3d0539cc6c066a7c058bee33142ad2f33e8ac5736",
       "classification": "public-api-reuse",
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "available-through-pinned-package",
@@ -5088,8 +5122,8 @@
       "package": "@earendil-works/pi-tui",
       "upstreamPath": "packages/tui/src/tui-alt-screen.ts",
       "sourceMap": "tui-alt-screen.js.map",
-      "lines": 1785,
-      "sha256": "2eb7a59b413a21e582b45b0fb6fbbdfa3b44d6ddc54413348b45f40e526d94dc",
+      "lines": 1787,
+      "sha256": "dd978db4f24a07e58a6e63819388a07700cb6237bbc0c8e9994bfc5f5d656800",
       "classification": "host-adaptation",
       "localDestination": "src/integrations/pi/tui-runtime/adapter.ts",
       "implementationStatus": "adapter-present-conformance-passed",
@@ -5127,8 +5161,8 @@
       "package": "@earendil-works/pi-tui",
       "upstreamPath": "packages/tui/src/tui-main-screen.ts",
       "sourceMap": "tui-main-screen.js.map",
-      "lines": 656,
-      "sha256": "d2271afc2ce0d2302014ae0c20ab1b6af6a9765de90254b21cef0ce2c6ca062d",
+      "lines": 657,
+      "sha256": "643661182cbeb1d5c5fbee195e0ec03a4f1045f629c8666c4d175518ce5939e1",
       "classification": "host-adaptation",
       "localDestination": "src/integrations/pi/tui-runtime/adapter.ts",
       "implementationStatus": "adapter-present-conformance-passed",
@@ -5167,8 +5201,8 @@
       "package": "@earendil-works/pi-tui",
       "upstreamPath": "packages/tui/src/tui.ts",
       "sourceMap": "tui.js.map",
-      "lines": 1494,
-      "sha256": "92dcb7f5f9a3a9575421d8de366be5cc78890be8df38d86c4ed3c0d77c7f88a4",
+      "lines": 1518,
+      "sha256": "206519884c4cb27096d00048a2fc4e8a0c404714e548c8dd5b62c38060d3b240",
       "classification": "host-adaptation",
       "localDestination": "src/integrations/pi/tui-runtime/index.ts",
       "implementationStatus": "adapter-present-conformance-passed",
@@ -5210,7 +5244,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "6fc442dcb901c2ca3990c82a82a1139e866604e0f5199cc59d386fc282660fac",
+      "localSha256": "8200c7a1d62650b213f1d8a34f1166cb0f6a6a59ccda2364a64c93cee8ffee2c",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",
@@ -5249,15 +5283,15 @@
       "package": "@earendil-works/pi-tui",
       "upstreamPath": "packages/tui/src/utils.ts",
       "sourceMap": "utils.js.map",
-      "lines": 1398,
-      "sha256": "258ff73a0ff4d2b05f8a60515a9cc37eb96c9fc03a4072ac6db2906cad1862d9",
+      "lines": 1403,
+      "sha256": "6e22ed5385c08965a46f01d6ec9686cb0eada95e34b9dc0f9a5e85d28f8f512a",
       "classification": "owned-presentation",
       "localDestination": "src/integrations/pi/components/upstream/history/text-helpers.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "c329b54877249e357d0e1cb890b3ebc27d983144491c363389eca28471f412bf",
+      "localSha256": "33cbd9989cfca07ec469bc03a5bea7a934c4cf489804ebdb6f9ded06e942d48f",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",
@@ -5335,7 +5369,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "2b4176927fbc16646ba1a37ee97dc1ce2523f25b801a8cd599f93ad44958a521",
+      "localSha256": "f09454073fb082c48a66696b61e546c75457e045af6ae488392a7ee05538691f",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",
