@@ -5,7 +5,8 @@ Verdict: accepted only when an authorized human manually merges the containing e
 The maintainer integration decision accepts these scenarios:
 - Non-default A1 choices are direct properties under `a1` in the normal agent `settings.json`, while restored defaults are absent.
 - Pi root and package settings preserve the product object during sequential and overlapping process writes.
-- Malformed documents, non-object namespaces, and Pi root-key collisions fail closed without changing existing bytes.
+- A valid settings object with stray leading text is normalized automatically; ambiguous corruption, non-object namespaces, and Pi root-key collisions still fail closed.
+- Settings always keeps its shortcut hints in the status row instead of replacing them with notices.
 - Former standalone choices import without modifying the old file, and remaining choices survive restart and replacement releases.
 
 ```openspec-delivery
@@ -21,7 +22,8 @@ The maintainer integration decision accepts these scenarios:
   "acceptanceScenarios": [
     "Non-default A1 choices are direct properties under `a1` in the normal agent `settings.json`, while restored defaults are absent.",
     "Pi root and package settings preserve the product object during sequential and overlapping process writes.",
-    "Malformed documents, non-object namespaces, and Pi root-key collisions fail closed without changing existing bytes.",
+    "A valid settings object with stray leading text is normalized automatically; ambiguous corruption, non-object namespaces, and Pi root-key collisions still fail closed.",
+    "Settings always keeps its shortcut hints in the status row instead of replacing them with notices.",
     "Former standalone choices import without modifying the old file, and remaining choices survive restart and replacement releases."
   ],
   "archiveDigest": "534211369a7a32db42a202147d17b40d2384f9148965abbe24e505f5a575c7dc",
