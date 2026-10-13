@@ -2346,15 +2346,21 @@ fn launch_standby(state: &Arc<Mutex<RuntimeState>>, mut start: AttachStart) -> R
     start.session_dir = None;
     let tab_id = format!("standby-{:016x}", rand::random::<u64>());
     let incarnation = 1;
-    let (profile, context) = {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(40);
+    let (profile, context) = loop {
         let mut locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
-        if locked.standby.is_some()
-            || !locked.holders_starting.is_empty()
-            || locked.active_starts > 0
-        {
+        if locked.standby.is_some() {
             return Ok(());
+        }
+        if !locked.holders_starting.is_empty() || locked.active_starts > 0 {
+            drop(locked);
+            if std::time::Instant::now() >= deadline {
+                return Err("standby launch remained blocked by an active start".into());
+            }
+            thread::sleep(std::time::Duration::from_millis(10));
+            continue;
         }
         locked.standby = Some(StandbyTab {
             tab_id: tab_id.clone(),
@@ -2385,9 +2391,10 @@ fn launch_standby(state: &Arc<Mutex<RuntimeState>>, mut start: AttachStart) -> R
             standby: true,
             server: locked.server_config.clone(),
         };
-        (locked.profile.clone(), context)
+        break (locked.profile.clone(), context);
     };
-    if !acquire_start_gate(state, std::time::Duration::from_secs(40)) {
+    let gate_timeout = deadline.saturating_duration_since(std::time::Instant::now());
+    if gate_timeout.is_zero() || !acquire_start_gate(state, gate_timeout) {
         if let Ok(mut locked) = state.lock()
             && locked
                 .standby

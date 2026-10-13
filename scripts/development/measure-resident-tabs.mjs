@@ -89,7 +89,6 @@ const session = join(dataDir, "measurement-session.jsonl");
 writeFileSync(session, "{}\\n", { flag: "a" });
 bridge.session(session, "measurement", "default");
 process.stdin.setRawMode?.(true);
-process.stdout.write(\`measurement-ready:\${process.hrtime.bigint()}\\r\\n\`);
 let pending = "";
 process.stdin.on("data", chunk => {
   pending += bridge.consumeControllerBoundaryInput(chunk.toString("utf8")).replaceAll("\\x03", "");
@@ -98,6 +97,7 @@ process.stdin.on("data", chunk => {
   }
   pending = "";
 });
+process.stdout.write(\`measurement-ready:\${process.hrtime.bigint()}\\r\\n\`);
 `;
 }
 

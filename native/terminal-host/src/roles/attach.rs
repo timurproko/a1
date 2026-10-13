@@ -646,7 +646,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             )?;
             last_list = Instant::now();
         }
-        if !event::poll(Duration::from_millis(16))
+        if !event::poll(Duration::from_millis(8))
             .map_err(|error| format!("poll outer terminal: {error}"))?
         {
             continue;
