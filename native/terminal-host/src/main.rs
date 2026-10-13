@@ -651,13 +651,7 @@ fn probe_input() -> Result<(), String> {
         ));
     }
     terminal.write(b"\x1b[>1u");
-    let kitty_key = key_encoder.encode(
-        &terminal,
-        key_for_character('a'),
-        MOD_CTRL,
-        Some("a"),
-        false,
-    )?;
+    let kitty_key = key_encoder.encode(&terminal, key_for_character('a'), MOD_CTRL, None, false)?;
     if !kitty_key.starts_with(b"\x1b[") || !kitty_key.ends_with(b"u") {
         return Err(format!(
             "kitty key encoding produced unexpected bytes: {kitty_key:?}"
