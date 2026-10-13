@@ -50,16 +50,15 @@ function assertNoFixtureProcesses(env) {
       "$items | ConvertTo-Json -Compress",
     ].join(" ");
     listing = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], {
-      encoding: "utf8",
       env: { ...env, TERMINAL_HOST_FIXTURE_EXECUTABLE: executable },
       windowsHide: true,
     });
   } else {
-    listing = spawnSync("ps", ["-axo", "pid=,ppid=,command="], { encoding: "utf8", env });
+    listing = spawnSync("ps", ["-axo", "pid=,ppid=,command="], { env });
   }
   if (listing.error) throw listing.error;
-  if (listing.status !== 0) throw new Error(`fixture process inspection failed: ${listing.stderr}`);
-  const output = listing.stdout.trim();
+  if (listing.status !== 0) throw new Error(`fixture process inspection failed: ${listing.stderr.toString("utf8")}`);
+  const output = listing.stdout.toString("utf8").trim();
   const leaked = platform() === "win32"
     ? output !== "" && output !== "[]"
     : output.split("\n").filter(line => line.includes(executable));

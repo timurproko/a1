@@ -1409,6 +1409,69 @@ fn holder_pids(root: &Path) -> Vec<u32> {
         })
         .unwrap_or_default()
 }
+#[cfg(windows)]
+fn fixture_terminal_host_pids() -> Vec<u32> {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
+        TH32CS_SNAPPROCESS,
+    };
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
+    };
+
+    fn normalized(value: &str) -> String {
+        value
+            .strip_prefix(r"\\?\")
+            .unwrap_or(value)
+            .replace('/', r"\")
+            .to_ascii_lowercase()
+    }
+
+    let expected = normalized(env!("CARGO_BIN_EXE_terminal-host"));
+    let mut matches = Vec::new();
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot.is_null() || snapshot == -1_isize as _ {
+            return matches;
+        }
+        let mut entry = PROCESSENTRY32W {
+            dwSize: size_of::<PROCESSENTRY32W>() as u32,
+            ..Default::default()
+        };
+        if Process32FirstW(snapshot, &mut entry) != 0 {
+            loop {
+                let process =
+                    OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, entry.th32ProcessID);
+                if !process.is_null() {
+                    let mut buffer = [0u16; 32_768];
+                    let mut length = buffer.len() as u32;
+                    if QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut length) != 0
+                    {
+                        let path = OsString::from_wide(&buffer[..length as usize])
+                            .to_string_lossy()
+                            .into_owned();
+                        if normalized(&path) == expected {
+                            matches.push(entry.th32ProcessID);
+                        }
+                    }
+                    CloseHandle(process);
+                }
+                if Process32NextW(snapshot, &mut entry) == 0 {
+                    break;
+                }
+            }
+        }
+        CloseHandle(snapshot);
+    }
+    matches
+}
+#[cfg(not(windows))]
+fn fixture_terminal_host_pids() -> Vec<u32> {
+    Vec::new()
+}
 fn node_executable() -> String {
     let output = Command::new(if cfg!(windows) { "node.exe" } else { "node" })
         .args(["-p", "process.execPath"])
@@ -1476,6 +1539,7 @@ impl Drop for Cleanup {
         loop {
             self.pids.extend(server_pids(&self.credentials_root));
             self.pids.extend(holder_pids(&self.credentials_root));
+            self.pids.extend(fixture_terminal_host_pids());
             self.pids.sort_unstable();
             self.pids.dedup();
             let batch = std::mem::take(&mut self.pids);
