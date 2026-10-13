@@ -1391,7 +1391,7 @@ fn serve_attach(
     allow_control: bool,
 ) -> Result<(), String> {
     let client_id = format!("client-{:016x}", rand::random::<u64>());
-    let (revision, _controller, startup_notice) = {
+    let (_controller, startup_notice) = {
         let mut locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
@@ -1464,7 +1464,7 @@ fn serve_attach(
             .startup_notice
             .clone()
             .or_else(|| locked.registry_store.failure());
-        (revision, controller, startup_notice)
+        (controller, startup_notice)
     };
     if let Some(message) = startup_notice {
         tx.offer_control(wire::frame(

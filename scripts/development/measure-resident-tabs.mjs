@@ -97,6 +97,7 @@ process.stdin.on("data", chunk => {
   }
   pending = "";
 });
+process.stdin.resume();
 process.stdout.write(\`measurement-ready:\${process.hrtime.bigint()}\\r\\n\`);
 `;
 }

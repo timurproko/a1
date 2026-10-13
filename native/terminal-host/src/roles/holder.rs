@@ -25,9 +25,6 @@ use crate::roles::wire::{
 pub const HOLDER_INPUT_CAPACITY: usize = 1024 * 1024;
 const BRACKETED_PASTE_START: &[u8] = b"\x1b[200~";
 const BRACKETED_PASTE_END: &[u8] = b"\x1b[201~";
-// Performance: output floods coalesce into at most one surface per interval without delaying
-// an isolated echo, which renders as soon as its PTY bytes arrive.
-const MIN_SURFACE_INTERVAL: Duration = Duration::from_millis(4);
 
 fn bracketed_paste(content: &[u8]) -> Vec<u8> {
     let mut complete =
@@ -410,10 +407,6 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         .checked_sub(Duration::from_secs(5))
         .unwrap_or_else(std::time::Instant::now);
     let mut child_exited = false;
-    let mut surface_pending = false;
-    let mut last_surface = std::time::Instant::now()
-        .checked_sub(MIN_SURFACE_INTERVAL)
-        .unwrap_or_else(std::time::Instant::now);
     loop {
         watchdog.bump();
         let mut changed = false;
@@ -656,10 +649,9 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
             }
             changed = true;
         }
-        surface_pending |= changed && subscribed;
-        if surface_pending && subscribed && last_surface.elapsed() >= MIN_SURFACE_INTERVAL {
-            surface_pending = false;
-            last_surface = std::time::Instant::now();
+        // Performance: each pass drains all queued PTY output before rendering, so floods coalesce
+        // into one surface per pass without delaying an isolated echo behind a pacing timer.
+        if changed && subscribed {
             revision = revision.saturating_add(1);
             terminal.mark_dirty()?;
             let frame = terminal.frame_at(0, 1, true)?.into_bytes();
@@ -699,7 +691,6 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 .map_err(|error| format!("inspect resident child: {error}"))?
         {
             child_exited = true;
-            surface_pending = false;
             terminal.mark_dirty()?;
             let frame = terminal.frame_at(0, 1, true)?.into_bytes();
             let recovery_root = tab_data_dir.join("recovery");
@@ -753,12 +744,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 return Ok(());
             }
         }
-        let idle = if surface_pending && subscribed {
-            MIN_SURFACE_INTERVAL.saturating_sub(last_surface.elapsed())
-        } else {
-            Duration::from_millis(8)
-        };
-        let _ = wake_rx.recv_timeout(idle);
+        let _ = wake_rx.recv_timeout(Duration::from_millis(8));
     }
 }
 
