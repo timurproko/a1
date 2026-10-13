@@ -52,14 +52,14 @@ describe("resident tab composition bridge", () => {
     const value = fixture();
     await expect(bindResidentTabBridge(value.bridge as never, value.backend as never)).resolves.toBe(value.unsubscribe);
     expect(value.bridge.status).toHaveBeenCalledWith("starting");
-    expect(value.bridge.session).toHaveBeenCalledWith("D:/sessions/one.jsonl", "initial");
+    expect(value.bridge.session).toHaveBeenCalledWith("D:/sessions/one.jsonl", "initial", "user");
 
     value.event({ type: "session-lifecycle", lifecycle: "busy" });
     value.event({ type: "session-lifecycle", lifecycle: "idle" });
     value.changeSession({ sessionDir: "D:/sessions", sessionId: "two.jsonl" }, "renamed");
     value.event({ type: "session-view" });
     expect(value.bridge.status.mock.calls.map(call => call[0])).toEqual(["starting", "working", "idle"]);
-    expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/two.jsonl", "renamed");
+    expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/two.jsonl", "renamed", "user");
   });
 
   it("keeps composition available when the bridge refuses startup", async () => {

@@ -14,7 +14,8 @@ use crate::protocol::{self, BridgeAttachment, MAX_INPUT_BYTES, Welcome};
 use crate::roles::credentials::ProfileCredentials;
 use crate::roles::strip::{self, StripHit, StripTab};
 use crate::roles::wire::{
-    self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface, TabCreate, TabList, TabTarget,
+    self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface, TabCreate, TabList,
+    TabRename, TabTarget,
 };
 
 pub const ENTER_OUTER_MODES: &[u8] =
@@ -272,6 +273,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut last_list = Instant::now();
     let mut chord = DoubleCtrlC::new(options.clear_exit_ms);
     let mut failed = false;
+    let mut rename: Option<(String, String)> = None;
+    let mut context_tab: Option<String> = None;
+    let mut pending_close: Option<String> = None;
     loop {
         watchdog.bump();
         while let Ok(payload) = message_rx.try_recv() {
@@ -352,7 +356,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         },
                     )?;
                     terminal.restore()?;
-                    print_hint();
+                    print_hint(tabs.len());
                     return Ok(());
                 }
                 "refused" => {
@@ -411,6 +415,75 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         }
         match event::read().map_err(|error| format!("read outer terminal: {error}"))? {
             Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => {
+                if let Some(tab_id) = pending_close.take() {
+                    if key.code == KeyCode::Enter {
+                        wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
+                    } else if key.code != KeyCode::Esc {
+                        pending_close = Some(tab_id);
+                    }
+                    continue;
+                }
+                if let Some((tab_id, value)) = rename.as_mut() {
+                    match key.code {
+                        KeyCode::Esc => rename = None,
+                        KeyCode::Enter => {
+                            let request = TabRename {
+                                tab_id: tab_id.clone(),
+                                name: value.clone(),
+                            };
+                            rename = None;
+                            wire::send(&mut stream, "tab.rename", None, request)?;
+                        }
+                        KeyCode::Backspace => {
+                            value.pop();
+                        }
+                        KeyCode::Char(ch) if !ch.is_control() && value.chars().count() < 64 => {
+                            value.push(ch)
+                        }
+                        _ => {}
+                    }
+                    if let Some((_, value)) = rename.as_ref() {
+                        terminal.write(
+                            render_notice(&format!("Rename: {value}"), columns).as_bytes(),
+                        )?;
+                    } else {
+                        strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                        terminal.write(strip_frame.bytes.as_bytes())?;
+                    }
+                    continue;
+                }
+                if let Some(tab_id) = context_tab.take() {
+                    match key.code {
+                        KeyCode::Char('r' | 'R') => {
+                            let name = tabs
+                                .iter()
+                                .find(|tab| tab.id == tab_id)
+                                .map(|tab| tab.name.clone())
+                                .unwrap_or_default();
+                            rename = Some((tab_id, name));
+                        }
+                        KeyCode::Char('c' | 'C') => {
+                            wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?
+                        }
+                        _ => {}
+                    }
+                    continue;
+                }
+                if key.code == KeyCode::F(2) {
+                    if let Some(tab_id) = viewed.clone() {
+                        let name = tabs
+                            .iter()
+                            .find(|tab| tab.id == tab_id)
+                            .map(|tab| tab.name.clone())
+                            .unwrap_or_default();
+                        rename = Some((tab_id, name));
+                        terminal.write(
+                            render_notice("Rename: type a name · Enter save · Esc cancel", columns)
+                                .as_bytes(),
+                        )?;
+                    }
+                    continue;
+                }
                 if key.modifiers.contains(KeyModifiers::ALT) {
                     match key.code {
                         KeyCode::Char('a' | 'A') => {
@@ -419,7 +492,27 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                         KeyCode::Char('w' | 'W') => {
                             if let Some(tab_id) = viewed.clone() {
-                                wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
+                                let busy =
+                                    tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
+                                        matches!(tab.status.as_str(), "working" | "needs-input")
+                                    });
+                                if busy {
+                                    pending_close = Some(tab_id);
+                                    terminal.write(
+                                        render_notice(
+                                            "Stop this agent? Enter stop · Esc cancel",
+                                            columns,
+                                        )
+                                        .as_bytes(),
+                                    )?;
+                                } else {
+                                    wire::send(
+                                        &mut stream,
+                                        "tab.close",
+                                        None,
+                                        TabTarget { tab_id },
+                                    )?;
+                                }
                             }
                             continue;
                         }
@@ -463,7 +556,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         },
                     )?;
                     terminal.restore()?;
-                    print_hint();
+                    print_hint(tabs.len());
                     return Ok(());
                 }
                 let bytes = if failed {
@@ -570,8 +663,17 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             )?,
             Event::Mouse(mouse) => {
                 if mouse.row == 0 {
-                    if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
-                        match strip::hit(&strip_frame, mouse.column).cloned() {
+                    let target = strip::hit(&strip_frame, mouse.column).cloned();
+                    if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Right)) {
+                        if let Some(StripHit::View(tab_id) | StripHit::Close(tab_id)) = target {
+                            context_tab = Some(tab_id);
+                            terminal.write(
+                                render_notice("Tab menu: r rename · c close · Esc cancel", columns)
+                                    .as_bytes(),
+                            )?;
+                        }
+                    } else if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
+                        match target {
                             Some(StripHit::View(tab_id)) => {
                                 viewed = Some(tab_id.clone());
                                 wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
@@ -582,7 +684,24 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             Some(StripHit::New) => {
                                 wire::send(&mut stream, "tab.create", None, create.clone())?
                             }
-                            Some(StripHit::Overflow) | None => {}
+                            Some(StripHit::Overflow) => {
+                                let next = viewed
+                                    .as_ref()
+                                    .and_then(|id| tabs.iter().position(|tab| &tab.id == id))
+                                    .map_or(0, |index| (index + 1) % tabs.len().max(1));
+                                if let Some(tab) = tabs.get(next) {
+                                    viewed = Some(tab.id.clone());
+                                    wire::send(
+                                        &mut stream,
+                                        "tab.view",
+                                        None,
+                                        TabTarget {
+                                            tab_id: tab.id.clone(),
+                                        },
+                                    )?;
+                                }
+                            }
+                            None => {}
                         }
                     }
                     continue;
@@ -741,8 +860,12 @@ impl Drop for OuterTerminal {
     }
 }
 
-fn print_hint() {
-    println!("\x1b[2m1 agent still running run a1 to return.\x1b[0m");
+fn print_hint(count: usize) {
+    if count == 1 {
+        println!("\x1b[2m1 agent still running run a1 to return.\x1b[0m");
+    } else if count > 1 {
+        println!("\x1b[2m{count} agents still running run a1 to return.\x1b[0m");
+    }
 }
 fn encode_key(code: KeyCode, modifiers: KeyModifiers) -> Vec<u8> {
     match code {

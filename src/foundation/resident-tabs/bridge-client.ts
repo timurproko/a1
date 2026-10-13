@@ -37,7 +37,7 @@ export class TabBridgeClient {
   #retry: ReturnType<typeof setTimeout> | null = null;
   #latestStatus: { readonly state: ResidentTabStatus; readonly degraded: boolean; readonly accent: string | null; readonly pendingRequests: number; readonly queuedInput: number } | null = null;
   #accent: string | null = null;
-  #latestSession: { readonly file: string | null; readonly name: string | null } | null = null;
+  #latestSession: { readonly file: string | null; readonly name: string | null; readonly nameSource: "default" | "user" | "auto" } | null = null;
   #heartbeat: unknown | null = null;
   readonly #pending = new Map<number, (accepted: boolean) => void>();
   #startWaiter: ((accepted: boolean) => void) | null = null;
@@ -101,9 +101,9 @@ export class TabBridgeClient {
     this.#accent = accent;
     if (this.#latestStatus !== null) this.status(this.#latestStatus.state, this.#latestStatus.degraded, this.#latestStatus.pendingRequests, this.#latestStatus.queuedInput);
   }
-  session(file: string | null, name: string | null): void {
-    this.#latestSession = { file, name };
-    this.#send("bridge.session", { file, name });
+  session(file: string | null, name: string | null, nameSource: "default" | "user" | "auto" = "default"): void {
+    this.#latestSession = { file, name, nameSource };
+    this.#send("bridge.session", { file, name, nameSource });
   }
 
   requestDetach(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {

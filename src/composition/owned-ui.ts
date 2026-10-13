@@ -42,6 +42,7 @@ import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
 import { deriveResidentTabStatus } from "../features/resident-tab/status-deriver.js";
+import { fallbackAutoName } from "../features/resident-tab/auto-name.js";
 
 /**
  * The session backend composition wires: the owned-UI port, the prompt-suggestion generator, and
@@ -221,7 +222,12 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     backend.identity.sessionId,
   );
   if (tabBridge !== null && settings !== null && ownedSurfaces) tabBridge.accent(settings.value("accentColor"));
-  const unsubscribeTabBridge = tabBridge === null ? () => {} : await bindResidentTabBridge(tabBridge, backend, tabRecovery);
+  const unsubscribeTabBridge = tabBridge === null ? () => {} : await bindResidentTabBridge(
+    tabBridge,
+    backend,
+    tabRecovery,
+    { autoName: settings?.value("tabsAutoName") ?? true },
+  );
   let releaseNotes: ReleaseNoteCatalog | null = null;
   let releaseNotesFailure: unknown;
   if (ownedSurfaces) {
@@ -449,16 +455,20 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
 
 export async function bindResidentTabBridge(
   tabBridge: TabBridgeClient,
-  backend: Pick<ComposedSessionBackend, "identity" | "session">,
+  backend: Pick<ComposedSessionBackend, "identity" | "session" | "workflows">,
   recovery: Pick<ResidentTabRecovery, "settled"> | null = null,
+  options: { readonly autoName?: boolean } = {},
 ): Promise<() => void> {
   await tabBridge.start().catch(() => false);
   tabBridge.status("starting");
   const currentSessionFile = () => currentBackendSessionFile(backend);
   const announceSession = () => {
-    tabBridge.session(currentSessionFile(), backend.session.view().status.footer?.sessionName ?? null);
+    const name = backend.session.view().status.footer?.sessionName ?? null;
+    const nameSource = name === null || /^agent(?: \d+)?$/i.test(name) ? "default" : "user";
+    tabBridge.session(currentSessionFile(), name, nameSource);
   };
   let working = false;
+  let autoNameAttempted = false;
   announceSession();
   return backend.session.onEvent(event => {
     if (event.type === "session-lifecycle") {
@@ -467,6 +477,18 @@ export async function bindResidentTabBridge(
       tabBridge.status(deriveResidentTabStatus({ lifecycle: event.lifecycle, pendingRequests: 0, queuedInput: 0 }));
       if (wasWorking && !working && recovery !== null) {
         void recovery.settled(currentSessionFile()).catch(() => tabBridge.degraded(true));
+      }
+      if (wasWorking && !working && options.autoName === true && !autoNameAttempted) {
+        autoNameAttempted = true;
+        const view = backend.session.view();
+        const currentName = view.status.footer?.sessionName;
+        const prompt = view.transcript.find(block => block.kind === "user")?.text.trim();
+        if (prompt && (currentName == null || /^agent(?: \d+)?$/i.test(currentName))) {
+          const name = fallbackAutoName(prompt);
+          void backend.workflows.executeWorkflow({ command: "name", argument: name }).then(result => {
+            if (result.outcome === "completed") tabBridge.session(currentSessionFile(), name, "auto");
+          }).catch(() => {});
+        }
       }
     }
     if (event.type === "session-view") announceSession();

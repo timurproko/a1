@@ -1353,6 +1353,57 @@ fn serve_attach(
                     )?);
                 }
             }
+            "tab.rename" => {
+                let (_, rename): (_, wire::TabRename) = wire::body(&payload)?;
+                let name = rename.name.trim();
+                let valid = !name.is_empty()
+                    && name.chars().count() <= 64
+                    && !name.chars().any(char::is_control);
+                if !valid {
+                    tx.offer_control(wire::frame(
+                        "tab.rename-refused",
+                        kind.request_id,
+                        wire::ResultBody {
+                            accepted: false,
+                            message: Some("Tab names must be 1–64 printable characters.".into()),
+                        },
+                    )?)
+                    .map_err(str::to_owned)?;
+                    continue;
+                }
+                let commit = {
+                    let mut locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    if let Some(tab) = locked
+                        .registry
+                        .tabs
+                        .iter_mut()
+                        .find(|tab| tab.tab_id == rename.tab_id)
+                    {
+                        tab.display_name = name.to_owned();
+                        tab.name_source = "user".into();
+                        locked.registry.registry_revision =
+                            locked.registry.registry_revision.saturating_add(1);
+                        Some((locked.registry_store.clone(), locked.registry.clone()))
+                    } else {
+                        None
+                    }
+                };
+                let accepted = commit.is_some();
+                if let Some((store, document)) = commit {
+                    commit_registry(store, document)?;
+                }
+                tx.offer_control(wire::frame(
+                    "tab.renamed",
+                    kind.request_id,
+                    wire::ResultBody {
+                        accepted,
+                        message: None,
+                    },
+                )?)
+                .map_err(str::to_owned)?;
+            }
             "tab.close" => {
                 let (_, target): (_, TabTarget) = wire::body(&payload)?;
                 let mut locked = state
@@ -2604,8 +2655,20 @@ fn serve_bridge(
                     .and_then(|file| Path::new(file).parent())
                     .map(|path| path.to_string_lossy().into_owned());
                 if let Some(name) = session.name {
-                    record.display_name = name;
-                    record.name_source = "agent".into();
+                    let name = name.trim();
+                    let source = session.name_source.as_deref().unwrap_or("user");
+                    let valid = !name.is_empty()
+                        && name.chars().count() <= 64
+                        && !name.chars().any(char::is_control);
+                    let auto_rejected = source == "auto" && record.name_source == "user";
+                    if valid && !auto_rejected {
+                        record.display_name = name.to_owned();
+                        record.name_source = match source {
+                            "default" | "auto" | "user" => source,
+                            _ => "user",
+                        }
+                        .into();
+                    }
                 }
             }
             locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);

@@ -1,6 +1,25 @@
 import { describe, expect, it } from "vitest";
+import { fallbackAutoName, generateAutoName, normalizeAutoName } from "../../../src/features/resident-tab/auto-name.js";
 import { deriveResidentTabStatus } from "../../../src/features/resident-tab/status-deriver.js";
 import { RESIDENT_TAB_SHORTCUTS, residentTabShortcutRegistry } from "../../../src/features/resident-tab/shortcuts.js";
+
+describe("resident tab auto naming", () => {
+  it("normalizes and bounds names", () => {
+    expect(normalizeAutoName("  Auth Refactor!! ")).toBe("auth-refactor");
+    expect(normalizeAutoName("extraordinarily-long-session-title")).toBe("extraordinarily");
+    expect(fallbackAutoName("Fix the login callback failure")).toBe("fix-the-login");
+  });
+
+  it("retries once before deterministic fallback", async () => {
+    let calls = 0;
+    await expect(generateAutoName("Fix login callback", async request => {
+      calls++;
+      expect(request.maxTokens).toBe(64);
+      return null;
+    }, 50)).resolves.toBe("fix-login");
+    expect(calls).toBe(2);
+  });
+});
 
 describe("resident tab status", () => {
   it("prioritizes failures, requests, work, and unseen completion", () => {

@@ -137,6 +137,13 @@ pub struct TabTarget {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TabRename {
+    pub tab_id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TabSummary {
     pub tab_id: String,
     pub name: String,
@@ -198,6 +205,8 @@ pub type HolderSnapshot = protocol::HolderSnapshot;
 pub struct BridgeSession {
     pub file: Option<String>,
     pub name: Option<String>,
+    #[serde(default)]
+    pub name_source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
