@@ -4,9 +4,17 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- The failure is deterministic consumer-inventory drift introduced by `986b04e4`: the tool execution component began importing the public `keyText` export, but `config/baselines/pinned-pi-public-api.json` still listed only the status indicator and startup consumers.
+- Reconcile current `develop` rather than duplicate the generated baseline edit. Commit `28678f17` independently added the missing tool-execution consumer while this triage draft was open, and the generated inventory now matches both the source tree and installed Pi packages.
+- Keep the existing exact public-API check unchanged. It detected the omission on every affected core lane, so no assertion, budget, timeout, or coverage adjustment is warranted; the aggregate and Windows lane reconstruction failures are downstream consequences of those failed shards.
 
 ## Evidence
+
+- Failed-run inspection identified `test/repository-governance/pinned-pi-public-api.test.ts` as the common owner on macOS, Ubuntu, and both Windows core shards. Its `keyText` consumer comparison failed because `986b04e4` added `src/integrations/pi/components/upstream/components/tool-execution.ts` as an importer without regenerating the baseline.
+- `git diff b407d8a3..origin/develop -- config/baselines/pinned-pi-public-api.json` showed the exact one-line correction already integrated by `28678f17`; merging current `origin/develop` supplied that correction without a competing hand edit.
+- Focused implementation evidence on Windows Node 24: `node scripts/pi/update-pinned-pi-public-api.mjs --check` reported the 635-export baseline current, and `npx vitest run test/repository-governance/pinned-pi-public-api.test.ts` passed all 5 tests on merged head `bff603214863ce37800f354f8629e1fa68fc8eee`.
+- Pre-finalization observation: the implementation reconciles the already-integrated generated consumer record and changes no runtime behavior. Selected exact-head PR Full regression remains deferred while the PR is draft and will re-run the failed cross-platform core coverage after finalization.
+- Known gaps: none.
 
 - Run [Full regression #60](https://github.com/timurproko/a1/actions/runs/38343910153) (attempt 1, schedule) on `986b04e` at 2026-10-13T03:54:34Z:
   - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-containment`, `update-performance`, `update-predecessor`) failed on macos-15-node24, ubuntu-24.04-node24, windows-2025-node22 (core shard), windows-2025-node24 (core shard) with exit 1.
