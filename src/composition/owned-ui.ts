@@ -40,6 +40,7 @@ import { renderPiShellChangelogLines } from "../integrations/pi/components/shell
 import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
+import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
 
 /**
  * The session backend composition wires: the owned-UI port, the prompt-suggestion generator, and
@@ -89,7 +90,7 @@ export interface OwnedUiCompositionOptions {
   /** Exact native process inspection injected by the shipped entry; absent SDK seams do not publish claims. */
   readonly inspectProcess?: (pid: number) => Promise<NativeProcessIdentity | null>;
   /** Private credentials were consumed by the entry before composition or extensions loaded. */
-  readonly tab?: { readonly bridge: TabBridgeClient };
+  readonly tab?: { readonly bridge: TabBridgeClient; readonly dataDir: string; readonly incarnation: number };
   /** One prompt-adjacent notice explaining why an opted-in resident launch fell back. */
   readonly residentFallbackNotice?: string;
 }
@@ -205,7 +206,20 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     throw error;
   }
   const tabBridge = options.tab?.bridge ?? null;
-  const unsubscribeTabBridge = tabBridge === null ? () => {} : await bindResidentTabBridge(tabBridge, backend);
+  let recoveryDegraded = false;
+  let presentRecoveryDegraded = (_degraded: boolean): void => {};
+  const tabRecovery = options.tab === undefined ? null : new ResidentTabRecovery(options.tab.dataDir, {
+    onDegraded: degraded => {
+      recoveryDegraded = degraded;
+      options.tab!.bridge.degraded(degraded);
+      presentRecoveryDegraded(degraded);
+    },
+  });
+  const recoveredTabInput = await tabRecovery?.initialize(
+    currentBackendSessionFile(backend),
+    backend.identity.sessionId,
+  );
+  const unsubscribeTabBridge = tabBridge === null ? () => {} : await bindResidentTabBridge(tabBridge, backend, tabRecovery);
   let releaseNotes: ReleaseNoteCatalog | null = null;
   let releaseNotesFailure: unknown;
   if (ownedSurfaces) {
@@ -311,7 +325,18 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
           },
         }),
         ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
-        ...(tabBridge === null ? {} : { residentTab: { requestDetach: () => tabBridge.requestDetach() } }),
+        ...(tabBridge === null || tabRecovery === null ? {} : { residentTab: {
+          requestDetach: () => tabBridge.requestDetach(),
+          requestRestart: () => tabBridge.requestRestart(),
+          reportStatus: status => tabBridge.status(status),
+          stallNoticeSeconds: settings?.value("tabsStallNoticeSeconds") ?? 300,
+          admit: input => tabRecovery.admit({ ...input, incarnation: options.tab!.incarnation }),
+          dispatched: () => tabRecovery.dispatched(),
+          correlated: (submissionId, entryId) => tabRecovery.correlated(submissionId, entryId),
+          checkpoint: text => tabRecovery.checkpoint(text),
+          gracefulStop: sessionFile => tabRecovery.gracefulStop(sessionFile),
+          ...(recoveredTabInput === undefined ? {} : { recovered: recoveredTabInput }),
+        } }),
       },
       presentation: {
         ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
@@ -340,6 +365,12 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     // the host and paints once attached.
     terminalHost = createdTerminalHost = new OwnedUiTerminalHost(sessionTerminalHostOptions(presenterOptions));
     presenter = new OwnedUiSessionPresenter(terminalHost, presenterOptions);
+    presentRecoveryDegraded = degraded => {
+      if (!degraded) return;
+      presenter.root.appendWorkflowStatus("draft recovery degraded");
+      terminalHost.runtime.requestRender();
+    };
+    if (recoveryDegraded) presentRecoveryDegraded(true);
     terminalHost.attach(presenter);
   } catch (error) {
     await createdTerminalHost?.dispose().catch(() => undefined);
@@ -413,20 +444,34 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
 export async function bindResidentTabBridge(
   tabBridge: TabBridgeClient,
   backend: Pick<ComposedSessionBackend, "identity" | "session">,
+  recovery: Pick<ResidentTabRecovery, "settled"> | null = null,
 ): Promise<() => void> {
   await tabBridge.start().catch(() => false);
   tabBridge.status("starting");
+  const currentSessionFile = () => currentBackendSessionFile(backend);
   const announceSession = () => {
-    const resume = backend.identity.currentSessionResumeMetadata();
-    tabBridge.session(resume === null ? null : `${resume.sessionDir}/${resume.sessionId}`, backend.session.view().status.footer?.sessionName ?? null);
+    tabBridge.session(currentSessionFile(), backend.session.view().status.footer?.sessionName ?? null);
   };
+  let working = false;
   announceSession();
   return backend.session.onEvent(event => {
     if (event.type === "session-lifecycle") {
-      tabBridge.status(event.lifecycle === "busy" ? "working" : event.lifecycle === "starting" ? "starting" : "idle");
+      const wasWorking = working;
+      working = event.lifecycle === "busy";
+      tabBridge.status(working ? "working" : event.lifecycle === "starting" ? "starting" : "idle");
+      if (wasWorking && !working && recovery !== null) {
+        void recovery.settled(currentSessionFile()).catch(() => tabBridge.degraded(true));
+      }
     }
     if (event.type === "session-view") announceSession();
   });
+}
+
+function currentBackendSessionFile(backend: Pick<ComposedSessionBackend, "identity">): string | null {
+  const direct = backend.identity.currentSessionFile?.();
+  if (direct !== undefined && direct !== null) return direct;
+  const resume = backend.identity.currentSessionResumeMetadata();
+  return resume === null ? null : `${resume.sessionDir}/${resume.sessionId}`;
 }
 
 async function readPackageVersion(): Promise<string> {

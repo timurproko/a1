@@ -8,10 +8,13 @@ pub(crate) const VARIABLES: &[&str] = &[
     "A1_TABS_FAULT_DELAY_HOLDER_IDENTITY_MS",
     "A1_TABS_FAULT_DELAY_FSYNC_MS",
     "A1_TABS_FAULT_DELAY_REGISTRY_FSYNC_MS",
+    REGISTRY_REPLACE,
     "A1_TABS_FAULT_CRASH_POINT",
     "A1_TABS_FAULT_STALE_EPOCH",
     "A1_TABS_FAULT_FREEZE_ROLE",
 ];
+
+pub const REGISTRY_REPLACE: &str = "A1_TABS_FAULT_REGISTRY_REPLACE";
 
 static INSTALLED: OnceLock<HashMap<String, String>> = OnceLock::new();
 
@@ -81,6 +84,19 @@ pub fn validate_environment() -> Result<(), String> {
             Ok(())
         }
     }
+}
+
+#[cfg(feature = "fault-injection")]
+pub fn setting(name: &str) -> Option<String> {
+    VARIABLES.contains(&name).then(|| value(name)).flatten()
+}
+#[cfg(not(feature = "fault-injection"))]
+pub fn setting(_name: &str) -> Option<String> {
+    None
+}
+
+pub fn registry_replace_setting() -> Option<String> {
+    setting(REGISTRY_REPLACE)
 }
 
 #[cfg(feature = "fault-injection")]

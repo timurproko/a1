@@ -15,4 +15,9 @@ export function assignFreshSessionRuntimeId(
 export function consumeTabLaunchContext(
   arguments_: readonly string[],
   environment: Record<string, string | undefined>,
-): { readonly uiArguments: string[]; readonly tabCredentials: TabLaunchCredentials | undefined };
+): {
+  readonly uiArguments: string[];
+  readonly tabCredentials: TabLaunchCredentials | undefined;
+  readonly tabDataDir?: string;
+  readonly tabIncarnation?: number;
+};

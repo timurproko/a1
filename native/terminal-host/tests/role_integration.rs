@@ -134,8 +134,7 @@ setInterval(() => {}, 1000);
     for pid in server_pids(&credentials_root) {
         terminate(pid);
     }
-    std::thread::sleep(Duration::from_millis(500));
-    start_server(&executable, &profile, &data, &runtime, &address);
+    wait_for_holder_started_server(&executable, &profile, &data, &runtime, &address);
     cleanup.pids.extend(server_pids(&credentials_root));
 
     let mut second = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
@@ -171,6 +170,116 @@ setInterval(() => {}, 1000);
     third.write(b"\x03\x03");
     third.wait(Duration::from_secs(8));
 
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
+fn crashed_child_recovers_when_server_dies_after_budget_commit() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    let bin = directory(&release, "bin");
+    std::fs::write(
+        bin.join("ui.js"),
+        r#"
+const fs = require("node:fs");
+const path = require("node:path");
+const marker = path.join(__dirname, "first-child-crashed");
+if (!fs.existsSync(marker)) {
+  fs.writeFileSync(marker, "crashed");
+  process.stdout.write("first-incarnation\r\n");
+  setTimeout(() => process.exit(17), 250);
+} else {
+  process.stdout.write("recovered-incarnation\r\n");
+  process.stdin.resume();
+  setInterval(() => {}, 1000);
+}
+"#,
+    )
+    .expect("fake crash-recovery child");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let mut server = server_command(&executable, &profile, &data, &runtime, &address);
+    server.env("A1_TABS_FAULT_CRASH_POINT", "after-restart-budget-commit");
+    assert!(
+        server
+            .output()
+            .expect("faulted restart server")
+            .status
+            .success()
+    );
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let initial_servers = server_pids(&credentials_root);
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: initial_servers.clone(),
+    };
+    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    assert!(
+        attach.output_containing("first-incarnation", Duration::from_secs(15)),
+        "{}",
+        attach.output_text()
+    );
+    let crash_deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+            .expect("read committed restart registry")
+            .expect("committed restart registry");
+        if registry
+            .tabs
+            .first()
+            .is_some_and(|tab| tab.lifecycle == "restarting" && tab.incarnation == 2)
+        {
+            break;
+        }
+        assert!(
+            Instant::now() < crash_deadline,
+            "restart budget was not committed before the injected crash: {registry:?}"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    std::thread::sleep(Duration::from_millis(500));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let registry = loop {
+        let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+            .expect("read recovery registry")
+            .expect("recovery registry");
+        if registry.tabs.first().is_some_and(|tab| {
+            tab.lifecycle == "running" && tab.incarnation == 2 && tab.child_pid.is_some()
+        }) {
+            break registry;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "post-commit server recovery did not converge: {registry:?}"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    let _ = attach.wait(Duration::from_secs(8));
+    let mut recovered_attach =
+        AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    assert!(
+        recovered_attach.output_containing("recovered-incarnation", Duration::from_secs(15)),
+        "{}",
+        recovered_attach.output_text()
+    );
+    let tab = registry.tabs.first().expect("recovered tab");
+    assert_eq!(tab.lifecycle, "running");
+    assert_eq!(tab.incarnation, 2);
+    assert_eq!(tab.restarts, 1);
+    assert_eq!(tab.last_exit.as_deref(), Some("exit 17"));
+    let recovered_servers = server_pids(&credentials_root);
+    assert_ne!(recovered_servers, initial_servers);
+    cleanup.pids.extend(recovered_servers);
+    recovered_attach.write(b"\x03\x03");
+    recovered_attach.wait(Duration::from_secs(8));
     cleanup.pids.extend(holder_pids(&credentials_root));
 }
 
@@ -466,6 +575,11 @@ fn every_role_watchdog_records_and_terminates_only_its_frozen_process() {
     loop {
         let mut roles = crash_roles(&frozen_runtime.join("tabs").join("crashes"));
         roles.extend(crash_roles(&runtime.join("tabs").join("crashes")));
+        roles.extend(crash_roles(&credentials_root.join("diagnostics")));
+        let frozen_credentials_root = frozen_data
+            .join("tabs")
+            .join(endpoint::endpoint_token(&frozen_profile).expect("frozen profile token"));
+        roles.extend(crash_roles(&frozen_credentials_root.join("diagnostics")));
         if ["server", "holder", "attach"]
             .iter()
             .all(|role| roles.contains(*role))
@@ -484,6 +598,46 @@ fn every_role_watchdog_records_and_terminates_only_its_frozen_process() {
         pids: server_pids(&credentials_root),
     };
     cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
+fn registry_retries_transient_ebusy_and_fails_closed_on_enospc() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    for (mode, succeeds) in [("ebusy-once", true), ("enospc", false)] {
+        let profile = directory(root.path(), &format!("profile-{mode}"));
+        let data = directory(root.path(), &format!("data-{mode}"));
+        let runtime = directory(root.path(), &format!("runtime-{mode}"));
+        protect_runtime(&runtime);
+        let address = fixture_endpoint(&runtime);
+        let output = server_command(&executable, &profile, &data, &runtime, &address)
+            .env(
+                terminal_host_contracts::fault_injection::REGISTRY_REPLACE,
+                mode,
+            )
+            .output()
+            .expect("faulted registry server");
+        assert_eq!(
+            output.status.success(),
+            succeeds,
+            "{mode}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let credentials_root = data
+            .join("tabs")
+            .join(endpoint::endpoint_token(&profile).expect("profile token"));
+        if succeeds {
+            let cleanup = Cleanup {
+                credentials_root: credentials_root.clone(),
+                pids: server_pids(&credentials_root),
+            };
+            assert!(credentials_root.join("registry.json").is_file());
+            drop(cleanup);
+        } else {
+            assert!(!credentials_root.join("registry.json").is_file());
+        }
+    }
 }
 
 #[test]
@@ -542,6 +696,33 @@ fn ten_concurrent_tab_starts_respect_the_server_limit() {
     assert_eq!(registry.tabs.len(), 10);
     assert!(registry.tabs.iter().all(|tab| tab.lifecycle == "running"));
     assert_eq!(holder_identities(&credentials_root).len(), 10);
+    for child in registry.tabs.iter().filter_map(|tab| tab.child_pid) {
+        terminate(child);
+    }
+    let restart_deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let restarted = RegistryStore::read(&credentials_root.join("registry.json"))
+            .expect("read restarted registry")
+            .expect("restarted registry");
+        if restarted.tabs.len() == 10
+            && restarted.tabs.iter().all(|tab| {
+                tab.lifecycle == "running"
+                    && tab.incarnation == 2
+                    && tab.restarts == 1
+                    && tab.child_pid.is_some()
+            })
+        {
+            break;
+        }
+        assert!(
+            Instant::now() < restart_deadline,
+            "ten child restarts did not converge: {restarted:?}"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+        .expect("read converged registry")
+        .expect("converged registry");
     let stopping = registry
         .tabs
         .iter()
@@ -795,7 +976,7 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
     for pid in server_pids(&credentials_root) {
         terminate(pid);
     }
-    start_server(&executable, &profile, &data, &runtime, &address);
+    wait_for_holder_started_server(&executable, &profile, &data, &runtime, &address);
     cleanup.pids.extend(server_pids(&credentials_root));
     assert!(registry_epoch(&credentials_root) > epoch_before);
     assert_eq!(
@@ -1151,6 +1332,40 @@ fn start_server(executable: &Path, profile: &Path, data: &Path, runtime: &Path, 
     panic!("server did not start: {diagnostic}");
 }
 
+fn wait_for_holder_started_server(
+    executable: &Path,
+    profile: &Path,
+    data: &Path,
+    runtime: &Path,
+    address: &str,
+) {
+    let deadline = Instant::now() + Duration::from_secs(40);
+    loop {
+        let probe = Command::new(executable)
+            .args([
+                "probe",
+                "--profile",
+                text(profile),
+                "--data-dir",
+                text(data),
+                "--runtime-dir",
+                text(runtime),
+            ])
+            .env("A1_TABS_ENDPOINT", address)
+            .output()
+            .expect("probe holder-started server");
+        if probe.status.success() {
+            return;
+        }
+        let diagnostic = String::from_utf8_lossy(&probe.stderr);
+        assert!(
+            Instant::now() < deadline,
+            "holders did not start a replacement server: {diagnostic}"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
 fn server_pids(root: &Path) -> Vec<u32> {
     serde_json::from_slice::<serde_json::Value>(
         &std::fs::read(root.join("server.json")).expect("server metadata"),
@@ -1193,6 +1408,69 @@ fn holder_pids(root: &Path) -> Vec<u32> {
                 .collect()
         })
         .unwrap_or_default()
+}
+#[cfg(windows)]
+fn fixture_terminal_host_pids() -> Vec<u32> {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
+        TH32CS_SNAPPROCESS,
+    };
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
+    };
+
+    fn normalized(value: &str) -> String {
+        value
+            .strip_prefix(r"\\?\")
+            .unwrap_or(value)
+            .replace('/', r"\")
+            .to_ascii_lowercase()
+    }
+
+    let expected = normalized(env!("CARGO_BIN_EXE_terminal-host"));
+    let mut matches = Vec::new();
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot.is_null() || snapshot == -1_isize as _ {
+            return matches;
+        }
+        let mut entry = PROCESSENTRY32W {
+            dwSize: size_of::<PROCESSENTRY32W>() as u32,
+            ..Default::default()
+        };
+        if Process32FirstW(snapshot, &mut entry) != 0 {
+            loop {
+                let process =
+                    OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, entry.th32ProcessID);
+                if !process.is_null() {
+                    let mut buffer = [0u16; 32_768];
+                    let mut length = buffer.len() as u32;
+                    if QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut length) != 0
+                    {
+                        let path = OsString::from_wide(&buffer[..length as usize])
+                            .to_string_lossy()
+                            .into_owned();
+                        if normalized(&path) == expected {
+                            matches.push(entry.th32ProcessID);
+                        }
+                    }
+                    CloseHandle(process);
+                }
+                if Process32NextW(snapshot, &mut entry) == 0 {
+                    break;
+                }
+            }
+        }
+        CloseHandle(snapshot);
+    }
+    matches
+}
+#[cfg(not(windows))]
+fn fixture_terminal_host_pids() -> Vec<u32> {
+    Vec::new()
 }
 fn node_executable() -> String {
     let output = Command::new(if cfg!(windows) { "node.exe" } else { "node" })
@@ -1254,11 +1532,25 @@ struct Cleanup {
 }
 impl Drop for Cleanup {
     fn drop(&mut self) {
-        self.pids.extend(holder_pids(&self.credentials_root));
-        self.pids.sort_unstable();
-        self.pids.dedup();
-        for pid in self.pids.iter().rev().copied() {
-            terminate(pid);
+        // Concurrency: teardown reconciles because killing only a server makes holders replace it,
+        // while killing only a holder makes the server replace that holder. Signal the observed
+        // set as one batch, wait for exact identities, then rescan until no replacement remains.
+        let replacement_deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            self.pids.extend(server_pids(&self.credentials_root));
+            self.pids.extend(holder_pids(&self.credentials_root));
+            self.pids.extend(fixture_terminal_host_pids());
+            self.pids.sort_unstable();
+            self.pids.dedup();
+            let batch = std::mem::take(&mut self.pids);
+            terminate_batch(&batch);
+            if Instant::now() >= replacement_deadline {
+                return;
+            }
+            // Concurrency: a holder may already have started a synchronous server launch. The
+            // launch contract has a four-second deadline, so keep rescanning past that deadline
+            // even while registry identities are briefly absent.
+            std::thread::sleep(Duration::from_millis(250));
         }
     }
 }
@@ -1305,14 +1597,35 @@ fn terminate_launch_tree(pid: u32) {
         CloseHandle(job);
     }
 }
-#[cfg(unix)]
 fn terminate(pid: u32) {
+    terminate_batch(&[pid]);
+}
+
+fn terminate_batch(pids: &[u32]) {
+    let expected = pids
+        .iter()
+        .filter_map(|pid| {
+            terminal_host_contracts::identity::inspect_process(*pid)
+                .ok()
+                .flatten()
+        })
+        .collect::<Vec<_>>();
+    for identity in &expected {
+        signal_terminate(identity.pid);
+    }
+    for identity in expected {
+        wait_for_terminated_identity(Some(identity));
+    }
+}
+
+#[cfg(unix)]
+fn signal_terminate(pid: u32) {
     unsafe {
         libc::kill(pid as i32, libc::SIGTERM);
     }
 }
 #[cfg(windows)]
-fn terminate(pid: u32) {
+fn signal_terminate(pid: u32) {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
     let handle = unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid) };
@@ -1321,5 +1634,21 @@ fn terminate(pid: u32) {
             TerminateProcess(handle, 125);
             CloseHandle(handle);
         }
+    }
+}
+
+fn wait_for_terminated_identity(
+    expected: Option<terminal_host_contracts::identity::ProcessIdentity>,
+) {
+    let Some(expected) = expected else { return };
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline
+        && terminal_host_contracts::identity::inspect_process(expected.pid)
+            .ok()
+            .flatten()
+            .as_ref()
+            == Some(&expected)
+    {
+        std::thread::sleep(Duration::from_millis(25));
     }
 }

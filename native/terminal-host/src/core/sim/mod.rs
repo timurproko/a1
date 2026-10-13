@@ -42,7 +42,7 @@ pub fn run(seed: u64, steps: usize) -> Result<(), SimulationFailure> {
         let index = (random % 3) as usize;
         let id = format!("tab-{index}");
         let incarnation = state.tabs.get(&id).map_or(0, |tab| tab.incarnation);
-        match random % 12 {
+        match random % 16 {
             0 => {
                 server::step(
                     &mut state,
@@ -85,9 +85,11 @@ pub fn run(seed: u64, steps: usize) -> Result<(), SimulationFailure> {
                     }),
                     now,
                 );
-                holders
-                    .entry(id.clone())
-                    .or_insert_with(|| holder::State::new(id, incarnation, state.epoch));
+                if state.tabs.get(&id).is_some_and(|tab| {
+                    tab.incarnation == incarnation && tab.lifecycle == Lifecycle::Running
+                }) {
+                    holders.insert(id.clone(), holder::State::new(id, incarnation, state.epoch));
+                }
                 events.push("spawn-or-duplicate-start".into());
             }
             4 => {
@@ -117,11 +119,12 @@ pub fn run(seed: u64, steps: usize) -> Result<(), SimulationFailure> {
                 server::step(
                     &mut state,
                     Event::DeadlineMissed {
-                        tab_id: id,
+                        tab_id: id.clone(),
                         incarnation,
                     },
                     now,
                 );
+                holders.remove(&id);
                 events.push("start-budget-or-child-death".into());
             }
             7 => {
@@ -164,6 +167,55 @@ pub fn run(seed: u64, steps: usize) -> Result<(), SimulationFailure> {
             10 => {
                 events.push("slow-client-message-loss".into());
             }
+            11 if incarnation > 0 => {
+                server::step(
+                    &mut state,
+                    Event::ChildExited {
+                        tab_id: id.clone(),
+                        incarnation,
+                        reason: "injected-exit".into(),
+                    },
+                    now,
+                );
+                holders.remove(&id);
+                events.push("child-exit".into());
+            }
+            12 if incarnation > 0 => {
+                server::step(
+                    &mut state,
+                    Event::ChildExited {
+                        tab_id: id,
+                        incarnation: incarnation.saturating_sub(1),
+                        reason: "late-exit".into(),
+                    },
+                    now,
+                );
+                events.push("late-superseded-child-exit".into());
+            }
+            13 => {
+                server::step(
+                    &mut state,
+                    Event::Retry {
+                        tab_id: id.clone(),
+                        start_fresh: random & 1 == 0,
+                    },
+                    now,
+                );
+                holders.remove(&id);
+                events.push("retry-or-fresh".into());
+            }
+            14 => {
+                server::step(
+                    &mut state,
+                    Event::BridgeConnection {
+                        tab_id: id,
+                        incarnation,
+                        connected: random & 1 == 0,
+                    },
+                    now,
+                );
+                events.push("bridge-reconnect".into());
+            }
             _ => {
                 server::step(
                     &mut state,
@@ -188,7 +240,7 @@ pub fn run(seed: u64, steps: usize) -> Result<(), SimulationFailure> {
     }
     // Invariant: drive level-triggered reconciliation to quiescence after the randomized prefix.
     for _ in 0..16 {
-        now = now.saturating_add(server::START_SPACING);
+        now = now.saturating_add(Duration::from_secs(30));
         server::step(&mut state, Event::Tick { loop_healthy: true }, now);
         let starting = state
             .tabs
@@ -215,14 +267,23 @@ pub fn run(seed: u64, steps: usize) -> Result<(), SimulationFailure> {
                 | Lifecycle::Running
                 | Lifecycle::Stopped
                 | Lifecycle::HolderLost
+                | Lifecycle::Crashed
+                | Lifecycle::Restarting
+                | Lifecycle::Unresponsive
                 | Lifecycle::Failed
         )
     }) {
-        return failure(
+        let states = state
+            .tabs
+            .iter()
+            .map(|(id, tab)| format!("{id}:{:?}", tab.lifecycle))
+            .collect::<Vec<_>>()
+            .join(",");
+        return Err(SimulationFailure {
             seed,
-            &events,
-            "simulation did not converge to a terminal or live state",
-        );
+            events: events[events.len().saturating_sub(64)..].to_vec(),
+            reason: format!("simulation did not converge to a terminal or live state: {states}"),
+        });
     }
     Ok(())
 }

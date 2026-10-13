@@ -13,7 +13,7 @@ import { PiEngineAdapter } from "../../../../src/integrations/pi/engine/index.js
 // Invariant: each list names exactly the members its contract port declares, so a member added to
 // or dropped from either side fails here as well as at the adapter's `implements` clause.
 const PORT_MEMBERS = {
-  identity: ["sessionId", "agentDir", "cwd", "sessionGeneration", "sessionBindingGeneration", "disposed", "currentSessionResumeMetadata"],
+  identity: ["sessionId", "agentDir", "cwd", "sessionGeneration", "sessionBindingGeneration", "disposed", "currentSessionResumeMetadata", "currentSessionFile"],
   session: ["start", "view", "snapshot", "onEvent", "execute", "flushEvents", "dispose"],
   workflows: ["executeWorkflow", "executeBashWorkflow", "cycleModelWorkflow", "workflowAutocompleteCommands", "clearQueuedWorkflows", "reloadBlockedResult", "copyWorkflowText", "setWorkflowInteractionHost"],
   settings: ["productMode", "snapshot", "bindOwner", "setDefaultThinkingLevel", "configuredTheme"],

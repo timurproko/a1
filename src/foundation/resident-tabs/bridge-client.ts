@@ -1,7 +1,7 @@
 import { connect, type Socket } from "node:net";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "./protocol.js";
 
-export type ResidentTabStatus = "starting" | "working" | "idle";
+export type ResidentTabStatus = "starting" | "working" | "idle" | "unresponsive" | "stalled" | "crashed" | "restarting" | "failed";
 export interface TabBridgeCredentials { readonly tabId: string; readonly token: string; readonly endpoint: string }
 export interface TabAttachment { readonly clientId: string; readonly controllerRevision: number }
 
@@ -18,6 +18,9 @@ export interface TabBridgeOptions {
   readonly startIdentity?: string;
   readonly build?: string;
   readonly connect?: (endpoint: string) => BridgeTransport;
+  readonly heartbeatIntervalMs?: number;
+  readonly setInterval?: (callback: () => void, milliseconds: number) => unknown;
+  readonly clearInterval?: (timer: unknown) => void;
 }
 
 /** Metadata-only advisory bridge. Terminal input and transcript bytes have no API here. */
@@ -26,13 +29,15 @@ export class TabBridgeClient {
   #transport: BridgeTransport | null = null;
   #connected = false;
   #available = true;
+  #features = new Set<string>();
   #sequence = 0;
   #request = 0;
   #attachment: TabAttachment | null = null;
   #closed = false;
   #retry: ReturnType<typeof setTimeout> | null = null;
-  #latestStatus: ResidentTabStatus | null = null;
+  #latestStatus: { readonly state: ResidentTabStatus; readonly degraded: boolean } | null = null;
   #latestSession: { readonly file: string | null; readonly name: string | null } | null = null;
+  #heartbeat: unknown | null = null;
   readonly #pending = new Map<number, (accepted: boolean) => void>();
   #startWaiter: ((accepted: boolean) => void) | null = null;
 
@@ -64,7 +69,8 @@ export class TabBridgeClient {
       this.#startWaiter = finish;
       transport.once("connect", () => {
         this.#send("hello", {
-          role: "bridge", generation: 1, build: this.#options.build ?? "a1", features: ["bridge-status", "bridge-detach"],
+          role: "bridge", generation: 1, build: this.#options.build ?? "a1",
+          features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "recovery-journal"],
           token: [...Buffer.from(this.#options.credentials.token, "base64")], tabId: this.#options.credentials.tabId,
           pid: this.#options.pid ?? process.pid, startIdentity: this.#options.startIdentity ?? `${process.pid}:node`,
         }, ++this.#request);
@@ -74,30 +80,37 @@ export class TabBridgeClient {
     });
   }
 
-  status(state: ResidentTabStatus): void {
-    this.#latestStatus = state;
-    this.#send("bridge.status", { seq: ++this.#sequence, state });
+  status(state: ResidentTabStatus, degraded = false): void {
+    this.#latestStatus = { state, degraded };
+    const recoveryState = state === "unresponsive" || state === "stalled" || state === "crashed" || state === "restarting" || state === "failed";
+    if (recoveryState && !this.#supports("recovery-status")) return;
+    this.#send("bridge.status", {
+      seq: ++this.#sequence,
+      state,
+      ...(degraded && this.#supports("recovery-status") ? { degraded: true } : {}),
+    });
+  }
+  degraded(degraded: boolean): void {
+    this.status(this.#latestStatus?.state ?? "idle", degraded);
   }
   session(file: string | null, name: string | null): void {
     this.#latestSession = { file, name };
     this.#send("bridge.session", { file, name });
   }
 
-  async requestDetach(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
-    if (!this.available || origin === null) return false;
-    const requestId = ++this.#request;
-    const result = new Promise<boolean>(resolvePromise => this.#pending.set(requestId, resolvePromise));
-    this.#send("bridge.request", { action: "detach", clientId: origin.clientId, controllerRevision: origin.controllerRevision }, requestId);
-    const timeout = new Promise<boolean>(resolvePromise => {
-      const timer = setTimeout(() => { this.#pending.delete(requestId); resolvePromise(false); }, timeoutMs); timer.unref();
-    });
-    return await Promise.race([result, timeout]);
+  requestDetach(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
+    return this.#requestAction("detach", origin, timeoutMs);
+  }
+
+  requestRestart(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
+    return this.#requestAction("restart", origin, timeoutMs);
   }
 
   close(): void {
     this.#closed = true;
     if (this.#retry !== null) clearTimeout(this.#retry);
     this.#retry = null;
+    this.#stopHeartbeat();
     const transport = this.#transport;
     this.#transport = null;
     transport?.destroy();
@@ -112,10 +125,13 @@ export class TabBridgeClient {
 
   #receive(message: ResidentEnvelope): void {
     if (message.type === "welcome" && message.body["generation"] === 1) {
+      const advertised = message.body["features"];
+      this.#features = new Set(Array.isArray(advertised) ? advertised.filter((feature): feature is string => typeof feature === "string") : []);
       this.#connected = true;
       this.#available = true;
       this.#startWaiter?.(true);
-      if (this.#latestStatus !== null) this.#send("bridge.status", { seq: ++this.#sequence, state: this.#latestStatus });
+      if (this.#supports("bridge-heartbeat")) this.#startHeartbeat();
+      if (this.#latestStatus !== null) this.status(this.#latestStatus.state, this.#latestStatus.degraded);
       if (this.#latestSession !== null) this.#send("bridge.session", this.#latestSession);
       return;
     }
@@ -131,9 +147,38 @@ export class TabBridgeClient {
     }
   }
 
+  async #requestAction(action: "detach" | "restart", origin: TabAttachment | null, timeoutMs: number): Promise<boolean> {
+    if (!this.available || origin === null || (action === "restart" && !this.#supports("bridge-restart"))) return false;
+    const requestId = ++this.#request;
+    const result = new Promise<boolean>(resolvePromise => this.#pending.set(requestId, resolvePromise));
+    this.#send("bridge.request", { action, clientId: origin.clientId, controllerRevision: origin.controllerRevision }, requestId);
+    const timeout = new Promise<boolean>(resolvePromise => {
+      const timer = setTimeout(() => { this.#pending.delete(requestId); resolvePromise(false); }, timeoutMs); timer.unref();
+    });
+    return await Promise.race([result, timeout]);
+  }
+
+  #startHeartbeat(): void {
+    if (this.#heartbeat !== null) return;
+    const schedule = this.#options.setInterval ?? ((callback: () => void, milliseconds: number) => setInterval(callback, milliseconds));
+    this.#heartbeat = schedule(() => this.#send("bridge.heartbeat", { seq: ++this.#sequence }), this.#options.heartbeatIntervalMs ?? 5_000);
+    (this.#heartbeat as { unref?: () => void }).unref?.();
+  }
+
+  #stopHeartbeat(): void {
+    if (this.#heartbeat === null) return;
+    (this.#options.clearInterval ?? (timer => clearInterval(timer as ReturnType<typeof setInterval>)))(this.#heartbeat);
+    this.#heartbeat = null;
+  }
+
+  #supports(feature: string): boolean {
+    return this.#features.has("crash-recovery") || this.#features.has(feature);
+  }
+
   #fail(retry = true): void {
     const transport = this.#transport;
-    this.#available = false; this.#connected = false; this.#attachment = null; this.#transport = null;
+    this.#stopHeartbeat();
+    this.#available = false; this.#connected = false; this.#features.clear(); this.#attachment = null; this.#transport = null;
     transport?.destroy();
     this.#startWaiter?.(false); this.#startWaiter = null;
     for (const resolvePromise of this.#pending.values()) resolvePromise(false);

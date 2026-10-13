@@ -86,6 +86,9 @@ pub struct Welcome {
 fn is_zero(value: &u64) -> bool {
     *value == 0
 }
+fn is_false(value: &bool) -> bool {
+    !*value
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -114,6 +117,45 @@ pub struct BridgeRequest {
     pub action: String,
     pub client_id: String,
     pub controller_revision: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BridgeHeartbeat {
+    pub seq: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BridgeStatus {
+    pub seq: u64,
+    pub state: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub degraded: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HolderRespawn {
+    pub tab_id: String,
+    pub incarnation: u64,
+    pub session_file: Option<String>,
+    #[serde(default)]
+    pub recovery_journals: Vec<String>,
+    #[serde(default)]
+    pub start_fresh: bool,
+    #[serde(default)]
+    pub holder_token: Vec<u8>,
+    #[serde(default)]
+    pub bridge_token: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HolderSnapshot {
+    pub tab_id: String,
+    pub incarnation: u64,
+    pub status: String,
 }
 
 pub fn encode_frame<T: Serialize>(value: &T) -> Result<Vec<u8>, ProtocolError> {
@@ -296,6 +338,66 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
                     action: "detach".to_owned(),
                     client_id: "client-1".to_owned(),
                     controller_revision: 7,
+                },
+            })?,
+        ),
+        (
+            "bridge-request-restart.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.request".to_owned(),
+                request_id: Some(10),
+                body: BridgeRequest {
+                    action: "restart".to_owned(),
+                    client_id: "client-1".to_owned(),
+                    controller_revision: 7,
+                },
+            })?,
+        ),
+        (
+            "bridge-heartbeat.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.heartbeat".to_owned(),
+                request_id: None,
+                body: BridgeHeartbeat { seq: 11 },
+            })?,
+        ),
+        (
+            "bridge-status-unresponsive.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.status".to_owned(),
+                request_id: None,
+                body: BridgeStatus {
+                    seq: 12,
+                    state: "unresponsive".to_owned(),
+                    degraded: false,
+                },
+            })?,
+        ),
+        (
+            "holder-respawn.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "holder.respawn".to_owned(),
+                request_id: Some(13),
+                body: HolderRespawn {
+                    tab_id: "tab-1".to_owned(),
+                    incarnation: 2,
+                    session_file: Some("session.jsonl".to_owned()),
+                    recovery_journals: vec!["journal.jsonl".to_owned()],
+                    start_fresh: false,
+                    holder_token: vec![1, 2, 3],
+                    bridge_token: vec![4, 5, 6],
+                },
+            })?,
+        ),
+        (
+            "holder-snapshot.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "holder.snapshot".to_owned(),
+                request_id: None,
+                body: HolderSnapshot {
+                    tab_id: "tab-1".to_owned(),
+                    incarnation: 1,
+                    status: "crashed".to_owned(),
                 },
             })?,
         ),

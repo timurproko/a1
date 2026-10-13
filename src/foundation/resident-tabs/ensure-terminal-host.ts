@@ -29,6 +29,7 @@ export interface EnsureTerminalHostOptions {
   readonly architecture?: string;
   readonly timeoutMs?: number;
   readonly maxConcurrentStarts?: number;
+  readonly unresponsiveRestartSeconds?: number;
   readonly run?: (executable: string, arguments_: readonly string[], environment: NodeJS.ProcessEnv, timeoutMs: number) => Promise<HostCommandResult>;
 }
 
@@ -72,7 +73,12 @@ export async function ensureTerminalHost(options: EnsureTerminalHostOptions): Pr
     if (existing?.outcome !== "not-running" && probe.code !== 3) return { status: "fallback", reason: classifiedReason(existing?.reason, "host probe failed") };
 
     const maximum = Math.max(1, Math.min(8, Math.trunc(options.maxConcurrentStarts ?? 2)));
-    const start = await run(executable, ["server", "--detach", ...common, "--max-concurrent-starts", String(maximum)], environment, timeoutMs);
+    const unresponsiveRestartSeconds = Math.max(30, Math.min(600, Math.trunc(options.unresponsiveRestartSeconds ?? 120)));
+    const start = await run(executable, [
+      "server", "--detach", ...common,
+      "--max-concurrent-starts", String(maximum),
+      "--unresponsive-restart-seconds", String(unresponsiveRestartSeconds),
+    ], environment, timeoutMs);
     const started = parseResult(start.stdout);
     if (start.code !== 0) return { status: "fallback", reason: classifiedReason(started?.reason, "launch not verified") };
     if (started?.verified !== true || typeof started.endpoint !== "string") return { status: "fallback", reason: "launch not verified" };

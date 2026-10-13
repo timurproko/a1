@@ -145,6 +145,24 @@ export interface OwnedUiShellEngineOptions {
   /** Resident tab quit routes detach the outer client without stopping this engine session. */
   readonly residentTab?: {
     requestDetach(): Promise<boolean>;
+    requestRestart?(): Promise<boolean>;
+    reportStatus?(status: "working" | "idle" | "stalled"): void;
+    readonly stallNoticeSeconds?: number;
+    admit?(input: {
+      readonly sessionId: string;
+      readonly sessionFile: string | null;
+      readonly kind: "prompt" | "steer" | "follow-up";
+      readonly text: string;
+      readonly images?: readonly unknown[];
+    }): Promise<{ readonly id: string }>;
+    dispatched?(): void;
+    correlated?(submissionId: string, entryId: string): Promise<void>;
+    checkpoint?(text: string): void;
+    gracefulStop?(sessionFile: string | null): Promise<void>;
+    readonly recovered?: {
+      readonly prompts: readonly { readonly id: string; readonly text: string }[];
+      readonly draft: string | null;
+    };
     readonly unavailableNotice?: string;
   };
 }

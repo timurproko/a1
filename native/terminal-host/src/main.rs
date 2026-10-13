@@ -166,6 +166,9 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     )?;
     let context = contracts::roles::wire::ServerLaunchConfig {
         profile: profile.to_string_lossy().into_owned(),
+        os_session_identity: contracts::identity::current_system()
+            .map_err(|error| error.to_string())?
+            .os_session,
         data_dir: data.to_string_lossy().into_owned(),
         runtime_dir: runtime.to_string_lossy().into_owned(),
         endpoint: endpoint.clone(),
@@ -173,13 +176,31 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
             .and_then(|value| value.parse().ok())
             .unwrap_or(2)
             .clamp(1, 8),
+        unresponsive_restart_seconds: optional_role_value(
+            arguments,
+            "--unresponsive-restart-seconds",
+        )
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(120)
+        .clamp(30, 600),
         fault_environment: contracts::fault_injection::capture(),
     };
-    let launched = contracts::launch::launch_resident_with_config(
-        contracts::launch::ResidentRole::Server,
-        &profile,
-        &context,
-    );
+    let launched = if arguments
+        .iter()
+        .any(|value| value == "--resident-parent-holder")
+    {
+        contracts::launch::launch_resident_with_config_from_resident(
+            contracts::launch::ResidentRole::Server,
+            &profile,
+            &context,
+        )
+    } else {
+        contracts::launch::launch_resident_with_config(
+            contracts::launch::ResidentRole::Server,
+            &profile,
+            &context,
+        )
+    };
     let (_process, observation) = match launched {
         Ok(value) => value,
         Err(error) => {
