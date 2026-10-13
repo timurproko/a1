@@ -25,7 +25,7 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 - [ ] 4.1 Declare tab actions in `src/features/resident-tab/shortcuts.ts`. Default only new (`Alt+A`), close (`Alt+W`), rename (`F2`), jump 1–10 (`Alt+1`…`Alt+0`), and failed-banner retry/fresh. Declare next/previous/move-left/move-right unbound but assignable through `keybindings.json`; conflict-check assigned bindings and list effective assignments in `/hotkeys`.
 - [ ] 4.2 Match decoded crossterm, kitty, and legacy key events before libghostty-vt encoding; consume assigned actions, consume out-of-range jumps without changing tabs, and forward unmatched input. Render failed/stalled banner actions from the effective table without exposing `/restart-tab`.
-- [x] 4.3 Extract the clear/exit interval and implement fixed double-`Ctrl+C` detach: first press reaches the tab, second is consumed locally, and a selection-clearing press does not arm the chord.
+- [ ] 4.3 Extract the clear/exit interval and implement fixed double-`Ctrl+C` detach: first press reaches the tab, second is consumed locally, and a selection-clearing press does not arm the chord.
 - [ ] 4.4 Add no tab-management slash commands: do not expose `/new-tab`, `/close`, `/tabs`, `/quit-all`, or `/restart-tab`. Keep existing `/name` synchronized with tab/session naming and keep existing `/quit` and empty-editor `Ctrl+D` as origin-stamped local-client detach routes.
 - [ ] 4.5 Implement close from `×`, `Alt+W`, context menu, and failed/stalled UI: busy confirmation, `desired=stopped`, 5-second graceful bridge stop, verified-tree termination, platform graceful fallback, last-tab empty state, and resumable committed session.
 

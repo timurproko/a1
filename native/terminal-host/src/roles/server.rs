@@ -195,6 +195,8 @@ struct RuntimeState {
     clients: HashMap<String, ClientSession>,
     bridges: HashMap<String, BridgePeer>,
     bridge_status_sequences: HashMap<String, (u64, u64)>,
+    status_persist_pending: std::collections::HashSet<String>,
+    status_last_persist: HashMap<String, std::time::Instant>,
     holders: HashMap<String, HolderSession>,
     launches: HashMap<String, AttachStart>,
     holders_terminating: std::collections::HashSet<String>,
@@ -512,6 +514,8 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         clients: HashMap::new(),
         bridges: HashMap::new(),
         bridge_status_sequences: HashMap::new(),
+        status_persist_pending: std::collections::HashSet::new(),
+        status_last_persist: HashMap::new(),
         holders: HashMap::new(),
         launches,
         holders_terminating: std::collections::HashSet::new(),
@@ -1056,12 +1060,62 @@ fn bridge_surface_status(
     } else {
         reported
     };
-    if next == "idle" && previous == "working" && !viewed {
+    if next == "idle" && matches!(previous, "working" | "needs-input") && !viewed {
         next = "done-unseen".into();
     } else if next == "done-unseen" && viewed {
         next = "idle".into();
     }
     next
+}
+
+fn mark_attention(attention_seq: &mut u64) {
+    *attention_seq = attention_seq.saturating_add(1);
+}
+
+fn mark_seen(attention_seq: u64, seen_seq: &mut u64) -> bool {
+    if *seen_seq >= attention_seq {
+        return false;
+    }
+    *seen_seq = attention_seq;
+    true
+}
+
+fn plan_status_persist(locked: &mut RuntimeState, tab_id: &str) -> Option<std::time::Duration> {
+    if !locked.status_persist_pending.insert(tab_id.to_owned()) {
+        return None;
+    }
+    let now = std::time::Instant::now();
+    Some(
+        locked
+            .status_last_persist
+            .get(tab_id)
+            .and_then(|last| last.checked_add(std::time::Duration::from_secs(1)))
+            .map_or(std::time::Duration::ZERO, |due| {
+                due.saturating_duration_since(now)
+            }),
+    )
+}
+
+fn persist_status_after(
+    state: Arc<Mutex<RuntimeState>>,
+    tab_id: String,
+    delay: std::time::Duration,
+) {
+    thread::spawn(move || {
+        if !delay.is_zero() {
+            thread::sleep(delay);
+        }
+        let commit = state.lock().ok().map(|mut locked| {
+            locked.status_persist_pending.remove(&tab_id);
+            locked
+                .status_last_persist
+                .insert(tab_id, std::time::Instant::now());
+            (locked.registry_store.clone(), locked.registry.clone())
+        });
+        if let Some((store, document)) = commit {
+            let _ = commit_registry(store, document);
+        }
+    });
 }
 
 fn broadcast_tab_status(locked: &RuntimeState, surface: &Surface) -> Result<(), String> {
@@ -1414,6 +1468,19 @@ fn serve_attach(
                 if let Some(surface) = seen.as_ref() {
                     broadcast_tab_status(&locked, surface)?;
                 }
+                let seen_changed = locked
+                    .registry
+                    .tabs
+                    .iter_mut()
+                    .find(|tab| tab.tab_id == target.tab_id)
+                    .is_some_and(|tab| mark_seen(tab.attention_seq, &mut tab.seen_seq));
+                let status_persist = if seen_changed {
+                    locked.registry.registry_revision =
+                        locked.registry.registry_revision.saturating_add(1);
+                    plan_status_persist(&mut locked, &target.tab_id)
+                } else {
+                    None
+                };
                 let previous = locked.clients.get(&client_id).map(|client| {
                     (
                         client.viewed_tab.clone(),
@@ -1490,6 +1557,10 @@ fn serve_attach(
                             controller_revision,
                         },
                     )?);
+                }
+                drop(locked);
+                if let Some(delay) = status_persist {
+                    persist_status_after(state.clone(), target.tab_id, delay);
                 }
             }
             "tab.reorder" => {
@@ -1885,6 +1956,8 @@ fn start_holder(
             restarts: 0,
             restart_window_start: None,
             requested_restart: false,
+            attention_seq: 0,
+            seen_seq: 0,
         });
         locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
         let document = locked.registry.clone();
@@ -2181,6 +2254,14 @@ fn serve_holder(
                 {
                     surface.status = existing.status.clone();
                     surface.accent = existing.accent.clone();
+                } else if locked
+                    .registry
+                    .tabs
+                    .iter()
+                    .find(|record| record.tab_id == tab_id)
+                    .is_some_and(|record| record.attention_seq > record.seen_seq)
+                {
+                    surface.status = "done-unseen".into();
                 }
                 locked.surfaces.insert(tab_id.clone(), surface.clone());
                 for client in locked
@@ -2858,19 +2939,42 @@ fn serve_bridge(
                 .clients
                 .values()
                 .any(|client| client.viewed_tab == tab_id);
-            let updated = if let Some(surface) = locked.surfaces.get_mut(&tab_id) {
-                surface.status = bridge_surface_status(
-                    &surface.status,
-                    status.state,
-                    status.pending_requests,
-                    status.queued_input,
-                    status.degraded,
-                    viewed,
-                );
-                if status.accent.is_some() {
-                    surface.accent = status.accent;
+            let (updated, attention_changed) =
+                if let Some(surface) = locked.surfaces.get_mut(&tab_id) {
+                    let previous = surface.status.clone();
+                    surface.status = bridge_surface_status(
+                        &previous,
+                        status.state,
+                        status.pending_requests,
+                        status.queued_input,
+                        status.degraded,
+                        viewed,
+                    );
+                    if status.accent.is_some() {
+                        surface.accent = status.accent;
+                    }
+                    (
+                        Some(surface.clone()),
+                        matches!(previous.as_str(), "working" | "needs-input")
+                            && surface.status == "done-unseen",
+                    )
+                } else {
+                    (None, false)
+                };
+            let status_persist = if attention_changed {
+                if let Some(record) = locked
+                    .registry
+                    .tabs
+                    .iter_mut()
+                    .find(|record| record.tab_id == tab_id)
+                {
+                    mark_attention(&mut record.attention_seq);
+                    locked.registry.registry_revision =
+                        locked.registry.registry_revision.saturating_add(1);
+                    plan_status_persist(&mut locked, &tab_id)
+                } else {
+                    None
                 }
-                Some(surface.clone())
             } else {
                 None
             };
@@ -2885,6 +2989,10 @@ fn serve_bridge(
                         .peer
                         .offer_surface(wire::frame("surface", None, surface.clone())?);
                 }
+            }
+            drop(locked);
+            if let Some(delay) = status_persist {
+                persist_status_after(state.clone(), tab_id.clone(), delay);
             }
         } else if kind.message_type == "bridge.session" {
             let (_, session): (_, BridgeSession) = wire::body(&payload)?;
@@ -3063,9 +3171,15 @@ fn serve_bridge(
         .find(|record| record.tab_id == tab_id)
         .map_or_else(
             || "idle".to_owned(),
-            |record| match record.lifecycle.as_str() {
-                "running" => "idle".to_owned(),
-                lifecycle => lifecycle.to_owned(),
+            |record| {
+                if record.attention_seq > record.seen_seq {
+                    "done-unseen".to_owned()
+                } else {
+                    match record.lifecycle.as_str() {
+                        "running" => "idle".to_owned(),
+                        lifecycle => lifecycle.to_owned(),
+                    }
+                }
             },
         );
     let fallback_surface = locked.surfaces.get_mut(&tab_id).map(|surface| {
@@ -3197,6 +3311,10 @@ mod tests {
             "idle"
         );
         assert_eq!(
+            bridge_surface_status("needs-input", "idle".into(), 0, 0, false, false),
+            "done-unseen"
+        );
+        assert_eq!(
             bridge_surface_status("idle", "idle".into(), 1, 0, false, false),
             "needs-input"
         );
@@ -3208,6 +3326,13 @@ mod tests {
             bridge_surface_status("idle", "suspended".into(), 0, 0, false, false),
             "idle"
         );
+        let mut attention = u64::MAX;
+        mark_attention(&mut attention);
+        assert_eq!(attention, u64::MAX);
+        let mut seen = 2;
+        assert!(mark_seen(3, &mut seen));
+        assert_eq!(seen, 3);
+        assert!(!mark_seen(3, &mut seen));
     }
 
     #[test]
