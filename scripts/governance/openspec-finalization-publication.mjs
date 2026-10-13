@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { inspectUnassociatedPull } from "./openspec-association-policy.mjs";
+import { parseImplementationAcceptanceScenarios, parseImplementationProgress } from "./openspec-acceptance-checklist.mjs";
 import { prepareSinglePrDelivery, replaceImplementationMetadata } from "./openspec-delivery-finalization.mjs";
 import { readCanonicalSpecs } from "./openspec-delivery-git.mjs";
 import { archiveFailure, archivePaths, assertArchiveDiff, parseImplementation, SHA } from "./openspec-archive-policy.mjs";
@@ -17,9 +18,10 @@ function utcDate(now = Date.now()) {
 }
 
 /** Decide whether the workflow has anything to do for this pull request before touching Git. */
-export function classifyFinalizationCandidate(pull, repository) {
+export function classifyFinalizationCandidate(pull, repository, { allowDraft = false } = {}) {
   if (!pull || pull.state !== "open") return { skip: "closed" };
-  if (pull.draft !== false) return { skip: "draft" };
+  if (pull.draft !== false && pull.draft !== true) throw archiveFailure("finalization-candidate-identity");
+  if (pull.draft && !allowDraft) return { skip: "draft" };
   let implementation = null;
   try { implementation = parseImplementation(pull.body ?? ""); } catch { return { skip: "malformed-metadata" }; }
   if (!implementation) return { skip: "unassociated" };
@@ -27,9 +29,10 @@ export function classifyFinalizationCandidate(pull, repository) {
   if (pull.base?.ref !== "develop" || pull.base.repo?.full_name !== repository || pull.head?.repo?.full_name !== repository
     || !SHA.test(pull.head.sha ?? "") || typeof pull.head.ref !== "string" || !/^[A-Za-z0-9._\/-]{1,200}$/.test(pull.head.ref)
     || pull.head.ref.split("/").some(part => !part || part.startsWith(".") || part.endsWith(".lock") || part === "..")) {
+    if (pull.draft) return { skip: "draft-ineligible-identity" };
     throw archiveFailure("finalization-candidate-identity");
   }
-  return { implementation };
+  return { implementation, draft: pull.draft };
 }
 
 function scratchEnvironment(root, token) {
@@ -64,9 +67,85 @@ async function archiveCapabilities(checkout, archive) {
   return found.sort();
 }
 
+function samePromotionSnapshot(current, expected, repository) {
+  return current?.number === expected.number && current.state === "open" && current.draft === true
+    && current.node_id === expected.node_id && current.body === expected.body
+    && current.base?.ref === expected.base?.ref && current.base?.sha === expected.base?.sha
+    && current.base?.repo?.full_name === repository
+    && current.head?.ref === expected.head?.ref && current.head?.sha === expected.head?.sha
+    && current.head?.repo?.full_name === repository;
+}
+
+const DRAFT_INFRASTRUCTURE_FAILURES = new Set([
+  "archive-deadline", "finalization-git", "publication-app-setup", "target-identity", "target-advanced",
+]);
+
+function draftBlock(error) {
+  if (error?.archiveCode === "finalization-head-changed") return { disposition: "retry", reason: "draft-head-changed", commits: [] };
+  return typeof error?.archiveCode === "string" && !DRAFT_INFRASTRUCTURE_FAILURES.has(error.archiveCode)
+    ? { disposition: "skipped", reason: `draft-${error.archiveCode}`, commits: [] }
+    : null;
+}
+
+/** Validate one exact completed draft without writing its branch, then perform only the ready mutation. */
+async function promoteCompletedDraft({ reader, publisher, pull, implementation, number, toolRoot, gitImpl, remoteUrl, date, deadline }) {
+  try {
+    const progress = parseImplementationProgress(pull.body ?? "", { requireComplete: true });
+    if (progress.format !== "checklist") throw archiveFailure("implementation-progress-legacy-draft");
+    parseImplementationAcceptanceScenarios(pull.body ?? "", 3);
+  } catch (error) {
+    const blocked = draftBlock(error);
+    if (blocked) return { ...blocked, head: pull.head.sha };
+    throw error;
+  }
+  if (typeof pull.node_id !== "string" || !pull.node_id) throw archiveFailure("finalization-candidate-identity");
+  const target = (await reader.get(`${reader.prefix}/git/ref/heads/develop`)).object?.sha;
+  if (!SHA.test(target ?? "")) throw archiveFailure("target-identity");
+  if (pull.base?.sha !== target) return { disposition: "retry", reason: "draft-target-changed", head: pull.head.sha, commits: [] };
+  const root = await realpath(await mkdtemp(join(tmpdir(), "openspec-readiness-")));
+  const checkout = join(root, "checkout");
+  await mkdir(checkout);
+  const env = scratchEnvironment(root, publisher.token);
+  async function git(args, { allowFailure = false } = {}) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw archiveFailure("archive-deadline");
+    try { return (await gitImpl("git", args, { cwd: checkout, env, timeout: Math.min(120_000, remaining), maxBuffer: MAX_OUTPUT })).stdout.trim(); }
+    catch (error) {
+      if (allowFailure) return null;
+      throw archiveFailure("finalization-git", args[0]);
+    }
+  }
+  try {
+    await git(["init", "--quiet"]);
+    await git(["remote", "add", "origin", remoteUrl ?? `https://github.com/${reader.repository}.git`]);
+    await git(["sparse-checkout", "set", "--cone", "openspec"]);
+    await git(["fetch", "--quiet", "--filter=blob:none", "origin", "+refs/heads/develop:refs/remotes/origin/develop",
+      `+refs/heads/${pull.head.ref}:refs/remotes/origin/candidate`]);
+    if (await git(["rev-parse", "refs/remotes/origin/develop"]) !== target) throw archiveFailure("target-advanced");
+    if (await git(["rev-parse", "refs/remotes/origin/candidate"]) !== pull.head.sha) throw archiveFailure("finalization-head-changed");
+    await git(["checkout", "--quiet", "--detach", pull.head.sha]);
+    if ((await git(["merge-base", "--is-ancestor", target, pull.head.sha], { allowFailure: true })) === null) {
+      throw archiveFailure("delivery-target-stale");
+    }
+    const targetSpecs = await readCanonicalSpecs({ cwd: checkout, sha: target, env, gitImpl });
+    await prepareSinglePrDelivery({ root: checkout, change: implementation.change, repository: reader.repository, sourcePr: number,
+      body: pull.body ?? "", specBaseSha: target, date, targetSpecs, write: false, toolRoot });
+  } catch (error) {
+    const blocked = draftBlock(error);
+    if (blocked) return { ...blocked, head: pull.head.sha };
+    throw error;
+  } finally { await rm(root, { recursive: true, force: true }); }
+  const current = await reader.get(`${reader.prefix}/pulls/${number}`);
+  if (!samePromotionSnapshot(current, pull, reader.repository)) {
+    return { disposition: "retry", reason: "draft-changed-before-ready", head: pull.head.sha, commits: [] };
+  }
+  await publisher.ready(number, pull.node_id);
+  return { disposition: "promoted", head: pull.head.sha, promoted: true, commits: [] };
+}
+
 /**
- * Reconcile one ready version-3 pull request to its finalized form: finalize an active head, re-finalize a drifted
- * one, or merge `develop` first when the head is behind, then push the result with a lease and update the body fence.
+ * Promote one complete draft or reconcile one ready version-3 pull request to its finalized form: finalize an active
+ * head, re-finalize a drifted one, or merge `develop` first when the head is behind.
  */
 export async function reconcileFinalization({ reader, publisher, number, toolRoot, gitImpl = execute, remoteUrl = null,
   date = utcDate(), deadline = Infinity }) {
@@ -75,15 +154,17 @@ export async function reconcileFinalization({ reader, publisher, number, toolRoo
   const prefix = reader.prefix;
   const pull = await reader.get(`${prefix}/pulls/${number}`);
   if (pull.number !== number) throw archiveFailure("implementation-pr");
-  const classified = classifyFinalizationCandidate(pull, reader.repository);
+  const classified = classifyFinalizationCandidate(pull, reader.repository, { allowDraft: true });
   if (classified.skip) {
-    if (classified.skip === "unassociated") {
+    if (classified.skip === "unassociated" && !pull.draft) {
       const association = await inspectUnassociatedPull(reader, pull);
       if (association.blocked) throw archiveFailure(association.reason, association.changes.join(","));
     }
     return { disposition: "skipped", reason: classified.skip, head: pull.head?.sha ?? null };
   }
   const { implementation } = classified;
+  if (classified.draft) return await promoteCompletedDraft({ reader, publisher, pull, implementation, number, toolRoot, gitImpl,
+    remoteUrl, date, deadline });
   const change = implementation.change;
   const target = (await reader.get(`${prefix}/git/ref/heads/develop`)).object?.sha;
   if (!SHA.test(target ?? "")) throw archiveFailure("target-identity");

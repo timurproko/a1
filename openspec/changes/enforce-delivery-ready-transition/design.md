@@ -9,8 +9,8 @@ Drafts deliberately run no Development suites. Ready version-3 PRs deliberately 
 **Goals:**
 - Make progress and closeout rules visible to every repository implementation agent without relying on skill routing.
 - Update PR-body implementation progress during the draft implementation, not after handoff.
-- Make checking the final item, adding acceptance, pushing, and marking ready one mandatory closeout operation.
-- Recover safely when an agent completed every authoritative pre-ready input but forgot only the ready mutation.
+- Make checking completed items the agent's only readiness signal; trusted workflow automation owns the ready mutation.
+- Promote every exact eligible all-checked draft automatically on bounded pull-request events.
 - Preserve draft CI suppression for incomplete work and all existing finalization and maintainer-integration safeguards.
 
 **Non-Goals:**
@@ -25,7 +25,7 @@ Drafts deliberately run no Development suites. Ready version-3 PRs deliberately 
 
 ### Put the closeout contract in always-loaded agent context
 
-The root context used by repository coding agents will carry a concise mandatory rule: implementation-bound work loads the detailed delivery skill, keeps the PR draft while work is incomplete, updates each exact marker as soon as its outcome and pre-ready evidence are complete, and may not report implementation complete while an eligible PR remains draft. The final item is checked only after the plain acceptance list and every other pre-ready input are ready; the same agent turn then reconciles and pushes the branch, marks the PR ready, and confirms the remote state.
+The root context used by repository coding agents will carry a concise mandatory rule: implementation-bound work loads the detailed delivery skill, keeps the PR draft while work is incomplete, and updates each exact marker as soon as its outcome and pre-ready evidence are complete. The final item is checked only after the plain acceptance list, every other pre-ready input, and the reconciled branch are pushed. That check completes the agent-owned implementation job; the agent does not invoke or control readiness.
 
 The detailed skill, OpenSpec configuration, and runbook remain authoritative for edge cases. Focused tests will keep the always-loaded wording aligned with them. This avoids copying the entire runbook into the system prompt while removing optional skill selection as the only route to the critical transition.
 
@@ -49,7 +49,7 @@ The trusted default-branch finalization entrypoint will inspect associated versi
 
 The normal ready-for-review event then runs the existing finalization path, whose eventual exact-head body binding starts Development validation. Promotion itself edits no body text, code, task file, evidence, specification, archive, acceptance manifest, auto-merge setting, or branch ref.
 
-This fallback makes the workflow resilient when the agent forgets only `gh pr ready`; the agent remains required to perform and verify the transition directly. A completed candidate therefore normally advances in the implementation turn, while trusted automation closes the single omitted-mutation gap.
+Readiness is an automatic consequence of an eligible all-checked snapshot rather than an agent command. The final checkbox edit normally supplies the `edited` event; `opened`, `synchronize`, `reopened`, and later `edited` events provide bounded retries when branch or body state arrives in another order. Agents neither call `gh pr ready` nor verify readiness as part of implementation completion.
 
 Alternative considered: let any all-checked body become ready immediately. This was rejected because body state alone cannot prove detailed tasks, evidence, acceptance, or branch identity. Alternative considered: let CI check the boxes. This was rejected because automation cannot truthfully attest implementation completion.
 
@@ -67,12 +67,12 @@ Ready-for-review means only that implementation and pre-ready evidence are compl
 - **[Risk] An agent checks items prematurely** → Keep completion agent-owned, require pre-ready evidence and detailed bookkeeping, and retain strict finalization validation.
 - **[Risk] Automation promotes a stale snapshot** → Re-read exact head/body/base/draft state immediately before the mutation and rely on existing exact-head finalization/validation after the ready event.
 - **[Risk] Draft workflow events create noisy failures** → Report stable skipped/incomplete outcomes in the run summary without comments or Development jobs.
-- **[Trade-off] The fallback uses automation for readiness** → Readiness starts validation but grants no acceptance or merge authority; this is preferable to indefinitely suppressing CI for an otherwise complete candidate.
+- **[Trade-off] Automation exclusively owns readiness** → Readiness starts validation but grants no acceptance or merge authority; this removes agent timing variance while preserving maintainer integration control.
 
 ## Migration Plan
 
 1. Add and test the concise always-loaded implementation closeout contract while aligning the skill and runbook.
 2. Extend trusted finalization publication policy to inspect draft task-list candidates and perform only the guarded ready mutation.
-3. Add fixtures for direct agent closeout, fallback promotion, incomplete/invalid drafts, races, forks, historical bodies, and unrelated PRs.
-4. After this change integrates, active implementation branches can reconcile `develop`; their owning agents then update truthful progress and use the same closeout path.
-5. Roll back through an ordinary corrective PR by disabling automatic promotion while retaining the explicit agent closeout rule; never rewrite accepted historical bodies.
+3. Add fixtures for workflow-owned promotion, incomplete/invalid drafts, races, forks, historical bodies, and unrelated PRs.
+4. After this change integrates, active implementation branches can reconcile `develop`; their owning agents then update truthful progress and let the workflow transition eligible all-checked drafts.
+5. Roll back through an ordinary corrective PR by disabling automatic promotion while retaining truthful agent-owned checkbox progress; never rewrite accepted historical bodies.

@@ -10,9 +10,9 @@ Every repository agent that performs approved implementation-bound work SHALL re
 - **THEN** always-loaded repository context SHALL still require progress updates and the completed-candidate ready transition
 - **AND** it SHALL direct the agent to load the detailed skill before continuing delivery work
 
-### Requirement: Implementation progress and readiness close in the implementation turn
+### Requirement: Agents own progress while automation owns readiness
 
-While a pull request remains draft, the agent SHALL check an approved `Implementation` item as soon as that outcome, focused pre-ready evidence, and detailed task bookkeeping are complete. After the final outcome and every pre-ready input are complete, the same turn SHALL add plain `Acceptance`, reconcile and push, check the final item, mark the PR ready, and verify its remote state. The agent SHALL report a concrete blocker instead of claiming completion if closeout cannot finish.
+While a pull request remains draft, the agent SHALL check an approved `Implementation` item as soon as that outcome, focused pre-ready evidence, and detailed task bookkeeping are complete. Before checking the final item, the agent SHALL add plain `Acceptance`, finish every pre-ready input, and reconcile and push the branch. The final checkbox update SHALL complete the agent-owned implementation job; the agent SHALL NOT invoke the ready mutation.
 
 #### Scenario: One implementation outcome finishes
 
@@ -23,14 +23,14 @@ While a pull request remains draft, the agent SHALL check an approved `Implement
 #### Scenario: Final implementation outcome finishes
 
 - **WHEN** the last implementation outcome and every pre-ready input are complete
-- **THEN** the agent SHALL finish acceptance, reconciliation, push, final progress, and the ready-for-review transition in the same closeout turn
-- **AND** it SHALL verify the remote pull request is non-draft before reporting completion
+- **THEN** the agent SHALL finish acceptance, reconciliation, push, and final progress by checking the last item
+- **AND** trusted automation, not the agent, SHALL own the ready-for-review transition
 
-#### Scenario: Closeout cannot finish
+#### Scenario: Implementation cannot finish
 
-- **WHEN** permissions, stale state, incomplete evidence, an unfinished task, or another concrete condition prevents the ready transition
+- **WHEN** stale state, incomplete evidence, an unfinished task, or another concrete condition prevents implementation completion
 - **THEN** the agent SHALL leave the affected progress state truthful and report that blocker
-- **AND** it SHALL NOT claim that implementation delivery is complete
+- **AND** it SHALL NOT check incomplete work or invoke the ready mutation
 
 #### Scenario: GitHub checks are green while implementation progress is stale
 
@@ -42,7 +42,7 @@ While a pull request remains draft, the agent SHALL check an approved `Implement
 
 The trusted default-branch finalization entrypoint SHALL mark a draft ready only when one exact same-repository version-3 snapshot targets `develop`, has every current-form `Implementation` item checked, contains valid plain `Acceptance`, and satisfies existing pre-finalization checks for association, detailed tasks, evidence, gaps, target, head, and body. It SHALL re-read and match the PR identity, repository, base, head, body, open state, and draft state immediately before mutation.
 
-#### Scenario: Agent omitted only the ready mutation
+#### Scenario: Final checkbox exposes an eligible draft
 
 - **WHEN** a draft version-3 task-list candidate has every Implementation item checked and every exact pre-finalization input is valid
 - **AND** its final re-read matches the inspected snapshot
@@ -63,7 +63,7 @@ The trusted default-branch finalization entrypoint SHALL mark a draft ready only
 
 #### Scenario: Candidate changes during promotion
 
-- **WHEN** the candidate's head, body, base, repository identity, open state, or draft state changes after inspection
+- **WHEN** the final pre-mutation re-read differs from the inspected head, body, base, repository identity, open state, or draft state
 - **THEN** the promotion attempt SHALL stop without mutating readiness
 - **AND** a later bounded event MAY inspect the new snapshot independently
 
