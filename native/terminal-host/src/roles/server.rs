@@ -3,7 +3,7 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::{
     Arc, Mutex,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
     mpsc,
 };
 use std::thread;
@@ -136,6 +136,7 @@ struct Peer {
     tx: mpsc::SyncSender<Vec<u8>>,
     queued_bytes: Arc<AtomicUsize>,
     surface: Arc<Mutex<Option<Vec<u8>>>>,
+    surface_signaled: Arc<AtomicBool>,
 }
 impl Peer {
     fn offer_control(&self, frame: Vec<u8>) -> Result<(), &'static str> {
@@ -160,6 +161,11 @@ impl Peer {
     fn offer_surface(&self, frame: Vec<u8>) {
         if let Ok(mut slot) = self.surface.lock() {
             *slot = Some(frame);
+        }
+        // Performance: an empty frame wakes the writer at once instead of after its idle poll;
+        // the flag keeps at most one wake queued so slow clients cannot fill the control lane.
+        if !self.surface_signaled.swap(true, Ordering::SeqCst) {
+            let _ = self.tx.try_send(Vec::new());
         }
     }
 }
@@ -968,15 +974,18 @@ fn serve_peer(
     let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(CONTROL_LANE_FRAMES);
     let queued_bytes = Arc::new(AtomicUsize::new(0));
     let surface = Arc::new(Mutex::new(None));
+    let surface_signaled = Arc::new(AtomicBool::new(false));
     thread::spawn({
         let queued_bytes = queued_bytes.clone();
         let surface = surface.clone();
-        move || writer_loop(writer, rx, queued_bytes, surface)
+        let surface_signaled = surface_signaled.clone();
+        move || writer_loop(writer, rx, queued_bytes, surface, surface_signaled)
     });
     let peer = Peer {
         tx,
         queued_bytes,
         surface,
+        surface_signaled,
     };
     match hello.role.as_str() {
         "attach" | "internal" => {
@@ -1055,10 +1064,11 @@ fn writer_loop(
     rx: mpsc::Receiver<Vec<u8>>,
     queued_bytes: Arc<AtomicUsize>,
     surface: Arc<Mutex<Option<Vec<u8>>>>,
+    surface_signaled: Arc<AtomicBool>,
 ) {
     loop {
         match rx.recv_timeout(std::time::Duration::from_millis(8)) {
-            Ok(frame) => {
+            Ok(frame) if !frame.is_empty() => {
                 queued_bytes.fetch_sub(frame.len(), Ordering::SeqCst);
                 if stream
                     .write_all(&frame)
@@ -1071,6 +1081,7 @@ fn writer_loop(
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
             _ => {}
         }
+        surface_signaled.store(false, Ordering::SeqCst);
         let frame = surface.lock().ok().and_then(|mut slot| slot.take());
         if let Some(frame) = frame
             && stream
@@ -3913,6 +3924,7 @@ mod tests {
             tx,
             queued_bytes: Arc::new(AtomicUsize::new(0)),
             surface: Arc::new(Mutex::new(None)),
+            surface_signaled: Arc::new(AtomicBool::new(false)),
         };
         for _ in 0..CONTROL_LANE_FRAMES {
             assert_eq!(peer.offer_control(vec![0]), Ok(()));
@@ -3924,6 +3936,7 @@ mod tests {
             tx,
             queued_bytes: Arc::new(AtomicUsize::new(0)),
             surface: Arc::new(Mutex::new(None)),
+            surface_signaled: Arc::new(AtomicBool::new(false)),
         };
         assert_eq!(
             peer.offer_control(vec![0; CONTROL_LANE_BYTES + 1]),

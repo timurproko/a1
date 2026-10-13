@@ -1,7 +1,11 @@
 use std::collections::VecDeque;
 use std::io::{Read, Write};
 use std::path::Path;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+    mpsc,
+};
 use std::thread;
 use std::time::Duration;
 
@@ -21,6 +25,9 @@ use crate::roles::wire::{
 pub const HOLDER_INPUT_CAPACITY: usize = 1024 * 1024;
 const BRACKETED_PASTE_START: &[u8] = b"\x1b[200~";
 const BRACKETED_PASTE_END: &[u8] = b"\x1b[201~";
+// Performance: output floods coalesce into at most one surface per interval without delaying
+// an isolated echo, which renders as soon as its PTY bytes arrive.
+const MIN_SURFACE_INTERVAL: Duration = Duration::from_millis(4);
 
 fn bracketed_paste(content: &[u8]) -> Vec<u8> {
     let mut complete =
@@ -51,6 +58,7 @@ enum PendingPaste {
 struct HolderServerPeer {
     control: mpsc::SyncSender<Vec<u8>>,
     surface: Arc<Mutex<Option<Vec<u8>>>>,
+    surface_signaled: Arc<AtomicBool>,
 }
 impl HolderServerPeer {
     fn start(
@@ -61,11 +69,13 @@ impl HolderServerPeer {
             .map_err(|error| format!("clone holder server stream: {error}"))?;
         let (control, control_rx) = mpsc::sync_channel::<Vec<u8>>(64);
         let surface = Arc::new(Mutex::new(None::<Vec<u8>>));
+        let surface_signaled = Arc::new(AtomicBool::new(false));
         let writer_surface = surface.clone();
+        let writer_signaled = surface_signaled.clone();
         thread::spawn(move || {
             loop {
                 match control_rx.recv_timeout(Duration::from_millis(8)) {
-                    Ok(frame) => {
+                    Ok(frame) if !frame.is_empty() => {
                         if stream
                             .write_all(&frame)
                             .and_then(|()| stream.flush())
@@ -75,8 +85,9 @@ impl HolderServerPeer {
                         }
                     }
                     Err(mpsc::RecvTimeoutError::Disconnected) => return,
-                    Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    Ok(_) | Err(mpsc::RecvTimeoutError::Timeout) => {}
                 }
+                writer_signaled.store(false, Ordering::SeqCst);
                 let frame = writer_surface.lock().ok().and_then(|mut slot| slot.take());
                 if let Some(frame) = frame
                     && stream
@@ -88,7 +99,14 @@ impl HolderServerPeer {
                 }
             }
         });
-        Ok((Self { control, surface }, reader))
+        Ok((
+            Self {
+                control,
+                surface,
+                surface_signaled,
+            },
+            reader,
+        ))
     }
 
     fn offer_control(&self, frame: Vec<u8>) -> Result<(), String> {
@@ -100,6 +118,11 @@ impl HolderServerPeer {
     fn offer_surface(&self, frame: Vec<u8>) {
         if let Ok(mut slot) = self.surface.lock() {
             *slot = Some(frame);
+        }
+        // Performance: wake the writer immediately; the flag bounds queued wakes to one so
+        // surface churn cannot overrun the control lane.
+        if !self.surface_signaled.swap(true, Ordering::SeqCst) {
+            let _ = self.control.try_send(Vec::new());
         }
     }
 }
@@ -321,6 +344,10 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         .map_err(|error| format!("take resident PTY writer: {error}"))?;
     let (write_tx, write_rx) = mpsc::channel::<(Vec<u8>, usize)>();
     let (write_result_tx, write_result_rx) = mpsc::channel::<Result<usize, String>>();
+    // Performance: PTY, command, and write-completion threads wake the holder loop directly so
+    // input and output never wait out an idle poll; capacity one keeps wakes coalesced.
+    let (wake_tx, wake_rx) = mpsc::sync_channel::<()>(1);
+    let writer_wake = wake_tx.clone();
     thread::spawn(move || {
         while let Ok((bytes, admitted)) = write_rx.recv() {
             if crate::fault_injection::enabled("A1_TABS_FAULT_BLOCK_PTY_WRITE") {
@@ -334,12 +361,15 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 .map(|()| admitted)
                 .map_err(|error| format!("write resident PTY input: {error}"));
             let failed = result.is_err();
-            if write_result_tx.send(result).is_err() || failed {
+            let delivered = write_result_tx.send(result).is_ok();
+            let _ = writer_wake.try_send(());
+            if !delivered || failed {
                 break;
             }
         }
     });
     let (output_tx, output_rx) = mpsc::channel::<Vec<u8>>();
+    let reader_wake = wake_tx.clone();
     thread::spawn(move || {
         let mut buffer = [0_u8; 16 * 1024];
         loop {
@@ -349,12 +379,14 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                     if output_tx.send(buffer[..count].to_vec()).is_err() {
                         break;
                     }
+                    let _ = reader_wake.try_send(());
                 }
             }
         }
+        let _ = reader_wake.try_send(());
     });
     let (command_tx, command_rx) = mpsc::sync_channel::<HolderCommand>(4);
-    spawn_command_reader(command_stream, command_tx.clone());
+    spawn_command_reader(command_stream, command_tx.clone(), wake_tx.clone());
     std::fs::write(ready, format!("{}:holder\n", std::process::id()))
         .map_err(|error| format!("write holder readiness: {error}"))?;
     crate::fault_injection::freeze_role("holder");
@@ -378,6 +410,10 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         .checked_sub(Duration::from_secs(5))
         .unwrap_or_else(std::time::Instant::now);
     let mut child_exited = false;
+    let mut surface_pending = false;
+    let mut last_surface = std::time::Instant::now()
+        .checked_sub(MIN_SURFACE_INTERVAL)
+        .unwrap_or_else(std::time::Instant::now);
     loop {
         watchdog.bump();
         let mut changed = false;
@@ -405,7 +441,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 apply_holder_effects(epoch_effects, &write_tx, &server)?;
                 let (replacement_peer, replacement_reader) = HolderServerPeer::start(replacement)?;
                 server = replacement_peer;
-                spawn_command_reader(replacement_reader, command_tx.clone());
+                spawn_command_reader(replacement_reader, command_tx.clone(), wake_tx.clone());
                 if subscribed {
                     revision = revision.saturating_add(1);
                     terminal.mark_dirty()?;
@@ -620,7 +656,10 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
             }
             changed = true;
         }
-        if changed && subscribed {
+        surface_pending |= changed && subscribed;
+        if surface_pending && subscribed && last_surface.elapsed() >= MIN_SURFACE_INTERVAL {
+            surface_pending = false;
+            last_surface = std::time::Instant::now();
             revision = revision.saturating_add(1);
             terminal.mark_dirty()?;
             let frame = terminal.frame_at(0, 1, true)?.into_bytes();
@@ -660,6 +699,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 .map_err(|error| format!("inspect resident child: {error}"))?
         {
             child_exited = true;
+            surface_pending = false;
             terminal.mark_dirty()?;
             let frame = terminal.frame_at(0, 1, true)?.into_bytes();
             let recovery_root = tab_data_dir.join("recovery");
@@ -713,7 +753,12 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 return Ok(());
             }
         }
-        thread::sleep(Duration::from_millis(8));
+        let idle = if surface_pending && subscribed {
+            MIN_SURFACE_INTERVAL.saturating_sub(last_surface.elapsed())
+        } else {
+            Duration::from_millis(8)
+        };
+        let _ = wake_rx.recv_timeout(idle);
     }
 }
 
@@ -864,6 +909,7 @@ fn connect_holder(
 fn spawn_command_reader(
     mut stream: endpoint::EndpointStream,
     command_tx: mpsc::SyncSender<HolderCommand>,
+    wake: mpsc::SyncSender<()>,
 ) {
     thread::spawn(move || {
         while let Ok(Some(payload)) = wire::read_payload(&mut stream) {
@@ -917,8 +963,10 @@ fn spawn_command_reader(
                 }
                 _ => {}
             }
+            let _ = wake.try_send(());
         }
         let _ = command_tx.send(HolderCommand::Disconnected);
+        let _ = wake.try_send(());
     });
 }
 

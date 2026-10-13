@@ -434,16 +434,36 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         .try_clone()
         .map_err(|error| format!("clone attach stream: {error}"))?;
     let (message_tx, message_rx) = mpsc::channel::<Vec<u8>>();
+    // Performance: server frames and outer input both wake the loop directly, so neither waits
+    // out the other side's idle poll; capacity one keeps wakes coalesced.
+    let (wake_tx, wake_rx) = mpsc::sync_channel::<()>(1);
+    let reader_wake = wake_tx.clone();
     thread::spawn(move || {
         while let Ok(Some(payload)) = wire::read_payload(&mut reader) {
             if message_tx.send(payload).is_err() {
                 return;
             }
+            let _ = reader_wake.try_send(());
         }
         let _ = message_tx.send(Vec::new());
+        let _ = reader_wake.try_send(());
     });
 
     let mut terminal = OuterTerminal::enter()?;
+    let (input_tx, input_rx) = mpsc::channel::<Result<Event, String>>();
+    thread::spawn(move || {
+        loop {
+            let event = event::read().map_err(|error| format!("read outer terminal: {error}"));
+            let failed = event.is_err();
+            if input_tx.send(event).is_err() {
+                return;
+            }
+            let _ = wake_tx.try_send(());
+            if failed {
+                return;
+            }
+        }
+    });
     let mut tabs = Vec::<StripTab>::new();
     let mut viewed = options.view_tab.map(str::to_owned);
     let mut hovered_tab: Option<String> = None;
@@ -646,12 +666,17 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             )?;
             last_list = Instant::now();
         }
-        if !event::poll(Duration::from_millis(8))
-            .map_err(|error| format!("poll outer terminal: {error}"))?
-        {
-            continue;
-        }
-        match event::read().map_err(|error| format!("read outer terminal: {error}"))? {
+        let next = match input_rx.try_recv() {
+            Ok(next) => next?,
+            Err(mpsc::TryRecvError::Empty) => {
+                let _ = wake_rx.recv_timeout(Duration::from_millis(8));
+                continue;
+            }
+            Err(mpsc::TryRecvError::Disconnected) => {
+                return Err("outer terminal input stopped".to_owned());
+            }
+        };
+        match next {
             Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => {
                 if let Some(tab_id) = pending_close.take() {
                     if key.code == KeyCode::Enter {

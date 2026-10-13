@@ -75,7 +75,7 @@ if (standby) {
   process.stdin.on("error", reject);
   process.stdin.on("data", chunk => {
     buffered = Buffer.concat([buffered, chunk]).subarray(-marker.length);
-    if (buffered.equals(marker)) { process.stdin.removeAllListeners("data"); resolve(); }
+    if (buffered.equals(marker)) { process.stdin.removeAllListeners("data"); process.stdin.pause(); resolve(); }
   });
     process.stdin.resume();
   });
@@ -211,7 +211,9 @@ async function collectMeasurements(host) {
     const warmCheckpoint = first.checkpoint();
     const warmStartNs = process.hrtime.bigint();
     first.terminal.write("\x1ba");
-    const warmPaint = await first.waitFor(/measurement-ready:(\d+)/u, "promoted standby paint", 15_000, warmCheckpoint);
+    // Determinism: the original tab can repaint its own ready line after the checkpoint, so only
+    // a different readiness timestamp proves the promoted tab painted and listens for input.
+    const warmPaint = await first.waitFor(new RegExp(`measurement-ready:(?!${coldPaint.match[1]}\\b)(\\d+)`, "u"), "promoted standby paint", 15_000, warmCheckpoint);
     const warm = await measureInput(first, "b", "warm");
     sample.warmCreateMs = milliseconds(warmPaint.receivedNs - warmStartNs);
     const created = JSON.parse(internal(host, context, "tab-list")).tabs.find(tab => !existingTabIds.has(tab.tabId));
