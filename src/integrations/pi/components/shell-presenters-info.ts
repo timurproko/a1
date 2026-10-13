@@ -218,7 +218,7 @@ function hotkeysMarkdownComponent(markdown: string): Markdown {
   return new Markdown(markdown, 1, 1, getPiHotkeysMarkdownTheme());
 }
 
-// Keep startup presentation independent from the shortcut registry; parity is contract-tested.
+// Performance: keep startup presentation independent from the registry; parity is contract-tested.
 export const TAB_HOTKEYS = [
   ["tabs.new", "alt+a", "New A1 tab"], ["tabs.close", "alt+w", "Close A1 tab"],
   ["tabs.rename", "f2", "Rename A1 tab"],

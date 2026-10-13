@@ -1017,7 +1017,10 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         Some(&second_tab),
     );
     assert!(reattached_first.output_containing("echo:first-still-live", Duration::from_secs(15)));
-    assert!(reattached_second.output_containing("echo:second-tab", Duration::from_secs(15)));
+    assert!(
+        reattached_second
+            .output_containing("echo:reclaimed-by-first-input", Duration::from_secs(15))
+    );
     reattached_first.write(b"\x03\x03");
     reattached_second.write(b"\x03\x03");
     reattached_first.wait(Duration::from_secs(8));
