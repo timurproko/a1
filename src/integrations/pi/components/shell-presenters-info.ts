@@ -3,7 +3,6 @@ import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleW
 import { PRODUCT_TEXT } from "../../../product-identity.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { getPiHotkeysMarkdownTheme, getPiMarkdownTheme, paintPiBorder, PINNED_PI_LAYOUT, piTheme } from "./theme.js";
-import { RESIDENT_TAB_SHORTCUTS } from "../../../features/resident-tab/index.js";
 import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";
 
 export interface PiShellSessionInfoPresentation {
@@ -219,6 +218,15 @@ function hotkeysMarkdownComponent(markdown: string): Markdown {
   return new Markdown(markdown, 1, 1, getPiHotkeysMarkdownTheme());
 }
 
+// Keep startup presentation independent from the shortcut registry; parity is contract-tested.
+export const TAB_HOTKEYS = [
+  ["tabs.new", "alt+a", "New A1 tab"], ["tabs.close", "alt+w", "Close A1 tab"],
+  ["tabs.rename", "f2", "Rename A1 tab"],
+  ...Array.from({ length: 10 }, (_, index) => [`tabs.jump${index + 1}`, `alt+${(index + 1) % 10}`, `View A1 tab ${index + 1}`]),
+  ["tabs.next", null, "View next A1 tab"], ["tabs.previous", null, "View previous A1 tab"],
+  ["tabs.moveRight", null, "Move A1 tab right"], ["tabs.moveLeft", null, "Move A1 tab left"],
+] as readonly (readonly [string, string | null, string])[];
+
 export function hotkeysMarkdown(
   bindings: KeybindingsConfig | undefined,
   getShortcuts: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]>,
@@ -246,9 +254,9 @@ export function hotkeysMarkdown(
       const keys = typeof value === "string" ? [value] : Array.isArray(value) ? value : [];
       for (const key of keys) if (typeof key === "string") claimed.add(key.toLowerCase());
     }
-    markdown += RESIDENT_TAB_SHORTCUTS.filter(shortcut => shortcut.scope === "global").map(shortcut => {
-      const value = configured[shortcut.id];
-      const assigned = (typeof value === "string" ? [value] : Array.isArray(value) ? value.filter((key): key is string => typeof key === "string") : shortcut.defaultKey === null ? [] : [shortcut.defaultKey])
+    markdown += TAB_HOTKEYS.map(([id, defaultKey, description]) => {
+      const value = configured[id];
+      const assigned = (typeof value === "string" ? [value] : Array.isArray(value) ? value.filter((key): key is string => typeof key === "string") : defaultKey === null ? [] : [defaultKey])
         .filter(key => {
           const normalized = key.toLowerCase();
           if (claimed.has(normalized)) return false;
@@ -256,7 +264,7 @@ export function hotkeysMarkdown(
           return true;
         });
       const label = assigned.length === 0 ? "Unbound" : `\`${assigned.map(shortcutDisplay).join("/")}\``;
-      return `| ${label} | ${shortcut.description} |`;
+      return `| ${label} | ${description} |`;
     }).join("\n");
   }
   const shortcuts = getShortcuts(bindings ?? keys.getEffectiveConfig());

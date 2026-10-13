@@ -41,7 +41,7 @@ import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
-import { deriveResidentTabStatus, generateAutoName } from "../features/resident-tab/index.js";
+import { deriveResidentTabStatus } from "../features/resident-tab/status-deriver.js";
 
 /**
  * The session backend composition wires: the owned-UI port, the prompt-suggestion generator, and
@@ -544,10 +544,10 @@ export async function bindResidentTabBridge(
         const currentName = view.status.footer?.sessionName;
         const prompt = view.transcript.find(block => block.kind === "user")?.text.trim();
         if (prompt && (currentName == null || /^agent(?: \d+)?$/i.test(currentName))) {
-          void generateAutoName(
+          void import("../features/resident-tab/index.js").then(({ generateAutoName }) => generateAutoName(
             prompt,
             request => backend.generateResidentTabName(request.prompt, request.maxTokens, request.signal),
-          ).then(async name => {
+          )).then(async name => {
             pendingAutoName = name;
             const result = await backend.workflows.executeWorkflow({ command: "name", argument: name });
             if (result.outcome === "completed") tabBridge.session(currentSessionFile(), name, "auto");

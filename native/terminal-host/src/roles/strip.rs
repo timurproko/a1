@@ -256,7 +256,7 @@ pub fn render_with_hover(
 }
 
 fn palette_fallback_requested() -> bool {
-    if std::env::var("A1_TERMINAL_COLOR_MODE").is_ok_and(|value| value == "palette") {
+    if std::env::var("TERMINAL_HOST_COLOR_MODE").is_ok_and(|value| value == "palette") {
         return true;
     }
     std::env::var("TERM").is_ok_and(|term| term.contains("256color"))

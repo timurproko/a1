@@ -1,4 +1,4 @@
-import { GLOBAL_SCOPE, ShortcutRegistry, type ShortcutDeclaration } from "../../ui/components/shortcuts.js";
+import { GLOBAL_SCOPE, ShortcutRegistry, type ShortcutDeclaration } from "../../ui/components/index.js";
 
 export type ResidentTabAction =
   | "tabs.new" | "tabs.close" | "tabs.rename" | "tabs.retry" | "tabs.fresh"

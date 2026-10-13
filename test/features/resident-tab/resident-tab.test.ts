@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fallbackAutoName, generateAutoName, normalizeAutoName } from "../../../src/features/resident-tab/auto-name.js";
 import { deriveResidentTabStatus } from "../../../src/features/resident-tab/status-deriver.js";
 import { RESIDENT_TAB_SHORTCUTS, residentTabShortcutRegistry } from "../../../src/features/resident-tab/shortcuts.js";
-import { hotkeysMarkdown } from "../../../src/integrations/pi/components/shell-presenters-info.js";
+import { hotkeysMarkdown, TAB_HOTKEYS } from "../../../src/integrations/pi/components/shell-presenters-info.js";
 
 describe("resident tab auto naming", () => {
   it("normalizes and bounds names", () => {
@@ -32,6 +32,12 @@ describe("resident tab status", () => {
 });
 
 describe("resident tab shortcuts", () => {
+  it("keeps startup presentation aligned with global declarations", () => {
+    expect(TAB_HOTKEYS).toEqual(RESIDENT_TAB_SHORTCUTS
+      .filter(shortcut => shortcut.scope === "global")
+      .map(shortcut => [shortcut.id, shortcut.defaultKey, shortcut.description]));
+  });
+
   it("leaves navigation and reorder assignable but unbound", () => {
     for (const id of ["tabs.next", "tabs.previous", "tabs.moveRight", "tabs.moveLeft"] as const) {
       expect(RESIDENT_TAB_SHORTCUTS.find(shortcut => shortcut.id === id)?.defaultKey).toBeNull();
