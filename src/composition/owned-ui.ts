@@ -478,7 +478,14 @@ export async function bindResidentTabBridge(
     }), false, view.dialog == null ? 0 : 1, 0);
   };
   announceSession();
-  return backend.session.onEvent(event => {
+  const unsubscribeCommands = typeof tabBridge.onCommand === "function" ? tabBridge.onCommand(command => {
+    if (command.type === "rename") {
+      void backend.workflows.executeWorkflow({ command: "name", argument: command.name }).catch(() => {});
+    } else if (command.type === "stop") {
+      void backend.session.dispose().catch(() => {});
+    }
+  }) : () => {};
+  const unsubscribeEvents = backend.session.onEvent(event => {
     if (event.type === "session-lifecycle") {
       const wasWorking = working;
       working = event.lifecycle === "busy";
@@ -504,6 +511,10 @@ export async function bindResidentTabBridge(
       reportStatus();
     }
   });
+  return () => {
+    unsubscribeCommands();
+    unsubscribeEvents();
+  };
 }
 
 function currentBackendSessionFile(backend: Pick<ComposedSessionBackend, "identity">): string | null {

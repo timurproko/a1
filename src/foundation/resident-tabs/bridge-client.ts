@@ -4,6 +4,10 @@ import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from
 export type ResidentTabStatus = "starting" | "working" | "needs-input" | "done-unseen" | "idle" | "unresponsive" | "stalled" | "crashed" | "restarting" | "failed";
 export interface TabBridgeCredentials { readonly tabId: string; readonly token: string; readonly endpoint: string }
 export interface TabAttachment { readonly clientId: string; readonly controllerRevision: number }
+export type TabBridgeCommand =
+  | { readonly type: "visibility"; readonly visible: boolean }
+  | { readonly type: "rename"; readonly name: string; readonly nameSource: "default" | "user" | "auto" }
+  | { readonly type: "stop"; readonly deadlineMs: number };
 
 interface BridgeTransport {
   write(bytes: Uint8Array): boolean;
@@ -41,10 +45,15 @@ export class TabBridgeClient {
   #heartbeat: unknown | null = null;
   readonly #pending = new Map<number, (accepted: boolean) => void>();
   #startWaiter: ((accepted: boolean) => void) | null = null;
+  readonly #commandListeners = new Set<(command: TabBridgeCommand) => void>();
 
   constructor(options: TabBridgeOptions) { this.#options = options; }
   get available(): boolean { return this.#available && this.#connected; }
   captureAttachment(): TabAttachment | null { return this.#attachment === null ? null : { ...this.#attachment }; }
+  onCommand(listener: (command: TabBridgeCommand) => void): () => void {
+    this.#commandListeners.add(listener);
+    return () => this.#commandListeners.delete(listener);
+  }
 
   async start(timeoutMs = 4_000): Promise<boolean> {
     if (this.#closed || this.#transport !== null) return this.available;
@@ -71,7 +80,7 @@ export class TabBridgeClient {
       transport.once("connect", () => {
         this.#send("hello", {
           role: "bridge", generation: 1, build: this.#options.build ?? "a1",
-          features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "recovery-journal"],
+          features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "bridge-visibility", "bridge-rename", "bridge-stop", "recovery-journal"],
           token: [...Buffer.from(this.#options.credentials.token, "base64")], tabId: this.#options.credentials.tabId,
           pid: this.#options.pid ?? process.pid, startIdentity: this.#options.startIdentity ?? `${process.pid}:node`,
         }, ++this.#request);
@@ -125,6 +134,10 @@ export class TabBridgeClient {
     this.#fail(false);
   }
 
+  #emitCommand(command: TabBridgeCommand): void {
+    for (const listener of this.#commandListeners) listener(command);
+  }
+
   #send(type: string, body: Readonly<Record<string, unknown>>, requestId?: number): void {
     if (this.#transport === null || (!this.#connected && type !== "hello")) return;
     try { this.#transport.write(encodeResidentFrame({ type, ...(requestId === undefined ? {} : { requestId }), body })); }
@@ -144,6 +157,16 @@ export class TabBridgeClient {
       return;
     }
     if (message.type === "incompatible-generation") { this.#fail(); return; }
+    if (message.type === "bridge.visibility" && typeof message.body["visible"] === "boolean") {
+      this.#emitCommand({ type: "visibility", visible: message.body["visible"] }); return;
+    }
+    if (message.type === "bridge.rename" && typeof message.body["name"] === "string") {
+      const source = message.body["nameSource"];
+      this.#emitCommand({ type: "rename", name: message.body["name"], nameSource: source === "auto" || source === "default" ? source : "user" }); return;
+    }
+    if (message.type === "bridge.stop" && typeof message.body["deadlineMs"] === "number") {
+      this.#emitCommand({ type: "stop", deadlineMs: message.body["deadlineMs"] }); return;
+    }
     if (message.type === "attachment") {
       const clientId = message.body["clientId"]; const revision = message.body["controllerRevision"];
       if (typeof clientId === "string" && typeof revision === "number") this.#attachment = { clientId, controllerRevision: revision };

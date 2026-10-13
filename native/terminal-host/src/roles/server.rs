@@ -1123,6 +1123,13 @@ fn serve_attach(
                 wire::SurfaceSubscription { enabled: true },
             )?);
         }
+        if let Some(bridge) = locked.bridges.get(&viewed_tab) {
+            let _ = bridge.peer.offer_control(wire::frame(
+                "bridge.visibility",
+                None,
+                serde_json::json!({ "visible": true }),
+            )?);
+        }
         if let Some(surface) = locked.surfaces.get(&viewed_tab).cloned() {
             tx.offer_surface(wire::frame("surface", None, surface)?);
         }
@@ -1350,12 +1357,26 @@ fn serve_attach(
                         None,
                         wire::SurfaceSubscription { enabled: false },
                     )?);
+                    if let Some(bridge) = locked.bridges.get(&previous_tab) {
+                        let _ = bridge.peer.offer_control(wire::frame(
+                            "bridge.visibility",
+                            None,
+                            serde_json::json!({ "visible": false }),
+                        )?);
+                    }
                 }
                 if let Some(holder) = locked.holders.get(&target.tab_id) {
                     let _ = holder.peer.offer_control(wire::frame(
                         "surface.subscription",
                         None,
                         wire::SurfaceSubscription { enabled: true },
+                    )?);
+                }
+                if let Some(bridge) = locked.bridges.get(&target.tab_id) {
+                    let _ = bridge.peer.offer_control(wire::frame(
+                        "bridge.visibility",
+                        None,
+                        serde_json::json!({ "visible": true }),
                     )?);
                 }
                 if let Some(surface) = locked.surfaces.get(&target.tab_id).cloned() {
@@ -1460,6 +1481,16 @@ fn serve_attach(
                 if let Some((store, document)) = commit {
                     commit_registry(store, document)?;
                 }
+                if accepted
+                    && let Ok(locked) = state.lock()
+                    && let Some(bridge) = locked.bridges.get(&rename.tab_id)
+                {
+                    let _ = bridge.peer.offer_control(wire::frame(
+                        "bridge.rename",
+                        None,
+                        serde_json::json!({ "name": name, "nameSource": "user" }),
+                    )?);
+                }
                 tx.offer_control(wire::frame(
                     "tab.renamed",
                     kind.request_id,
@@ -1475,6 +1506,13 @@ fn serve_attach(
                 let mut locked = state
                     .lock()
                     .map_err(|_| "resident state poisoned".to_owned())?;
+                if let Some(bridge) = locked.bridges.get(&target.tab_id) {
+                    let _ = bridge.peer.offer_control(wire::frame(
+                        "bridge.stop",
+                        kind.request_id,
+                        serde_json::json!({ "deadlineMs": 5000 }),
+                    )?);
+                }
                 if let Some(holder) = locked.holders.get(&target.tab_id) {
                     let _ = holder.peer.offer_control(wire::frame(
                         "shutdown",
@@ -2646,6 +2684,16 @@ fn serve_bridge(
             )?)
             .map_err(str::to_owned)?;
         }
+        let visible = locked
+            .clients
+            .values()
+            .any(|client| client.viewed_tab == tab_id);
+        tx.offer_control(wire::frame(
+            "bridge.visibility",
+            None,
+            serde_json::json!({ "visible": visible }),
+        )?)
+        .map_err(str::to_owned)?;
     }
     while let Some(payload) = wire::read_payload(&mut stream)? {
         let current = state

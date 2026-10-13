@@ -50,7 +50,8 @@ describe("resident tab composition bridge", () => {
 
   it("reports starting, working, idle, and current session metadata from engine events", async () => {
     const value = fixture();
-    await expect(bindResidentTabBridge(value.bridge as never, value.backend as never)).resolves.toBe(value.unsubscribe);
+    const unsubscribe = await bindResidentTabBridge(value.bridge as never, value.backend as never);
+    expect(unsubscribe).toBeTypeOf("function");
     expect(value.bridge.status).toHaveBeenCalledWith("starting");
     expect(value.bridge.session).toHaveBeenCalledWith("D:/sessions/one.jsonl", "initial", "user");
 
@@ -64,7 +65,8 @@ describe("resident tab composition bridge", () => {
 
   it("keeps composition available when the bridge refuses startup", async () => {
     const value = fixture(async () => { throw new Error("unavailable"); });
-    await expect(bindResidentTabBridge(value.bridge as never, value.backend as never)).resolves.toBe(value.unsubscribe);
+    const unsubscribe = await bindResidentTabBridge(value.bridge as never, value.backend as never);
+    expect(unsubscribe).toBeTypeOf("function");
     expect(value.bridge.status).toHaveBeenCalledWith("starting");
     expect(value.bridge.session).toHaveBeenCalledOnce();
   });

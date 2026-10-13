@@ -133,11 +133,21 @@ describe("resident tab launch contracts", () => {
       setInterval: callback => { heartbeat = callback; return callback; },
       clearInterval: () => { heartbeat = undefined; },
     });
+    const commands: unknown[] = [];
+    bridge.onCommand(command => commands.push(command));
     const start = bridge.start(); transport.emit("connect");
     transport.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, features: ["bridge-heartbeat", "bridge-restart", "recovery-status"] } }));
     await start;
     heartbeat?.(); heartbeat?.();
     expect(transport.sent.filter(message => message.type === "bridge.heartbeat").map(message => message.body.seq)).toEqual([1, 2]);
+    transport.emit("data", encodeResidentFrame({ type: "bridge.visibility", body: { visible: false } }));
+    transport.emit("data", encodeResidentFrame({ type: "bridge.rename", body: { name: "fixed-name", nameSource: "user" } }));
+    transport.emit("data", encodeResidentFrame({ type: "bridge.stop", body: { deadlineMs: 5000 } }));
+    expect(commands).toEqual([
+      { type: "visibility", visible: false },
+      { type: "rename", name: "fixed-name", nameSource: "user" },
+      { type: "stop", deadlineMs: 5000 },
+    ]);
     transport.emit("data", encodeResidentFrame({ type: "attachment", body: { clientId: "client", controllerRevision: 7 } }));
     const restarting = bridge.requestRestart();
     const request = transport.sent.at(-1)!;
