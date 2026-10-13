@@ -482,11 +482,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         .is_none_or(|id| !tabs.iter().any(|tab| &tab.id == id))
                     {
                         viewed = tabs.first().map(|tab| tab.id.clone());
+                        if let Some(tab_id) = viewed.clone() {
+                            wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
+                        }
                     }
                     strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
                     terminal.write(strip_frame.bytes.as_bytes())?;
                 }
-                "tab.created" => {
+                "tab.created" | "tab.selected" => {
                     let (_, target): (_, TabTarget) = wire::body(&payload)?;
                     viewed = Some(target.tab_id.clone());
                     wire::send(&mut stream, "tab.view", None, target)?;

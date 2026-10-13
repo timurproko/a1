@@ -461,9 +461,10 @@ export async function bindResidentTabBridge(
   await tabBridge.start().catch(() => false);
   tabBridge.status("starting");
   const currentSessionFile = () => currentBackendSessionFile(backend);
+  let pendingAutoName: string | null = null;
   const announceSession = () => {
     const name = backend.session.view().status.footer?.sessionName ?? null;
-    const nameSource = name === null || /^agent(?: \d+)?$/i.test(name) ? "default" : "user";
+    const nameSource = name === pendingAutoName ? "auto" : name === null || /^agent(?: \d+)?$/i.test(name) ? "default" : "user";
     tabBridge.session(currentSessionFile(), name, nameSource);
   };
   let working = false;
@@ -499,9 +500,11 @@ export async function bindResidentTabBridge(
         const prompt = view.transcript.find(block => block.kind === "user")?.text.trim();
         if (prompt && (currentName == null || /^agent(?: \d+)?$/i.test(currentName))) {
           const name = fallbackAutoName(prompt);
+          pendingAutoName = name;
           void backend.workflows.executeWorkflow({ command: "name", argument: name }).then(result => {
             if (result.outcome === "completed") tabBridge.session(currentSessionFile(), name, "auto");
-          }).catch(() => {});
+            else if (pendingAutoName === name) pendingAutoName = null;
+          }).catch(() => { if (pendingAutoName === name) pendingAutoName = null; });
         }
       }
     }

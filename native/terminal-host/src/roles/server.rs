@@ -1018,6 +1018,14 @@ fn writer_loop(
     }
 }
 
+fn canonical_session_identity(value: &str) -> String {
+    std::fs::canonicalize(value)
+        .unwrap_or_else(|_| Path::new(value).to_path_buf())
+        .to_string_lossy()
+        .replace('\\', "/")
+        .to_lowercase()
+}
+
 fn claim_client_control(
     locked: &mut RuntimeState,
     client_id: &str,
@@ -1174,22 +1182,46 @@ fn serve_attach(
         match kind.message_type.as_str() {
             "attach.start" => {
                 let (_, start): (_, AttachStart) = wire::body(&payload)?;
-                if let Ok(mut locked) = state.lock() {
-                    locked.tabs_max = start.tabs_max.clamp(1, 50);
-                }
-                let tab_id = state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?
-                    .default_tab();
-                let should_start = {
+                let selected = start
+                    .session_file
+                    .as_deref()
+                    .map(canonical_session_identity);
+                let (tab_id, should_start) = {
                     let mut locked = state
                         .lock()
                         .map_err(|_| "resident state poisoned".to_owned())?;
-                    locked.registry.tabs.is_empty()
-                        && locked.holders_starting.insert(tab_id.clone())
+                    locked.tabs_max = start.tabs_max.clamp(1, 50);
+                    if let Some(selected) = selected.as_deref()
+                        && let Some(tab) = locked.registry.tabs.iter().find(|tab| {
+                            tab.session_file
+                                .as_deref()
+                                .map(canonical_session_identity)
+                                .as_deref()
+                                == Some(selected)
+                        })
+                    {
+                        (tab.tab_id.clone(), false)
+                    } else if selected.is_some() && !locked.registry.tabs.is_empty() {
+                        let tab_id = format!("tab-{:016x}", rand::random::<u64>());
+                        let start = locked.holders_starting.insert(tab_id.clone());
+                        (tab_id, start)
+                    } else {
+                        let tab_id = locked.default_tab();
+                        let start = locked.registry.tabs.is_empty()
+                            && locked.holders_starting.insert(tab_id.clone());
+                        (tab_id, start)
+                    }
                 };
                 if should_start {
-                    start_holder(&profile, &state, tab_id, start)?;
+                    start_holder(&profile, &state, tab_id.clone(), start)?;
+                }
+                if selected.is_some() {
+                    tx.offer_control(wire::frame(
+                        "tab.selected",
+                        kind.request_id,
+                        TabTarget { tab_id },
+                    )?)
+                    .map_err(str::to_owned)?;
                 }
             }
             "tab.create" => {
@@ -1573,9 +1605,12 @@ fn serve_attach(
                     let mut locked = state
                         .lock()
                         .map_err(|_| "resident state poisoned".to_owned())?;
-                    let bridge = claim_client_control(&mut locked, &client_id, allow_control)?;
-                    if let Some((peer, attachment)) = bridge {
-                        let _ = peer.offer_control(wire::frame("attachment", None, attachment)?);
+                    if kind.message_type != "resize" {
+                        let bridge = claim_client_control(&mut locked, &client_id, allow_control)?;
+                        if let Some((peer, attachment)) = bridge {
+                            let _ =
+                                peer.offer_control(wire::frame("attachment", None, attachment)?);
+                        }
                     }
                     locked
                         .clients
@@ -1740,6 +1775,22 @@ fn start_holder(
             .derive("bridge", &tab_id, incarnation)
             .to_vec();
         let order = locked.registry.tabs.len() as u32;
+        let names = locked
+            .registry
+            .tabs
+            .iter()
+            .map(|tab| tab.display_name.as_str())
+            .collect::<std::collections::HashSet<_>>();
+        let display_name = (1usize..)
+            .map(|number| {
+                if number == 1 {
+                    "agent".into()
+                } else {
+                    format!("agent {number}")
+                }
+            })
+            .find(|name| !names.contains(name.as_str()))
+            .expect("unbounded default tab names");
         let created_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -1751,11 +1802,7 @@ fn start_holder(
             tab_id: tab_id.clone(),
             kind: "a1".into(),
             created_at,
-            display_name: if order == 0 {
-                "agent".into()
-            } else {
-                format!("agent {}", order + 1)
-            },
+            display_name,
             name_source: "default".into(),
             order,
             cwd: start.cwd.clone(),
