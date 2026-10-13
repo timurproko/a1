@@ -77,6 +77,8 @@ pub struct HolderLaunchConfig {
     pub session_dir: Option<String>,
     #[serde(default)]
     pub recovery_journals: Vec<String>,
+    #[serde(default)]
+    pub standby: bool,
     pub server: ServerLaunchConfig,
 }
 

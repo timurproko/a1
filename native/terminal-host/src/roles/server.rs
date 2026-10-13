@@ -185,6 +185,13 @@ struct BridgePeer {
     controller_boundary: bool,
 }
 
+#[derive(Clone)]
+struct StandbyTab {
+    tab_id: String,
+    start: AttachStart,
+    incarnation: u64,
+}
+
 struct PendingControllerTransfer {
     client_id: String,
     revision: u64,
@@ -209,6 +216,7 @@ struct RuntimeState {
     status_persist_pending: std::collections::HashSet<String>,
     status_last_persist: HashMap<String, std::time::Instant>,
     pending_controller_transfers: HashMap<String, PendingControllerTransfer>,
+    standby: Option<StandbyTab>,
     holders: HashMap<String, HolderSession>,
     launches: HashMap<String, AttachStart>,
     holders_terminating: std::collections::HashSet<String>,
@@ -529,6 +537,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         status_persist_pending: std::collections::HashSet::new(),
         status_last_persist: HashMap::new(),
         pending_controller_transfers: HashMap::new(),
+        standby: None,
         holders: HashMap::new(),
         launches,
         holders_terminating: std::collections::HashSet::new(),
@@ -841,7 +850,7 @@ fn serve_peer(
                     .tabs
                     .iter()
                     .find(|tab| tab.tab_id == tab_id)
-                    .map_or(1, |tab| {
+                    .map(|tab| {
                         if hello.role == "holder"
                             && tab.lifecycle == "restarting"
                             && hello.incarnation.saturating_add(1) == tab.incarnation
@@ -850,7 +859,15 @@ fn serve_peer(
                         } else {
                             tab.incarnation
                         }
-                    });
+                    })
+                    .or_else(|| {
+                        locked
+                            .standby
+                            .as_ref()
+                            .filter(|standby| standby.tab_id == tab_id)
+                            .map(|standby| standby.incarnation)
+                    })
+                    .unwrap_or(1);
                 locked
                     .credentials
                     .derive(
@@ -883,39 +900,58 @@ fn serve_peer(
             let locked = state
                 .lock()
                 .map_err(|_| "resident state poisoned".to_owned())?;
-            locked
+            let recorded = locked
                 .registry
                 .tabs
                 .iter()
                 .find(|tab| Some(tab.tab_id.as_str()) == hello.tab_id.as_deref())
-                .cloned()
-                .ok_or_else(|| "holder has no registry record".to_owned())?
+                .cloned();
+            let standby_matches = locked.standby.as_ref().is_some_and(|standby| {
+                Some(standby.tab_id.as_str()) == hello.tab_id.as_deref()
+                    && standby.incarnation == hello.incarnation
+            });
+            if recorded.is_none() && !standby_matches {
+                return Err("holder has no registry or standby record".to_owned());
+            }
+            recorded
         };
-        let pending_respawn = recorded.lifecycle == "restarting"
-            && hello.incarnation.saturating_add(1) == recorded.incarnation;
-        if hello.incarnation != recorded.incarnation && !pending_respawn {
+        let pending_respawn = recorded.as_ref().is_some_and(|recorded| {
+            recorded.lifecycle == "restarting"
+                && hello.incarnation.saturating_add(1) == recorded.incarnation
+        });
+        if recorded
+            .as_ref()
+            .is_some_and(|recorded| hello.incarnation != recorded.incarnation && !pending_respawn)
+        {
             return Err("holder incarnation does not match the registry".to_owned());
         }
-        if let Some(recorded_pid) = recorded.holder_pid {
+        if let Some(recorded_pid) = recorded.as_ref().and_then(|recorded| recorded.holder_pid) {
             let pid = hello
                 .pid
                 .ok_or_else(|| "holder did not present a pid".to_owned())?;
             let observed = inspect_identity_bounded(pid)?
                 .ok_or_else(|| "holder process is not live".to_owned())?;
             if recorded_pid != pid
-                || recorded.holder_start_identity.as_deref() != Some(observed.start.as_str())
+                || recorded
+                    .as_ref()
+                    .and_then(|recorded| recorded.holder_start_identity.as_deref())
+                    != Some(observed.start.as_str())
             {
                 return Err("holder identity does not match the registry".to_owned());
             }
         }
-        if let Some(recorded_child_pid) = recorded.child_pid {
+        if let Some(recorded_child_pid) = recorded.as_ref().and_then(|recorded| recorded.child_pid)
+        {
             let child_pid = hello
                 .child_pid
                 .ok_or_else(|| "holder did not present its child pid".to_owned())?;
             let child = inspect_identity_bounded(child_pid)?
                 .ok_or_else(|| "holder child process is not live".to_owned())?;
             if recorded_child_pid != child_pid
-                || recorded.child_start_identity.as_deref() != Some(child.start.as_str())
+                || recorded
+                    .as_ref()
+                    .and_then(|recorded| recorded.child_start_identity.as_deref())
+                    != Some(child.start.as_str())
                 || hello.child_start_identity.as_deref() != Some(child.start.as_str())
             {
                 return Err("holder child identity does not match the registry".to_owned());
@@ -1005,6 +1041,7 @@ fn welcome(epoch: u64) -> Welcome {
             "bridge-visibility".into(),
             "bridge-rename".into(),
             "bridge-stop".into(),
+            "standby-promotion".into(),
             "recovery-status".into(),
         ],
         frame_limit: protocol::MAX_FRAME_BYTES as u32,
@@ -1476,9 +1513,8 @@ fn serve_attach(
             }
             "tab.create" => {
                 let (_, create): (_, TabCreate) = wire::body(&payload)?;
-                let tab_id = format!("tab-{:016x}", rand::random::<u64>());
-                {
-                    let mut locked = state
+                let tabs_max = {
+                    let locked = state
                         .lock()
                         .map_err(|_| "resident state poisoned".to_owned())?;
                     let active_tabs = locked
@@ -1510,14 +1546,11 @@ fn serve_attach(
                         .map_err(str::to_owned)?;
                         continue;
                     }
-                    locked.holders_starting.insert(tab_id.clone());
-                }
-                let start = AttachStart {
+                    locked.tabs_max
+                };
+                let mut start = AttachStart {
                     client_id: client_id.clone(),
-                    tabs_max: state
-                        .lock()
-                        .map_err(|_| "resident state poisoned".to_owned())?
-                        .tabs_max,
+                    tabs_max,
                     cwd: create.cwd,
                     columns: create.columns,
                     rows: create.rows,
@@ -1527,6 +1560,37 @@ fn serve_attach(
                     session_file: None,
                     session_dir: None,
                 };
+                sanitize_tab_environment(&mut start.environment);
+                match promote_standby(&state, start.clone()) {
+                    Ok(Some(tab_id)) => {
+                        tx.offer_control(wire::frame(
+                            "tab.created",
+                            kind.request_id,
+                            TabTarget { tab_id },
+                        )?)
+                        .map_err(str::to_owned)?;
+                        continue;
+                    }
+                    Ok(None) => discard_standby(&state),
+                    Err(error) => {
+                        tx.offer_control(wire::frame(
+                            "tab.create-failed",
+                            kind.request_id,
+                            wire::ResultBody {
+                                accepted: false,
+                                message: Some(error),
+                            },
+                        )?)
+                        .map_err(str::to_owned)?;
+                        continue;
+                    }
+                }
+                let tab_id = format!("tab-{:016x}", rand::random::<u64>());
+                state
+                    .lock()
+                    .map_err(|_| "resident state poisoned".to_owned())?
+                    .holders_starting
+                    .insert(tab_id.clone());
                 match start_holder(&profile, &state, tab_id.clone(), start) {
                     Ok(()) => {
                         tx.offer_control(wire::frame(
@@ -2110,6 +2174,256 @@ fn acquire_start_permit(
     }
 }
 
+fn same_standby_context(standby: &AttachStart, requested: &AttachStart) -> bool {
+    let normalize = |values: &[(String, String)]| {
+        values
+            .iter()
+            .cloned()
+            .collect::<std::collections::BTreeMap<_, _>>()
+    };
+    standby.cwd == requested.cwd
+        && standby.release_root == requested.release_root
+        && standby.node_executable == requested.node_executable
+        && normalize(&standby.environment) == normalize(&requested.environment)
+}
+
+fn promote_standby(
+    state: &Arc<Mutex<RuntimeState>>,
+    start: AttachStart,
+) -> Result<Option<String>, String> {
+    let promotion = {
+        let mut locked = state
+            .lock()
+            .map_err(|_| "resident state poisoned".to_owned())?;
+        let Some(standby) = locked
+            .standby
+            .as_ref()
+            .filter(|standby| {
+                same_standby_context(&standby.start, &start)
+                    && locked.holders.contains_key(&standby.tab_id)
+            })
+            .cloned()
+        else {
+            return Ok(None);
+        };
+        let holder = locked
+            .holders
+            .get(&standby.tab_id)
+            .cloned()
+            .ok_or_else(|| "standby holder disappeared".to_owned())?;
+        locked.standby = None;
+        let order = locked.registry.tabs.len() as u32;
+        let names = locked
+            .registry
+            .tabs
+            .iter()
+            .map(|tab| tab.display_name.as_str())
+            .collect::<std::collections::HashSet<_>>();
+        let display_name = (1usize..)
+            .map(|number| {
+                if number == 1 {
+                    "agent".into()
+                } else {
+                    format!("agent {number}")
+                }
+            })
+            .find(|name| !names.contains(name.as_str()))
+            .expect("unbounded default tab names");
+        let created_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            .to_string();
+        let previous = locked.registry.clone();
+        locked.registry.tabs.push(TabRecord {
+            tab_id: standby.tab_id.clone(),
+            kind: "a1".into(),
+            created_at,
+            display_name,
+            name_source: "default".into(),
+            order,
+            cwd: start.cwd.clone(),
+            session_file: None,
+            session_dir: None,
+            desired: "running".into(),
+            lifecycle: "starting".into(),
+            incarnation: standby.incarnation,
+            holder_pid: Some(holder.identity.pid),
+            holder_start_identity: Some(holder.identity.start.clone()),
+            child_pid: None,
+            child_start_identity: None,
+            release: start.release_root.clone(),
+            last_exit: None,
+            restarts: 0,
+            restart_window_start: None,
+            requested_restart: false,
+            attention_seq: 0,
+            seen_seq: 0,
+        });
+        locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
+        let document = locked.registry.clone();
+        (
+            standby,
+            holder,
+            locked.registry_store.clone(),
+            previous,
+            document,
+        )
+    };
+    let (standby, holder, store, previous, document) = promotion;
+    if let Err(error) = commit_registry(store, document.clone()) {
+        if let Ok(mut locked) = state.lock() {
+            if locked.registry.registry_revision == document.registry_revision {
+                locked.registry = previous;
+            }
+            locked.standby = Some(standby);
+        }
+        return Err(error);
+    }
+    {
+        let mut locked = state
+            .lock()
+            .map_err(|_| "resident state poisoned".to_owned())?;
+        locked
+            .launches
+            .insert(standby.tab_id.clone(), start.clone());
+        let mut core_tab = crate::core::server::TabState::new((start.columns, start.rows));
+        core_tab.incarnation = standby.incarnation;
+        core_tab.holder_pid = Some(holder.identity.pid);
+        locked.core.tabs.insert(standby.tab_id.clone(), core_tab);
+    }
+    holder
+        .peer
+        .offer_control(wire::frame(
+            "resize",
+            None,
+            Resize {
+                columns: start.columns,
+                rows: start.rows,
+                epoch: 0,
+            },
+        )?)
+        .map_err(str::to_owned)?;
+    holder
+        .peer
+        .offer_control(wire::frame(
+            "holder.promote",
+            None,
+            wire::ResultBody {
+                accepted: true,
+                message: None,
+            },
+        )?)
+        .map_err(str::to_owned)?;
+    Ok(Some(standby.tab_id))
+}
+
+fn discard_standby(state: &Arc<Mutex<RuntimeState>>) {
+    let holder = state.lock().ok().and_then(|mut locked| {
+        let standby = locked.standby.take()?;
+        locked.surfaces.remove(&standby.tab_id);
+        locked.holders.get(&standby.tab_id).cloned()
+    });
+    if let Some(holder) = holder {
+        let _ = holder.peer.offer_control(
+            wire::frame(
+                "shutdown",
+                None,
+                wire::ResultBody {
+                    accepted: true,
+                    message: Some("standby retarget".into()),
+                },
+            )
+            .unwrap_or_default(),
+        );
+    }
+}
+
+fn launch_standby(state: &Arc<Mutex<RuntimeState>>, mut start: AttachStart) -> Result<(), String> {
+    sanitize_tab_environment(&mut start.environment);
+    start.client_id = "standby".into();
+    start.session_file = None;
+    start.session_dir = None;
+    let tab_id = format!("standby-{:016x}", rand::random::<u64>());
+    let incarnation = 1;
+    let (profile, context) = {
+        let mut locked = state
+            .lock()
+            .map_err(|_| "resident state poisoned".to_owned())?;
+        if locked.standby.is_some() {
+            return Ok(());
+        }
+        locked.standby = Some(StandbyTab {
+            tab_id: tab_id.clone(),
+            start: start.clone(),
+            incarnation,
+        });
+        let context = HolderLaunchConfig {
+            endpoint: locked.endpoint.clone(),
+            tab_id: tab_id.clone(),
+            incarnation,
+            token: locked
+                .credentials
+                .derive("holder", &tab_id, incarnation)
+                .to_vec(),
+            bridge_token: locked
+                .credentials
+                .derive("bridge", &tab_id, incarnation)
+                .to_vec(),
+            cwd: start.cwd.clone(),
+            columns: start.columns,
+            rows: start.rows,
+            release_root: start.release_root.clone(),
+            node_executable: start.node_executable.clone(),
+            environment: start.environment.clone(),
+            session_file: None,
+            session_dir: None,
+            recovery_journals: Vec::new(),
+            standby: true,
+            server: locked.server_config.clone(),
+        };
+        (locked.profile.clone(), context)
+    };
+    if !acquire_start_gate(state, std::time::Duration::from_secs(40)) {
+        if let Ok(mut locked) = state.lock()
+            && locked
+                .standby
+                .as_ref()
+                .is_some_and(|value| value.tab_id == tab_id)
+        {
+            locked.standby = None;
+        }
+        return Err("standby start gate timed out".into());
+    }
+    let result = launch::launch_resident_with_config(ResidentRole::Holder, &profile, &context)
+        .map_err(|error| error.to_string())
+        .and_then(|(mut process, observation)| {
+            match inspect_identity_bounded(observation.process.pid) {
+                Ok(Some(identity)) if identity.start == observation.process.start => Ok(()),
+                Ok(_) => {
+                    let _ = process.terminate();
+                    Err("standby holder identity could not be verified".into())
+                }
+                Err(error) => {
+                    let _ = process.terminate();
+                    Err(error)
+                }
+            }
+        });
+    release_start_gate(state);
+    if result.is_err()
+        && let Ok(mut locked) = state.lock()
+        && locked
+            .standby
+            .as_ref()
+            .is_some_and(|value| value.tab_id == tab_id)
+    {
+        locked.standby = None;
+        locked.holders.remove(&tab_id);
+    }
+    result
+}
+
 fn start_holder(
     profile: &Path,
     state: &Arc<Mutex<RuntimeState>>,
@@ -2224,6 +2538,7 @@ fn start_holder(
         session_file: start.session_file,
         session_dir: start.session_dir,
         recovery_journals: Vec::new(),
+        standby: false,
         server: server_config,
     };
     let mut last_error = None;
@@ -2334,6 +2649,7 @@ fn launch_replacement_holder(state: &Arc<Mutex<RuntimeState>>, tab_id: &str) -> 
             session_file: record.session_file.clone(),
             session_dir: record.session_dir.clone(),
             recovery_journals: Vec::new(),
+            standby: false,
             server: locked.server_config.clone(),
         };
         (context, locked.profile.clone())
@@ -2721,6 +3037,21 @@ fn serve_holder(
             }
             "holder.exit" => {
                 let (_, exit): (_, HolderExit) = wire::body(&payload)?;
+                let standby_exit = state.lock().ok().is_some_and(|locked| {
+                    locked
+                        .standby
+                        .as_ref()
+                        .is_some_and(|standby| standby.tab_id == tab_id)
+                        && !locked
+                            .registry
+                            .tabs
+                            .iter()
+                            .any(|record| record.tab_id == tab_id)
+                });
+                if standby_exit {
+                    last_exit = Some("standby child ended".into());
+                    break;
+                }
                 let reason = exit.signal.clone().unwrap_or_else(|| {
                     exit.code
                         .map_or_else(|| "ended".into(), |code| format!("exit {code}"))
@@ -2944,6 +3275,21 @@ fn serve_holder(
         return Ok(());
     }
     locked.holders.remove(&tab_id);
+    let was_standby = locked
+        .standby
+        .as_ref()
+        .is_some_and(|standby| standby.tab_id == tab_id)
+        && !locked
+            .registry
+            .tabs
+            .iter()
+            .any(|record| record.tab_id == tab_id);
+    if was_standby {
+        locked.standby = None;
+        locked.surfaces.remove(&tab_id);
+        locked.last_activity = std::time::Instant::now();
+        return Ok(());
+    }
     let incarnation = locked
         .core
         .tabs
@@ -3315,6 +3661,19 @@ fn serve_bridge(
             let registry_store = locked.registry_store.clone();
             drop(locked);
             commit_registry(registry_store, document)?;
+            let standby_start = state.lock().ok().and_then(|locked| {
+                if locked.standby.is_none() {
+                    locked.launches.get(&tab_id).cloned()
+                } else {
+                    None
+                }
+            });
+            if let Some(start) = standby_start {
+                let standby_state = state.clone();
+                thread::spawn(move || {
+                    let _ = launch_standby(&standby_state, start);
+                });
+            }
         } else if kind.message_type == "bridge.request" {
             let (_, request): (_, BridgeRequest) = wire::body(&payload)?;
             let accepted = if request.action == "detach" {
@@ -3583,6 +3942,43 @@ mod tests {
         ];
         sanitize_tab_environment(&mut environment);
         assert_eq!(environment, vec![("PATH".into(), "retained".into())]);
+    }
+
+    #[test]
+    fn standby_requires_exact_cwd_release_node_and_environment() {
+        let start = AttachStart {
+            client_id: "one".into(),
+            tabs_max: 10,
+            cwd: "E:/repo".into(),
+            columns: 80,
+            rows: 23,
+            release_root: "E:/release".into(),
+            node_executable: "node".into(),
+            environment: vec![("B".into(), "2".into()), ("A".into(), "1".into())],
+            session_file: None,
+            session_dir: None,
+        };
+        let mut reordered = start.clone();
+        reordered.client_id = "two".into();
+        reordered.columns = 120;
+        reordered.rows = 40;
+        reordered.environment.reverse();
+        assert!(same_standby_context(&start, &reordered));
+        for changed in [
+            ("cwd", "E:/other"),
+            ("release", "E:/other-release"),
+            ("node", "other-node"),
+        ] {
+            let mut candidate = reordered.clone();
+            match changed.0 {
+                "cwd" => candidate.cwd = changed.1.into(),
+                "release" => candidate.release_root = changed.1.into(),
+                _ => candidate.node_executable = changed.1.into(),
+            }
+            assert!(!same_standby_context(&start, &candidate));
+        }
+        reordered.environment.push(("EXTRA".into(), "value".into()));
+        assert!(!same_standby_context(&start, &reordered));
     }
 
     #[test]

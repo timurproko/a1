@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // Security: this helper has no A1, Pi, tool, or extension dependency and erases credentials before those modules load.
-const { assignFreshSessionRuntimeId, consumeTabLaunchContext, formatResidentFallbackNotice } = await import("./tab-launch-context.js");
-const { uiArguments, tabCredentials, tabDataDir, tabIncarnation } = consumeTabLaunchContext(process.argv.slice(2), process.env);
+const { assignFreshSessionRuntimeId, consumeTabLaunchContext, formatResidentFallbackNotice, waitForStandbyPromotion } = await import("./tab-launch-context.js");
+const { uiArguments, tabCredentials, tabDataDir, tabIncarnation, tabStandby } = consumeTabLaunchContext(process.argv.slice(2), process.env);
 
 // Invariant: one terminal module identity per process, decided before any A1 or Pi module loads.
 const { installPinnedPiTuiResolver } = await import("./module-resolver.js");
@@ -51,6 +51,8 @@ const [
   { runOwnedUi, terminateOwnedUiProcess },
   { composeOwnedUi },
 ] = await modules;
+
+if (tabStandby) await waitForStandbyPromotion(process.stdin);
 
 // Compatibility: before the composition uses pinned Pi's terminal stack: confirm A1 and Pi
 // resolve it to the same copy, so extensions and the owned UI share one module identity.

@@ -12,6 +12,8 @@ export function assignFreshSessionRuntimeId(
   createId: () => string,
 ): string;
 
+export function waitForStandbyPromotion(input: NodeJS.ReadStream): Promise<void>;
+
 export function consumeTabLaunchContext(
   arguments_: readonly string[],
   environment: Record<string, string | undefined>,
@@ -20,4 +22,5 @@ export function consumeTabLaunchContext(
   readonly tabCredentials: TabLaunchCredentials | undefined;
   readonly tabDataDir?: string;
   readonly tabIncarnation?: number;
+  readonly tabStandby: boolean;
 };

@@ -38,6 +38,7 @@ enum HolderCommand {
     SurfaceSubscription(bool),
     ControllerBoundary(protocol::ControllerBoundary),
     Respawn(HolderRespawn),
+    Promote,
     TerminateChild,
     Shutdown,
     Disconnected,
@@ -261,6 +262,9 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
     let mut command = CommandBuilder::new(&config.node_executable);
     command.arg(Path::new(&config.release_root).join("bin").join("ui.js"));
     command.arg("--tab");
+    if config.standby {
+        command.arg("--tab-standby");
+    }
     let tab_data_dir = Path::new(&config.server.data_dir)
         .join("tabs")
         .join(profile_token)
@@ -455,6 +459,10 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                         },
                     )?);
                 }
+            } else if matches!(&command, HolderCommand::Promote) {
+                write_tx
+                    .send((b"\x1b]a1;standby-promote\x07".to_vec(), 0))
+                    .map_err(|_| "promote standby child writer stopped".to_owned())?;
             } else if matches!(
                 &command,
                 HolderCommand::TerminateChild | HolderCommand::Shutdown
@@ -894,6 +902,9 @@ fn spawn_command_reader(
                     if let Ok((_, respawn)) = wire::body::<HolderRespawn>(&payload) {
                         let _ = command_tx.send(HolderCommand::Respawn(respawn));
                     }
+                }
+                "holder.promote" => {
+                    let _ = command_tx.send(HolderCommand::Promote);
                 }
                 "holder.terminate-child" => {
                     let _ = command_tx.send(HolderCommand::TerminateChild);
