@@ -262,7 +262,7 @@
       "key": "A1_TABS_FAULT_REGISTRY_REPLACE",
       "exposure": "integration",
       "owner": "native/terminal-host/src/fault_injection.rs",
-      "evidence": "openspec/changes/resident-tabs-crash-recovery/design.md",
+      "evidence": "openspec/changes/archive/2026-10-13-resident-tabs-crash-recovery/design.md",
       "semantics": "Fault-feature-only transient or persistent registry replacement failure used by native integration tests"
     },
     {
