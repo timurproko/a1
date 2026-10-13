@@ -14,7 +14,7 @@ use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use terminal_host_contracts as contracts;
 
 use contracts::ghostty::{
-    GhosttyTerminal, KeyEncoder, MouseAction, MouseButton, MouseEncoder, MouseInput,
+    GhosttyTerminal, KeyEncoder, MOD_CTRL, MouseAction, MouseButton, MouseEncoder, MouseInput,
     SelectionGesture, key_for_character,
 };
 
@@ -650,6 +650,19 @@ fn probe_input() -> Result<(), String> {
             "text/IME key encoding produced unexpected bytes: {encoded_text:?}"
         ));
     }
+    terminal.write(b"\x1b[>1u");
+    let kitty_key = key_encoder.encode(
+        &terminal,
+        key_for_character('a'),
+        MOD_CTRL,
+        Some("a"),
+        false,
+    )?;
+    if !kitty_key.starts_with(b"\x1b[") || !kitty_key.ends_with(b"u") {
+        return Err(format!(
+            "kitty key encoding produced unexpected bytes: {kitty_key:?}"
+        ));
+    }
 
     terminal.write(b"\x1b[?1000h\x1b[?1006h");
     if !terminal.mouse_tracking()? {
@@ -681,8 +694,23 @@ fn probe_input() -> Result<(), String> {
         return Err("OSC 52 clipboard encoding did not stay in the native host".to_owned());
     }
 
+    terminal.write(b"\x1b[2J\x1b[Hbase-screen\x1b[?1049halternate\x1b[?1049l");
+    terminal.write("\x1b]8;;https://example.invalid\x07linked\x1b]8;;\x07 wide-开发 combining-e\u{301} \x1b[3 q [image unavailable]".as_bytes());
+    let frame = terminal.frame()?;
+    for expected in [
+        "base-screen",
+        "linked",
+        "开发",
+        "e\u{301}",
+        "[image unavailable]",
+    ] {
+        if !frame.contains(expected) {
+            return Err(format!("terminal fidelity frame omitted {expected:?}"));
+        }
+    }
+
     println!(
-        "{{\"schema\":\"a1-terminal-host-input-probe-v1\",\"keyEncoding\":true,\"textImeEncoding\":true,\"mouseEncoding\":true,\"paneRelativeMouse\":true,\"clipboardEncoding\":true,\"nodeRelay\":false}}"
+        "{{\"schema\":\"a1-terminal-host-fidelity-probe-v1\",\"keyEncoding\":true,\"kittyKeys\":true,\"textImeEncoding\":true,\"mouseEncoding\":true,\"paneRelativeMouse\":true,\"bracketedPaste\":true,\"clipboardOsc52\":true,\"hyperlinkOsc8\":true,\"cursorShape\":true,\"wideCombiningUnicode\":true,\"alternateScreen\":true,\"imageTextFallback\":true,\"nodeRelay\":false}}"
     );
     Ok(())
 }

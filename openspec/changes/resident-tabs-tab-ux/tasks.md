@@ -10,7 +10,7 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 ## 2. Tab bridge and status
 
 - [x] 2.1 Add the complete bridge messages to protocol generation 1 as additive optional shapes with `unknown` fallbacks, frozen fixtures, updated fixture digest, and decoder fuzz coverage. Include sequenced status, pending requests, queued input, heartbeat, session/name source, interrupted prompt, resolved tab accent, visibility, rename, graceful stop, and origin-stamped detach requests. Prove milestone-4 peer interoperability with new methods disabled.
-- [ ] 2.2 Add a pure status deriver from Pi/owned engine events plus pending-request and queued-input counts. Register every extension UI and trust/permission prompting path, continue status reports while hidden, and prove terminal output/titles cannot influence status.
+- [x] 2.2 Add a pure status deriver from Pi/owned engine events plus pending-request and queued-input counts. Register every extension UI and trust/permission prompting path, continue status reports while hidden, and prove terminal output/titles cannot influence status.
 - [x] 2.3 Wire the authenticated child bridge only under `--tab`; keep credentials out of inherited environments and bridge captures free of prompts, transcripts, terminal bytes, and credentials. Degrade to process status and attach-local actions when unavailable.
 - [x] 2.4 Add the deterministic server-core status state machine with sequence/incarnation rejection, attention/seen fan-out, persistence coalescing, per-tab accent propagation, and no suspended state. Throttle hidden child animation without stopping status or heartbeat reports.
 
@@ -25,9 +25,9 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 - [x] 4.1 Declare tab actions in `src/features/resident-tab/shortcuts.ts`. Default only new (`Alt+A`), close (`Alt+W`), rename (`F2`), jump 1–10 (`Alt+1`…`Alt+0`), and failed-banner retry/fresh. Declare next/previous/move-left/move-right unbound but assignable through `keybindings.json`; conflict-check assigned bindings and list effective assignments in `/hotkeys`.
 - [x] 4.2 Match decoded crossterm, kitty, and legacy key events before libghostty-vt encoding; consume assigned actions, consume out-of-range jumps without changing tabs, and forward unmatched input. Render failed/stalled banner actions from the effective table without exposing `/restart-tab`.
-- [ ] 4.3 Extract the clear/exit interval and implement fixed double-`Ctrl+C` detach: first press reaches the tab, second is consumed locally, and a selection-clearing press does not arm the chord.
+- [x] 4.3 Extract the clear/exit interval and implement fixed double-`Ctrl+C` detach: first press reaches the tab, second is consumed locally, and a selection-clearing press does not arm the chord.
 - [x] 4.4 Add no tab-management slash commands: do not expose `/new-tab`, `/close`, `/tabs`, `/quit-all`, or `/restart-tab`. Keep existing `/name` synchronized with tab/session naming and keep existing `/quit` and empty-editor `Ctrl+D` as origin-stamped local-client detach routes.
-- [ ] 4.5 Implement close from `×`, `Alt+W`, context menu, and failed/stalled UI: busy confirmation, `desired=stopped`, 5-second graceful bridge stop, verified-tree termination, platform graceful fallback, last-tab empty state, and resumable committed session.
+- [x] 4.5 Implement close from `×`, `Alt+W`, context menu, and failed/stalled UI: busy confirmation, `desired=stopped`, 5-second graceful bridge stop, verified-tree termination, platform graceful fallback, last-tab empty state, and resumable committed session.
 
 ## 5. Automatic concurrent-client control
 

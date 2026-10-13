@@ -19,6 +19,17 @@ use crate::roles::wire::{
 };
 
 pub const HOLDER_INPUT_CAPACITY: usize = 1024 * 1024;
+const BRACKETED_PASTE_START: &[u8] = b"\x1b[200~";
+const BRACKETED_PASTE_END: &[u8] = b"\x1b[201~";
+
+fn bracketed_paste(content: &[u8]) -> Vec<u8> {
+    let mut complete =
+        Vec::with_capacity(BRACKETED_PASTE_START.len() + content.len() + BRACKETED_PASTE_END.len());
+    complete.extend_from_slice(BRACKETED_PASTE_START);
+    complete.extend_from_slice(content);
+    complete.extend_from_slice(BRACKETED_PASTE_END);
+    complete
+}
 
 enum HolderCommand {
     Input(Input),
@@ -479,7 +490,10 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 highest_epoch = epoch;
                 pending_paste = if bytes == 0 {
                     None
-                } else if bytes <= HOLDER_INPUT_CAPACITY {
+                } else if bytes
+                    <= HOLDER_INPUT_CAPACITY
+                        .saturating_sub(BRACKETED_PASTE_START.len() + BRACKETED_PASTE_END.len())
+                {
                     Some(PendingPaste::Collect {
                         expected: bytes,
                         bytes: Vec::with_capacity(bytes),
@@ -538,9 +552,9 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                         PendingPaste::Collect { expected, bytes } => {
                             bytes.extend_from_slice(&message.bytes);
                             if bytes.len() == *expected {
-                                let complete = std::mem::take(bytes);
+                                let content = std::mem::take(bytes);
                                 pending_paste = None;
-                                complete
+                                bracketed_paste(&content)
                             } else if bytes.len() > *expected {
                                 pending_paste = None;
                                 let _ = server.offer_control(wire::frame(
@@ -952,6 +966,14 @@ mod tests {
         )
         .unwrap();
         assert_eq!(first_turn_session_id(root.path()), None);
+    }
+
+    #[test]
+    fn restores_bracketed_paste_protocol_after_outer_terminal_decoding() {
+        assert_eq!(
+            bracketed_paste("wide 开发 e\u{301}".as_bytes()),
+            b"\x1b[200~wide \xe5\xbc\x80\xe5\x8f\x91 e\xcc\x81\x1b[201~"
+        );
     }
 
     #[test]

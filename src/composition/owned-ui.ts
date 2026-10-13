@@ -184,6 +184,18 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
       agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
     });
+  const tabBridge = options.tab?.bridge ?? null;
+  if (tabBridge !== null) await tabBridge.start().catch(() => false);
+  const projectTrustPrompt = options.projectTrustPrompt === undefined ? undefined : async (
+    request: Parameters<PiProjectTrustPreflightPrompt>[0],
+  ) => {
+    tabBridge?.status("needs-input", false, 1, 0);
+    try {
+      return await options.projectTrustPrompt!(request);
+    } finally {
+      tabBridge?.status("starting");
+    }
+  };
   // Invariant: process-wide engine state has one owner. The host installs the HTTP dispatcher, applies
   // the theme singletons, and announces startup notices once; every session is created through it.
   const host = await (options.createEngineHost ?? (async hostOptions => createPiEngineHost(hostOptions)))({
@@ -196,21 +208,30 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       packageBorderProjection: ownedSurfaces,
       apply: { base: applyConfiguredPiTheme, accentColor: setPiAccentColor, packageBorderProjection: setPiPackageBorderProjectionEnabled },
     },
-    ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
+    ...(projectTrustPrompt === undefined ? {} : { projectTrustPrompt }),
   });
+  const sessionForkPrompt = options.sessionForkPrompt === undefined ? undefined : async (
+    request: Parameters<PiSessionForkPrompt>[0],
+  ) => {
+    tabBridge?.status("needs-input", false, 1, 0);
+    try {
+      return await options.sessionForkPrompt!(request);
+    } finally {
+      tabBridge?.status("starting");
+    }
+  };
   try {
     backend = await host.create({
       cwd,
       ...(ownedSurfaces ? { repositoryContextReader: repositoryContextReaderFor(undefined) } : {}),
       ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
       ...(options.sessionSelection === undefined ? {} : { sessionSelection: options.sessionSelection }),
-      ...(options.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: options.sessionForkPrompt }),
+      ...(sessionForkPrompt === undefined ? {} : { sessionForkPrompt }),
     });
   } catch (error) {
     await host.dispose();
     throw error;
   }
-  const tabBridge = options.tab?.bridge ?? null;
   let recoveryDegraded = false;
   let presentRecoveryDegraded = (_degraded: boolean): void => {};
   const tabRecovery = options.tab === undefined ? null : new ResidentTabRecovery(options.tab.dataDir, {
