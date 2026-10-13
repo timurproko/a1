@@ -54,7 +54,7 @@ describe("repository-owned atomic delivery guidance", () => {
       expect(guidance).toMatch(/two to ten/i);
       expect(guidance).toContain("`## Implementation`");
       expect(guidance).toMatch(/\[ \].*\[x\]|\[ \].*to.*\[x\]/s);
-      expect(guidance).toMatch(/focused evidence/i);
+      expect(guidance).toMatch(/focused (?:pre-ready )?evidence/i);
       expect(guidance).toMatch(/scope refinement/i);
       expect(guidance).toMatch(/before (?:ready\/finalization|ready or finalization)/i);
     }
@@ -64,6 +64,24 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).toContain("Acceptance uses plain bullets, never checkboxes");
     expect(skill).toContain("Keep `## Acceptance` plain; maintainer integration accepts");
     expect(runbook).toContain("those markers report implementation progress and never human acceptance");
+  });
+
+  it("puts progress and workflow-owned readiness in always-loaded agent context", async () => {
+    const agents = await readFile("AGENTS.md", "utf8");
+    const claude = await readFile("CLAUDE.md", "utf8");
+    expect(agents).toBe(claude);
+    for (const guidance of [agents, claude]) {
+      expect(guidance).toContain(".agents/skills/change-delivery/SKILL.md");
+      expect(guidance).toContain("do not defer truthful progress updates until handoff");
+      expect(guidance).toContain("Checking the final item completes the agent's implementation job");
+      expect(guidance).toContain("trusted workflow automation owns the draft-to-ready transition");
+      expect(guidance).toContain("Never mark an implementation pull request ready yourself");
+      expect(guidance).toContain("report the concrete blocker");
+      expect(guidance).toContain("GitHub check counts");
+      expect(guidance).not.toContain("gh pr ready");
+    }
+    for (const path of ["openspec/config.yaml", ".agents/skills/change-delivery/SKILL.md", "docs/openspec-archive-automation.md"])
+      expect(await readFile(path, "utf8")).toMatch(/agents never mark implementation (?:pull requests|PRs) ready/i);
   });
 
   it("requires the owning session to link its exact worktree before delivery edits", async () => {
@@ -205,7 +223,7 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(docs).not.toContain("> Phase: Implementation");
     expect(docs).toContain("no lifecycle body edit or second workflow run is required");
     expect(docs).toContain("## Automated finalization");
-    expect(docs).toContain("Ready and automated finalization");
+    expect(docs).toContain("Automatic readiness and finalization");
     expect(docs).toContain("Do not revert a finalization commit to make a fix");
     expect(docs).toContain("pull before pushing");
     expect(docs).toContain("`finalization-merge-conflict`");

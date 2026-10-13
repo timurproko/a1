@@ -74,7 +74,7 @@ export async function createArchivePublisher({ repository, appId, privateKey, fe
         query: "mutation($id: ID!) { markPullRequestReadyForReview(input: {pullRequestId: $id}) { pullRequest { number } } }",
         variables: { id: nodeId },
       }, access.token);
-      if (result.errors || result.data?.markPullRequestReadyForReview?.pullRequest?.number !== number) throw archiveFailure("acceptance-ready-failed");
+      if (result.errors || result.data?.markPullRequestReadyForReview?.pullRequest?.number !== number) throw archiveFailure("pull-request-ready-failed");
     },
     async close() { await request("/installation/token", "DELETE", undefined, access.token); },
   };
