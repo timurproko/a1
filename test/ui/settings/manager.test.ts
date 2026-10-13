@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { OwnedSettingsManager, type OwnedUiSettingDeclaration } from "../../../src/ui/settings/index.js";
 import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 const DECLARATIONS: readonly OwnedUiSettingDeclaration[] = [
   {
@@ -147,7 +148,7 @@ describe("owned settings manager", () => {
       expect(port.writes).toEqual([]);
       expect(port.flushed()).toBe(0);
       expect(JSON.parse(readFileSync(seed.file, "utf8"))).toEqual({
-        a1: {
+        [PRODUCT_IDENTITY.commandName]: {
           promptSuggestions: false, skillsPresentation: "expand", promptImageLimit: 12,
           accentColor: "orange", backgroundStyle: "dark",
         },
@@ -194,17 +195,18 @@ describe("owned settings manager", () => {
   });
 
   it("normalizes recognizable flat legacy shapes on the next accepted change", async () => {
+    const namespace = "profile";
     writeFileSync(path.join(root, "settings.json"), JSON.stringify({
       theme: "dark",
-      a1: { scrollbarSpeed: "high", accentColor: "default", futureSetting: "keep" },
+      [namespace]: { scrollbarSpeed: "high", accentColor: "default", futureSetting: "keep" },
     }));
-    const target = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    const target = new OwnedSettingsManager({ configDir: root, profileId: namespace });
     expect(target.value("scrollbarSpeed")).toBe("high");
     expect(target.value("accentColor")).toBe("purple");
     expect((await target.change("a1", "promptSuggestions", false)).status).toBe("applied");
     expect(JSON.parse(readFileSync(target.file, "utf8"))).toEqual({
       theme: "dark",
-      a1: {
+      [namespace]: {
         futureSetting: "keep", scrollbarSpeed: "high", promptSuggestions: false,
       },
     });

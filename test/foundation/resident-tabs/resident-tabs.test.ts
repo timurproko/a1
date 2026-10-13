@@ -19,32 +19,33 @@ async function temporaryDirectory(prefix: string) {
 describe("resident tab launch contracts", () => {
   it("resolves only an explicit valid profile setting", async () => {
     const root = await temporaryDirectory("resident-setting-"); cleanups.push(root.cleanup);
-    await writeFile(join(root.path, "settings.json"), JSON.stringify({ theme: "dark", a1: { residentTabs: true } }));
-    expect(await readResidentTabsSetting(root.path)).toBe(true);
-    expect(await readResidentTabLaunchSettings(root.path)).toEqual({
+    const namespace = "product";
+    await writeFile(join(root.path, "settings.json"), JSON.stringify({ theme: "dark", [namespace]: { residentTabs: true } }));
+    expect(await readResidentTabsSetting(root.path, namespace)).toBe(true);
+    expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual({
       residentTabs: true,
       maxConcurrentStarts: 2,
       unresponsiveRestartSeconds: 120,
       stallNoticeSeconds: 300,
     });
     await writeFile(join(root.path, "settings.json"), JSON.stringify({
-      a1: {
+      [namespace]: {
         residentTabs: true,
         tabsMaxConcurrentStarts: 8,
         tabsUnresponsiveRestartSeconds: 600,
         tabsStallNoticeSeconds: 1800,
       },
     }));
-    expect(await readResidentTabLaunchSettings(root.path)).toEqual({
+    expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual({
       residentTabs: true,
       maxConcurrentStarts: 8,
       unresponsiveRestartSeconds: 600,
       stallNoticeSeconds: 1800,
     });
     await writeFile(join(root.path, "settings.json"), JSON.stringify({ theme: "dark" }));
-    expect(await readResidentTabsSetting(root.path)).toBe(false);
-    await writeFile(join(root.path, "settings.json"), JSON.stringify({ a1: { residentTabs: "yes" } }));
-    expect(await readResidentTabsSetting(root.path)).toBe(false);
+    expect(await readResidentTabsSetting(root.path, namespace)).toBe(false);
+    await writeFile(join(root.path, "settings.json"), JSON.stringify({ [namespace]: { residentTabs: "yes" } }));
+    expect(await readResidentTabsSetting(root.path, namespace)).toBe(false);
   });
 
   it("never probes or starts a host for setting-off, comparison, or selected-session launches", async () => {

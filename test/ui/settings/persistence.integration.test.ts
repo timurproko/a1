@@ -8,7 +8,9 @@ import {
   settingValue,
   type OwnedUiSettingDeclaration,
 } from "../../../src/ui/settings/index.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
+const PRODUCT_NAMESPACE = PRODUCT_IDENTITY.commandName;
 const DECLARATIONS: readonly OwnedUiSettingDeclaration[] = [
   {
     id: "density",
@@ -82,26 +84,26 @@ describe("owned settings persistence", () => {
     const installDir = path.join(root, "installation");
     mkdirSync(path.join(installDir, "release-a"), { recursive: true });
     const first = new OwnedSettingsManager({
-      profileDir, namespace: "a1", profileId: "a1", declarations: DECLARATIONS, migrations: [],
+      profileDir, namespace: PRODUCT_NAMESPACE, profileId: PRODUCT_NAMESPACE, declarations: DECLARATIONS, migrations: [],
     });
     expect((await write(first, "density", "compact")).stored).toBe(true);
 
     rmSync(installDir, { recursive: true, force: true });
     mkdirSync(path.join(installDir, "release-b"), { recursive: true });
     const restarted = new OwnedSettingsManager({
-      profileDir, namespace: "a1", profileId: "a1", declarations: DECLARATIONS, migrations: [],
+      profileDir, namespace: PRODUCT_NAMESPACE, profileId: PRODUCT_NAMESPACE, declarations: DECLARATIONS, migrations: [],
     });
     expect(settingValue(restarted.read(), "density")).toBe("compact");
     expect(restarted.file.startsWith(installDir)).toBe(false);
   });
 
   it("keeps profiles isolated", async () => {
-    const agent = store("a1");
+    const agent = store(PRODUCT_NAMESPACE);
     const comparison = store("pi");
     expect((await write(agent, "density", "compact")).stored).toBe(true);
     expect(settingValue(comparison.read(), "density")).toBe("comfortable");
     expect(agent.file).toBe(comparison.file);
-    expect(JSON.parse(readFileSync(agent.file, "utf8"))).toEqual({ a1: { density: "compact" } });
+    expect(JSON.parse(readFileSync(agent.file, "utf8"))).toEqual({ [PRODUCT_NAMESPACE]: { density: "compact" } });
   });
 
   it("writes only under the configured root and leaves Pi profile trees untouched", async () => {
@@ -132,30 +134,30 @@ describe("owned settings persistence", () => {
     const remover = store();
     expect((await write(remover, "density", "comfortable")).stored).toBe(true);
     expect((await write(stale, "spacing", "narrow")).stored).toBe(true);
-    expect(JSON.parse(readFileSync(stale.file, "utf8"))).toEqual({ a1: { spacing: "narrow" } });
+    expect(JSON.parse(readFileSync(stale.file, "utf8"))).toEqual({ [PRODUCT_NAMESPACE]: { spacing: "narrow" } });
   });
 
   it("preserves an unknown key across a write", async () => {
     const file = path.join(root, "settings.json");
-    writeFileSync(file, '{"a1":{"futureSetting":"keep me"}}\n', "utf8");
+    writeFileSync(file, `${JSON.stringify({ [PRODUCT_NAMESPACE]: { futureSetting: "keep me" } })}\n`, "utf8");
 
     const target = store();
     expect((await write(target, "density", "compact")).stored).toBe(true);
 
-    const written = JSON.parse(readFileSync(file, "utf8")) as { a1: Record<string, unknown> };
-    expect(written.a1["futureSetting"]).toBe("keep me");
-    expect(written.a1["density"]).toBe("compact");
+    const written = JSON.parse(readFileSync(file, "utf8")) as Record<string, Record<string, unknown>>;
+    expect(written[PRODUCT_NAMESPACE]?.["futureSetting"]).toBe("keep me");
+    expect(written[PRODUCT_NAMESPACE]?.["density"]).toBe("compact");
   });
 
   it("imports the former standalone document lazily and leaves it unchanged", async () => {
     const profileDir = path.join(root, "profile");
     const legacyDir = path.join(root, "legacy");
-    const legacyFile = path.join(legacyDir, "settings", "a1.json");
+    const legacyFile = path.join(legacyDir, "settings", `${PRODUCT_NAMESPACE}.json`);
     mkdirSync(path.dirname(legacyFile), { recursive: true });
     const legacyRaw = JSON.stringify({ version: 15, values: { density: "compact", futureSetting: "keep me" } });
     writeFileSync(legacyFile, legacyRaw);
     const target = new OwnedSettingsManager({
-      profileDir, legacyConfigDir: legacyDir, namespace: "a1", profileId: "a1",
+      profileDir, legacyConfigDir: legacyDir, namespace: PRODUCT_NAMESPACE, profileId: PRODUCT_NAMESPACE,
       declarations: DECLARATIONS, migrations: [],
     });
 
@@ -163,7 +165,7 @@ describe("owned settings persistence", () => {
     expect(existsSync(target.file)).toBe(false);
     expect((await write(target, "density", "comfortable")).stored).toBe(true);
     expect(readFileSync(legacyFile, "utf8")).toBe(legacyRaw);
-    expect(JSON.parse(readFileSync(target.file, "utf8"))).toEqual({ a1: { futureSetting: "keep me" } });
+    expect(JSON.parse(readFileSync(target.file, "utf8"))).toEqual({ [PRODUCT_NAMESPACE]: { futureSetting: "keep me" } });
   });
 
   it("prefers a shared product object over the former standalone document", () => {
@@ -171,10 +173,10 @@ describe("owned settings persistence", () => {
     const legacyDir = path.join(root, "legacy");
     mkdirSync(profileDir, { recursive: true });
     mkdirSync(path.join(legacyDir, "settings"), { recursive: true });
-    writeFileSync(path.join(profileDir, "settings.json"), JSON.stringify({ a1: { density: "comfortable" } }));
-    writeFileSync(path.join(legacyDir, "settings", "a1.json"), JSON.stringify({ version: 15, values: { density: "compact" } }));
+    writeFileSync(path.join(profileDir, "settings.json"), JSON.stringify({ [PRODUCT_NAMESPACE]: { density: "comfortable" } }));
+    writeFileSync(path.join(legacyDir, "settings", `${PRODUCT_NAMESPACE}.json`), JSON.stringify({ version: 15, values: { density: "compact" } }));
     const target = new OwnedSettingsManager({
-      profileDir, legacyConfigDir: legacyDir, namespace: "a1", profileId: "a1",
+      profileDir, legacyConfigDir: legacyDir, namespace: PRODUCT_NAMESPACE, profileId: PRODUCT_NAMESPACE,
       declarations: DECLARATIONS, migrations: [],
     });
     expect(settingValue(target.read(), "density")).toBe("comfortable");
@@ -182,7 +184,7 @@ describe("owned settings persistence", () => {
 
   it("refuses an ambiguous compatibility shape without modifying the file", async () => {
     const file = path.join(root, "settings.json");
-    const raw = JSON.stringify({ theme: "dark", a1: { quitEffect: "off", quitAnimation: true, future: "keep" } });
+    const raw = JSON.stringify({ theme: "dark", [PRODUCT_NAMESPACE]: { quitEffect: "off", quitAnimation: true, future: "keep" } });
     writeFileSync(file, raw);
     const target = store();
     expect(target.read().notices[0]?.detail).toContain("conflicts");
@@ -203,7 +205,7 @@ describe("owned settings persistence", () => {
 
   it("ignores a file above the size limit rather than parsing it", () => {
     const file = path.join(root, "settings.json");
-    writeFileSync(file, JSON.stringify({ a1: { density: "compact", padding: "x".repeat(300_000) } }), "utf8");
+    writeFileSync(file, JSON.stringify({ [PRODUCT_NAMESPACE]: { density: "compact", padding: "x".repeat(300_000) } }), "utf8");
 
     const resolution = store().read();
     expect(settingValue(resolution, "density")).toBe("comfortable");
