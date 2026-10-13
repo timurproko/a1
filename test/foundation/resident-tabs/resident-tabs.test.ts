@@ -129,7 +129,9 @@ describe("resident tab launch contracts", () => {
     transport.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, features: ["bridge-heartbeat", "bridge-restart", "recovery-status"] } }));
     await start;
     heartbeat?.(); heartbeat?.();
+    bridge.prompt(true);
     expect(transport.sent.filter(message => message.type === "bridge.heartbeat").map(message => message.body.seq)).toEqual([1, 2]);
+    expect(transport.sent.find(message => message.type === "bridge.prompt")?.body).toEqual({ interrupted: true });
     transport.emit("data", encodeResidentFrame({ type: "bridge.visibility", body: { visible: false } }));
     transport.emit("data", encodeResidentFrame({ type: "bridge.rename", body: { name: "fixed-name", nameSource: "user" } }));
     transport.emit("data", encodeResidentFrame({ type: "bridge.stop", body: { deadlineMs: 5000 } }));

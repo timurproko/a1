@@ -471,14 +471,18 @@ export async function bindResidentTabBridge(
     tabBridge.session(currentSessionFile(), name, nameSource);
   };
   let working = false;
+  let lastTurnFailed = false;
   let autoNameAttempted = false;
   const reportStatus = (lifecycle?: string) => {
     const view = backend.session.view();
+    const pendingRequests = view.dialog == null ? 0 : 1;
+    const queuedInput = view.editor?.queuedSubmissions.length ?? 0;
     tabBridge.status(deriveResidentTabStatus({
       lifecycle: lifecycle ?? view.lifecycle,
-      pendingRequests: view.dialog == null ? 0 : 1,
-      queuedInput: 0,
-    }), false, view.dialog == null ? 0 : 1, 0);
+      pendingRequests,
+      queuedInput,
+      ...(lastTurnFailed ? { stopReason: "error" } : {}),
+    }), false, pendingRequests, queuedInput);
   };
   announceSession();
   const unsubscribeCommands = typeof tabBridge.onCommand === "function" ? tabBridge.onCommand(command => {
@@ -492,6 +496,7 @@ export async function bindResidentTabBridge(
     if (event.type === "session-lifecycle") {
       const wasWorking = working;
       working = event.lifecycle === "busy";
+      if (working) lastTurnFailed = false;
       reportStatus(event.lifecycle);
       if (wasWorking && !working && recovery !== null) {
         void recovery.settled(currentSessionFile()).catch(() => tabBridge.degraded(true));
@@ -510,6 +515,11 @@ export async function bindResidentTabBridge(
           }).catch(() => { if (pendingAutoName === name) pendingAutoName = null; });
         }
       }
+    }
+    if (event.type === "agent-run-settled") {
+      lastTurnFailed = !event.successful && !event.aborted;
+      tabBridge.prompt(event.aborted);
+      reportStatus();
     }
     if (event.type === "session-view") {
       announceSession();

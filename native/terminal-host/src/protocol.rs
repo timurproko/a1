@@ -146,6 +146,37 @@ pub struct BridgeStatus {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BridgeSession {
+    pub file: Option<String>,
+    pub name: Option<String>,
+    pub name_source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BridgePrompt {
+    pub interrupted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BridgeVisibility {
+    pub visible: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BridgeRename {
+    pub name: String,
+    pub name_source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BridgeStop {
+    pub deadline_ms: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HolderRespawn {
     pub tab_id: String,
     pub incarnation: u64,
@@ -384,6 +415,68 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
                     accent: None,
                     degraded: false,
                 },
+            })?,
+        ),
+        (
+            "bridge-status-complete.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.status".to_owned(),
+                request_id: None,
+                body: BridgeStatus {
+                    seq: 13,
+                    state: "needs-input".to_owned(),
+                    pending_requests: 2,
+                    queued_input: 1,
+                    accent: Some("orange".to_owned()),
+                    degraded: true,
+                },
+            })?,
+        ),
+        (
+            "bridge-session.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.session".to_owned(),
+                request_id: None,
+                body: BridgeSession {
+                    file: Some("session.jsonl".to_owned()),
+                    name: Some("fix-login".to_owned()),
+                    name_source: "auto".to_owned(),
+                },
+            })?,
+        ),
+        (
+            "bridge-prompt.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.prompt".to_owned(),
+                request_id: None,
+                body: BridgePrompt { interrupted: true },
+            })?,
+        ),
+        (
+            "bridge-visibility.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.visibility".to_owned(),
+                request_id: None,
+                body: BridgeVisibility { visible: false },
+            })?,
+        ),
+        (
+            "bridge-rename.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.rename".to_owned(),
+                request_id: None,
+                body: BridgeRename {
+                    name: "user-name".to_owned(),
+                    name_source: "user".to_owned(),
+                },
+            })?,
+        ),
+        (
+            "bridge-stop.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.stop".to_owned(),
+                request_id: Some(14),
+                body: BridgeStop { deadline_ms: 5_000 },
             })?,
         ),
         (

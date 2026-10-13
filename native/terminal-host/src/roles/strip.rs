@@ -77,7 +77,8 @@ fn status_glyph(status: &str) -> &'static str {
             2 => "◑ ",
             _ => "◒ ",
         },
-        "needs-input" | "unresponsive" | "stalled" | "degraded" => "! ",
+        "needs-input" => "? ",
+        "unresponsive" | "stalled" | "degraded" => "! ",
         "done-unseen" => "✓ ",
         "restarting" => "↻ ",
         "crashed" | "failed" | "ended" => "✗ ",
@@ -136,7 +137,7 @@ fn animated_name(tab: &StripTab) -> (String, Option<String>) {
     (tab.name.clone(), None)
 }
 
-fn chip(tab: &StripTab, active: bool) -> (String, usize, usize) {
+fn chip(tab: &StripTab, active: bool, hovered: bool) -> (String, usize, usize) {
     let glyph = status_glyph(&tab.status);
     let fixed = 4 + if glyph.is_empty() { 0 } else { 2 };
     let (animated, title_color) = animated_name(tab);
@@ -144,6 +145,8 @@ fn chip(tab: &StripTab, active: bool) -> (String, usize, usize) {
     let width = fixed + UnicodeWidthStr::width(name.as_str());
     let background = if active {
         "\x1b[48;2;55;55;55m\x1b[38;2;255;255;255m"
+    } else if hovered {
+        "\x1b[48;2;48;48;48m\x1b[38;2;220;220;220m"
     } else {
         "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m"
     };
@@ -154,6 +157,15 @@ fn chip(tab: &StripTab, active: bool) -> (String, usize, usize) {
 }
 
 pub fn render(tabs: &[StripTab], viewed: Option<&str>, columns: u16) -> StripFrame {
+    render_with_hover(tabs, viewed, columns, None)
+}
+
+pub fn render_with_hover(
+    tabs: &[StripTab],
+    viewed: Option<&str>,
+    columns: u16,
+    hovered: Option<&str>,
+) -> StripFrame {
     let clock = clock_text();
     let clock_width = UnicodeWidthStr::width(clock.as_str());
     let available = usize::from(columns).saturating_sub(clock_width + 1);
@@ -162,7 +174,11 @@ pub fn render(tabs: &[StripTab], viewed: Option<&str>, columns: u16) -> StripFra
     let plus_width = 3usize;
     let mut overflow = false;
     for tab in tabs {
-        let (_, width, _) = chip(tab, viewed == Some(tab.id.as_str()));
+        let (_, width, _) = chip(
+            tab,
+            viewed == Some(tab.id.as_str()),
+            hovered == Some(tab.id.as_str()),
+        );
         if used + width + plus_width <= available {
             selected.push(tab);
             used += width;
@@ -174,10 +190,10 @@ pub fn render(tabs: &[StripTab], viewed: Option<&str>, columns: u16) -> StripFra
         && !selected.iter().any(|tab| tab.id == active.id)
     {
         overflow = true;
-        let (_, active_width, _) = chip(active, true);
+        let (_, active_width, _) = chip(active, true, hovered == Some(active.id.as_str()));
         while !selected.is_empty() && used + active_width + plus_width + 3 > available {
             let removed = selected.pop().expect("checked nonempty");
-            used -= chip(removed, false).1;
+            used -= chip(removed, false, hovered == Some(removed.id.as_str())).1;
         }
         selected.push(active);
         used += active_width;
@@ -185,7 +201,7 @@ pub fn render(tabs: &[StripTab], viewed: Option<&str>, columns: u16) -> StripFra
     let overflow_width = if overflow { 3 } else { 0 };
     while !selected.is_empty() && used + overflow_width + plus_width > available {
         let removed = selected.pop().expect("checked nonempty");
-        used -= chip(removed, false).1;
+        used -= chip(removed, false, hovered == Some(removed.id.as_str())).1;
         overflow = true;
     }
 
@@ -193,7 +209,11 @@ pub fn render(tabs: &[StripTab], viewed: Option<&str>, columns: u16) -> StripFra
     let mut hits = Vec::new();
     let mut column = 0u16;
     for tab in selected {
-        let (text, width, close_width) = chip(tab, viewed == Some(tab.id.as_str()));
+        let (text, width, close_width) = chip(
+            tab,
+            viewed == Some(tab.id.as_str()),
+            hovered == Some(tab.id.as_str()),
+        );
         bytes.push_str(&text);
         let end = column.saturating_add(width as u16);
         hits.push((
@@ -309,6 +329,23 @@ mod tests {
                     .any(|(_, _, hit)| matches!(hit, StripHit::Close(id) if id == "one"))
             );
         }
+    }
+
+    #[test]
+    fn hover_changes_visual_style_without_changing_hit_targets() {
+        let tabs = vec![tab("tab-0", "agent")];
+        let plain = render(&tabs, None, 80);
+        let hovered = render_with_hover(&tabs, None, 80, Some("tab-0"));
+        assert_ne!(plain.bytes, hovered.bytes);
+        assert_eq!(plain.hits, hovered.hits);
+    }
+
+    #[test]
+    fn uses_semantic_status_glyphs_without_a_suspended_state() {
+        assert_eq!(status_glyph("needs-input"), "? ");
+        assert_eq!(status_glyph("done-unseen"), "✓ ");
+        assert_eq!(status_glyph("failed"), "✗ ");
+        assert_eq!(status_glyph("suspended"), "");
     }
 
     #[test]

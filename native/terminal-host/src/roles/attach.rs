@@ -16,13 +16,13 @@ use crate::roles::credentials::ProfileCredentials;
 use crate::roles::strip::{self, StripHit, StripTab};
 use crate::roles::wire::{
     self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface, TabCreate, TabList,
-    TabRename, TabReorder, TabTarget,
+    TabRename, TabReorder, TabStatus, TabTarget,
 };
 
 pub const ENTER_OUTER_MODES: &[u8] =
-    b"\x1b[?1049h\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1006h\x1b[?2026h";
+    b"\x1b[?1049h\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1003h\x1b[?1006h\x1b[?2026h";
 pub const RESTORE_OUTER_MODES: &[u8] =
-    b"\x1b[?2026l\x1b[?1006l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?1049l";
+    b"\x1b[?2026l\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?1049l";
 
 #[derive(Debug, Default)]
 struct TabBindings {
@@ -225,6 +225,12 @@ pub fn render_strip(status: &str, name: &str, accent: Option<&str>, columns: u16
     )
 }
 
+pub fn render_empty_hint(columns: u16) -> String {
+    let hint = "Alt+A new tab · Ctrl+C Ctrl+C leave";
+    let visible = hint.chars().take(usize::from(columns)).collect::<String>();
+    format!("\x1b[2;1H\x1b[2m{visible}\x1b[0m")
+}
+
 pub fn render_notice(message: &str, columns: u16) -> String {
     let mut notice = format!(" ! {message} ");
     notice.retain(|value| !value.is_control());
@@ -413,8 +419,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut terminal = OuterTerminal::enter()?;
     let mut tabs = Vec::<StripTab>::new();
     let mut viewed = options.view_tab.map(str::to_owned);
+    let mut hovered_tab: Option<String> = None;
     let mut strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
     terminal.write(strip_frame.bytes.as_bytes())?;
+    terminal.write(render_empty_hint(columns).as_bytes())?;
     let started = Instant::now();
     let mut last_strip_frame = Instant::now();
     let mut last_list = Instant::now();
@@ -447,6 +455,15 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
                     terminal.write(strip_frame.bytes.as_bytes())?;
                     terminal.write(&without_bell(&surface.bytes))?;
+                }
+                "tab.status" => {
+                    let (_, status): (_, TabStatus) = wire::body(&payload)?;
+                    if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == status.tab_id) {
+                        tab.status = status.status;
+                        tab.accent = status.accent;
+                    }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    terminal.write(strip_frame.bytes.as_bytes())?;
                 }
                 "tab.list" => {
                     let (_, list): (_, TabList) = wire::body(&payload)?;
@@ -488,6 +505,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     }
                     strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
                     terminal.write(strip_frame.bytes.as_bytes())?;
+                    if tabs.is_empty() {
+                        terminal.write(render_empty_hint(columns).as_bytes())?;
+                    }
                 }
                 "tab.created" | "tab.selected" => {
                     let (_, target): (_, TabTarget) = wire::body(&payload)?;
@@ -639,7 +659,22 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             rename = Some((tab_id, name));
                         }
                         KeyCode::Char('c' | 'C') => {
-                            wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?
+                            let busy =
+                                tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
+                                    matches!(tab.status.as_str(), "working" | "needs-input")
+                                });
+                            if busy {
+                                pending_close = Some(tab_id);
+                                terminal.write(
+                                    render_notice(
+                                        "Stop this agent? Enter stop · Esc cancel",
+                                        columns,
+                                    )
+                                    .as_bytes(),
+                                )?;
+                            } else {
+                                wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
+                            }
                         }
                         _ => {}
                     }
@@ -875,7 +910,22 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             Event::Mouse(mouse) => {
                 if mouse.row == 0 {
                     let target = strip::hit(&strip_frame, mouse.column).cloned();
-                    if matches!(mouse.kind, MouseEventKind::Drag(MouseButton::Left)) {
+                    if matches!(mouse.kind, MouseEventKind::Moved) {
+                        let next_hover = match target {
+                            Some(StripHit::View(id) | StripHit::Close(id)) => Some(id),
+                            _ => None,
+                        };
+                        if next_hover != hovered_tab {
+                            hovered_tab = next_hover;
+                            strip_frame = strip::render_with_hover(
+                                &tabs,
+                                viewed.as_deref(),
+                                columns,
+                                hovered_tab.as_deref(),
+                            );
+                            terminal.write(strip_frame.bytes.as_bytes())?;
+                        }
+                    } else if matches!(mouse.kind, MouseEventKind::Drag(MouseButton::Left)) {
                         if let Some((_, start, since)) = drag.as_ref()
                             && (start.abs_diff(mouse.column) >= 1
                                 || since.elapsed() >= Duration::from_millis(250))
@@ -924,7 +974,27 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
                             }
                             Some(StripHit::Close(tab_id)) => {
-                                wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?
+                                let busy =
+                                    tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
+                                        matches!(tab.status.as_str(), "working" | "needs-input")
+                                    });
+                                if busy {
+                                    pending_close = Some(tab_id);
+                                    terminal.write(
+                                        render_notice(
+                                            "Stop this agent? Enter stop · Esc cancel",
+                                            columns,
+                                        )
+                                        .as_bytes(),
+                                    )?;
+                                } else {
+                                    wire::send(
+                                        &mut stream,
+                                        "tab.close",
+                                        None,
+                                        TabTarget { tab_id },
+                                    )?;
+                                }
                             }
                             Some(StripHit::New) => {
                                 wire::send(&mut stream, "tab.create", None, create.clone())?
@@ -950,6 +1020,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                     }
                     continue;
+                }
+                if hovered_tab.take().is_some() {
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    terminal.write(strip_frame.bytes.as_bytes())?;
                 }
                 if let Some(bytes) =
                     encode_mouse(mouse.kind, mouse.column, mouse.row.saturating_sub(1))
@@ -1194,10 +1268,12 @@ mod tests {
         assert!(render_strip("working", "agent", Some("orange"), 80).contains("38;2;226;159;72"));
         assert!(!render_strip("working", "a\x07gent", None, 80).contains('\u{7}'));
         assert!(render_notice("input rejected", 40).contains("input rejected"));
+        assert!(render_empty_hint(80).contains("Alt+A new tab"));
+        assert!(!render_empty_hint(8).contains("new tab"));
     }
     #[test]
     fn mode_restore_disables_every_enabled_outer_mode() {
-        for mode in ["1049", "2004", "1004", "1000", "1006", "2026"] {
+        for mode in ["1049", "2004", "1004", "1000", "1003", "1006", "2026"] {
             assert!(String::from_utf8_lossy(ENTER_OUTER_MODES).contains(&format!("?{mode}h")));
             assert!(String::from_utf8_lossy(RESTORE_OUTER_MODES).contains(&format!("?{mode}l")));
         }

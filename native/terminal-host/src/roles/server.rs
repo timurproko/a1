@@ -20,8 +20,8 @@ use crate::roles::credentials::ProfileCredentials;
 use crate::roles::registry::{RegistryAuthority, RegistryDocument, RegistryStore, TabRecord};
 use crate::roles::wire::{
     self, AttachStart, BridgeSession, BridgeStatus, HolderExit, HolderLaunchConfig, Input,
-    PasteStart, Resize, RoleHello, ServerLaunchConfig, Surface, TabCreate, TabList, TabSummary,
-    TabTarget,
+    PasteStart, Resize, RoleHello, ServerLaunchConfig, Surface, TabCreate, TabList, TabStatus,
+    TabSummary, TabTarget,
 };
 use crate::session_lock::SessionLock;
 
@@ -194,6 +194,7 @@ struct RuntimeState {
     attachment: AttachmentState,
     clients: HashMap<String, ClientSession>,
     bridges: HashMap<String, BridgePeer>,
+    bridge_status_sequences: HashMap<String, (u64, u64)>,
     holders: HashMap<String, HolderSession>,
     launches: HashMap<String, AttachStart>,
     holders_terminating: std::collections::HashSet<String>,
@@ -510,6 +511,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         attachment: AttachmentState::default(),
         clients: HashMap::new(),
         bridges: HashMap::new(),
+        bridge_status_sequences: HashMap::new(),
         holders: HashMap::new(),
         launches,
         holders_terminating: std::collections::HashSet::new(),
@@ -1026,6 +1028,58 @@ fn canonical_session_identity(value: &str) -> String {
         .to_lowercase()
 }
 
+fn accepts_bridge_sequence(seen: Option<(u64, u64)>, incarnation: u64, sequence: u64) -> bool {
+    !seen.is_some_and(|(seen_incarnation, seen_sequence)| {
+        seen_incarnation == incarnation && sequence <= seen_sequence
+    })
+}
+
+fn bridge_surface_status(
+    previous: &str,
+    reported: String,
+    pending_requests: usize,
+    queued_input: usize,
+    degraded: bool,
+    viewed: bool,
+) -> String {
+    let reported = match reported.as_str() {
+        "starting" | "restoring" | "working" | "needs-input" | "idle" | "done-unseen" | "error"
+        | "failed" | "crashed" | "restarting" | "unresponsive" | "stalled" | "ended" => reported,
+        _ => "idle".into(),
+    };
+    let mut next = if degraded {
+        "degraded".into()
+    } else if pending_requests > 0 {
+        "needs-input".into()
+    } else if queued_input > 0 {
+        "working".into()
+    } else {
+        reported
+    };
+    if next == "idle" && previous == "working" && !viewed {
+        next = "done-unseen".into();
+    } else if next == "done-unseen" && viewed {
+        next = "idle".into();
+    }
+    next
+}
+
+fn broadcast_tab_status(locked: &RuntimeState, surface: &Surface) -> Result<(), String> {
+    let frame = wire::frame(
+        "tab.status",
+        None,
+        TabStatus {
+            tab_id: surface.tab_id.clone(),
+            status: surface.status.clone(),
+            accent: surface.accent.clone(),
+        },
+    )?;
+    for client in locked.clients.values() {
+        let _ = client.peer.offer_control(frame.clone());
+    }
+    Ok(())
+}
+
 fn claim_client_control(
     locked: &mut RuntimeState,
     client_id: &str,
@@ -1348,6 +1402,17 @@ fn serve_attach(
                     .any(|tab| tab.tab_id == target.tab_id)
                 {
                     continue;
+                }
+                let seen = locked.surfaces.get_mut(&target.tab_id).and_then(|surface| {
+                    if surface.status == "done-unseen" {
+                        surface.status = "idle".into();
+                        Some(surface.clone())
+                    } else {
+                        None
+                    }
+                });
+                if let Some(surface) = seen.as_ref() {
+                    broadcast_tab_status(&locked, surface)?;
                 }
                 let previous = locked.clients.get(&client_id).map(|client| {
                     (
@@ -2110,6 +2175,13 @@ fn serve_holder(
                 let mut locked = state
                     .lock()
                     .map_err(|_| "resident state poisoned".to_owned())?;
+                if locked.bridge_status_sequences.get(&tab_id).is_some_and(
+                    |(seen_incarnation, _)| *seen_incarnation == connection_incarnation,
+                ) && let Some(existing) = locked.surfaces.get(&tab_id)
+                {
+                    surface.status = existing.status.clone();
+                    surface.accent = existing.accent.clone();
+                }
                 locked.surfaces.insert(tab_id.clone(), surface.clone());
                 for client in locked
                     .clients
@@ -2772,16 +2844,29 @@ fn serve_bridge(
             let mut locked = state
                 .lock()
                 .map_err(|_| "resident state poisoned".to_owned())?;
+            if !accepts_bridge_sequence(
+                locked.bridge_status_sequences.get(&tab_id).copied(),
+                incarnation,
+                status.seq,
+            ) {
+                continue;
+            }
+            locked
+                .bridge_status_sequences
+                .insert(tab_id.clone(), (incarnation, status.seq));
+            let viewed = locked
+                .clients
+                .values()
+                .any(|client| client.viewed_tab == tab_id);
             let updated = if let Some(surface) = locked.surfaces.get_mut(&tab_id) {
-                surface.status = if status.degraded {
-                    "degraded".into()
-                } else if status.pending_requests > 0 {
-                    "needs-input".into()
-                } else if status.queued_input > 0 {
-                    "working".into()
-                } else {
-                    status.state
-                };
+                surface.status = bridge_surface_status(
+                    &surface.status,
+                    status.state,
+                    status.pending_requests,
+                    status.queued_input,
+                    status.degraded,
+                    viewed,
+                );
                 if status.accent.is_some() {
                     surface.accent = status.accent;
                 }
@@ -2790,6 +2875,7 @@ fn serve_bridge(
                 None
             };
             if let Some(surface) = updated {
+                broadcast_tab_status(&locked, &surface)?;
                 for client in locked
                     .clients
                     .values()
@@ -2930,12 +3016,19 @@ fn serve_bridge(
     let mut locked = state
         .lock()
         .map_err(|_| "resident state poisoned".to_owned())?;
-    if locked
+    let removed_current = locked
         .bridges
         .get(&tab_id)
-        .is_some_and(|bridge| bridge.incarnation == incarnation)
-    {
+        .is_some_and(|bridge| bridge.incarnation == incarnation);
+    if removed_current {
         locked.bridges.remove(&tab_id);
+        if locked
+            .bridge_status_sequences
+            .get(&tab_id)
+            .is_some_and(|(seen_incarnation, _)| *seen_incarnation == incarnation)
+        {
+            locked.bridge_status_sequences.remove(&tab_id);
+        }
         if heartbeat_supported {
             let now = locked.core_started.elapsed();
             let _ = crate::core::server::step(
@@ -2949,6 +3042,9 @@ fn serve_bridge(
             );
         }
     }
+    if !removed_current {
+        return Ok(());
+    }
     let mut changed = false;
     if let Some(record) = locked
         .registry
@@ -2960,10 +3056,24 @@ fn serve_bridge(
         record.lifecycle = "running".into();
         changed = true;
     }
-    if let Some(surface) = locked.surfaces.get_mut(&tab_id)
-        && surface.status == "unresponsive"
-    {
-        surface.status = "idle".into();
+    let fallback_status = locked
+        .registry
+        .tabs
+        .iter()
+        .find(|record| record.tab_id == tab_id)
+        .map_or_else(
+            || "idle".to_owned(),
+            |record| match record.lifecycle.as_str() {
+                "running" => "idle".to_owned(),
+                lifecycle => lifecycle.to_owned(),
+            },
+        );
+    let fallback_surface = locked.surfaces.get_mut(&tab_id).map(|surface| {
+        surface.status = fallback_status;
+        surface.clone()
+    });
+    if let Some(surface) = fallback_surface.as_ref() {
+        broadcast_tab_status(&locked, surface)?;
     }
     let commit = changed.then(|| {
         locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
@@ -3070,6 +3180,34 @@ mod tests {
         ];
         sanitize_tab_environment(&mut environment);
         assert_eq!(environment, vec![("PATH".into(), "retained".into())]);
+    }
+
+    #[test]
+    fn bridge_status_rejects_stale_sequences_and_tracks_unseen_completion() {
+        assert!(accepts_bridge_sequence(None, 2, 1));
+        assert!(!accepts_bridge_sequence(Some((2, 4)), 2, 4));
+        assert!(!accepts_bridge_sequence(Some((2, 4)), 2, 3));
+        assert!(accepts_bridge_sequence(Some((2, 4)), 3, 1));
+        assert_eq!(
+            bridge_surface_status("working", "idle".into(), 0, 0, false, false),
+            "done-unseen"
+        );
+        assert_eq!(
+            bridge_surface_status("done-unseen", "done-unseen".into(), 0, 0, false, true),
+            "idle"
+        );
+        assert_eq!(
+            bridge_surface_status("idle", "idle".into(), 1, 0, false, false),
+            "needs-input"
+        );
+        assert_eq!(
+            bridge_surface_status("idle", "idle".into(), 0, 1, false, false),
+            "working"
+        );
+        assert_eq!(
+            bridge_surface_status("idle", "suspended".into(), 0, 0, false, false),
+            "idle"
+        );
     }
 
     #[test]

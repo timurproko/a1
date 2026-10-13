@@ -6,16 +6,18 @@ function fixture(start: () => Promise<boolean> = async () => true) {
   let listener: ((event: { type: string; lifecycle?: string }) => void) | null = null;
   let sessionName: string | undefined = "initial";
   let resume: { sessionDir: string; sessionId: string } | null = { sessionDir: "D:/sessions", sessionId: "one.jsonl" };
+  let queuedSubmissions: string[] = [];
   const unsubscribe = vi.fn();
   const bridge = {
     start: vi.fn(start),
     status: vi.fn(),
     session: vi.fn(),
+    prompt: vi.fn(),
   };
   const backend = {
     identity: { currentSessionResumeMetadata: () => resume },
     session: {
-      view: () => ({ status: { footer: { sessionName } } }),
+      view: () => ({ status: { footer: { sessionName } }, editor: { queuedSubmissions } }),
       onEvent: (value: typeof listener) => { listener = value; return unsubscribe; },
     },
   };
@@ -23,7 +25,8 @@ function fixture(start: () => Promise<boolean> = async () => true) {
     bridge,
     backend,
     unsubscribe,
-    event: (event: { type: string; lifecycle?: string }) => listener?.(event),
+    event: (event: { type: string; lifecycle?: string; successful?: boolean; aborted?: boolean }) => listener?.(event),
+    queue(...values: string[]) { queuedSubmissions = values; },
     changeSession(next: typeof resume, name?: string) { resume = next; sessionName = name; },
   };
 }
@@ -61,6 +64,18 @@ describe("resident tab composition bridge", () => {
     value.event({ type: "session-view" });
     expect(value.bridge.status.mock.calls.map(call => call[0])).toEqual(["starting", "working", "idle", "idle"]);
     expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/two.jsonl", "renamed", "user");
+  });
+
+  it("reports queued input and interrupted settlement without terminal content", async () => {
+    const value = fixture();
+    await bindResidentTabBridge(value.bridge as never, value.backend as never);
+    value.queue("queued prompt");
+    value.event({ type: "session-view" });
+    expect(value.bridge.status).toHaveBeenLastCalledWith("working", false, 0, 1);
+    value.queue();
+    value.event({ type: "agent-run-settled", successful: false, aborted: true });
+    expect(value.bridge.prompt).toHaveBeenCalledWith(true);
+    expect(JSON.stringify(value.bridge.status.mock.calls)).not.toContain("queued prompt");
   });
 
   it("keeps composition available when the bridge refuses startup", async () => {

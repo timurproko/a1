@@ -114,6 +114,9 @@ export class TabBridgeClient {
     this.#latestSession = { file, name, nameSource };
     this.#send("bridge.session", { file, name, nameSource });
   }
+  prompt(interrupted: boolean): void {
+    this.#send("bridge.prompt", { interrupted });
+  }
 
   requestDetach(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
     return this.#requestAction("detach", origin, timeoutMs);

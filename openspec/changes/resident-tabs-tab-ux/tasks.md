@@ -5,7 +5,7 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 ## 1. Baseline
 
 - [ ] 1.1 Reconcile with current `develop` after milestones 1–4. Re-copy the canonical text of `cli-session-resume` "Normal A1 accepts explicit session selection" and `launch-instance-lifecycle` "Explicit session selection belongs to the originating launch instance" from `openspec/specs/`, reapply this change's edits, and record any implementation-boundary deviation in `design.md`.
-- [ ] 1.2 Remove the milestone-2 minimal bridge requirement with reason and migration pointing to "The tab bridge reports structured A1 state and controller identity"; pass strict OpenSpec validation.
+- [x] 1.2 Remove the milestone-2 minimal bridge requirement with reason and migration pointing to "The tab bridge reports structured A1 state and controller identity"; pass strict OpenSpec validation.
 
 ## 2. Tab bridge and status
 
@@ -25,7 +25,7 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 - [ ] 4.1 Declare tab actions in `src/features/resident-tab/shortcuts.ts`. Default only new (`Alt+A`), close (`Alt+W`), rename (`F2`), jump 1–10 (`Alt+1`…`Alt+0`), and failed-banner retry/fresh. Declare next/previous/move-left/move-right unbound but assignable through `keybindings.json`; conflict-check assigned bindings and list effective assignments in `/hotkeys`.
 - [ ] 4.2 Match decoded crossterm, kitty, and legacy key events before libghostty-vt encoding; consume assigned actions, consume out-of-range jumps without changing tabs, and forward unmatched input. Render failed/stalled banner actions from the effective table without exposing `/restart-tab`.
-- [ ] 4.3 Extract the clear/exit interval and implement fixed double-`Ctrl+C` detach: first press reaches the tab, second is consumed locally, and a selection-clearing press does not arm the chord.
+- [x] 4.3 Extract the clear/exit interval and implement fixed double-`Ctrl+C` detach: first press reaches the tab, second is consumed locally, and a selection-clearing press does not arm the chord.
 - [ ] 4.4 Add no tab-management slash commands: do not expose `/new-tab`, `/close`, `/tabs`, `/quit-all`, or `/restart-tab`. Keep existing `/name` synchronized with tab/session naming and keep existing `/quit` and empty-editor `Ctrl+D` as origin-stamped local-client detach routes.
 - [ ] 4.5 Implement close from `×`, `Alt+W`, context menu, and failed/stalled UI: busy confirmation, `desired=stopped`, 5-second graceful bridge stop, verified-tree termination, platform graceful fallback, last-tab empty state, and resumable committed session.
 
@@ -38,7 +38,7 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 ## 6. Resident session selection
 
 - [ ] 6.1 Route bare `a1 --session`/`--session-dir` through the launching attach client; focus a live holder by canonical file identity only in that client or create a tab whose child acquires the writer lease first. Prove aliases converge and later bare launches do not reuse the selection.
-- [ ] 6.2 Add argument-free `a1 solo` as the explicit direct single-agent route, list it in help, reject extra arguments, and omit the Tabs settings section in that runtime. In direct mode, report a writer conflict and offer interactive fork through the existing path; fail non-interactively without starting a host or changing the resident session.
+- [x] 6.2 Add argument-free `a1 solo` as the explicit direct single-agent route, list it in help, reject extra arguments, and omit the Tabs settings section in that runtime. In direct mode, report a writer conflict and offer interactive fork through the existing path; fail non-interactively without starting a host or changing the resident session.
 
 ## 7. Extension fidelity
 

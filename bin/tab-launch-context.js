@@ -2,7 +2,7 @@ const TAB_ENVIRONMENT_NAMES = ["A1_TAB_ID", "A1_TAB_TOKEN", "A1_TAB_ENDPOINT"];
 
 /** @param {string} reason */
 export function formatResidentFallbackNotice(reason) {
-  return `Resident tabs unavailable (${reason}); running a single agent.`;
+  return `A1 normal mode unavailable (${reason}); running in single agent mode.`;
 }
 
 /**
