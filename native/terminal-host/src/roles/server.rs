@@ -494,6 +494,8 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
                     release_root: tab.release.clone(),
                     node_executable: "node".into(),
                     environment: recovered_environment.clone(),
+                    session_file: tab.session_file.clone(),
+                    session_dir: tab.session_dir.clone(),
                 },
             )
         })
@@ -1233,6 +1235,8 @@ fn serve_attach(
                     release_root: create.release_root,
                     node_executable: create.node_executable,
                     environment: create.environment,
+                    session_file: None,
+                    session_dir: None,
                 };
                 match start_holder(&profile, &state, tab_id.clone(), start) {
                     Ok(()) => {
@@ -1655,8 +1659,8 @@ fn start_holder(
             name_source: "default".into(),
             order,
             cwd: start.cwd.clone(),
-            session_file: None,
-            session_dir: None,
+            session_file: start.session_file.clone(),
+            session_dir: start.session_dir.clone(),
             desired: "running".into(),
             lifecycle: "starting".into(),
             incarnation,
@@ -1695,7 +1699,8 @@ fn start_holder(
         release_root: start.release_root,
         node_executable: start.node_executable,
         environment: start.environment,
-        session_file: None,
+        session_file: start.session_file,
+        session_dir: start.session_dir,
         recovery_journals: Vec::new(),
         server: server_config,
     };
@@ -1805,6 +1810,7 @@ fn launch_replacement_holder(state: &Arc<Mutex<RuntimeState>>, tab_id: &str) -> 
             node_executable: start.node_executable.clone(),
             environment: start.environment.clone(),
             session_file: record.session_file.clone(),
+            session_dir: record.session_dir.clone(),
             recovery_journals: Vec::new(),
             server: locked.server_config.clone(),
         };

@@ -57,7 +57,7 @@ describe("resident tab launch contracts", () => {
     expect(await readResidentTabsSetting(root.path)).toBe(false);
   });
 
-  it("never probes or starts a host for setting-off, comparison, or selected-session launches", async () => {
+  it("routes selected sessions only when resident tabs are enabled", async () => {
     const readSetting = vi.fn(async () => false);
     const ensureHost = vi.fn(async () => ({ status: "ready" as const, executable: "host", endpoint: "endpoint" }));
     await expect(selectResidentHost({
@@ -69,13 +69,18 @@ describe("resident tab launch contracts", () => {
     readSetting.mockClear();
     for (const selection of [
       { profileId: "pi" as const, hasSessionSelection: false, currentLaunchContract: true },
-      { profileId: "a1" as const, hasSessionSelection: true, currentLaunchContract: true },
       { profileId: "a1" as const, hasSessionSelection: false, currentLaunchContract: false },
     ]) {
       await expect(selectResidentHost({ ...selection, readSetting, ensureHost })).resolves.toBeNull();
     }
     expect(readSetting).not.toHaveBeenCalled();
     expect(ensureHost).not.toHaveBeenCalled();
+
+    readSetting.mockResolvedValueOnce(true);
+    await expect(selectResidentHost({
+      profileId: "a1", hasSessionSelection: true, currentLaunchContract: true, readSetting, ensureHost,
+    })).resolves.toMatchObject({ status: "ready" });
+    expect(ensureHost).toHaveBeenCalledOnce();
   });
 
   it("frames bridge metadata without terminal or prompt content", () => {

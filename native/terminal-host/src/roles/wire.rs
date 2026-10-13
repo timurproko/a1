@@ -51,6 +51,10 @@ pub struct AttachStart {
     pub release_root: String,
     pub node_executable: String,
     pub environment: Vec<(String, String)>,
+    #[serde(default)]
+    pub session_file: Option<String>,
+    #[serde(default)]
+    pub session_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +73,8 @@ pub struct HolderLaunchConfig {
     pub environment: Vec<(String, String)>,
     #[serde(default)]
     pub session_file: Option<String>,
+    #[serde(default)]
+    pub session_dir: Option<String>,
     #[serde(default)]
     pub recovery_journals: Vec<String>,
     pub server: ServerLaunchConfig,

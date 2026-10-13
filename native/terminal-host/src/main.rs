@@ -369,6 +369,8 @@ fn resident_attach_command(arguments: &[String]) -> Result<(), String> {
         runtime_dir: &runtime,
         release_root,
         node_executable,
+        session_file: optional_role_value(arguments, "--session"),
+        session_dir: optional_role_value(arguments, "--session-dir"),
         view_tab: optional_role_value(arguments, "--view"),
     })
 }

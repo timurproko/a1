@@ -154,6 +154,8 @@ pub struct AttachOptions<'a> {
     pub runtime_dir: &'a Path,
     pub release_root: &'a str,
     pub node_executable: &'a str,
+    pub session_file: Option<&'a str>,
+    pub session_dir: Option<&'a str>,
     pub view_tab: Option<&'a str>,
 }
 
@@ -229,6 +231,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             release_root: options.release_root.into(),
             node_executable: options.node_executable.into(),
             environment,
+            session_file: options.session_file.map(str::to_owned),
+            session_dir: options.session_dir.map(str::to_owned),
         },
     )?;
     if let Some(tab_id) = options.view_tab {

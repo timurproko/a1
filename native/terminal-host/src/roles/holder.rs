@@ -257,11 +257,13 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
     command.arg(&tab_data_dir);
     command.arg("--tab-incarnation");
     command.arg(config.incarnation.to_string());
+    if let Some(directory) = config.session_dir.as_deref() {
+        command.arg("--session-dir");
+        command.arg(directory);
+    }
     if let Some(session) = config
         .session_file
-        .as_deref()
-        .filter(|session_file| Path::new(session_file).is_file())
-        .map(str::to_owned)
+        .clone()
         .or_else(|| first_turn_session_id(&tab_data_dir))
     {
         command.arg("--session");

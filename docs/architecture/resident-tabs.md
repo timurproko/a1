@@ -452,11 +452,13 @@ The v2 daemon was unreliable for structural reasons, and a forensic pass over it
 - Bounded CI chaos on each platform with high-rate fake agents, random process death, resize/attach churn, controller transfer, blocked writes, pseudoterminal creation hang, rename denial, and containment escape attempts.
 - Exact-package manual or isolated-worker physical acceptance on each platform. A later default-on proposal must additionally supply an authorized 24-hour soak on that platform with zero lost journaled prompts/committed entries, zero orphans/duplicates, bounded memory/handles, reattach p95 under 300 ms, tab restart under 3 s, and server recovery under 2 s.
 
+**Milestone 5 preview performance budgets (p95 on each exact platform build):** cold launch to first input is the direct startup budget plus 800 ms; matching-standby creation to first input is 250 ms; reattach first paint is 300 ms and first accepted input is 400 ms; input-to-process is 16 ms; output-to-present is 33 ms. Each result or miss is recorded independently for Windows x64, macOS arm64, and Linux x64.
+
 ## Risks / Trade-offs
 
 - **[A server crash interrupts the display for everyone]** → Holders keep processes and screens alive. The server holds no VT, Pi, or extension code. It is auto-respawned by any client or holder, and reattach restores exact surfaces.
 - **[Terminal fidelity in a composed surface]** (keyboard protocols, mouse, paste, IME, Unicode width, hyperlinks) → Reuse libghostty-vt encoding and the proof's input work, and add fidelity suites on each platform. Claims cover only the certified text-terminal contract; image protocols remain an explicit gap.
-- **[Per-tab memory multiplies with holder and A1 processes; historical estimates are not measured A1 bounds]** → `tabsMax`, idle suspension on by default, and throttled rendering while hidden via `bridge.visibility`.
+- **[Per-tab memory multiplies with holder and A1 processes; historical estimates are not measured A1 bounds]** → `tabsMax`, one internal prewarmed standby, and throttled hidden rendering. Every open tab keeps its process until explicit close; there is no idle suspension.
 - **[Detachment is platform-specific and fragile]** (Windows jobs and SSH, macOS bootstrap namespaces, Linux logout policies) → Detection and escape live in the native binary per platform. The mode is reported, never assumed, and unverifiable survival falls back instead of claiming persistence.
 - **[Three platforms multiply native and certification work]** → Platform code is confined to the thin I/O shell around one shared sans-IO core, and milestone 1 proves every platform primitive before later milestones build on it.
 - **[The Zig and libghostty toolchain in CI and release]** → It is pinned already. Extend the #588 Windows owner and provenance gate to a macOS and Linux build matrix.
