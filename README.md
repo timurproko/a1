@@ -51,10 +51,16 @@ npm x -y -- @timurproko/a1-install --develop 0.1.8-dev.107
 
 ## Launch
 
-Launch A1 (profile: `~/.a1/agent`):
+Launch A1 with resident tabs (profile: `~/.a1/agent`):
 
 ```text
 a1
+```
+
+Launch one direct agent without tabs:
+
+```text
+a1 solo
 ```
 
 Show all commands:
