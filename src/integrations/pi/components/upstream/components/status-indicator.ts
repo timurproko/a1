@@ -1,10 +1,3 @@
-/**
- * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
- * packages/coding-agent/src/modes/interactive/components/status-indicator.ts.
- * Modifications: Mechanical source port with public package-root keybinding, Loader, and owned
- * theme/countdown imports plus ECMAScript private fields.
- * Deviations: status-indicator-public-boundaries.
- */
 import { type Component, Loader, type LoaderIndicatorOptions, type TUI, truncateToWidth } from "@earendil-works/pi-tui";
 import { keyText } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";
@@ -69,6 +62,7 @@ export class RetryStatusIndicator extends StatusIndicator {
 export type CompactionStatusReason = "manual" | "threshold" | "overflow";
 
 export class CompactionStatusIndicator extends StatusIndicator {
+<<<<<<< a1
   constructor(ui: TUI, reason: CompactionStatusReason) {
     const cancelHint = `(${keyText("app.interrupt")} to cancel)`;
     const label = reason === "manual"
@@ -76,6 +70,37 @@ export class CompactionStatusIndicator extends StatusIndicator {
       : `${reason === "overflow" ? "Context overflow detected, " : ""}Auto-compacting... ${cancelHint}`;
     super("compaction", ui, spinner => piTheme().fg("accent", spinner), text => piTheme().fg("muted", text), label);
   }
+||||||| pi 1.1.0
+	constructor(ui: TUI, reason: CompactionStatusReason) {
+		const cancelHint = `(${keyText("app.interrupt")} to cancel)`;
+		const label =
+			reason === "manual"
+				? `Compacting context... ${cancelHint}`
+				: `${reason === "overflow" ? "Context overflow detected, " : ""}Auto-compacting... ${cancelHint}`;
+		super(
+			"compaction",
+			ui,
+			(spinner) => theme.fg("accent", spinner),
+			(text) => theme.fg("muted", text),
+			label,
+		);
+	}
+=======
+	constructor(ui: TUI, reason: CompactionStatusReason, colorFn?: (text: string) => string) {
+		const cancelHint = `(${keyText("app.interrupt")} to cancel)`;
+		const label =
+			reason === "manual"
+				? `Compacting context... ${cancelHint}`
+				: `${reason === "overflow" ? "Context overflow detected, " : ""}Auto-compacting... ${cancelHint}`;
+		super(
+			"compaction",
+			ui,
+			colorFn ?? ((spinner) => theme.fg("accent", spinner)),
+			colorFn ?? ((text) => theme.fg("muted", text)),
+			label,
+		);
+	}
+>>>>>>> pi 1.2.0
 }
 
 export class BranchSummaryStatusIndicator extends StatusIndicator {

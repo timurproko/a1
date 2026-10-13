@@ -1,14 +1,4 @@
-/**
- * Provenance: @earendil-works/pi-tui 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
- * packages/tui/src/components/editor.ts.
- * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
- * types, typed persistent-history hooks, semantic border state with the user-approved numeric-only
- * history label with a three-cell inset and separate centered history-overflow cue, and history-count
- * retention during cursor placement within recalled multiline text. Public terminal runtime/exports
- * remain shared and unchanged. See docs/architecture/history-editor-provenance.md.
- * Deviations: compact-history-counter-label, history-overflow-cue-separation,
- * history-recall-cursor-retention, persistent-history-owned-editor-boundary.
- */
+<<<<<<< a1
 import { getKeybindings, matchesKey, CURSOR_MARKER, sliceByColumn, truncateToWidth, visibleWidth, SelectList, type AutocompleteProvider, type AutocompleteSuggestions, type Component, type Focusable, type TUI, type TuiMouseEvent, type TuiMouseEventResult, type SelectListLayoutOptions, type SelectListTheme } from "@earendil-works/pi-tui";
 import { decodePrintableKey } from "./printable-key.js";
 import { KillRing } from "./kill-ring.js";
@@ -16,6 +6,60 @@ import { UndoStack } from "./undo-stack.js";
 import { autocompleteBoundaryRegex, autocompleteSeparatorRegex, cjkBreakRegex, getGraphemeSegmenter, getWordSegmenter, isWhitespaceChar } from "./text-helpers.js";
 import { findWordBackward, findWordForward } from "./word-navigation.js";
 import type { EditorInteractionPort, EditorRecallPort } from "../../editor-interaction.js";
+||||||| pi 1.1.0
+import type { AutocompleteProvider, AutocompleteSuggestions } from "../autocomplete.ts";
+import { getKeybindings } from "../keybindings.ts";
+import { decodePrintableKey, matchesKey } from "../keys.ts";
+import { KillRing } from "../kill-ring.ts";
+import {
+	type Component,
+	CURSOR_MARKER,
+	type Focusable,
+	type TUI,
+	type TuiMouseEvent,
+	type TuiMouseEventResult,
+} from "../tui.ts";
+import { UndoStack } from "../undo-stack.ts";
+import {
+	autocompleteBoundaryRegex,
+	autocompleteSeparatorRegex,
+	cjkBreakRegex,
+	getGraphemeSegmenter,
+	getWordSegmenter,
+	isWhitespaceChar,
+	sliceByColumn,
+	visibleWidth,
+} from "../utils.ts";
+import { findWordBackward, findWordForward } from "../word-navigation.ts";
+import { SelectList, type SelectListLayoutOptions, type SelectListTheme } from "./select-list.ts";
+=======
+import type { AutocompleteProvider, AutocompleteSuggestions } from "../autocomplete.ts";
+import { getKeybindings } from "../keybindings.ts";
+import { decodePrintableKey, matchesKey } from "../keys.ts";
+import { KillRing } from "../kill-ring.ts";
+import {
+	type Component,
+	CURSOR_MARKER,
+	type Focusable,
+	renderFakeCursor,
+	type TUI,
+	type TuiMouseEvent,
+	type TuiMouseEventResult,
+} from "../tui.ts";
+import { UndoStack } from "../undo-stack.ts";
+import {
+	autocompleteBoundaryRegex,
+	autocompleteSeparatorRegex,
+	cjkBreakRegex,
+	getGraphemeSegmenter,
+	getWordSegmenter,
+	isWhitespaceChar,
+	sliceByColumn,
+	visibleWidth,
+} from "../utils.ts";
+import { findWordBackward, findWordForward } from "../word-navigation.ts";
+import { SelectList, type SelectListLayoutOptions, type SelectListTheme } from "./select-list.ts";
+>>>>>>> pi 1.2.0
 
 const graphemeSegmenter = getGraphemeSegmenter();
 const wordSegmenter = getWordSegmenter();
@@ -699,12 +743,12 @@ export class HistoryEditorCore implements Component, Focusable {
 					const afterGraphemes = [...this.segment(after, "grapheme")];
 					const firstGrapheme = afterGraphemes[0]?.segment || "";
 					const restAfter = after.slice(firstGrapheme.length);
-					const cursor = `\x1b[7m${firstGrapheme}\x1b[0m`;
+					const cursor = renderFakeCursor(firstGrapheme);
 					displayText = before + marker + cursor + restAfter;
 					// lineVisibleWidth stays the same - we're replacing, not adding
 				} else {
 					// Cursor is at the end - add highlighted space
-					const cursor = "\x1b[7m \x1b[0m";
+					const cursor = renderFakeCursor(" ");
 					displayText = before + marker + cursor;
 					lineVisibleWidth = lineVisibleWidth + 1;
 					// If cursor overflows content width into the padding, flag it

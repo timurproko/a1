@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "1.1.0"
+    "version": "1.2.0"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -675,7 +675,7 @@
       "kind": "app-keybinding",
       "feature": "app.clear",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -684,7 +684,7 @@
       "kind": "app-keybinding",
       "feature": "app.clipboard.pasteImage",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -693,7 +693,7 @@
       "kind": "app-keybinding",
       "feature": "app.editor.external",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -702,7 +702,7 @@
       "kind": "app-keybinding",
       "feature": "app.exit",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -711,7 +711,7 @@
       "kind": "app-keybinding",
       "feature": "app.interrupt",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -720,7 +720,7 @@
       "kind": "app-keybinding",
       "feature": "app.message.copy",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -729,7 +729,7 @@
       "kind": "app-keybinding",
       "feature": "app.message.dequeue",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -738,7 +738,7 @@
       "kind": "app-keybinding",
       "feature": "app.message.followUp",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -747,7 +747,7 @@
       "kind": "app-keybinding",
       "feature": "app.model.cycleBackward",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -756,7 +756,7 @@
       "kind": "app-keybinding",
       "feature": "app.model.cycleForward",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -765,7 +765,7 @@
       "kind": "app-keybinding",
       "feature": "app.model.select",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -774,7 +774,7 @@
       "kind": "app-keybinding",
       "feature": "app.models.clearAll",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -783,7 +783,7 @@
       "kind": "app-keybinding",
       "feature": "app.models.enableAll",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -792,7 +792,7 @@
       "kind": "app-keybinding",
       "feature": "app.models.reorderDown",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -801,7 +801,7 @@
       "kind": "app-keybinding",
       "feature": "app.models.reorderUp",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -810,7 +810,7 @@
       "kind": "app-keybinding",
       "feature": "app.models.save",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -819,7 +819,7 @@
       "kind": "app-keybinding",
       "feature": "app.models.toggleProvider",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -828,7 +828,7 @@
       "kind": "app-keybinding",
       "feature": "app.session.delete",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -837,7 +837,7 @@
       "kind": "app-keybinding",
       "feature": "app.session.deleteNoninvasive",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -846,7 +846,7 @@
       "kind": "app-keybinding",
       "feature": "app.session.fork",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -855,7 +855,7 @@
       "kind": "app-keybinding",
       "feature": "app.session.new",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -864,7 +864,7 @@
       "kind": "app-keybinding",
       "feature": "app.session.rename",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -873,7 +873,7 @@
       "kind": "app-keybinding",
       "feature": "app.session.resume",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -882,7 +882,7 @@
       "kind": "app-keybinding",
       "feature": "app.session.toggleNamedFilter",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -891,7 +891,7 @@
       "kind": "app-keybinding",
       "feature": "app.session.togglePath",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -900,7 +900,7 @@
       "kind": "app-keybinding",
       "feature": "app.session.toggleSort",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -909,7 +909,7 @@
       "kind": "app-keybinding",
       "feature": "app.session.tree",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -918,7 +918,7 @@
       "kind": "app-keybinding",
       "feature": "app.suspend",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -927,7 +927,7 @@
       "kind": "app-keybinding",
       "feature": "app.thinking.cycle",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -936,7 +936,7 @@
       "kind": "app-keybinding",
       "feature": "app.thinking.save",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -945,7 +945,7 @@
       "kind": "app-keybinding",
       "feature": "app.thinking.toggle",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -954,7 +954,7 @@
       "kind": "app-keybinding",
       "feature": "app.tools.expand",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -963,7 +963,7 @@
       "kind": "app-keybinding",
       "feature": "app.tree.editLabel",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -972,7 +972,7 @@
       "kind": "app-keybinding",
       "feature": "app.tree.filter.all",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -981,7 +981,7 @@
       "kind": "app-keybinding",
       "feature": "app.tree.filter.cycleBackward",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -990,7 +990,7 @@
       "kind": "app-keybinding",
       "feature": "app.tree.filter.cycleForward",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -999,7 +999,7 @@
       "kind": "app-keybinding",
       "feature": "app.tree.filter.default",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -1008,7 +1008,7 @@
       "kind": "app-keybinding",
       "feature": "app.tree.filter.labeledOnly",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -1017,7 +1017,7 @@
       "kind": "app-keybinding",
       "feature": "app.tree.filter.noTools",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -1026,7 +1026,7 @@
       "kind": "app-keybinding",
       "feature": "app.tree.filter.userOnly",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -1035,7 +1035,7 @@
       "kind": "app-keybinding",
       "feature": "app.tree.foldOrUp",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -1044,7 +1044,7 @@
       "kind": "app-keybinding",
       "feature": "app.tree.toggleLabelTimestamp",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -1053,7 +1053,7 @@
       "kind": "app-keybinding",
       "feature": "app.tree.unfoldOrDown",
       "since": "0.85.1",
-      "disposition": "owned",
+      "disposition": "retired",
       "behavior": "keybindings.complete-manifest",
       "test": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
     },
@@ -2653,6 +2653,51 @@
       "disposition": "owned",
       "behavior": "events.complete-manifest",
       "test": "test/app/session-shell/session-shell-lifecycle.test.ts"
+    },
+    {
+      "id": "changelog:1.2.0:before-agent-start-for-extension-triggered-runs",
+      "kind": "changelog",
+      "feature": "`before_agent_start` for extension-triggered runs",
+      "version": "1.2.0",
+      "summary": "runs started by `pi.sendMessage(..., { triggerTurn: true })` go through the same setup as prompts.",
+      "since": "1.2.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.2.0:clipboard-copies-over-remote-sessions",
+      "kind": "changelog",
+      "feature": "Clipboard copies over remote sessions",
+      "version": "1.2.0",
+      "summary": "`PI_CLIPBOARD_OSC52=1` sends copied text to a remote client's clipboard when Pi cannot detect the remote session, such as a multiplexer attached from another machine.",
+      "since": "1.2.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.2.0:codemode-improvements",
+      "kind": "changelog",
+      "feature": "Codemode improvements",
+      "version": "1.2.0",
+      "summary": "tool declarations show input constraints such as integer, minimum/maximum, and default, and codemode rows show elapsed and total time.",
+      "since": "1.2.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.2.0:per-key-openrouter-model-lists",
+      "kind": "changelog",
+      "feature": "Per-key OpenRouter model lists",
+      "version": "1.2.0",
+      "summary": "with an OpenRouter key, Pi lists only the models that key may use, with the key's context size, max output, and prices, including regional endpoints set in `models.json`.",
+      "since": "1.2.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.2.0:published-configuration-schemas",
+      "kind": "changelog",
+      "feature": "Published configuration schemas",
+      "version": "1.2.0",
+      "summary": "add `$schema` to `settings.json`, `models.json`, keybindings, and themes for editor validation and completion.",
+      "since": "1.2.0",
+      "disposition": "pending"
     }
   ]
 }
