@@ -357,6 +357,7 @@ unsafe extern "C" {
     fn ghostty_key_event_set_key(event: GhosttyKeyEventRaw, key: i32);
     fn ghostty_key_event_set_mods(event: GhosttyKeyEventRaw, mods: u16);
     fn ghostty_key_event_set_utf8(event: GhosttyKeyEventRaw, utf8: *const c_char, len: usize);
+    fn ghostty_key_event_set_unshifted_codepoint(event: GhosttyKeyEventRaw, codepoint: u32);
     fn ghostty_mouse_encoder_new(
         allocator: *const c_void,
         out: *mut GhosttyMouseEncoderRaw,
@@ -1202,6 +1203,9 @@ impl KeyEncoder {
             );
             ghostty_key_event_set_key(event, key);
             ghostty_key_event_set_mods(event, mods);
+            if let Some(codepoint) = unshifted_codepoint(key) {
+                ghostty_key_event_set_unshifted_codepoint(event, codepoint);
+            }
             if let Some(text) = utf8 {
                 ghostty_key_event_set_utf8(event, text.as_ptr().cast(), text.len());
             }
@@ -1399,6 +1403,15 @@ pub fn key_for_character(character: char) -> i32 {
         '0'..='9' => 6 + character as i32 - '0' as i32,
         ' ' => KEY_SPACE,
         _ => KEY_UNIDENTIFIED,
+    }
+}
+
+fn unshifted_codepoint(key: i32) -> Option<u32> {
+    match key {
+        KEY_A..=45 => Some((b'a' + (key - KEY_A) as u8) as u32),
+        6..=15 => Some((b'0' + (key - 6) as u8) as u32),
+        KEY_SPACE => Some(' ' as u32),
+        _ => None,
     }
 }
 
