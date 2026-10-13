@@ -22,6 +22,7 @@ All commands ran on Windows x64 in `E:/Git/a1/.worktrees/persistent-user-setting
 - `npm run check:names` — passed the full 1,214-file naming audit with zero violations.
 - `npm run check:deprecated` — passed lockfile and registry dependency policy.
 - Strict validation passed for both the archived change in an isolated active copy and the changed `owned-ui-settings` specification.
+- `cargo fmt --manifest-path native/terminal-host/Cargo.toml -- --check` — passed after aligning the Windows crash-recovery assertion's 20-second deadline with the runtime's 40-second start-gate bound. The exact native integration remains CI-only on Windows by repository policy; two prior exact-head attempts failed at that shorter assertion while all other selected lanes passed.
 
 ## Manual restart handoff
 

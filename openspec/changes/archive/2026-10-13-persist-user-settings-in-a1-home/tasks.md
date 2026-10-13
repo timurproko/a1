@@ -27,3 +27,4 @@
 - [x] 5.1 Add bounded, product-neutral leading-prefix recovery through the shared lock and atomic replacement path; verify valid root properties survive while body, trailing, non-object, and ambiguous corruption remains untouched.
 - [x] 5.2 Keep the Settings footer permanently on shortcut hints while retaining optimistic rollback for failed, unavailable, and non-editable changes.
 - [x] 5.3 Rebuild and rerun focused settings, resident-preflight, naming, typecheck, architecture, and strict OpenSpec validation after the refinement.
+- [x] 5.4 Align the selected Windows crash-recovery test deadline with the production start-gate bound after two exact-head CI failures, without changing runtime behavior.
