@@ -7,8 +7,13 @@ export {
   isOwnedSettingId,
 } from "./declarations.js";
 export type { OwnedSettingId, OwnedSettingValueOf, OwnedUiSettingApplication, OwnedUiSettingDeclaration, OwnedUiSettingValue } from "./declarations.js";
-export { OWNED_UI_SETTINGS_MIGRATIONS, assertOwnedUiSettingsMigrations, migrationsFrom } from "./migrations.js";
-export type { OwnedUiSettingsMigration } from "./migrations.js";
+export {
+  OWNED_UI_SETTINGS_MIGRATIONS,
+  assertOwnedUiSettingsMigrations,
+  migrationsFrom,
+  normalizeOwnedUiSettingsValues,
+} from "./migrations.js";
+export type { OwnedUiSettingsCompatibilityResult, OwnedUiSettingsMigration } from "./migrations.js";
 export { documentFrom, parseOwnedUiSettingsDocument, resolveOwnedUiSettings, resolveResidentTabsSetting, settingValue } from "./resolution.js";
 export type {
   OwnedUiResolvedSetting,
@@ -29,3 +34,10 @@ export type {
 } from "./sections.js";
 export { OwnedSettingsManager } from "./manager.js";
 export type { OwnedSettingsManagerOptions, OwnedUiSettingsChangeOutcome, OwnedUiSettingsListener } from "./manager.js";
+export {
+  assertProfileSettingsNamespaceAvailable,
+  readProfileSettingsNamespace,
+  repairProfileSettingsDocument,
+  updateProfileSettingsNamespace,
+} from "./profile-document.js";
+export type { ProfileSettingsNamespaceRead, ProfileSettingsNamespaceUpdate } from "./profile-document.js";

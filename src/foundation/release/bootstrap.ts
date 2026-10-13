@@ -38,7 +38,7 @@ export interface BootstrapOptions {
   /** Test seam for bounded maintenance scheduled after stale endpoint sweeping. */
   readonly scheduleMaintenance?: (dataDir: string, paths: ReturnType<typeof resolveProductPaths>) => Promise<void>;
   /** Test seams for resident launch routing before the guardian starts. */
-  readonly readResidentTabs?: (configDir: string, profileId: string) => Promise<boolean>;
+  readonly readResidentTabs?: (profileDir: string, namespace: string, legacyConfigDir: string, profileId: string) => Promise<boolean>;
   readonly ensureTerminalHost?: (options: EnsureTerminalHostOptions) => Promise<EnsureTerminalHostResult>;
 }
 
@@ -61,22 +61,27 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
 
   const launchSelected = async (release: MaterializedRelease): Promise<number> => {
     let residentContext: LaunchContext = {};
-    const residentLaunchSettings = readResidentTabLaunchSettings(paths.configDir, launchProfileId);
+    // Compatibility: public launch preparation supplies PI_CODING_AGENT_DIR; the fallback keeps
+    // direct SDK/bootstrap callers hermetic while retaining their former config-root read.
+    const agentProfileDir = environment.PI_CODING_AGENT_DIR ?? paths.configDir;
+    const residentLaunchSettings = launchProfileId === "a1"
+      ? readResidentTabLaunchSettings(agentProfileDir, PRODUCT_IDENTITY.commandName, paths.configDir, launchProfileId)
+      : null;
     const resident = await selectResidentHost({
       profileId: launchProfileId,
       hasSessionSelection: sessionArgs.length > 0,
       currentLaunchContract: isCurrentLaunchContract(release),
       readSetting: options.readResidentTabs === undefined
-        ? async () => (await residentLaunchSettings).residentTabs
-        : () => options.readResidentTabs!(paths.configDir, launchProfileId),
+        ? async () => (await residentLaunchSettings!).residentTabs
+        : () => options.readResidentTabs!(agentProfileDir, PRODUCT_IDENTITY.commandName, paths.configDir, launchProfileId),
       ensureHost: async () => (options.ensureTerminalHost ?? ensureTerminalHost)({
         releaseRoot: release.releaseRoot,
         profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
         dataDir: paths.dataDir,
         runtimeDir: paths.runtimeDir,
         environment,
-        maxConcurrentStarts: (await residentLaunchSettings).maxConcurrentStarts,
-        unresponsiveRestartSeconds: (await residentLaunchSettings).unresponsiveRestartSeconds,
+        maxConcurrentStarts: (await residentLaunchSettings!).maxConcurrentStarts,
+        unresponsiveRestartSeconds: (await residentLaunchSettings!).unresponsiveRestartSeconds,
       }),
     });
     if (resident !== null) {

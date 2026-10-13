@@ -52,7 +52,7 @@ The read-only review used A1 `develop` at `b42b3c9e`, PR #586 at `8fdb7361`, `E:
 
 ### Milestone 2 pinned launch contract (2026-10-11)
 
-- The preview flag is `residentTabs` in profile-local owned settings, version 14, default `false`; pre-UI routing treats absent, unreadable, oversized, and invalid values as off.
+- The preview flag is `residentTabs` in the flat `a1` object of the global agent `settings.json`, default `false`; pre-UI routing treats absent, unreadable, oversized, and invalid values as off. The former versioned profile document remains a read-only compatibility fallback while that object is absent.
 - The host artifact resolves to `dist/native/<platform>-<arch>/a1-terminal-host[.exe]`, with hermetic `A1_TERMINAL_HOST_PATH`; discovery may use `A1_TABS_ENDPOINT`.
 - Tab children consume and erase `A1_TAB_ID`, `A1_TAB_TOKEN`, and `A1_TAB_ENDPOINT` before loading A1, Pi, extensions, or tools.
 - Client-scoped bridge detach binds `clientId` and `controllerRevision` captured when the command is admitted. The additive generation-1 `attachment` and `bridge.request` fixtures freeze that shape.

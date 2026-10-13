@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -19,34 +19,41 @@ async function temporaryDirectory(prefix: string) {
 describe("resident tab launch contracts", () => {
   it("resolves only an explicit valid profile setting", async () => {
     const root = await temporaryDirectory("resident-setting-"); cleanups.push(root.cleanup);
-    await mkdir(join(root.path, "settings"), { recursive: true });
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 15, values: { residentTabs: true } }));
-    expect(await readResidentTabsSetting(root.path)).toBe(true);
-    expect(await readResidentTabLaunchSettings(root.path)).toEqual({
+    const namespace = "product";
+    await writeFile(join(root.path, "settings.json"), JSON.stringify({ theme: "dark", [namespace]: { residentTabs: true } }));
+    expect(await readResidentTabsSetting(root.path, namespace)).toBe(true);
+    expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual({
       residentTabs: true,
       maxConcurrentStarts: 2,
       unresponsiveRestartSeconds: 120,
       stallNoticeSeconds: 300,
     });
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({
-      version: 15,
-      values: {
+
+    await writeFile(join(root.path, "settings.json"), `/${JSON.stringify({ theme: "dark", [namespace]: { residentTabs: true } })}`);
+    expect(await readResidentTabsSetting(root.path, namespace)).toBe(true);
+    expect(JSON.parse(await readFile(join(root.path, "settings.json"), "utf8"))).toEqual({
+      theme: "dark",
+      [namespace]: { residentTabs: true },
+    });
+
+    await writeFile(join(root.path, "settings.json"), JSON.stringify({
+      [namespace]: {
         residentTabs: true,
         tabsMaxConcurrentStarts: 8,
         tabsUnresponsiveRestartSeconds: 600,
         tabsStallNoticeSeconds: 1800,
       },
     }));
-    expect(await readResidentTabLaunchSettings(root.path)).toEqual({
+    expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual({
       residentTabs: true,
       maxConcurrentStarts: 8,
       unresponsiveRestartSeconds: 600,
       stallNoticeSeconds: 1800,
     });
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 14, values: { residentTabs: true } }));
-    expect(await readResidentTabsSetting(root.path)).toBe(false);
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 15, values: { residentTabs: "yes" } }));
-    expect(await readResidentTabsSetting(root.path)).toBe(false);
+    await writeFile(join(root.path, "settings.json"), JSON.stringify({ theme: "dark" }));
+    expect(await readResidentTabsSetting(root.path, namespace)).toBe(false);
+    await writeFile(join(root.path, "settings.json"), JSON.stringify({ [namespace]: { residentTabs: "yes" } }));
+    expect(await readResidentTabsSetting(root.path, namespace)).toBe(false);
   });
 
   it("never probes or starts a host for setting-off, comparison, or selected-session launches", async () => {

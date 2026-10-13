@@ -1,9 +1,10 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { OwnedSettingsManager, type OwnedUiSettingDeclaration } from "../../../src/ui/settings/index.js";
 import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 const DECLARATIONS: readonly OwnedUiSettingDeclaration[] = [
   {
@@ -89,6 +90,28 @@ afterEach(() => {
 });
 
 describe("owned settings manager", () => {
+  it("repairs harmless leading noise before resolving and writing settings", async () => {
+    const file = path.join(root, "settings.json");
+    const namespace = PRODUCT_IDENTITY.commandName;
+    writeFileSync(file, `/${JSON.stringify({ theme: "dark", [namespace]: { density: "compact" } })}`);
+
+    const target = session(null);
+    expect(target.valueOf("density")).toBe("compact");
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({
+      theme: "dark",
+      [namespace]: { density: "compact" },
+    });
+
+    const entry = target.sections()
+      .flatMap(section => section.entries)
+      .find(candidate => candidate.id === "confirmExit")!;
+    expect(await target.change(entry.backend, entry.id, true)).toMatchObject({ status: "deferred", storedValue: true });
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({
+      theme: "dark",
+      [namespace]: { density: "compact", confirmExit: true },
+    });
+  });
+
   it.each(["available", "absent", "failed", "read-only"] as const)(
     "preserves owned Agent choices and routes them to A1 with %s engine settings",
     async state => {
@@ -147,7 +170,7 @@ describe("owned settings manager", () => {
       expect(port.writes).toEqual([]);
       expect(port.flushed()).toBe(0);
       expect(JSON.parse(readFileSync(seed.file, "utf8"))).toEqual({
-        version: 15, values: {
+        [PRODUCT_IDENTITY.commandName]: {
           promptSuggestions: false, skillsPresentation: "expand", promptImageLimit: 12,
           accentColor: "orange", backgroundStyle: "dark",
         },
@@ -191,6 +214,24 @@ describe("owned settings manager", () => {
     expect(restarted.value("promptHistoryEnabled")).toBe(false);
     expect(restarted.value("promptHistoryMaxItems")).toBe(20);
     expect(restarted.value("promptSuggestions")).toBe(false);
+  });
+
+  it("normalizes recognizable flat legacy shapes on the next accepted change", async () => {
+    const namespace = "profile";
+    writeFileSync(path.join(root, "settings.json"), JSON.stringify({
+      theme: "dark",
+      [namespace]: { scrollbarSpeed: "high", accentColor: "default", futureSetting: "keep" },
+    }));
+    const target = new OwnedSettingsManager({ configDir: root, profileId: namespace });
+    expect(target.value("scrollbarSpeed")).toBe("high");
+    expect(target.value("accentColor")).toBe("purple");
+    expect((await target.change("a1", "promptSuggestions", false)).status).toBe("applied");
+    expect(JSON.parse(readFileSync(target.file, "utf8"))).toEqual({
+      theme: "dark",
+      [namespace]: {
+        futureSetting: "keep", scrollbarSpeed: "high", promptSuggestions: false,
+      },
+    });
   });
 
   it("types each declared getter by its declaration and falls back to the declared default", async () => {

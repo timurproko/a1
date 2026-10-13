@@ -36,6 +36,7 @@ describe("prompt history ownership", () => {
     expect(composition).toContain("profileRoot: backend.identity.agentDir");
     expect(composition).toContain("dataDir: resolvePromptHistoryDataDir()");
     expect(composition).not.toContain("dataDir: resolveProductPaths().dataDir");
-    expect(composition).toContain("configDir: resolveProductPaths().configDir");
+    expect(composition).toContain("profileDir: profilePaths.agentProfile");
+    expect(composition).toContain("legacyConfigDir: productPaths.configDir");
   });
 });
