@@ -107,7 +107,10 @@ setInterval(() => {}, 1000);
     first.write(b"\x03\x03");
     first.wait(Duration::from_secs(8));
     assert!(
-        first.output_containing("1 tab still running", Duration::from_secs(2)),
+        first.output_containing(
+            "1 agent still running run a1 to return.",
+            Duration::from_secs(2)
+        ),
         "{}",
         first.output_text()
     );
