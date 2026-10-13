@@ -1,5 +1,8 @@
 export declare const SETTINGS_SELECTOR_PATH: string;
 export declare function settingsSelectorSource(packagesRoot?: string): string;
+export declare const SETTINGS_SCHEMA_PATH: string;
+export declare function settingsSchemaSource(packagesRoot?: string): string;
+export declare function settingsRootKeys(source: string): readonly string[];
 
 export interface PiSettingFlag {
   readonly key: string;

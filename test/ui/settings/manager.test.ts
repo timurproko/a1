@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -147,7 +147,7 @@ describe("owned settings manager", () => {
       expect(port.writes).toEqual([]);
       expect(port.flushed()).toBe(0);
       expect(JSON.parse(readFileSync(seed.file, "utf8"))).toEqual({
-        version: 15, values: {
+        a1: {
           promptSuggestions: false, skillsPresentation: "expand", promptImageLimit: 12,
           accentColor: "orange", backgroundStyle: "dark",
         },
@@ -191,6 +191,23 @@ describe("owned settings manager", () => {
     expect(restarted.value("promptHistoryEnabled")).toBe(false);
     expect(restarted.value("promptHistoryMaxItems")).toBe(20);
     expect(restarted.value("promptSuggestions")).toBe(false);
+  });
+
+  it("normalizes recognizable flat legacy shapes on the next accepted change", async () => {
+    writeFileSync(path.join(root, "settings.json"), JSON.stringify({
+      theme: "dark",
+      a1: { scrollbarSpeed: "high", accentColor: "default", futureSetting: "keep" },
+    }));
+    const target = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    expect(target.value("scrollbarSpeed")).toBe("high");
+    expect(target.value("accentColor")).toBe("purple");
+    expect((await target.change("a1", "promptSuggestions", false)).status).toBe("applied");
+    expect(JSON.parse(readFileSync(target.file, "utf8"))).toEqual({
+      theme: "dark",
+      a1: {
+        futureSetting: "keep", scrollbarSpeed: "high", promptSuggestions: false,
+      },
+    });
   });
 
   it("types each declared getter by its declaration and falls back to the declared default", async () => {

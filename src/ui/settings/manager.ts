@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { assertAgentSettingDescriptor } from "../../contracts/agent-engine/index.js";
 import type {
@@ -16,12 +16,14 @@ import {
   type OwnedUiSettingDeclaration,
   type OwnedUiSettingValue,
 } from "./declarations.js";
-import { OWNED_UI_SETTINGS_MIGRATIONS, type OwnedUiSettingsMigration } from "./migrations.js";
 import {
-  documentFrom,
+  OWNED_UI_SETTINGS_MIGRATIONS,
+  normalizeOwnedUiSettingsValues,
+  type OwnedUiSettingsMigration,
+} from "./migrations.js";
+import {
   parseOwnedUiSettingsDocument,
   resolveOwnedUiSettings,
-  type OwnedUiSettingsDocument,
   type OwnedUiSettingsResolution,
 } from "./resolution.js";
 import {
@@ -31,14 +33,21 @@ import {
   type OwnedUiSettingsBackend,
   type OwnedUiSettingsSection,
 } from "./sections.js";
+import { readProfileSettingsNamespace, updateProfileSettingsNamespace } from "./profile-document.js";
 
 const PROFILE_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 const MAX_DOCUMENT_BYTES = 256 * 1024;
 
 export interface OwnedSettingsManagerOptions {
-  /** A1 configuration root. Settings live under `<configDir>/settings/`. */
-  readonly configDir: string;
+  /** Selected global agent profile containing the shared `settings.json`. */
+  readonly profileDir?: string;
+  /** Compatibility alias for SDK/tests that supplied the former root option. */
+  readonly configDir?: string;
   readonly profileId: string;
+  /** Product namespace; defaults to profileId for generic and hermetic consumers. */
+  readonly namespace?: string;
+  /** Former product configuration root, consulted only while the namespace is absent. */
+  readonly legacyConfigDir?: string;
   readonly declarations?: readonly OwnedUiSettingDeclaration[];
   readonly migrations?: readonly OwnedUiSettingsMigration[];
   readonly agent?: AgentSettingsPort | null;
@@ -74,6 +83,8 @@ interface WriteOutcome {
  */
 export class OwnedSettingsManager {
   readonly #file: string;
+  readonly #legacyFile: string | null;
+  readonly #namespace: string;
   readonly #declarations: readonly OwnedUiSettingDeclaration[];
   readonly #migrations: readonly OwnedUiSettingsMigration[];
   readonly #agent: AgentSettingsPort | null;
@@ -90,7 +101,13 @@ export class OwnedSettingsManager {
     if (!PROFILE_ID_PATTERN.test(options.profileId)) {
       throw new Error(`owned UI settings profile id is not a bounded slug: ${options.profileId}`);
     }
-    this.#file = path.join(path.resolve(options.configDir), "settings", `${options.profileId}.json`);
+    const profileDir = options.profileDir ?? options.configDir;
+    if (profileDir === undefined) throw new Error("owned UI settings require a profile directory");
+    this.#file = path.join(path.resolve(profileDir), "settings.json");
+    this.#legacyFile = options.legacyConfigDir === undefined
+      ? null
+      : path.join(path.resolve(options.legacyConfigDir), "settings", `${options.profileId}.json`);
+    this.#namespace = options.namespace ?? options.profileId;
     this.#declarations = options.declarations ?? OWNED_UI_SETTING_DECLARATIONS;
     this.#migrations = options.migrations ?? OWNED_UI_SETTINGS_MIGRATIONS;
     this.#agent = options.agent ?? null;
@@ -111,26 +128,56 @@ export class OwnedSettingsManager {
     return this.#resolution;
   }
 
-  /** Reads and resolves the stored document. Never throws: every failure becomes a notice. */
+  /** Reads and resolves the product namespace. Never throws: every failure becomes a notice. */
   read(): OwnedUiSettingsResolution {
+    const shared = readProfileSettingsNamespace(this.#file, this.#namespace);
+    if (shared.status === "available") {
+      if (Buffer.byteLength(JSON.stringify(shared.value), "utf8") > MAX_DOCUMENT_BYTES) {
+        return this.#resolveNamespace(null, `${this.#file} contains a ${this.#namespace} namespace exceeding the ${MAX_DOCUMENT_BYTES}-byte settings limit`);
+      }
+      return this.#resolveCompatibleNamespace(shared.value);
+    }
+    if (shared.status === "invalid") return this.#resolveNamespace(null, shared.detail);
+    return this.#readLegacy();
+  }
+
+  #resolveCompatibleNamespace(values: Readonly<Record<string, unknown>>): OwnedUiSettingsResolution {
+    const compatibility = normalizeOwnedUiSettingsValues(values);
+    return compatibility.values === null
+      ? this.#resolveNamespace(null, compatibility.failure ?? "product settings compatibility failed")
+      : this.#resolveNamespace(compatibility.values);
+  }
+
+  #resolveNamespace(
+    values: Readonly<Record<string, unknown>> | null,
+    unreadableDetail?: string,
+  ): OwnedUiSettingsResolution {
+    return resolveOwnedUiSettings({
+      declarations: this.#declarations,
+      migrations: [],
+      document: values === null ? null : { version: OWNED_UI_SETTINGS_VERSION, values },
+      ...(unreadableDetail === undefined ? {} : { unreadableDetail }),
+      currentVersion: OWNED_UI_SETTINGS_VERSION,
+    });
+  }
+
+  #readLegacy(): OwnedUiSettingsResolution {
+    if (this.#legacyFile === null) return this.#resolveNamespace(null);
     let raw: string | null = null;
     let unreadable: string | null = null;
     try {
-      raw = readFileSync(this.#file, "utf8");
+      raw = readFileSync(this.#legacyFile, "utf8");
     } catch (error) {
-      if (!isMissing(error)) unreadable = `${this.#file} could not be read: ${describe(error)}`;
+      if (!isMissing(error)) unreadable = `${this.#legacyFile} could not be read: ${describe(error)}`;
     }
-
     if (raw !== null && Buffer.byteLength(raw, "utf8") > MAX_DOCUMENT_BYTES) {
-      unreadable = `${this.#file} exceeds the ${MAX_DOCUMENT_BYTES}-byte settings limit and was ignored`;
+      unreadable = `${this.#legacyFile} exceeds the ${MAX_DOCUMENT_BYTES}-byte settings limit and was ignored`;
       raw = null;
     }
-
     const document = raw === null ? null : parseOwnedUiSettingsDocument(raw);
     if (raw !== null && document === null && unreadable === null) {
-      unreadable = `${this.#file} is not a valid settings document and was ignored`;
+      unreadable = `${this.#legacyFile} is not a valid settings document and was ignored`;
     }
-
     return resolveOwnedUiSettings({
       declarations: this.#declarations,
       migrations: this.#migrations,
@@ -203,7 +250,7 @@ export class OwnedSettingsManager {
   }
 
   #changeOwned(id: string, value: OwnedUiSettingValue): OwnedUiSettingsChangeOutcome {
-    const outcome = this.#write(this.#resolution, id, value);
+    const outcome = this.#write(id, value);
     if (!outcome.stored) return failed(outcome.failure ?? `${id} could not be stored`);
 
     const previous = this.#resolution;
@@ -219,34 +266,30 @@ export class OwnedSettingsManager {
     return changed("applied", "live", value as AgentJsonValue, value as AgentJsonValue);
   }
 
-  // Invariant: the resolved form is written with `id` set to `value` and undeclared keys preserved.
-  // Concurrency: a temporary sibling is renamed over the target, so an interrupted write leaves
-  // either the complete previous document or the complete new one.
-  #write(resolution: OwnedUiSettingsResolution, id: string, value: OwnedUiSettingValue): WriteOutcome {
+  // Invariant: only non-default declared values and unknown product properties are stored.
+  // Concurrency: the namespace updater rereads current JSON while holding Pi's compatible lock.
+  #write(id: string, value: OwnedUiSettingValue): WriteOutcome {
     const declaration = this.#declarations.find(candidate => candidate.id === id);
     if (!declaration) return { stored: false, failure: `unknown owned UI setting: ${id}` };
     if (!declaration.allowedValues.includes(value)) {
       return { stored: false, failure: `value ${JSON.stringify(value)} is not allowed for ${id}` };
     }
 
-    const current = documentFrom(resolution);
-    const next: OwnedUiSettingsDocument = {
-      version: OWNED_UI_SETTINGS_VERSION,
-      values: { ...current.values, [id]: value },
-    };
-
-    const temporary = `${this.#file}.${process.pid}.tmp`;
     try {
-      mkdirSync(path.dirname(this.#file), { recursive: true, mode: 0o700 });
-      writeFileSync(temporary, `${JSON.stringify(next, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-      renameSync(temporary, this.#file);
+      updateProfileSettingsNamespace(this.#file, this.#namespace, current => {
+        let latest = this.#readLegacy();
+        if (current !== null) {
+          const compatibility = normalizeOwnedUiSettingsValues(current);
+          if (compatibility.values === null) throw new Error(compatibility.failure ?? "product settings compatibility failed");
+          latest = this.#resolveNamespace(compatibility.values);
+        }
+        const next = compactValues(latest);
+        if (value === declaration.defaultValue) delete next[id];
+        else next[id] = value;
+        return Object.keys(next).length === 0 ? null : next;
+      });
       return { stored: true, failure: null };
     } catch (error) {
-      try {
-        rmSync(temporary, { force: true });
-      } catch {
-        // Security: a leftover temporary file is inert: read() only ever opens the target path.
-      }
       return { stored: false, failure: `${this.#file} could not be written: ${describe(error)}` };
     }
   }
@@ -339,6 +382,14 @@ function fromAgentOutcome(result: AgentSettingChangeOutcome): OwnedUiSettingsCha
     limitationReason: result.limitationReason,
     failure: result.failure,
   };
+}
+
+function compactValues(resolution: OwnedUiSettingsResolution): Record<string, unknown> {
+  const values: Record<string, unknown> = { ...resolution.preserved };
+  for (const setting of resolution.settings) {
+    if (setting.value !== setting.declaration.defaultValue) values[setting.declaration.id] = setting.value;
+  }
+  return values;
 }
 
 function isMissing(error: unknown): boolean {
