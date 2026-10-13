@@ -6,7 +6,11 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { readProfileSettingsNamespace, updateProfileSettingsNamespace } from "../../../src/ui/settings/index.js";
+import {
+  readProfileSettingsNamespace,
+  repairProfileSettingsDocument,
+  updateProfileSettingsNamespace,
+} from "../../../src/ui/settings/index.js";
 
 const execFileAsync = promisify(execFile);
 let root: string;
@@ -49,6 +53,36 @@ describe("profile settings namespace document", () => {
     for (const raw of ["{ invalid", JSON.stringify({ theme: "dark", product: "collision" })]) {
       writeFileSync(file, raw);
       expect(() => updateProfileSettingsNamespace(file, "product", () => ({ accent: "cyan" }))).toThrow();
+      expect(readFileSync(file, "utf8")).toBe(raw);
+    }
+  });
+
+  it("silently repairs bounded leading noise around one complete root object", async () => {
+    mkdirSync(join(root, "agent"), { recursive: true });
+    writeFileSync(file, `\ufeff/${JSON.stringify({ theme: "dark", product: { accent: "cyan" } })}`);
+
+    expect(repairProfileSettingsDocument(file)).toBe(true);
+    expect(json()).toEqual({ theme: "dark", product: { accent: "cyan" } });
+    expect(repairProfileSettingsDocument(file)).toBe(false);
+    expect(readdirSync(join(root, "agent"))).toEqual(["settings.json"]);
+
+    const pi = SettingsManager.create(root, join(root, "agent"));
+    pi.setTheme("light");
+    await pi.flush();
+    expect(json()).toEqual({ theme: "light", product: { accent: "cyan" } });
+  });
+
+  it("refuses body, trailing, non-object, ambiguous, and oversized-prefix corruption", () => {
+    mkdirSync(join(root, "agent"), { recursive: true });
+    for (const raw of [
+      "{ invalid",
+      `${JSON.stringify({ theme: "dark" })}/`,
+      `[]${JSON.stringify({ theme: "dark" })}`,
+      "/[]",
+      `${"/".repeat(257)}${JSON.stringify({ theme: "dark" })}`,
+    ]) {
+      writeFileSync(file, raw);
+      expect(repairProfileSettingsDocument(file)).toBe(false);
       expect(readFileSync(file, "utf8")).toBe(raw);
     }
   });

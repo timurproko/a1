@@ -90,6 +90,28 @@ afterEach(() => {
 });
 
 describe("owned settings manager", () => {
+  it("repairs harmless leading noise before resolving and writing settings", async () => {
+    const file = path.join(root, "settings.json");
+    const namespace = PRODUCT_IDENTITY.commandName;
+    writeFileSync(file, `/${JSON.stringify({ theme: "dark", [namespace]: { density: "compact" } })}`);
+
+    const target = session(null);
+    expect(target.valueOf("density")).toBe("compact");
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({
+      theme: "dark",
+      [namespace]: { density: "compact" },
+    });
+
+    const entry = target.sections()
+      .flatMap(section => section.entries)
+      .find(candidate => candidate.id === "confirmExit")!;
+    expect(await target.change(entry.backend, entry.id, true)).toMatchObject({ status: "deferred", storedValue: true });
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({
+      theme: "dark",
+      [namespace]: { density: "compact", confirmExit: true },
+    });
+  });
+
   it.each(["available", "absent", "failed", "read-only"] as const)(
     "preserves owned Agent choices and routes them to A1 with %s engine settings",
     async state => {

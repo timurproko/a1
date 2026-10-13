@@ -37,6 +37,7 @@ export type { OwnedSettingsManagerOptions, OwnedUiSettingsChangeOutcome, OwnedUi
 export {
   assertProfileSettingsNamespaceAvailable,
   readProfileSettingsNamespace,
+  repairProfileSettingsDocument,
   updateProfileSettingsNamespace,
 } from "./profile-document.js";
 export type { ProfileSettingsNamespaceRead, ProfileSettingsNamespaceUpdate } from "./profile-document.js";

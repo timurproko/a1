@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import lockfile from "proper-lockfile";
 
 const NAMESPACE_PATTERN = /^[a-z][a-z0-9-]*$/;
+const MAX_RECOVERABLE_PREFIX_BYTES = 256;
 
 export type ProfileSettingsNamespaceRead =
   | { readonly status: "missing"; readonly value: null }
@@ -42,6 +43,26 @@ export function readProfileSettingsNamespace(file: string, namespace: string): P
 }
 
 /**
+ * Remove bounded leading noise only when the remaining bytes are one complete root object.
+ * The repair is silent and uses the same lock and atomic replacement path as namespace writes.
+ */
+export function repairProfileSettingsDocument(file: string): boolean {
+  if (!existsSync(file)) return false;
+  const release = acquireLock(file);
+  try {
+    if (!existsSync(file)) return false;
+    const raw = readFileSync(file, "utf8");
+    if (parseRoot(raw) !== null) return false;
+    const root = parseRootAfterLeadingNoise(raw);
+    if (root === null) return false;
+    replaceRoot(file, root);
+    return true;
+  } finally {
+    release();
+  }
+}
+
+/**
  * Replace one root namespace through the lock protocol used by pinned Pi.
  * The updater receives bytes reread while locked, so unrelated concurrent writes survive.
  */
@@ -53,7 +74,6 @@ export function updateProfileSettingsNamespace(
   assertNamespace(namespace);
   mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
   const release = acquireLock(file);
-  let temporary: string | null = null;
   try {
     const root = existsSync(file) ? parseRoot(readFileSync(file, "utf8")) : {};
     if (root === null) throw new Error(`${file} is not a valid settings object`);
@@ -65,17 +85,8 @@ export function updateProfileSettingsNamespace(
     const nextRoot: Record<string, unknown> = { ...root };
     if (nextNamespace === null || Object.keys(nextNamespace).length === 0) delete nextRoot[namespace];
     else nextRoot[namespace] = { ...nextNamespace };
-
-    temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
-    writeFileSync(temporary, `${JSON.stringify(nextRoot, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-    renameSync(temporary, file);
-    temporary = null;
+    replaceRoot(file, nextRoot);
   } finally {
-    if (temporary !== null) {
-      try { rmSync(temporary, { force: true }); } catch {
-        // Invariant: failed temporary cleanup cannot make the target document authoritative.
-      }
-    }
     release();
   }
 }
@@ -91,13 +102,50 @@ function acquireLock(file: string): () => void {
   }
 }
 
+function replaceRoot(file: string, root: Readonly<Record<string, unknown>>): void {
+  let temporary: string | null = `${file}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(temporary, `${JSON.stringify(root, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+    renameSync(temporary, file);
+    temporary = null;
+  } finally {
+    if (temporary !== null) {
+      try { rmSync(temporary, { force: true }); } catch {
+        // Invariant: failed temporary cleanup cannot make the target document authoritative.
+      }
+    }
+  }
+}
+
 function parseRoot(raw: string): Record<string, unknown> | null {
+  return parseRootValue(stripBom(raw));
+}
+
+function parseRootAfterLeadingNoise(raw: string): Record<string, unknown> | null {
+  const withoutBom = stripBom(raw);
+  const start = withoutBom.indexOf("{");
+  if (start <= 0) return null;
+  const prefix = withoutBom.slice(0, start);
+  if (Buffer.byteLength(prefix, "utf8") > MAX_RECOVERABLE_PREFIX_BYTES || prefix.trim().length === 0) return null;
+  try {
+    JSON.parse(prefix);
+    return null;
+  } catch {
+    return parseRootValue(withoutBom.slice(start));
+  }
+}
+
+function parseRootValue(raw: string): Record<string, unknown> | null {
   try {
     const value = JSON.parse(raw) as unknown;
     return isRecord(value) ? value : null;
   } catch {
     return null;
   }
+}
+
+function stripBom(raw: string): string {
+  return raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

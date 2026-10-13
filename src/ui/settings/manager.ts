@@ -33,7 +33,11 @@ import {
   type OwnedUiSettingsBackend,
   type OwnedUiSettingsSection,
 } from "./sections.js";
-import { readProfileSettingsNamespace, updateProfileSettingsNamespace } from "./profile-document.js";
+import {
+  readProfileSettingsNamespace,
+  repairProfileSettingsDocument,
+  updateProfileSettingsNamespace,
+} from "./profile-document.js";
 
 const PROFILE_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 const MAX_DOCUMENT_BYTES = 256 * 1024;
@@ -130,6 +134,9 @@ export class OwnedSettingsManager {
 
   /** Reads and resolves the product namespace. Never throws: every failure becomes a notice. */
   read(): OwnedUiSettingsResolution {
+    try { repairProfileSettingsDocument(this.#file); } catch {
+      // Compatibility: recovery is opportunistic; unreadable-document handling stays authoritative.
+    }
     const shared = readProfileSettingsNamespace(this.#file, this.#namespace);
     if (shared.status === "available") {
       if (Buffer.byteLength(JSON.stringify(shared.value), "utf8") > MAX_DOCUMENT_BYTES) {

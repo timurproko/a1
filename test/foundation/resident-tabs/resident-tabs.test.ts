@@ -28,6 +28,14 @@ describe("resident tab launch contracts", () => {
       unresponsiveRestartSeconds: 120,
       stallNoticeSeconds: 300,
     });
+
+    await writeFile(join(root.path, "settings.json"), `/${JSON.stringify({ theme: "dark", [namespace]: { residentTabs: true } })}`);
+    expect(await readResidentTabsSetting(root.path, namespace)).toBe(true);
+    expect(JSON.parse(await readFile(join(root.path, "settings.json"), "utf8"))).toEqual({
+      theme: "dark",
+      [namespace]: { residentTabs: true },
+    });
+
     await writeFile(join(root.path, "settings.json"), JSON.stringify({
       [namespace]: {
         residentTabs: true,

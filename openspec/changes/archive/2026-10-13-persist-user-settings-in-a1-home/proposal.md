@@ -13,7 +13,9 @@ The Settings screen combines Pi/Agent settings and A1-specific settings, but the
 - Leave Pi's settings manager unchanged; update `a1` through a Pi-compatible locked read-modify-write that rereads current JSON and preserves every root setting.
 - Verify each pinned Pi version preserves the unknown `a1` object whenever Pi writes one of its own settings.
 - Read the former standalone A1 settings document only when the shared file has no `a1` object, then migrate non-destructively into the shared object on the next accepted A1 change.
-- Add focused restart, update/reinstall, migration, collision, and concurrent-write coverage.
+- Normalize a valid root settings object with bounded stray leading text before engine startup, while leaving ambiguous corruption untouched.
+- Keep the Settings footer dedicated to shortcut hints instead of replacing it with success, failure, or availability messages.
+- Add focused restart, update/reinstall, migration, recovery, collision, and concurrent-write coverage.
 
 ## Capabilities
 
@@ -29,4 +31,4 @@ None.
 
 ## Impact
 
-Expected implementation affects owned-settings persistence, resident-tabs preflight reads, the pinned-Pi compatibility inventory, package dependencies for compatible file locking, and focused tests. Pi settings-manager construction and APIs, project settings, package/trust/runtime wiring, vanilla `~/.pi`, release/control-state paths, and the Settings UI remain unchanged.
+Expected implementation affects owned-settings persistence, resident-tabs preflight reads, the Settings footer, the pinned-Pi compatibility inventory, package dependencies for compatible file locking, and focused tests. Pi settings-manager construction and APIs, project settings, package/trust/runtime wiring, vanilla `~/.pi`, and release/control-state paths remain unchanged.

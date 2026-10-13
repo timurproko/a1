@@ -88,6 +88,12 @@ When the shared file has no product object, the manager may read the former `<co
 
 Startup performs no migration write. On the next accepted product change, the manager filters declarations against defaults, preserves unknown properties, updates `a1` through the locked helper, and leaves the old file unchanged. Eager moves and dual writes were rejected because they complicate rollback and create two authorities.
 
+### 7. Normalize only unambiguous leading corruption and reserve the footer for shortcuts
+
+Before resident routing or engine construction reads the shared file, A1 may remove a bounded non-JSON prefix only when the remaining bytes parse as exactly one JSON object. Repair uses the same lock and atomic replacement path, preserves every parsed root property, and emits no Settings status message. Invalid JSON bodies, trailing corruption, arrays, and ambiguous candidates remain untouched and continue through fail-safe default resolution.
+
+The Settings footer always renders its standing shortcut hints. Save failures still roll back optimistic values, but success, failure, availability, and double-interrupt copy do not replace footer guidance. Silent arbitrary JSON repair was rejected because it can invent intent or destroy bytes; leading-prefix recovery is accepted only because the preserved suffix is already a complete authoritative object.
+
 ## Risks / Trade-offs
 
 - **[A future Pi writer stops preserving unknown root fields]** → File-backed conformance runs for every pinned Pi update and blocks the candidate.
@@ -95,6 +101,7 @@ Startup performs no migration write. On the next accepted product change, the ma
 - **[An older A1 release writes through a different path]** → Pi-compatible locking and Pi's gated unknown-field preservation protect the object; new releases do not add another Pi storage implementation.
 - **[Pi later claims the product namespace]** → Static collision validation and runtime shape refusal block destructive precedence.
 - **[The standalone document and embedded object disagree]** → The embedded object wins as one authority; no per-key chronology is invented.
+- **[Corruption is not a harmless prefix]** → Recovery refuses it, keeps the original bytes, and resolves safe defaults rather than guessing.
 
 ## Migration Plan
 
@@ -103,3 +110,4 @@ Startup performs no migration write. On the next accepted product change, the ma
 3. On the next accepted product change, write only non-default and unknown properties directly in `a1`, without metadata or changes to the former file.
 4. Add pinned-Pi round-trip and collision checks before removing any reliance on the standalone location.
 5. Keep the old standalone file intact for rollback. Newer changes made only in `a1` are intentionally unavailable to binaries predating this contract.
+6. Normalize only a bounded leading prefix around an otherwise complete root object, before Pi loads the file, and keep all Settings footer states on shortcut guidance.

@@ -7,6 +7,7 @@ import {
   normalizeOwnedUiSettingsValues,
   parseOwnedUiSettingsDocument,
   readProfileSettingsNamespace,
+  repairProfileSettingsDocument,
   resolveOwnedUiSettings,
   settingValue,
   type OwnedUiSettingsDocument,
@@ -35,7 +36,11 @@ export async function readResidentTabLaunchSettings(
   legacyConfigDir?: string,
   profileId = namespace,
 ): Promise<ResidentTabLaunchSettings> {
-  const shared = readProfileSettingsNamespace(resolve(profileDir, "settings.json"), namespace);
+  const sharedFile = resolve(profileDir, "settings.json");
+  try { repairProfileSettingsDocument(sharedFile); } catch {
+    // Compatibility: recovery is opportunistic; resident launch falls back when bytes stay invalid.
+  }
+  const shared = readProfileSettingsNamespace(sharedFile, namespace);
   if (shared.status === "invalid") return DEFAULTS;
   if (shared.status === "available") {
     const compatibility = normalizeOwnedUiSettingsValues(shared.value);

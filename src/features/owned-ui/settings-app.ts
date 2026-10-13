@@ -222,12 +222,10 @@ export class SettingsApp implements UiApp {
   // Invariant: keyboard navigation requests visibility once; pointer scrolling then stays free.
   #selectionNeedsReveal = true;
   #reveal: ListRowSpan | undefined;
-  #notice: string | null = null;
   #filter: LineInput | null = null;
   #scrollBeforeFilter: number | null = null;
   #menu: ValueMenu | null = null;
   #structured: StructuredEdit | null = null;
-  #interruptArmed = false;
   // Invariant: pending values remain visible until the source reflects them.
   readonly #pending = new Map<string, OwnedUiSettingValue>();
   readonly #undoHistory: SettingsUndoRecord[] = [];
@@ -270,7 +268,6 @@ export class SettingsApp implements UiApp {
 
   render(rect: PaneRect, host: AppHostServices): readonly string[] {
     const theme = host.theme ?? PLAIN_THEME;
-    this.#interruptArmed = host.interruptArmed;
     const rows = this.#rows();
     const selected = indexOfKey(rows, this.#selectedKey);
     const footer = this.#footerLines(rect.width, theme);
@@ -396,7 +393,6 @@ export class SettingsApp implements UiApp {
       case "open-filter":
         this.#scrollBeforeFilter = this.#scroll;
         this.#filter = new LineInput("");
-        this.#notice = null;
         return { consumed: true };
       case "activate": {
         const row = rows[selected];
@@ -519,7 +515,6 @@ export class SettingsApp implements UiApp {
       const index = rows.findIndex(candidate => rowKey(candidate) === row.key);
       if (index >= 0) {
         // Rationale: the pointer acts where it points; the arrow belongs to the keyboard.
-        this.#notice = null;
         if (this.#hoverRegion === "minus") this.#cycle(rows, index, -1);
         else if (this.#hoverRegion === "plus") this.#cycle(rows, index, 1);
         else if (this.#hoverRegion === "value") this.#openMenu(rows, index);
@@ -587,10 +582,7 @@ export class SettingsApp implements UiApp {
     // Rationale: a number is stepped, not picked from a list: it has its own two controls,
     // and pointing at it is not a request for anything else.
     if (typeof shown === "number") return;
-    if (!entry.editable || entry.choices === null || entry.choices.length === 0) {
-      this.#notice = `${labelOf(entry)} cannot be changed here`;
-      return;
-    }
+    if (!entry.editable || entry.choices === null || entry.choices.length === 0) return;
     const current = shown === null ? 0 : Math.max(0, entry.choices.indexOf(shown));
     const anchorKey = `${entry.backend}:${entry.id}`;
     // Compatibility: pointer opening already brightens the source value. Enter borrows that
@@ -622,10 +614,7 @@ export class SettingsApp implements UiApp {
   #openStructured(entry: OwnedUiSettingsEntry): void {
     // Invariant: the flags come from the declaration, not from the stored value: an unset
     // flag still has a row, showing the default the source would apply.
-    if (entry.flags.length === 0) {
-      this.#notice = `${labelOf(entry)} has nothing to configure`;
-      return;
-    }
+    if (entry.flags.length === 0) return;
     const stored = typeof entry.rawValue === "object" && entry.rawValue !== null && !Array.isArray(entry.rawValue)
       ? (entry.rawValue as Record<string, unknown>)
       : {};
@@ -791,12 +780,10 @@ export class SettingsApp implements UiApp {
       const failure = changeFailure(outcome);
       if (failure === null) {
         this.#recordUndo({ kind: "structured", sequence, entry: open.entry, previous, forward });
-        this.#notice = null;
         return;
       }
       // Concurrency: only roll back the dialog if no later press has moved the record on.
       if (this.#structured === open && sameRecord(open.record, forward)) replaceRecord(open.record, previous);
-      this.#notice = `Could not save ${labelOf(open.entry)}: ${failure}`;
     });
   }
 
@@ -882,10 +869,7 @@ export class SettingsApp implements UiApp {
     const row = rows[selected];
     if (row === undefined || row.kind !== "element") return;
     const entry = row.value;
-    if (!entry.editable) {
-      this.#notice = `${labelOf(entry)} cannot be changed here`;
-      return;
-    }
+    if (!entry.editable) return;
     const shown = this.#shownValue(entry);
     if (typeof shown === "number") {
       // Rationale: at the end of the range there is nothing to say: the arrow already reads
@@ -895,10 +879,7 @@ export class SettingsApp implements UiApp {
       return;
     }
     const choices = entry.choices;
-    if (choices === null || choices.length === 0) {
-      this.#notice = `${labelOf(entry)} cannot be changed here`;
-      return;
-    }
+    if (choices === null || choices.length === 0) return;
     const current = shown === null ? -1 : choices.indexOf(shown);
     const next = choices[current < 0
       ? (delta > 0 ? 0 : choices.length - 1)
@@ -917,13 +898,11 @@ export class SettingsApp implements UiApp {
       const failure = changeFailure(outcome);
       if (failure !== null) {
         if (this.#pending.get(key) === value) this.#pending.delete(key);
-        this.#notice = `Could not save ${labelOf(entry)}: ${failure}`;
         return;
       }
       if (previous !== null && previous !== value) this.#recordUndo({ kind: "scalar", sequence, entry, previous });
       // Concurrency: a later press may have moved on; only the last request clears itself.
       if (this.#pending.get(key) === value) this.#pending.delete(key);
-      this.#notice = null;
     });
   }
 
@@ -980,12 +959,7 @@ export class SettingsApp implements UiApp {
 
   #finishUndo(record: SettingsUndoRecord, outcome: OwnedUiSettingsChangeOutcome): void {
     const failure = changeFailure(outcome);
-    if (failure !== null) {
-      this.#recordUndo(record);
-      this.#notice = `Could not restore ${labelOf(record.entry)}: ${failure}`;
-    } else {
-      this.#notice = null;
-    }
+    if (failure !== null) this.#recordUndo(record);
     this.#undoActive = false;
     this.#drainUndo();
   }
@@ -1021,7 +995,6 @@ export class SettingsApp implements UiApp {
     if (index < 0) return;
     this.#selectedKey = rowKey(rows[index]);
     this.#selectionNeedsReveal = true;
-    this.#notice = null;
   }
 
   #rows(): readonly Row[] {
@@ -1196,13 +1169,9 @@ export class SettingsApp implements UiApp {
     const open = this.#structured;
     if (open !== null) return this.#dialogLines(open, width, theme);
 
-    const notice = this.#notice;
-    const plainStatus = notice !== null && notice.length > 0
-      ? notice
-      : this.#interruptArmed ? "press ctrl+c again to exit a1" : null;
-    const status = plainStatus === null
-      ? renderShortcutHintsWithClose(SETTINGS_SHORTCUTS.hintEntries(SCOPE), theme, width, width > 0 ? 1 : 0)
-      : truncateToWidth(`${width > 0 ? " " : ""}${theme.fg("dim", plainStatus)}`, width);
+    // Rationale: standing guidance is more useful than transient feedback; failures still
+    // roll back without displacing the Settings interaction contract.
+    const status = renderShortcutHintsWithClose(SETTINGS_SHORTCUTS.hintEntries(SCOPE), theme, width, width > 0 ? 1 : 0);
     const input = this.#filter;
     if (input === null) return [status];
     return [...renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER, theme }).lines, status];

@@ -21,3 +21,9 @@
 
 - [x] 4.1 Run focused settings, resident-routing, package, pinned-Pi compatibility, dependency-governance, and collision suites plus repository typechecking, then record exact results and known-gap disposition in implementation evidence.
 - [x] 4.2 Build the interactive candidate and hand off a restart check that changes Pi-backed and A1-owned values, confirms one shared file contains root and namespaced data, restores one A1 value to default, and verifies all remaining choices survive relaunch.
+
+## 5. Refine corruption recovery and Settings feedback
+
+- [x] 5.1 Add bounded, product-neutral leading-prefix recovery through the shared lock and atomic replacement path; verify valid root properties survive while body, trailing, non-object, and ambiguous corruption remains untouched.
+- [x] 5.2 Keep the Settings footer permanently on shortcut hints while retaining optimistic rollback for failed, unavailable, and non-editable changes.
+- [x] 5.3 Rebuild and rerun focused settings, resident-preflight, naming, typecheck, architecture, and strict OpenSpec validation after the refinement.

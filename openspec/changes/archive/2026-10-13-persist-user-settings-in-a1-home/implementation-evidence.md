@@ -7,19 +7,21 @@
 - `OwnedSettingsManager` and resident-tabs preflight read the same flat object. The former versioned standalone document is a read-only fallback while the object is absent and is imported on the next accepted product change.
 - Metadata-free compatibility transforms are idempotent and shape-selected. Ambiguous legacy/current combinations fail closed without changing bytes.
 - File-backed tests cover pinned Pi setters and package-list persistence, product changes, simultaneous independent-process writers, fresh-manager restart, simulated release replacement, default removal, malformed data, collision refusal, and lazy legacy import.
+- Before Pi starts, bounded stray leading bytes around one complete root object are removed through the shared lock and atomic replacement path. Body, trailing, non-object, ambiguous, and oversized corruption remains byte-identical.
+- The Settings footer always renders shortcut hints. Failed scalar and structured changes still roll back, and failed undo remains retryable, without replacing the footer with transient text.
 
 ## Local validation
 
 All commands ran on Windows x64 in `E:/Git/a1/.worktrees/persistent-user-settings`.
 
-- `npm run build` — passed.
-- `npm run typecheck` — passed.
-- Focused settings, resident-tabs, and collision suite — 8 files / 120 tests passed.
-- `npx vitest run test/foundation/release/update-launch.test.ts` — 1 file / 19 tests passed.
+- `npm run test:fast` — passed candidate build, typecheck, changed-code documentation, 412 test files, and 4,826 tests (14 platform skips).
+- Focused repair, manager, resident-preflight, and Settings footer suite — 4 files / 104 tests passed.
 - `npm run test:pi-engine-conformance` — 3 files / 24 tests passed.
 - Focused package contracts and integration — 4 files / 40 tests passed.
-- `npm run check:architecture` — passed all architecture, identity, pinned-Pi provenance, and terminal-host checks.
+- `npm run check:architecture` — passed all architecture, identity, pinned-Pi provenance, and terminal-host checks after refreshing the startup graph baseline.
+- `npm run check:names` — passed the full 1,214-file naming audit with zero violations.
 - `npm run check:deprecated` — passed lockfile and registry dependency policy.
+- Strict validation passed for both the archived change in an isolated active copy and the changed `owned-ui-settings` specification.
 
 ## Manual restart handoff
 
@@ -30,4 +32,4 @@ All commands ran on Windows x64 in `E:/Git/a1/.worktrees/persistent-user-setting
 
 ## Known-gap disposition
 
-No known implementation or automated-coverage gaps remain. The interactive terminal restart check above is intentionally left as maintainer acceptance evidence; automated restart, update/reinstall, package persistence, and concurrent-writer contracts passed locally.
+No known implementation or automated-coverage gaps remain. Repository-wide strict OpenSpec validation still reports the pre-existing placeholder Purpose in `resident-tab-reliability`; the changed `owned-ui-settings` specification passes strict validation. The interactive terminal restart check above is intentionally left as maintainer acceptance evidence; automated restart, repair, update/reinstall, package persistence, and concurrent-writer contracts passed locally.

@@ -61,11 +61,17 @@ A1 SHALL persist non-default A1 values as direct properties of a reserved produc
 - **AND** it SHALL NOT resolve a truncated combination as authoritative
 
 ### Requirement: Unreadable or unsupported settings never block startup
-A1 SHALL treat a global settings file or product object it cannot read, parse, or interpret as absent for A1-owned resolution. Startup SHALL continue with declared defaults, report the condition once, and preserve unreadable content rather than deleting or silently replacing it before the user is told. Unknown product properties SHALL be preserved as forward-compatible data rather than requiring a schema-version decision.
+A1 SHALL treat a global settings file or product object it cannot read, parse, or interpret as absent for A1-owned resolution. Startup SHALL continue with declared defaults, report the condition through diagnostics without replacing Settings footer guidance, and preserve unreadable content unless bounded leading-prefix recovery proves that the remaining bytes are exactly one JSON object. Unknown product properties SHALL be preserved as forward-compatible data rather than requiring a schema-version decision.
+
+#### Scenario: Recover harmless leading corruption
+- **WHEN** the global settings file has a bounded non-JSON prefix and removing that prefix leaves exactly one valid JSON object
+- **THEN** A1 SHALL atomically rewrite the complete object before the engine loads settings
+- **AND** every parsed root property SHALL be preserved
+- **AND** the Settings footer SHALL remain on shortcut hints
 
 #### Scenario: Corrupt settings file
-- **WHEN** the global settings file or product object cannot be parsed
-- **THEN** A1 SHALL start with declared defaults, SHALL report that the A1 settings were ignored and where they are, and SHALL NOT exit or present a broken settings surface
+- **WHEN** the global settings file or product object cannot be parsed and does not satisfy bounded leading-prefix recovery
+- **THEN** A1 SHALL start with declared defaults, SHALL preserve the original bytes, and SHALL NOT exit or present a broken settings surface
 
 #### Scenario: Settings file from a newer version
 - **WHEN** the product object contains unknown properties written by a newer A1 release
@@ -74,7 +80,7 @@ A1 SHALL treat a global settings file or product object it cannot read, parse, o
 
 #### Scenario: Settings location is not writable
 - **WHEN** the shared settings location cannot be written
-- **THEN** the session SHALL continue with resolved values, a change SHALL report that it could not be stored, and the surface SHALL NOT claim the change was saved
+- **THEN** the session SHALL continue with resolved values, the failed change outcome SHALL remain authoritative, the optimistic change SHALL roll back, and the surface SHALL NOT claim the change was saved or replace shortcut hints
 
 ### Requirement: Stored settings migrate forward on read
 The embedded product object SHALL carry no schema version. A1 SHALL migrate recognizable legacy keys or value shapes through ordered, idempotent compatibility transforms, preserve the user's intent, and persist the normalized non-default form on the next accepted change. A transform SHALL be selected by the legacy shape it recognizes, SHALL leave current or unknown data unchanged, and SHALL fail safely when the shape is ambiguous.
@@ -92,6 +98,18 @@ The embedded product object SHALL carry no schema version. A1 SHALL migrate reco
 - **THEN** A1 SHALL resolve safe declared defaults for affected settings, report the condition, and preserve the original properties
 
 ## ADDED Requirements
+
+### Requirement: Settings footer always presents shortcut guidance
+The Settings status row SHALL always render the active shortcut hints. Save results, unavailable-entry feedback, document diagnostics, and interrupt confirmation SHALL NOT replace those hints.
+
+#### Scenario: A setting change fails
+- **WHEN** an A1-owned or Agent-backed change cannot be stored or applied
+- **THEN** any optimistic value SHALL roll back as appropriate
+- **AND** the footer SHALL continue showing the same shortcut hints
+
+#### Scenario: A setting cannot be changed from the surface
+- **WHEN** the user attempts an unavailable or non-editable setting action
+- **THEN** the footer SHALL remain unchanged and SHALL NOT display a transient message
 
 ### Requirement: The product section is a flat object inside global agent settings
 The reserved root key SHALL equal the validated product command identity (`a1` for this product). Its value SHALL directly map setting identifiers to non-default values, with no version or `values` subsection. In this capability, “A1 settings document” means that object, while “Pi settings storage” or “Agent settings” means engine-owned root properties; sharing a physical file SHALL NOT transfer backend ownership or routing.
