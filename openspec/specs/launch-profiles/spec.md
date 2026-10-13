@@ -22,15 +22,22 @@ The `a1` binary SHALL be the sole installed public command. Bare invocation SHAL
 - **THEN** bare `a1` SHALL remain the product entry point and the prerelease Pi comparison SHALL retain its explicit meaning
 
 ### Requirement: Launch profiles use separate user roots
-The normal A1 profile SHALL use `<home>/.a1/agent`. The Pi comparison SHALL leave Pi's configuration-root override unset so Pi preserves its ordinary `<home>/.pi/agent` behavior. Path resolution SHALL use the effective user home consistently and remain overrideable in hermetic tests.
+The normal A1 profile SHALL use `<home>/.a1/agent`, including one global `settings.json` containing Pi-owned root settings and an A1-owned namespaced section. The Pi comparison SHALL leave Pi's configuration-root override unset so Pi preserves its ordinary `<home>/.pi/agent` behavior and SHALL NOT consume the A1-owned section. Path resolution SHALL use the effective user home consistently, remain independent of installed package and materialized release roots, and remain overrideable in hermetic tests.
 
 #### Scenario: Bare A1 resolves its profile
 - **WHEN** A1 launches with user home `H`
-- **THEN** the pinned Pi engine SHALL use `H/.a1/agent` as its configuration root
+- **THEN** the pinned Pi engine and A1-owned settings manager SHALL use `H/.a1/agent/settings.json`
+- **AND** each SHALL read only its owned portion of that document
 
 #### Scenario: Pi comparison resolves its profile
 - **WHEN** the comparison launches with user home `H`
 - **THEN** A1 SHALL leave the configuration-root override unset so Pi resolves `H/.pi/agent`
+- **AND** it SHALL NOT read or apply the product namespace from `H/.a1/agent/settings.json`
+
+#### Scenario: Launch another installed version
+- **WHEN** another A1 version or replacement installation launches under the same effective user home
+- **THEN** it SHALL resolve the same normal-profile `settings.json`
+- **AND** that file SHALL NOT be selected from the package or materialized release directory
 
 ### Requirement: Profile selection isolates settings and resources
 Normal A1 and the Pi comparison SHALL resolve settings, authentication, sessions, extensions, skills, prompts, themes, packages, trust state, and other Pi-owned profile data only from the selected profile root, except for supported environment credentials. A1 SHALL NOT merge profile directories or silently fall back from its profile to Pi's profile.
