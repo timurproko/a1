@@ -102,6 +102,8 @@ pub struct Surface {
     pub revision: u64,
     pub bytes: Vec<u8>,
     pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accent: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

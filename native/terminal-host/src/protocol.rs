@@ -130,6 +130,8 @@ pub struct BridgeHeartbeat {
 pub struct BridgeStatus {
     pub seq: u64,
     pub state: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accent: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub degraded: bool,
 }
@@ -369,6 +371,7 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
                 body: BridgeStatus {
                     seq: 12,
                     state: "unresponsive".to_owned(),
+                    accent: None,
                     degraded: false,
                 },
             })?,

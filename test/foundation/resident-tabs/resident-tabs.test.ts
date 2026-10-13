@@ -102,13 +102,14 @@ describe("resident tab launch contracts", () => {
     expect(transports[0]!.sent[0]).toMatchObject({ type: "hello", body: { role: "bridge", tabId: "tab-1" } });
     transports[0]!.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, build: "host", features: [] } }));
     await expect(firstStart).resolves.toBe(true);
-    bridge.status("working"); bridge.session("session.jsonl", "agent");
+    bridge.accent("orange"); bridge.status("working"); bridge.session("session.jsonl", "agent");
     transports[0]!.emit("close");
     const secondStart = bridge.start();
     transports[1]!.emit("connect");
     transports[1]!.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, build: "host", features: [] } }));
     await expect(secondStart).resolves.toBe(true);
     expect(transports[1]!.sent.map(message => message.type)).toEqual(["hello", "bridge.status", "bridge.session"]);
+    expect(transports[1]!.sent.find(message => message.type === "bridge.status")?.body).toMatchObject({ state: "working", accent: "orange" });
     expect(JSON.stringify(transports[1]!.sent)).not.toContain("prompt");
     bridge.close();
   });

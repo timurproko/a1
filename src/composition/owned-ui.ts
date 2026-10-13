@@ -219,6 +219,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     currentBackendSessionFile(backend),
     backend.identity.sessionId,
   );
+  if (tabBridge !== null && settings !== null && ownedSurfaces) tabBridge.accent(settings.value("accentColor"));
   const unsubscribeTabBridge = tabBridge === null ? () => {} : await bindResidentTabBridge(tabBridge, backend, tabRecovery);
   let releaseNotes: ReleaseNoteCatalog | null = null;
   let releaseNotesFailure: unknown;
@@ -239,7 +240,11 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     }));
   const unsubscribeAccent = settings === null || !ownedSurfaces
     ? () => {}
-    : settings.onChange(current => host.setAccentColor(current.value("accentColor")));
+    : settings.onChange(current => {
+      const accent = current.value("accentColor");
+      host.setAccentColor(accent);
+      tabBridge?.accent(accent);
+    });
 
   // Rationale: Routes open only after shell construction.
   const references: OwnedReferenceProviders = {

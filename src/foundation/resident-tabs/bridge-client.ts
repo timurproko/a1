@@ -35,7 +35,8 @@ export class TabBridgeClient {
   #attachment: TabAttachment | null = null;
   #closed = false;
   #retry: ReturnType<typeof setTimeout> | null = null;
-  #latestStatus: { readonly state: ResidentTabStatus; readonly degraded: boolean } | null = null;
+  #latestStatus: { readonly state: ResidentTabStatus; readonly degraded: boolean; readonly accent: string | null } | null = null;
+  #accent: string | null = null;
   #latestSession: { readonly file: string | null; readonly name: string | null } | null = null;
   #heartbeat: unknown | null = null;
   readonly #pending = new Map<number, (accepted: boolean) => void>();
@@ -81,17 +82,22 @@ export class TabBridgeClient {
   }
 
   status(state: ResidentTabStatus, degraded = false): void {
-    this.#latestStatus = { state, degraded };
+    this.#latestStatus = { state, degraded, accent: this.#accent };
     const recoveryState = state === "unresponsive" || state === "stalled" || state === "crashed" || state === "restarting" || state === "failed";
     if (recoveryState && !this.#supports("recovery-status")) return;
     this.#send("bridge.status", {
       seq: ++this.#sequence,
       state,
+      ...(this.#accent === null ? {} : { accent: this.#accent }),
       ...(degraded && this.#supports("recovery-status") ? { degraded: true } : {}),
     });
   }
   degraded(degraded: boolean): void {
     this.status(this.#latestStatus?.state ?? "idle", degraded);
+  }
+  accent(accent: string): void {
+    this.#accent = accent;
+    if (this.#latestStatus !== null) this.status(this.#latestStatus.state, this.#latestStatus.degraded);
   }
   session(file: string | null, name: string | null): void {
     this.#latestSession = { file, name };

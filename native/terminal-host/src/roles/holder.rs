@@ -400,6 +400,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                             revision,
                             bytes: frame,
                             status: "idle".into(),
+                            accent: None,
                         },
                     )?);
                 }
@@ -436,6 +437,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                             revision,
                             bytes: frame,
                             status: "idle".into(),
+                            accent: None,
                         },
                     )?);
                 }
@@ -595,6 +597,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                     revision,
                     bytes: frame,
                     status: "idle".into(),
+                    accent: None,
                 },
             )?);
         }
@@ -649,6 +652,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                         revision,
                         bytes: frame,
                         status: "crashed".into(),
+                        accent: None,
                     },
                 )?);
             }

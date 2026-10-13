@@ -2489,6 +2489,9 @@ fn serve_bridge(
                 } else {
                     status.state
                 };
+                if status.accent.is_some() {
+                    surface.accent = status.accent;
+                }
                 Some(surface.clone())
             } else {
                 None

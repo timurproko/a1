@@ -69,26 +69,46 @@ pub fn is_ctrl_c_console(character: char, control: bool, key_down: bool) -> bool
     key_down && control && matches!(character, 'c' | 'C' | '\u{3}')
 }
 
-pub fn render_strip(status: &str, name: &str, columns: u16) -> String {
+pub fn render_strip(status: &str, name: &str, accent: Option<&str>, columns: u16) -> String {
+    let working = match accent.unwrap_or("purple") {
+        "blue" => "\x1b[38;2;91;141;239m◐\x1b[39m ",
+        "cyan" => "\x1b[38;2;74;174;196m◐\x1b[39m ",
+        "green" => "\x1b[38;2;88;183;132m◐\x1b[39m ",
+        "orange" => "\x1b[38;2;226;159;72m◐\x1b[39m ",
+        "pink" => "\x1b[38;2;218;112;158m◐\x1b[39m ",
+        _ => "\x1b[38;2;167;152;215m◐\x1b[39m ",
+    };
     let glyph = match status {
         "starting" => "… ",
-        "working" => "◐ ",
+        "working" => working,
         "restarting" => "↻ ",
         "unresponsive" | "stalled" | "degraded" => "! ",
         "crashed" | "failed" | "ended" => "✗ ",
         _ => "",
     };
-    let mut chip = format!(" {glyph}{name} ");
-    chip.retain(|value| value != '\u{7}' && !value.is_control());
+    let safe_name: String = name
+        .chars()
+        .filter(|value| *value != '\u{7}' && !value.is_control())
+        .collect();
     let maximum = usize::from(columns).min(20);
-    if chip.chars().count() > maximum {
-        chip = chip
+    let fixed_width = 4 + usize::from(!glyph.is_empty()) * 2;
+    let name_capacity = maximum.saturating_sub(fixed_width);
+    let name_length = safe_name.chars().count();
+    let visible_name = if name_length > name_capacity {
+        safe_name
             .chars()
-            .take(maximum.saturating_sub(1))
+            .take(name_capacity.saturating_sub(1))
             .collect::<String>()
-            + "…";
-    }
-    format!("\x1b[1;1H{chip:<width$}", width = usize::from(columns))
+            + "…"
+    } else {
+        safe_name
+    };
+    let chip = format!(" {glyph}{visible_name} × ");
+    let visible_width = fixed_width + visible_name.chars().count();
+    format!(
+        "\x1b[1;1H{chip}{}",
+        " ".repeat(usize::from(columns).saturating_sub(visible_width))
+    )
 }
 
 pub fn render_notice(message: &str, columns: u16) -> String {
@@ -222,7 +242,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     });
 
     let mut terminal = OuterTerminal::enter()?;
-    terminal.write(render_strip("starting", "agent", columns).as_bytes())?;
+    terminal.write(render_strip("starting", "agent", None, columns).as_bytes())?;
     let started = Instant::now();
     let mut chord = DoubleCtrlC::new(options.clear_exit_ms);
     let mut failed = false;
@@ -237,7 +257,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 "surface" => {
                     let (_, surface): (_, Surface) = wire::body(&payload)?;
                     failed = surface.status == "failed";
-                    terminal.write(render_strip(&surface.status, "agent", columns).as_bytes())?;
+                    terminal.write(
+                        render_strip(&surface.status, "agent", surface.accent.as_deref(), columns)
+                            .as_bytes(),
+                    )?;
                     terminal.write(&without_bell(&surface.bytes))?;
                 }
                 "detach" => {
@@ -259,7 +282,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     return Err("a1 is attached in another terminal".to_owned());
                 }
                 "holder.exit" => {
-                    terminal.write(render_strip("crashed", "agent", columns).as_bytes())?;
+                    terminal.write(render_strip("crashed", "agent", None, columns).as_bytes())?;
                 }
                 "failure.status" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
@@ -629,8 +652,9 @@ mod tests {
         assert_eq!(child_mouse_row(0), None);
         assert_eq!(child_mouse_row(1), Some(0));
         assert_eq!(without_bell(b"a\x07b"), b"ab");
-        assert!(render_strip("working", "agent", 80).contains("agent"));
-        assert!(!render_strip("working", "a\x07gent", 80).contains('\u{7}'));
+        assert!(render_strip("working", "agent", Some("orange"), 80).contains("agent ×"));
+        assert!(render_strip("working", "agent", Some("orange"), 80).contains("38;2;226;159;72"));
+        assert!(!render_strip("working", "a\x07gent", None, 80).contains('\u{7}'));
         assert!(render_notice("input rejected", 40).contains("input rejected"));
     }
     #[test]
