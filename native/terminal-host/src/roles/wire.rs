@@ -43,6 +43,8 @@ pub struct RoleHello {
 #[serde(rename_all = "camelCase")]
 pub struct AttachStart {
     pub client_id: String,
+    #[serde(default = "default_tabs_max")]
+    pub tabs_max: usize,
     pub cwd: String,
     pub columns: u16,
     pub rows: u16,
@@ -87,6 +89,10 @@ pub struct ServerLaunchConfig {
     #[serde(default)]
     pub fault_environment: Vec<(String, String)>,
 }
+fn default_tabs_max() -> usize {
+    10
+}
+
 fn default_max_concurrent_starts() -> usize {
     2
 }

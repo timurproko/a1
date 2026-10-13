@@ -72,6 +72,12 @@ impl AttachmentState {
             .insert(tab_id.to_owned(), (client_id, self.revision));
         Ok(self.revision)
     }
+    pub fn transfer(&mut self, tab_id: &str, client_id: String) -> u64 {
+        self.revision = self.revision.saturating_add(1);
+        self.attached
+            .insert(tab_id.to_owned(), (client_id, self.revision));
+        self.revision
+    }
     pub fn detach(&mut self, tab_id: &str, client_id: &str, revision: u64) -> bool {
         if self.current(tab_id) != Some((client_id, revision)) {
             return false;
@@ -193,6 +199,7 @@ struct RuntimeState {
     holders_terminating: std::collections::HashSet<String>,
     surfaces: HashMap<String, Surface>,
     holders_starting: std::collections::HashSet<String>,
+    tabs_max: usize,
     max_concurrent_starts: usize,
     active_starts: usize,
     last_start: Option<std::time::Instant>,
@@ -480,6 +487,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
                 tab.tab_id.clone(),
                 AttachStart {
                     client_id: "recovered-server".into(),
+                    tabs_max: 10,
                     cwd: tab.cwd.clone(),
                     columns: 80,
                     rows: 23,
@@ -505,6 +513,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         holders_terminating: std::collections::HashSet::new(),
         surfaces: HashMap::new(),
         holders_starting: starting_tabs,
+        tabs_max: 10,
         max_concurrent_starts: config.max_concurrent_starts.clamp(1, 8),
         active_starts: 0,
         last_start: None,
@@ -1007,6 +1016,64 @@ fn writer_loop(
     }
 }
 
+fn claim_client_control(
+    locked: &mut RuntimeState,
+    client_id: &str,
+    allow_control: bool,
+) -> Result<Option<(Peer, BridgeAttachment)>, String> {
+    if !allow_control {
+        return Ok(None);
+    }
+    let Some(viewed_tab) = locked
+        .clients
+        .get(client_id)
+        .map(|client| client.viewed_tab.clone())
+    else {
+        return Ok(None);
+    };
+    if locked
+        .clients
+        .get(client_id)
+        .is_some_and(|client| client.controller)
+    {
+        return Ok(None);
+    }
+    let previous = locked
+        .attachment
+        .current(&viewed_tab)
+        .map(|(id, _)| id.to_owned());
+    let revision = locked
+        .attachment
+        .transfer(&viewed_tab, client_id.to_owned());
+    if let Some(previous) = previous
+        && let Some(client) = locked.clients.get_mut(&previous)
+    {
+        client.controller = false;
+        client.controller_revision = 0;
+        let _ = client.peer.offer_control(wire::frame(
+            "viewer.status",
+            None,
+            wire::ResultBody {
+                accepted: true,
+                message: None,
+            },
+        )?);
+    }
+    if let Some(client) = locked.clients.get_mut(client_id) {
+        client.controller = true;
+        client.controller_revision = revision;
+    }
+    Ok(locked.bridges.get(&viewed_tab).map(|bridge| {
+        (
+            bridge.peer.clone(),
+            BridgeAttachment {
+                client_id: client_id.to_owned(),
+                controller_revision: revision,
+            },
+        )
+    }))
+}
+
 fn serve_attach(
     mut stream: endpoint::EndpointStream,
     tx: Peer,
@@ -1016,7 +1083,7 @@ fn serve_attach(
     allow_control: bool,
 ) -> Result<(), String> {
     let client_id = format!("client-{:016x}", rand::random::<u64>());
-    let (revision, controller, startup_notice) = {
+    let (revision, _controller, startup_notice) = {
         let mut locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
@@ -1093,23 +1160,14 @@ fn serve_attach(
         },
     )?)
     .map_err(str::to_owned)?;
-    if !controller {
-        tx.offer_control(wire::frame(
-            "viewer.status",
-            None,
-            wire::ResultBody {
-                accepted: true,
-                message: Some("read-only-viewer".into()),
-            },
-        )?)
-        .map_err(str::to_owned)?;
-    }
-
     while let Some(payload) = wire::read_payload(&mut stream)? {
         let kind = wire::kind(&payload)?;
         match kind.message_type.as_str() {
             "attach.start" => {
                 let (_, start): (_, AttachStart) = wire::body(&payload)?;
+                if let Ok(mut locked) = state.lock() {
+                    locked.tabs_max = start.tabs_max.clamp(1, 50);
+                }
                 let tab_id = state
                     .lock()
                     .map_err(|_| "resident state poisoned".to_owned())?
@@ -1149,7 +1207,7 @@ fn serve_attach(
                                 .any(|tab| &tab.tab_id == *tab_id)
                         })
                         .count();
-                    if active_tabs + pending_tabs >= 10 {
+                    if active_tabs + pending_tabs >= locked.tabs_max {
                         tx.offer_control(wire::frame(
                             "tab.create-refused",
                             kind.request_id,
@@ -1165,6 +1223,10 @@ fn serve_attach(
                 }
                 let start = AttachStart {
                     client_id: client_id.clone(),
+                    tabs_max: state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?
+                        .tabs_max,
                     cwd: create.cwd,
                     columns: create.columns,
                     rows: create.rows,
@@ -1278,17 +1340,6 @@ fn serve_attach(
                 if let Some(surface) = locked.surfaces.get(&target.tab_id).cloned() {
                     tx.offer_surface(wire::frame("surface", None, surface)?);
                 }
-                if next_revision.is_none() {
-                    tx.offer_control(wire::frame(
-                        "viewer.status",
-                        None,
-                        wire::ResultBody {
-                            accepted: true,
-                            message: Some("read-only-viewer".into()),
-                        },
-                    )?)
-                    .map_err(str::to_owned)?;
-                }
                 if let Some(controller_revision) = next_revision
                     && let Some(bridge) = locked.bridges.get(&target.tab_id)
                 {
@@ -1342,11 +1393,35 @@ fn serve_attach(
                 )?)
                 .map_err(str::to_owned)?;
             }
-            "paste.start" | "input" | "resize" => {
-                let target = {
-                    let locked = state
+            "tab.claimInput" => {
+                let bridge = {
+                    let mut locked = state
                         .lock()
                         .map_err(|_| "resident state poisoned".to_owned())?;
+                    claim_client_control(&mut locked, &client_id, allow_control)?
+                };
+                if let Some((peer, attachment)) = bridge {
+                    let _ = peer.offer_control(wire::frame("attachment", None, attachment)?);
+                }
+                tx.offer_control(wire::frame(
+                    "tab.inputClaimed",
+                    kind.request_id,
+                    wire::ResultBody {
+                        accepted: true,
+                        message: None,
+                    },
+                )?)
+                .map_err(str::to_owned)?;
+            }
+            "paste.start" | "input" | "resize" => {
+                let target = {
+                    let mut locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    let bridge = claim_client_control(&mut locked, &client_id, allow_control)?;
+                    if let Some((peer, attachment)) = bridge {
+                        let _ = peer.offer_control(wire::frame("attachment", None, attachment)?);
+                    }
                     locked
                         .clients
                         .get(&client_id)
@@ -2486,6 +2561,10 @@ fn serve_bridge(
             let updated = if let Some(surface) = locked.surfaces.get_mut(&tab_id) {
                 surface.status = if status.degraded {
                     "degraded".into()
+                } else if status.pending_requests > 0 {
+                    "needs-input".into()
+                } else if status.queued_input > 0 {
+                    "working".into()
                 } else {
                     status.state
                 };

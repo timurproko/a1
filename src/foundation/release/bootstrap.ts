@@ -84,6 +84,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
         residentRootExecutable: resident.executable,
         residentRootArguments: JSON.stringify([
           "attach", "--endpoint", resident.endpoint, "--cwd", process.cwd(), "--clear-exit-ms", String(CLEAR_EXIT_INTERVAL_MS),
+          "--tabs-max", String((await residentLaunchSettings).tabsMax),
           "--profile", environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
           "--data-dir", paths.dataDir, "--runtime-dir", paths.runtimeDir,
           "--release-root", release.releaseRoot, "--node-executable", process.execPath,

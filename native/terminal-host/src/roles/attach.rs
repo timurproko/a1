@@ -12,7 +12,10 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use crate::endpoint;
 use crate::protocol::{self, BridgeAttachment, MAX_INPUT_BYTES, Welcome};
 use crate::roles::credentials::ProfileCredentials;
-use crate::roles::wire::{self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface};
+use crate::roles::strip::{self, StripHit, StripTab};
+use crate::roles::wire::{
+    self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface, TabCreate, TabList, TabTarget,
+};
 
 pub const ENTER_OUTER_MODES: &[u8] =
     b"\x1b[?1049h\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1006h\x1b[?2026h";
@@ -144,6 +147,7 @@ pub struct AttachOptions<'a> {
     pub endpoint: &'a str,
     pub cwd: &'a str,
     pub clear_exit_ms: u64,
+    pub tabs_max: usize,
     pub profile: &'a Path,
     pub data_dir: &'a Path,
     pub runtime_dir: &'a Path,
@@ -200,15 +204,24 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         "refused" => return Err("a1 is attached in another terminal".to_owned()),
         message => return Err(format!("unexpected attach admission message: {message}")),
     }
-    let (columns, outer_rows) = outer_size()?;
+    let (mut columns, outer_rows) = outer_size()?;
     let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
     let environment = std::env::vars().collect::<Vec<_>>();
+    let mut create = TabCreate {
+        cwd: options.cwd.into(),
+        columns,
+        rows,
+        release_root: options.release_root.into(),
+        node_executable: options.node_executable.into(),
+        environment: environment.clone(),
+    };
     wire::send(
         &mut stream,
         "attach.start",
         None,
         AttachStart {
             client_id: String::new(),
+            tabs_max: options.tabs_max.clamp(1, 50),
             cwd: options.cwd.into(),
             columns,
             rows,
@@ -222,11 +235,20 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             &mut stream,
             "tab.view",
             None,
-            wire::TabTarget {
+            TabTarget {
                 tab_id: tab_id.into(),
             },
         )?;
     }
+    wire::send(
+        &mut stream,
+        "tab.list",
+        None,
+        wire::ResultBody {
+            accepted: true,
+            message: None,
+        },
+    )?;
 
     let mut reader = stream
         .try_clone()
@@ -242,8 +264,12 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     });
 
     let mut terminal = OuterTerminal::enter()?;
-    terminal.write(render_strip("starting", "agent", None, columns).as_bytes())?;
+    let mut tabs = Vec::<StripTab>::new();
+    let mut viewed = options.view_tab.map(str::to_owned);
+    let mut strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+    terminal.write(strip_frame.bytes.as_bytes())?;
     let started = Instant::now();
+    let mut last_list = Instant::now();
     let mut chord = DoubleCtrlC::new(options.clear_exit_ms);
     let mut failed = false;
     loop {
@@ -257,11 +283,63 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 "surface" => {
                     let (_, surface): (_, Surface) = wire::body(&payload)?;
                     failed = surface.status == "failed";
-                    terminal.write(
-                        render_strip(&surface.status, "agent", surface.accent.as_deref(), columns)
-                            .as_bytes(),
-                    )?;
+                    if viewed.is_none() {
+                        viewed = Some(surface.tab_id.clone());
+                    }
+                    if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id) {
+                        tab.status = surface.status;
+                        tab.accent = surface.accent;
+                    }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    terminal.write(strip_frame.bytes.as_bytes())?;
                     terminal.write(&without_bell(&surface.bytes))?;
+                }
+                "tab.list" => {
+                    let (_, list): (_, TabList) = wire::body(&payload)?;
+                    tabs = list
+                        .tabs
+                        .into_iter()
+                        .filter(|tab| tab.lifecycle != "stopped")
+                        .map(|tab| StripTab {
+                            id: tab.tab_id,
+                            name: tab.name,
+                            status: tab.lifecycle,
+                            accent: None,
+                        })
+                        .collect();
+                    if viewed
+                        .as_ref()
+                        .is_none_or(|id| !tabs.iter().any(|tab| &tab.id == id))
+                    {
+                        viewed = tabs.first().map(|tab| tab.id.clone());
+                    }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    terminal.write(strip_frame.bytes.as_bytes())?;
+                }
+                "tab.created" => {
+                    let (_, target): (_, TabTarget) = wire::body(&payload)?;
+                    viewed = Some(target.tab_id.clone());
+                    wire::send(&mut stream, "tab.view", None, target)?;
+                    wire::send(
+                        &mut stream,
+                        "tab.list",
+                        None,
+                        wire::ResultBody {
+                            accepted: true,
+                            message: None,
+                        },
+                    )?;
+                }
+                "tab.closed" => {
+                    wire::send(
+                        &mut stream,
+                        "tab.list",
+                        None,
+                        wire::ResultBody {
+                            accepted: true,
+                            message: None,
+                        },
+                    )?;
                 }
                 "detach" => {
                     wire::send(
@@ -314,6 +392,18 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 _ => {}
             }
         }
+        if last_list.elapsed() >= Duration::from_millis(500) {
+            wire::send(
+                &mut stream,
+                "tab.list",
+                None,
+                wire::ResultBody {
+                    accepted: true,
+                    message: None,
+                },
+            )?;
+            last_list = Instant::now();
+        }
         if !event::poll(Duration::from_millis(16))
             .map_err(|error| format!("poll outer terminal: {error}"))?
         {
@@ -321,6 +411,42 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         }
         match event::read().map_err(|error| format!("read outer terminal: {error}"))? {
             Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => {
+                if key.modifiers.contains(KeyModifiers::ALT) {
+                    match key.code {
+                        KeyCode::Char('a' | 'A') => {
+                            wire::send(&mut stream, "tab.create", None, create.clone())?;
+                            continue;
+                        }
+                        KeyCode::Char('w' | 'W') => {
+                            if let Some(tab_id) = viewed.clone() {
+                                wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
+                            }
+                            continue;
+                        }
+                        KeyCode::Char(value @ ('0'..='9')) => {
+                            let index = if value == '0' {
+                                9
+                            } else {
+                                value.to_digit(10).unwrap_or(1) as usize - 1
+                            };
+                            if let Some(tab) = tabs.get(index) {
+                                viewed = Some(tab.id.clone());
+                                wire::send(
+                                    &mut stream,
+                                    "tab.view",
+                                    None,
+                                    TabTarget {
+                                        tab_id: tab.id.clone(),
+                                    },
+                                )?;
+                                strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                                terminal.write(strip_frame.bytes.as_bytes())?;
+                            }
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
                 let bytes = encode_key(key.code, key.modifiers);
                 if bytes.is_empty() {
                     continue;
@@ -395,6 +521,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             }
             Event::Resize(cols, rows) => {
                 let rows = tab_rows(rows).map_err(str::to_owned)?;
+                columns = cols;
+                create.columns = cols;
+                create.rows = rows;
+                strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                terminal.write(strip_frame.bytes.as_bytes())?;
                 wire::send(
                     &mut stream,
                     "resize",
@@ -406,16 +537,27 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     },
                 )?;
             }
-            Event::FocusGained if !failed => wire::send(
-                &mut stream,
-                "input",
-                None,
-                Input {
-                    bytes: b"\x1b[I".to_vec(),
-                    paste: false,
-                    epoch: 0,
-                },
-            )?,
+            Event::FocusGained if !failed => {
+                wire::send(
+                    &mut stream,
+                    "tab.claimInput",
+                    None,
+                    wire::ResultBody {
+                        accepted: true,
+                        message: None,
+                    },
+                )?;
+                wire::send(
+                    &mut stream,
+                    "input",
+                    None,
+                    Input {
+                        bytes: b"\x1b[I".to_vec(),
+                        paste: false,
+                        epoch: 0,
+                    },
+                )?;
+            }
             Event::FocusLost if !failed => wire::send(
                 &mut stream,
                 "input",
@@ -427,7 +569,27 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 },
             )?,
             Event::Mouse(mouse) => {
-                if let Some(bytes) = encode_mouse(mouse.kind, mouse.column, mouse.row) {
+                if mouse.row == 0 {
+                    if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
+                        match strip::hit(&strip_frame, mouse.column).cloned() {
+                            Some(StripHit::View(tab_id)) => {
+                                viewed = Some(tab_id.clone());
+                                wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
+                            }
+                            Some(StripHit::Close(tab_id)) => {
+                                wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?
+                            }
+                            Some(StripHit::New) => {
+                                wire::send(&mut stream, "tab.create", None, create.clone())?
+                            }
+                            Some(StripHit::Overflow) | None => {}
+                        }
+                    }
+                    continue;
+                }
+                if let Some(bytes) =
+                    encode_mouse(mouse.kind, mouse.column, mouse.row.saturating_sub(1))
+                {
                     wire::send(
                         &mut stream,
                         "input",

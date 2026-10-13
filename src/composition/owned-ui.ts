@@ -41,6 +41,7 @@ import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
+import { deriveResidentTabStatus } from "../features/resident-tab/status-deriver.js";
 
 /**
  * The session backend composition wires: the owned-UI port, the prompt-suggestion generator, and
@@ -463,7 +464,7 @@ export async function bindResidentTabBridge(
     if (event.type === "session-lifecycle") {
       const wasWorking = working;
       working = event.lifecycle === "busy";
-      tabBridge.status(working ? "working" : event.lifecycle === "starting" ? "starting" : "idle");
+      tabBridge.status(deriveResidentTabStatus({ lifecycle: event.lifecycle, pendingRequests: 0, queuedInput: 0 }));
       if (wasWorking && !working && recovery !== null) {
         void recovery.settled(currentSessionFile()).catch(() => tabBridge.degraded(true));
       }

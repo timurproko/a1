@@ -86,6 +86,10 @@ pub struct Welcome {
 fn is_zero(value: &u64) -> bool {
     *value == 0
 }
+fn is_zero_usize(value: &usize) -> bool {
+    *value == 0
+}
+
 fn is_false(value: &bool) -> bool {
     !*value
 }
@@ -130,6 +134,10 @@ pub struct BridgeHeartbeat {
 pub struct BridgeStatus {
     pub seq: u64,
     pub state: String,
+    #[serde(default, skip_serializing_if = "is_zero_usize")]
+    pub pending_requests: usize,
+    #[serde(default, skip_serializing_if = "is_zero_usize")]
+    pub queued_input: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub accent: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
@@ -371,6 +379,8 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
                 body: BridgeStatus {
                     seq: 12,
                     state: "unresponsive".to_owned(),
+                    pending_requests: 0,
+                    queued_input: 0,
                     accent: None,
                     degraded: false,
                 },

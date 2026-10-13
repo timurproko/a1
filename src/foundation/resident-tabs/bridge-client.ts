@@ -1,7 +1,7 @@
 import { connect, type Socket } from "node:net";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "./protocol.js";
 
-export type ResidentTabStatus = "starting" | "working" | "idle" | "unresponsive" | "stalled" | "crashed" | "restarting" | "failed";
+export type ResidentTabStatus = "starting" | "working" | "needs-input" | "done-unseen" | "idle" | "unresponsive" | "stalled" | "crashed" | "restarting" | "failed";
 export interface TabBridgeCredentials { readonly tabId: string; readonly token: string; readonly endpoint: string }
 export interface TabAttachment { readonly clientId: string; readonly controllerRevision: number }
 
@@ -35,7 +35,7 @@ export class TabBridgeClient {
   #attachment: TabAttachment | null = null;
   #closed = false;
   #retry: ReturnType<typeof setTimeout> | null = null;
-  #latestStatus: { readonly state: ResidentTabStatus; readonly degraded: boolean; readonly accent: string | null } | null = null;
+  #latestStatus: { readonly state: ResidentTabStatus; readonly degraded: boolean; readonly accent: string | null; readonly pendingRequests: number; readonly queuedInput: number } | null = null;
   #accent: string | null = null;
   #latestSession: { readonly file: string | null; readonly name: string | null } | null = null;
   #heartbeat: unknown | null = null;
@@ -81,13 +81,15 @@ export class TabBridgeClient {
     });
   }
 
-  status(state: ResidentTabStatus, degraded = false): void {
-    this.#latestStatus = { state, degraded, accent: this.#accent };
+  status(state: ResidentTabStatus, degraded = false, pendingRequests = 0, queuedInput = 0): void {
+    this.#latestStatus = { state, degraded, accent: this.#accent, pendingRequests, queuedInput };
     const recoveryState = state === "unresponsive" || state === "stalled" || state === "crashed" || state === "restarting" || state === "failed";
     if (recoveryState && !this.#supports("recovery-status")) return;
     this.#send("bridge.status", {
       seq: ++this.#sequence,
       state,
+      pendingRequests: Math.max(0, Math.trunc(pendingRequests)),
+      queuedInput: Math.max(0, Math.trunc(queuedInput)),
       ...(this.#accent === null ? {} : { accent: this.#accent }),
       ...(degraded && this.#supports("recovery-status") ? { degraded: true } : {}),
     });
@@ -97,7 +99,7 @@ export class TabBridgeClient {
   }
   accent(accent: string): void {
     this.#accent = accent;
-    if (this.#latestStatus !== null) this.status(this.#latestStatus.state, this.#latestStatus.degraded);
+    if (this.#latestStatus !== null) this.status(this.#latestStatus.state, this.#latestStatus.degraded, this.#latestStatus.pendingRequests, this.#latestStatus.queuedInput);
   }
   session(file: string | null, name: string | null): void {
     this.#latestSession = { file, name };
@@ -137,7 +139,7 @@ export class TabBridgeClient {
       this.#available = true;
       this.#startWaiter?.(true);
       if (this.#supports("bridge-heartbeat")) this.#startHeartbeat();
-      if (this.#latestStatus !== null) this.status(this.#latestStatus.state, this.#latestStatus.degraded);
+      if (this.#latestStatus !== null) this.status(this.#latestStatus.state, this.#latestStatus.degraded, this.#latestStatus.pendingRequests, this.#latestStatus.queuedInput);
       if (this.#latestSession !== null) this.#send("bridge.session", this.#latestSession);
       return;
     }

@@ -360,6 +360,10 @@ fn resident_attach_command(arguments: &[String]) -> Result<(), String> {
         endpoint,
         cwd,
         clear_exit_ms: clear_exit,
+        tabs_max: optional_role_value(arguments, "--tabs-max")
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(10)
+            .clamp(1, 50),
         profile: &profile,
         data_dir: &data,
         runtime_dir: &runtime,
