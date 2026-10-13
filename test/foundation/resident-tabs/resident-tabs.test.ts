@@ -48,17 +48,19 @@ describe("resident tab launch contracts", () => {
       tabsAutoName: false,
       maxConcurrentStarts: 2,
       prewarmCount: 1,
-      unresponsiveRestartSeconds: 600,
-      stallNoticeSeconds: 1800,
+      unresponsiveRestartSeconds: 120,
+      stallNoticeSeconds: 300,
     });
     await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 16, values: { residentTabs: true, tabsMax: 80 } }));
     expect((await readResidentTabLaunchSettings(root.path)).tabsMax).toBe(50);
     await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 16, values: { residentTabs: true, tabsMax: -2 } }));
     expect((await readResidentTabLaunchSettings(root.path)).tabsMax).toBe(1);
     await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 15, values: { residentTabs: true } }));
+    expect(await readResidentTabsSetting(root.path)).toBe(true);
+    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 15, values: { residentTabs: false } }));
     expect(await readResidentTabsSetting(root.path)).toBe(false);
     await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 16, values: { residentTabs: "yes" } }));
-    expect(await readResidentTabsSetting(root.path)).toBe(false);
+    expect(await readResidentTabsSetting(root.path)).toBe(true);
   });
 
   it("routes selected sessions only when resident tabs are enabled", async () => {

@@ -25,7 +25,7 @@ Relevant current code:
 
 - The complete foreground UX of architecture Decision 11 on all three platforms, with status from engine events only (architecture Decision 7).
 - Two attached clients that can never misattribute input or a client-scoped command.
-- Auto-naming with the v2 title animation, one prewarmed standby, and a user-configurable tab limit after the core UX passes its tests. Open tabs keep their processes and are never idle-suspended.
+- Auto-naming with the v2 title animation, one prewarmed standby, and a user-configurable tab limit after the core UX passes its tests. Tabs default on behind a Yes/No setting in the Tabs section; Open tabs keep their processes and are never idle-suspended.
 - Measured performance per platform against declared budgets.
 
 **Non-Goals:**
@@ -105,7 +105,7 @@ A fixture extension (`test/fixtures/extensions/text-terminal-fidelity/`, new) re
 
 ### 12. Prewarm, limits, and settings
 
-Two settings are added to `OWNED_SETTING_DECLARATIONS` in the Tabs section: `tabsMax` (default 10, range 1–50) and `tabsAutoName` (default on). Out-of-range `tabsMax` values clamp with one notice. The settings version bumps with a migration entry. `tabsMaxConcurrentStarts` is removed from the user-facing settings surface and becomes an internal default of 2 with hard cap 8; the existing value is ignored after migration. Prewarm is an internal count of 1 with hard cap 1. The resolved user-facing values and internal constants are passed to the server on attach; the server applies the latest values it receives.
+The existing `residentTabs` declaration moves from Generic to the Tabs section, is labeled `Enable tabs`, retains the Yes/No values, and changes its default to Yes. `tabsMax` (default 10, range 1–50) and `tabsAutoName` (default on) remain alongside it. Out-of-range `tabsMax` values clamp with one notice. The settings version migration removes stored `tabsMaxConcurrentStarts`, `tabsUnresponsiveRestartSeconds`, and `tabsStallNoticeSeconds`; concurrent starts become an internal default of 2 with hard cap 8, unresponsive restart remains internally fixed at 120 seconds, and the stall notice remains internally fixed at 300 seconds. Prewarm is an internal count of 1 with hard cap 1. The repository-local development launcher follows the same setting and host route as an installed bare-A1 launch so enabling tabs visibly presents the strip during manual testing. The resolved user-facing values and internal constants are passed to the server on attach; the server applies the latest values it receives.
 
 **Prewarm.** When the internal prewarm count is 1, no visible start is pending, and visible tabs are below `tabsMax`, the server starts one hidden standby holder running `ui.js --tab --standby` in the cwd and environment of the most recent creating client. The standby loads Pi, settings, and extensions but reserves no session and holds no writer lease. Promotion on `tab.create` requires an exact cwd and environment-digest match; the child then reserves a new session identity, commits it to the registry before accepting input (architecture Decision 8), and becomes visible. A mismatch starts a cold tab and retargets the standby. The standby is excluded from the strip and `tabsMax` accounting, and is stopped when the server's idle-exit timer starts.
 

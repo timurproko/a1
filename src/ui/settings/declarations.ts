@@ -149,11 +149,11 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
   }),
   residentTabs: Object.freeze({
     id: "residentTabs",
-    label: "Resident tabs",
-    section: GENERIC_SECTION,
-    description: "Keep bare A1 running when its terminal closes and reattach on the next launch. Turning this off prevents new resident launches but does not stop existing tabs.",
+    label: "Enable tabs",
+    section: TABS_SECTION,
+    description: "Keep bare A1 running in tabs and reattach on the next launch. Turning this off prevents new resident launches but does not stop existing tabs.",
     application: "restart",
-    defaultValue: false,
+    defaultValue: true,
     allowedValues: Object.freeze([true, false] as const),
   }),
   tabsMax: Object.freeze({
@@ -173,24 +173,6 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     application: "live",
     defaultValue: true,
     allowedValues: Object.freeze([true, false] as const),
-  }),
-  tabsUnresponsiveRestartSeconds: Object.freeze({
-    id: "tabsUnresponsiveRestartSeconds",
-    label: "Unresponsive tab restart",
-    section: GENERIC_SECTION,
-    description: "Seconds of continuously healthy supervision without a tab heartbeat before A1 restarts that tab.",
-    application: "restart",
-    defaultValue: 120,
-    allowedValues: Object.freeze([60, 120, 300, 600] as const),
-  }),
-  tabsStallNoticeSeconds: Object.freeze({
-    id: "tabsStallNoticeSeconds",
-    label: "Tab stall notice",
-    section: GENERIC_SECTION,
-    description: "Seconds without model or tool progress before a working tab shows a stall notice; A1 never kills a stalled tab automatically.",
-    application: "restart",
-    defaultValue: 300,
-    allowedValues: Object.freeze([120, 300, 600, 1800] as const),
   }),
 } as const satisfies Readonly<Record<string, OwnedUiSettingDeclaration>>);
 

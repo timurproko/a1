@@ -46,7 +46,7 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 ## 8. Auto-name, limits, and prewarm
 
-- [ ] 8.1 Add only `tabsMax` (default 10, range 1–50) and `tabsAutoName` (default on) as new user-facing Tabs settings, with clamping, version migration, and settings-screen tests. Retire user-facing `tabsMaxConcurrentStarts`; use internal concurrent-start default 2/hard cap 8 and prewarm count 1/hard cap 1.
+- [ ] 8.1 Move `residentTabs` to Settings > Tabs as `Enable tabs` (Yes/No, default Yes), keep `tabsMax` (default 10, range 1–50) and `tabsAutoName` (default on) beside it, and add clamping, version migration, settings-screen, launch-reader, and repository-local launch tests. Retire user-facing `tabsMaxConcurrentStarts`, `tabsUnresponsiveRestartSeconds`, and `tabsStallNoticeSeconds`; use internal concurrent-start default 2/hard cap 8, prewarm count 1/hard cap 1, unresponsive restart 120 seconds, and stall notice 300 seconds.
 - [ ] 8.2 Enforce `tabsMax` on every creation path and the internal concurrent-start gate. Exercise ten concurrent starts per platform with models available.
 - [ ] 8.3 Implement child auto-naming after the first settled turn with bounded budget/timeout/retry, ≤16-character lowercase hyphenated normalization, deterministic fallback, and user-rename precedence. Reproduce v2's 600 ms rainbow, 45 ms/character typing, and 300 ms settle animation for automatic names only.
 - [ ] 8.4 Implement one hidden standby: no session or writer lease before promotion, exact cwd/environment match, committed session identity before input, retarget on mismatch, skip untrusted cwd, exclude from strip and `tabsMax`, and tolerate standby failure without affecting tabs.
@@ -58,5 +58,5 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 ## 10. Documentation and validation
 
-- [ ] 10.1 Update `docs/architecture/resident-tabs.md` and `resident-tabs-requirements.md` to the approved v2 appearance, per-tab accents, unbound navigation/reorder actions, strip-only management, automatic control transfer, two exposed settings, internal start/prewarm constants, detach wording, and no idle suspension. Move this change's delivered requirements out of the target file.
+- [ ] 10.1 Update `docs/architecture/resident-tabs.md` and `resident-tabs-requirements.md` to the approved v2 appearance, per-tab accents, unbound navigation/reorder actions, strip-only management, automatic control transfer, the three approved Tabs settings, internal supervision/start/prewarm constants, detach wording, default-on enablement, and no idle suspension. Move this change's delivered requirements out of the target file.
 - [ ] 10.2 Run focused TypeScript and native suites, bounded decoder fuzzing, two-client/fidelity/performance harnesses on all three platforms, strict OpenSpec validation, and documentation governance. Record independent evidence and confirm `residentTabs=false` leaves bare `a1` and `a1 pi` unchanged.

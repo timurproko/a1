@@ -340,7 +340,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
           requestDetach: () => tabBridge.requestDetach(),
           requestRestart: () => tabBridge.requestRestart(),
           reportStatus: status => tabBridge.status(status),
-          stallNoticeSeconds: settings?.value("tabsStallNoticeSeconds") ?? 300,
+          stallNoticeSeconds: 300,
           admit: input => tabRecovery.admit({ ...input, incarnation: options.tab!.incarnation }),
           dispatched: () => tabRecovery.dispatched(),
           correlated: (submissionId, entryId) => tabRecovery.correlated(submissionId, entryId),

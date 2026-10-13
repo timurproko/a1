@@ -77,11 +77,11 @@ describe("owned UI settings sections", () => {
       ["generic", "Generic"], ["appearance", "Appearance"], ["scroll", "Scroll"], ["history", "History"], ["tabs", "Tabs"], ["agent", "Agent"],
     ]);
     const entries = (id: string) => sections.find(section => section.id === id)?.entries.map(entry => entry.id);
-    expect(entries("generic")).toEqual(["updateCheck", "residentTabs"]);
+    expect(entries("generic")).toEqual(["updateCheck"]);
     expect(entries("appearance")).toEqual(["accentColor", "backgroundStyle", "quitAnimation"]);
     expect(entries("scroll")).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
     expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryMaxItems"]);
-    expect(entries("tabs")).toEqual(["tabsMax", "tabsAutoName"]);
+    expect(entries("tabs")).toEqual(["residentTabs", "tabsMax", "tabsAutoName"]);
     expect(entries("quit")).toBeUndefined();
     expect(findOwnedUiSettingsEntry(sections, "quitAnimation", "a1")).toMatchObject({
       label: "Quit animation", value: true, origin: "default", application: "live", choices: [true, false],
@@ -120,17 +120,15 @@ describe("owned UI settings sections", () => {
     expect(AGENT.descriptors.map(entry => entry.key)).toEqual(["autoCompact", "thinkingLevel", "providerProfile", "installId"]);
   });
 
-  it("shows resident supervision controls when resident tabs are enabled", () => {
+  it("shows only the approved tab controls in the Tabs section", () => {
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
       document: { version: 16, values: { residentTabs: true } },
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: null });
-    expect(sections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual([
-      "updateCheck", "residentTabs", "tabsUnresponsiveRestartSeconds", "tabsStallNoticeSeconds",
-    ]);
+    expect(sections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual(["updateCheck"]);
     expect(sections.find(section => section.id === "tabs")?.entries.map(entry => entry.id)).toEqual([
-      "tabsMax", "tabsAutoName",
+      "residentTabs", "tabsMax", "tabsAutoName",
     ]);
   });
 

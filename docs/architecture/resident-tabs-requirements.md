@@ -317,7 +317,7 @@ Installing or activating a release SHALL NOT terminate the server, holders, or t
 - **THEN** the turn and resident process identities SHALL remain uninterrupted and their immutable release SHALL remain retained
 
 #### Requirement: Resident resources are bounded and observable
-A1 SHALL expose only `tabsMax` and `tabsAutoName` as tab UX settings. Concurrent starts SHALL use internal default 2/hard cap 8, and prewarm SHALL use internal count/hard cap 1. Every open tab SHALL retain its holder and A1 process until explicit close; A1 SHALL provide no idle-suspension setting, timer, lifecycle, or glyph. The server SHALL exit only after ten minutes with no running tabs and no clients. Logs SHALL rotate and SHALL exclude terminal content, prompt text, and credentials. `a1 tabs host status` SHALL report server identity, build, generation, detachment mode, tab count, and log locations.
+A1 SHALL expose only `residentTabs`, `tabsMax`, and `tabsAutoName` as tab UX settings in Settings > Tabs. `residentTabs` SHALL be labeled `Enable tabs`, offer Yes and No, and default to Yes. Concurrent starts SHALL use internal default 2/hard cap 8, prewarm SHALL use internal count/hard cap 1, and unresponsive-restart/stall-notice timing SHALL remain internal at 120/300 seconds. Every open tab SHALL retain its holder and A1 process until explicit close; A1 SHALL provide no idle-suspension setting, timer, lifecycle, or glyph. The server SHALL exit only after ten minutes with no running tabs and no clients. Logs SHALL rotate and SHALL exclude terminal content, prompt text, and credentials. `a1 tabs host status` SHALL report server identity, build, generation, detachment mode, tab count, and log locations.
 
 ##### Scenario: Unviewed idle tab remains running
 - **WHEN** an open tab remains unviewed and idle
@@ -330,8 +330,8 @@ A1 SHALL provide `a1 tabs` to list tabs with identity, name, status, and cwd; `a
 - **WHEN** the user runs `a1 tabs` and no server runs
 - **THEN** A1 SHALL report no running tabs and SHALL NOT start a server
 
-#### Requirement: Preview support is packaged, opt-in, certified, and reversible
-The terminal-host binary SHALL ship for Windows x64, Linux x64, and macOS arm64 with artifact hashes, pinned source provenance, licenses, notices, and immutable-release placement verified before execution. `residentTabs` SHALL remain `false` by default on every platform in this change and SHALL be accepted as an opt-in preview on each platform only after exact-package automated suites and manual or isolated-worker physical evidence on that platform for terminal closure, remote-session loss, input fidelity, extension text UI, recovery, and rendering. Physical automation SHALL NOT run on an active workstation. When the setting is false, the platform unsupported, or the server cannot start safely, bare `a1` SHALL run the direct single-agent owned UI, with one notice for an attempted fallback; registry records and sessions SHALL be preserved. Default-on support on any platform and each additional platform require separate approved changes and evidence.
+#### Requirement: Resident support is packaged, certified, and reversible
+The terminal-host binary SHALL ship for Windows x64, Linux x64, and macOS arm64 with artifact hashes, pinned source provenance, licenses, notices, and immutable-release placement verified before execution. `Enable tabs` SHALL default to Yes, and each platform SHALL require exact-package automated suites plus manual or isolated-worker physical evidence for terminal closure, remote-session loss, input fidelity, extension text UI, recovery, and rendering. Physical automation SHALL NOT run on an active workstation. When the setting is No, the platform unsupported, or the server cannot start safely, bare `a1` SHALL run the direct single-agent owned UI, with one notice for an attempted fallback; registry records and sessions SHALL be preserved. Each additional platform requires a separate approved change and evidence.
 
 ##### Scenario: Server cannot start
 - **WHEN** the terminal-host binary is missing, unverified, or fails its start budget
@@ -346,21 +346,21 @@ Defines the remaining reliability verification program that gates preview certif
 ### ADDED Requirements
 
 #### Requirement: Reliability evidence matches the enablement stage
-The server state machine SHALL be implemented independently of I/O and SHALL be exercised by deterministic simulation and property tests that inject arbitrary interleavings of process death, message loss, reordering, delay, stale epochs, controller transfer, client churn, and mutations, asserting that no committed mutation is lost, only one registry writer exists, no session gains two live tabs, client-scoped requests remain attributable, and every desired-running tab converges to running or failed. Every persistence and IPC step SHALL expose a failure-injection point exercised by crash-point tests. Protocol decoders and surface encoders SHALL be fuzzed, and bounded chaos/fault-injection suites on each platform SHALL gate the opt-in preview. Implementation SHALL progress through contracts and platform primitives, one persistent tab, failure isolation, crash recovery, complete UX, and packaged certification, each delivered as its own change behind `residentTabs: false`, with evidence at each milestone before dependent behavior is enabled. Intermediate demonstrations SHALL NOT count as shipping acceptance. Historical v2/herdr results, Unix-only tests, and pending 2×2 proof records SHALL NOT substitute for exact-package resident evidence on each platform.
+The server state machine SHALL be implemented independently of I/O and SHALL be exercised by deterministic simulation and property tests that inject arbitrary interleavings of process death, message loss, reordering, delay, stale epochs, controller transfer, client churn, and mutations, asserting that no committed mutation is lost, only one registry writer exists, no session gains two live tabs, client-scoped requests remain attributable, and every desired-running tab converges to running or failed. Every persistence and IPC step SHALL expose a failure-injection point exercised by crash-point tests. Protocol decoders and surface encoders SHALL be fuzzed, and bounded chaos/fault-injection suites on each platform SHALL gate resident certification. Implementation SHALL progress through contracts and platform primitives, one persistent tab, failure isolation, crash recovery, complete UX, and packaged certification, each delivered as its own change; milestones 1–4 remain behind `residentTabs: false`, and milestone 5 changes it to default Yes. Evidence is required at each milestone before dependent behavior is enabled. Intermediate demonstrations SHALL NOT count as shipping acceptance. Historical v2/herdr results, Unix-only tests, and pending 2×2 proof records SHALL NOT substitute for exact-package resident evidence on each platform.
 
-Before resident tabs may default on for a platform, a separately authorized isolated-worker soak on that platform of at least 24 hours SHALL exercise ten tabs under high-rate output and random termination of servers, holders, tab processes, and clients, controller and resize churn, blocked writes, pseudoterminal creation hangs, and rename denial. It SHALL assert zero lost journaled prompts, zero lost committed entries, zero orphaned processes, zero duplicate tabs, bounded memory and handle growth, reattach p95 under 300 ms, tab restart under 3 s, and server recovery under 2 s. Each later platform SHALL earn equivalent implementation and exact-package evidence before enablement; evidence SHALL NOT be inferred across platforms.
+Before resident tabs are certified for a platform, a separately authorized isolated-worker soak on that platform of at least 24 hours SHALL exercise ten tabs under high-rate output and random termination of servers, holders, tab processes, and clients, controller and resize churn, blocked writes, pseudoterminal creation hangs, and rename denial. It SHALL assert zero lost journaled prompts, zero lost committed entries, zero orphaned processes, zero duplicate tabs, bounded memory and handle growth, reattach p95 under 300 ms, tab restart under 3 s, and server recovery under 2 s. Each later platform SHALL earn equivalent implementation and exact-package evidence before certification; evidence SHALL NOT be inferred across platforms.
 
-##### Scenario: Opt-in preview changes resident code
-- **WHEN** the preview remains disabled by default
-- **THEN** deterministic, crash-point, fuzz, bounded chaos, and exact-package physical evidence SHALL be required without claiming that the later 24-hour default-on gate has passed
+##### Scenario: Default-on tabs change resident code
+- **WHEN** resident behavior changes while Enable tabs defaults to Yes
+- **THEN** deterministic, crash-point, fuzz, bounded chaos, and exact-package physical evidence SHALL remain required without inferring certification from the default
 
 ##### Scenario: Prototype evidence is available
 - **WHEN** a reference prototype has a passing benchmark or another platform's detach tests pass
 - **THEN** A1's resident milestone and physical verdict on each platform SHALL remain unproven until its own exact-artifact evidence is recorded
 
-##### Scenario: Default-on soak detects a leak
+##### Scenario: Certification soak detects a leak
 - **WHEN** the authorized 24-hour soak observes handle or memory growth beyond the declared bound
-- **THEN** default enablement SHALL remain blocked until the growth is fixed or the bound is explicitly re-justified in a later approved plan
+- **THEN** certification SHALL remain blocked until the growth is fixed or the bound is explicitly re-justified in a later approved plan
 
 ##### Scenario: Simulation finds a duplicate start
 - **WHEN** a simulated interleaving produces two live incarnations for one tab
@@ -371,7 +371,7 @@ Before resident tabs may default on for a platform, a separately authorized isol
 ### MODIFIED Requirements
 
 #### Requirement: Interactive launch forms use the owned Pi UI pipeline
-Bare `a1` SHALL launch the A1-owned product surface directly. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed. On a supported platform (Windows x64, Linux x64, macOS arm64), when the opt-in `residentTabs` setting is enabled, bare `a1` SHALL instead run the native terminal-host attach client over resident tabs, each of which SHALL run the same owned product UI in its own holder-owned pseudoterminal; pseudoterminals, terminal models, and composition SHALL exist only inside the resident terminal-host capability, and `a1 pi` SHALL retain its direct presentation without resident infrastructure. Direct and Pi-comparison runtimes SHALL share only the canonical session-writer admission guard with resident runtimes; this guard SHALL NOT initialize a terminal host. This change SHALL leave `residentTabs` disabled by default and SHALL leave unsupported platforms on the direct owned path.
+Bare `a1` SHALL launch the A1-owned product surface. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed. On a supported platform (Windows x64, Linux x64, macOS arm64), `Enable tabs` SHALL default to Yes and bare `a1` SHALL run the native terminal-host attach client over resident tabs, each of which SHALL run the same owned product UI in its own holder-owned pseudoterminal; pseudoterminals, terminal models, and composition SHALL exist only inside the resident terminal-host capability, and `a1 pi` SHALL retain its direct presentation without resident infrastructure. Direct and Pi-comparison runtimes SHALL share only the canonical session-writer admission guard with resident runtimes; this guard SHALL NOT initialize a terminal host. Choosing No or using an unsupported platform SHALL leave bare `a1` on the direct owned path.
 
 ##### Scenario: Launch bare A1
 - **WHEN** the user runs `a1`
@@ -383,11 +383,11 @@ Bare `a1` SHALL launch the A1-owned product surface directly. Explicit prereleas
 - **AND** with resident tabs enabled A1 SHALL reattach to the running tabs and present their current retained surfaces
 
 ##### Scenario: Launch bare A1 with resident tabs
-- **WHEN** the user runs `a1` on a supported platform with resident tabs explicitly enabled
+- **WHEN** the user runs `a1` on a supported platform with Enable tabs at its default Yes value
 - **THEN** every tab SHALL run the owned product UI, and Node SHALL NOT read, relay, or render tab terminal bytes
 
 ##### Scenario: Resident tabs are not enabled
-- **WHEN** the setting remains at its default or the platform is unsupported
+- **WHEN** Enable tabs is set to No or the platform is unsupported
 - **THEN** bare A1 SHALL use the direct single-agent owned path and SHALL NOT start the resident host
 
 ##### Scenario: Launch the Pi comparison

@@ -5,7 +5,7 @@ import {
   type OwnedUiSettingDeclaration,
   type OwnedUiSettingValue,
 } from "./declarations.js";
-import { migrationsFrom, type OwnedUiSettingsMigration } from "./migrations.js";
+import { OWNED_UI_SETTINGS_MIGRATIONS, migrationsFrom, type OwnedUiSettingsMigration } from "./migrations.js";
 
 export type OwnedUiSettingSource = "default" | "stored";
 
@@ -185,10 +185,9 @@ export function settingValue(
 
 /** Resolve the launch-routing flag without constructing the UI settings manager. */
 export function resolveResidentTabsSetting(document: OwnedUiSettingsDocument | null): boolean {
-  if (document === null || document.version !== OWNED_UI_SETTINGS_VERSION) return false;
   const resolution = resolveOwnedUiSettings({
     declarations: [OWNED_SETTING_DECLARATIONS.residentTabs],
-    migrations: [],
+    migrations: OWNED_UI_SETTINGS_MIGRATIONS,
     document,
     currentVersion: OWNED_UI_SETTINGS_VERSION,
   });

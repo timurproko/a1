@@ -4,7 +4,7 @@
 
 Milestones 1–4 make resident tabs exist, survive, fail independently, and recover, but the user still cannot work with several tabs comfortably: there is no complete v2-style strip, no status icons from the engine, no mouse or assignable shortcut surface for creating, renaming, reordering, and closing tabs, and no safe automatic control transfer between two terminals. The design and roadmap are in `docs/architecture/resident-tabs.md` (Decisions 5, 6, 7, 11, and 12).
 
-This is milestone 5 of 6. It starts after `resident-tabs-contracts` (#586), `resident-tabs-persistent-tab` (#746), `resident-tabs-failure-isolation` (#747), and `resident-tabs-crash-recovery` (#748) have merged to `develop`. Everything stays behind `residentTabs` (default `false`); with it off, bare `a1` behaves exactly as today.
+This is milestone 5 of 6. It starts after `resident-tabs-contracts` (#586), `resident-tabs-persistent-tab` (#746), `resident-tabs-failure-isolation` (#747), and `resident-tabs-crash-recovery` (#748) have merged to `develop`. Tabs are controlled by Settings > Tabs > Enable tabs (`residentTabs`), a Yes/No setting that defaults to Yes; choosing No keeps bare `a1` on the direct path.
 
 ## What Changes
 
@@ -16,7 +16,7 @@ This is milestone 5 of 6. It starts after `resident-tabs-contracts` (#586), `res
 - Wire the milestone-1 controller-transfer barrier for two clients, automatically claiming the viewed tab when a terminal gains focus or first sends input. `/quit` and empty-editor `Ctrl+D` retain immutable origin stamping and detach only their current origin; double `Ctrl+C` remains attach-local.
 - Route `a1 --session X` to focus the holding tab in the launching client or open it in a new tab; a direct-mode conflict fails safe or offers a fork.
 - Certify text-terminal extension fidelity against direct bare A1 on each platform; image requests use the text fallback.
-- Add `tabsMax` and `tabsAutoName` to Settings > Tabs. Keep concurrent starts (2, hard cap 8) and one prewarmed standby as internal constants. Auto-naming is on by default, uses the tab model, never overrides a user rename, and animates exactly like v2.
+- Put `residentTabs` in Settings > Tabs as `Enable tabs` (Yes/No, default Yes), add `tabsMax` and `tabsAutoName` there, and remove the user-facing unresponsive-restart and stall-notice controls while retaining their internal fixed behavior. Keep concurrent starts (2, hard cap 8) and one prewarmed standby as internal constants. Auto-naming is on by default, uses the tab model, never overrides a user rename, and animates exactly like v2.
 - Measure cold launch, warm tab creation, reattach, input-to-process, and output-to-present latency against declared budgets on each platform.
 
 ## Capabilities
@@ -34,6 +34,6 @@ This is milestone 5 of 6. It starts after `resident-tabs-contracts` (#586), `res
 ## Impact
 
 - `native/terminal-host`: v2-style attach-client strip, menus, close buttons, inline editor, shortcut matcher, mouse handling, automatic controller claims, status state machine, and additive bridge protocol messages within generation 1.
-- `src/`: a tab-mode bridge module, engine-event status derivation, auto-naming and animation metadata, visibility throttling, two Tabs settings, keybinding declarations and conflict checks, resident session-selection routing, and direct-mode fork offer.
+- `src/`: a tab-mode bridge module, engine-event status derivation, auto-naming and animation metadata, visibility throttling, the three approved Tabs settings, keybinding declarations and conflict checks, resident session-selection routing, and direct-mode fork offer.
 - `bin/cli.js` and `bin/ui.js` launch paths pass v2 presentation constants, effective tab bindings, and session selection to the attach client.
 - Tests on Windows x64, macOS arm64, and Linux x64; no change for users with `residentTabs` off. Packaging, `a1 tabs` maintenance commands, cohort retention, and certification remain milestone 6.

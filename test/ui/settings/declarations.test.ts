@@ -10,6 +10,7 @@ import {
   isOwnedSettingId,
   migrationsFrom,
   resolveOwnedUiSettings,
+  resolveResidentTabsSetting,
   type OwnedUiSettingDeclaration,
   type OwnedUiSettingsMigration,
 } from "../../../src/ui/settings/index.js";
@@ -50,8 +51,6 @@ describe("owned UI setting declarations", () => {
       "residentTabs",
       "tabsMax",
       "tabsAutoName",
-      "tabsUnresponsiveRestartSeconds",
-      "tabsStallNoticeSeconds",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "accentColor")).toMatchObject({
       label: "Accent color",
@@ -95,10 +94,10 @@ describe("owned UI setting declarations", () => {
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptSuggestions")?.description)
       .toContain("one background request, plus one bounded recovery request when needed");
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "residentTabs")).toMatchObject({
-      label: "Resident tabs",
-      section: { id: "generic", title: "Generic" },
+      label: "Enable tabs",
+      section: { id: "tabs", title: "Tabs" },
       application: "restart",
-      defaultValue: false,
+      defaultValue: true,
       allowedValues: [true, false],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsMax")).toMatchObject({
@@ -116,12 +115,8 @@ describe("owned UI setting declarations", () => {
       allowedValues: [true, false],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsMaxConcurrentStarts")).toBeNull();
-    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsUnresponsiveRestartSeconds")).toMatchObject({
-      application: "restart", defaultValue: 120, allowedValues: [60, 120, 300, 600],
-    });
-    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsStallNoticeSeconds")).toMatchObject({
-      application: "restart", defaultValue: 300, allowedValues: [120, 300, 600, 1800],
-    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsUnresponsiveRestartSeconds")).toBeNull();
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsStallNoticeSeconds")).toBeNull();
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarAppearance")).toMatchObject({
       label: "Scrollbar mode",
       section: { id: "scroll", title: "Scroll" },
@@ -403,14 +398,22 @@ describe("owned UI settings migrations", () => {
       document: { version: 13, values: { backgroundStyle: "dark" } },
     });
     expect(resolved.settings.find(setting => setting.declaration.id === "residentTabs"))
-      .toMatchObject({ value: false, source: "default" });
+      .toMatchObject({ value: true, source: "default" });
+  });
+
+  it("resolves default-on tab routing while preserving an older explicit opt-out", () => {
+    expect(resolveResidentTabsSetting(null)).toBe(true);
+    expect(resolveResidentTabsSetting({ version: 15, values: { residentTabs: false } })).toBe(false);
+    expect(resolveResidentTabsSetting({ version: 15, values: { residentTabs: true } })).toBe(true);
+    expect(resolveResidentTabsSetting({ version: 16, values: { residentTabs: "yes" } })).toBe(true);
   });
 
   it("replaces the configurable start limit with tab limit and auto-name settings", () => {
     expect(OWNED_UI_SETTINGS_MIGRATIONS[13]).toMatchObject({ to: 15 });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[14]).toMatchObject({ to: 16 });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[14]?.migrate({
-      residentTabs: true, tabsMaxConcurrentStarts: 8, future: true,
+      residentTabs: true, tabsMaxConcurrentStarts: 8, tabsUnresponsiveRestartSeconds: 600,
+      tabsStallNoticeSeconds: 1800, future: true,
     })).toEqual({ residentTabs: true, future: true });
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,

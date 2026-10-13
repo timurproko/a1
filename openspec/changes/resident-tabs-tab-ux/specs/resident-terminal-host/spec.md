@@ -32,7 +32,15 @@ Each A1 tab process SHALL receive a derived per-tab/per-incarnation credential a
 - **THEN** it SHALL contain no prompt text, transcript text, terminal bytes, or credentials
 
 ### Requirement: Resident resources are bounded and observable
-A1 SHALL expose `tabsMax` (default 10, range 1–50) and `tabsAutoName` (default on) in Settings > Tabs. Out-of-range `tabsMax` SHALL clamp with one notice. Concurrent starts SHALL use internal default 2 and hard cap 8; prewarm SHALL use internal count and hard cap 1. One hidden prewarmed standby MAY load Pi, settings, and extensions but SHALL own no session or writer lease before exact cwd/environment-matched promotion and SHALL start only when no visible start is pending. Every open tab SHALL retain its process until explicit close; A1 SHALL provide no idle-suspension setting, timer, lifecycle, or glyph. The server SHALL exit only after ten minutes with no running tabs and no clients. Logs SHALL rotate and exclude terminal content, prompt text, and credentials. Cold launch, warm creation, reattach paint/input, input-to-process, and output-to-present SHALL be measured separately on Windows x64, macOS arm64, and Linux x64 against declared budgets, recording every miss.
+A1 SHALL expose only `residentTabs`, `tabsMax`, and `tabsAutoName` as tab controls in Settings > Tabs. `residentTabs` SHALL be labeled `Enable tabs`, offer Yes and No, and default to Yes; No SHALL keep bare `a1` on the direct path. `tabsMax` SHALL default to 10 with range 1–50, and `tabsAutoName` SHALL default on. Out-of-range `tabsMax` SHALL clamp with one notice. Unresponsive restart and stall-notice timing SHALL not be user-facing controls and SHALL use internal values of 120 and 300 seconds respectively. Concurrent starts SHALL use internal default 2 and hard cap 8; prewarm SHALL use internal count and hard cap 1. One hidden prewarmed standby MAY load Pi, settings, and extensions but SHALL own no session or writer lease before exact cwd/environment-matched promotion and SHALL start only when no visible start is pending. Every open tab SHALL retain its process until explicit close; A1 SHALL provide no idle-suspension setting, timer, lifecycle, or glyph. The server SHALL exit only after ten minutes with no running tabs and no clients. Logs SHALL rotate and exclude terminal content, prompt text, and credentials. Cold launch, warm creation, reattach paint/input, input-to-process, and output-to-present SHALL be measured separately on Windows x64, macOS arm64, and Linux x64 against declared budgets, recording every miss.
+
+#### Scenario: Tabs use their default setting
+- **WHEN** no explicit `residentTabs` value is stored and bare `a1` launches on a supported platform
+- **THEN** A1 SHALL use the resident host and present the tab strip
+
+#### Scenario: Tabs are disabled
+- **WHEN** `Enable tabs` is set to No
+- **THEN** bare `a1` SHALL use the direct path without a tab strip
 
 #### Scenario: Stored tab limit above cap
 - **WHEN** stored `tabsMax` is 80

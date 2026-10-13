@@ -1,6 +1,6 @@
 # Resident tabs — architecture and roadmap
 
-Status: staged implementation. Milestones 1–3 are integrated. Milestone 4's crash restart, durable recovery data, liveness/progress supervision, registry recovery, and bounded diagnostics are implemented on its draft change behind the default-off preview setting; the final synchronized head still requires exact-head three-platform CI evidence before acceptance. Windows physical-survival evidence exists for milestone 2 only. macOS and Linux physical survival, complete tab UX, packaging, maintenance commands, and certification remain deferred to later milestones; CI evidence is not a substitute. Discovery or verification failure safely falls back to the direct path. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
+Status: staged implementation. Milestones 1–4 are integrated. Milestone 5 completes the foreground UX and makes `Enable tabs` default to Yes while retaining an explicit No direct-mode opt-out. Windows physical-survival evidence exists for milestone 2 only. macOS and Linux physical survival, packaging, maintenance commands, and certification remain deferred to milestone 6; CI evidence is not a substitute. Discovery or verification failure safely falls back to the direct path. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
 
 ## Context
 
@@ -14,7 +14,7 @@ The user set three product constraints:
 
 A structured, message-based agent protocol cannot meet (2), because an extension's custom UI component is code running inside the agent process. It also forces a second, unrelated system for (3). Every tab is therefore a **terminal session**: a pseudoterminal running the complete A1 owned UI in "tab mode". Native extension components retain the declared text-terminal behavior; inline image protocols are explicitly outside the first version and use the existing text fallback.
 
-The first version is deliberately narrower than the eventual product. It is an opt-in preview on exactly Windows x64, Linux x64, and macOS arm64 (the targets A1 currently validates for the native process-guardian), with `residentTabs=false` by default. It is delivered as six sequenced milestone changes, each merged behind that setting. Restoring tabs after reboot or logout, another architecture or platform, default enablement, automatic resident-cohort upgrades, arbitrary CLI tabs, and split layouts each require a later change and their own evidence.
+The first version is deliberately narrower than the eventual product. It targets exactly Windows x64, Linux x64, and macOS arm64 (the targets A1 currently validates for the native process-guardian), with Settings > Tabs > Enable tabs (`residentTabs`) defaulting to Yes and an explicit No direct-mode opt-out. It is delivered as six sequenced milestone changes. Restoring tabs after reboot or logout, another architecture or platform, automatic resident-cohort upgrades, arbitrary CLI tabs, and split layouts each require a later change and their own evidence.
 
 Existing assets:
 
@@ -89,7 +89,7 @@ PRs #729–#736 prepared the owned UI for several sessions in one process. This 
 
 **Goals:**
 
-- Several independent A1 agents in opt-in bare `a1` tabs on Windows x64, Linux x64, and macOS arm64, each running the full A1 UI with its extensions. The user can create, switch, rename, reorder, and close them.
+- Several independent A1 agents in default-on bare `a1` tabs on Windows x64, Linux x64, and macOS arm64, each running the full A1 UI with its extensions. The user can create, switch, rename, reorder, and close them, or choose No for Enable tabs to retain direct mode.
 - Tabs keep running through terminal closure, SSH drops, attach-client crashes, and resident-server crashes. Relaunching from any terminal reattaches with exact screen state. A crashed tab restarts into its session without replaying an interrupted prompt.
 - One tab's failure never affects another tab, the server, or the client. Package activation retains every immutable release still used by resident processes.
 - Status comes from structured engine events, not screen text.
@@ -100,7 +100,6 @@ PRs #729–#736 prepared the owned UI for several sessions in one process. This 
 
 **Non-Goals:**
 
-- Enabling resident tabs by default on any platform.
 - Restoring tabs after reboot or logout. Resident processes end with the OS session; the sessions stay resumable through the normal session picker (Decision 9).
 - Platforms beyond the three above, automatic resident server handoff/recycling, arbitrary CLI tabs, split panes/layouts, and v2-style per-folder workspaces or sidebar.
 - Network or remote attach, and multi-user sharing.
@@ -360,7 +359,8 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
 
 The settings live in the owned settings screen, each with a hard cap.
 
-- User-facing Tabs settings are `tabsMax` (default 10, range 1–50) and `tabsAutoName` (default on). Concurrent starts use internal default 2/hard cap 8 and prewarm uses internal count/hard cap 1.
+- User-facing Tabs settings are `residentTabs`, labeled `Enable tabs` (Yes/No, default Yes), `tabsMax` (default 10, range 1–50), and `tabsAutoName` (default on).
+- Unresponsive restart and stall-notice timing are internal fixed behavior at 120 and 300 seconds; concurrent starts use internal default 2/hard cap 8 and prewarm uses internal count/hard cap 1.
 - Every open tab keeps its holder and A1 process until explicit close. There is no idle-suspension setting, timer, lifecycle, or glyph.
 - Scrollback is capped at 10 MiB per holder, and the replay after a server restart is the retained model itself.
 - The server exits after 10 minutes with no running tabs and no clients.
@@ -371,8 +371,8 @@ The settings live in the owned settings screen, each with a hard cap.
 ### 13. Packaging and certification
 
 - `a1-terminal-host` is built and packaged for Windows x64, Linux x64, and macOS arm64, extending the impact-selected Windows CI owner introduced by #588 to that exact target matrix, with Zig 0.15.2 for pinned libghostty-vt. It ships in the immutable release with artifact manifest, hash verification, provenance, licenses, and notices.
-- Opt-in acceptance requires exact-package hermetic suites on each platform plus manual or isolated-worker evidence per platform for terminal close, SSH/session loss, reattach, input fidelity, extension text UI, failure recovery, rollback, and render smoothness. Evidence is never inferred from one platform to another.
-- Default-on support on any platform requires a later change with an authorized isolated-worker 24-hour soak on that platform.
+- Acceptance requires exact-package hermetic suites on each platform plus manual or isolated-worker evidence per platform for terminal close, SSH/session loss, reattach, input fidelity, extension text UI, failure recovery, rollback, and render smoothness. Evidence is never inferred from one platform to another.
+- An authorized isolated-worker 24-hour soak remains required certification evidence on each platform; a miss blocks certification without silently changing the approved default or weakening fallback.
 
 ### 14. Security
 
@@ -400,7 +400,7 @@ The v2 daemon was unreliable for structural reasons, and a forensic pass over it
 5. **Fencing.** The server must hold the OS-exclusive registry-writer lease; each start increments the durable epoch under that lease, each mutation verifies both lease and epoch, and holders and bridges obey only the highest epoch they have seen. A timed-out endpoint alone never authorizes a second writer.
 6. **Explicit durability per data class.** There is no "best effort". Each class of data has a stated guarantee, and each guarantee has a test.
 7. **Evidence survives failure.** Logs rotate but are never truncated at startup. Each crash produces its own record.
-8. **Prove it in stages.** Deterministic simulation, crash-point injection, fuzzing, bounded CI chaos on each platform, and exact-package physical evidence per platform gate this opt-in preview. A separately authorized isolated-worker 24-hour soak on a platform gates default-on for that platform; evidence is never inferred across platforms.
+8. **Prove it in stages.** Deterministic simulation, crash-point injection, fuzzing, bounded CI chaos on each platform, and exact-package physical evidence per platform gate certification. A separately authorized isolated-worker 24-hour soak remains required platform evidence; evidence is never inferred across platforms.
 
 **How each v2 failure is closed:**
 
@@ -444,7 +444,7 @@ The v2 daemon was unreliable for structural reasons, and a forensic pass over it
 - A streaming reply at the moment of a tab crash: readable from the last-screen snapshot and recovery file, but not resumable as a model turn. That is Pi's semantics.
 - The only unrecoverable case is a streaming reply when the holder *and* its child die together, for example a machine crash, because it was never persisted.
 
-**Verification program.** It runs incrementally across milestones 1–6 and gates the complete opt-in slice:
+**Verification program.** It runs incrementally across milestones 1–6 and gates the complete resident slice:
 
 - Deterministic simulation and property tests of the sans-IO server core over death, loss, reordering, delay, stale epochs, controller transfer, churn, and mutation. Invariants include no lost committed mutation, one registry writer, one live incarnation per tab/session, attributable client-scoped requests, and convergence to running or failed.
 - Failure points at every persistence and IPC step, with kill-at-each-point crash tests.
@@ -477,7 +477,7 @@ Generation 1 is the bounded little-endian named-map MessagePack contract in this
 
 ## Roadmap
 
-Each milestone is its own OpenSpec change and pull request, merged to `develop` behind `residentTabs: false`, so nothing user-visible changes until the preview is certified. A milestone starts only after the previous one merges, moves its requirements from [`resident-tabs-requirements.md`](resident-tabs-requirements.md) into its own spec delta, and covers Windows x64, Linux x64, and macOS arm64 together unless its change says otherwise.
+Each milestone is its own OpenSpec change and pull request. Milestones 1–4 merged behind `residentTabs: false`; milestone 5 changes the setting to default Yes while preserving No as the direct path. A milestone starts only after the previous one merges, moves its requirements from [`resident-tabs-requirements.md`](resident-tabs-requirements.md) into its own spec delta, and covers Windows x64, Linux x64, and macOS arm64 together unless its change says otherwise.
 
 | # | Change | Deliverable and exit evidence |
 |---|---|---|
@@ -488,14 +488,14 @@ Each milestone is its own OpenSpec change and pull request, merged to `develop` 
 | 5 | `resident-tabs-tab-ux` (PR #749) | Approved v2-style strip with always-visible close buttons, per-agent accent status and needs-input, mouse, assignable shortcuts with unbound navigation/reorder actions, rename/reorder/close, local detach/resume, automatic two-terminal controller transfer, and extension text fidelity. Then animated auto-naming, `tabsMax`, and one internal prewarmed tab; open tabs are never idle-suspended. |
 | 6 | `resident-tabs-certification` (PR #750) | Packaging and release retention on every platform, maintenance commands, bounded resources, deterministic/property/crash/fuzz/chaos evidence and exact-package physical acceptance per platform, including SSH loss, forced attach death, conflict-safe direct rollback, and performance measured separately for cold launch, warm tab creation, reattach, and recovery. |
 
-A failed milestone keeps the preview disabled and its pull request open until fixed. Each milestone 2–6 PR is a draft that holds its full plan (proposal, design, tasks, spec deltas) and starts implementation only after the previous milestone merges.
+A failed milestone keeps its pull request open until fixed and preserves safe direct fallback. Each milestone 2–6 PR is a draft that holds its full plan (proposal, design, tasks, spec deltas) and starts implementation only after the previous milestone merges.
 
 ### Follow-ups outside this roadmap
 
 - **Reboot and logout restore:** reopen the previous tab set after a new OS session.
 - **Work isolation:** explicit task-to-repository/worktree ownership, dirty-tree policy, concurrent-edit conflicts, and review/integration ownership. A tab's cwd is not an isolation guarantee.
 - **Coordination:** task identities, delegation, prompt/result exchange, cancellation, permission and cost limits, and parent/child lifecycle. Herdr's agent start/prompt/read/wait API is a reference, not functionality included here.
-- **Presentation and enablement:** generic CLI tabs, split layouts, remote attachment, automatic cohort handoff, and default enablement after a 24-hour soak per platform.
+- **Presentation and lifecycle:** generic CLI tabs, split layouts, remote attachment, and automatic cohort handoff.
 
 Each follow-up needs its own approved change.
 
@@ -516,13 +516,13 @@ On 2026-10-13 the user refined milestone 5:
 - Keep `Alt+A`, `Alt+W`, `F2`, and numbered jumps; leave next/previous and move actions unbound but assignable.
 - Add no tab-management slash commands; retain existing `/name`, `/quit`, and empty-editor `Ctrl+D` semantics.
 - Automatically transfer control to the active terminal through the causal barrier without an `Enter` takeover or view-only banner.
-- Expose only `tabsMax` and `tabsAutoName` as new Tabs settings; keep concurrent starts and one prewarm as internal constants.
+- Put `residentTabs` in Tabs as `Enable tabs` (Yes/No, default Yes), retain `tabsMax` and `tabsAutoName` there, and remove unresponsive-restart and stall-notice controls from the user-facing surface; keep their timing, concurrent starts, and one prewarm internal.
 - Keep every open tab process running until explicit close; remove idle suspension and its `◌` glyph.
 - Use `1 agent still running run a1 to return.` / `N agents still running run a1 to return.` after local detach.
 
 On 2026-10-10 the user confirmed this resident design over in-process tabs and set the first version's scope:
 
-- Deliver as six milestone pull requests, each merged behind `residentTabs: false`; PR #586 carries this roadmap and milestone 1.
+- Deliver as six milestone pull requests; milestones 1–4 merge behind `residentTabs: false`, while the later milestone-5 decision above changes the default to Yes.
 - Target Windows x64, Linux x64, and macOS arm64 in the first version; every additional target requires its own approved plan and evidence.
 - Keep crash recovery (restart into the session, prompt journal, drafts); drop reboot and logout restore to a follow-up.
 - Keep auto-naming, one prewarmed standby, and two attached clients.
