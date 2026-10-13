@@ -2,7 +2,7 @@
 import { spawnSync } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 
@@ -40,16 +40,6 @@ function run(host, arguments_, options = {}) {
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${basename(host)} ${arguments_.slice(0, 2).join(" ")} failed (${result.status}): ${result.stderr || result.stdout}`);
   return result.stdout.trim();
-}
-
-async function waitUntil(probe, description, timeoutMs = 15_000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const value = await probe();
-    if (value) return value;
-    await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
-  }
-  throw new Error(`timed out waiting for ${description}`);
 }
 
 function milliseconds(nanoseconds) {
@@ -110,7 +100,7 @@ async function createAttach(spawnPty, host, context, viewTab = null) {
   if (viewTab) arguments_.push("--view", viewTab);
   const terminal = spawnPty(host, arguments_, {
     cols: 100, rows: 24, cwd: context.root,
-    env: { ...process.env, A1_TABS_ENDPOINT: context.endpoint },
+    env: context.environment,
   });
   let output = "";
   const waiters = new Set();
@@ -136,27 +126,11 @@ async function createAttach(spawnPty, host, context, viewTab = null) {
   return { terminal, waitFor, output: () => output };
 }
 
-async function countHolderMarkers(data) {
-  const roots = await import("node:fs/promises").then(({ readdir }) => readdir(join(data, "tabs"), { withFileTypes: true }).catch(() => []));
-  let count = 0;
-  for (const root of roots.filter(entry => entry.isDirectory())) {
-    const processes = join(data, "tabs", root.name, "processes");
-    const entries = await import("node:fs/promises").then(({ readdir }) => readdir(processes).catch(() => []));
-    for (const entry of entries) {
-      try {
-        const value = JSON.parse(await readFile(join(processes, entry), "utf8"));
-        if (value.role === "holder") count++;
-      } catch {}
-    }
-  }
-  return count;
-}
-
 function internal(host, context, operation, extra = []) {
   return run(host, [
     "internal", operation, "--profile", context.profile, "--data-dir", context.data,
     "--runtime-dir", context.runtime, ...extra,
-  ], { cwd: context.root, env: { ...process.env, A1_TABS_ENDPOINT: context.endpoint } });
+  ], { cwd: context.root, env: context.environment });
 }
 
 async function collectMeasurements(host) {
@@ -168,6 +142,7 @@ async function collectMeasurements(host) {
     release: join(root, "release"),
     endpoint: process.platform === "win32" ? `\\\\.\\pipe\\a1-resident-measure-${process.pid}-${Date.now()}` : join(root, "resident.sock"),
   };
+  context.environment = { ...process.env, TERM: "xterm-256color", A1_TABS_ENDPOINT: context.endpoint };
   for (const directory of [context.profile, context.data, context.runtime, join(context.release, "bin")]) {
     await mkdir(directory, { recursive: true });
     if (process.platform !== "win32") await chmod(directory, 0o700);
@@ -180,7 +155,7 @@ async function collectMeasurements(host) {
   try {
     const coldStartNs = process.hrtime.bigint();
     run(host, ["server", "--detach", "--profile", context.profile, "--data-dir", context.data, "--runtime-dir", context.runtime], {
-      cwd: root, env: { ...process.env, A1_TABS_ENDPOINT: context.endpoint },
+      cwd: root, env: context.environment,
     });
     const first = await createAttach(spawn, host, context);
     attachments.push(first);
@@ -188,7 +163,9 @@ async function collectMeasurements(host) {
     const cold = await measureInput(first, "cold");
     sample.coldLaunchMs = milliseconds(cold.processedNs - coldStartNs);
 
-    await waitUntil(async () => await countHolderMarkers(context.data) >= 2, "matching standby holder");
+    // Performance: session reporting starts one hidden standby asynchronously; keep its startup
+    // outside the matching-standby promotion measurement while retaining the real holder path.
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 1_500));
     const warmStartNs = process.hrtime.bigint();
     const created = JSON.parse(internal(host, context, "tab-create", [
       "--cwd", root, "--release-root", context.release, "--node-executable", process.execPath,
