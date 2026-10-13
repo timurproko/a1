@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+
 const TAB_ENVIRONMENT_NAMES = ["A1_TAB_ID", "A1_TAB_TOKEN", "A1_TAB_ENDPOINT"];
 
 /** @param {string} reason */
@@ -19,13 +21,19 @@ export function assignFreshSessionRuntimeId(environment, name, createId) {
 
 /**
  * Keep the standby below the session/runtime boundary until its authenticated holder promotes it.
+ * Platform: Windows ConPTY may drop the in-band marker, so the holder also creates the promotion
+ * file inside the tab's private data directory; whichever arrives first promotes the standby.
  * @param {NodeJS.ReadStream} input
+ * @param {string} [promotionFile]
  */
-export function waitForStandbyPromotion(input) {
+export function waitForStandbyPromotion(input, promotionFile) {
   return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
     const marker = Buffer.from("\x1b]a1;standby-promote\x07");
     let buffered = Buffer.alloc(0);
+    /** @type {NodeJS.Timeout | undefined} */
+    let poll;
     const cleanup = () => {
+      if (poll !== undefined) clearInterval(poll);
       input.off("data", onData);
       input.off("error", onError);
       input.pause();
@@ -43,6 +51,11 @@ export function waitForStandbyPromotion(input) {
     input.on("data", onData);
     input.on("error", onError);
     input.resume();
+    if (promotionFile !== undefined) {
+      poll = setInterval(() => {
+        if (existsSync(promotionFile)) { cleanup(); resolve(undefined); }
+      }, 10);
+    }
   }));
 }
 

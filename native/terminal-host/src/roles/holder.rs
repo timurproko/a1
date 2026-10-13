@@ -489,6 +489,11 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                     )?);
                 }
             } else if matches!(&command, HolderCommand::Promote) {
+                // Platform: Windows ConPTY may drop the in-band OSC marker, so the private tab
+                // data directory carries the same promotion out of band; the child accepts either.
+                let promotion = tab_data_dir.join("standby-promote");
+                let _ = std::fs::create_dir_all(&tab_data_dir)
+                    .and_then(|()| std::fs::write(&promotion, b"promote\n"));
                 write_tx
                     .send((b"\x1b]a1;standby-promote\x07".to_vec(), 0))
                     .map_err(|_| "promote standby child writer stopped".to_owned())?;

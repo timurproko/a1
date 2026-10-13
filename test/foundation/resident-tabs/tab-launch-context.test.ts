@@ -1,4 +1,7 @@
 import { execFile } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
@@ -54,6 +57,22 @@ describe("resident tab credential consumption", () => {
     await waiting;
     expect(promoted).toBe(true);
     input.destroy();
+  });
+
+  it("accepts the out-of-band promotion file when the PTY drops the marker", async () => {
+    const input = new PassThrough();
+    const directory = mkdtempSync(join(tmpdir(), "a1-standby-"));
+    const promotionFile = join(directory, "standby-promote");
+    let promoted = false;
+    const waiting = waitForStandbyPromotion(input as unknown as NodeJS.ReadStream, promotionFile)
+      .then(() => { promoted = true; });
+    await new Promise(resolve => setTimeout(resolve, 30));
+    expect(promoted).toBe(false);
+    writeFileSync(promotionFile, "promote\n");
+    await waiting;
+    expect(promoted).toBe(true);
+    input.destroy();
+    rmSync(directory, { recursive: true, force: true });
   });
 
   it("recognizes the internal standby without forwarding it to session parsing", () => {

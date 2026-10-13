@@ -52,7 +52,7 @@ const [
   { composeOwnedUi },
 ] = await modules;
 
-if (tabStandby) await waitForStandbyPromotion(process.stdin);
+if (tabStandby) await waitForStandbyPromotion(process.stdin, tabDataDir === undefined ? undefined : join(tabDataDir, "standby-promote"));
 
 // Compatibility: before the composition uses pinned Pi's terminal stack: confirm A1 and Pi
 // resolve it to the same copy, so extensions and the owned UI share one module identity.

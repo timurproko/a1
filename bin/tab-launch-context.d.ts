@@ -12,7 +12,7 @@ export function assignFreshSessionRuntimeId(
   createId: () => string,
 ): string;
 
-export function waitForStandbyPromotion(input: NodeJS.ReadStream): Promise<void>;
+export function waitForStandbyPromotion(input: NodeJS.ReadStream, promotionFile?: string): Promise<void>;
 
 export function consumeTabLaunchContext(
   arguments_: readonly string[],

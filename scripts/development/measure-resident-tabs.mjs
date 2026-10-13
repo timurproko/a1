@@ -58,11 +58,11 @@ function milliseconds(nanoseconds) {
   return Number(nanoseconds) / 1_000_000;
 }
 
-async function fixtureSource(bridgeUrl) {
+async function fixtureSource(bridgeUrl, launchContextUrl) {
   return `import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { TabBridgeClient } from ${JSON.stringify(bridgeUrl)};
-const marker = Buffer.from("\\x1b]a1;standby-promote\\x07");
+import { waitForStandbyPromotion } from ${JSON.stringify(launchContextUrl)};
 const standby = process.argv.includes("--tab-standby");
 const dataIndex = process.argv.indexOf("--tab-data-dir");
 const dataDir = process.argv[dataIndex + 1];
@@ -70,15 +70,7 @@ mkdirSync(dataDir, { recursive: true });
 process.stdin.setRawMode?.(true);
 if (standby) {
   writeFileSync(join(dataDir, "standby-ready"), "ready\\n");
-  await new Promise((resolve, reject) => {
-  let buffered = Buffer.alloc(0);
-  process.stdin.on("error", reject);
-  process.stdin.on("data", chunk => {
-    buffered = Buffer.concat([buffered, chunk]).subarray(-marker.length);
-    if (buffered.equals(marker)) { process.stdin.removeAllListeners("data"); process.stdin.pause(); resolve(); }
-  });
-    process.stdin.resume();
-  });
+  await waitForStandbyPromotion(process.stdin, join(dataDir, "standby-promote"));
 }
 const credentials = { tabId: process.env.A1_TAB_ID, token: process.env.A1_TAB_TOKEN, endpoint: process.env.A1_TAB_ENDPOINT };
 for (const name of ["A1_TAB_ID", "A1_TAB_TOKEN", "A1_TAB_ENDPOINT"]) delete process.env[name];
@@ -189,7 +181,7 @@ async function collectMeasurements(host) {
   }
   const bridgeUrl = pathToFileURL(resolve("dist/foundation/resident-tabs/bridge-client.js")).href;
   await writeFile(join(context.release, "package.json"), "{\"type\":\"module\"}\n");
-  await writeFile(join(context.release, "bin", "ui.js"), await fixtureSource(bridgeUrl));
+  await writeFile(join(context.release, "bin", "ui.js"), await fixtureSource(bridgeUrl, pathToFileURL(resolve("bin/tab-launch-context.js")).href));
   const attachments = [];
   const sample = {};
   try {
