@@ -1895,15 +1895,19 @@ fn serve_maintain(
                     .collect::<Vec<_>>();
                 let result = stop_tabs(&state, &tab_ids, request_id)?;
                 if kind.message_type == "host.stop" {
+                    let accepted = result["accepted"] == serde_json::Value::Bool(true);
+                    // Concurrency: the answer is sent before shutdown is requested, so the main loop
+                    // cannot exit and close this connection before the caller learns the outcome.
+                    let sent = wire::send(&mut stream, "host.stopping", request_id, result);
                     // Invariant: the server leaves only after every tab it could verify has stopped;
                     // a tab that could not be stopped keeps the host running for a retry.
-                    if result["accepted"] == serde_json::Value::Bool(true) {
+                    if accepted {
                         state
                             .lock()
                             .map_err(|_| "resident state poisoned".to_owned())?
                             .shutdown_requested = true;
                     }
-                    wire::send(&mut stream, "host.stopping", request_id, result)?;
+                    sent?;
                 } else {
                     wire::send(&mut stream, "tab.stopped", request_id, result)?;
                 }

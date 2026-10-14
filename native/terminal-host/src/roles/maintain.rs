@@ -33,6 +33,10 @@ const HANDSHAKE: Duration = Duration::from_secs(4);
 
 pub fn connect(address: &str, token: &[u8]) -> Result<Connection, ConnectError> {
     let mut stream = endpoint::connect(address).map_err(|_| ConnectError::NotRunning)?;
+    // Platform: macOS refuses socket options once the peer has closed, and a server of another
+    // generation answers and closes at once, so Unix bounds the read before sending the hello.
+    #[cfg(unix)]
+    endpoint::set_handshake_deadline(&stream, HANDSHAKE).map_err(|_| ConnectError::Unresponsive)?;
     wire::send(
         &mut stream,
         "hello",
@@ -54,19 +58,23 @@ pub fn connect(address: &str, token: &[u8]) -> Result<Connection, ConnectError> 
     )
     .map_err(|_| ConnectError::Unresponsive)?;
     // Platform: on Windows this waits for the welcome to arrive, so it follows the hello.
+    #[cfg(windows)]
     endpoint::set_handshake_deadline(&stream, HANDSHAKE).map_err(|_| ConnectError::Unresponsive)?;
     let payload = match wire::read_payload(&mut stream) {
         Ok(Some(payload)) => payload,
         Ok(None) => return Err(ConnectError::Refused("server closed the handshake".into())),
         Err(_) => return Err(ConnectError::Unresponsive),
     };
-    endpoint::clear_handshake_deadline(&stream).map_err(|_| ConnectError::Unresponsive)?;
     let kind = wire::kind(&payload).map_err(ConnectError::Refused)?;
     match kind.message_type.as_str() {
-        "welcome" => Ok(Connection {
-            stream,
-            next_request: 2,
-        }),
+        "welcome" => {
+            endpoint::clear_handshake_deadline(&stream).map_err(|_| ConnectError::Unresponsive)?;
+            Ok(Connection {
+                stream,
+                next_request: 2,
+            })
+        }
+        // Invariant: the server closes after this answer, so the deadline is not cleared.
         "incompatible-generation" => Err(ConnectError::IncompatibleGeneration),
         other => Err(ConnectError::Refused(format!("server answered {other}"))),
     }

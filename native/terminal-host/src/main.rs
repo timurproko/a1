@@ -487,7 +487,19 @@ fn stop_unresponsive_host(
     let endpoint = recorded_server_endpoint(root).unwrap_or_else(|| endpoint.to_owned());
     let answer = contracts::roles::maintain::connect(&endpoint, &credentials.client_token)
         .map_err(|error| format!("replacement host refused maintenance: {error:?}"))?
-        .request("host.stop", serde_json::json!({}), TABS_STOP_TIMEOUT)?;
+        .request("host.stop", serde_json::json!({}), TABS_STOP_TIMEOUT);
+    let answer = match answer {
+        Ok(answer) => answer,
+        // Invariant: a replacement may exit as soon as its last tab stops, closing the connection
+        // before it answers; the stop succeeded only if no owner and no live tab remain.
+        Err(_) if profile_quiesces(root, TABS_STOP_TIMEOUT) => {
+            return Ok(TabsOutcome {
+                report: serde_json::json!({ "host": "stopped", "terminatedUnresponsive": identity.pid }),
+                exit: 0,
+            });
+        }
+        Err(error) => return Err(error),
+    };
     let accepted = answer.as_ref().is_some_and(|(_, value, _)| {
         value.get("accepted").and_then(serde_json::Value::as_bool) == Some(true)
     });
@@ -499,6 +511,26 @@ fn stop_unresponsive_host(
         }),
         exit: if accepted { 0 } else { 3 },
     })
+}
+
+/// Waits until this profile has no verified owner and no live tab process, within `timeout`.
+fn profile_quiesces(root: &std::path::Path, timeout: Duration) -> bool {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        let holds = contracts::roles::release_holds::collect_profile(root, |pid| {
+            contracts::identity::inspect_process(pid).map_err(|error| error.to_string())
+        });
+        if matches!(recorded_owner(root), OwnerState::None)
+            && holds.complete
+            && holds.release_roots.is_empty()
+        {
+            return true;
+        }
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
 }
 
 fn release_holds_command(arguments: &[String]) -> Result<(), String> {
