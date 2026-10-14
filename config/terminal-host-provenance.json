@@ -223,11 +223,11 @@
       "role": "SIMD UTF validation vendored by libghostty-vt (-Dsimd=true)",
       "licenseFiles": [
         {
-          "path": "native/terminal-host/third-party-licenses/simdutf-LICENSE-APACHE",
+          "path": "native/terminal-host/vendor/third-party-licenses/simdutf-LICENSE-APACHE",
           "sha256": "3d34610fc6b5e1b0bfe4e2f36171c2d62c28ef05cb8d704f5a0073be41a43b3d"
         },
         {
-          "path": "native/terminal-host/third-party-licenses/simdutf-LICENSE-MIT",
+          "path": "native/terminal-host/vendor/third-party-licenses/simdutf-LICENSE-MIT",
           "sha256": "fc8dbc04e03ad4efc08a647ffe7f995b811a95bc04c0e85a56d5277c6593fa5f"
         }
       ]
@@ -239,11 +239,11 @@
       "role": "SIMD dispatch fetched by the pinned libghostty-vt build (-Dsimd=true)",
       "licenseFiles": [
         {
-          "path": "native/terminal-host/third-party-licenses/highway-LICENSE",
+          "path": "native/terminal-host/vendor/third-party-licenses/highway-LICENSE",
           "sha256": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
         },
         {
-          "path": "native/terminal-host/third-party-licenses/highway-LICENSE-BSD3",
+          "path": "native/terminal-host/vendor/third-party-licenses/highway-LICENSE-BSD3",
           "sha256": "d25e82e26acd42ca3ccc9993622631163425b869b9e16284226d534cff6470f2"
         }
       ]
@@ -252,14 +252,14 @@
   "crateLicenseTexts": {
     "napi": [
       {
-        "path": "native/terminal-host/third-party-licenses/napi-rs-LICENSE",
+        "path": "native/terminal-host/vendor/third-party-licenses/napi-rs-LICENSE",
         "sha256": "3f1ce66533302df3a32edbfdfc0b78f0dd34659e4c1f5817162e5ea3c2297215",
         "source": "https://github.com/napi-rs/napi-rs/blob/58eea7ab69451198db398ed3117718f92ff25971/LICENSE"
       }
     ],
     "napi-sys": [
       {
-        "path": "native/terminal-host/third-party-licenses/napi-rs-LICENSE",
+        "path": "native/terminal-host/vendor/third-party-licenses/napi-rs-LICENSE",
         "sha256": "3f1ce66533302df3a32edbfdfc0b78f0dd34659e4c1f5817162e5ea3c2297215",
         "source": "https://github.com/napi-rs/napi-rs/blob/58eea7ab69451198db398ed3117718f92ff25971/LICENSE"
       }

@@ -147,6 +147,47 @@ describe("bounded immutable release cleanup", () => {
     expect(released.releases[transaction!.releaseId]).toBeUndefined();
   });
 
+  it("keeps a release that a live resident process records and collects it once the tab stops", async () => {
+    const fixture = await releaseFixture(4);
+    await activateAll(fixture.store, fixture.releases);
+    const [heldByTab, unheld, , active] = fixture.releases;
+    const asked: string[][] = [];
+    let live = true;
+    const residentHolds = async (_dataDir: string, releaseRoots: readonly string[]) => {
+      asked.push([...releaseRoots]);
+      return { complete: true, releaseRoots: live ? [heldByTab!.releaseRoot] : [], uncertain: [] };
+    };
+
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
+    const retained = await fixture.store.read();
+    expect(retained.releases[heldByTab!.releaseId]).toBeDefined();
+    expect(retained.releases[unheld!.releaseId]).toBeUndefined();
+    await expect(lstat(heldByTab!.releaseRoot)).resolves.toBeTruthy();
+    expect(asked[0]?.[0]).toBe(active!.releaseRoot);
+
+    live = false;
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
+    expect((await fixture.store.read()).releases[heldByTab!.releaseId]).toBeUndefined();
+    await expect(lstat(heldByTab!.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("keeps every release when resident inspection is incomplete or names an unknown stored release", async () => {
+    for (const report of [
+      { complete: false, releaseRoots: [] as string[], uncertain: ["registry unreadable"] },
+      { complete: true, releaseRoots: ["<store>/unknown-release"], uncertain: [] as string[] },
+    ]) {
+      const fixture = await releaseFixture(4);
+      await activateAll(fixture.store, fixture.releases);
+      const roots = report.releaseRoots.map(root => root.replace("<store>", resolve(fixture.dataDir, "releases")));
+      await runBoundedReleaseCleanup(fixture.dataDir, undefined, {
+        transactionStore: noTransaction,
+        residentHolds: async () => ({ ...report, releaseRoots: roots }),
+      });
+      const state = await fixture.store.read();
+      expect(Object.keys(state.releases).sort(), JSON.stringify(report)).toEqual(fixture.releases.map(release => release.releaseId).sort());
+    }
+  });
+
   it("attempts eligible work even when its physical batch clock is already exhausted", async () => {
     const fixture = await releaseFixture(3);
     await activateAll(fixture.store, fixture.releases);

@@ -325,7 +325,7 @@
         "scripts/governance/check-terminal-host-provenance.mjs",
         "scripts/development/build-terminal-host.mjs",
         "scripts/release/generate-terminal-host-notices.mjs",
-        "native/terminal-host/third-party-licenses/"
+        "native/terminal-host/vendor/third-party-licenses/"
       ],
       "cadence": "pull-request"
     }

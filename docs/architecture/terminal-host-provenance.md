@@ -10,7 +10,7 @@ The composed-terminal proof uses a small console-hosted stack. It runs inside th
 | `portable-pty` | version `0.9.0` | ConPTY/Unix PTY and process ownership | MIT |
 | Crossterm | version `0.29.0` | Outer-terminal raw mode and host input events | MIT; license text ships in the generated notices |
 
-`libghostty-vt` is built with `-Dsimd=true`, which statically links simdutf `9.0.0` (Apache-2.0 OR MIT, vendored in the libghostty tree) and Highway at commit `66486a10623fa0d72fe91260f96c892e41aceb06` (Apache-2.0 OR BSD-3-Clause, fetched by the pinned Zig build). Their license texts are kept under `native/terminal-host/third-party-licenses/` with digests recorded in `config/terminal-host-provenance.json`, beside the upstream napi-rs license that the published `napi` and `napi-sys` crates omit.
+`libghostty-vt` is built with `-Dsimd=true`, which statically links simdutf `9.0.0` (Apache-2.0 OR MIT, vendored in the libghostty tree) and Highway at commit `66486a10623fa0d72fe91260f96c892e41aceb06` (Apache-2.0 OR BSD-3-Clause, fetched by the pinned Zig build). Their license texts are kept under `native/terminal-host/vendor/third-party-licenses/` with digests recorded in `config/terminal-host-provenance.json`, beside the upstream napi-rs license that the published `napi` and `napi-sys` crates omit.
 
 ## Release notices
 

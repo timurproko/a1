@@ -5,6 +5,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { TerminalHostArtifactError, verifyTerminalHostArtifact } from "../../../src/foundation/resident-tabs/terminal-host-artifact.js";
 import { ensureTerminalHost, resolveTerminalHostPath } from "../../../src/foundation/resident-tabs/ensure-terminal-host.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
+
+const override = PRODUCT_IDENTITY.environment.terminalHostPath;
+const developmentInstance = PRODUCT_IDENTITY.environment.developmentInstanceId;
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -90,15 +94,15 @@ describe("installed terminal-host bootstrap", () => {
 
   it("resolves the executable by its product-identity name and ignores the override outside development", async () => {
     expect(resolveTerminalHostPath("/release", {}, "win32", "x64").endsWith(join("dist", "native", "win32-x64", "terminal-host.exe"))).toBe(true);
-    expect(resolveTerminalHostPath("/release", { A1_TERMINAL_HOST_PATH: "/elsewhere/host" }, "linux", "x64").endsWith(join("linux-x64", "terminal-host"))).toBe(true);
-    expect(resolveTerminalHostPath("/release", { A1_TERMINAL_HOST_PATH: "/elsewhere/host", A1_DEV_INSTANCE_ID: "dev" }, "linux", "x64").endsWith(join("elsewhere", "host"))).toBe(true);
+    expect(resolveTerminalHostPath("/release", { [override]: "/elsewhere/host" }, "linux", "x64").endsWith(join("linux-x64", "terminal-host"))).toBe(true);
+    expect(resolveTerminalHostPath("/release", { [override]: "/elsewhere/host", [developmentInstance]: "dev" }, "linux", "x64").endsWith(join("elsewhere", "host"))).toBe(true);
   });
 
   it("starts nothing when the installed artifact fails verification", async () => {
     const tampered = await release();
     await writeFile(tampered.executable, "host byteZ");
     let spawned = 0;
-    await expect(ensureTerminalHost({ ...base(tampered.root), environment: { A1_TERMINAL_HOST_PATH: "/elsewhere/host" }, run: async () => { spawned++; return { code: 0, stdout: "", stderr: "" }; } }))
+    await expect(ensureTerminalHost({ ...base(tampered.root), environment: { [override]: "/elsewhere/host" }, run: async () => { spawned++; return { code: 0, stdout: "", stderr: "" }; } }))
       .resolves.toEqual({ status: "fallback", reason: "terminal host not verified" });
 
     const absent = await release();

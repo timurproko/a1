@@ -4,6 +4,10 @@ const TAB_ENVIRONMENT_NAMES = ["A1_TAB_ID", "A1_TAB_TOKEN", "A1_TAB_ENDPOINT"];
 
 /** @param {string} reason */
 export function formatResidentFallbackNotice(reason) {
+  // Protocol: a host of another generation is never replaced automatically; only the user stops it.
+  if (reason === "incompatible generation") {
+    return "A1 normal mode unavailable (running tabs use another version); running in single agent mode. Run `a1 tabs host stop` to restart them on this version.";
+  }
   return `A1 normal mode unavailable (${reason}); running in single agent mode.`;
 }
 

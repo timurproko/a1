@@ -5,6 +5,7 @@ pub mod diagnostics;
 pub mod holder;
 pub mod recovery_artifacts;
 pub mod registry;
+pub mod release_holds;
 pub mod server;
 pub mod strip;
 pub mod wire;

@@ -106,7 +106,7 @@ async function main() {
   const targetDirectory = resolve(repositoryRoot, "dist/native", `${platform}-${architecture}`);
   await mkdir(targetDirectory, { recursive: true });
 
-  // The executable is copied before the addon build so the feature-enabled library build cannot replace it.
+  // Invariant: the executable is copied before the addon build so the feature-enabled library build cannot replace it.
   const executableName = terminalHostExecutableName(identity, platform);
   run(cargo, ["build", "--release", "--locked", "--manifest-path", cargoManifest, "--bin", "terminal-host"], verbose);
   const executablePath = resolve(targetDirectory, executableName);

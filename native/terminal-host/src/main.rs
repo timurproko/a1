@@ -55,6 +55,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         }
         Some("server") => resident_server_command(&args[1..]),
         Some("probe") => resident_probe_command(&args[1..]),
+        Some("release-holds") => release_holds_command(&args[1..]),
         Some("holder") => Err("holder role is started only by the resident server".to_owned()),
         Some("attach") => resident_attach_command(&args[1..]),
         Some("internal") => resident_internal_command(&args[1..]),
@@ -88,7 +89,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         }
         _ => {
             eprintln!(
-                "usage: a1-terminal-host server --detach --profile <path> --data-dir <path> --runtime-dir <path> | probe --profile <path> --data-dir <path> --runtime-dir <path> | attach --endpoint <endpoint> --cwd <path> --clear-exit-ms <ms> | --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-contracts | --probe-durable | --probe-controller-boundary | --probe-resident-launch | --resolve <command> | --resolve-shell"
+                "usage: a1-terminal-host release-holds --data-dir <path> | server --detach --profile <path> --data-dir <path> --runtime-dir <path> | probe --profile <path> --data-dir <path> --runtime-dir <path> | attach --endpoint <endpoint> --cwd <path> --clear-exit-ms <ms> | --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-contracts | --probe-durable | --probe-controller-boundary | --probe-resident-launch | --resolve <command> | --resolve-shell"
             );
             Err("expected a mode".to_owned())
         }
@@ -104,6 +105,8 @@ struct ResidentServerMetadata {
     generation: u16,
     verified: bool,
     detachment_mode: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    release_root: Option<String>,
 }
 
 fn recorded_server_endpoint(root: &std::path::Path) -> Option<String> {
@@ -245,6 +248,7 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
         generation: contracts::protocol::GENERATION,
         verified: true,
         detachment_mode: observation.mode,
+        release_root: own_release_root(),
     };
     let bytes = serde_json::to_vec_pretty(&metadata).map_err(|error| error.to_string())?;
     contracts::durable::replace(&credentials_root.join("server.json"), &bytes)
@@ -253,6 +257,32 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     println!(
         "{{\"outcome\":\"started\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
         serde_json::to_string(&endpoint).unwrap()
+    );
+    Ok(())
+}
+
+/// The release root the running executable was installed in: <root>/dist/native/<target>/<exe>.
+fn own_release_root() -> Option<String> {
+    let executable = env::current_exe().ok()?;
+    let target = executable.parent()?;
+    let native = target.parent()?;
+    let dist = native.parent()?;
+    (native.file_name()? == "native" && dist.file_name()? == "dist")
+        .then(|| {
+            dist.parent()
+                .map(|root| root.to_string_lossy().into_owned())
+        })
+        .flatten()
+}
+
+fn release_holds_command(arguments: &[String]) -> Result<(), String> {
+    let data = required_role_path(arguments, "--data-dir")?;
+    let holds = contracts::roles::release_holds::collect(&data, |pid| {
+        contracts::identity::inspect_process(pid).map_err(|error| error.to_string())
+    });
+    println!(
+        "{}",
+        serde_json::to_string(&holds).map_err(|error| error.to_string())?
     );
     Ok(())
 }
