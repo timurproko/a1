@@ -219,13 +219,20 @@ impl OwnerEndpoint {
     }
 
     pub fn accept(&mut self) -> Result<EndpointStream, EndpointError> {
-        let (stream, _) = self
-            .listener
-            .accept()
-            .map_err(|error| EndpointError(format!("accept endpoint: {error}")))?;
-        let uid = peer_uid(&stream)?;
-        verify_peer_identity(self.uid as u64, uid as u64)?;
-        Ok(stream)
+        loop {
+            let (stream, _) = self
+                .listener
+                .accept()
+                .map_err(|error| EndpointError(format!("accept endpoint: {error}")))?;
+            // Invariant: one peer that is refused, or already gone before its identity could be
+            // read, is dropped alone; it never ends the endpoint every other peer depends on.
+            if peer_uid(&stream)
+                .and_then(|uid| verify_peer_identity(self.uid as u64, uid as u64))
+                .is_ok()
+            {
+                return Ok(stream);
+            }
+        }
     }
 
     pub fn path(&self) -> &Path {
@@ -321,25 +328,39 @@ impl OwnerEndpoint {
     /// A replacement instance is created before the connected handle is handed to its worker.
     pub fn accept(&mut self) -> Result<EndpointStream, EndpointError> {
         use std::os::windows::io::FromRawHandle;
-        use windows_sys::Win32::Foundation::{ERROR_PIPE_CONNECTED, GetLastError};
+        use windows_sys::Win32::Foundation::{ERROR_NO_DATA, ERROR_PIPE_CONNECTED, GetLastError};
         use windows_sys::Win32::System::Pipes::{
             ConnectNamedPipe, DisconnectNamedPipe, GetNamedPipeClientProcessId,
         };
-        let connected = unsafe { ConnectNamedPipe(self.pending, std::ptr::null_mut()) };
-        if connected == 0 && unsafe { GetLastError() } != ERROR_PIPE_CONNECTED {
-            return Err(EndpointError(format!(
-                "accept named-pipe client: {}",
-                std::io::Error::last_os_error()
-            )));
-        }
-        let mut pid = 0_u32;
-        if unsafe { GetNamedPipeClientProcessId(self.pending, &mut pid) } == 0
-            || !same_user_as_current_process(pid)?
-        {
-            unsafe { DisconnectNamedPipe(self.pending) };
-            return Err(EndpointError(
-                "named-pipe peer does not match the endpoint owner".to_owned(),
-            ));
+        loop {
+            let connected = unsafe { ConnectNamedPipe(self.pending, std::ptr::null_mut()) };
+            if connected == 0 {
+                match unsafe { GetLastError() } {
+                    ERROR_PIPE_CONNECTED => {}
+                    // Platform: a client that connected and closed before this call, as a short
+                    // probe can, leaves the instance to be reset and reused, not a failed endpoint.
+                    ERROR_NO_DATA => {
+                        unsafe { DisconnectNamedPipe(self.pending) };
+                        continue;
+                    }
+                    _ => {
+                        return Err(EndpointError(format!(
+                            "accept named-pipe client: {}",
+                            std::io::Error::last_os_error()
+                        )));
+                    }
+                }
+            }
+            // Invariant: one peer that is refused, or already gone before its identity could be
+            // read, is dropped alone; it never ends the endpoint every other peer depends on.
+            let mut pid = 0_u32;
+            if unsafe { GetNamedPipeClientProcessId(self.pending, &mut pid) } == 0
+                || !same_user_as_current_process(pid).unwrap_or(false)
+            {
+                unsafe { DisconnectNamedPipe(self.pending) };
+                continue;
+            }
+            break;
         }
         let replacement = create_owner_pipe(&self.name, false)?;
         let accepted = std::mem::replace(&mut self.pending, replacement);

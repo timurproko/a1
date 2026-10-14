@@ -703,7 +703,16 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
                     connections.fetch_sub(1, Ordering::SeqCst);
                 });
             }
-            Ok(Err(error)) => return Err(error),
+            Ok(Err(error)) => {
+                if let Ok(locked) = state.lock() {
+                    let _ = crate::roles::diagnostics::append_log(
+                        &locked.diagnostics_root,
+                        "server",
+                        "endpoint-accept-failed",
+                    );
+                }
+                return Err(error);
+            }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 return Err("resident endpoint stopped".to_owned());
             }
@@ -3457,216 +3466,456 @@ fn serve_holder(
         }
     }
     let mut last_exit = None;
-    while let Some(payload) = wire::read_payload(&mut stream)? {
-        let kind = wire::kind(&payload)?;
-        match kind.message_type.as_str() {
-            "surface" => {
-                let (_, mut surface): (_, Surface) = wire::body(&payload)?;
-                surface.tab_id = tab_id.clone();
-                let mut locked = state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?;
-                if locked.bridge_status_sequences.get(&tab_id).is_some_and(
-                    |(seen_incarnation, _)| *seen_incarnation == connection_incarnation,
-                ) && let Some(existing) = locked.surfaces.get(&tab_id)
-                {
-                    surface.status = existing.status.clone();
-                    surface.accent = existing.accent.clone();
-                } else if locked
-                    .registry
-                    .tabs
-                    .iter()
-                    .find(|record| record.tab_id == tab_id)
-                    .is_some_and(|record| record.attention_seq > record.seen_seq)
-                {
-                    surface.status = "done-unseen".into();
+    // Invariant: however the connection ends, including a failed request, the holder is
+    // released below; returning early would leave it recorded as connected and its tab stuck.
+    let served = (|| -> Result<(), String> {
+        while let Some(payload) = wire::read_payload(&mut stream)? {
+            let kind = wire::kind(&payload)?;
+            match kind.message_type.as_str() {
+                "surface" => {
+                    let (_, mut surface): (_, Surface) = wire::body(&payload)?;
+                    surface.tab_id = tab_id.clone();
+                    let mut locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    if locked.bridge_status_sequences.get(&tab_id).is_some_and(
+                        |(seen_incarnation, _)| *seen_incarnation == connection_incarnation,
+                    ) && let Some(existing) = locked.surfaces.get(&tab_id)
+                    {
+                        surface.status = existing.status.clone();
+                        surface.accent = existing.accent.clone();
+                    } else if locked
+                        .registry
+                        .tabs
+                        .iter()
+                        .find(|record| record.tab_id == tab_id)
+                        .is_some_and(|record| record.attention_seq > record.seen_seq)
+                    {
+                        surface.status = "done-unseen".into();
+                    }
+                    locked.surfaces.insert(tab_id.clone(), surface.clone());
+                    for client in locked
+                        .clients
+                        .values()
+                        .filter(|client| client.viewed_tab == tab_id)
+                    {
+                        client
+                            .peer
+                            .offer_surface(wire::frame("surface", None, surface.clone())?);
+                    }
                 }
-                locked.surfaces.insert(tab_id.clone(), surface.clone());
-                for client in locked
-                    .clients
-                    .values()
-                    .filter(|client| client.viewed_tab == tab_id)
-                {
-                    client
-                        .peer
-                        .offer_surface(wire::frame("surface", None, surface.clone())?);
+                "input.rejected" | "input.uncertain" => {
+                    let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    let locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    for client in locked
+                        .clients
+                        .values()
+                        .filter(|client| client.viewed_tab == tab_id)
+                    {
+                        let _ = client.peer.offer_control(wire::frame(
+                            &kind.message_type,
+                            kind.request_id,
+                            result.clone(),
+                        )?);
+                    }
                 }
-            }
-            "input.rejected" | "input.uncertain" => {
-                let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
-                let locked = state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?;
-                for client in locked
-                    .clients
-                    .values()
-                    .filter(|client| client.viewed_tab == tab_id)
-                {
-                    let _ = client.peer.offer_control(wire::frame(
-                        &kind.message_type,
-                        kind.request_id,
-                        result.clone(),
-                    )?);
-                }
-            }
-            "holder.heartbeat" => {
-                let (_, ready): (_, wire::HolderReady) = wire::body(&payload)?;
-                let child = inspect_identity_bounded(ready.child_pid)?
-                    .filter(|identity| identity.start == ready.child_start_identity);
-                let mut locked = state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?;
-                let now = locked.core_started.elapsed();
-                let _ = crate::core::server::step(
-                    &mut locked.core,
-                    crate::core::server::Event::HolderHeartbeat {
-                        tab_id: tab_id.clone(),
-                        incarnation: ready.incarnation,
-                    },
-                    now,
-                );
-                let _ = crate::core::server::step(
-                    &mut locked.core,
-                    crate::core::server::Event::ChildObserved {
-                        tab_id: tab_id.clone(),
-                        incarnation: ready.incarnation,
-                        process_id: ready.child_pid,
-                        alive: child.is_some(),
-                    },
-                    now,
-                );
-                locked.holders_terminating.remove(&tab_id);
-                let changed = if ready.tab_id == tab_id {
-                    if let Some(record) = locked.registry.tabs.iter_mut().find(|record| {
-                        record.tab_id == tab_id
-                            && record.incarnation == ready.incarnation
-                            && record.holder_pid == Some(ready.pid)
-                    }) {
-                        if let Some(child) = child {
-                            let changed = record.child_pid != Some(child.pid)
-                                || record.child_start_identity.as_deref()
-                                    != Some(child.start.as_str())
-                                || record.lifecycle != "running";
-                            record.child_pid = Some(child.pid);
-                            record.child_start_identity = Some(child.start);
-                            record.lifecycle = "running".into();
-                            changed
+                "holder.heartbeat" => {
+                    let (_, ready): (_, wire::HolderReady) = wire::body(&payload)?;
+                    let child = inspect_identity_bounded(ready.child_pid)?
+                        .filter(|identity| identity.start == ready.child_start_identity);
+                    let mut locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    let now = locked.core_started.elapsed();
+                    let _ = crate::core::server::step(
+                        &mut locked.core,
+                        crate::core::server::Event::HolderHeartbeat {
+                            tab_id: tab_id.clone(),
+                            incarnation: ready.incarnation,
+                        },
+                        now,
+                    );
+                    let _ = crate::core::server::step(
+                        &mut locked.core,
+                        crate::core::server::Event::ChildObserved {
+                            tab_id: tab_id.clone(),
+                            incarnation: ready.incarnation,
+                            process_id: ready.child_pid,
+                            alive: child.is_some(),
+                        },
+                        now,
+                    );
+                    locked.holders_terminating.remove(&tab_id);
+                    let changed = if ready.tab_id == tab_id {
+                        if let Some(record) = locked.registry.tabs.iter_mut().find(|record| {
+                            record.tab_id == tab_id
+                                && record.incarnation == ready.incarnation
+                                && record.holder_pid == Some(ready.pid)
+                        }) {
+                            if let Some(child) = child {
+                                let changed = record.child_pid != Some(child.pid)
+                                    || record.child_start_identity.as_deref()
+                                        != Some(child.start.as_str())
+                                    || record.lifecycle != "running";
+                                record.child_pid = Some(child.pid);
+                                record.child_start_identity = Some(child.start);
+                                record.lifecycle = "running".into();
+                                changed
+                            } else {
+                                false
+                            }
                         } else {
                             false
                         }
                     } else {
                         false
-                    }
-                } else {
-                    false
-                };
-                let commit = if changed {
-                    locked.registry.registry_revision =
-                        locked.registry.registry_revision.saturating_add(1);
-                    Some((locked.registry_store.clone(), locked.registry.clone()))
-                } else {
-                    None
-                };
-                drop(locked);
-                if let Some((store, document)) = commit {
-                    commit_registry(store, document)?;
-                }
-            }
-            "holder.recovery-action" => {
-                let (_, request): (_, wire::ResultBody) = wire::body(&payload)?;
-                let action = request.message.as_deref().unwrap_or("");
-                let (store, document, peer, respawn) = {
-                    let mut locked = state
-                        .lock()
-                        .map_err(|_| "resident state poisoned".to_owned())?;
-                    let mut next = None;
-                    let mut close = false;
-                    let mut incarnation = 0;
-                    let mut session_file = None;
-                    if let Some(record) = locked
-                        .registry
-                        .tabs
-                        .iter_mut()
-                        .find(|record| record.tab_id == tab_id)
-                    {
-                        if action == "close" {
-                            record.desired = "stopped".into();
-                            record.lifecycle = "stopped".into();
-                            close = true;
-                        } else if matches!(action, "retry" | "fresh")
-                            && matches!(
-                                record.lifecycle.as_str(),
-                                "failed" | "crashed" | "restarting"
-                            )
-                        {
-                            record.restarts = 0;
-                            record.restart_window_start = Some(
-                                SystemTime::now()
-                                    .duration_since(UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_secs(),
-                            );
-                            record.incarnation = record.incarnation.saturating_add(1);
-                            record.lifecycle = "restarting".into();
-                            incarnation = record.incarnation;
-                            session_file = (action == "retry")
-                                .then(|| record.session_file.clone())
-                                .flatten();
-                            next = Some(action == "fresh");
-                        }
-                    }
-                    locked.registry.registry_revision =
-                        locked.registry.registry_revision.saturating_add(1);
-                    let peer = locked
-                        .holders
-                        .get(&tab_id)
-                        .map(|holder| holder.peer.clone());
-                    let respawn = next.map(|start_fresh| wire::HolderRespawn {
-                        tab_id: tab_id.clone(),
-                        incarnation,
-                        session_file,
-                        recovery_journals: Vec::new(),
-                        start_fresh,
-                        holder_token: locked
-                            .credentials
-                            .derive("holder", &tab_id, incarnation)
-                            .to_vec(),
-                        bridge_token: locked
-                            .credentials
-                            .derive("bridge", &tab_id, incarnation)
-                            .to_vec(),
-                    });
-                    let peer = if close || respawn.is_some() {
-                        peer
+                    };
+                    let commit = if changed {
+                        locked.registry.registry_revision =
+                            locked.registry.registry_revision.saturating_add(1);
+                        Some((locked.registry_store.clone(), locked.registry.clone()))
                     } else {
                         None
                     };
-                    (
-                        locked.registry_store.clone(),
-                        locked.registry.clone(),
-                        peer,
-                        respawn,
-                    )
-                };
-                commit_registry(store, document)?;
-                if let Some(peer) = peer {
-                    if let Some(respawn) = respawn {
-                        let session_ok = respawn.session_file.as_deref().map_or(Ok(()), |file| {
-                            verify_session_writer_released(
-                                Path::new(file),
-                                std::time::Duration::from_secs(5),
+                    drop(locked);
+                    if let Some((store, document)) = commit {
+                        commit_registry(store, document)?;
+                    }
+                }
+                "holder.recovery-action" => {
+                    let (_, request): (_, wire::ResultBody) = wire::body(&payload)?;
+                    let action = request.message.as_deref().unwrap_or("");
+                    let (store, document, peer, respawn) = {
+                        let mut locked = state
+                            .lock()
+                            .map_err(|_| "resident state poisoned".to_owned())?;
+                        let mut next = None;
+                        let mut close = false;
+                        let mut incarnation = 0;
+                        let mut session_file = None;
+                        if let Some(record) = locked
+                            .registry
+                            .tabs
+                            .iter_mut()
+                            .find(|record| record.tab_id == tab_id)
+                        {
+                            if action == "close" {
+                                record.desired = "stopped".into();
+                                record.lifecycle = "stopped".into();
+                                close = true;
+                            } else if matches!(action, "retry" | "fresh")
+                                && matches!(
+                                    record.lifecycle.as_str(),
+                                    "failed" | "crashed" | "restarting"
+                                )
+                            {
+                                record.restarts = 0;
+                                record.restart_window_start = Some(
+                                    SystemTime::now()
+                                        .duration_since(UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_secs(),
+                                );
+                                record.incarnation = record.incarnation.saturating_add(1);
+                                record.lifecycle = "restarting".into();
+                                incarnation = record.incarnation;
+                                session_file = (action == "retry")
+                                    .then(|| record.session_file.clone())
+                                    .flatten();
+                                next = Some(action == "fresh");
+                            }
+                        }
+                        locked.registry.registry_revision =
+                            locked.registry.registry_revision.saturating_add(1);
+                        let peer = locked
+                            .holders
+                            .get(&tab_id)
+                            .map(|holder| holder.peer.clone());
+                        let respawn = next.map(|start_fresh| wire::HolderRespawn {
+                            tab_id: tab_id.clone(),
+                            incarnation,
+                            session_file,
+                            recovery_journals: Vec::new(),
+                            start_fresh,
+                            holder_token: locked
+                                .credentials
+                                .derive("holder", &tab_id, incarnation)
+                                .to_vec(),
+                            bridge_token: locked
+                                .credentials
+                                .derive("bridge", &tab_id, incarnation)
+                                .to_vec(),
+                        });
+                        let peer = if close || respawn.is_some() {
+                            peer
+                        } else {
+                            None
+                        };
+                        (
+                            locked.registry_store.clone(),
+                            locked.registry.clone(),
+                            peer,
+                            respawn,
+                        )
+                    };
+                    commit_registry(store, document)?;
+                    if let Some(peer) = peer {
+                        if let Some(respawn) = respawn {
+                            let session_ok =
+                                respawn.session_file.as_deref().map_or(Ok(()), |file| {
+                                    verify_session_writer_released(
+                                        Path::new(file),
+                                        std::time::Duration::from_secs(5),
+                                    )
+                                });
+                            if let Err(error) = session_ok {
+                                let commit = {
+                                    let mut locked = state
+                                        .lock()
+                                        .map_err(|_| "resident state poisoned".to_owned())?;
+                                    if let Some(record) = locked
+                                        .registry
+                                        .tabs
+                                        .iter_mut()
+                                        .find(|record| record.tab_id == tab_id)
+                                    {
+                                        record.lifecycle = "failed".into();
+                                        record.last_exit = Some(error);
+                                    }
+                                    locked.registry.registry_revision =
+                                        locked.registry.registry_revision.saturating_add(1);
+                                    (locked.registry_store.clone(), locked.registry.clone())
+                                };
+                                commit_registry(commit.0, commit.1)?;
+                            } else {
+                                if !acquire_recovery_slot(
+                                    &state,
+                                    &tab_id,
+                                    std::time::Duration::from_secs(40),
+                                ) {
+                                    return Err("resident restart start gate timed out".into());
+                                }
+                                if let Err(error) = peer.offer_control(wire::frame(
+                                    "holder.respawn",
+                                    None,
+                                    respawn,
+                                )?) {
+                                    release_recovery_slot_of(&state, &tab_id);
+                                    return Err(error.to_owned());
+                                }
+                            }
+                        } else {
+                            peer.offer_control(wire::frame(
+                                "shutdown",
+                                None,
+                                wire::ResultBody {
+                                    accepted: true,
+                                    message: None,
+                                },
+                            )?)
+                            .map_err(str::to_owned)?;
+                        }
+                    }
+                }
+                "holder.exit" => {
+                    let (_, exit): (_, HolderExit) = wire::body(&payload)?;
+                    let standby_exit = state.lock().ok().is_some_and(|locked| {
+                        locked
+                            .standby
+                            .as_ref()
+                            .is_some_and(|standby| standby.tab_id == tab_id)
+                            && !locked
+                                .registry
+                                .tabs
+                                .iter()
+                                .any(|record| record.tab_id == tab_id)
+                    });
+                    if standby_exit {
+                        last_exit = Some("standby child ended".into());
+                        break;
+                    }
+                    let reason = exit.signal.clone().unwrap_or_else(|| {
+                        exit.code
+                            .map_or_else(|| "ended".into(), |code| format!("exit {code}"))
+                    });
+                    last_exit = Some(reason.clone());
+                    let (store, document, respawn) = {
+                        let mut locked = state
+                            .lock()
+                            .map_err(|_| "resident state poisoned".to_owned())?;
+                        for client in locked
+                            .clients
+                            .values()
+                            .filter(|client| client.viewed_tab == tab_id)
+                        {
+                            let _ = client.peer.offer_control(wire::frame(
+                                "holder.exit",
+                                None,
+                                exit.clone(),
+                            )?);
+                        }
+                        let now = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs();
+                        let mut restart = None;
+                        let mut failed = false;
+                        let mut next_incarnation = connection_incarnation;
+                        let mut session_file = None;
+                        if let Some(record) = locked.registry.tabs.iter_mut().find(|record| {
+                            record.tab_id == tab_id && record.incarnation == connection_incarnation
+                        }) {
+                            record.last_exit = Some(reason.clone());
+                            record.child_pid = None;
+                            record.child_start_identity = None;
+                            if record.desired != "running" {
+                                record.lifecycle = "stopped".into();
+                            } else if record.requested_restart {
+                                record.requested_restart = false;
+                                record.incarnation = record.incarnation.saturating_add(1);
+                                record.lifecycle = "restarting".into();
+                                next_incarnation = record.incarnation;
+                                session_file = record.session_file.clone();
+                                restart = Some(0);
+                            } else {
+                                match crate::core::server::decide_restart(
+                                    record.restarts,
+                                    record
+                                        .restart_window_start
+                                        .map(std::time::Duration::from_secs),
+                                    std::time::Duration::from_secs(now),
+                                ) {
+                                    crate::core::server::RestartDecision::Schedule {
+                                        delay,
+                                        restarts,
+                                        window_start,
+                                    } => {
+                                        record.restarts = restarts;
+                                        record.restart_window_start = Some(window_start.as_secs());
+                                        record.incarnation = record.incarnation.saturating_add(1);
+                                        record.lifecycle = "restarting".into();
+                                        next_incarnation = record.incarnation;
+                                        session_file = record.session_file.clone();
+                                        restart = Some(delay.as_secs());
+                                    }
+                                    crate::core::server::RestartDecision::Failed {
+                                        restarts,
+                                        window_start,
+                                    } => {
+                                        record.restarts = restarts;
+                                        record.restart_window_start = Some(window_start.as_secs());
+                                        record.lifecycle = "failed".into();
+                                        failed = true;
+                                    }
+                                }
+                            }
+                        }
+                        locked.registry.registry_revision =
+                            locked.registry.registry_revision.saturating_add(1);
+                        let respawn = restart.map(|delay| {
+                            let holder_token = locked
+                                .credentials
+                                .derive("holder", &tab_id, next_incarnation)
+                                .to_vec();
+                            let bridge_token = locked
+                                .credentials
+                                .derive("bridge", &tab_id, next_incarnation)
+                                .to_vec();
+                            (
+                                delay,
+                                wire::HolderRespawn {
+                                    tab_id: tab_id.clone(),
+                                    incarnation: next_incarnation,
+                                    session_file,
+                                    recovery_journals: Vec::new(),
+                                    start_fresh: false,
+                                    holder_token,
+                                    bridge_token,
+                                },
                             )
                         });
-                        if let Err(error) = session_ok {
+                        if respawn.is_some() {
+                            let restarting = locked.surfaces.get_mut(&tab_id).map(|surface| {
+                                surface.status = "restarting".into();
+                                surface.clone()
+                            });
+                            if let Some(surface) = restarting {
+                                for client in locked
+                                    .clients
+                                    .values()
+                                    .filter(|client| client.viewed_tab == tab_id)
+                                {
+                                    client.peer.offer_surface(wire::frame(
+                                        "surface",
+                                        None,
+                                        surface.clone(),
+                                    )?);
+                                }
+                            }
+                        }
+                        if failed {
+                            if let Some(surface) = locked.surfaces.get_mut(&tab_id) {
+                                surface.status = "failed".into();
+                            }
+                            for client in locked
+                                .clients
+                                .values()
+                                .filter(|client| client.viewed_tab == tab_id)
+                            {
+                                let _ = client.peer.offer_control(wire::frame(
+                                    "failure.status",
+                                    None,
+                                    wire::ResultBody {
+                                        accepted: false,
+                                        message: Some(reason.clone()),
+                                    },
+                                )?);
+                            }
+                        }
+                        (
+                            locked.registry_store.clone(),
+                            locked.registry.clone(),
+                            respawn,
+                        )
+                    };
+                    commit_registry(store, document)?;
+                    crate::fault_injection::crash_at("after-restart-budget-commit");
+                    let diagnostics_root = state
+                        .lock()
+                        .ok()
+                        .map(|locked| locked.diagnostics_root.clone());
+                    if let Some(root) = diagnostics_root {
+                        let child_record = crate::roles::diagnostics::newest_child_record(&root);
+                        let _ = crate::roles::diagnostics::write_crash(
+                            &root,
+                            "holder",
+                            connection_incarnation,
+                            "child-exit",
+                            &["child-exited"],
+                            child_record.as_deref(),
+                        );
+                    }
+                    if let Some((delay, respawn)) = respawn {
+                        thread::sleep(std::time::Duration::from_secs(delay));
+                        let session_check =
+                            respawn.session_file.as_deref().map_or(Ok(()), |file| {
+                                verify_session_writer_released(
+                                    Path::new(file),
+                                    std::time::Duration::from_secs(5),
+                                )
+                            });
+                        if let Err(error) = session_check {
                             let commit = {
                                 let mut locked = state
                                     .lock()
                                     .map_err(|_| "resident state poisoned".to_owned())?;
-                                if let Some(record) = locked
-                                    .registry
-                                    .tabs
-                                    .iter_mut()
-                                    .find(|record| record.tab_id == tab_id)
+                                if let Some(record) =
+                                    locked.registry.tabs.iter_mut().find(|record| {
+                                        record.tab_id == tab_id
+                                            && record.incarnation == respawn.incarnation
+                                    })
                                 {
                                     record.lifecycle = "failed".into();
                                     record.last_exit = Some(error);
@@ -3677,6 +3926,13 @@ fn serve_holder(
                             };
                             commit_registry(commit.0, commit.1)?;
                         } else {
+                            let peer = state.lock().ok().and_then(|locked| {
+                                locked
+                                    .holders
+                                    .get(&tab_id)
+                                    .filter(|holder| holder.incarnation == connection_incarnation)
+                                    .map(|holder| holder.peer.clone())
+                            });
                             if !acquire_recovery_slot(
                                 &state,
                                 &tab_id,
@@ -3684,259 +3940,26 @@ fn serve_holder(
                             ) {
                                 return Err("resident restart start gate timed out".into());
                             }
-                            if let Err(error) =
-                                peer.offer_control(wire::frame("holder.respawn", None, respawn)?)
-                            {
-                                release_recovery_slot_of(&state, &tab_id);
-                                return Err(error.to_owned());
-                            }
-                        }
-                    } else {
-                        peer.offer_control(wire::frame(
-                            "shutdown",
-                            None,
-                            wire::ResultBody {
-                                accepted: true,
-                                message: None,
-                            },
-                        )?)
-                        .map_err(str::to_owned)?;
-                    }
-                }
-            }
-            "holder.exit" => {
-                let (_, exit): (_, HolderExit) = wire::body(&payload)?;
-                let standby_exit = state.lock().ok().is_some_and(|locked| {
-                    locked
-                        .standby
-                        .as_ref()
-                        .is_some_and(|standby| standby.tab_id == tab_id)
-                        && !locked
-                            .registry
-                            .tabs
-                            .iter()
-                            .any(|record| record.tab_id == tab_id)
-                });
-                if standby_exit {
-                    last_exit = Some("standby child ended".into());
-                    break;
-                }
-                let reason = exit.signal.clone().unwrap_or_else(|| {
-                    exit.code
-                        .map_or_else(|| "ended".into(), |code| format!("exit {code}"))
-                });
-                last_exit = Some(reason.clone());
-                let (store, document, respawn) = {
-                    let mut locked = state
-                        .lock()
-                        .map_err(|_| "resident state poisoned".to_owned())?;
-                    for client in locked
-                        .clients
-                        .values()
-                        .filter(|client| client.viewed_tab == tab_id)
-                    {
-                        let _ = client.peer.offer_control(wire::frame(
-                            "holder.exit",
-                            None,
-                            exit.clone(),
-                        )?);
-                    }
-                    let now = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs();
-                    let mut restart = None;
-                    let mut failed = false;
-                    let mut next_incarnation = connection_incarnation;
-                    let mut session_file = None;
-                    if let Some(record) = locked.registry.tabs.iter_mut().find(|record| {
-                        record.tab_id == tab_id && record.incarnation == connection_incarnation
-                    }) {
-                        record.last_exit = Some(reason.clone());
-                        record.child_pid = None;
-                        record.child_start_identity = None;
-                        if record.desired != "running" {
-                            record.lifecycle = "stopped".into();
-                        } else if record.requested_restart {
-                            record.requested_restart = false;
-                            record.incarnation = record.incarnation.saturating_add(1);
-                            record.lifecycle = "restarting".into();
-                            next_incarnation = record.incarnation;
-                            session_file = record.session_file.clone();
-                            restart = Some(0);
-                        } else {
-                            match crate::core::server::decide_restart(
-                                record.restarts,
-                                record
-                                    .restart_window_start
-                                    .map(std::time::Duration::from_secs),
-                                std::time::Duration::from_secs(now),
-                            ) {
-                                crate::core::server::RestartDecision::Schedule {
-                                    delay,
-                                    restarts,
-                                    window_start,
-                                } => {
-                                    record.restarts = restarts;
-                                    record.restart_window_start = Some(window_start.as_secs());
-                                    record.incarnation = record.incarnation.saturating_add(1);
-                                    record.lifecycle = "restarting".into();
-                                    next_incarnation = record.incarnation;
-                                    session_file = record.session_file.clone();
-                                    restart = Some(delay.as_secs());
-                                }
-                                crate::core::server::RestartDecision::Failed {
-                                    restarts,
-                                    window_start,
-                                } => {
-                                    record.restarts = restarts;
-                                    record.restart_window_start = Some(window_start.as_secs());
-                                    record.lifecycle = "failed".into();
-                                    failed = true;
-                                }
-                            }
-                        }
-                    }
-                    locked.registry.registry_revision =
-                        locked.registry.registry_revision.saturating_add(1);
-                    let respawn = restart.map(|delay| {
-                        let holder_token = locked
-                            .credentials
-                            .derive("holder", &tab_id, next_incarnation)
-                            .to_vec();
-                        let bridge_token = locked
-                            .credentials
-                            .derive("bridge", &tab_id, next_incarnation)
-                            .to_vec();
-                        (
-                            delay,
-                            wire::HolderRespawn {
-                                tab_id: tab_id.clone(),
-                                incarnation: next_incarnation,
-                                session_file,
-                                recovery_journals: Vec::new(),
-                                start_fresh: false,
-                                holder_token,
-                                bridge_token,
-                            },
-                        )
-                    });
-                    if respawn.is_some() {
-                        let restarting = locked.surfaces.get_mut(&tab_id).map(|surface| {
-                            surface.status = "restarting".into();
-                            surface.clone()
-                        });
-                        if let Some(surface) = restarting {
-                            for client in locked
-                                .clients
-                                .values()
-                                .filter(|client| client.viewed_tab == tab_id)
-                            {
-                                client.peer.offer_surface(wire::frame(
-                                    "surface",
+                            if let Some(peer) = peer {
+                                if let Err(error) = peer.offer_control(wire::frame(
+                                    "holder.respawn",
                                     None,
-                                    surface.clone(),
-                                )?);
-                            }
-                        }
-                    }
-                    if failed {
-                        if let Some(surface) = locked.surfaces.get_mut(&tab_id) {
-                            surface.status = "failed".into();
-                        }
-                        for client in locked
-                            .clients
-                            .values()
-                            .filter(|client| client.viewed_tab == tab_id)
-                        {
-                            let _ = client.peer.offer_control(wire::frame(
-                                "failure.status",
-                                None,
-                                wire::ResultBody {
-                                    accepted: false,
-                                    message: Some(reason.clone()),
-                                },
-                            )?);
-                        }
-                    }
-                    (
-                        locked.registry_store.clone(),
-                        locked.registry.clone(),
-                        respawn,
-                    )
-                };
-                commit_registry(store, document)?;
-                crate::fault_injection::crash_at("after-restart-budget-commit");
-                let diagnostics_root = state
-                    .lock()
-                    .ok()
-                    .map(|locked| locked.diagnostics_root.clone());
-                if let Some(root) = diagnostics_root {
-                    let child_record = crate::roles::diagnostics::newest_child_record(&root);
-                    let _ = crate::roles::diagnostics::write_crash(
-                        &root,
-                        "holder",
-                        connection_incarnation,
-                        "child-exit",
-                        &["child-exited"],
-                        child_record.as_deref(),
-                    );
-                }
-                if let Some((delay, respawn)) = respawn {
-                    thread::sleep(std::time::Duration::from_secs(delay));
-                    let session_check = respawn.session_file.as_deref().map_or(Ok(()), |file| {
-                        verify_session_writer_released(
-                            Path::new(file),
-                            std::time::Duration::from_secs(5),
-                        )
-                    });
-                    if let Err(error) = session_check {
-                        let commit = {
-                            let mut locked = state
-                                .lock()
-                                .map_err(|_| "resident state poisoned".to_owned())?;
-                            if let Some(record) = locked.registry.tabs.iter_mut().find(|record| {
-                                record.tab_id == tab_id && record.incarnation == respawn.incarnation
-                            }) {
-                                record.lifecycle = "failed".into();
-                                record.last_exit = Some(error);
-                            }
-                            locked.registry.registry_revision =
-                                locked.registry.registry_revision.saturating_add(1);
-                            (locked.registry_store.clone(), locked.registry.clone())
-                        };
-                        commit_registry(commit.0, commit.1)?;
-                    } else {
-                        let peer = state.lock().ok().and_then(|locked| {
-                            locked
-                                .holders
-                                .get(&tab_id)
-                                .filter(|holder| holder.incarnation == connection_incarnation)
-                                .map(|holder| holder.peer.clone())
-                        });
-                        if !acquire_recovery_slot(
-                            &state,
-                            &tab_id,
-                            std::time::Duration::from_secs(40),
-                        ) {
-                            return Err("resident restart start gate timed out".into());
-                        }
-                        if let Some(peer) = peer {
-                            if let Err(error) =
-                                peer.offer_control(wire::frame("holder.respawn", None, respawn)?)
-                            {
+                                    respawn,
+                                )?) {
+                                    release_recovery_slot_of(&state, &tab_id);
+                                    return Err(error.to_owned());
+                                }
+                            } else {
                                 release_recovery_slot_of(&state, &tab_id);
-                                return Err(error.to_owned());
                             }
-                        } else {
-                            release_recovery_slot_of(&state, &tab_id);
                         }
                     }
                 }
+                _ => {}
             }
-            _ => {}
         }
-    }
+        Ok(())
+    })();
     let mut locked = state
         .lock()
         .map_err(|_| "resident state poisoned".to_owned())?;
@@ -3945,7 +3968,7 @@ fn serve_holder(
         .get(&tab_id)
         .is_some_and(|holder| holder.incarnation != connection_incarnation)
     {
-        return Ok(());
+        return served;
     }
     locked.holders.remove(&tab_id);
     let was_standby = locked
@@ -3961,9 +3984,10 @@ fn serve_holder(
         locked.standby = None;
         locked.surfaces.remove(&tab_id);
         locked.last_activity = std::time::Instant::now();
-        return Ok(());
+        return served;
     }
-    holder_lost(&state, locked, &tab_id, last_exit)
+    let lost = holder_lost(&state, locked, &tab_id, last_exit);
+    served.and(lost)
 }
 
 /// Records a tab whose holder is gone or unreachable and schedules its restart under the restart
