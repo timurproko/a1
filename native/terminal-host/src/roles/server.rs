@@ -206,7 +206,12 @@ struct PendingControllerTransfer {
     core: crate::controller::ControllerCore,
     held_frames: Vec<Vec<u8>>,
     held_bytes: usize,
+    started: std::time::Instant,
 }
+
+// Platform: the causal boundary travels through the PTY, which Windows ConPTY may filter; an
+// unacknowledged boundary releases held input after this bound instead of holding it forever.
+const CONTROLLER_BOUNDARY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 struct RuntimeState {
     endpoint: String,
@@ -633,11 +638,58 @@ fn release_start_gate(state: &Arc<Mutex<RuntimeState>>) {
     }
 }
 
+/// Grants control to the pending client and releases its held input once the boundary settles.
+fn complete_controller_transfer(
+    locked: &mut RuntimeState,
+    tab_id: &str,
+    pending: PendingControllerTransfer,
+) -> Result<(), String> {
+    if locked.attachment.current(tab_id) != Some((pending.client_id.as_str(), pending.revision)) {
+        return Ok(());
+    }
+    let Some(client) = locked.clients.get_mut(&pending.client_id) else {
+        return Ok(());
+    };
+    client.controller = true;
+    client.controller_revision = pending.revision;
+    if let Some(bridge) = locked.bridges.get(tab_id) {
+        let _ = bridge.peer.offer_control(wire::frame(
+            "attachment",
+            None,
+            BridgeAttachment {
+                client_id: pending.client_id,
+                controller_revision: pending.revision,
+            },
+        )?);
+    }
+    if let Some(holder) = locked.holders.get(tab_id) {
+        for frame in pending.held_frames {
+            holder.peer.offer_control(frame).map_err(str::to_owned)?;
+        }
+    }
+    Ok(())
+}
+
+fn expire_controller_boundaries(locked: &mut RuntimeState) {
+    let expired = locked
+        .pending_controller_transfers
+        .iter()
+        .filter(|(_, pending)| pending.started.elapsed() >= CONTROLLER_BOUNDARY_TIMEOUT)
+        .map(|(tab_id, _)| tab_id.clone())
+        .collect::<Vec<_>>();
+    for tab_id in expired {
+        if let Some(pending) = locked.pending_controller_transfers.remove(&tab_id) {
+            let _ = complete_controller_transfer(locked, &tab_id, pending);
+        }
+    }
+}
+
 fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
     let (stale, commit) = {
         let Ok(mut locked) = state.lock() else {
             return;
         };
+        expire_controller_boundaries(&mut locked);
         if locked
             .workers
             .poll(std::time::Instant::now())
@@ -1311,6 +1363,7 @@ fn claim_client_control(
                 core,
                 held_frames: Vec::new(),
                 held_bytes: 0,
+                started: std::time::Instant::now(),
             },
         );
         if let Some(client) = locked.clients.get_mut(client_id) {
@@ -3621,30 +3674,7 @@ fn serve_bridge(
                 .core
                 .acknowledge_boundary(boundary.generation, nonce)
                 .map_err(|error| error.to_string())?;
-            if locked.attachment.current(&tab_id)
-                != Some((pending.client_id.as_str(), pending.revision))
-            {
-                continue;
-            }
-            if let Some(client) = locked.clients.get_mut(&pending.client_id) {
-                client.controller = true;
-                client.controller_revision = pending.revision;
-            } else {
-                continue;
-            }
-            let _ = tx.offer_control(wire::frame(
-                "attachment",
-                None,
-                BridgeAttachment {
-                    client_id: pending.client_id,
-                    controller_revision: pending.revision,
-                },
-            )?);
-            if let Some(holder) = locked.holders.get(&tab_id) {
-                for frame in pending.held_frames {
-                    holder.peer.offer_control(frame).map_err(str::to_owned)?;
-                }
-            }
+            complete_controller_transfer(&mut locked, &tab_id, pending)?;
         } else if kind.message_type == "bridge.session" {
             let (_, session): (_, BridgeSession) = wire::body(&payload)?;
             let mut locked = state

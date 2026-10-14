@@ -269,6 +269,10 @@ pub fn read_payload(stream: &mut endpoint::EndpointStream) -> Result<Option<Vec<
 fn wait_for_pipe_data(stream: &endpoint::EndpointStream) -> Result<bool, String> {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::System::Pipes::PeekNamedPipe;
+    // Performance: synchronous pipe handles cannot block in a read without stalling writes on the
+    // same handle, so readiness is polled; polling tightly just after traffic keeps interactive
+    // hops near 1 ms while an idle connection backs off.
+    let started = std::time::Instant::now();
     loop {
         let mut available = 0_u32;
         if unsafe {
@@ -294,7 +298,12 @@ fn wait_for_pipe_data(stream: &endpoint::EndpointStream) -> Result<bool, String>
         if available > 0 {
             return Ok(true);
         }
-        std::thread::sleep(std::time::Duration::from_millis(8));
+        let pause = if started.elapsed() < std::time::Duration::from_secs(1) {
+            std::time::Duration::from_millis(1)
+        } else {
+            std::time::Duration::from_millis(8)
+        };
+        std::thread::sleep(pause);
     }
 }
 

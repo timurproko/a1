@@ -26,6 +26,13 @@ const PORTABLE_PTY_VERSION: &str = "0.9.0";
 const CROSSTERM_VERSION: &str = "0.29.0";
 
 fn main() -> ExitCode {
+    // Platform: Windows rounds short sleeps up to its ~15.6 ms default timer tick, which the
+    // synchronous pipe readiness poll would add to every hop; a 1 ms period is scoped to this
+    // process on current Windows releases.
+    #[cfg(windows)]
+    unsafe {
+        windows_sys::Win32::Media::timeBeginPeriod(1);
+    }
     match run_from_args(env::args().skip(1).collect()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
