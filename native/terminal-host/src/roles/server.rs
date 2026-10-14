@@ -183,6 +183,8 @@ struct Peer {
     queued_bytes: Arc<AtomicUsize>,
     surface: Arc<Mutex<Option<Vec<u8>>>>,
     surface_signaled: Arc<AtomicBool>,
+    /// Set when an unsent surface was replaced, so the next delivery counts as a full resync.
+    surface_replaced: Arc<AtomicBool>,
 }
 impl Peer {
     fn offer_control(&self, frame: Vec<u8>) -> Result<(), &'static str> {
@@ -208,7 +210,8 @@ impl Peer {
         if let Ok(mut slot) = self.surface.lock()
             && slot.replace(frame).is_some()
         {
-            counters::record(CounterEvent::SurfaceReplacement);
+            counters::record(CounterEvent::RenderLaneReplacement);
+            self.surface_replaced.store(true, Ordering::SeqCst);
         }
         // Performance: an empty frame wakes the writer at once instead of after its idle poll;
         // the flag keeps at most one wake queued so slow clients cannot fill the control lane.
@@ -1137,17 +1140,29 @@ fn serve_peer(
     let queued_bytes = Arc::new(AtomicUsize::new(0));
     let surface = Arc::new(Mutex::new(None));
     let surface_signaled = Arc::new(AtomicBool::new(false));
+    let surface_replaced = Arc::new(AtomicBool::new(false));
     thread::spawn({
         let queued_bytes = queued_bytes.clone();
         let surface = surface.clone();
         let surface_signaled = surface_signaled.clone();
-        move || writer_loop(writer, rx, queued_bytes, surface, surface_signaled)
+        let surface_replaced = surface_replaced.clone();
+        move || {
+            writer_loop(
+                writer,
+                rx,
+                queued_bytes,
+                surface,
+                surface_signaled,
+                surface_replaced,
+            )
+        }
     });
     let peer = Peer {
         tx,
         queued_bytes,
         surface,
         surface_signaled,
+        surface_replaced,
     };
     match hello.role.as_str() {
         "attach" | "internal" => {
@@ -1227,6 +1242,7 @@ fn writer_loop(
     queued_bytes: Arc<AtomicUsize>,
     surface: Arc<Mutex<Option<Vec<u8>>>>,
     surface_signaled: Arc<AtomicBool>,
+    surface_replaced: Arc<AtomicBool>,
 ) {
     loop {
         match rx.recv_timeout(std::time::Duration::from_millis(8)) {
@@ -1245,6 +1261,9 @@ fn writer_loop(
         }
         surface_signaled.store(false, Ordering::SeqCst);
         let frame = surface.lock().ok().and_then(|mut slot| slot.take());
+        if frame.is_some() && surface_replaced.swap(false, Ordering::SeqCst) {
+            counters::record(CounterEvent::FullSurfaceResync);
+        }
         if let Some(frame) = frame
             && stream
                 .write_all(&frame)
@@ -1726,7 +1745,15 @@ fn host_status(state: &Arc<Mutex<RuntimeState>>) -> Result<serde_json::Value, St
             logs
         })
         .unwrap_or_default();
+    let own = crate::identity::inspect_process(std::process::id())
+        .ok()
+        .flatten();
+    let verified = marker
+        .as_ref()
+        .and_then(|value| value.get("verified"))
+        .and_then(serde_json::Value::as_bool);
     Ok(serde_json::json!({
+        "serverId": own.map(|identity| format!("{}:{}", identity.pid, identity.start)),
         "pid": std::process::id(),
         "build": env!("CARGO_PKG_VERSION"),
         "release": crate::roles::release_holds::own_release_root(),
@@ -1735,7 +1762,16 @@ fn host_status(state: &Arc<Mutex<RuntimeState>>) -> Result<serde_json::Value, St
         "uptimeSeconds": locked.core_started.elapsed().as_secs(),
         "endpoint": locked.endpoint,
         "detachmentMode": marker.as_ref().and_then(|value| value.get("detachmentMode")).cloned(),
-        "detachmentVerified": marker.as_ref().and_then(|value| value.get("verified")).cloned(),
+        "detachmentVerified": verified,
+        "detachmentVerificationFailure": match verified {
+            Some(true) => serde_json::Value::Null,
+            Some(false) => marker
+                .as_ref()
+                .and_then(|value| value.get("reason"))
+                .cloned()
+                .unwrap_or_else(|| "the owner marker records an unverified detachment".into()),
+            None => "the owner marker is missing or unreadable".into(),
+        },
         "tabs": locked.registry.tabs.len(),
         "tabsByStatus": by_status,
         "standby": locked.standby.is_some(),
@@ -4042,7 +4078,7 @@ fn serve_bridge(
                     if surface.status != previous {
                         match surface.status.as_str() {
                             "stalled" => counters::record(CounterEvent::StalledTransition),
-                            "degraded" => counters::record(CounterEvent::BridgeDegraded),
+                            "degraded" => counters::record(CounterEvent::CheckpointDegraded),
                             _ => {}
                         }
                     }
@@ -4260,6 +4296,15 @@ fn serve_bridge(
     if removed_current {
         locked.bridges.remove(&tab_id);
         if locked
+            .registry
+            .tabs
+            .iter()
+            .any(|tab| tab.tab_id == tab_id && tab.desired == "running")
+            && locked.holders.contains_key(&tab_id)
+        {
+            counters::record(CounterEvent::BridgeDegraded);
+        }
+        if locked
             .bridge_status_sequences
             .get(&tab_id)
             .is_some_and(|(seen_incarnation, _)| *seen_incarnation == incarnation)
@@ -4348,6 +4393,26 @@ pub fn encoded_bridge_token(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_replaced_surface_counts_a_lane_replacement_and_marks_a_resync() {
+        let (tx, _rx) = mpsc::sync_channel(CONTROL_LANE_FRAMES);
+        let peer = Peer {
+            tx,
+            queued_bytes: Arc::new(AtomicUsize::new(0)),
+            surface: Arc::new(Mutex::new(None)),
+            surface_signaled: Arc::new(AtomicBool::new(false)),
+            surface_replaced: Arc::new(AtomicBool::new(false)),
+        };
+        let before = counters::snapshot(1);
+        peer.offer_surface(vec![1]);
+        assert!(!peer.surface_replaced.load(Ordering::SeqCst));
+        peer.offer_surface(vec![2]);
+        assert!(peer.surface_replaced.load(Ordering::SeqCst));
+        assert_eq!(*peer.surface.lock().unwrap(), Some(vec![2]));
+        // Concurrency: other tests may record events too, so the delta is a lower bound.
+        assert!(counters::snapshot(1).render_lane_replacements > before.render_lane_replacements);
+    }
 
     #[test]
     fn idle_exit_removes_the_owner_marker_only_while_still_owned() {
@@ -4484,6 +4549,7 @@ mod tests {
             queued_bytes: Arc::new(AtomicUsize::new(0)),
             surface: Arc::new(Mutex::new(None)),
             surface_signaled: Arc::new(AtomicBool::new(false)),
+            surface_replaced: Arc::new(AtomicBool::new(false)),
         };
         for _ in 0..CONTROL_LANE_FRAMES {
             assert_eq!(peer.offer_control(vec![0]), Ok(()));
@@ -4496,6 +4562,7 @@ mod tests {
             queued_bytes: Arc::new(AtomicUsize::new(0)),
             surface: Arc::new(Mutex::new(None)),
             surface_signaled: Arc::new(AtomicBool::new(false)),
+            surface_replaced: Arc::new(AtomicBool::new(false)),
         };
         assert_eq!(
             peer.offer_control(vec![0; CONTROL_LANE_BYTES + 1]),
