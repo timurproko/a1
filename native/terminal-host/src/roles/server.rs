@@ -485,7 +485,9 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     registry.os_session_id = system.os_session;
     let mut adopting_holders = std::collections::HashSet::new();
     for tab in &mut registry.tabs {
-        if tab.lifecycle != "running" {
+        // Invariant: every recorded holder is re-adopted or released, not only running ones; a
+        // stopping or restarting tab whose holder outlived its server must still be tracked.
+        if tab.holder_pid.is_none() {
             continue;
         }
         let holder_live = tab
@@ -508,7 +510,13 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         if holder_live && child_live {
             adopting_holders.insert(tab.tab_id.clone());
         } else {
-            tab.lifecycle = "holder-lost".into();
+            tab.lifecycle = if tab.desired == "stopped" {
+                "stopped".into()
+            } else if tab.lifecycle == "failed" {
+                "failed".into()
+            } else {
+                "holder-lost".into()
+            };
             tab.holder_pid = None;
             tab.holder_start_identity = None;
             tab.child_pid = None;

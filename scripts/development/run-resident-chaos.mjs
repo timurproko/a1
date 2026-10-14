@@ -18,6 +18,9 @@ const MAX_OPEN_TABS = 6;
 // holder must start the child, so a replacement is due within the backoff plus a start bound.
 const RESTART_DEADLINE_MS = 30_000 + 30_000;
 const SERVER_RECOVERY_DEADLINE_MS = 20_000;
+const SERVER_START_BUDGET = 3;
+// Rationale: a margin past the 60-second budget window covers a start recorded just before the kill.
+const SERVER_START_WINDOW_SECONDS = 65;
 const MAX_DIAGNOSTIC_LINES = 120;
 
 export function percentile(values, fraction) {
@@ -205,7 +208,12 @@ async function main() {
       const { pid } = await marker();
       // Invariant: holders replace a killed server, so it is killed only while a tab has a live holder.
       const holders = (await registry()).tabs.filter(tab => typeof tab.holderPid === "number" && alive(tab.holderPid));
-      if (typeof pid === "number" && holders.length > 0) {
+      // Invariant: holders may start at most three servers a minute; past that budget only an
+      // explicit restart starts one, so a server is killed only while a replacement is allowed.
+      const starts = JSON.parse(await readFile(join(await stateDirOnce(), "starts.json"), "utf8").catch(() => "[]"));
+      const recentStarts = starts.filter(started => Date.now() / 1_000 - started < SERVER_START_WINDOW_SECONDS).length;
+      if (recentStarts >= SERVER_START_BUDGET) count("kill-server-skipped-budget");
+      else if (typeof pid === "number" && holders.length > 0) {
         kill(pid);
         const recovered = await until(async () => probe(), SERVER_RECOVERY_DEADLINE_MS);
         if (recovered === null) violations.push({ violation: "server was not replaced after it was killed", killedPid: pid, holders: holders.map(recordContext) });
