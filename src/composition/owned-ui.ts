@@ -4,7 +4,7 @@ import { PRODUCT_IDENTITY } from "../product-identity.js";
 import { PromptHistoryService } from "../features/prompt-history/service.js";
 import { PromptImageSidecar } from "../features/prompt-history/image-sidecar.js";
 import { resolvePromptHistoryPath } from "../features/prompt-history/paths.js";
-import { resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
+import { resolveLaunchProfilePaths, resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
 import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
 import type { AvailableRelease, StartupReleaseCheckOptions } from "../foundation/release/latest-release.js";
 import type { NativeProcessIdentity } from "../foundation/lifecycle/model.js";
@@ -172,13 +172,16 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     sessionRuntimeRefreshTimer.unref();
   };
   const productPaths = resolveProductPaths();
+  const profilePaths = resolveLaunchProfilePaths();
   // Rationale: the manager reads the engine's settings port lazily, after the session exists.
   let backend: ComposedSessionBackend;
   const settings = options.profileId === undefined
     ? null
     : new OwnedSettingsManager({
-      configDir: resolveProductPaths().configDir,
+      profileDir: profilePaths.agentProfile,
       profileId: options.profileId,
+      namespace: PRODUCT_IDENTITY.commandName,
+      legacyConfigDir: productPaths.configDir,
       agentProvider: () => backend.settingsPort(),
       ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsMax", "tabsAutoName"] } : {}),
       hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],

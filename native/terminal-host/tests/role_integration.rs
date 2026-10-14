@@ -249,7 +249,9 @@ if (!fs.existsSync(marker)) {
     }
     std::thread::sleep(Duration::from_millis(500));
     start_server(&executable, &profile, &data, &runtime, &address);
-    let deadline = Instant::now() + Duration::from_secs(20);
+    // Rationale: recovery may legitimately consume the server's 40-second start-gate bound
+    // before the retained holder reports its replacement child on a loaded Windows runner.
+    let deadline = Instant::now() + Duration::from_secs(50);
     let registry = loop {
         let registry = RegistryStore::read(&credentials_root.join("registry.json"))
             .expect("read recovery registry")

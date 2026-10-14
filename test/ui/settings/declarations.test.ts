@@ -9,6 +9,7 @@ import {
   findOwnedUiSettingDeclaration,
   isOwnedSettingId,
   migrationsFrom,
+  normalizeOwnedUiSettingsValues,
   resolveOwnedUiSettings,
   type OwnedUiSettingDeclaration,
   type OwnedUiSettingsMigration,
@@ -206,6 +207,26 @@ describe("owned UI setting declarations", () => {
 });
 
 describe("owned UI settings migrations", () => {
+  it("normalizes recognizable metadata-free legacy shapes idempotently and preserves unknown data", () => {
+    const first = normalizeOwnedUiSettingsValues({
+      scrollbarSpeed: "high", scrollbarAppearance: "hover", accentColor: "default",
+      quitEffect: "off", quitEffectDurationMs: 500, future: { enabled: true },
+    });
+    expect(first).toEqual({
+      values: {
+        scrollbarSpeed: "high", scrollbarAppearance: "auto", accentColor: "purple",
+        quitAnimation: false, future: { enabled: true },
+      },
+      failure: null,
+    });
+    expect(normalizeOwnedUiSettingsValues(first.values!)).toEqual(first);
+  });
+
+  it("fails safely when a recognizable legacy shape conflicts with current data", () => {
+    expect(normalizeOwnedUiSettingsValues({ quitEffect: "off", quitAnimation: true, future: true }))
+      .toEqual({ values: null, failure: "legacy quitEffect conflicts with quitAnimation" });
+  });
+
   it("declares an ordered, contiguous list ending at the current version", () => {
     expect(() => assertOwnedUiSettingsMigrations(OWNED_UI_SETTINGS_MIGRATIONS)).not.toThrow();
     expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(OWNED_UI_SETTINGS_VERSION - 1);

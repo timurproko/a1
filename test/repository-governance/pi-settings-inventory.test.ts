@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { AgentSettingOwner } from "../../src/contracts/agent-engine/index.js";
+import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
+import { assertProfileSettingsNamespaceAvailable } from "../../src/ui/settings/index.js";
 import {
   EXPOSED_SETTING_KEYS,
   PI_SETTING_EFFECTS,
@@ -10,7 +12,11 @@ import {
   settingsVisualInventoryViolations,
   type PiSettingOwnerHandlers,
 } from "../../src/integrations/pi/engine/index.js";
-import { extractPiSettingsMetadata } from "../../scripts/pi/pi-settings-metadata.mjs";
+import {
+  extractPiSettingsMetadata,
+  settingsRootKeys,
+  settingsSchemaSource,
+} from "../../scripts/pi/pi-settings-metadata.mjs";
 
 // Provenance: the inventory is read from the pinned engine directly, not from the generated file,
 // so the generated file cannot be the thing that agrees with itself.
@@ -55,6 +61,14 @@ describe("Pi settings inventory governance", () => {
 
   it("takes the exposed inventory from the engine rather than a list beside it", () => {
     expect(EXPOSED_SETTING_KEYS).toEqual(piSettingsMetadata.presented);
+  });
+
+  it("reserves a product namespace absent from every pinned Pi root setting", () => {
+    const rootKeys = settingsRootKeys(settingsSchemaSource());
+    expect(rootKeys).not.toContain(PRODUCT_IDENTITY.commandName);
+    const candidateKeys = [...rootKeys, PRODUCT_IDENTITY.commandName];
+    expect(candidateKeys.includes(PRODUCT_IDENTITY.commandName)).toBe(true);
+    expect(() => assertProfileSettingsNamespaceAvailable(PRODUCT_IDENTITY.commandName, candidateKeys)).toThrow(/collides/);
   });
 
   it("requires one reviewed effect entry for every generated key", () => {

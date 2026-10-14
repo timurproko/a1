@@ -63,7 +63,12 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
 
   const launchSelected = async (release: MaterializedRelease): Promise<number> => {
     let residentContext: LaunchContext = {};
-    const residentLaunchSettings = readResidentTabLaunchSettings(paths.configDir, launchProfileId);
+    // Compatibility: public launch preparation supplies PI_CODING_AGENT_DIR; the fallback keeps
+    // direct SDK/bootstrap callers hermetic while retaining their former config-root read.
+    const agentProfileDir = environment.PI_CODING_AGENT_DIR ?? paths.configDir;
+    const residentLaunchSettings = launchProfileId === "a1"
+      ? readResidentTabLaunchSettings(agentProfileDir, PRODUCT_IDENTITY.commandName, paths.configDir, launchProfileId)
+      : null;
     const resident = await selectResidentHost({
       profileId: launchProfileId,
       currentLaunchContract: isCurrentLaunchContract(release),
@@ -74,8 +79,8 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
         dataDir: paths.dataDir,
         runtimeDir: paths.runtimeDir,
         environment,
-        maxConcurrentStarts: (await residentLaunchSettings).maxConcurrentStarts,
-        unresponsiveRestartSeconds: (await residentLaunchSettings).unresponsiveRestartSeconds,
+        maxConcurrentStarts: (await residentLaunchSettings!).maxConcurrentStarts,
+        unresponsiveRestartSeconds: (await residentLaunchSettings!).unresponsiveRestartSeconds,
       }),
     });
     if (resident !== null) {
@@ -83,7 +88,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
         residentRootExecutable: resident.executable,
         residentRootArguments: JSON.stringify([
           "attach", "--endpoint", resident.endpoint, "--cwd", process.cwd(), "--clear-exit-ms", String(CLEAR_EXIT_INTERVAL_MS),
-          "--tabs-max", String((await residentLaunchSettings).tabsMax),
+          "--tabs-max", String((await residentLaunchSettings!).tabsMax),
           "--profile", environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
           "--data-dir", paths.dataDir, "--runtime-dir", paths.runtimeDir,
           "--release-root", release.releaseRoot, "--node-executable", process.execPath,

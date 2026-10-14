@@ -19,19 +19,27 @@ async function temporaryDirectory(prefix: string) {
 describe("resident tab launch contracts", () => {
   it("resolves approved tab settings while keeping start and prewarm limits internal", async () => {
     const root = await temporaryDirectory("resident-setting-"); cleanups.push(root.cleanup);
-    await mkdir(join(root.path, "settings"), { recursive: true });
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 16, values: { residentTabs: false } }));
-    expect(await readResidentTabLaunchSettings(root.path)).toEqual({
+    const namespace = "product";
+    const defaults = {
       tabsMax: 10,
       tabsAutoName: true,
       maxConcurrentStarts: 2,
       prewarmCount: 1,
       unresponsiveRestartSeconds: 120,
       stallNoticeSeconds: 300,
+    };
+    await writeFile(join(root.path, "settings.json"), JSON.stringify({ theme: "dark", [namespace]: { residentTabs: false } }));
+    expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual(defaults);
+
+    await writeFile(join(root.path, "settings.json"), `/${JSON.stringify({ theme: "dark", [namespace]: { tabsMax: 12 } })}`);
+    expect((await readResidentTabLaunchSettings(root.path, namespace)).tabsMax).toBe(12);
+    expect(JSON.parse(await readFile(join(root.path, "settings.json"), "utf8"))).toEqual({
+      theme: "dark",
+      [namespace]: { tabsMax: 12 },
     });
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({
-      version: 16,
-      values: {
+
+    await writeFile(join(root.path, "settings.json"), JSON.stringify({
+      [namespace]: {
         residentTabs: true,
         tabsMax: 24,
         tabsAutoName: false,
@@ -40,20 +48,17 @@ describe("resident tab launch contracts", () => {
         tabsStallNoticeSeconds: 1800,
       },
     }));
-    expect(await readResidentTabLaunchSettings(root.path)).toEqual({
-      tabsMax: 24,
-      tabsAutoName: false,
-      maxConcurrentStarts: 2,
-      prewarmCount: 1,
-      unresponsiveRestartSeconds: 120,
-      stallNoticeSeconds: 300,
-    });
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 16, values: { residentTabs: true, tabsMax: 80 } }));
-    expect((await readResidentTabLaunchSettings(root.path)).tabsMax).toBe(50);
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 16, values: { residentTabs: true, tabsMax: -2 } }));
-    expect((await readResidentTabLaunchSettings(root.path)).tabsMax).toBe(1);
-    await writeFile(join(root.path, "settings", "a1.json"), JSON.stringify({ version: 15, values: { residentTabs: false, tabsMax: 12 } }));
-    expect((await readResidentTabLaunchSettings(root.path)).tabsMax).toBe(12);
+    expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual({ ...defaults, tabsMax: 24, tabsAutoName: false });
+    await writeFile(join(root.path, "settings.json"), JSON.stringify({ [namespace]: { tabsMax: 80 } }));
+    expect((await readResidentTabLaunchSettings(root.path, namespace)).tabsMax).toBe(50);
+    await writeFile(join(root.path, "settings.json"), JSON.stringify({ [namespace]: { tabsMax: -2 } }));
+    expect((await readResidentTabLaunchSettings(root.path, namespace)).tabsMax).toBe(1);
+
+    const legacy = await temporaryDirectory("resident-legacy-"); cleanups.push(legacy.cleanup);
+    await writeFile(join(root.path, "settings.json"), JSON.stringify({ theme: "dark" }));
+    await mkdir(join(legacy.path, "settings"), { recursive: true });
+    await writeFile(join(legacy.path, "settings", "a1.json"), JSON.stringify({ version: 15, values: { residentTabs: false, tabsMax: 12 } }));
+    expect((await readResidentTabLaunchSettings(root.path, namespace, legacy.path, "a1")).tabsMax).toBe(12);
   });
 
   it("routes bare A1 through the resident host while solo and comparison stay direct", async () => {

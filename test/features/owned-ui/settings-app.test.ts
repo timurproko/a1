@@ -636,7 +636,8 @@ describe("the settings screen", () => {
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
     expect(session.value("promptSuggestions")).toBe(false);
-    expect(find(target, "Could not restore")).toContain("restore refused");
+    expect(find(target, "/ search")).not.toBe("");
+    expect(screen(target).join("\n")).not.toContain("restore refused");
 
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
@@ -1273,6 +1274,10 @@ describe("the input row and status line behind the screen", () => {
     expect(hint).not.toContain("Type search");
     expect(hint).not.toContain(" to ");
     expect(hint).not.toMatch(/[·•]/u);
+    const armed = target.render({ width: 200, height: 24 }, { ...HOST, interruptArmed: true })
+      .map(line => line.replace(STYLE, ""));
+    expect(armed.find(line => line.includes("/ search"))).toBeDefined();
+    expect(armed.join("\n")).not.toContain("press ctrl+c again");
     const narrow = target.render({ width: 24, height: 8 }, HOST).map(line => line.replace(STYLE, ""));
     expect(narrow.at(-1)).toHaveLength(24);
   });
@@ -1452,14 +1457,14 @@ describe("the input row and status line behind the screen", () => {
     expect(paged).toContain("Wheel row 10");
   });
 
-  it("reports a failed write instead of the hint and does not make it undoable", async () => {
+  it("keeps shortcut hints after a failed write and does not make it undoable", async () => {
     const { app: target, writes } = await app(true);
     selectRow(target, "Thinking level");
     target.onInput?.(`${ESC}[C`, HOST);
-    // Invariant: the write is reported once it has been attempted, not on the keypress.
     await settleChanges();
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
-    expect(wide.find(line => line.includes("Could not save"))).toContain("Thinking level");
+    expect(wide.find(line => line.includes("/ search"))).toBeDefined();
+    expect(wide.some(line => line.includes("Could not save"))).toBe(false);
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
     expect(writes).toHaveLength(0);

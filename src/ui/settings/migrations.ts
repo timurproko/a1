@@ -139,6 +139,31 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
   }),
 ]);
 
+export interface OwnedUiSettingsCompatibilityResult {
+  readonly values: Readonly<Record<string, unknown>> | null;
+  readonly failure: string | null;
+}
+
+/** Shape-selected compatibility for the metadata-free product object. */
+export function normalizeOwnedUiSettingsValues(
+  source: Readonly<Record<string, unknown>>,
+): OwnedUiSettingsCompatibilityResult {
+  const values: Record<string, unknown> = { ...source };
+  // Compatibility: "high" is valid again, so the old speed meaning is ambiguous without legacy metadata.
+  if (values.scrollbarAppearance === "hover") values.scrollbarAppearance = "auto";
+  if (values.accentColor === "default") values.accentColor = "purple";
+
+  if (values.quitEffect === "off") {
+    if (Object.hasOwn(values, "quitAnimation") && values.quitAnimation !== false) {
+      return { values: null, failure: "legacy quitEffect conflicts with quitAnimation" };
+    }
+    values.quitAnimation = false;
+  }
+  delete values.quitEffect;
+  delete values.quitEffectDurationMs;
+  return { values, failure: null };
+}
+
 export function assertOwnedUiSettingsMigrations(
   migrations: readonly OwnedUiSettingsMigration[],
   currentVersion: number = OWNED_UI_SETTINGS_VERSION,
