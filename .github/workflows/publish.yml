@@ -510,6 +510,14 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Build, verify, and record the release terminal host
         run: npm run build:terminal-host
+      - name: Run the nightly server-core simulation budget
+        # Rationale: pull requests run the fixed simulation corpus; nightly builds explore a much
+        # larger seed budget once, on one platform, because the sans-IO core is platform-neutral.
+        if: needs.plan.outputs.mode == 'nightly' && runner.os == 'Linux'
+        timeout-minutes: 20
+        env:
+          TERMINAL_HOST_SIM_SEEDS: "200000"
+        run: cargo test --release --locked --manifest-path native/terminal-host/Cargo.toml --lib core::sim
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: release-terminal-host-${{ runner.os }}-${{ runner.arch }}

@@ -123,6 +123,10 @@ describe("deliberate publication pipeline", () => {
     expect(hosts).toContain("version: 0.15.2");
     expect(hosts).toContain("run: bash scripts/development/prepare-ci-rust.sh");
     expect(hosts).toContain("run: npm run build:terminal-host");
+    // Invariant: the larger simulation budget runs nightly on one platform, never on stable publication.
+    expect(hosts).toContain("if: needs.plan.outputs.mode == 'nightly' && runner.os == 'Linux'");
+    expect(hosts).toContain("TERMINAL_HOST_SIM_SEEDS: \"200000\"");
+    expect(hosts).toContain("run: cargo test --release --locked --manifest-path native/terminal-host/Cargo.toml --lib core::sim");
     expect(hosts).toContain("name: release-terminal-host-${{ runner.os }}-${{ runner.arch }}");
     expect(hosts).toContain("if-no-files-found: error");
     const pkg = job("package", "validate");
