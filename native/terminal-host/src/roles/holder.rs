@@ -845,7 +845,11 @@ fn reconnect_holder(
 ) -> Result<(endpoint::EndpointStream, u64), String> {
     let role = format!("holder-{}", config.tab_id);
     let mut backoff = Duration::from_millis(100);
-    for _ in 0..3 {
+    // Invariant: a holder keeps its tab's server alive. Every attempt asks for a replacement, so
+    // a start that was blocked while another contender held the start gate is tried again; the
+    // server's lease keeps a single owner, and a server that cannot admit this holder terminates
+    // it by its recorded identity after the admission deadline.
+    loop {
         if request_server_replacement(config).is_err() {
             let _ = crate::roles::diagnostics::append_log(
                 diagnostics_root,
@@ -862,19 +866,25 @@ fn reconnect_holder(
                 );
                 return Ok(replacement);
             }
-            Err(_) => {
+            Err(error) => {
                 let _ = crate::roles::diagnostics::append_log(
                     diagnostics_root,
                     &role,
-                    "server-replacement-connect-failed",
+                    match error.as_str() {
+                        "server refused holder handshake" => "server-replacement-refused",
+                        "server closed holder handshake" => "server-replacement-handshake-closed",
+                        _ => "server-replacement-connect-failed",
+                    },
                 );
             }
         }
         thread::sleep(backoff);
         backoff = backoff.saturating_mul(2).min(Duration::from_secs(2));
     }
-    connect_holder(config, true, child, highest_epoch)
 }
+
+/// Long enough for a server to verify the holder and child identities it admits.
+const HOLDER_HANDSHAKE: Duration = Duration::from_secs(10);
 
 fn connect_holder(
     config: &HolderLaunchConfig,
@@ -883,6 +893,11 @@ fn connect_holder(
     highest_epoch: u64,
 ) -> Result<(endpoint::EndpointStream, u64), String> {
     let mut stream = connect_retry(&config.endpoint, retry_forever)?;
+    // Platform: macOS refuses socket options once the peer has closed, so Unix bounds the
+    // handshake before sending; a server that accepts but never answers cannot hold the holder.
+    #[cfg(unix)]
+    endpoint::set_handshake_deadline(&stream, HOLDER_HANDSHAKE)
+        .map_err(|error| error.to_string())?;
     crate::fault_injection::crash_at("holder-before-ready");
     let identity = crate::identity::inspect_process(std::process::id())
         .map_err(|error| error.to_string())?
@@ -906,11 +921,16 @@ fn connect_holder(
             highest_epoch,
         },
     )?;
+    // Platform: on Windows the deadline waits for the answer, so it follows the hello.
+    #[cfg(windows)]
+    endpoint::set_handshake_deadline(&stream, HOLDER_HANDSHAKE)
+        .map_err(|error| error.to_string())?;
     let welcome = wire::read_payload(&mut stream)?
         .ok_or_else(|| "server closed holder handshake".to_owned())?;
     if wire::kind(&welcome)?.message_type != "welcome" {
         return Err("server refused holder handshake".to_owned());
     }
+    endpoint::clear_handshake_deadline(&stream).map_err(|error| error.to_string())?;
     let (_, welcome): (Option<u64>, Welcome) = wire::body(&welcome)?;
     crate::fault_injection::crash_at("holder-after-ready");
     Ok((stream, welcome.epoch))

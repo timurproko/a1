@@ -76,8 +76,8 @@ function alive(pid) {
 /** The fields of one registry record that explain a missed replacement. */
 export function recordContext(record) {
   if (record === undefined) return { present: false };
-  const { lifecycle, desired, incarnation, restarts, holderPid, childPid, lastExit } = record;
-  return { present: true, lifecycle, desired, incarnation, restarts, holderPid, childPid, lastExit };
+  const { tabId, lifecycle, desired, incarnation, restarts, holderPid, childPid, lastExit } = record;
+  return { present: true, tabId, lifecycle, desired, incarnation, restarts, holderPid, childPid, lastExit };
 }
 
 /** The last bounded lines of every terminal-host diagnostics log under `root`. */

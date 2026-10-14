@@ -553,7 +553,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     let endpoint_address = endpoint.path().to_string_lossy().into_owned();
     #[cfg(windows)]
     let endpoint_address = endpoint.name().to_owned();
-    let starting_tabs = adopting_holders;
+    let starting_tabs = adopting_holders.clone();
     let diagnostics_root = root.join("diagnostics");
     let _ = crate::roles::diagnostics::append_log(&diagnostics_root, "server", "started");
     let watchdog = crate::shell::watchdog::start(
@@ -642,6 +642,10 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         diagnostics_root,
         shutdown_requested: false,
     }));
+    if !adopting_holders.is_empty() {
+        let state = state.clone();
+        thread::spawn(move || expire_unadmitted_holders(&state, adopting_holders));
+    }
     let (accepted_tx, accepted_rx) = mpsc::channel();
     thread::spawn(move || {
         loop {
@@ -672,7 +676,15 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
                 let profile = profile.to_path_buf();
                 let connections = connections.clone();
                 thread::spawn(move || {
-                    let _ = serve_peer(stream, shared, profile);
+                    if let Err(error) = serve_peer(stream, shared.clone(), profile)
+                        && let Some(event) = peer_refusal_event(&error)
+                        && let Some(root) = shared
+                            .lock()
+                            .ok()
+                            .map(|locked| locked.diagnostics_root.clone())
+                    {
+                        let _ = crate::roles::diagnostics::append_log(&root, "server", event);
+                    }
                     connections.fetch_sub(1, Ordering::SeqCst);
                 });
             }
@@ -1639,9 +1651,26 @@ fn stop_tabs(
                 locked.holders.contains_key(*tab_id) || locked.holders_starting.contains(*tab_id)
             })
             .map(|tab_id| {
+                // Invariant: a recorded holder that has not reconnected is stopped by the identity
+                // its registry record holds.
+                let recorded = || {
+                    let record = locked
+                        .registry
+                        .tabs
+                        .iter()
+                        .find(|record| &record.tab_id == tab_id)?;
+                    Some(ProcessIdentity {
+                        pid: record.holder_pid?,
+                        start: record.holder_start_identity.clone()?,
+                    })
+                };
                 (
                     tab_id.clone(),
-                    locked.holders.get(tab_id).map(|holder| holder.identity.clone()),
+                    locked
+                        .holders
+                        .get(tab_id)
+                        .map(|holder| holder.identity.clone())
+                        .or_else(recorded),
                 )
             })
             .collect())
@@ -1665,6 +1694,13 @@ fn stop_tabs(
             .is_ok()
             {
                 forced.push(tab_id.clone());
+                // Invariant: an unconnected recorded holder has no connection whose close would
+                // release its start slot, so its verified termination releases it.
+                if let Ok(mut locked) = state.lock()
+                    && !locked.holders.contains_key(tab_id)
+                {
+                    locked.holders_starting.remove(tab_id);
+                }
             }
         }
     }
@@ -3832,22 +3868,34 @@ fn serve_holder(
         locked.last_activity = std::time::Instant::now();
         return Ok(());
     }
+    holder_lost(&state, locked, &tab_id, last_exit)
+}
+
+/// Records a tab whose holder is gone or unreachable and schedules its restart under the restart
+/// policy, exactly as for a holder whose connection closed.
+fn holder_lost(
+    state: &Arc<Mutex<RuntimeState>>,
+    mut locked: std::sync::MutexGuard<'_, RuntimeState>,
+    tab_id: &str,
+    last_exit: Option<String>,
+) -> Result<(), String> {
     let incarnation = locked
         .core
         .tabs
-        .get(&tab_id)
+        .get(tab_id)
         .map_or(0, |tab| tab.incarnation);
     let now = locked.core_started.elapsed();
     let _ = crate::core::server::step(
         &mut locked.core,
         crate::core::server::Event::HolderConnectionLost {
-            tab_id: tab_id.clone(),
+            tab_id: tab_id.to_owned(),
             incarnation,
         },
         now,
     );
-    locked.holders_terminating.remove(&tab_id);
-    locked.surfaces.remove(&tab_id);
+    locked.holders_terminating.remove(tab_id);
+    locked.holders_starting.remove(tab_id);
+    locked.surfaces.remove(tab_id);
     locked.last_activity = std::time::Instant::now();
     let now_epoch = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -3940,11 +3988,11 @@ fn serve_holder(
                 return Ok(());
             }
         }
-        if !acquire_start_gate(&state, std::time::Duration::from_secs(40)) {
+        if !acquire_start_gate(state, std::time::Duration::from_secs(40)) {
             return Err("replacement holder start gate timed out".into());
         }
-        if let Err(error) = launch_replacement_holder(&state, &tab_id) {
-            release_start_gate(&state);
+        if let Err(error) = launch_replacement_holder(state, tab_id) {
+            release_start_gate(state);
             let commit = {
                 let mut locked = state
                     .lock()
@@ -3967,6 +4015,85 @@ fn serve_holder(
         }
     }
     Ok(())
+}
+
+/// How long a replacement server waits for a recorded live holder to reconnect before treating it
+/// as lost.
+const HOLDER_ADMISSION_DEADLINE: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Treats every recorded holder that has not reconnected by the admission deadline as lost: a live
+/// one is terminated by its recorded identity first, then the tab follows the restart policy.
+fn expire_unadmitted_holders(
+    state: &Arc<Mutex<RuntimeState>>,
+    adopting: std::collections::HashSet<String>,
+) {
+    thread::sleep(HOLDER_ADMISSION_DEADLINE);
+    for tab_id in adopting {
+        let Ok(locked) = state.lock() else {
+            return;
+        };
+        if locked.holders.contains_key(&tab_id) || !locked.holders_starting.contains(&tab_id) {
+            continue;
+        }
+        let recorded = locked
+            .registry
+            .tabs
+            .iter()
+            .find(|record| record.tab_id == tab_id)
+            .and_then(|record| {
+                Some(ProcessIdentity {
+                    pid: record.holder_pid?,
+                    start: record.holder_start_identity.clone()?,
+                })
+            });
+        let diagnostics_root = locked.diagnostics_root.clone();
+        drop(locked);
+        let _ = crate::roles::diagnostics::append_log(
+            &diagnostics_root,
+            "server",
+            "holder-admission-expired",
+        );
+        if let Some(identity) = recorded {
+            counters::record(CounterEvent::HolderHangRecovery);
+            // Security: only the identity recorded for this tab is terminated, never a pid alone.
+            let _ = crate::identity::terminate_verified(
+                &identity,
+                std::time::Duration::from_secs(5),
+                std::time::Duration::from_secs(5),
+            );
+        }
+        let Ok(locked) = state.lock() else {
+            return;
+        };
+        // Invariant: a holder that reconnected while it was being verified keeps its tab.
+        if locked.holders.contains_key(&tab_id) {
+            continue;
+        }
+        let _ = holder_lost(state, locked, &tab_id, Some("holder not readmitted".into()));
+    }
+}
+
+/// The diagnostic event for a peer connection the server refused, without any peer-supplied text.
+fn peer_refusal_event(error: &str) -> Option<&'static str> {
+    Some(match error {
+        "resident credential rejected" => "peer-refused-credential",
+        "peer has observed a newer server epoch" => "peer-refused-epoch",
+        "holder has no registry or standby record" => "peer-refused-no-record",
+        "holder incarnation does not match the registry" => "peer-refused-incarnation",
+        "holder identity does not match the registry" => "peer-refused-holder-identity",
+        "holder child identity does not match the registry" => "peer-refused-child-identity",
+        "holder process is not live" | "holder child process is not live" => {
+            "peer-refused-not-live"
+        }
+        "holder did not present a pid" | "holder did not present its child pid" => {
+            "peer-refused-missing-pid"
+        }
+        "unapproved resident peer role" => "peer-refused-role",
+        "identity inspection deadline exceeded" | "identity inspection worker limit reached" => {
+            "peer-refused-inspection-timeout"
+        }
+        _ => return None,
+    })
 }
 
 fn serve_bridge(

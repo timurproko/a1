@@ -11,7 +11,7 @@ describe("resident chaos harness", () => {
   it("keeps only the registry fields that explain a missed replacement", () => {
     expect(recordContext(undefined)).toEqual({ present: false });
     expect(recordContext({ tabId: "a", lifecycle: "restarting", desired: "running", incarnation: 3, restarts: 2, holderPid: 9, childPid: null, lastExit: "signal 9", sessionFile: "/secret" }))
-      .toEqual({ present: true, lifecycle: "restarting", desired: "running", incarnation: 3, restarts: 2, holderPid: 9, childPid: null, lastExit: "signal 9" });
+      .toEqual({ present: true, tabId: "a", lifecycle: "restarting", desired: "running", incarnation: 3, restarts: 2, holderPid: 9, childPid: null, lastExit: "signal 9" });
   });
 
   it("summarizes measurements with nearest-rank percentiles", () => {
