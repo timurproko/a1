@@ -1076,12 +1076,16 @@ fn every_named_crash_point_recovers_to_a_clean_start_with_a_working_tab() {
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
     let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
     let mut unreached = Vec::new();
-    for point in terminal_host_contracts::fault_injection::CRASH_POINTS {
-        let profile = directory(root.path(), &format!("profile-{point}"));
-        let data = directory(root.path(), &format!("data-{point}"));
-        let runtime = directory(root.path(), &format!("runtime-{point}"));
-        let marks = directory(root.path(), &format!("marks-{point}"));
-        let release = directory(root.path(), &format!("release-{point}"));
+    for (index, point) in terminal_host_contracts::fault_injection::CRASH_POINTS
+        .iter()
+        .enumerate()
+    {
+        // Platform: short names keep the Unix socket path under the platform's length limit.
+        let profile = directory(root.path(), &format!("p{index}"));
+        let data = directory(root.path(), &format!("d{index}"));
+        let runtime = directory(root.path(), &format!("r{index}"));
+        let marks = directory(root.path(), &format!("m{index}"));
+        let release = directory(root.path(), &format!("x{index}"));
         protect_runtime(&runtime);
         let address = fixture_endpoint(&runtime);
         let credentials_root = data

@@ -695,7 +695,7 @@ jobs:
           cd native/terminal-host
           # Rationale: every decoder and parser gets the same bounded budget; this proves parser
           # robustness on Linux and is not platform evidence.
-          for target in decode_frame decode_bridge parse_records boundary_marker vt_composition; do
+          for target in decode_frame decode_bridge parse_records boundary_marker; do
             cargo +nightly-2026-10-01 fuzz run "$target" "fuzz/corpus/$target" -- -max_total_time=30 -timeout=5
           done
       - name: Upload resident chaos report

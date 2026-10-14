@@ -43,7 +43,7 @@ Milestone 6 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). M
 
 - [ ] 6.1 Extend `native/terminal-host/src/core/sim/` into the full server-core harness with the Decision 9 fault set and invariants, seed reporting, and minimized failing sequences; run a fixed corpus per change and a larger budget nightly.
 - [ ] 6.2 Add a named `fault-injection` point at every persistence and IPC step; add one kill-at-point recovery test per point, run on Windows, Linux, and macOS.
-- [ ] 6.3 Add `cargo-fuzz` targets for the bridge decoder, registry and marker parsers, boundary-marker codec, and VT-to-composition path beside the existing `decode_frame` target; run each for a bounded time in CI on Linux and keep the corpora in-tree.
+- [ ] 6.3 Add `cargo-fuzz` targets for the bridge decoder, registry and marker parsers, and boundary-marker codec beside the existing `decode_frame` target (the VT path stays with the probe and fidelity steps because the fuzz crate cannot link `libghostty-vt`); run each for a bounded time in CI on Linux and keep the corpora in-tree.
 - [ ] 6.4 Add the `resident-chaos` group to `scripts/release/validation-matrix.mjs`, `config/validation-ownership.json`, `config/integration-owners.json`, and `config/validation-suites.json` on Windows x64, Linux x64, and macOS arm64, running against the release-built artifact for at most 15 minutes; extend the validation selection tests for its selection rules.
 - [ ] 6.5 Record cold launch, warm tab creation (prewarmed and cold), reattach first paint and first input, tab restart, and server recovery per platform from the chaos and acceptance harnesses, reported against the soak targets without gating.
 

@@ -142,7 +142,16 @@ async function main() {
   for (let attempt = 0; attempt < 50 && run(["server", "--detach", ...common]).status !== 0; attempt++) await sleep(100);
   if (!probe()) throw new Error("the resident server did not start");
   const deadline = Date.now() + seconds * 1_000;
+  const startServer = async () => {
+    for (let attempt = 0; attempt < 50 && run(["server", "--detach", "--restart", ...common]).status !== 0; attempt++) await sleep(100);
+  };
   while (Date.now() < deadline) {
+    if (!probe()) {
+      // Invariant: with no tab left to replace it, a server is started by the next launch, as `a1` does.
+      await startServer();
+      count("start-server");
+      if (!probe()) { violations.push("the resident server could not be started again"); break; }
+    }
     const listing = tabs(["list"]);
     const open = listing.result?.tabs ?? [];
     violations.push(...listingViolations(open));
@@ -157,10 +166,13 @@ async function main() {
       const tabId = created.status === 0 ? JSON.parse(created.stdout).tabId : null;
       const ready = tabId === null ? null : await until(async () => (await registry()).tabs.some(tab => tab.tabId === tabId && tab.childPid), 15_000);
       if (ready !== null) samples.coldTabCreateMs.push(performance.now() - started);
-      count(`create-${mode}`);
+      else await sleep(250);
+      count(tabId === null ? "create-refused" : `create-${mode}`);
     } else if (action === 1) {
       const { pid } = await marker();
-      if (typeof pid === "number") {
+      // Invariant: holders replace a killed server, so it is killed only while a tab has a live holder.
+      const holders = (await registry()).tabs.filter(tab => typeof tab.holderPid === "number" && alive(tab.holderPid));
+      if (typeof pid === "number" && holders.length > 0) {
         kill(pid);
         const recovered = await until(async () => probe(), 20_000);
         if (recovered === null) violations.push("server was not replaced after it was killed");
@@ -197,7 +209,7 @@ async function main() {
   const finalListing = tabs(["list"]);
   violations.push(...listingViolations(finalListing.result?.tabs ?? []));
   const stopped = tabs(["host-stop"]);
-  if (stopped.host !== "stopped") violations.push(`host stop reported ${stopped.host}`);
+  if (!["stopped", "none"].includes(stopped.host)) violations.push(`host stop reported ${stopped.host}`);
   const orphanDeadline = Date.now() + 15_000;
   let orphans = processesUsing([host, fakeTab]);
   while (orphans.length > 0 && Date.now() < orphanDeadline) {

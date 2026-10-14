@@ -38,10 +38,3 @@ path = "fuzz_targets/boundary_marker.rs"
 test = false
 doc = false
 bench = false
-
-[[bin]]
-name = "vt_composition"
-path = "fuzz_targets/vt_composition.rs"
-test = false
-doc = false
-bench = false

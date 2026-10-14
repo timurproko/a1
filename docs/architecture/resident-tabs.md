@@ -535,6 +535,7 @@ Known gaps:
 - Intel macOS has no automated behavior suite of its own: modular validation outcomes are keyed by platform without architecture, so the pull-request suites run on macOS arm64 only.
 - Reboot and logout restore, CLI tabs, split layouts, remote attach, worktree isolation, agent coordination, automatic cohort handoff, and image protocols are follow-ups.
 - Raw child stderr is not captured separately on any platform; milestone 4 provides only a tested private sink.
+- Arbitrary child VT output is not fuzzed, because the fuzz crate cannot link the Zig-built `libghostty-vt`; the probe and terminal-fidelity steps cover that path.
 - Downgrading to a release without the session-writer guard while tabs run is unsupported; stop the host first.
 - A maintenance stop of an unresponsive host uses an ordinary replacement server that is told to stop every tab at once, rather than a dedicated maintenance-only server mode.
 - Revisioned, atomic topology mutations remain a target requirement in [`resident-tabs-requirements.md`](resident-tabs-requirements.md).
