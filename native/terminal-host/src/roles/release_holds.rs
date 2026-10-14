@@ -64,8 +64,38 @@ pub fn collect<F>(data_dir: &Path, inspect: F) -> ReleaseHolds
 where
     F: Fn(u32) -> Result<Option<ProcessIdentity>, String>,
 {
-    let mut roots = std::collections::BTreeSet::new();
+    let mut profiles = Vec::new();
     let mut uncertain = Vec::new();
+    match std::fs::read_dir(data_dir.join("tabs")) {
+        Ok(entries) => {
+            for entry in entries {
+                match entry {
+                    Ok(entry) if entry.path().is_dir() => profiles.push(entry.path()),
+                    Ok(_) => {}
+                    Err(_) => uncertain.push("tabs directory entry unreadable".to_owned()),
+                }
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(_) => uncertain.push("tabs directory unreadable".to_owned()),
+    }
+    scan(&profiles, uncertain, inspect)
+}
+
+/// The holds of one profile's state directory only, as used when that profile's host is stopped.
+pub fn collect_profile<F>(profile: &Path, inspect: F) -> ReleaseHolds
+where
+    F: Fn(u32) -> Result<Option<ProcessIdentity>, String>,
+{
+    scan(&[profile.to_path_buf()], Vec::new(), inspect)
+}
+
+fn scan<F>(profiles: &[std::path::PathBuf], mut uncertain: Vec<String>, inspect: F) -> ReleaseHolds
+where
+    F: Fn(u32) -> Result<Option<ProcessIdentity>, String>,
+{
+    let mut roots = std::collections::BTreeSet::new();
+    uncertain.truncate(MAX_UNCERTAIN);
     let mut note = |reason: String| {
         if uncertain.len() < MAX_UNCERTAIN {
             uncertain.push(reason);
@@ -78,26 +108,11 @@ where
         Ok(Some(_)) => Liveness::Gone,
         Err(_) => Liveness::Unknown,
     };
-    let profiles = match std::fs::read_dir(data_dir.join("tabs")) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return finish(roots, Vec::new());
-        }
-        Err(_) => {
-            note("tabs directory unreadable".to_owned());
-            return finish(roots, uncertain);
-        }
-    };
-    for entry in profiles {
-        let Ok(entry) = entry else {
-            note("tabs directory entry unreadable".to_owned());
-            continue;
-        };
-        let profile = entry.path();
-        if !profile.is_dir() {
-            continue;
-        }
-        let token = entry.file_name().to_string_lossy().into_owned();
+    for profile in profiles {
+        let token = profile
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
         match std::fs::read(profile.join("server.json")) {
             Ok(bytes) => match parse_owner_marker(&bytes).ok_or(()) {
                 Ok(marker) => match liveness(marker.pid, &marker.start_identity) {
@@ -153,7 +168,7 @@ fn finish(roots: std::collections::BTreeSet<String>, uncertain: Vec<String>) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::{ReleaseHolds, collect};
+    use super::{ReleaseHolds, collect, collect_profile};
     use crate::identity::ProcessIdentity;
     use std::path::Path;
 
@@ -324,5 +339,36 @@ mod tests {
         assert!(reasons.contains("corrupt: registry unreadable"));
         assert!(reasons.contains("denied: tab process identity uninspectable"));
         assert!(reasons.contains("legacy: live server release is unrecorded"));
+    }
+
+    #[test]
+    fn a_profile_scan_ignores_other_profiles_live_tabs() {
+        let root = tempfile::tempdir().unwrap();
+        profile(
+            root.path(),
+            "other",
+            None,
+            Some(&registry(&tab(
+                "a",
+                Some((10, "s10")),
+                None,
+                "/releases/other",
+            ))),
+        );
+        profile(
+            root.path(),
+            "own",
+            None,
+            Some(&registry(&tab(
+                "b",
+                Some((99, "gone")),
+                None,
+                "/releases/own",
+            ))),
+        );
+        let own = collect_profile(&root.path().join("tabs").join("own"), inspector);
+        assert!(own.complete, "{:?}", own.uncertain);
+        assert!(own.release_roots.is_empty());
+        assert_eq!(holds(root.path()).release_roots, ["/releases/other"]);
     }
 }

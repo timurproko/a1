@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 export interface NativeLock {
   readonly bound: boolean;
@@ -39,15 +40,24 @@ export interface SessionWriterHandle {
 let backendOverride: LockBackend | undefined;
 let cachedBackend: LockBackend | undefined;
 
-function nativeCandidates(): string[] {
+export function nativeCandidates(
+  moduleUrl: string = import.meta.url,
+  environment: NodeJS.ProcessEnv = process.env,
+  cwd: string = process.cwd(),
+  exists: (path: string) => boolean = existsSync,
+): string[] {
   const suffix = process.platform === "win32" ? "win32" : process.platform;
   const target = `${suffix}-${process.arch}`;
+  // Invariant: this module sits at dist/foundation/session-writer-lock/ inside the installed release root.
+  const releaseLock = resolve(fileURLToPath(new URL("../../../", moduleUrl)), "dist", "native", target, "a1_session_lock.node");
+  // Security: overrides and working-directory addons are development aids; a release that carries its
+  // own lock never loads native code chosen by the environment or the current directory.
+  const override = environment[PRODUCT_IDENTITY.environment.developmentInstanceId] ? environment.A1_SESSION_LOCK_PATH?.trim() : undefined;
+  if (exists(releaseLock)) return override ? [override, releaseLock] : [releaseLock];
   return [
-    process.env.A1_SESSION_LOCK_PATH,
-    // Invariant: this module sits at dist/foundation/session-writer-lock/ inside the installed release root.
-    resolve(fileURLToPath(new URL("../../../", import.meta.url)), "dist", "native", target, "a1_session_lock.node"),
-    resolve(process.cwd(), "dist", "native", target, "a1_session_lock.node"),
-    resolve(process.cwd(), ".artifacts", "terminal-host", "a1_session_lock.node"),
+    override,
+    resolve(cwd, "dist", "native", target, "a1_session_lock.node"),
+    resolve(cwd, ".artifacts", "terminal-host", "a1_session_lock.node"),
   ].filter((value): value is string => typeof value === "string" && value.length > 0);
 }
 

@@ -239,6 +239,15 @@ impl BoundedInputQueue {
 pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result<(), String> {
     let config: HolderLaunchConfig = serde_json::from_slice(context)
         .map_err(|error| format!("decode holder context: {error}"))?;
+    run_holder(_profile, ready, config, false)
+}
+
+fn run_holder(
+    _profile: &Path,
+    ready: &Path,
+    config: HolderLaunchConfig,
+    respawned: bool,
+) -> Result<(), String> {
     crate::fault_injection::install(&config.server.fault_environment);
     crate::fault_injection::validate_environment()?;
     let profile_token = crate::endpoint::endpoint_token(Path::new(&config.server.profile))
@@ -267,7 +276,13 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
             thread::sleep(Duration::from_secs(1));
         }
     }
-    let (stream, mut highest_epoch) = connect_holder(&config, false, None, 0)?;
+    let (stream, mut highest_epoch) = match connect_holder(&config, false, None, 0) {
+        Ok(connected) => connected,
+        // Invariant: a respawning holder still owns a registered tab, so a server that died
+        // during the restart is replaced exactly as it is for a holder whose server disconnects.
+        Err(_) if respawned => reconnect_holder(&config, None, 0, &diagnostics_root)?,
+        Err(error) => return Err(error),
+    };
     let (mut server, command_stream) = HolderServerPeer::start(stream)?;
 
     let pty = NativePtySystem::default();
@@ -420,8 +435,12 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         }
         while let Ok(command) = command_rx.try_recv() {
             if matches!(command, HolderCommand::Disconnected) {
-                let (replacement, epoch) =
-                    reconnect_holder(&config, &child_identity, highest_epoch, &diagnostics_root)?;
+                let (replacement, epoch) = reconnect_holder(
+                    &config,
+                    Some(&child_identity),
+                    highest_epoch,
+                    &diagnostics_root,
+                )?;
                 if epoch < highest_epoch {
                     continue;
                 }
@@ -467,9 +486,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                     respawn.session_file
                 };
                 next.recovery_journals = respawn.recovery_journals;
-                let context = serde_json::to_vec(&next)
-                    .map_err(|error| format!("encode holder respawn context: {error}"))?;
-                return run_holder_child(_profile, ready, &context);
+                return run_holder(_profile, ready, next, true);
             } else if let HolderCommand::SurfaceSubscription(enabled) = command {
                 subscribed = enabled;
                 if subscribed {
@@ -822,7 +839,7 @@ fn request_server_replacement(config: &HolderLaunchConfig) -> Result<(), String>
 
 fn reconnect_holder(
     config: &HolderLaunchConfig,
-    child: &crate::identity::ProcessIdentity,
+    child: Option<&crate::identity::ProcessIdentity>,
     highest_epoch: u64,
     diagnostics_root: &Path,
 ) -> Result<(endpoint::EndpointStream, u64), String> {
@@ -836,7 +853,7 @@ fn reconnect_holder(
                 "server-replacement-request-failed",
             );
         }
-        match connect_holder(config, false, Some(child), highest_epoch) {
+        match connect_holder(config, false, child, highest_epoch) {
             Ok(replacement) => {
                 let _ = crate::roles::diagnostics::append_log(
                     diagnostics_root,
@@ -856,7 +873,7 @@ fn reconnect_holder(
         thread::sleep(backoff);
         backoff = backoff.saturating_mul(2).min(Duration::from_secs(2));
     }
-    connect_holder(config, true, Some(child), highest_epoch)
+    connect_holder(config, true, child, highest_epoch)
 }
 
 fn connect_holder(

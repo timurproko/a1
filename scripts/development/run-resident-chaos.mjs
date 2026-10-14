@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -14,6 +14,11 @@ import { pathToFileURL } from "node:url";
 export const CHAOS_SCHEMA = "a1-resident-chaos-v1";
 const DEFAULT_SECONDS = 600;
 const MAX_OPEN_TABS = 6;
+// Invariant: the third restart in a window waits the longest 30-second backoff step, then the
+// holder must start the child, so a replacement is due within the backoff plus a start bound.
+const RESTART_DEADLINE_MS = 30_000 + 30_000;
+const SERVER_RECOVERY_DEADLINE_MS = 20_000;
+const MAX_DIAGNOSTIC_LINES = 120;
 
 export function percentile(values, fraction) {
   if (values.length === 0) return null;
@@ -61,7 +66,35 @@ async function sleep(milliseconds) {
 }
 
 function alive(pid) {
-  try { process.kill(pid, 0); return true; } catch (error) { return error?.code === "EPERM"; }
+  try { process.kill(pid, 0); } catch (error) { return error?.code === "EPERM"; }
+  if (process.platform === "win32") return true;
+  // Platform: signal 0 succeeds for an unreaped zombie, which can no longer replace a server.
+  const state = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], { encoding: "utf8" });
+  return state.status === 0 && state.stdout.trim() !== "" && !state.stdout.trim().startsWith("Z");
+}
+
+/** The fields of one registry record that explain a missed replacement. */
+export function recordContext(record) {
+  if (record === undefined) return { present: false };
+  const { lifecycle, desired, incarnation, restarts, holderPid, childPid, lastExit } = record;
+  return { present: true, lifecycle, desired, incarnation, restarts, holderPid, childPid, lastExit };
+}
+
+/** The last bounded lines of every terminal-host diagnostics log under `root`. */
+async function diagnosticTails(root) {
+  const tails = {};
+  const visit = async directory => {
+    for (const entry of await readdir(directory, { withFileTypes: true }).catch(() => [])) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) await visit(path);
+      else if (/^terminal-host-.*\.log/u.test(entry.name)) {
+        const lines = (await readFile(path, "utf8").catch(() => "")).split("\n");
+        tails[relative(root, path)] = lines.slice(-MAX_DIAGNOSTIC_LINES);
+      }
+    }
+  };
+  await visit(root);
+  return tails;
 }
 
 function kill(pid) {
@@ -174,8 +207,8 @@ async function main() {
       const holders = (await registry()).tabs.filter(tab => typeof tab.holderPid === "number" && alive(tab.holderPid));
       if (typeof pid === "number" && holders.length > 0) {
         kill(pid);
-        const recovered = await until(async () => probe(), 20_000);
-        if (recovered === null) violations.push("server was not replaced after it was killed");
+        const recovered = await until(async () => probe(), SERVER_RECOVERY_DEADLINE_MS);
+        if (recovered === null) violations.push({ violation: "server was not replaced after it was killed", killedPid: pid, holders: holders.map(recordContext) });
         else samples.serverRecoveryMs.push(recovered);
         count("kill-server");
       }
@@ -189,8 +222,11 @@ async function main() {
         const restarted = await until(async () => {
           const next = (await registry()).tabs.find(candidate => candidate.tabId === tab.tabId);
           return next === undefined || ["failed", "stopped"].includes(next.lifecycle) || (typeof next[field] === "number" && next[field] !== pid);
-        }, 30_000);
-        if (restarted === null) violations.push(`${field} of ${tab.tabId} was not replaced after it was killed`);
+        }, RESTART_DEADLINE_MS);
+        if (restarted === null) {
+          const now = (await registry()).tabs.find(candidate => candidate.tabId === tab.tabId);
+          violations.push({ violation: `${field} of ${tab.tabId} was not replaced after it was killed`, killedPid: pid, before: recordContext(record), after: recordContext(now), serverRunning: probe() });
+        }
         else samples[action === 2 ? "holderRestartMs" : "childRestartMs"].push(restarted);
         count(action === 2 ? "kill-holder" : "kill-child");
       }
@@ -226,6 +262,7 @@ async function main() {
     counts,
     violations,
     measurements: summarize(samples),
+    ...(violations.length > 0 ? { diagnostics: await diagnosticTails(data) } : {}),
   };
   if (resultPath) {
     await mkdir(dirname(resolve(resultPath)), { recursive: true });

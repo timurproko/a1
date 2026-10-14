@@ -450,7 +450,9 @@ fn stop_unresponsive_host(
         Duration::from_secs(5),
     )
     .map_err(|error| format!("terminate unresponsive host: {error}"))?;
-    let holders = contracts::roles::release_holds::collect(data, |pid| {
+    // Invariant: only this profile's tabs need a replacement host to stop them; another profile's
+    // live tabs belong to its own host.
+    let holders = contracts::roles::release_holds::collect_profile(root, |pid| {
         contracts::identity::inspect_process(pid).map_err(|error| error.to_string())
     });
     if holders.complete && holders.release_roots.is_empty() {
