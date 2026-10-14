@@ -43,12 +43,18 @@ pub struct RoleHello {
 #[serde(rename_all = "camelCase")]
 pub struct AttachStart {
     pub client_id: String,
+    #[serde(default = "default_tabs_max")]
+    pub tabs_max: usize,
     pub cwd: String,
     pub columns: u16,
     pub rows: u16,
     pub release_root: String,
     pub node_executable: String,
     pub environment: Vec<(String, String)>,
+    #[serde(default)]
+    pub session_file: Option<String>,
+    #[serde(default)]
+    pub session_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,7 +74,11 @@ pub struct HolderLaunchConfig {
     #[serde(default)]
     pub session_file: Option<String>,
     #[serde(default)]
+    pub session_dir: Option<String>,
+    #[serde(default)]
     pub recovery_journals: Vec<String>,
+    #[serde(default)]
+    pub standby: bool,
     pub server: ServerLaunchConfig,
 }
 
@@ -87,6 +97,10 @@ pub struct ServerLaunchConfig {
     #[serde(default)]
     pub fault_environment: Vec<(String, String)>,
 }
+fn default_tabs_max() -> usize {
+    10
+}
+
 fn default_max_concurrent_starts() -> usize {
     2
 }
@@ -102,6 +116,17 @@ pub struct Surface {
     pub revision: u64,
     pub bytes: Vec<u8>,
     pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accent: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabStatus {
+    pub tab_id: String,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accent: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -129,15 +154,32 @@ pub struct TabTarget {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TabRename {
+    pub tab_id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabReorder {
+    pub tab_id: String,
+    pub target_index: usize,
+    pub expected_revision: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TabSummary {
     pub tab_id: String,
     pub name: String,
+    pub name_source: String,
     pub lifecycle: String,
     pub cwd: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TabList {
+    pub revision: u64,
     pub tabs: Vec<TabSummary>,
 }
 
@@ -190,6 +232,8 @@ pub type HolderSnapshot = protocol::HolderSnapshot;
 pub struct BridgeSession {
     pub file: Option<String>,
     pub name: Option<String>,
+    #[serde(default)]
+    pub name_source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -225,6 +269,10 @@ pub fn read_payload(stream: &mut endpoint::EndpointStream) -> Result<Option<Vec<
 fn wait_for_pipe_data(stream: &endpoint::EndpointStream) -> Result<bool, String> {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::System::Pipes::PeekNamedPipe;
+    // Performance: synchronous pipe handles cannot block in a read without stalling writes on the
+    // same handle, so readiness is polled; polling tightly just after traffic keeps interactive
+    // hops near 1 ms while an idle connection backs off.
+    let started = std::time::Instant::now();
     loop {
         let mut available = 0_u32;
         if unsafe {
@@ -250,7 +298,12 @@ fn wait_for_pipe_data(stream: &endpoint::EndpointStream) -> Result<bool, String>
         if available > 0 {
             return Ok(true);
         }
-        std::thread::sleep(std::time::Duration::from_millis(8));
+        let pause = if started.elapsed() < std::time::Duration::from_secs(1) {
+            std::time::Duration::from_millis(1)
+        } else {
+            std::time::Duration::from_millis(8)
+        };
+        std::thread::sleep(pause);
     }
 }
 

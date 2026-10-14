@@ -1,0 +1,44 @@
+## MODIFIED Requirements
+
+### Requirement: Normal A1 accepts explicit session selection
+Stable and prerelease builds SHALL support `a1 --session <path|id>` with an optional `--session-dir <dir>` before or after `--session`. Each option SHALL occur at most once and require a nonempty value. `--session-dir` alone, missing values, duplicate options, unknown trailing options, and extra positional arguments in this recognized grammar SHALL fail with a focused diagnostic and nonzero exit status before supervisor or interactive startup. Help SHALL list the supported forms, including argument-free `a1 solo` as the explicit direct single-agent launch. Bare `a1` SHALL reattach to the profile's resident tabs, creating one fresh tab only when none exist, and a session launch SHALL open the selected session as a new tab in the launching client or focus the tab already holding it. `a1 solo` SHALL start a fresh direct session without initializing resident infrastructure, and extra solo arguments SHALL fail rather than selecting another route. A session launch on a supported platform SHALL honor the shared canonical session-writer lease in both modes. When a direct launch selects a session held by another writer, A1 SHALL fail safely with a concise diagnostic or, in an interactive terminal, offer an explicit fork into a new session; it SHALL NOT silently attach, overwrite, or start a second writer. Direct lease checks SHALL NOT initialize a resident host.
+
+#### Scenario: Select an existing session by ID
+- **WHEN** the user supplies `a1 --session <id>` for a saved A1 session
+- **THEN** A1 SHALL execute an interactive session launch rather than return a silent successful no-op
+
+#### Scenario: Supply a custom directory in either order
+- **WHEN** the user supplies one valid `--session` and one valid `--session-dir` in either order
+- **THEN** both invocations SHALL select the same target and effective session directory
+
+#### Scenario: Malformed session launch
+- **WHEN** a recognized session launch has a missing or empty value, duplicate option, unrecognized additional option, extra argument, or no `--session` target
+- **THEN** A1 SHALL report one concise error, exit nonzero, and start no supervisor or interactive runtime
+
+#### Scenario: Inspect help without launching
+- **WHEN** the user runs `a1 --help` or `a1 -h`
+- **THEN** help SHALL include both supported session-selection forms without launching an interactive runtime
+
+#### Scenario: Explicit solo launch
+- **WHEN** the user runs argument-free `a1 solo`
+- **THEN** A1 SHALL start a fresh direct single-agent runtime without resident discovery
+
+#### Scenario: Solo launch rejects extra arguments
+- **WHEN** the user adds any argument after `a1 solo`
+- **THEN** A1 SHALL report a concise syntax error and start no runtime
+
+#### Scenario: Bare launch with resident tabs running
+- **WHEN** two resident tabs are running and the user runs bare `a1`
+- **THEN** A1 SHALL show both tabs and SHALL NOT create a third tab
+
+#### Scenario: Session launch with resident tabs running
+- **WHEN** `a1 --session <id>` selects a session no participating writer holds
+- **THEN** A1 SHALL acquire its lease, add a tab resuming it, and view it in the launching client
+
+#### Scenario: Session launch names a held session
+- **WHEN** the selected session is held by a live resident tab
+- **THEN** A1 SHALL view that tab in the launching client and SHALL NOT start a second writer
+
+#### Scenario: Direct launch selects a held session
+- **WHEN** a direct fallback selects a session held by a live resident tab
+- **THEN** direct launch SHALL report the conflict or offer an explicit fork without altering the resident session

@@ -14,7 +14,7 @@ export {
   normalizeOwnedUiSettingsValues,
 } from "./migrations.js";
 export type { OwnedUiSettingsCompatibilityResult, OwnedUiSettingsMigration } from "./migrations.js";
-export { documentFrom, parseOwnedUiSettingsDocument, resolveOwnedUiSettings, resolveResidentTabsSetting, settingValue } from "./resolution.js";
+export { documentFrom, parseOwnedUiSettingsDocument, resolveOwnedUiSettings, settingValue } from "./resolution.js";
 export type {
   OwnedUiResolvedSetting,
   OwnedUiSettingSource,

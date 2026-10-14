@@ -70,18 +70,18 @@ describe("owned UI settings sections", () => {
   it("places owned agent controls once after engine entries in a single Agent group", () => {
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
-      document: { version: 15, values: { promptSuggestions: false } },
+      document: { version: 16, values: { promptSuggestions: false } },
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: AGENT });
     expect(sections.map(section => [section.id, section.title])).toEqual([
-      ["generic", "Generic"], ["appearance", "Appearance"], ["scroll", "Scroll"], ["history", "History"], ["agent", "Agent"],
+      ["generic", "Generic"], ["appearance", "Appearance"], ["scroll", "Scroll"], ["history", "History"], ["tabs", "Tabs"], ["agent", "Agent"],
     ]);
     const entries = (id: string) => sections.find(section => section.id === id)?.entries.map(entry => entry.id);
-    expect(entries("generic")).toEqual(["updateCheck", "residentTabs", "tabsMaxConcurrentStarts"]);
+    expect(entries("generic")).toEqual(["updateCheck"]);
     expect(entries("appearance")).toEqual(["accentColor", "backgroundStyle", "quitAnimation"]);
     expect(entries("scroll")).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
     expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryMaxItems"]);
-    expect(entries("tabs")).toBeUndefined();
+    expect(entries("tabs")).toEqual(["tabsMax", "tabsAutoName"]);
     expect(entries("quit")).toBeUndefined();
     expect(findOwnedUiSettingsEntry(sections, "quitAnimation", "a1")).toMatchObject({
       label: "Quit animation", value: true, origin: "default", application: "live", choices: [true, false],
@@ -120,14 +120,15 @@ describe("owned UI settings sections", () => {
     expect(AGENT.descriptors.map(entry => entry.key)).toEqual(["autoCompact", "thinkingLevel", "providerProfile", "installId"]);
   });
 
-  it("shows resident supervision controls when resident tabs are enabled", () => {
+  it("shows only the approved resident tab controls", () => {
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
-      document: { version: 15, values: { residentTabs: true } },
+      document: { version: 16, values: { residentTabs: false } },
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: null });
-    expect(sections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual([
-      "updateCheck", "residentTabs", "tabsMaxConcurrentStarts", "tabsUnresponsiveRestartSeconds", "tabsStallNoticeSeconds",
+    expect(sections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual(["updateCheck"]);
+    expect(sections.find(section => section.id === "tabs")?.entries.map(entry => entry.id)).toEqual([
+      "tabsMax", "tabsAutoName",
     ]);
   });
 
@@ -142,7 +143,7 @@ describe("owned UI settings sections", () => {
       resolution: resolveOwnedUiSettings({ declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [], document: null }),
       agent,
     });
-    expect(sections.map(section => section.id)).toEqual(["generic", "appearance", "scroll", "history", "agent"]);
+    expect(sections.map(section => section.id)).toEqual(["generic", "appearance", "scroll", "history", "tabs", "agent"]);
     const group = sections.find(section => section.id === "agent");
     expect(group).toMatchObject({ title: "Agent", unavailableReason: null, readOnlyReason: null });
     expect(group?.entries).toHaveLength(3);

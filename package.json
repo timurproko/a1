@@ -57,6 +57,7 @@
     "update:pi-component-parity": "tsx scripts/pi/update-pi-component-parity.ts",
     "update:pi-event-frame-parity": "tsx scripts/pi/update-pi-event-frame-parity.ts",
     "proof:terminal-host": "node scripts/development/run-terminal-host.mjs",
+    "proof:terminal-host:ci": "node scripts/development/certify-ci-terminal-host.mjs",
     "start": "npm run build && node scripts/development/dev-launch.mjs",
     "start:pi": "npm run build && node scripts/development/dev-launch.mjs pi",
     "prepack": "node scripts/release/validate-packaged-release-note.mjs && node scripts/release/prepack-gate.mjs",

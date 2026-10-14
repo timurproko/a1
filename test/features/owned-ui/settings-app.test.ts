@@ -289,7 +289,7 @@ describe("the settings screen", () => {
 
   it("groups concise scrollbar controls with defaults but no default wording", async () => {
     const { app: target } = await app();
-    const lines = target.render({ width: 80, height: 32 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    const lines = target.render({ width: 80, height: 36 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     expect(lines.findIndex(line => line.trim() === "Generic")).toBeLessThan(lines.findIndex(line => line.trim() === "Appearance"));
     expect(lines.findIndex(line => line.trim() === "Appearance")).toBeLessThan(lines.findIndex(line => line.trim() === "Scroll"));
     expect(lines.some(line => line.includes("Quit animation") && line.includes("yes"))).toBe(true);

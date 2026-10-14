@@ -1,7 +1,11 @@
 use std::collections::VecDeque;
 use std::io::{Read, Write};
 use std::path::Path;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+    mpsc,
+};
 use std::thread;
 use std::time::Duration;
 
@@ -19,13 +23,26 @@ use crate::roles::wire::{
 };
 
 pub const HOLDER_INPUT_CAPACITY: usize = 1024 * 1024;
+const BRACKETED_PASTE_START: &[u8] = b"\x1b[200~";
+const BRACKETED_PASTE_END: &[u8] = b"\x1b[201~";
+
+fn bracketed_paste(content: &[u8]) -> Vec<u8> {
+    let mut complete =
+        Vec::with_capacity(BRACKETED_PASTE_START.len() + content.len() + BRACKETED_PASTE_END.len());
+    complete.extend_from_slice(BRACKETED_PASTE_START);
+    complete.extend_from_slice(content);
+    complete.extend_from_slice(BRACKETED_PASTE_END);
+    complete
+}
 
 enum HolderCommand {
     Input(Input),
     PasteStart { bytes: usize, epoch: u64 },
     Resize(Resize),
     SurfaceSubscription(bool),
+    ControllerBoundary(protocol::ControllerBoundary),
     Respawn(HolderRespawn),
+    Promote,
     TerminateChild,
     Shutdown,
     Disconnected,
@@ -38,6 +55,7 @@ enum PendingPaste {
 struct HolderServerPeer {
     control: mpsc::SyncSender<Vec<u8>>,
     surface: Arc<Mutex<Option<Vec<u8>>>>,
+    surface_signaled: Arc<AtomicBool>,
 }
 impl HolderServerPeer {
     fn start(
@@ -48,11 +66,13 @@ impl HolderServerPeer {
             .map_err(|error| format!("clone holder server stream: {error}"))?;
         let (control, control_rx) = mpsc::sync_channel::<Vec<u8>>(64);
         let surface = Arc::new(Mutex::new(None::<Vec<u8>>));
+        let surface_signaled = Arc::new(AtomicBool::new(false));
         let writer_surface = surface.clone();
+        let writer_signaled = surface_signaled.clone();
         thread::spawn(move || {
             loop {
                 match control_rx.recv_timeout(Duration::from_millis(8)) {
-                    Ok(frame) => {
+                    Ok(frame) if !frame.is_empty() => {
                         if stream
                             .write_all(&frame)
                             .and_then(|()| stream.flush())
@@ -62,8 +82,9 @@ impl HolderServerPeer {
                         }
                     }
                     Err(mpsc::RecvTimeoutError::Disconnected) => return,
-                    Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    Ok(_) | Err(mpsc::RecvTimeoutError::Timeout) => {}
                 }
+                writer_signaled.store(false, Ordering::SeqCst);
                 let frame = writer_surface.lock().ok().and_then(|mut slot| slot.take());
                 if let Some(frame) = frame
                     && stream
@@ -75,7 +96,14 @@ impl HolderServerPeer {
                 }
             }
         });
-        Ok((Self { control, surface }, reader))
+        Ok((
+            Self {
+                control,
+                surface,
+                surface_signaled,
+            },
+            reader,
+        ))
     }
 
     fn offer_control(&self, frame: Vec<u8>) -> Result<(), String> {
@@ -87,6 +115,11 @@ impl HolderServerPeer {
     fn offer_surface(&self, frame: Vec<u8>) {
         if let Ok(mut slot) = self.surface.lock() {
             *slot = Some(frame);
+        }
+        // Performance: wake the writer immediately; the flag bounds queued wakes to one so
+        // surface churn cannot overrun the control lane.
+        if !self.surface_signaled.swap(true, Ordering::SeqCst) {
+            let _ = self.control.try_send(Vec::new());
         }
     }
 }
@@ -249,6 +282,9 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
     let mut command = CommandBuilder::new(&config.node_executable);
     command.arg(Path::new(&config.release_root).join("bin").join("ui.js"));
     command.arg("--tab");
+    if config.standby {
+        command.arg("--tab-standby");
+    }
     let tab_data_dir = Path::new(&config.server.data_dir)
         .join("tabs")
         .join(profile_token)
@@ -257,11 +293,13 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
     command.arg(&tab_data_dir);
     command.arg("--tab-incarnation");
     command.arg(config.incarnation.to_string());
+    if let Some(directory) = config.session_dir.as_deref() {
+        command.arg("--session-dir");
+        command.arg(directory);
+    }
     if let Some(session) = config
         .session_file
-        .as_deref()
-        .filter(|session_file| Path::new(session_file).is_file())
-        .map(str::to_owned)
+        .clone()
         .or_else(|| first_turn_session_id(&tab_data_dir))
     {
         command.arg("--session");
@@ -303,6 +341,10 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         .map_err(|error| format!("take resident PTY writer: {error}"))?;
     let (write_tx, write_rx) = mpsc::channel::<(Vec<u8>, usize)>();
     let (write_result_tx, write_result_rx) = mpsc::channel::<Result<usize, String>>();
+    // Performance: PTY, command, and write-completion threads wake the holder loop directly so
+    // input and output never wait out an idle poll; capacity one keeps wakes coalesced.
+    let (wake_tx, wake_rx) = mpsc::sync_channel::<()>(1);
+    let writer_wake = wake_tx.clone();
     thread::spawn(move || {
         while let Ok((bytes, admitted)) = write_rx.recv() {
             if crate::fault_injection::enabled("A1_TABS_FAULT_BLOCK_PTY_WRITE") {
@@ -316,12 +358,15 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 .map(|()| admitted)
                 .map_err(|error| format!("write resident PTY input: {error}"));
             let failed = result.is_err();
-            if write_result_tx.send(result).is_err() || failed {
+            let delivered = write_result_tx.send(result).is_ok();
+            let _ = writer_wake.try_send(());
+            if !delivered || failed {
                 break;
             }
         }
     });
     let (output_tx, output_rx) = mpsc::channel::<Vec<u8>>();
+    let reader_wake = wake_tx.clone();
     thread::spawn(move || {
         let mut buffer = [0_u8; 16 * 1024];
         loop {
@@ -331,12 +376,14 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                     if output_tx.send(buffer[..count].to_vec()).is_err() {
                         break;
                     }
+                    let _ = reader_wake.try_send(());
                 }
             }
         }
+        let _ = reader_wake.try_send(());
     });
     let (command_tx, command_rx) = mpsc::sync_channel::<HolderCommand>(4);
-    spawn_command_reader(command_stream, command_tx.clone());
+    spawn_command_reader(command_stream, command_tx.clone(), wake_tx.clone());
     std::fs::write(ready, format!("{}:holder\n", std::process::id()))
         .map_err(|error| format!("write holder readiness: {error}"))?;
     crate::fault_injection::freeze_role("holder");
@@ -387,7 +434,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 apply_holder_effects(epoch_effects, &write_tx, &server)?;
                 let (replacement_peer, replacement_reader) = HolderServerPeer::start(replacement)?;
                 server = replacement_peer;
-                spawn_command_reader(replacement_reader, command_tx.clone());
+                spawn_command_reader(replacement_reader, command_tx.clone(), wake_tx.clone());
                 if subscribed {
                     revision = revision.saturating_add(1);
                     terminal.mark_dirty()?;
@@ -400,6 +447,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                             revision,
                             bytes: frame,
                             status: "idle".into(),
+                            accent: None,
                         },
                     )?);
                 }
@@ -436,9 +484,19 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                             revision,
                             bytes: frame,
                             status: "idle".into(),
+                            accent: None,
                         },
                     )?);
                 }
+            } else if matches!(&command, HolderCommand::Promote) {
+                // Platform: Windows ConPTY may drop the in-band OSC marker, so the private tab
+                // data directory carries the same promotion out of band; the child accepts either.
+                let promotion = tab_data_dir.join("standby-promote");
+                let _ = std::fs::create_dir_all(&tab_data_dir)
+                    .and_then(|()| std::fs::write(&promotion, b"promote\n"));
+                write_tx
+                    .send((b"\x1b]a1;standby-promote\x07".to_vec(), 0))
+                    .map_err(|_| "promote standby child writer stopped".to_owned())?;
             } else if matches!(
                 &command,
                 HolderCommand::TerminateChild | HolderCommand::Shutdown
@@ -474,7 +532,10 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 highest_epoch = epoch;
                 pending_paste = if bytes == 0 {
                     None
-                } else if bytes <= HOLDER_INPUT_CAPACITY {
+                } else if bytes
+                    <= HOLDER_INPUT_CAPACITY
+                        .saturating_sub(BRACKETED_PASTE_START.len() + BRACKETED_PASTE_END.len())
+                {
                     Some(PendingPaste::Collect {
                         expected: bytes,
                         bytes: Vec::with_capacity(bytes),
@@ -492,6 +553,16 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                     )?);
                     Some(PendingPaste::Discard { remaining: bytes })
                 };
+            } else if let HolderCommand::ControllerBoundary(boundary) = command {
+                write_tx
+                    .send((
+                        crate::controller::encode_boundary_marker(
+                            boundary.generation,
+                            boundary.nonce,
+                        ),
+                        0,
+                    ))
+                    .map_err(|_| "resident PTY writer stopped".to_owned())?;
             } else if let HolderCommand::Input(message) = command {
                 if child_exited {
                     let action = match message.bytes.as_slice() {
@@ -523,9 +594,9 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                         PendingPaste::Collect { expected, bytes } => {
                             bytes.extend_from_slice(&message.bytes);
                             if bytes.len() == *expected {
-                                let complete = std::mem::take(bytes);
+                                let content = std::mem::take(bytes);
                                 pending_paste = None;
-                                complete
+                                bracketed_paste(&content)
                             } else if bytes.len() > *expected {
                                 pending_paste = None;
                                 let _ = server.offer_control(wire::frame(
@@ -583,6 +654,8 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
             }
             changed = true;
         }
+        // Performance: each pass drains all queued PTY output before rendering, so floods coalesce
+        // into one surface per pass without delaying an isolated echo behind a pacing timer.
         if changed && subscribed {
             revision = revision.saturating_add(1);
             terminal.mark_dirty()?;
@@ -595,6 +668,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                     revision,
                     bytes: frame,
                     status: "idle".into(),
+                    accent: None,
                 },
             )?);
         }
@@ -649,6 +723,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                         revision,
                         bytes: frame,
                         status: "crashed".into(),
+                        accent: None,
                     },
                 )?);
             }
@@ -674,7 +749,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                 return Ok(());
             }
         }
-        thread::sleep(Duration::from_millis(8));
+        let _ = wake_rx.recv_timeout(Duration::from_millis(8));
     }
 }
 
@@ -825,6 +900,7 @@ fn connect_holder(
 fn spawn_command_reader(
     mut stream: endpoint::EndpointStream,
     command_tx: mpsc::SyncSender<HolderCommand>,
+    wake: mpsc::SyncSender<()>,
 ) {
     thread::spawn(move || {
         while let Ok(Some(payload)) = wire::read_payload(&mut stream) {
@@ -835,6 +911,12 @@ fn spawn_command_reader(
                 "input" => {
                     if let Ok((_, input)) = wire::body::<Input>(&payload) {
                         let _ = command_tx.send(HolderCommand::Input(input));
+                    }
+                }
+                "controller-boundary" => {
+                    if let Ok((_, boundary)) = wire::body::<protocol::ControllerBoundary>(&payload)
+                    {
+                        let _ = command_tx.send(HolderCommand::ControllerBoundary(boundary));
                     }
                 }
                 "paste.start" => {
@@ -858,6 +940,9 @@ fn spawn_command_reader(
                         let _ = command_tx.send(HolderCommand::Respawn(respawn));
                     }
                 }
+                "holder.promote" => {
+                    let _ = command_tx.send(HolderCommand::Promote);
+                }
                 "holder.terminate-child" => {
                     let _ = command_tx.send(HolderCommand::TerminateChild);
                 }
@@ -869,8 +954,10 @@ fn spawn_command_reader(
                 }
                 _ => {}
             }
+            let _ = wake.try_send(());
         }
         let _ = command_tx.send(HolderCommand::Disconnected);
+        let _ = wake.try_send(());
     });
 }
 
@@ -929,6 +1016,14 @@ mod tests {
         )
         .unwrap();
         assert_eq!(first_turn_session_id(root.path()), None);
+    }
+
+    #[test]
+    fn restores_bracketed_paste_protocol_after_outer_terminal_decoding() {
+        assert_eq!(
+            bracketed_paste("wide 开发 e\u{301}".as_bytes()),
+            b"\x1b[200~wide \xe5\xbc\x80\xe5\x8f\x91 e\xcc\x81\x1b[201~"
+        );
     }
 
     #[test]

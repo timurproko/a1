@@ -125,6 +125,18 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
       return { ...values };
     },
   }),
+  Object.freeze({
+    to: 16,
+    description: "Make bare A1 tabs unconditional and keep only tab UX controls.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      const migrated: Record<string, unknown> = { ...values };
+      delete migrated.residentTabs;
+      delete migrated.tabsMaxConcurrentStarts;
+      delete migrated.tabsUnresponsiveRestartSeconds;
+      delete migrated.tabsStallNoticeSeconds;
+      return migrated;
+    },
+  }),
 ]);
 
 export interface OwnedUiSettingsCompatibilityResult {

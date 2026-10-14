@@ -56,6 +56,7 @@ export interface OwnedSettingsManagerOptions {
   readonly migrations?: readonly OwnedUiSettingsMigration[];
   readonly agent?: AgentSettingsPort | null;
   readonly agentProvider?: () => AgentSettingsPort | null;
+  readonly hiddenOwnedSettingIds?: readonly string[];
   readonly hiddenAgentSettingIds?: readonly string[];
   readonly agentSettingLabelOverrides?: Readonly<Record<string, string>>;
 }
@@ -94,6 +95,7 @@ export class OwnedSettingsManager {
   readonly #agent: AgentSettingsPort | null;
   readonly #agentProvider: (() => AgentSettingsPort | null) | null;
   readonly #listeners = new Set<OwnedUiSettingsListener>();
+  readonly #hiddenOwnedSettingIds: ReadonlySet<string>;
   readonly #hiddenAgentSettingIds: ReadonlySet<string>;
   readonly #agentSettingLabelOverrides: Readonly<Record<string, string>>;
   #resolution: OwnedUiSettingsResolution;
@@ -116,6 +118,7 @@ export class OwnedSettingsManager {
     this.#migrations = options.migrations ?? OWNED_UI_SETTINGS_MIGRATIONS;
     this.#agent = options.agent ?? null;
     this.#agentProvider = options.agentProvider ?? null;
+    this.#hiddenOwnedSettingIds = new Set(options.hiddenOwnedSettingIds ?? []);
     this.#hiddenAgentSettingIds = new Set(options.hiddenAgentSettingIds ?? []);
     this.#agentSettingLabelOverrides = { ...(options.agentSettingLabelOverrides ?? {}) };
     this.#resolution = this.read();
@@ -202,7 +205,13 @@ export class OwnedSettingsManager {
   }
 
   sections(): readonly OwnedUiSettingsSection[] {
-    return buildOwnedUiSettingsSections({ resolution: this.#resolution, agent: this.#agentSnapshot }).map(section => ({
+    const resolution = this.#hiddenOwnedSettingIds.size === 0
+      ? this.#resolution
+      : {
+        ...this.#resolution,
+        settings: this.#resolution.settings.filter(setting => !this.#hiddenOwnedSettingIds.has(setting.declaration.id)),
+      };
+    return buildOwnedUiSettingsSections({ resolution, agent: this.#agentSnapshot }).map(section => ({
       ...section,
       entries: section.entries.map(entry => {
         if (entry.backend === "a1" && this.#restartEffective.has(entry.id)) {

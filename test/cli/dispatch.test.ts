@@ -21,8 +21,9 @@ function output() {
 
 describe("A1 CLI dispatch", () => {
   it.each([
-    [[], { kind: "launch", profileId: "a1" }],
-    [["pi"], { kind: "launch", profileId: "pi" }],
+    [[], { kind: "launch", profileId: "a1", launchMode: "tabs" }],
+    [["solo"], { kind: "launch", profileId: "a1", launchMode: "solo" }],
+    [["pi"], { kind: "launch", profileId: "pi", launchMode: "solo" }],
     [["help"], { kind: "help" }],
     [["--help"], { kind: "help" }],
     [["-h"], { kind: "help" }],
@@ -62,6 +63,9 @@ describe("A1 CLI dispatch", () => {
     expect(commands.launch).not.toHaveBeenCalled();
     expect(cliHelp(PRERELEASE)).toContain("session worktrees");
     expect(cliHelp(PRERELEASE)).toContain("session unlink-worktree");
+    expect(cliHelp(PRERELEASE)).toContain("a1 solo");
+    expect(cliUsage(PRERELEASE)).toContain("solo");
+    expect(parseCliCommand(["solo"], RELEASE)).toEqual({ kind: "launch", profileId: "a1", launchMode: "solo" });
   });
 
   it.each([PRERELEASE, RELEASE])("dispatches explicit session selection in either option order (%j)", async capabilities => {
@@ -72,9 +76,9 @@ describe("A1 CLI dispatch", () => {
     ]) {
       const commands = handlers();
       const sessionSelection = { target: "saved-id", ...(arguments_.length === 2 ? {} : { sessionDir: "D:/session's store" }) };
-      expect(parseCliCommand(arguments_, capabilities)).toEqual({ kind: "launch", profileId: "a1", sessionSelection });
+      expect(parseCliCommand(arguments_, capabilities)).toEqual({ kind: "launch", profileId: "a1", launchMode: "tabs", sessionSelection });
       expect(await dispatchCli(arguments_, commands, output(), capabilities)).toBe(0);
-      expect(commands.launch).toHaveBeenCalledExactlyOnceWith({ kind: "interactive", profileId: "a1", sessionSelection });
+      expect(commands.launch).toHaveBeenCalledExactlyOnceWith({ kind: "interactive", profileId: "a1", launchMode: "tabs", sessionSelection });
       expect(commands.update).not.toHaveBeenCalled();
       expect(cliHelp(capabilities)).toContain("--session <path|id>");
       expect(cliHelp(capabilities)).toContain("--session-dir <dir> --session <path|id>");
@@ -118,15 +122,16 @@ describe("A1 CLI dispatch", () => {
   });
 
   it.each([
-    { arguments_: [] as const, profileId: "a1" },
-    { arguments_: ["pi"] as const, profileId: "pi" },
-  ] as const)("dispatches interactive form $arguments_ as a typed intent", async ({ arguments_, profileId }) => {
+    { arguments_: [] as const, profileId: "a1", launchMode: "tabs" },
+    { arguments_: ["solo"] as const, profileId: "a1", launchMode: "solo" },
+    { arguments_: ["pi"] as const, profileId: "pi", launchMode: "solo" },
+  ] as const)("dispatches interactive form $arguments_ as a typed intent", async ({ arguments_, profileId, launchMode }) => {
     const launch = vi.fn(async (_intent: InteractiveLaunchIntent) => 17);
     const result = await dispatchCli(arguments_, { ...handlers(), launch }, output(), PRERELEASE);
 
     expect(result).toBe(17);
     expect(launch).toHaveBeenCalledOnce();
-    expect(launch.mock.calls[0]?.[0]).toMatchObject({ kind: "interactive", profileId });
+    expect(launch.mock.calls[0]?.[0]).toMatchObject({ kind: "interactive", profileId, launchMode });
   });
 
   it("prints help only when explicitly requested", async () => {
@@ -203,6 +208,7 @@ describe("A1 CLI dispatch", () => {
     ["update", "--models", "extra"],
     ["update", "--all"],
     ["help", "extra"],
+    ["solo", "extra"],
     ["--help", "extra"],
     ["version", "extra"],
     ["--version", "extra"],

@@ -78,7 +78,7 @@ describe("repository-local development launch", () => {
     });
   });
 
-  it("prepares isolated interactive profiles before direct development launch", async () => {
+  it("prepares isolated interactive profiles before development launch", async () => {
     const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-profile-"));
     const inheritedPiProfile = resolve(profileHome, "inherited-shared-profile");
     const environment = { ...process.env, A1_PROFILE_HOME: profileHome, PI_CODING_AGENT_DIR: inheritedPiProfile };
@@ -90,6 +90,8 @@ describe("repository-local development launch", () => {
       expect(JSON.parse(owned.stdout)).toMatchObject({
         launchArguments: [],
         directProfile: "a1",
+        launchMode: "tabs",
+        selectedEntry: "bin/cli.js",
         profileConfigurationRoot: resolve(profileHome, ".a1/agent"),
         environment: {
           PI_CODING_AGENT_DIR: resolve(profileHome, ".a1/agent"),
@@ -99,10 +101,30 @@ describe("repository-local development launch", () => {
       expect(JSON.parse(pi.stdout)).toMatchObject({
         launchArguments: ["pi"],
         directProfile: "pi",
+        launchMode: "solo",
+        selectedEntry: "bin/ui.js",
         profileConfigurationRoot: null,
         environment: { PI_CODING_AGENT_DIR: null, NODE_DISABLE_COMPILE_CACHE: "1" },
       });
       expect(JSON.parse(owned.stdout).environment.PI_CODING_AGENT_DIR).not.toBe(inheritedPiProfile);
+    } finally {
+      await rm(profileHome, { recursive: true, force: true });
+    }
+  });
+
+  it("uses the direct development entry for explicit solo mode", async () => {
+    const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-solo-"));
+    try {
+      const result = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", "solo"], {
+        env: { ...process.env, A1_PROFILE_HOME: profileHome },
+      });
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        launchArguments: ["solo"],
+        childArguments: [],
+        directProfile: "a1",
+        launchMode: "solo",
+        selectedEntry: "bin/ui.js",
+      });
     } finally {
       await rm(profileHome, { recursive: true, force: true });
     }
@@ -114,9 +136,9 @@ describe("repository-local development launch", () => {
     const args = ["--session-dir", "D:/session's store", "--session", "D:\\session files\\saved.jsonl"];
     try {
       const selected = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", ...args], { env });
-      expect(JSON.parse(selected.stdout)).toMatchObject({ directProfile: "a1", childArguments: args });
+      expect(JSON.parse(selected.stdout)).toMatchObject({ directProfile: "a1", launchMode: "tabs", selectedEntry: "bin/cli.js", childArguments: args });
       const fresh = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment"], { env });
-      expect(JSON.parse(fresh.stdout)).toMatchObject({ directProfile: "a1", childArguments: [] });
+      expect(JSON.parse(fresh.stdout)).toMatchObject({ directProfile: "a1", launchMode: "tabs", selectedEntry: "bin/cli.js", childArguments: [] });
     } finally {
       await rm(profileHome, { recursive: true, force: true });
     }

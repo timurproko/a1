@@ -15,16 +15,25 @@ import {
 
 const MAX_SETTINGS_BYTES = 256 * 1024;
 
+export const RESIDENT_TABS_MAX_CONCURRENT_STARTS = 2;
+export const RESIDENT_TABS_MAX_CONCURRENT_STARTS_CAP = 8;
+export const RESIDENT_TABS_PREWARM_COUNT = 1;
+export const RESIDENT_TABS_PREWARM_CAP = 1;
+
 export interface ResidentTabLaunchSettings {
-  readonly residentTabs: boolean;
+  readonly tabsMax: number;
+  readonly tabsAutoName: boolean;
   readonly maxConcurrentStarts: number;
+  readonly prewarmCount: number;
   readonly unresponsiveRestartSeconds: number;
   readonly stallNoticeSeconds: number;
 }
 
 const DEFAULTS: ResidentTabLaunchSettings = Object.freeze({
-  residentTabs: false,
-  maxConcurrentStarts: 2,
+  tabsMax: 10,
+  tabsAutoName: true,
+  maxConcurrentStarts: RESIDENT_TABS_MAX_CONCURRENT_STARTS,
+  prewarmCount: RESIDENT_TABS_PREWARM_COUNT,
   unresponsiveRestartSeconds: 120,
   stallNoticeSeconds: 300,
 });
@@ -59,37 +68,26 @@ export async function readResidentTabLaunchSettings(
   }
 }
 
-export async function readResidentTabsSetting(
-  profileDir: string,
-  namespace = "a1",
-  legacyConfigDir?: string,
-  profileId = namespace,
-): Promise<boolean> {
-  return (await readResidentTabLaunchSettings(profileDir, namespace, legacyConfigDir, profileId)).residentTabs;
-}
-
 function resolveLaunchValues(
   document: OwnedUiSettingsDocument,
   migrations: typeof OWNED_UI_SETTINGS_MIGRATIONS,
 ): ResidentTabLaunchSettings {
   const resolution = resolveOwnedUiSettings({
     declarations: [
-      OWNED_SETTING_DECLARATIONS.residentTabs,
-      OWNED_SETTING_DECLARATIONS.tabsMaxConcurrentStarts,
-      OWNED_SETTING_DECLARATIONS.tabsUnresponsiveRestartSeconds,
-      OWNED_SETTING_DECLARATIONS.tabsStallNoticeSeconds,
+      OWNED_SETTING_DECLARATIONS.tabsMax,
+      OWNED_SETTING_DECLARATIONS.tabsAutoName,
     ],
     migrations,
     document,
     currentVersion: OWNED_UI_SETTINGS_VERSION,
   });
-  const maximum = settingValue(resolution, "tabsMaxConcurrentStarts");
-  const unresponsive = settingValue(resolution, "tabsUnresponsiveRestartSeconds");
-  const stall = settingValue(resolution, "tabsStallNoticeSeconds");
+  const tabsMax = (document as { values?: Record<string, unknown> }).values?.["tabsMax"] ?? settingValue(resolution, "tabsMax");
   return {
-    residentTabs: settingValue(resolution, "residentTabs") === true,
-    maxConcurrentStarts: typeof maximum === "number" ? maximum : DEFAULTS.maxConcurrentStarts,
-    unresponsiveRestartSeconds: typeof unresponsive === "number" ? unresponsive : DEFAULTS.unresponsiveRestartSeconds,
-    stallNoticeSeconds: typeof stall === "number" ? stall : DEFAULTS.stallNoticeSeconds,
+    tabsMax: typeof tabsMax === "number" && Number.isFinite(tabsMax) ? Math.max(1, Math.min(50, Math.trunc(tabsMax))) : DEFAULTS.tabsMax,
+    tabsAutoName: settingValue(resolution, "tabsAutoName") === true,
+    maxConcurrentStarts: RESIDENT_TABS_MAX_CONCURRENT_STARTS,
+    prewarmCount: RESIDENT_TABS_PREWARM_COUNT,
+    unresponsiveRestartSeconds: DEFAULTS.unresponsiveRestartSeconds,
+    stallNoticeSeconds: DEFAULTS.stallNoticeSeconds,
   };
 }

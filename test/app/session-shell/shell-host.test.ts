@@ -70,6 +70,27 @@ describe("OwnedUiTerminalHost", () => {
     }
   });
 
+  it("holds hidden resident presentation and repaints once when visible", async () => {
+    const { terminal, shell } = await fixture([], [], true);
+    try {
+      await settledFrames();
+      shell.terminalHost.setPresentationVisible(false);
+      const writes = terminal.writes.length;
+      const redraws = shell.runtime.fullRedraws;
+      shell.root.editor.setText("hidden change");
+      shell.terminalHost.requestRender(shell);
+      await settledFrames();
+      expect(terminal.writes.length).toBe(writes);
+      expect(shell.runtime.fullRedraws).toBe(redraws);
+      shell.terminalHost.setPresentationVisible(true);
+      await settledFrames();
+      expect(shell.runtime.fullRedraws).toBe(redraws + 1);
+      expect(stripTerminalSequences(terminal.writes.slice(writes).join(""))).toContain("hidden change");
+    } finally {
+      await shell.dispose();
+    }
+  });
+
   it("hides a detached presenter's overlays and gates its terminal-wide writes", async () => {
     const { terminal, shell } = await fixture([], [], true);
     const second = await secondPresenter(shell, terminal);

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  OWNED_UI_SETTINGS_VERSION,
   OwnedSettingsManager,
   settingValue,
   type OwnedUiSettingDeclaration,
@@ -154,7 +155,7 @@ describe("owned settings persistence", () => {
     const legacyDir = path.join(root, "legacy");
     const legacyFile = path.join(legacyDir, "settings", `${PRODUCT_NAMESPACE}.json`);
     mkdirSync(path.dirname(legacyFile), { recursive: true });
-    const legacyRaw = JSON.stringify({ version: 15, values: { density: "compact", futureSetting: "keep me" } });
+    const legacyRaw = JSON.stringify({ version: OWNED_UI_SETTINGS_VERSION, values: { density: "compact", futureSetting: "keep me" } });
     writeFileSync(legacyFile, legacyRaw);
     const target = new OwnedSettingsManager({
       profileDir, legacyConfigDir: legacyDir, namespace: PRODUCT_NAMESPACE, profileId: PRODUCT_NAMESPACE,
@@ -174,7 +175,7 @@ describe("owned settings persistence", () => {
     mkdirSync(profileDir, { recursive: true });
     mkdirSync(path.join(legacyDir, "settings"), { recursive: true });
     writeFileSync(path.join(profileDir, "settings.json"), JSON.stringify({ [PRODUCT_NAMESPACE]: { density: "comfortable" } }));
-    writeFileSync(path.join(legacyDir, "settings", `${PRODUCT_NAMESPACE}.json`), JSON.stringify({ version: 15, values: { density: "compact" } }));
+    writeFileSync(path.join(legacyDir, "settings", `${PRODUCT_NAMESPACE}.json`), JSON.stringify({ version: OWNED_UI_SETTINGS_VERSION, values: { density: "compact" } }));
     const target = new OwnedSettingsManager({
       profileDir, legacyConfigDir: legacyDir, namespace: PRODUCT_NAMESPACE, profileId: PRODUCT_NAMESPACE,
       declarations: DECLARATIONS, migrations: [],

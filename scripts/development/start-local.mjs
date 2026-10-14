@@ -22,16 +22,23 @@ const { parseCliCommand, cliCapabilities } = await import("../../dist/cli/index.
 const { sessionSelectionArguments } = await import("../../dist/foundation/lifecycle/index.js");
 const command = parseCliCommand(inspectedArguments, cliCapabilities(release.version));
 const directProfile = command.kind === "launch" ? command.profileId : null;
+const launchMode = command.kind === "launch" ? command.launchMode : null;
 const childArguments = command.kind === "launch" ? sessionSelectionArguments(command.sessionSelection) : inspectedArguments;
-const prepared = directProfile === null ? null : await prepareDirectProfile(directProfile, environment);
+const prepared = directProfile === null ? null : await prepareDirectProfile(directProfile, launchMode, environment);
 const { withLaunchContext } = await import("../../dist/foundation/launch-context/index.js");
-const profileEnvironment = prepared === null ? environment : withLaunchContext(prepared.environment, { launchProfile: directProfile });
+const profileEnvironment = prepared === null || launchMode === null
+  ? environment
+  : withLaunchContext(prepared.environment, { launchProfile: directProfile, launchMode });
 // Performance: mutable development builds create fresh compile-cache identities whose exit-time
 // serialization occurs after terminal restoration. Production launch and warmup caching stay intact.
 const childEnvironment = directProfile === null ? profileEnvironment : { ...profileEnvironment, NODE_DISABLE_COMPILE_CACHE: "1" };
+// Rationale: resident development launches traverse the production bootstrap, supervisor, and guardian;
+// explicit solo/comparison launches keep the fast direct UI entry.
+const entry = directProfile === null || launchMode === "tabs" ? identity.artifacts.cliEntry : identity.artifacts.uiEntry;
+const selectedChildArguments = directProfile === null || launchMode === "tabs" ? inspectedArguments : childArguments;
 
 if (launchArguments[0] === "--print-environment") {
-  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, childArguments, directProfile, profileConfigurationRoot: prepared?.configurationRoot ?? null, environment: {
+  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, childArguments: selectedChildArguments, directProfile, launchMode, selectedEntry: entry, profileConfigurationRoot: prepared?.configurationRoot ?? null, environment: {
     A1_CONFIG_DIR: childEnvironment.A1_CONFIG_DIR,
     A1_DATA_DIR: childEnvironment.A1_DATA_DIR,
     A1_RUNTIME_DIR: childEnvironment.A1_RUNTIME_DIR,
@@ -40,8 +47,7 @@ if (launchArguments[0] === "--print-environment") {
     NODE_DISABLE_COMPILE_CACHE: childEnvironment.NODE_DISABLE_COMPILE_CACHE ?? null,
   } }, null, 2)}\n`);
 } else {
-  const entry = directProfile === null ? identity.artifacts.cliEntry : identity.artifacts.uiEntry;
-  const child = spawn(process.execPath, [resolve(packageRoot, entry), ...childArguments], {
+  const child = spawn(process.execPath, [resolve(packageRoot, entry), ...selectedChildArguments], {
     cwd: process.cwd(),
     env: childEnvironment,
     stdio: "inherit",
@@ -56,9 +62,9 @@ if (launchArguments[0] === "--print-environment") {
   });
 }
 
-async function prepareDirectProfile(profileId, sourceEnvironment) {
+async function prepareDirectProfile(profileId, launchMode, sourceEnvironment) {
   const { interactiveLaunchIntent, prepareInteractiveLaunch } = await import("../../dist/features/launch/index.js");
-  return await prepareInteractiveLaunch(interactiveLaunchIntent(profileId), sourceEnvironment);
+  return await prepareInteractiveLaunch(interactiveLaunchIntent(profileId, undefined, launchMode), sourceEnvironment);
 }
 
 async function deriveDevelopmentReleaseIdentity(root) {

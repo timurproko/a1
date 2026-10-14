@@ -33,6 +33,10 @@ pub struct TabRecord {
     pub restart_window_start: Option<u64>,
     #[serde(default)]
     pub requested_restart: bool,
+    #[serde(default)]
+    pub attention_seq: u64,
+    #[serde(default)]
+    pub seen_seq: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -343,6 +347,9 @@ fn validate(document: &RegistryDocument) -> Result<(), String> {
         if !matches!(tab.desired.as_str(), "running" | "stopped") {
             return Err("registry desired state is invalid".to_owned());
         }
+        if tab.seen_seq > tab.attention_seq {
+            return Err("registry attention state is invalid".to_owned());
+        }
     }
     Ok(())
 }
@@ -402,6 +409,8 @@ mod tests {
                 restarts: 0,
                 restart_window_start: None,
                 requested_restart: false,
+                attention_seq: 0,
+                seen_seq: 0,
             }],
         }
     }
@@ -479,6 +488,21 @@ mod tests {
         assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 20);
         assert!(!root.path().join("tabset-00.json").exists());
         assert!(root.path().join("tabset-24.json").exists());
+    }
+
+    #[test]
+    fn attention_state_defaults_safely_and_rejects_impossible_seen_values() {
+        let legacy = serde_json::to_value(document(1)).unwrap();
+        let mut legacy = legacy.as_object().unwrap().clone();
+        let tabs = legacy.get_mut("tabs").unwrap().as_array_mut().unwrap();
+        tabs[0].as_object_mut().unwrap().remove("attentionSeq");
+        tabs[0].as_object_mut().unwrap().remove("seenSeq");
+        let decoded: RegistryDocument = serde_json::from_value(legacy.into()).unwrap();
+        assert_eq!(decoded.tabs[0].attention_seq, 0);
+        assert_eq!(decoded.tabs[0].seen_seq, 0);
+        let mut invalid = document(1);
+        invalid.tabs[0].seen_seq = 1;
+        assert!(validate(&invalid).is_err());
     }
 
     #[test]

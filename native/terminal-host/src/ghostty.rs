@@ -23,9 +23,12 @@ const TERMINAL_DATA_VIEWPORT_ACTIVE: i32 = 32;
 const ROW_DATA_DIRTY: i32 = 1;
 const ROW_DATA_CELLS: i32 = 3;
 const ROW_OPTION_DIRTY: i32 = 0;
+const CELLS_DATA_RAW: i32 = 1;
 const CELLS_DATA_STYLE: i32 = 2;
 const CELLS_DATA_SELECTED: i32 = 7;
 const CELLS_DATA_GRAPHEMES_UTF8: i32 = 9;
+const CELL_DATA_WIDE: i32 = 3;
+const CELL_WIDE_SPACER_TAIL: i32 = 2;
 const TERMINAL_OPT_USERDATA: i32 = 0;
 const TERMINAL_OPT_WRITE_PTY: i32 = 1;
 const TERMINAL_OPT_SELECTION: i32 = 21;
@@ -332,6 +335,7 @@ unsafe extern "C" {
         out: *mut c_void,
     ) -> GhosttyResult;
     fn ghostty_render_state_row_cells_free(cells: GhosttyRenderStateRowCellsRaw);
+    fn ghostty_cell_get(cell: u64, data: i32, out: *mut c_void) -> GhosttyResult;
     fn ghostty_key_encoder_new(
         allocator: *const c_void,
         out: *mut GhosttyKeyEncoderRaw,
@@ -357,6 +361,7 @@ unsafe extern "C" {
     fn ghostty_key_event_set_key(event: GhosttyKeyEventRaw, key: i32);
     fn ghostty_key_event_set_mods(event: GhosttyKeyEventRaw, mods: u16);
     fn ghostty_key_event_set_utf8(event: GhosttyKeyEventRaw, utf8: *const c_char, len: usize);
+    fn ghostty_key_event_set_unshifted_codepoint(event: GhosttyKeyEventRaw, codepoint: u32);
     fn ghostty_mouse_encoder_new(
         allocator: *const c_void,
         out: *mut GhosttyMouseEncoderRaw,
@@ -1202,6 +1207,9 @@ impl KeyEncoder {
             );
             ghostty_key_event_set_key(event, key);
             ghostty_key_event_set_mods(event, mods);
+            if let Some(codepoint) = unshifted_codepoint(key) {
+                ghostty_key_event_set_unshifted_codepoint(event, codepoint);
+            }
             if let Some(text) = utf8 {
                 ghostty_key_event_set_utf8(event, text.as_ptr().cast(), text.len());
             }
@@ -1402,6 +1410,15 @@ pub fn key_for_character(character: char) -> i32 {
     }
 }
 
+fn unshifted_codepoint(key: i32) -> Option<u32> {
+    match key {
+        KEY_A..=45 => Some((b'a' + (key - KEY_A) as u8) as u32),
+        6..=15 => Some((b'0' + (key - 6) as u8) as u32),
+        KEY_SPACE => Some(' ' as u32),
+        _ => None,
+    }
+}
+
 fn cell_style(
     cells: GhosttyRenderStateRowCellsRaw,
     _colors: &GhosttyRenderStateColors,
@@ -1501,7 +1518,27 @@ fn cell_text(cells: GhosttyRenderStateRowCellsRaw) -> Result<String, String> {
         )
     };
     if result == GHOSTTY_SUCCESS && buffer.len == 0 {
-        return Ok(" ".to_owned());
+        let mut cell = 0u64;
+        check(
+            unsafe {
+                ghostty_render_state_row_cells_get(
+                    cells,
+                    CELLS_DATA_RAW,
+                    &mut cell as *mut u64 as *mut c_void,
+                )
+            },
+            "read empty cell",
+        )?;
+        let mut wide = 0i32;
+        check(
+            unsafe { ghostty_cell_get(cell, CELL_DATA_WIDE, &mut wide as *mut i32 as *mut c_void) },
+            "read empty cell width",
+        )?;
+        return Ok(if wide == CELL_WIDE_SPACER_TAIL {
+            String::new()
+        } else {
+            " ".to_owned()
+        });
     }
     if result != GHOSTTY_SUCCESS && result != GHOSTTY_OUT_OF_SPACE {
         return Err(format!("measure cell text failed with {result}"));

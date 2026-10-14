@@ -1868,7 +1868,7 @@ Bare A1 SHALL color the status-bar thinking-level name with the same active-them
 - **THEN** its existing width and truncation policy SHALL remain intact and any visible level-name span SHALL retain its level foreground without coloring adjacent text
 
 ### Requirement: Graceful user quit returns control to the parent shell
-The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the existing clear/exit chord as complete graceful-exit requests. Each route SHALL stop the agent session, dispose the owned presentation, restore all terminal modes and screen state owned by A1, terminate the interactive A1 process successfully, and return control to the invoking shell without requiring another signal or keystroke. When the owned UI runs inside a resident tab, the attach client SHALL consume the second `Ctrl+C` of the chord as a local detach request, and `/quit` and `Ctrl+D` on an empty editor SHALL request through the tab bridge that the client attached when the command was admitted detach, honored only while that attachment is still current; a stale attachment or an unavailable bridge SHALL keep the tab process running and direct the user to `Ctrl+C` twice. The tab's agent session and A1 process SHALL keep running, the tab SHALL show no quit outro, and the detached client SHALL complete terminal restoration and parent-shell return. The built-in quit command's autocomplete description SHALL be exactly `Quit`.
+The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the existing clear/exit chord as complete graceful-exit requests. Each route SHALL stop the agent session, dispose the owned presentation, restore all terminal modes and screen state owned by A1, terminate the interactive A1 process successfully, and return control to the invoking shell without requiring another signal or keystroke. When the owned UI runs inside a resident tab, the attach client SHALL consume the second `Ctrl+C` of the chord as a local detach request, and `/quit` and `Ctrl+D` SHALL request through the tab bridge that only the client named by the immutable command-origin input-controller revision detach, and only while that revision is current; stale, ambiguous or unavailable attribution SHALL keep the tab process running and direct the user to `Ctrl+C` twice. The tab's agent session and A1 process SHALL keep running, and the detached client SHALL complete terminal restoration and parent-shell return. The built-in quit command's autocomplete description SHALL be exactly `Quit`.
 
 #### Scenario: Quit with the slash command
 - **WHEN** the user submits `/quit` from an active owned interactive session
@@ -1880,13 +1880,17 @@ The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the exis
 - **THEN** the second press SHALL complete the same graceful shutdown, terminal restoration, successful process exit, and parent-shell return as `/quit`
 
 #### Scenario: Quit inside a resident tab
-- **WHEN** the user submits `/quit` or presses `Ctrl+C` twice inside the resident A1 tab
+- **WHEN** the user submits `/quit` or presses `Ctrl+C` twice inside a resident A1 tab
 - **THEN** the attach client SHALL restore the terminal and exit successfully, and the tab's agent session SHALL keep running
 - **AND** `a1 pi` SHALL continue to stop its single agent session on quit
 
 #### Scenario: Resident tab bridge is unavailable
 - **WHEN** a quit route runs inside a resident tab whose bridge is unavailable
 - **THEN** A1 SHALL NOT exit the tab process and SHALL show a concise notice that pressing `Ctrl+C` twice leaves
+
+#### Scenario: Quit execution is delayed across control transfer
+- **WHEN** a quit command admitted under an old controller executes after control transfers
+- **THEN** A1 SHALL reject its stale or ambiguous origin without detaching the new controller or exiting the tab, and SHALL offer attach-local double-`Ctrl+C` as the safe exit route
 
 #### Scenario: Quit admitted under a previous attachment
 - **WHEN** a quit command admitted while one client was attached executes after that client has gone and another has attached

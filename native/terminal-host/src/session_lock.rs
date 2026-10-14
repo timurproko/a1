@@ -173,6 +173,15 @@ fn new_location_identity(path: &Path) -> Result<String, LockError> {
     normalized_location(path)
 }
 
+pub(crate) fn session_identity(path: &Path) -> Result<String, LockError> {
+    let path = absolute(path)?;
+    if path.exists() {
+        existing_identity(&path)
+    } else {
+        new_location_identity(&path)
+    }
+}
+
 #[cfg(unix)]
 fn existing_identity(path: &Path) -> Result<String, LockError> {
     use std::os::unix::fs::MetadataExt;
@@ -335,6 +344,10 @@ mod tests {
         std::fs::write(&session, "").expect("session");
         let alias = root.path().join("alias.jsonl");
         std::fs::hard_link(&session, &alias).expect("hard link");
+        assert_eq!(
+            session_identity(&session).unwrap(),
+            session_identity(&alias).unwrap()
+        );
         let held = SessionLock::acquire(&session).expect("first lock");
         assert!(SessionLock::acquire(&alias).is_err());
         held.release();

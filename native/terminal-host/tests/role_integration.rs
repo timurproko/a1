@@ -107,7 +107,10 @@ setInterval(() => {}, 1000);
     first.write(b"\x03\x03");
     first.wait(Duration::from_secs(8));
     assert!(
-        first.output_containing("1 tab still running", Duration::from_secs(2)),
+        first.output_containing(
+            "1 agent still running run a1 to return.",
+            Duration::from_secs(2)
+        ),
         "{}",
         first.output_text()
     );
@@ -943,7 +946,7 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
     first.write(b"first-still-live\n");
     assert!(first.output_containing("echo:first-still-live", Duration::from_secs(10)));
 
-    let mut read_only = AttachFixture::spawn_view(
+    let mut takeover = AttachFixture::spawn_view(
         &executable,
         &address,
         &profile,
@@ -952,16 +955,21 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         fake_tab,
         Some(&second_tab),
     );
-    assert!(read_only.output_containing("fake-tab-ready", Duration::from_secs(10)));
-    read_only.write(b"must-not-reach-child\n");
+    assert!(takeover.output_containing("fake-tab-ready", Duration::from_secs(10)));
+    takeover.write(b"claimed-by-first-input\n");
     assert!(
-        read_only.output_containing("read-only-viewer", Duration::from_secs(5)),
+        takeover.output_containing("echo:claimed-by-first-input", Duration::from_secs(10)),
         "{}",
-        read_only.output_text()
+        takeover.output_text()
     );
-    assert!(!read_only.output_containing("echo:must-not-reach-child", Duration::from_secs(1)));
-    read_only.write(b"\x03\x03");
-    assert!(read_only.wait(Duration::from_secs(8)).success());
+    second.write(b"reclaimed-by-first-input\n");
+    assert!(
+        second.output_containing("echo:reclaimed-by-first-input", Duration::from_secs(10)),
+        "{}",
+        second.output_text()
+    );
+    takeover.lose_launch_tree();
+    takeover.wait(Duration::from_secs(8));
 
     let holders_before_client_loss = holder_identities(&credentials_root);
     first.lose_launch_tree();
@@ -1011,7 +1019,10 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         Some(&second_tab),
     );
     assert!(reattached_first.output_containing("echo:first-still-live", Duration::from_secs(15)));
-    assert!(reattached_second.output_containing("echo:second-tab", Duration::from_secs(15)));
+    assert!(
+        reattached_second
+            .output_containing("echo:reclaimed-by-first-input", Duration::from_secs(15))
+    );
     reattached_first.write(b"\x03\x03");
     reattached_second.write(b"\x03\x03");
     reattached_first.wait(Duration::from_secs(8));

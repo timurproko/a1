@@ -145,7 +145,6 @@ export interface OwnedUiShellEngineOptions {
   /** Resident tab quit routes detach the outer client without stopping this engine session. */
   readonly residentTab?: {
     requestDetach(): Promise<boolean>;
-    requestRestart?(): Promise<boolean>;
     reportStatus?(status: "working" | "idle" | "stalled"): void;
     readonly stallNoticeSeconds?: number;
     admit?(input: {
@@ -1319,7 +1318,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     if (result.command === "hotkeys" && result.outcome === "completed") {
       this.#lastWorkflowStatusId = undefined;
       const presentation = this.hotkeysPresentation();
-      const hotkeys = createPiShellHotkeys(presentation.bindings, presentation.getShortcuts, presentation.profile);
+      const hotkeys = createPiShellHotkeys(
+        presentation.bindings,
+        presentation.getShortcuts,
+        presentation.profile,
+        presentation.residentTabs,
+      );
       this.#appendAnchoredWorkflowComponent(width => hotkeys.render(width), () => hotkeys.dispose?.());
       return;
     }

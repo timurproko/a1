@@ -90,6 +90,17 @@ afterEach(() => {
 });
 
 describe("owned settings manager", () => {
+  it("omits empty sections when a launch hides their owned settings", () => {
+    const manager = new OwnedSettingsManager({
+      configDir: root,
+      profileId: "a1",
+      hiddenOwnedSettingIds: ["tabsMax", "tabsAutoName"],
+    });
+    expect(manager.sections().find(section => section.id === "tabs")).toBeUndefined();
+    expect(manager.value("tabsMax")).toBe(10);
+    expect(manager.value("tabsAutoName")).toBe(true);
+  });
+
   it("repairs harmless leading noise before resolving and writing settings", async () => {
     const file = path.join(root, "settings.json");
     const namespace = PRODUCT_IDENTITY.commandName;
@@ -122,7 +133,7 @@ describe("owned settings manager", () => {
       const target = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await target.load();
       expect(readFileSync(seed.file, "utf8")).toBe(before);
-      expect(target.resolution).toMatchObject({ version: 15, migrated: false, notices: [] });
+      expect(target.resolution).toMatchObject({ version: 16, migrated: false, notices: [] });
       const group = target.sections().find(section => section.id === "agent");
       const entry = group?.entries.find(candidate => candidate.id === "promptSuggestions");
       expect(group).toMatchObject({ unavailableReason: null, readOnlyReason: null });

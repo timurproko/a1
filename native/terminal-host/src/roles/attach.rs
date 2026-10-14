@@ -1,8 +1,11 @@
+use std::collections::HashMap;
 use std::io::{Write, stdout};
 use std::path::Path;
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
+
+use unicode_width::UnicodeWidthStr;
 
 use crossterm::event::{
     self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind,
@@ -12,12 +15,145 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use crate::endpoint;
 use crate::protocol::{self, BridgeAttachment, MAX_INPUT_BYTES, Welcome};
 use crate::roles::credentials::ProfileCredentials;
-use crate::roles::wire::{self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface};
+use crate::roles::strip::{self, StripHit, StripTab};
+use crate::roles::wire::{
+    self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface, TabCreate, TabList,
+    TabRename, TabReorder, TabStatus, TabTarget,
+};
 
 pub const ENTER_OUTER_MODES: &[u8] =
-    b"\x1b[?1049h\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1006h\x1b[?2026h";
+    b"\x1b[?1049h\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1003h\x1b[?1006h\x1b[?2026h";
 pub const RESTORE_OUTER_MODES: &[u8] =
-    b"\x1b[?2026l\x1b[?1006l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?1049l";
+    b"\x1b[?2026l\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?1049l";
+
+#[derive(Debug, Default)]
+struct TabBindings {
+    by_key: HashMap<String, String>,
+}
+
+impl TabBindings {
+    fn load(profile: &Path) -> Self {
+        let defaults = [
+            ("tabs.new", "alt+a"),
+            ("tabs.close", "alt+w"),
+            ("tabs.rename", "f2"),
+            ("tabs.jump1", "alt+1"),
+            ("tabs.jump2", "alt+2"),
+            ("tabs.jump3", "alt+3"),
+            ("tabs.jump4", "alt+4"),
+            ("tabs.jump5", "alt+5"),
+            ("tabs.jump6", "alt+6"),
+            ("tabs.jump7", "alt+7"),
+            ("tabs.jump8", "alt+8"),
+            ("tabs.jump9", "alt+9"),
+            ("tabs.jump10", "alt+0"),
+        ];
+        let mut actions = defaults
+            .into_iter()
+            .map(|(action, key)| (action.to_owned(), vec![key.to_owned()]))
+            .collect::<HashMap<_, _>>();
+        let mut foreign_keys = std::collections::HashSet::new();
+        if let Ok(bytes) = std::fs::read(profile.join("keybindings.json"))
+            && let Ok(document) = serde_json::from_slice::<serde_json::Value>(&bytes)
+            && let Some(object) = document.as_object()
+        {
+            for (action, value) in object {
+                if action.starts_with("tabs.") {
+                    continue;
+                }
+                match value {
+                    serde_json::Value::String(key) => {
+                        foreign_keys.insert(key.to_lowercase());
+                    }
+                    serde_json::Value::Array(values) => {
+                        foreign_keys.extend(
+                            values
+                                .iter()
+                                .filter_map(|value| value.as_str().map(str::to_lowercase)),
+                        );
+                    }
+                    _ => {}
+                }
+            }
+            for action in [
+                "tabs.new",
+                "tabs.close",
+                "tabs.rename",
+                "tabs.jump1",
+                "tabs.jump2",
+                "tabs.jump3",
+                "tabs.jump4",
+                "tabs.jump5",
+                "tabs.jump6",
+                "tabs.jump7",
+                "tabs.jump8",
+                "tabs.jump9",
+                "tabs.jump10",
+                "tabs.next",
+                "tabs.previous",
+                "tabs.moveRight",
+                "tabs.moveLeft",
+            ] {
+                if let Some(value) = object.get(action) {
+                    let keys = match value {
+                        serde_json::Value::String(key) => vec![key.to_lowercase()],
+                        serde_json::Value::Array(values) => values
+                            .iter()
+                            .filter_map(|value| value.as_str().map(str::to_lowercase))
+                            .collect(),
+                        serde_json::Value::Null => Vec::new(),
+                        _ => continue,
+                    };
+                    actions.insert(action.to_owned(), keys);
+                }
+            }
+        }
+        let mut by_key = HashMap::new();
+        let mut conflicts = std::collections::HashSet::new();
+        for (action, keys) in actions {
+            for key in keys {
+                if by_key.insert(key.clone(), action.clone()).is_some() {
+                    conflicts.insert(key);
+                }
+            }
+        }
+        conflicts.extend(foreign_keys);
+        for key in conflicts {
+            by_key.remove(&key);
+        }
+        Self { by_key }
+    }
+
+    fn action(&self, key: &crossterm::event::KeyEvent) -> Option<&str> {
+        self.by_key
+            .get(&key_token(key.code, key.modifiers))
+            .map(String::as_str)
+    }
+}
+
+fn key_token(code: KeyCode, modifiers: KeyModifiers) -> String {
+    let key = match code {
+        KeyCode::Char(value) => value.to_ascii_lowercase().to_string(),
+        KeyCode::F(number) => format!("f{number}"),
+        KeyCode::Left => "left".into(),
+        KeyCode::Right => "right".into(),
+        KeyCode::Up => "up".into(),
+        KeyCode::Down => "down".into(),
+        _ => return String::new(),
+    };
+    let mut parts = Vec::new();
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        parts.push("ctrl");
+    }
+    if modifiers.contains(KeyModifiers::ALT) {
+        parts.push("alt");
+    }
+    if modifiers.contains(KeyModifiers::SHIFT) {
+        parts.push("shift");
+    }
+    parts.push(&key);
+    parts.join("+")
+}
 #[cfg(unix)]
 const KITTY_QUERY: &[u8] = b"\x1b[?u\x1b[c";
 const KITTY_ENABLE: &[u8] = b"\x1b[>1u";
@@ -69,26 +205,57 @@ pub fn is_ctrl_c_console(character: char, control: bool, key_down: bool) -> bool
     key_down && control && matches!(character, 'c' | 'C' | '\u{3}')
 }
 
-pub fn render_strip(status: &str, name: &str, columns: u16) -> String {
+pub fn render_strip(status: &str, name: &str, accent: Option<&str>, columns: u16) -> String {
+    let working = match accent.unwrap_or("purple") {
+        "blue" => "\x1b[38;2;91;141;239m◐\x1b[39m ",
+        "cyan" => "\x1b[38;2;74;174;196m◐\x1b[39m ",
+        "green" => "\x1b[38;2;88;183;132m◐\x1b[39m ",
+        "orange" => "\x1b[38;2;226;159;72m◐\x1b[39m ",
+        "pink" => "\x1b[38;2;218;112;158m◐\x1b[39m ",
+        _ => "\x1b[38;2;167;152;215m◐\x1b[39m ",
+    };
     let glyph = match status {
         "starting" => "… ",
-        "working" => "◐ ",
+        "working" => working,
         "restarting" => "↻ ",
         "unresponsive" | "stalled" | "degraded" => "! ",
         "crashed" | "failed" | "ended" => "✗ ",
         _ => "",
     };
-    let mut chip = format!(" {glyph}{name} ");
-    chip.retain(|value| value != '\u{7}' && !value.is_control());
+    let safe_name: String = name
+        .chars()
+        .filter(|value| *value != '\u{7}' && !value.is_control())
+        .collect();
     let maximum = usize::from(columns).min(20);
-    if chip.chars().count() > maximum {
-        chip = chip
+    let fixed_width = 4 + usize::from(!glyph.is_empty()) * 2;
+    let name_capacity = maximum.saturating_sub(fixed_width);
+    let name_length = safe_name.chars().count();
+    let visible_name = if name_length > name_capacity {
+        safe_name
             .chars()
-            .take(maximum.saturating_sub(1))
+            .take(name_capacity.saturating_sub(1))
             .collect::<String>()
-            + "…";
-    }
-    format!("\x1b[1;1H{chip:<width$}", width = usize::from(columns))
+            + "…"
+    } else {
+        safe_name
+    };
+    let chip = format!(" {glyph}{visible_name} × ");
+    let visible_width = fixed_width + visible_name.chars().count();
+    format!(
+        "\x1b[1;1H{chip}{}",
+        " ".repeat(usize::from(columns).saturating_sub(visible_width))
+    )
+}
+
+pub fn render_empty_hint(columns: u16) -> String {
+    let hint = "Alt+A new tab · Ctrl+C Ctrl+C leave";
+    let width = usize::from(columns);
+    let visible = hint.chars().take(width).collect::<String>();
+    let padding = width.saturating_sub(UnicodeWidthStr::width(visible.as_str()));
+    format!(
+        "\x1b[2;1H\x1b[48;2;20;20;20m\x1b[38;2;110;110;110m{visible}{}\x1b[0m",
+        "░".repeat(padding)
+    )
 }
 
 pub fn render_notice(message: &str, columns: u16) -> String {
@@ -108,7 +275,39 @@ pub fn render_notice(message: &str, columns: u16) -> String {
 /// BEL is attention data and never reaches the outer terminal. Other bytes, including OSC 8/52
 /// and cursor-shape controls, stay in the native terminal stream.
 pub fn without_bell(bytes: &[u8]) -> Vec<u8> {
-    bytes.iter().copied().filter(|byte| *byte != 0x07).collect()
+    let mut output = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes.get(index..index + 2) == Some(b"\x1b]") {
+            let start = index;
+            index += 2;
+            let command_start = index;
+            while index < bytes.len() && bytes[index] != b';' && bytes[index] != 0x07 {
+                index += 1;
+            }
+            let notification = matches!(&bytes[command_start..index], b"9" | b"777");
+            while index < bytes.len() {
+                if bytes[index] == 0x07 {
+                    index += 1;
+                    break;
+                }
+                if bytes.get(index..index + 2) == Some(b"\x1b\\") {
+                    index += 2;
+                    break;
+                }
+                index += 1;
+            }
+            if !notification {
+                output.extend_from_slice(&bytes[start..index]);
+            }
+            continue;
+        }
+        if bytes[index] != 0x07 {
+            output.push(bytes[index]);
+        }
+        index += 1;
+    }
+    output
 }
 pub fn tab_rows(outer_rows: u16) -> Result<u16, &'static str> {
     outer_rows
@@ -124,11 +323,14 @@ pub struct AttachOptions<'a> {
     pub endpoint: &'a str,
     pub cwd: &'a str,
     pub clear_exit_ms: u64,
+    pub tabs_max: usize,
     pub profile: &'a Path,
     pub data_dir: &'a Path,
     pub runtime_dir: &'a Path,
     pub release_root: &'a str,
     pub node_executable: &'a str,
+    pub session_file: Option<&'a str>,
+    pub session_dir: Option<&'a str>,
     pub view_tab: Option<&'a str>,
 }
 
@@ -180,21 +382,32 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         "refused" => return Err("a1 is attached in another terminal".to_owned()),
         message => return Err(format!("unexpected attach admission message: {message}")),
     }
-    let (columns, outer_rows) = outer_size()?;
+    let (mut columns, outer_rows) = outer_size()?;
     let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
     let environment = std::env::vars().collect::<Vec<_>>();
+    let mut create = TabCreate {
+        cwd: options.cwd.into(),
+        columns,
+        rows,
+        release_root: options.release_root.into(),
+        node_executable: options.node_executable.into(),
+        environment: environment.clone(),
+    };
     wire::send(
         &mut stream,
         "attach.start",
         None,
         AttachStart {
             client_id: String::new(),
+            tabs_max: options.tabs_max.clamp(1, 50),
             cwd: options.cwd.into(),
             columns,
             rows,
             release_root: options.release_root.into(),
             node_executable: options.node_executable.into(),
             environment,
+            session_file: options.session_file.map(str::to_owned),
+            session_dir: options.session_dir.map(str::to_owned),
         },
     )?;
     if let Some(tab_id) = options.view_tab {
@@ -202,30 +415,73 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             &mut stream,
             "tab.view",
             None,
-            wire::TabTarget {
+            TabTarget {
                 tab_id: tab_id.into(),
             },
         )?;
     }
+    wire::send(
+        &mut stream,
+        "tab.list",
+        None,
+        wire::ResultBody {
+            accepted: true,
+            message: None,
+        },
+    )?;
 
     let mut reader = stream
         .try_clone()
         .map_err(|error| format!("clone attach stream: {error}"))?;
     let (message_tx, message_rx) = mpsc::channel::<Vec<u8>>();
+    // Performance: server frames and outer input both wake the loop directly, so neither waits
+    // out the other side's idle poll; capacity one keeps wakes coalesced.
+    let (wake_tx, wake_rx) = mpsc::sync_channel::<()>(1);
+    let reader_wake = wake_tx.clone();
     thread::spawn(move || {
         while let Ok(Some(payload)) = wire::read_payload(&mut reader) {
             if message_tx.send(payload).is_err() {
                 return;
             }
+            let _ = reader_wake.try_send(());
         }
         let _ = message_tx.send(Vec::new());
+        let _ = reader_wake.try_send(());
     });
 
     let mut terminal = OuterTerminal::enter()?;
-    terminal.write(render_strip("starting", "agent", columns).as_bytes())?;
+    let (input_tx, input_rx) = mpsc::channel::<Result<Event, String>>();
+    thread::spawn(move || {
+        loop {
+            let event = event::read().map_err(|error| format!("read outer terminal: {error}"));
+            let failed = event.is_err();
+            if input_tx.send(event).is_err() {
+                return;
+            }
+            let _ = wake_tx.try_send(());
+            if failed {
+                return;
+            }
+        }
+    });
+    let mut tabs = Vec::<StripTab>::new();
+    let mut viewed = options.view_tab.map(str::to_owned);
+    let mut hovered_tab: Option<String> = None;
+    let mut strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+    terminal.write(strip_frame.bytes.as_bytes())?;
+    terminal.write(render_empty_hint(columns).as_bytes())?;
     let started = Instant::now();
+    let mut last_strip_frame = Instant::now();
+    let mut last_list = Instant::now();
     let mut chord = DoubleCtrlC::new(options.clear_exit_ms);
     let mut failed = false;
+    let mut rename: Option<(String, String)> = None;
+    let mut context_tab: Option<String> = None;
+    let mut overflow_index: Option<usize> = None;
+    let mut pending_close: Option<String> = None;
+    let mut registry_revision = 0u64;
+    let mut drag: Option<(String, u16, Instant)> = None;
+    let bindings = TabBindings::load(options.profile);
     loop {
         watchdog.bump();
         while let Ok(payload) = message_rx.try_recv() {
@@ -237,8 +493,108 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 "surface" => {
                     let (_, surface): (_, Surface) = wire::body(&payload)?;
                     failed = surface.status == "failed";
-                    terminal.write(render_strip(&surface.status, "agent", columns).as_bytes())?;
+                    if viewed.is_none() {
+                        viewed = Some(surface.tab_id.clone());
+                    }
+                    if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id) {
+                        tab.status = surface.status.clone();
+                        tab.accent = surface.accent.clone();
+                    }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    terminal.write(strip_frame.bytes.as_bytes())?;
                     terminal.write(&without_bell(&surface.bytes))?;
+                    if matches!(surface.status.as_str(), "stalled" | "unresponsive") {
+                        terminal.write(
+                            render_notice("Agent stalled · R restart · Alt+W close", columns)
+                                .as_bytes(),
+                        )?;
+                    }
+                }
+                "tab.status" => {
+                    let (_, status): (_, TabStatus) = wire::body(&payload)?;
+                    if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == status.tab_id) {
+                        tab.status = status.status.clone();
+                        tab.accent = status.accent.clone();
+                    }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    terminal.write(strip_frame.bytes.as_bytes())?;
+                    if viewed.as_deref() == Some(status.tab_id.as_str())
+                        && matches!(status.status.as_str(), "stalled" | "unresponsive")
+                    {
+                        terminal.write(
+                            render_notice("Agent stalled · R restart · Alt+W close", columns)
+                                .as_bytes(),
+                        )?;
+                    }
+                }
+                "tab.list" => {
+                    let (_, list): (_, TabList) = wire::body(&payload)?;
+                    registry_revision = list.revision;
+                    tabs = list
+                        .tabs
+                        .into_iter()
+                        .filter(|tab| tab.lifecycle != "stopped")
+                        .map(|tab| {
+                            let previous = tabs.iter().find(|current| current.id == tab.tab_id);
+                            let changed_by_auto = tab.name_source == "auto"
+                                && previous.is_some_and(|current| current.name != tab.name);
+                            StripTab {
+                                id: tab.tab_id,
+                                name: tab.name,
+                                name_source: tab.name_source,
+                                status: previous
+                                    .map_or(tab.lifecycle, |current| current.status.clone()),
+                                accent: previous.and_then(|current| current.accent.clone()),
+                                title_animation: if changed_by_auto {
+                                    previous.map(|current| strip::TitleAnimation {
+                                        from: current.name.clone(),
+                                        started_at: Instant::now(),
+                                    })
+                                } else {
+                                    previous.and_then(|current| current.title_animation.clone())
+                                },
+                            }
+                        })
+                        .collect();
+                    if viewed
+                        .as_ref()
+                        .is_none_or(|id| !tabs.iter().any(|tab| &tab.id == id))
+                    {
+                        viewed = tabs.first().map(|tab| tab.id.clone());
+                        if let Some(tab_id) = viewed.clone() {
+                            wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
+                        }
+                    }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    terminal.write(strip_frame.bytes.as_bytes())?;
+                    if tabs.is_empty() {
+                        terminal.write(render_empty_hint(columns).as_bytes())?;
+                    }
+                }
+                "tab.created" | "tab.selected" => {
+                    let (_, target): (_, TabTarget) = wire::body(&payload)?;
+                    viewed = Some(target.tab_id.clone());
+                    wire::send(&mut stream, "tab.view", None, target)?;
+                    wire::send(
+                        &mut stream,
+                        "tab.list",
+                        None,
+                        wire::ResultBody {
+                            accepted: true,
+                            message: None,
+                        },
+                    )?;
+                }
+                "tab.closed" => {
+                    wire::send(
+                        &mut stream,
+                        "tab.list",
+                        None,
+                        wire::ResultBody {
+                            accepted: true,
+                            message: None,
+                        },
+                    )?;
                 }
                 "detach" => {
                     wire::send(
@@ -251,7 +607,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         },
                     )?;
                     terminal.restore()?;
-                    print_hint();
+                    print_hint(tabs.len());
                     return Ok(());
                 }
                 "refused" => {
@@ -259,7 +615,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     return Err("a1 is attached in another terminal".to_owned());
                 }
                 "holder.exit" => {
-                    terminal.write(render_strip("crashed", "agent", columns).as_bytes())?;
+                    terminal.write(render_strip("crashed", "agent", None, columns).as_bytes())?;
                 }
                 "failure.status" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
@@ -291,13 +647,250 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 _ => {}
             }
         }
-        if !event::poll(Duration::from_millis(16))
-            .map_err(|error| format!("poll outer terminal: {error}"))?
+        if strip::animations_active(&tabs)
+            && last_strip_frame.elapsed() >= Duration::from_millis(80)
         {
-            continue;
+            strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+            terminal.write(strip_frame.bytes.as_bytes())?;
+            last_strip_frame = Instant::now();
         }
-        match event::read().map_err(|error| format!("read outer terminal: {error}"))? {
+        if last_list.elapsed() >= Duration::from_millis(500) {
+            wire::send(
+                &mut stream,
+                "tab.list",
+                None,
+                wire::ResultBody {
+                    accepted: true,
+                    message: None,
+                },
+            )?;
+            last_list = Instant::now();
+        }
+        let next = match input_rx.try_recv() {
+            Ok(next) => next?,
+            Err(mpsc::TryRecvError::Empty) => {
+                let _ = wake_rx.recv_timeout(Duration::from_millis(8));
+                continue;
+            }
+            Err(mpsc::TryRecvError::Disconnected) => {
+                return Err("outer terminal input stopped".to_owned());
+            }
+        };
+        match next {
             Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => {
+                if let Some(tab_id) = pending_close.take() {
+                    if key.code == KeyCode::Enter {
+                        wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
+                    } else if key.code != KeyCode::Esc {
+                        pending_close = Some(tab_id);
+                    }
+                    continue;
+                }
+                if let Some(index) = overflow_index {
+                    match key.code {
+                        KeyCode::Esc => overflow_index = None,
+                        KeyCode::Up => overflow_index = Some(index.saturating_sub(1)),
+                        KeyCode::Down => {
+                            overflow_index = Some((index + 1).min(tabs.len().saturating_sub(1)))
+                        }
+                        KeyCode::Enter => {
+                            if let Some(tab) = tabs.get(index) {
+                                viewed = Some(tab.id.clone());
+                                wire::send(
+                                    &mut stream,
+                                    "tab.view",
+                                    None,
+                                    TabTarget {
+                                        tab_id: tab.id.clone(),
+                                    },
+                                )?;
+                            }
+                            overflow_index = None;
+                        }
+                        _ => {}
+                    }
+                    if let Some(index) = overflow_index {
+                        let name = tabs.get(index).map_or("", |tab| tab.name.as_str());
+                        terminal.write(
+                            render_notice(
+                                &format!("Tabs: {name} · ↑/↓ choose · Enter view · Esc cancel"),
+                                columns,
+                            )
+                            .as_bytes(),
+                        )?;
+                    } else {
+                        strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                        terminal.write(strip_frame.bytes.as_bytes())?;
+                    }
+                    continue;
+                }
+                if let Some((tab_id, value)) = rename.as_mut() {
+                    match key.code {
+                        KeyCode::Esc => rename = None,
+                        KeyCode::Enter => {
+                            let request = TabRename {
+                                tab_id: tab_id.clone(),
+                                name: value.clone(),
+                            };
+                            rename = None;
+                            wire::send(&mut stream, "tab.rename", None, request)?;
+                        }
+                        KeyCode::Backspace => {
+                            value.pop();
+                        }
+                        KeyCode::Char(ch) if !ch.is_control() && value.chars().count() < 64 => {
+                            value.push(ch)
+                        }
+                        _ => {}
+                    }
+                    if let Some((_, value)) = rename.as_ref() {
+                        terminal.write(
+                            render_notice(&format!("Rename: {value}"), columns).as_bytes(),
+                        )?;
+                    } else {
+                        strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                        terminal.write(strip_frame.bytes.as_bytes())?;
+                    }
+                    continue;
+                }
+                if let Some(tab_id) = context_tab.take() {
+                    match key.code {
+                        KeyCode::Char('r' | 'R') => {
+                            let name = tabs
+                                .iter()
+                                .find(|tab| tab.id == tab_id)
+                                .map(|tab| tab.name.clone())
+                                .unwrap_or_default();
+                            rename = Some((tab_id, name));
+                        }
+                        KeyCode::Char('c' | 'C') => {
+                            let busy =
+                                tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
+                                    matches!(tab.status.as_str(), "working" | "needs-input")
+                                });
+                            if busy {
+                                pending_close = Some(tab_id);
+                                terminal.write(
+                                    render_notice(
+                                        "Stop this agent? Enter stop · Esc cancel",
+                                        columns,
+                                    )
+                                    .as_bytes(),
+                                )?;
+                            } else {
+                                wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
+                            }
+                        }
+                        _ => {}
+                    }
+                    continue;
+                }
+                if let Some(action) = bindings.action(&key) {
+                    match action {
+                        "tabs.new" => wire::send(&mut stream, "tab.create", None, create.clone())?,
+                        "tabs.close" => {
+                            if let Some(tab_id) = viewed.clone() {
+                                let busy =
+                                    tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
+                                        matches!(tab.status.as_str(), "working" | "needs-input")
+                                    });
+                                if busy {
+                                    pending_close = Some(tab_id);
+                                    terminal.write(
+                                        render_notice(
+                                            "Stop this agent? Enter stop · Esc cancel",
+                                            columns,
+                                        )
+                                        .as_bytes(),
+                                    )?;
+                                } else {
+                                    wire::send(
+                                        &mut stream,
+                                        "tab.close",
+                                        None,
+                                        TabTarget { tab_id },
+                                    )?;
+                                }
+                            }
+                        }
+                        "tabs.rename" => {
+                            if let Some(tab_id) = viewed.clone() {
+                                let name = tabs
+                                    .iter()
+                                    .find(|tab| tab.id == tab_id)
+                                    .map(|tab| tab.name.clone())
+                                    .unwrap_or_default();
+                                rename = Some((tab_id, name));
+                                terminal.write(
+                                    render_notice(
+                                        "Rename: type a name · Enter save · Esc cancel",
+                                        columns,
+                                    )
+                                    .as_bytes(),
+                                )?;
+                            }
+                        }
+                        "tabs.next" | "tabs.previous" => {
+                            if !tabs.is_empty() {
+                                let current = viewed
+                                    .as_ref()
+                                    .and_then(|id| tabs.iter().position(|tab| &tab.id == id))
+                                    .unwrap_or(0);
+                                let index = if action == "tabs.next" {
+                                    (current + 1) % tabs.len()
+                                } else {
+                                    (current + tabs.len() - 1) % tabs.len()
+                                };
+                                let tab_id = tabs[index].id.clone();
+                                viewed = Some(tab_id.clone());
+                                wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
+                            }
+                        }
+                        "tabs.moveRight" | "tabs.moveLeft" => {
+                            if let Some(tab_id) = viewed.clone()
+                                && let Some(current) = tabs.iter().position(|tab| tab.id == tab_id)
+                            {
+                                let target_index = if action == "tabs.moveRight" {
+                                    (current + 1).min(tabs.len().saturating_sub(1))
+                                } else {
+                                    current.saturating_sub(1)
+                                };
+                                wire::send(
+                                    &mut stream,
+                                    "tab.reorder",
+                                    None,
+                                    TabReorder {
+                                        tab_id,
+                                        target_index,
+                                        expected_revision: registry_revision,
+                                    },
+                                )?;
+                            }
+                        }
+                        jump if jump.starts_with("tabs.jump") => {
+                            let index = jump
+                                .trim_start_matches("tabs.jump")
+                                .parse::<usize>()
+                                .unwrap_or(1)
+                                .saturating_sub(1);
+                            if let Some(tab) = tabs.get(index) {
+                                viewed = Some(tab.id.clone());
+                                wire::send(
+                                    &mut stream,
+                                    "tab.view",
+                                    None,
+                                    TabTarget {
+                                        tab_id: tab.id.clone(),
+                                    },
+                                )?;
+                            }
+                        }
+                        _ => {}
+                    }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    terminal.write(strip_frame.bytes.as_bytes())?;
+                    continue;
+                }
                 let bytes = encode_key(key.code, key.modifiers);
                 if bytes.is_empty() {
                     continue;
@@ -314,8 +907,23 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         },
                     )?;
                     terminal.restore()?;
-                    print_hint();
+                    print_hint(tabs.len());
                     return Ok(());
+                }
+                let viewed_status = viewed
+                    .as_ref()
+                    .and_then(|id| tabs.iter().find(|tab| &tab.id == id))
+                    .map(|tab| tab.status.as_str());
+                if matches!(viewed_status, Some("stalled" | "unresponsive"))
+                    && matches!(
+                        (key.code, key.modifiers),
+                        (KeyCode::Char('r' | 'R'), KeyModifiers::NONE)
+                    )
+                {
+                    if let Some(tab_id) = viewed.clone() {
+                        wire::send(&mut stream, "tab.restart", None, TabTarget { tab_id })?;
+                    }
+                    continue;
                 }
                 let bytes = if failed {
                     match (key.code, key.modifiers) {
@@ -372,6 +980,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             }
             Event::Resize(cols, rows) => {
                 let rows = tab_rows(rows).map_err(str::to_owned)?;
+                columns = cols;
+                create.columns = cols;
+                create.rows = rows;
+                strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                terminal.write(strip_frame.bytes.as_bytes())?;
                 wire::send(
                     &mut stream,
                     "resize",
@@ -383,16 +996,27 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     },
                 )?;
             }
-            Event::FocusGained if !failed => wire::send(
-                &mut stream,
-                "input",
-                None,
-                Input {
-                    bytes: b"\x1b[I".to_vec(),
-                    paste: false,
-                    epoch: 0,
-                },
-            )?,
+            Event::FocusGained if !failed => {
+                wire::send(
+                    &mut stream,
+                    "tab.claimInput",
+                    None,
+                    wire::ResultBody {
+                        accepted: true,
+                        message: None,
+                    },
+                )?;
+                wire::send(
+                    &mut stream,
+                    "input",
+                    None,
+                    Input {
+                        bytes: b"\x1b[I".to_vec(),
+                        paste: false,
+                        epoch: 0,
+                    },
+                )?;
+            }
             Event::FocusLost if !failed => wire::send(
                 &mut stream,
                 "input",
@@ -404,7 +1028,126 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 },
             )?,
             Event::Mouse(mouse) => {
-                if let Some(bytes) = encode_mouse(mouse.kind, mouse.column, mouse.row) {
+                if mouse.row == 0 {
+                    let target = strip::hit(&strip_frame, mouse.column).cloned();
+                    if matches!(mouse.kind, MouseEventKind::Moved) {
+                        let next_hover = match target {
+                            Some(StripHit::View(id) | StripHit::Close(id)) => Some(id),
+                            _ => None,
+                        };
+                        if next_hover != hovered_tab {
+                            hovered_tab = next_hover;
+                            strip_frame = strip::render_with_hover(
+                                &tabs,
+                                viewed.as_deref(),
+                                columns,
+                                hovered_tab.as_deref(),
+                            );
+                            terminal.write(strip_frame.bytes.as_bytes())?;
+                        }
+                    } else if matches!(mouse.kind, MouseEventKind::Drag(MouseButton::Left)) {
+                        if let Some((_, start, since)) = drag.as_ref()
+                            && (start.abs_diff(mouse.column) >= 1
+                                || since.elapsed() >= Duration::from_millis(250))
+                        {
+                            terminal.write(
+                                render_notice("│ release to move tab", columns).as_bytes(),
+                            )?;
+                        }
+                    } else if matches!(mouse.kind, MouseEventKind::Up(MouseButton::Left)) {
+                        if let Some((tab_id, start, since)) = drag.take()
+                            && (start.abs_diff(mouse.column) >= 1
+                                || since.elapsed() >= Duration::from_millis(250))
+                        {
+                            let target_id = match target {
+                                Some(StripHit::View(id) | StripHit::Close(id)) => Some(id),
+                                _ => None,
+                            };
+                            if let Some(target_index) =
+                                target_id.and_then(|id| tabs.iter().position(|tab| tab.id == id))
+                            {
+                                wire::send(
+                                    &mut stream,
+                                    "tab.reorder",
+                                    None,
+                                    TabReorder {
+                                        tab_id,
+                                        target_index,
+                                        expected_revision: registry_revision,
+                                    },
+                                )?;
+                            }
+                        }
+                    } else if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Right)) {
+                        if let Some(StripHit::View(tab_id) | StripHit::Close(tab_id)) = target {
+                            context_tab = Some(tab_id);
+                            terminal.write(
+                                render_notice("Tab menu: r rename · c close · Esc cancel", columns)
+                                    .as_bytes(),
+                            )?;
+                        }
+                    } else if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
+                        match target {
+                            Some(StripHit::View(tab_id)) => {
+                                drag = Some((tab_id.clone(), mouse.column, Instant::now()));
+                                viewed = Some(tab_id.clone());
+                                wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
+                            }
+                            Some(StripHit::Close(tab_id)) => {
+                                let busy =
+                                    tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
+                                        matches!(tab.status.as_str(), "working" | "needs-input")
+                                    });
+                                if busy {
+                                    pending_close = Some(tab_id);
+                                    terminal.write(
+                                        render_notice(
+                                            "Stop this agent? Enter stop · Esc cancel",
+                                            columns,
+                                        )
+                                        .as_bytes(),
+                                    )?;
+                                } else {
+                                    wire::send(
+                                        &mut stream,
+                                        "tab.close",
+                                        None,
+                                        TabTarget { tab_id },
+                                    )?;
+                                }
+                            }
+                            Some(StripHit::New) => {
+                                wire::send(&mut stream, "tab.create", None, create.clone())?
+                            }
+                            Some(StripHit::Overflow) => {
+                                let index = viewed
+                                    .as_ref()
+                                    .and_then(|id| tabs.iter().position(|tab| &tab.id == id))
+                                    .unwrap_or(0);
+                                overflow_index = Some(index);
+                                let name = tabs.get(index).map_or("", |tab| tab.name.as_str());
+                                terminal.write(
+                                    render_notice(
+                                        &format!(
+                                            "Tabs: {name} · ↑/↓ choose · Enter view · Esc cancel"
+                                        ),
+                                        columns,
+                                    )
+                                    .as_bytes(),
+                                )?;
+                            }
+                            None => {}
+                        }
+                    }
+                    continue;
+                }
+                if hovered_tab.take().is_some() {
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    terminal.write(strip_frame.bytes.as_bytes())?;
+                }
+                if let Some(bytes) =
+                    encode_mouse(mouse.kind, mouse.column, mouse.row.saturating_sub(1))
+                {
                     wire::send(
                         &mut stream,
                         "input",
@@ -556,8 +1299,12 @@ impl Drop for OuterTerminal {
     }
 }
 
-fn print_hint() {
-    println!("\x1b[2m1 tab still running · run a1 to return\x1b[0m");
+fn print_hint(count: usize) {
+    if count == 1 {
+        println!("\x1b[2m1 agent still running run a1 to return.\x1b[0m");
+    } else if count > 1 {
+        println!("\x1b[2m{count} agents still running run a1 to return.\x1b[0m");
+    }
 }
 fn encode_key(code: KeyCode, modifiers: KeyModifiers) -> Vec<u8> {
     match code {
@@ -629,13 +1376,49 @@ mod tests {
         assert_eq!(child_mouse_row(0), None);
         assert_eq!(child_mouse_row(1), Some(0));
         assert_eq!(without_bell(b"a\x07b"), b"ab");
-        assert!(render_strip("working", "agent", 80).contains("agent"));
-        assert!(!render_strip("working", "a\x07gent", 80).contains('\u{7}'));
+        assert_eq!(
+            without_bell(b"a\x1b]9;notify\x07b\x1b]777;alert\x1b\\c"),
+            b"abc"
+        );
+        assert_eq!(
+            without_bell(b"\x1b]8;;https://example.com\x07link\x1b]8;;\x07"),
+            b"\x1b]8;;https://example.com\x07link\x1b]8;;\x07"
+        );
+        assert!(render_strip("working", "agent", Some("orange"), 80).contains("agent ×"));
+        assert!(render_strip("working", "agent", Some("orange"), 80).contains("38;2;226;159;72"));
+        assert!(!render_strip("working", "a\x07gent", None, 80).contains('\u{7}'));
         assert!(render_notice("input rejected", 40).contains("input rejected"));
+        assert!(render_empty_hint(80).contains("Alt+A new tab"));
+        assert!(!render_empty_hint(8).contains("new tab"));
     }
     #[test]
+    fn tab_bindings_load_assignable_actions_and_disable_conflicts() {
+        let profile = tempfile::tempdir().unwrap();
+        std::fs::write(
+            profile.path().join("keybindings.json"),
+            br#"{"tabs.next":"alt+]","tabs.close":"ctrl+x","tui.editor.deleteToLineEnd":"ctrl+x"}"#,
+        )
+        .unwrap();
+        let bindings = TabBindings::load(profile.path());
+        assert_eq!(
+            bindings.action(&crossterm::event::KeyEvent::new(
+                KeyCode::Char(']'),
+                KeyModifiers::ALT,
+            )),
+            Some("tabs.next")
+        );
+        assert_eq!(
+            bindings.action(&crossterm::event::KeyEvent::new(
+                KeyCode::Char('x'),
+                KeyModifiers::CONTROL,
+            )),
+            None
+        );
+    }
+
+    #[test]
     fn mode_restore_disables_every_enabled_outer_mode() {
-        for mode in ["1049", "2004", "1004", "1000", "1006", "2026"] {
+        for mode in ["1049", "2004", "1004", "1000", "1003", "1006", "2026"] {
             assert!(String::from_utf8_lossy(ENTER_OUTER_MODES).contains(&format!("?{mode}h")));
             assert!(String::from_utf8_lossy(RESTORE_OUTER_MODES).contains(&format!("?{mode}l")));
         }
