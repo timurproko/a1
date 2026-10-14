@@ -90,9 +90,9 @@ describe("resident release retention with real processes", () => {
   }, 180_000);
 
   nativeIt("an update mid-turn never signals a streaming resident tab or its server", async () => {
-    // Invariant: a session running from the installation being replaced is the case an update ends,
-    // so it is the strongest test that resident processes on that release are left alone.
-    const { environment, release } = await liveCohort("mutable-install");
+    // Rationale: the cohort runs from a retained release; a mutable-install cohort would make the
+    // update end its owner, which in this fixture is the test process itself.
+    const { environment, release } = await liveCohort("retained");
     const profile = resolve(environment.A1_DATA_DIR, "profile");
     await mkdir(profile, { recursive: true });
     const runtime = process.platform === "win32" ? resolve(environment.A1_DATA_DIR, "resident-runtime") : await mkdtemp("/tmp/a1rt-");

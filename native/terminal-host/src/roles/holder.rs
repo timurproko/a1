@@ -805,10 +805,11 @@ fn input_rejected_message(error: InputAdmissionError) -> &'static str {
     }
 }
 
-fn request_server_replacement(config: &HolderLaunchConfig) -> Result<(), String> {
+/// Asks for a replacement server. Ok(false) means the registry no longer wants any tab to run.
+fn request_server_replacement(config: &HolderLaunchConfig) -> Result<bool, String> {
     let executable = std::env::current_exe()
         .map_err(|error| format!("resolve terminal host executable: {error}"))?;
-    let status = std::process::Command::new(executable)
+    let output = std::process::Command::new(executable)
         .args([
             "server",
             "--detach",
@@ -826,14 +827,13 @@ fn request_server_replacement(config: &HolderLaunchConfig) -> Result<(), String>
         ])
         .env("A1_TABS_ENDPOINT", &config.server.endpoint)
         .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .status()
+        .output()
         .map_err(|error| format!("request server replacement: {error}"))?;
-    if status.success() {
-        Ok(())
+    if output.status.success() {
+        Ok(!String::from_utf8_lossy(&output.stdout).contains("\"not-needed\""))
     } else {
-        Err(format!("server replacement stopped with {status}"))
+        Err(format!("server replacement stopped with {}", output.status))
     }
 }
 
@@ -850,12 +850,24 @@ fn reconnect_holder(
     // server's lease keeps a single owner, and a server that cannot admit this holder terminates
     // it by its recorded identity after the admission deadline.
     loop {
-        if request_server_replacement(config).is_err() {
-            let _ = crate::roles::diagnostics::append_log(
-                diagnostics_root,
-                &role,
-                "server-replacement-request-failed",
-            );
+        match request_server_replacement(config) {
+            Ok(true) => {}
+            Ok(false) => {
+                let _ = crate::roles::diagnostics::append_log(
+                    diagnostics_root,
+                    &role,
+                    "server-replacement-not-needed",
+                );
+                // Invariant: no recorded tab should run any more, so this holder ends with its tab.
+                return Err("the resident tab is no longer wanted".to_owned());
+            }
+            Err(_) => {
+                let _ = crate::roles::diagnostics::append_log(
+                    diagnostics_root,
+                    &role,
+                    "server-replacement-request-failed",
+                );
+            }
         }
         match connect_holder(config, false, child, highest_epoch) {
             Ok(replacement) => {

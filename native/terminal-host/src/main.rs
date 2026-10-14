@@ -174,6 +174,19 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
         );
         return Ok(());
     }
+    // Invariant: a holder asks for a replacement only to keep its tab; once no recorded tab should
+    // run, as after `a1 tabs host stop`, a late request starts nothing.
+    if arguments
+        .iter()
+        .any(|value| value == "--resident-parent-holder")
+        && contracts::roles::registry::RegistryStore::read(&credentials_root.join("registry.json"))
+            .ok()
+            .flatten()
+            .is_some_and(|registry| registry.tabs.iter().all(|tab| tab.desired != "running"))
+    {
+        println!("{{\"outcome\":\"not-needed\",\"verified\":false}}");
+        return Ok(());
+    }
     recover_recorded_server(&credentials_root)?;
     record_server_start(
         &credentials_root,
