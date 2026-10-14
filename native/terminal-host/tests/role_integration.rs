@@ -1427,6 +1427,113 @@ fn maintenance_stop_terminates_a_hung_holder_only_by_its_verified_identity() {
 }
 
 #[test]
+fn maintenance_stops_a_streaming_tab_and_keeps_its_session_on_disk() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    let sessions = directory(root.path(), "sessions");
+    let session = sessions.join("session.jsonl");
+    std::fs::write(&session, b"{\"type\":\"session\"}\n").expect("seed session");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let created = Command::new(&executable)
+        .args([
+            "internal",
+            "tab-create",
+            "--profile",
+            text(&profile),
+            "--data-dir",
+            text(&data),
+            "--runtime-dir",
+            text(&runtime),
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--session-dir",
+            text(&sessions),
+            "--node-executable",
+            env!("CARGO_BIN_EXE_fake-tab"),
+        ])
+        .env("A1_TABS_ENDPOINT", &address)
+        .env("TERMINAL_HOST_FAKE_TAB_MODE", "stream")
+        .env("TERMINAL_HOST_FAKE_TAB_STREAM_BYTES", "4096")
+        .current_dir(&release)
+        .output()
+        .expect("create streaming tab");
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    let tab_id = serde_json::from_slice::<serde_json::Value>(&created.stdout)
+        .expect("tab-create json")["tabId"]
+        .as_str()
+        .expect("created tab id")
+        .to_owned();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let holder = loop {
+        let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+            .ok()
+            .flatten();
+        let running = registry.as_ref().and_then(|registry| {
+            registry
+                .tabs
+                .iter()
+                .find(|tab| tab.tab_id == tab_id && tab.child_pid.is_some())
+                .and_then(|tab| Some((tab.holder_pid?, tab.holder_start_identity.clone()?)))
+        });
+        if let Some(found) = running {
+            break found;
+        }
+        assert!(Instant::now() < deadline, "streaming tab never started");
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    cleanup.pids.push(holder.0);
+    // Invariant: the agent is busy streaming output when the stop arrives.
+    std::thread::sleep(Duration::from_millis(500));
+
+    let stopped = tabs(
+        &executable,
+        &["stop", &tab_id],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(stopped.0, 0, "{}", stopped.1);
+    assert_eq!(stopped.1["result"]["accepted"], true);
+    assert_eq!(stopped.1["result"]["stopped"][0], tab_id.as_str());
+    assert!(
+        terminal_host_contracts::identity::inspect_process(holder.0)
+            .expect("inspect stopped holder")
+            .is_none_or(|observed| observed.start != holder.1),
+        "streaming holder survived its stop"
+    );
+    let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+        .expect("read registry")
+        .expect("registry");
+    assert!(registry.tabs.iter().all(|tab| tab.tab_id != tab_id));
+    // Invariant: stopping releases the tab, never its session, so it stays resumable.
+    assert_eq!(
+        std::fs::read(&session).expect("session kept"),
+        b"{\"type\":\"session\"}\n"
+    );
+}
+
+#[test]
 fn host_stop_terminates_an_unresponsive_server_and_stops_its_tabs() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
