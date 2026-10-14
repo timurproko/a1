@@ -59,5 +59,8 @@ describe("terminal-host provenance policy", () => {
     expect(result.stderr).toContain("GUI SDK must not be required");
     expect(result.stderr).toContain("OpenGL must not be required");
     expect(result.stderr).toContain("Win32 window runtime must not be required");
+    expect(result.stderr).toContain("change identity is missing or invalid");
+    expect(result.stderr).toContain("linked components must be libghostty-vt, simdutf, and highway");
+    expect(result.stderr).toContain("release targets must be win32-x64, linux-x64, darwin-arm64, and darwin-x64");
   });
 });

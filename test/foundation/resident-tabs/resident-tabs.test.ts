@@ -198,7 +198,7 @@ describe("resident tab launch contracts", () => {
     const observed: string[][] = [];
     const result = await ensureTerminalHost({
       releaseRoot: root.path, profileRoot: root.path, dataDir: root.path, runtimeDir: root.path,
-      environment: { A1_TERMINAL_HOST_PATH: executable }, platform: "linux", architecture: "x64",
+      environment: { A1_TERMINAL_HOST_PATH: executable, A1_DEV_INSTANCE_ID: "fixture" }, platform: "linux", architecture: "x64",
       run: async (_file, arguments_) => {
         observed.push([...arguments_]);
         return { code: 0, stdout: '{"outcome":"ready","generation":1,"endpoint":"/existing"}', stderr: "" };
@@ -215,7 +215,7 @@ describe("resident tab launch contracts", () => {
     let probe = 0;
     const result = await ensureTerminalHost({
       releaseRoot: root.path, profileRoot: root.path, dataDir: root.path, runtimeDir: root.path,
-      environment: { A1_TERMINAL_HOST_PATH: executable }, platform: "linux", architecture: "x64", timeoutMs: 100,
+      environment: { A1_TERMINAL_HOST_PATH: executable, A1_DEV_INSTANCE_ID: "fixture" }, platform: "linux", architecture: "x64", timeoutMs: 100,
       run: async (_file, arguments_) => arguments_[0] === "server"
         ? { code: 0, stdout: '{"verified":true,"endpoint":"/host"}', stderr: "" }
         : ++probe === 1
@@ -234,7 +234,7 @@ describe("resident tab launch contracts", () => {
     await writeFile(executable, "fixture"); await chmod(executable, 0o700);
     const result = await ensureTerminalHost({
       releaseRoot: root.path, profileRoot: root.path, dataDir: root.path, runtimeDir: root.path,
-      environment: { A1_TERMINAL_HOST_PATH: executable }, platform: "linux", architecture: "x64",
+      environment: { A1_TERMINAL_HOST_PATH: executable, A1_DEV_INSTANCE_ID: "fixture" }, platform: "linux", architecture: "x64",
       run: async (_file, arguments_) => arguments_[0] === "probe"
         ? { code: 2, stdout: '{"outcome":"not-running"}', stderr: "" }
         : { code: 2, stdout: JSON.stringify({ outcome: "blocked", verified: false, reason }), stderr: "" },
@@ -249,7 +249,7 @@ describe("resident tab launch contracts", () => {
     await writeFile(registry, "existing-holder-sentinel");
     const base = {
       releaseRoot: root.path, profileRoot: root.path, dataDir: root.path, runtimeDir: root.path,
-      environment: { A1_TERMINAL_HOST_PATH: executable },
+      environment: { A1_TERMINAL_HOST_PATH: executable, A1_DEV_INSTANCE_ID: "fixture" },
     };
     await expect(ensureTerminalHost({ ...base, platform: "freebsd", architecture: "x64" }))
       .resolves.toEqual({ status: "fallback", reason: "unsupported platform" });

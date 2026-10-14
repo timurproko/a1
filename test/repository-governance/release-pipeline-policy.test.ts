@@ -107,6 +107,31 @@ describe("deliberate publication pipeline", () => {
     const pkg = job("package", "validate").match(/^    if: (.+)$/m)?.[1];
     expect(pkg).toContain("(needs.guardians.result == 'success' || (needs.guardians.result == 'skipped' && (needs.plan.outputs.build != 'true' || needs.plan.outputs.mode == 'stable')))");
     expect(pkg).toContain("(needs.documentation.result == 'success' || (needs.documentation.result == 'skipped' && needs.plan.outputs.mode != 'nightly' && needs.plan.outputs.mode != 'candidate'))");
+    expect(pkg).toContain("(needs.terminal_hosts.result == 'success' || (needs.terminal_hosts.result == 'skipped' && (needs.plan.outputs.build != 'true' || needs.plan.outputs.mode == 'stable')))");
+    expect(job("package", "validate")).toContain("needs: [plan, guardians, terminal_hosts, documentation]");
+  });
+
+  it("builds the guardian and terminal host on all four release platforms and packs only a complete set", async () => {
+    const source = await workflow();
+    const job = (name: string, next: string) => source.slice(source.indexOf(`\n  ${name}:`), source.indexOf(`\n  ${next}:`));
+    const runners = "os: [windows-2025, ubuntu-24.04, macos-15, macos-15-intel]";
+    expect(job("guardians", "terminal_hosts")).toContain(runners);
+    const hosts = job("terminal_hosts", "package");
+    expect(hosts).toContain(runners);
+    expect(hosts.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'");
+    expect(hosts).toContain("uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1");
+    expect(hosts).toContain("version: 0.15.2");
+    expect(hosts).toContain("run: bash scripts/development/prepare-ci-rust.sh");
+    expect(hosts).toContain("run: npm run build:terminal-host");
+    expect(hosts).toContain("name: release-terminal-host-${{ runner.os }}-${{ runner.arch }}");
+    expect(hosts).toContain("if-no-files-found: error");
+    const pkg = job("package", "validate");
+    expect(pkg).toContain("pattern: release-terminal-host-*");
+    expect(pkg.indexOf("- name: Assemble all platform terminal hosts")).toBeLessThan(pkg.indexOf("- name: Require every platform native artifact before packing"));
+    expect(pkg.indexOf("- name: Require every platform native artifact before packing")).toBeLessThan(pkg.indexOf("- name: Pack the candidate exactly once"));
+    expect(pkg).toContain("run: node scripts/release/verify-native-artifacts.mjs");
+    const ciZig = (await readFile(".github/workflows/ci.yml", "utf8")).match(/uses: mlugg\/setup-zig@([a-f0-9]{40})/u)?.[1];
+    expect(ciZig).toBe("d1434d08867e3ee9daa34448df10607b98908d29");
   });
 
   it("publishes stable releases from the candidate-validated package without rebuilding or revalidating", async () => {
@@ -115,7 +140,7 @@ describe("deliberate publication pipeline", () => {
     expect(job("approval", "plan")).toContain("validation_run_id: ${{ steps.approval.outputs.validation_run_id }}");
     expect(job("approval", "plan")).toContain("console.log(`validation_run_id=${validationRunId ?? \"\"}`);");
     expect(job("plan", "documentation")).toContain("validation_run_id: ${{ needs.approval.outputs.validation_run_id }}");
-    expect(job("guardians", "package").match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'");
+    expect(job("guardians", "terminal_hosts").match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'");
     expect(job("validate", "publish").match(/^    if: (.+)$/m)?.[1]).toContain("needs.plan.outputs.mode != 'stable'");
     expect(job("validate", "publish")).not.toContain('[ "$MODE" = "stable" ]');
 
@@ -129,7 +154,7 @@ describe("deliberate publication pipeline", () => {
     expect(pkg.indexOf("node scripts/release/adopt-validated-candidate.mjs")).toBeLessThan(pkg.indexOf("- name: Bind packed source and identity"));
     // Invariant: every build and pack step is closed to stable mode, so stable bytes come only from adoption.
     for (const step of ["Prepare Rust toolchain", "Install dependencies and build source once", "Install package tooling without building the application",
-      "Assemble all platform process guardians", "Stamp the published version on the open development source", "Record verified candidate build",
+      "Assemble all platform process guardians", "Assemble all platform terminal hosts", "Require every platform native artifact before packing", "Stamp the published version on the open development source", "Record verified candidate build",
       "Pack the candidate exactly once", "Pack the installer candidate exactly once"]) {
       const body = pkg.slice(pkg.indexOf(`- name: ${step}`));
       expect(body.match(/^        if: (.+)$/m)?.[1], step).toContain("needs.plan.outputs.mode != 'stable'");

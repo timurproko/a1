@@ -11,6 +11,7 @@ pub fn resolve(cargo_target: &str) -> Option<ZigTarget> {
         "x86_64-pc-windows-msvc" => "x86_64-windows-msvc",
         "x86_64-unknown-linux-gnu" => "x86_64-linux-gnu",
         "aarch64-apple-darwin" => "aarch64-macos",
+        "x86_64-apple-darwin" => "x86_64-macos",
         _ => return None,
     };
     Some(ZigTarget {
@@ -29,6 +30,7 @@ mod tests {
             ("x86_64-pc-windows-msvc", "x86_64-windows-msvc"),
             ("x86_64-unknown-linux-gnu", "x86_64-linux-gnu"),
             ("aarch64-apple-darwin", "aarch64-macos"),
+            ("x86_64-apple-darwin", "x86_64-macos"),
         ] {
             assert_eq!(
                 resolve(cargo),
@@ -42,7 +44,6 @@ mod tests {
 
     #[test]
     fn rejects_targets_outside_the_supported_matrix() {
-        assert_eq!(resolve("x86_64-apple-darwin"), None);
         assert_eq!(resolve("aarch64-pc-windows-msvc"), None);
         assert_eq!(resolve("x86_64-unknown-linux-musl"), None);
     }

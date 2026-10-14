@@ -2,6 +2,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, realpathSync,
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 
 export interface NativeLock {
@@ -43,6 +44,8 @@ function nativeCandidates(): string[] {
   const target = `${suffix}-${process.arch}`;
   return [
     process.env.A1_SESSION_LOCK_PATH,
+    // Invariant: this module sits at dist/foundation/session-writer-lock/ inside the installed release root.
+    resolve(fileURLToPath(new URL("../../../", import.meta.url)), "dist", "native", target, "a1_session_lock.node"),
     resolve(process.cwd(), "dist", "native", target, "a1_session_lock.node"),
     resolve(process.cwd(), ".artifacts", "terminal-host", "a1_session_lock.node"),
   ].filter((value): value is string => typeof value === "string" && value.length > 0);
@@ -71,7 +74,7 @@ function processIsLive(pid: number): boolean {
   }
 }
 
-/** Development fallback. Packaged builds use the Node-API lock above. */
+/** Development fallback. Installed releases carry the verified Node-API lock resolved above. */
 function portableBackend(): LockBackend {
   const root = join(tmpdir(), "a1-session-writer-locks");
   mkdirSync(root, { recursive: true, mode: 0o700 });

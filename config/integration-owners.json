@@ -322,7 +322,10 @@
         "scripts/development/run-terminal-host-probe.mjs",
         "scripts/development/test-session-lock-addon.mjs",
         "scripts/development/run-terminal-host.mjs",
-        "scripts/governance/check-terminal-host-provenance.mjs"
+        "scripts/governance/check-terminal-host-provenance.mjs",
+        "scripts/development/build-terminal-host.mjs",
+        "scripts/release/generate-terminal-host-notices.mjs",
+        "native/terminal-host/third-party-licenses/"
       ],
       "cadence": "pull-request"
     }

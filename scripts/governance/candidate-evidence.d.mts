@@ -40,3 +40,4 @@ export function verifyCandidateEvidence(evidence: CandidateEvidence, options: {
 export function readPackedManifest(tarball: Buffer): { name: string; version: string; bin: Record<string, string>; dependencies?: Record<string, string>; repository?: { type: string; url: string } };
 export function readPackedEntries(tarball: Buffer): Array<{ path: string; content: Buffer; type: string; mode: number }>;
 export function guardianBinaryReference(manifestPath: string, content: Buffer | string): { binaryPath: string; sha256: string; size: number } | null;
+export function terminalHostBinaryReference(manifestPath: string, content: Buffer | string): { binaryPath: string; sha256: string; size: number } | null;

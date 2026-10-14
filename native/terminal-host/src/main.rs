@@ -24,6 +24,10 @@ const GHOSTTY_ZIG_TARGET: &str = env!("TERMINAL_HOST_ZIG_TARGET");
 const GHOSTTY_ZIG_CPU: &str = env!("TERMINAL_HOST_ZIG_CPU");
 const PORTABLE_PTY_VERSION: &str = "0.9.0";
 const CROSSTERM_VERSION: &str = "0.29.0";
+const GENERATION: u16 = contracts::protocol::GENERATION;
+const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");
+const FAULT_INJECTION: bool = cfg!(feature = "fault-injection");
+const RESIDENT_FIXTURES: bool = cfg!(feature = "resident-fixtures");
 
 fn main() -> ExitCode {
     // Platform: Windows rounds short sleeps up to its ~15.6 ms default timer tick, which the
@@ -564,7 +568,7 @@ fn resident_endpoint(
 
 fn print_provenance() {
     println!(
-        "{{\"schema\":\"a1-terminal-host-version-v1\",\"protocolVersion\":{PROTOCOL_VERSION},\"hostMode\":\"console-inside-existing-terminal\",\"desktopWindow\":false,\"libghosttyVtCommit\":\"{GHOSTTY_VT_COMMIT}\",\"libghosttyTarget\":\"{GHOSTTY_ZIG_TARGET}\",\"libghosttyCpu\":\"{GHOSTTY_ZIG_CPU}\",\"portablePty\":\"{PORTABLE_PTY_VERSION}\",\"crossterm\":\"{CROSSTERM_VERSION}\"}}"
+        "{{\"schema\":\"a1-terminal-host-version-v1\",\"protocolVersion\":{PROTOCOL_VERSION},\"generation\":{GENERATION},\"crateVersion\":\"{CRATE_VERSION}\",\"features\":{{\"faultInjection\":{FAULT_INJECTION},\"residentFixtures\":{RESIDENT_FIXTURES}}},\"hostMode\":\"console-inside-existing-terminal\",\"desktopWindow\":false,\"libghosttyVtCommit\":\"{GHOSTTY_VT_COMMIT}\",\"libghosttyTarget\":\"{GHOSTTY_ZIG_TARGET}\",\"libghosttyCpu\":\"{GHOSTTY_ZIG_CPU}\",\"portablePty\":\"{PORTABLE_PTY_VERSION}\",\"crossterm\":\"{CROSSTERM_VERSION}\"}}"
     );
 }
 

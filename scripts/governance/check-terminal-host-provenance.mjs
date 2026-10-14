@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -14,13 +15,13 @@ try {
 }
 
 if (value?.schema !== identity.evidence.terminalProvenanceSchema) errors.push(`schema must be ${identity.evidence.terminalProvenanceSchema}`);
-if (value?.change !== "resident-tabs-contracts") errors.push("change identity is missing or invalid");
+if (value?.change !== "resident-tabs-certification") errors.push("change identity is missing or invalid");
 if (value?.hostMode !== "console-inside-existing-terminal") errors.push("host mode must remain console-inside-existing-terminal");
 if (value?.desktopApplicationRequired !== false) errors.push("desktop application must not be required");
 if (!Array.isArray(value?.sources) || value.sources.length !== 10) errors.push("exactly ten component records are required");
 
 const expected = {
-  "libghostty-vt": { commit: "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3", licenseSha256: "3129de97bc7769d683e52ce02cb4eaecd2b0aab144b09d6325a1b135bdc87cc0" },
+  "libghostty-vt": { commit: "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3", licenseSha256: "386211873e5b7a02f663ae4d7adf96285999f91608f8f9f31fecfd0f4095e6f1" },
   "portable-pty": { version: "0.9.0", licenseSha256: "c06f48b2acbbb4bb88345225c6d85264773528fe9fc99241cd255a7e32be632e" },
   crossterm: { version: "0.29.0", registryChecksum: "d8b9f2e4c67f833b660cdb0a3523065869fb35570177239812ed4c905aeff87b", license: "MIT" },
   "rmp-serde": { version: "1.3.1", registryChecksum: "72f81bee8c8ef9b577d1681a70ebbc962c232461e397b22c208c43c04b67a155", license: "MIT" },
@@ -51,7 +52,23 @@ for (const excluded of ["Ghostty desktop application", "Winghostty Win32 runtime
 const prerequisites = value?.buildPrerequisites;
 if (prerequisites?.language !== "Rust") errors.push("terminal host prerequisite language must be Rust");
 if (prerequisites?.zig !== ">=0.15.2 <0.16") errors.push("libghostty-vt prerequisite Zig must be >=0.15.2 <0.16");
-if (prerequisites?.cToolchain !== "Visual Studio 2022 Build Tools/MSVC on Windows") errors.push("Windows C toolchain must be Visual Studio 2022 Build Tools/MSVC");
+if (prerequisites?.cToolchain?.win32 !== "Visual Studio 2022 Build Tools/MSVC") errors.push("Windows C toolchain must be Visual Studio 2022 Build Tools/MSVC");
+if (!prerequisites?.cToolchain?.darwin || !prerequisites?.cToolchain?.linux) errors.push("macOS and Linux C toolchains must be recorded");
+if (JSON.stringify(prerequisites?.releaseTargets) !== JSON.stringify(["win32-x64", "linux-x64", "darwin-arm64", "darwin-x64"])) errors.push("release targets must be win32-x64, linux-x64, darwin-arm64, and darwin-x64");
+
+// Rationale: notices ship these exact texts, so each recorded digest is checked against the file itself.
+const linked = value?.linkedComponents;
+if (!Array.isArray(linked) || JSON.stringify(linked.map(component => component.name)) !== JSON.stringify(["libghostty-vt", "simdutf", "highway"])) {
+  errors.push("linked components must be libghostty-vt, simdutf, and highway");
+}
+for (const component of Array.isArray(linked) ? linked : []) {
+  if (!Array.isArray(component.licenseFiles) || component.licenseFiles.length === 0) errors.push(`${component.name}: license files are required`);
+  for (const file of component.licenseFiles ?? []) {
+    const text = await readFile(resolve(file.path), "utf8").catch(() => undefined);
+    if (text === undefined) errors.push(`${component.name}: license file ${file.path} is missing`);
+    else if (createHash("sha256").update(text.replaceAll("\r\n", "\n")).digest("hex") !== file.sha256) errors.push(`${component.name}: license file ${file.path} does not match its digest`);
+  }
+}
 if (prerequisites?.guiSdkRequired !== false) errors.push("GUI SDK must not be required");
 if (prerequisites?.openGlRequired !== false) errors.push("OpenGL must not be required");
 if (prerequisites?.win32WindowRuntimeRequired !== false) errors.push("Win32 window runtime must not be required");

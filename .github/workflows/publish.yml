@@ -439,7 +439,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2025, ubuntu-24.04, macos-15]
+        os: [windows-2025, ubuntu-24.04, macos-15, macos-15-intel]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -471,11 +471,57 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  terminal_hosts:
+    name: Build terminal host (${{ matrix.os }})
+    needs: plan
+    # Rationale: stable publication adopts the candidate-validated package, so nothing is rebuilt.
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, ubuntu-24.04, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - name: Preserve repository bytes during checkout
+        if: runner.os == 'Windows'
+        shell: bash
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.plan.outputs.source }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+      - name: Prepare Rust toolchain
+        shell: bash
+        run: bash scripts/development/prepare-ci-rust.sh
+      - name: Set up Zig for terminal host
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.15.2
+      - name: Cache terminal host build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: terminal-host-release
+          workspaces: native/terminal-host
+      - run: npm ci --ignore-scripts
+      - name: Build, verify, and record the release terminal host
+        run: npm run build:terminal-host
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: release-terminal-host-${{ runner.os }}-${{ runner.arch }}
+          path: dist/native
+          if-no-files-found: error
+          retention-days: 1
+
   package:
     name: Obtain exact package ${{ needs.plan.outputs.version }}
-    needs: [plan, guardians, documentation]
-    # Invariant: a skip is accepted only where the job is not required, so a build never packs without every guardian.
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.guardians.result == 'success' || (needs.guardians.result == 'skipped' && (needs.plan.outputs.build != 'true' || needs.plan.outputs.mode == 'stable'))) && (needs.documentation.result == 'success' || (needs.documentation.result == 'skipped' && needs.plan.outputs.mode != 'nightly' && needs.plan.outputs.mode != 'candidate'))
+    needs: [plan, guardians, terminal_hosts, documentation]
+    # Invariant: a skip is accepted only where the job is not required, so a build never packs without every guardian and terminal host.
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.guardians.result == 'success' || (needs.guardians.result == 'skipped' && (needs.plan.outputs.build != 'true' || needs.plan.outputs.mode == 'stable'))) && (needs.terminal_hosts.result == 'success' || (needs.terminal_hosts.result == 'skipped' && (needs.plan.outputs.build != 'true' || needs.plan.outputs.mode == 'stable'))) && (needs.documentation.result == 'success' || (needs.documentation.result == 'skipped' && needs.plan.outputs.mode != 'nightly' && needs.plan.outputs.mode != 'candidate'))
     runs-on: windows-2025
     timeout-minutes: 30
     outputs:
@@ -571,6 +617,17 @@ jobs:
           path: dist/native
           merge-multiple: true
 
+      - name: Assemble all platform terminal hosts
+        if: needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: release-terminal-host-*
+          path: dist/native
+          merge-multiple: true
+
+      - name: Require every platform native artifact before packing
+        if: needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
+        run: node scripts/release/verify-native-artifacts.mjs
       - name: Stamp the published version on the open development source
         if: needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
         shell: bash
