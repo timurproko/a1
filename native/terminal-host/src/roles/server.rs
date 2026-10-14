@@ -1762,24 +1762,26 @@ fn remove_owned_marker(state: &Arc<Mutex<RuntimeState>>) {
     }) else {
         return;
     };
-    let path = root.join("server.json");
-    let Some(marker) = std::fs::read(&path)
-        .ok()
-        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-    else {
-        return;
-    };
     let Ok(Some(own)) = crate::identity::inspect_process(std::process::id()) else {
         return;
     };
-    if marker.get("pid").and_then(serde_json::Value::as_u64) == Some(u64::from(own.pid))
+    remove_marker_if_owned(&root.join("server.json"), &own);
+}
+
+/// Removes the owner marker only while it still names own; a replacement's marker is kept.
+fn remove_marker_if_owned(path: &Path, own: &ProcessIdentity) -> bool {
+    let Some(marker) = std::fs::read(path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+    else {
+        return false;
+    };
+    let owned = marker.get("pid").and_then(serde_json::Value::as_u64) == Some(u64::from(own.pid))
         && marker
             .get("startIdentity")
             .and_then(serde_json::Value::as_str)
-            == Some(own.start.as_str())
-    {
-        let _ = std::fs::remove_file(path);
-    }
+            == Some(own.start.as_str());
+    owned && std::fs::remove_file(path).is_ok()
 }
 
 /// Non-interactive maintenance for `a1 tabs`: never a viewing client, never a controller.
@@ -4346,6 +4348,25 @@ pub fn encoded_bridge_token(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn idle_exit_removes_the_owner_marker_only_while_still_owned() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("server.json");
+        let own = ProcessIdentity {
+            pid: 41,
+            start: "own-start".into(),
+        };
+        assert!(!remove_marker_if_owned(&path, &own), "no marker is a no-op");
+        std::fs::write(&path, r#"{"pid":41,"startIdentity":"replacement-start"}"#).unwrap();
+        assert!(!remove_marker_if_owned(&path, &own));
+        std::fs::write(&path, r#"{"pid":42,"startIdentity":"own-start"}"#).unwrap();
+        assert!(!remove_marker_if_owned(&path, &own));
+        assert!(path.exists(), "a replacement's marker is kept");
+        std::fs::write(&path, r#"{"pid":41,"startIdentity":"own-start"}"#).unwrap();
+        assert!(remove_marker_if_owned(&path, &own));
+        assert!(!path.exists());
+    }
 
     fn record(tab_id: &str, created_at: u64, desired: &str, holder_pid: Option<u32>) -> TabRecord {
         TabRecord {
