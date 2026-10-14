@@ -49,6 +49,9 @@ pub const CRASH_POINTS: &[&str] = &[
     "crash-record-during-write",
     "recovery-file-during-write",
     "recovery-file-before-rename",
+    "host-stop-after-terminate",
+    "host-stop-after-replacement",
+    "host-stop-after-answer",
 ];
 
 static INSTALLED: OnceLock<HashMap<String, String>> = OnceLock::new();

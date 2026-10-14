@@ -470,6 +470,7 @@ fn stop_unresponsive_host(
     )
     .map_err(|error| format!("terminate unresponsive host: {error}"))?;
     host_stop_step(root, "terminated");
+    contracts::fault_injection::crash_at("host-stop-after-terminate");
     // Invariant: only this profile's tabs need a replacement host to stop them; another profile's
     // live tabs belong to its own host.
     let holders = contracts::roles::release_holds::collect_profile(root, |pid| {
@@ -509,6 +510,7 @@ fn stop_unresponsive_host(
             "replacement-launched"
         },
     );
+    contracts::fault_injection::crash_at("host-stop-after-replacement");
     let credentials = contracts::roles::credentials::ProfileCredentials::load_existing(root)?
         .ok_or_else(|| "resident credentials disappeared".to_owned())?;
     let endpoint = recorded_server_endpoint(root).unwrap_or_else(|| endpoint.to_owned());
@@ -523,6 +525,7 @@ fn stop_unresponsive_host(
             "unanswered"
         },
     );
+    contracts::fault_injection::crash_at("host-stop-after-answer");
     let answer = match answer {
         Ok(answer) => answer,
         // Invariant: a replacement may exit as soon as its last tab stops, closing the connection

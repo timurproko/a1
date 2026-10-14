@@ -1648,6 +1648,163 @@ fn host_stop_terminates_an_unresponsive_server_and_stops_its_tabs() {
 }
 
 #[test]
+fn host_stop_killed_at_each_step_leaves_no_orphan_or_duplicate_host() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    for point in [
+        "host-stop-after-terminate",
+        "host-stop-after-replacement",
+        "host-stop-after-answer",
+    ] {
+        let profile = directory(root.path(), &format!("profile-{point}"));
+        let data = directory(root.path(), &format!("data-{point}"));
+        let runtime = directory(root.path(), &format!("runtime-{point}"));
+        let release = directory(root.path(), &format!("release-{point}"));
+        protect_runtime(&runtime);
+        let address = fixture_endpoint(&runtime);
+        // Rationale: processes of this executable that predate the fixture belong to other
+        // tests' teardown, so only processes this fixture adds count as orphans.
+        let baseline = fixture_terminal_host_pids();
+        start_server(&executable, &profile, &data, &runtime, &address);
+        let credentials_root = data
+            .join("tabs")
+            .join(endpoint::endpoint_token(&profile).expect("profile token"));
+        let mut cleanup = Cleanup {
+            credentials_root: credentials_root.clone(),
+            pids: server_pids(&credentials_root),
+        };
+        let created = internal_command(
+            &executable,
+            "tab-create",
+            &profile,
+            &data,
+            &runtime,
+            &release,
+            &[
+                "--cwd",
+                text(&release),
+                "--release-root",
+                text(&release),
+                "--node-executable",
+                env!("CARGO_BIN_EXE_fake-tab"),
+            ],
+        );
+        let tab_id = serde_json::from_str::<serde_json::Value>(&created).expect("tab-create json")
+            ["tabId"]
+            .as_str()
+            .expect("created tab id")
+            .to_owned();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let holder = loop {
+            if let Some(found) = holder_identities(&credentials_root)
+                .into_iter()
+                .find(|(tab, _, _)| tab == &tab_id)
+            {
+                break found;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "{point}: holder never registered"
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        };
+        cleanup.pids.push(holder.1);
+        let server = server_pids(&credentials_root)[0];
+        let server_identity = terminal_host_contracts::identity::inspect_process(server)
+            .expect("inspect server")
+            .expect("live server");
+        suspend(server);
+
+        // Invariant: the command may die at any step after terminating the unresponsive server;
+        // what survives is the one recorded tab and at most one host, never a duplicate.
+        let killed = Command::new(&executable)
+            .args([
+                "tabs",
+                "host-stop",
+                "--profile",
+                text(&profile),
+                "--data-dir",
+                text(&data),
+                "--runtime-dir",
+                text(&runtime),
+            ])
+            .env("A1_TABS_ENDPOINT", &address)
+            .env("A1_TABS_FAULT_CRASH_POINT", point)
+            .output()
+            .expect("run killed host stop");
+        assert!(
+            !killed.status.success(),
+            "{point}: the host stop was not killed: {}",
+            String::from_utf8_lossy(&killed.stdout)
+        );
+        assert!(
+            terminal_host_contracts::identity::inspect_process(server)
+                .expect("inspect stopped server")
+                .is_none_or(|observed| observed != server_identity),
+            "{point}: unresponsive server survived"
+        );
+        let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+            .expect("read registry after the kill")
+            .expect("registry after the kill");
+        assert_eq!(
+            registry.tabs.len(),
+            1,
+            "{point}: the tab record was duplicated or lost"
+        );
+        cleanup.pids.extend(server_pids(&credentials_root));
+
+        // Invariant: a stop without the fault finishes the job. A holder that lost its host may
+        // still be starting the replacement, so a stop that found no host yet is repeated.
+        let holder_gone = || {
+            terminal_host_contracts::identity::inspect_process(holder.1)
+                .expect("inspect holder")
+                .is_none_or(|observed| observed.start != holder.2)
+        };
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            let stopped = tabs(
+                &executable,
+                &["host-stop"],
+                &profile,
+                &data,
+                &runtime,
+                &address,
+            );
+            assert_eq!(stopped.0, 0, "{point}: {}", stopped.1);
+            if stopped.1["host"] == "stopped" || holder_gone() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "{point}: no host ever answered the recovery stop: {}",
+                stopped.1
+            );
+            std::thread::sleep(Duration::from_millis(500));
+        }
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            let orphans = fixture_terminal_host_pids()
+                .into_iter()
+                .filter(|pid| !baseline.contains(pid))
+                .collect::<Vec<_>>();
+            if holder_gone() && server_pids(&credentials_root).is_empty() && orphans.is_empty() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "{point}: something survived the recovery stop: holder_gone={} marker={:?} orphans={orphans:?}",
+                holder_gone(),
+                std::fs::read_to_string(credentials_root.join("server.json")).ok(),
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let after = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+        assert_eq!(after.1["host"], "none", "{point}: {}", after.1);
+    }
+}
+
+#[test]
 fn a_server_of_another_generation_is_reported_incompatible_and_never_signalled() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
