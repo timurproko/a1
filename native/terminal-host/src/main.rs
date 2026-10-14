@@ -380,6 +380,10 @@ fn tabs_outcome(
             .unwrap_or(true);
         let mut report = serde_json::json!({ "host": "running", "result": value });
         if command == "host-stop" && accepted {
+            // Invariant: the host answers before it leaves, so a caller that removes the host's
+            // directories right after this report would still find them held; the stop reports
+            // only once no owner and no tab process remain, within a bound.
+            let _ = profile_quiesces(&root, TABS_STOP_TIMEOUT);
             report["host"] = "stopped".into();
         }
         return Ok(TabsOutcome {
@@ -535,6 +539,9 @@ fn stop_unresponsive_host(
     let accepted = answer.as_ref().is_some_and(|(_, value, _)| {
         value.get("accepted").and_then(serde_json::Value::as_bool) == Some(true)
     });
+    if accepted {
+        let _ = profile_quiesces(root, TABS_STOP_TIMEOUT);
+    }
     Ok(TabsOutcome {
         report: serde_json::json!({
             "host": if accepted { "stopped" } else { "unresponsive" },

@@ -19,7 +19,8 @@ const servers: SupervisorServer[] = [];
 /** Closes every live cohort supervisor and removes its roots; call it from `afterEach`. */
 export async function cleanupLiveCohorts(): Promise<void> {
   await Promise.all(servers.splice(0).map(server => server.close().catch(() => undefined)));
-  await Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true })));
+  // Platform: Windows refuses to remove a directory a leaving resident process still has open.
+  await Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 })));
 }
 
 /**

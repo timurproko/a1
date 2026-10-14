@@ -27,7 +27,8 @@ const stops: (() => void)[] = [];
 afterEach(async () => {
   for (const stop of stops.splice(0)) stop();
   await cleanupLiveCohorts();
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })));
+  // Platform: Windows refuses to remove a directory a leaving resident process still has open.
+  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 })));
 });
 
 const noTransaction = { read: async () => null };
