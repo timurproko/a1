@@ -60,8 +60,8 @@ The resident server SHALL exit after ten minutes with no attached client and no 
 - **WHEN** a client attaches before the ten-minute interval ends
 - **THEN** the server SHALL stay running and restart the interval only after it is idle again
 
-### Requirement: Preview support is packaged, opt-in, certified, and reversible
-The terminal-host binary SHALL ship for Windows x64, macOS, and Linux with artifact hashes, pinned source provenance, licenses, notices, and immutable-release placement verified before execution. A release SHALL NOT be packed unless every supported platform's terminal-host artifact and manifest are present. `residentTabs` SHALL remain `false` by default on every platform in this change and SHALL be accepted as an opt-in preview on each platform only after exact-package automated suites and manual or isolated-worker physical evidence on that platform for terminal closure, remote-session loss, forced attach-client termination, reattach, input fidelity and rendering, extension text UI, two-client attribution, server, holder, and child failure, sensitive-data separation, and conflict-safe direct rollback. Physical automation SHALL NOT run on an active workstation. When the terminal-host artifact is missing, altered, incompatible, or unsupported, bare `a1` SHALL run the direct single-agent owned UI with one notice; registry records and sessions SHALL be preserved. Default-on support on any platform and each additional platform require separate approved changes and evidence.
+### Requirement: Resident support is packaged, certified per platform, and reversible
+The terminal-host binary and its session-writer lock SHALL ship for Windows x64, Linux x64, macOS arm64, and macOS x64 with artifact hashes, pinned source provenance, licenses, notices, and immutable-release placement verified before execution. A release SHALL NOT be packed unless every supported platform's terminal-host artifact and manifest are present. Bare `a1` SHALL run resident tabs on every packaged platform; certification SHALL be recorded evidence and SHALL NOT disable resident tabs at runtime. A platform SHALL be recorded as certified only after exact-package automated suites and manual or isolated-worker physical evidence on that platform for terminal closure, remote-session loss, forced attach-client termination, reattach, input fidelity and rendering, extension text UI, two-client attribution, server, holder, and child failure, sensitive-data separation, and conflict-safe direct rollback; until then it SHALL be recorded as CI-verified with each missing physical verdict marked pending. Physical automation SHALL NOT run on an active workstation. When the terminal-host artifact or its session-writer lock is missing, altered, incompatible, or unsupported, bare `a1` SHALL run the direct single-agent owned UI with one notice; registry records and sessions SHALL be preserved. Installed releases SHALL ignore the development terminal-host path override. Each additional platform requires a separate approved change and evidence.
 
 #### Scenario: Server cannot start
 - **WHEN** the terminal-host binary is missing, unverified, or fails its start budget
@@ -71,10 +71,14 @@ The terminal-host binary SHALL ship for Windows x64, macOS, and Linux with artif
 - **WHEN** the terminal-host executable in an installed release does not match its manifest hash or size
 - **THEN** A1 SHALL NOT execute it and SHALL use the direct single-agent path with one notice
 
+#### Scenario: Development override in an installed release
+- **WHEN** `A1_TERMINAL_HOST_PATH` names another executable while an installed release launches
+- **THEN** A1 SHALL ignore the override and verify the release's own terminal-host artifact
+
 #### Scenario: Platform without recorded physical evidence
 - **WHEN** automated suites pass on a platform but its physical acceptance record lacks a verdict for any required item
-- **THEN** the preview SHALL remain documented as uncertified on that platform and evidence from another platform SHALL NOT be used in its place
+- **THEN** bare `a1` SHALL still run resident tabs there, the platform SHALL be documented as CI-verified rather than certified, and evidence from another platform SHALL NOT be used in its place
 
 #### Scenario: Roll back with tabs running
-- **WHEN** the user sets `residentTabs` to `false` while tabs run and then opens a session held by a tab
-- **THEN** bare `a1` SHALL run the direct path, SHALL NOT write the held session, and the resident tabs SHALL keep running until `a1 tabs host stop`
+- **WHEN** the user runs `a1 solo` for a session held by a live tab
+- **THEN** A1 SHALL NOT write the held session, SHALL refuse or fork it, and the resident tabs SHALL keep running until `a1 tabs host stop`

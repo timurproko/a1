@@ -371,7 +371,7 @@ The settings live in the owned settings screen, each with a hard cap.
 
 ### 13. Packaging and certification
 
-- `a1-terminal-host` is built and packaged for Windows x64, Linux x64, and macOS arm64, extending the impact-selected Windows CI owner introduced by #588 to that exact target matrix, with Zig 0.15.2 for pinned libghostty-vt. It ships in the immutable release with artifact manifest, hash verification, provenance, licenses, and notices.
+- `a1-terminal-host` is built and packaged for Windows x64, Linux x64, macOS arm64, and macOS x64 (see the 2026-10-14 decision), extending the impact-selected Windows CI owner introduced by #588 to that exact target matrix, with Zig 0.15.2 for pinned libghostty-vt. It ships in the immutable release with artifact manifest, hash verification, provenance, licenses, and notices.
 - Acceptance requires exact-package hermetic suites on each platform plus manual or isolated-worker evidence per platform for terminal close, SSH/session loss, reattach, input fidelity, extension text UI, failure recovery, rollback, and render smoothness. Evidence is never inferred from one platform to another.
 - An authorized isolated-worker 24-hour soak remains required certification evidence on each platform; a miss blocks certification without silently changing the approved default or weakening fallback.
 
@@ -510,6 +510,10 @@ The user made these decisions on 2026-09-24:
 - Icons are the only attention signal, with no bell, sound, or notification: spinner = working, `âœ“` = finished, red `âœ—` = failed, yellow `?` = needs the user.
 - `Ctrl+C` twice leaves `a1` from any tab while tabs keep running. There is no separate detach key.
 - Reliability is a first-class, release-gating requirement (Decision 16).
+
+On 2026-10-14 the user resolved the milestone-6 `darwin-x64` question:
+
+- Add an Intel macOS runner (`macos-15-intel`) for both the process guardian and the terminal host, so every release carries `darwin-x64` binaries beside `darwin-arm64`. Intel macOS is certified separately from Apple silicon: it needs its own physical acceptance record, and the chaos group runs on macOS arm64 only.
 
 On 2026-10-13 the user refined milestone 5:
 
