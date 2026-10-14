@@ -33,7 +33,6 @@ const HANDSHAKE: Duration = Duration::from_secs(4);
 
 pub fn connect(address: &str, token: &[u8]) -> Result<Connection, ConnectError> {
     let mut stream = endpoint::connect(address).map_err(|_| ConnectError::NotRunning)?;
-    endpoint::set_handshake_deadline(&stream, HANDSHAKE).map_err(|_| ConnectError::Unresponsive)?;
     wire::send(
         &mut stream,
         "hello",
@@ -54,6 +53,8 @@ pub fn connect(address: &str, token: &[u8]) -> Result<Connection, ConnectError> 
         },
     )
     .map_err(|_| ConnectError::Unresponsive)?;
+    // Platform: on Windows this waits for the welcome to arrive, so it follows the hello.
+    endpoint::set_handshake_deadline(&stream, HANDSHAKE).map_err(|_| ConnectError::Unresponsive)?;
     let payload = match wire::read_payload(&mut stream) {
         Ok(Some(payload)) => payload,
         Ok(None) => return Err(ConnectError::Refused("server closed the handshake".into())),

@@ -866,6 +866,7 @@ fn connect_holder(
     highest_epoch: u64,
 ) -> Result<(endpoint::EndpointStream, u64), String> {
     let mut stream = connect_retry(&config.endpoint, retry_forever)?;
+    crate::fault_injection::crash_at("holder-before-ready");
     let identity = crate::identity::inspect_process(std::process::id())
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "inspect holder identity".to_owned())?;
@@ -894,6 +895,7 @@ fn connect_holder(
         return Err("server refused holder handshake".to_owned());
     }
     let (_, welcome): (Option<u64>, Welcome) = wire::body(&welcome)?;
+    crate::fault_injection::crash_at("holder-after-ready");
     Ok((stream, welcome.epoch))
 }
 

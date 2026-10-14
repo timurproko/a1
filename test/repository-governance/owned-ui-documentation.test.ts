@@ -25,7 +25,8 @@ describe("owned UI launch documentation", () => {
       + " | a1 update --develop [preview-or-version] | a1 update --models"
       + " | a1 update --extensions | a1 update <source> | a1 install <source>"
       + " | a1 remove <source> | a1 uninstall <source> | a1 list"
-      + " | a1 session worktrees | a1 session link-worktree <path> | a1 session unlink-worktree",
+      + " | a1 session worktrees | a1 session link-worktree <path> | a1 session unlink-worktree"
+      + " | a1 tabs | a1 tabs stop <id>|--all | a1 tabs host status|stop | a1 tabs doctor",
     );
     expect(cliUsage(release)).toBe(
       "Usage: a1 | a1 --session <path|id> | a1 --session-dir <dir> --session <path|id>"
@@ -33,7 +34,8 @@ describe("owned UI launch documentation", () => {
       + " | a1 update --develop [preview-or-version] | a1 update --models"
       + " | a1 update --extensions | a1 update <source> | a1 install <source>"
       + " | a1 remove <source> | a1 uninstall <source> | a1 list"
-      + " | a1 session worktrees | a1 session link-worktree <path> | a1 session unlink-worktree",
+      + " | a1 session worktrees | a1 session link-worktree <path> | a1 session unlink-worktree"
+      + " | a1 tabs | a1 tabs stop <id>|--all | a1 tabs host status|stop | a1 tabs doctor",
     );
     expect(parseCliCommand(["ui"], prerelease)).toEqual({ kind: "noop" });
   });

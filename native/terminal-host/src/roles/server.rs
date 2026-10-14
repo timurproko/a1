@@ -3934,6 +3934,7 @@ fn serve_bridge(
     heartbeat_supported: bool,
     controller_boundary: bool,
 ) -> Result<(), String> {
+    crate::fault_injection::crash_at("bridge-before-admit");
     {
         let mut locked = state
             .lock()
@@ -3980,6 +3981,7 @@ fn serve_bridge(
         )?)
         .map_err(str::to_owned)?;
     }
+    crate::fault_injection::crash_at("bridge-after-admit");
     while let Some(payload) = wire::read_payload(&mut stream)? {
         let current = state
             .lock()

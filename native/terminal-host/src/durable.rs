@@ -48,7 +48,26 @@ impl fmt::Display for DurableError {
 impl std::error::Error for DurableError {}
 
 pub fn replace(target: impl AsRef<Path>, bytes: &[u8]) -> Result<(), DurableError> {
-    replace_with_observer(target.as_ref(), bytes, |_| Ok(()))
+    replace_with_observer(target.as_ref(), bytes, |step| {
+        match step {
+            DurabilityStep::TemporaryCreated => {
+                crate::fault_injection::crash_at("durable-temporary-created")
+            }
+            DurabilityStep::BytesWritten => {
+                crate::fault_injection::crash_at("durable-bytes-written")
+            }
+            DurabilityStep::FileSynchronized => {
+                crate::fault_injection::crash_at("durable-file-synchronized")
+            }
+            DurabilityStep::TargetReplaced => {
+                crate::fault_injection::crash_at("durable-target-replaced")
+            }
+            DurabilityStep::DirectorySynchronized => {
+                crate::fault_injection::crash_at("durable-directory-synchronized")
+            }
+        }
+        Ok(())
+    })
 }
 
 pub fn replace_with_observer(

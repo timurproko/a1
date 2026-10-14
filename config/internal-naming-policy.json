@@ -282,6 +282,14 @@
       "semantics": "Fault-feature-only named crash point used by native integration tests"
     },
     {
+      "role": "tabsFaultCrashMark",
+      "key": "A1_TABS_FAULT_CRASH_MARK",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/changes/resident-tabs-certification/design.md",
+      "semantics": "Fault-feature-only directory where a crash point leaves a breadcrumb before aborting, so recovery tests prove the point was reached"
+    },
+    {
       "role": "tabsFaultStaleEpoch",
       "key": "A1_TABS_FAULT_STALE_EPOCH",
       "exposure": "integration",

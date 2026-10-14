@@ -1052,6 +1052,136 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
     cleanup.pids.extend(holder_pids(&credentials_root));
 }
 
+/// Crash points a fresh start plus one tab always reaches; the rest need a corrupted registry,
+/// an exhausted restart budget, a dying child, or an A1 bridge, which their dedicated tests set up.
+const REACHED_ON_START_AND_TAB: &[&str] = &[
+    "after-lease",
+    "after-epoch",
+    "after-marker",
+    "after-bind",
+    "durable-temporary-created",
+    "durable-bytes-written",
+    "durable-file-synchronized",
+    "durable-target-replaced",
+    "durable-directory-synchronized",
+    "frame-before-send",
+    "frame-after-send",
+    "frame-after-receive",
+];
+
+#[test]
+fn every_named_crash_point_recovers_to_a_clean_start_with_a_working_tab() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
+    let mut unreached = Vec::new();
+    for point in terminal_host_contracts::fault_injection::CRASH_POINTS {
+        let profile = directory(root.path(), &format!("profile-{point}"));
+        let data = directory(root.path(), &format!("data-{point}"));
+        let runtime = directory(root.path(), &format!("runtime-{point}"));
+        let marks = directory(root.path(), &format!("marks-{point}"));
+        let release = directory(root.path(), &format!("release-{point}"));
+        protect_runtime(&runtime);
+        let address = fixture_endpoint(&runtime);
+        let credentials_root = data
+            .join("tabs")
+            .join(endpoint::endpoint_token(&profile).expect("profile token"));
+        let mut cleanup = Cleanup {
+            credentials_root: credentials_root.clone(),
+            pids: Vec::new(),
+        };
+
+        // Invariant: the faulted phase may die anywhere; only what survives it is inspected.
+        let mut faulted = server_command(&executable, &profile, &data, &runtime, &address);
+        faulted
+            .env("A1_TABS_FAULT_CRASH_POINT", point)
+            .env("A1_TABS_FAULT_CRASH_MARK", &marks);
+        let _ = faulted.output();
+        if credentials_root.join("server.json").is_file() {
+            let _ = Command::new(&executable)
+                .args([
+                    "internal",
+                    "tab-create",
+                    "--profile",
+                    text(&profile),
+                    "--data-dir",
+                    text(&data),
+                    "--runtime-dir",
+                    text(&runtime),
+                    "--cwd",
+                    text(&release),
+                    "--release-root",
+                    text(&release),
+                    "--node-executable",
+                    fake_tab,
+                ])
+                .env("A1_TABS_ENDPOINT", &address)
+                .current_dir(&release)
+                .output();
+            std::thread::sleep(Duration::from_secs(2));
+        }
+        if !marks.join(point).exists() {
+            unreached.push(*point);
+        }
+        cleanup.pids.extend(server_pids(&credentials_root));
+        cleanup.pids.extend(holder_pids(&credentials_root));
+        drop(cleanup);
+
+        if credentials_root.join("registry.json").is_file() {
+            assert!(
+                RegistryStore::recover(&credentials_root.join("registry.json")).is_ok(),
+                "{point}: registry did not recover"
+            );
+        }
+        start_server(&executable, &profile, &data, &runtime, &address);
+        let mut cleanup = Cleanup {
+            credentials_root: credentials_root.clone(),
+            pids: server_pids(&credentials_root),
+        };
+        let created = internal_command(
+            &executable,
+            "tab-create",
+            &profile,
+            &data,
+            &runtime,
+            &release,
+            &[
+                "--cwd",
+                text(&release),
+                "--release-root",
+                text(&release),
+                "--node-executable",
+                fake_tab,
+            ],
+        );
+        let tab_id = serde_json::from_str::<serde_json::Value>(&created).expect("tab-create json")
+            ["tabId"]
+            .as_str()
+            .expect("created tab id")
+            .to_owned();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while !holder_identities(&credentials_root)
+            .iter()
+            .any(|(tab, _, _)| tab == &tab_id)
+        {
+            assert!(
+                Instant::now() < deadline,
+                "{point}: a clean start did not run a tab"
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        cleanup.pids.extend(holder_pids(&credentials_root));
+    }
+    let required_but_unreached = unreached
+        .iter()
+        .filter(|point| REACHED_ON_START_AND_TAB.contains(point))
+        .collect::<Vec<_>>();
+    assert!(
+        required_but_unreached.is_empty(),
+        "crash points were never hit: {required_but_unreached:?}"
+    );
+}
 #[test]
 fn maintenance_lists_stops_reports_and_stops_the_host_without_starting_one() {
     let _serial = serialize_role_fixture();
@@ -1564,13 +1694,15 @@ fn wait_for_holder_started_server(
 }
 
 fn server_pids(root: &Path) -> Vec<u32> {
-    serde_json::from_slice::<serde_json::Value>(
-        &std::fs::read(root.join("server.json")).expect("server metadata"),
-    )
-    .ok()
-    .and_then(|value| value.get("pid").and_then(serde_json::Value::as_u64))
-    .map(|pid| vec![pid as u32])
-    .unwrap_or_default()
+    // Invariant: a cleanly stopped server removes its marker, leaving nothing to collect.
+    let Ok(marker) = std::fs::read(root.join("server.json")) else {
+        return Vec::new();
+    };
+    serde_json::from_slice::<serde_json::Value>(&marker)
+        .ok()
+        .and_then(|value| value.get("pid").and_then(serde_json::Value::as_u64))
+        .map(|pid| vec![pid as u32])
+        .unwrap_or_default()
 }
 fn registry_epoch(root: &Path) -> u64 {
     RegistryStore::read(&root.join("registry.json"))
