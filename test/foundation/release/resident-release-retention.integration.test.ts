@@ -6,10 +6,12 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   CohortStateStore,
+  createUpdateLifecycleCoordinator,
   materializeRelease,
   runBoundedReleaseCleanup,
   type MaterializedRelease,
 } from "../../../src/foundation/release/index.js";
+import { cleanupLiveCohorts, liveCohort } from "./live-cohort-fixture.js";
 import { runBoundedHostCommand } from "../../../src/foundation/resident-tabs/bounded-host-command.js";
 import { readResidentReleaseHolds } from "../../../src/foundation/resident-tabs/release-holds.js";
 
@@ -24,6 +26,7 @@ const roots: string[] = [];
 const stops: (() => void)[] = [];
 afterEach(async () => {
   for (const stop of stops.splice(0)) stop();
+  await cleanupLiveCohorts();
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })));
 });
 
@@ -84,6 +87,62 @@ describe("resident release retention with real processes", () => {
     await until(async () => !existsSync(resolve(stateDir, "server.json")));
     await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
     expect((await fixture.store.read()).releases[heldByTab!.releaseId]).toBeUndefined();
+  }, 180_000);
+
+  nativeIt("an update mid-turn never signals a streaming resident tab or its server", async () => {
+    // Invariant: a session running from the installation being replaced is the case an update ends,
+    // so it is the strongest test that resident processes on that release are left alone.
+    const { environment, release } = await liveCohort("mutable-install");
+    const profile = resolve(environment.A1_DATA_DIR, "profile");
+    await mkdir(profile, { recursive: true });
+    const runtime = process.platform === "win32" ? resolve(environment.A1_DATA_DIR, "resident-runtime") : await mkdtemp("/tmp/a1rt-");
+    if (process.platform !== "win32") roots.push(runtime);
+    await mkdir(runtime, { recursive: true });
+    await chmod(runtime, 0o700);
+    const endpoint = process.platform === "win32"
+      ? `\\\\.\\pipe\\a1-tabs-update-${process.pid}-${Date.now().toString(16)}`
+      : resolve(runtime, "resident.sock");
+    const common = ["--profile", profile, "--data-dir", environment.A1_DATA_DIR, "--runtime-dir", runtime];
+    const run = (arguments_: readonly string[], extra: NodeJS.ProcessEnv = {}) => spawnSync(host, [...arguments_], {
+      encoding: "utf8",
+      env: { ...process.env, A1_TABS_ENDPOINT: endpoint, ...extra },
+      cwd: release.releaseRoot,
+      timeout: 120_000,
+      windowsHide: true,
+    });
+    stops.push(() => { run(["tabs", "host-stop", ...common]); });
+    expect(run(["server", "--detach", ...common]).status).toBe(0);
+    const created = run(
+      ["internal", "tab-create", ...common, "--cwd", release.releaseRoot, "--release-root", release.releaseRoot, "--node-executable", fakeTab],
+      { TERMINAL_HOST_FAKE_TAB_MODE: "stream", TERMINAL_HOST_FAKE_TAB_STREAM_BYTES: "4096" },
+    );
+    expect(created.status, created.stderr).toBe(0);
+    const tabId = JSON.parse(created.stdout).tabId as string;
+    const stateDir = JSON.parse(run(["tabs", "host-status", ...common]).stdout.trim().split("\n").at(-1)!).stateDir as string;
+    const identities = async () => {
+      const registry = JSON.parse(await readFile(resolve(stateDir, "registry.json"), "utf8"));
+      const tab = registry.tabs.find((candidate: { tabId: string }) => candidate.tabId === tabId);
+      const marker = JSON.parse(await readFile(resolve(stateDir, "server.json"), "utf8"));
+      return {
+        lifecycle: tab?.lifecycle,
+        server: [marker.pid, marker.startIdentity],
+        holder: [tab?.holderPid, tab?.holderStartIdentity],
+        child: [tab?.childPid, tab?.childStartIdentity],
+      };
+    };
+    await until(async () => (await identities().catch(() => null))?.child[0] !== undefined && (await identities()).child[0] !== null);
+    const before = await identities();
+    expect(before.lifecycle).toBe("running");
+
+    const coordinator = createUpdateLifecycleCoordinator(environment, undefined, { stdout: () => {}, stderr: () => {} });
+    await coordinator.shutdownVerifiedOwners("1.3.0");
+    // Invariant: the stream keeps running across the update rather than merely surviving its instant.
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 2_000));
+
+    expect(await identities()).toEqual(before);
+    for (const pid of [before.server[0], before.holder[0], before.child[0]]) {
+      expect(() => process.kill(pid as number, 0)).not.toThrow();
+    }
   }, 180_000);
 });
 
