@@ -991,14 +991,16 @@ fn serve_peer(
         return Err("first resident message is not hello".to_owned());
     }
     let (request_id, hello): (_, RoleHello) = wire::body(&payload)?;
-    if hello.generation != protocol::GENERATION {
+    let supported =
+        crate::fault_injection::server_generation_override().unwrap_or(protocol::GENERATION);
+    if hello.generation != supported {
         return wire::send(
             &mut stream,
             "incompatible-generation",
             request_id,
             protocol::IncompatibleGeneration {
                 offered: hello.generation,
-                supported: protocol::GENERATION,
+                supported,
             },
         );
     }

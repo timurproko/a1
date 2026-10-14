@@ -306,6 +306,14 @@
       "semantics": "Fault-feature-only role-loop freeze used to prove watchdog isolation"
     },
     {
+      "role": "tabsFaultServerGeneration",
+      "key": "A1_TABS_FAULT_SERVER_GENERATION",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "native/terminal-host/tests/role_integration.rs",
+      "semantics": "Fault-feature-only protocol generation a fixture server answers with, used to test generation-mismatch handling"
+    },
+    {
       "role": "sessionRuntimeId",
       "key": "A1_SESSION_RUNTIME_ID",
       "exposure": "integration",

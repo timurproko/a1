@@ -13,6 +13,7 @@ pub(crate) const VARIABLES: &[&str] = &[
     "A1_TABS_FAULT_CRASH_MARK",
     "A1_TABS_FAULT_STALE_EPOCH",
     "A1_TABS_FAULT_FREEZE_ROLE",
+    "A1_TABS_FAULT_SERVER_GENERATION",
 ];
 
 pub const REGISTRY_REPLACE: &str = "A1_TABS_FAULT_REGISTRY_REPLACE";
@@ -88,6 +89,15 @@ pub fn freeze_requested(role: &str) -> bool {
         let _ = role;
         false
     }
+}
+
+/// A protocol generation a fixture server answers with instead of its own, so clients can be
+/// tested against a server from another release.
+pub fn server_generation_override() -> Option<u16> {
+    #[cfg(feature = "fault-injection")]
+    return value("A1_TABS_FAULT_SERVER_GENERATION").and_then(|value| value.parse().ok());
+    #[cfg(not(feature = "fault-injection"))]
+    None
 }
 
 pub fn freeze_role(role: &str) {

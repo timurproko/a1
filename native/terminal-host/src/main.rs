@@ -239,7 +239,9 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
             return Err(message);
         }
     };
-    if !contracts::fault_injection::freeze_requested("server") {
+    if !contracts::fault_injection::freeze_requested("server")
+        && contracts::fault_injection::server_generation_override().is_none()
+    {
         contracts::roles::server::probe(&endpoint, &credentials.client_token)?;
     }
     let metadata = ResidentServerMetadata {

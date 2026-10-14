@@ -1629,6 +1629,67 @@ fn host_stop_terminates_an_unresponsive_server_and_stops_its_tabs() {
 }
 
 #[test]
+fn a_server_of_another_generation_is_reported_incompatible_and_never_signalled() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let mut server = server_command(&executable, &profile, &data, &runtime, &address);
+    server.env("A1_TABS_FAULT_SERVER_GENERATION", "2");
+    let started = server.output().expect("other-generation server");
+    assert!(
+        started.status.success(),
+        "{}",
+        String::from_utf8_lossy(&started.stderr)
+    );
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let _cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let server_pid = server_pids(&credentials_root)[0];
+    let server_identity = terminal_host_contracts::identity::inspect_process(server_pid)
+        .expect("inspect server")
+        .expect("live server");
+
+    let probe = Command::new(&executable)
+        .args([
+            "probe",
+            "--profile",
+            text(&profile),
+            "--data-dir",
+            text(&data),
+            "--runtime-dir",
+            text(&runtime),
+        ])
+        .env("A1_TABS_ENDPOINT", &address)
+        .output()
+        .expect("probe");
+    assert!(!probe.status.success());
+    assert!(
+        String::from_utf8_lossy(&probe.stdout).contains("incompatible-generation"),
+        "{}",
+        String::from_utf8_lossy(&probe.stdout)
+    );
+    for command in [&["list"][..], &["host-status"], &["host-stop"]] {
+        let answer = tabs(&executable, command, &profile, &data, &runtime, &address);
+        assert_eq!(answer.0, 4, "{command:?}: {}", answer.1);
+        assert_eq!(answer.1["host"], "incompatible", "{command:?}");
+    }
+    // Invariant: a mismatched generation is reported with a stop instruction, never signalled.
+    assert_eq!(
+        terminal_host_contracts::identity::inspect_process(server_pid).expect("inspect server"),
+        Some(server_identity)
+    );
+}
+
+#[test]
 fn host_stop_refuses_an_unverifiable_owner_and_changes_nothing() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
