@@ -1816,7 +1816,8 @@ fn stop_tabs(
     for tab_id in tab_ids {
         close_tab(state, tab_id, request_id)?;
     }
-    let live = |state: &Arc<Mutex<RuntimeState>>| -> Result<Vec<(String, Option<ProcessIdentity>)>, String> {
+    type LiveTab = (String, Option<ProcessIdentity>, Option<ProcessIdentity>);
+    let live = |state: &Arc<Mutex<RuntimeState>>| -> Result<Vec<LiveTab>, String> {
         let locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
@@ -1826,19 +1827,25 @@ fn stop_tabs(
                 locked.holders.contains_key(*tab_id) || locked.holders_starting.contains(*tab_id)
             })
             .map(|tab_id| {
+                let record = locked
+                    .registry
+                    .tabs
+                    .iter()
+                    .find(|record| &record.tab_id == tab_id);
                 // Invariant: a recorded holder that has not reconnected is stopped by the identity
                 // its registry record holds.
                 let recorded = || {
-                    let record = locked
-                        .registry
-                        .tabs
-                        .iter()
-                        .find(|record| &record.tab_id == tab_id)?;
                     Some(ProcessIdentity {
-                        pid: record.holder_pid?,
-                        start: record.holder_start_identity.clone()?,
+                        pid: record?.holder_pid?,
+                        start: record?.holder_start_identity.clone()?,
                     })
                 };
+                let child = record.and_then(|record| {
+                    Some(ProcessIdentity {
+                        pid: record.child_pid?,
+                        start: record.child_start_identity.clone()?,
+                    })
+                });
                 (
                     tab_id.clone(),
                     locked
@@ -1846,6 +1853,7 @@ fn stop_tabs(
                         .get(tab_id)
                         .map(|holder| holder.identity.clone())
                         .or_else(recorded),
+                    child,
                 )
             })
             .collect())
@@ -1857,7 +1865,7 @@ fn stop_tabs(
         remaining = live(state)?;
     }
     let mut forced = Vec::new();
-    for (tab_id, identity) in &remaining {
+    for (tab_id, identity, child) in &remaining {
         if let Some(identity) = identity {
             counters::record(CounterEvent::HolderHangRecovery);
             // Security: termination targets only the identity this server admitted, never a pid alone.
@@ -1878,6 +1886,16 @@ fn stop_tabs(
                 }
             }
         }
+        // Invariant: a holder that had to be forced never stopped its child, so the child the
+        // registry records for the tab is terminated by its own verified identity; its session
+        // stays on disk.
+        if let Some(child) = child {
+            let _ = crate::identity::terminate_verified(
+                child,
+                MAINTENANCE_STOP_FORCE / 4,
+                MAINTENANCE_STOP_FORCE / 4,
+            );
+        }
     }
     let force_deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
     remaining = live(state)?;
@@ -1887,7 +1905,7 @@ fn stop_tabs(
     }
     let remaining = remaining
         .into_iter()
-        .map(|(tab_id, _)| tab_id)
+        .map(|(tab_id, _, _)| tab_id)
         .collect::<Vec<_>>();
     let stopped = tab_ids
         .iter()
@@ -4168,14 +4186,22 @@ fn holder_lost(
     commit_registry(registry_store, document)?;
     if let Some(delay) = restart_delay {
         thread::sleep(delay);
-        let session_file = state.lock().ok().and_then(|locked| {
+        let record = state.lock().ok().and_then(|locked| {
             locked
                 .registry
                 .tabs
                 .iter()
                 .find(|record| record.tab_id == tab_id)
-                .and_then(|record| record.session_file.clone())
+                .map(|record| (record.desired.clone(), record.session_file.clone()))
         });
+        // Invariant: a tab stopped or removed while its restart waited out the backoff stays
+        // stopped; the backoff never resurrects it.
+        let Some((desired, session_file)) = record else {
+            return Ok(());
+        };
+        if desired != "running" {
+            return Ok(());
+        }
         if let Some(session_file) = session_file {
             if let Err(error) = verify_session_writer_released(
                 Path::new(&session_file),

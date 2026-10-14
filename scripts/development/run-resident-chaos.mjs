@@ -104,6 +104,14 @@ function kill(pid) {
   try { process.kill(pid, "SIGKILL"); } catch { /* Rationale: the target may already be gone. */ }
 }
 
+/** The command line of one process, bounded, for a violation that names an orphan. */
+function describeProcess(pid) {
+  const listing = process.platform === "win32"
+    ? spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").CommandLine`], { encoding: "utf8", windowsHide: true })
+    : spawnSync("ps", ["-o", "command=", "-p", String(pid)], { encoding: "utf8" });
+  return (listing.stdout ?? "").trim().replace(/\s+/gu, " ").slice(0, 300) || "unknown";
+}
+
 function processesUsing(paths) {
   const wanted = paths.map(path => resolve(path));
   if (process.platform === "win32") {
@@ -253,14 +261,14 @@ async function main() {
   const finalListing = tabs(["list"]);
   violations.push(...listingViolations(finalListing.result?.tabs ?? []));
   const stopped = tabs(["host-stop"]);
-  if (!["stopped", "none"].includes(stopped.host)) violations.push(`host stop reported ${stopped.host}`);
+  if (!["stopped", "none"].includes(stopped.host)) violations.push(`host stop reported ${stopped.host}: ${JSON.stringify(stopped).slice(0, 800)}`);
   const orphanDeadline = Date.now() + 15_000;
   let orphans = processesUsing([host, fakeTab]);
   while (orphans.length > 0 && Date.now() < orphanDeadline) {
     await sleep(250);
     orphans = processesUsing([host, fakeTab]).filter(alive);
   }
-  if (orphans.length > 0) violations.push(`orphaned resident processes: ${orphans.join(", ")}`);
+  if (orphans.length > 0) violations.push(`orphaned resident processes: ${orphans.map(pid => `${pid} (${describeProcess(pid)})`).join(", ")}`);
   for (const pid of orphans) kill(pid);
 
   const report = {
