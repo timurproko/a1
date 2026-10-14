@@ -1343,6 +1343,84 @@ fn maintenance_lists_stops_reports_and_stops_the_host_without_starting_one() {
     );
 }
 
+#[test]
+fn maintenance_stop_terminates_a_hung_holder_only_by_its_verified_identity() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let mut server = server_command(&executable, &profile, &data, &runtime, &address);
+    server.env("A1_TABS_FAULT_FREEZE_ROLE", "holder");
+    assert!(
+        server
+            .output()
+            .expect("hung-holder server")
+            .status
+            .success()
+    );
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let created = internal_command(
+        &executable,
+        "tab-create",
+        &profile,
+        &data,
+        &runtime,
+        &release,
+        &[
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            env!("CARGO_BIN_EXE_fake-tab"),
+        ],
+    );
+    let tab_id =
+        serde_json::from_str::<serde_json::Value>(&created).expect("tab-create json")["tabId"]
+            .as_str()
+            .expect("created tab id")
+            .to_owned();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let holder = loop {
+        if let Some(found) = holder_identities(&credentials_root)
+            .into_iter()
+            .find(|(tab, _, _)| tab == &tab_id)
+        {
+            break found;
+        }
+        assert!(Instant::now() < deadline, "hung holder never registered");
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    cleanup.pids.push(holder.1);
+
+    let stopped = tabs(
+        &executable,
+        &["stop", &tab_id],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(stopped.0, 0, "{}", stopped.1);
+    assert_eq!(stopped.1["result"]["accepted"], true);
+    assert!(
+        terminal_host_contracts::identity::inspect_process(holder.1)
+            .expect("inspect hung holder")
+            .is_none_or(|observed| observed.start != holder.2),
+        "hung holder survived its stop"
+    );
+}
 fn tabs(
     executable: &Path,
     command: &[&str],
