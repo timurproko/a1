@@ -15,8 +15,8 @@ export const CHAOS_SCHEMA = "a1-resident-chaos-v1";
 const DEFAULT_SECONDS = 600;
 const MAX_OPEN_TABS = 6;
 // Invariant: the third restart in a window waits the longest 30-second backoff step, then the
-// holder must start the child, so a replacement is due within the backoff plus a start bound.
-const RESTART_DEADLINE_MS = 30_000 + 30_000;
+// start gate (bounded at 40 seconds) and the child start, so a replacement is due within that sum.
+const RESTART_DEADLINE_MS = 30_000 + 40_000 + 20_000;
 const SERVER_RECOVERY_DEADLINE_MS = 20_000;
 const SERVER_START_BUDGET = 3;
 // Rationale: a margin past the 60-second budget window covers a start recorded just before the kill.

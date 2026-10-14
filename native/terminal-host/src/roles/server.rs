@@ -654,6 +654,10 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         let state = state.clone();
         thread::spawn(move || expire_unadmitted_holders(&state, adopting_holders));
     }
+    {
+        let state = state.clone();
+        thread::spawn(move || reconcile_unconnected_holders(&state));
+    }
     let (accepted_tx, accepted_rx) = mpsc::channel();
     thread::spawn(move || {
         loop {
@@ -3358,6 +3362,12 @@ fn serve_holder(
             locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
             (locked.registry_store.clone(), locked.registry.clone())
         });
+        // Invariant: a holder that connects after its tab was told to stop is stopped at once.
+        let stop_now = locked
+            .registry
+            .tabs
+            .iter()
+            .any(|record| record.tab_id == tab_id && record.desired == "stopped");
         locked.holders_terminating.remove(&tab_id);
         locked.holders_starting.remove(&tab_id);
         locked.last_activity = std::time::Instant::now();
@@ -3365,7 +3375,15 @@ fn serve_holder(
         if let Some((store, document)) = registry_commit {
             commit_registry(store, document)?;
         }
-        if let Some(respawn) = pending_respawn {
+        if stop_now {
+            let _ = holder_peer.offer_control(wire::frame(
+                "shutdown",
+                None,
+                TabTarget {
+                    tab_id: tab_id.clone(),
+                },
+            )?);
+        } else if let Some(respawn) = pending_respawn {
             if !acquire_start_gate(&state, std::time::Duration::from_secs(40)) {
                 return Err("resident restart start gate timed out".into());
             }
@@ -4086,6 +4104,82 @@ fn expire_unadmitted_holder(state: &Arc<Mutex<RuntimeState>>, tab_id: &str) {
         return;
     }
     let _ = holder_lost(state, locked, tab_id, Some("holder not readmitted".into()));
+}
+
+/// How often recorded holders that are neither connected nor starting are checked.
+const UNCONNECTED_HOLDER_CHECK: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Releases tabs whose recorded holder is neither connected nor starting: a gone holder at once,
+/// and a live but unreachable one after the admission deadline, by its recorded identity. A tab
+/// whose holder outlived its server in any lifecycle therefore never stays stale.
+fn reconcile_unconnected_holders(state: &Arc<Mutex<RuntimeState>>) {
+    let mut unconnected_since = HashMap::<String, std::time::Instant>::new();
+    loop {
+        thread::sleep(UNCONNECTED_HOLDER_CHECK);
+        let candidates = {
+            let Ok(locked) = state.lock() else {
+                return;
+            };
+            locked
+                .registry
+                .tabs
+                .iter()
+                .filter(|record| {
+                    !locked.holders.contains_key(&record.tab_id)
+                        && !locked.holders_starting.contains(&record.tab_id)
+                        && !locked.holders_terminating.contains(&record.tab_id)
+                })
+                .filter_map(|record| {
+                    Some((
+                        record.tab_id.clone(),
+                        ProcessIdentity {
+                            pid: record.holder_pid?,
+                            start: record.holder_start_identity.clone()?,
+                        },
+                    ))
+                })
+                .collect::<Vec<_>>()
+        };
+        unconnected_since.retain(|tab_id, _| candidates.iter().any(|(tab, _)| tab == tab_id));
+        for (tab_id, identity) in candidates {
+            let since = *unconnected_since
+                .entry(tab_id.clone())
+                .or_insert_with(std::time::Instant::now);
+            let live = inspect_identity_bounded(identity.pid)
+                .ok()
+                .flatten()
+                .is_some_and(|observed| observed.start == identity.start);
+            if live && since.elapsed() < HOLDER_ADMISSION_DEADLINE {
+                continue;
+            }
+            if live {
+                counters::record(CounterEvent::HolderHangRecovery);
+                // Security: only the identity recorded for this tab is terminated, never a pid alone.
+                let _ = crate::identity::terminate_verified(
+                    &identity,
+                    std::time::Duration::from_secs(5),
+                    std::time::Duration::from_secs(5),
+                );
+            }
+            unconnected_since.remove(&tab_id);
+            let state = state.clone();
+            // Concurrency: the restart backoff runs on its own thread, never in this check.
+            thread::spawn(move || {
+                let Ok(locked) = state.lock() else {
+                    return;
+                };
+                let still_unconnected = !locked.holders.contains_key(&tab_id)
+                    && !locked.holders_starting.contains(&tab_id)
+                    && locked.registry.tabs.iter().any(|record| {
+                        record.tab_id == tab_id && record.holder_pid == Some(identity.pid)
+                    });
+                if still_unconnected {
+                    let _ =
+                        holder_lost(&state, locked, &tab_id, Some("holder not connected".into()));
+                }
+            });
+        }
+    }
 }
 
 /// The diagnostic event for a peer connection the server refused, without any peer-supplied text.
