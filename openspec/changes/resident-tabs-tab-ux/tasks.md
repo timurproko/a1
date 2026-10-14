@@ -33,7 +33,7 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 - [x] 5.1 Wire the milestone-1 controller-transfer barrier through server, holder, child, and attach client. Automatically claim the viewed tab on focus gain; when focus reporting is absent or a claim is pending, hold the first input and deliver it only after acknowledgement. Do not require `Enter` and do not render a persistent view-only banner.
 - [x] 5.2 Release controllers on detach/disconnect, accept resize only from the current controller, reject stale revisions without bytes, and allow the newly active terminal to reclaim automatically through the same barrier.
-- [ ] 5.3 Stamp `/quit` and empty-editor `Ctrl+D` at command admission; apply only while the origin controller remains current. Rejected or bridge-less requests keep A1 and the tab running and direct the user to double `Ctrl+C`. Print `1 agent still running run a1 to return.` or `N agents still running run a1 to return.` after detach. Prove two-client behavior on Windows x64, macOS arm64, and Linux x64.
+- [x] 5.3 Stamp `/quit` and empty-editor `Ctrl+D` at command admission; apply only while the origin controller remains current. Rejected or bridge-less requests keep A1 and the tab running and direct the user to double `Ctrl+C`. Print `1 agent still running run a1 to return.` or `N agents still running run a1 to return.` after detach. Prove two-client behavior on Windows x64, macOS arm64, and Linux x64.
 
 ## 6. Resident session selection
 
@@ -42,21 +42,21 @@ Milestone 5 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). T
 
 ## 7. Extension fidelity
 
-- [ ] 7.1 Add a text-terminal fidelity fixture and comparison harness covering keyboard/kitty keys, mouse, bracketed paste, selection, OSC 52, OSC 8, cursor shape, wide/combining Unicode, alternate screen, and image text fallback. Record independent Windows x64, macOS arm64, and Linux x64 results.
+- [x] 7.1 Add a text-terminal fidelity fixture and comparison harness covering keyboard/kitty keys, mouse, bracketed paste, selection, OSC 52, OSC 8, cursor shape, wide/combining Unicode, alternate screen, and image text fallback. Record independent Windows x64, macOS arm64, and Linux x64 results.
 
 ## 8. Auto-name, limits, and prewarm
 
 - [x] 8.1 Remove the `residentTabs` setting, show only `tabsMax` (default 10, range 1–50) and `tabsAutoName` (default on) in resident Settings > Tabs, hide that section completely in `a1 solo`, and add clamping, version migration, settings-screen, launch-routing, and repository-local launch tests. Retire stored `residentTabs` and user-facing `tabsMaxConcurrentStarts`, `tabsUnresponsiveRestartSeconds`, and `tabsStallNoticeSeconds`; use internal concurrent-start default 2/hard cap 8, prewarm count 1/hard cap 1, unresponsive restart 120 seconds, and stall notice 300 seconds.
-- [ ] 8.2 Enforce `tabsMax` on every creation path and the internal concurrent-start gate. Exercise ten concurrent starts per platform with models available.
+- [x] 8.2 Enforce `tabsMax` on every creation path and the internal concurrent-start gate. Exercise ten concurrent starts per platform with models available.
 - [x] 8.3 Implement child auto-naming after the first settled turn with bounded budget/timeout/retry, ≤16-character lowercase hyphenated normalization, deterministic fallback, and user-rename precedence. Reproduce v2's 600 ms rainbow, 45 ms/character typing, and 300 ms settle animation for automatic names only.
 - [x] 8.4 Implement one hidden standby: no session or writer lease before promotion, exact cwd/environment match, committed session identity before input, retarget on mismatch, skip untrusted cwd, exclude from strip and `tabsMax`, and tolerate standby failure without affecting tabs.
 - [x] 8.5 Prove every open tab keeps its process until explicit close and that no suspension setting, timer, lifecycle, or `◌` glyph exists.
 
 ## 9. Performance
 
-- [ ] 9.1 Add the declared budgets to `docs/architecture/resident-tabs.md` and create `scripts/development/measure-resident-tabs.mjs` for cold launch, matching-standby creation, reattach first paint/input, input-to-process, and output-to-present. Record every value and miss independently on Windows x64, macOS arm64, and Linux x64.
+- [x] 9.1 Add the declared budgets to `docs/architecture/resident-tabs.md` and create `scripts/development/measure-resident-tabs.mjs` for cold launch, matching-standby creation, reattach first paint/input, input-to-process, and output-to-present. Record every value and miss independently on Windows x64, macOS arm64, and Linux x64.
 
 ## 10. Documentation and validation
 
 - [x] 10.1 Update `docs/architecture/resident-tabs.md` and `resident-tabs-requirements.md` to the approved v2 appearance, per-tab accents, unbound navigation/reorder actions, strip-only management, automatic control transfer, the two resident-only Tabs settings, explicit `a1 solo`, internal supervision/start/prewarm constants, detach wording, always-on bare-A1 routing, and no idle suspension. Move this change's delivered requirements out of the target file.
-- [ ] 10.2 Run focused TypeScript and native suites, bounded decoder fuzzing, two-client/fidelity/performance harnesses on all three platforms, strict OpenSpec validation, and documentation governance. Record independent evidence and confirm `a1 solo` and `a1 pi` stay direct without a Tabs settings section.
+- [x] 10.2 Run focused TypeScript and native suites, bounded decoder fuzzing, two-client/fidelity/performance harnesses on all three platforms, strict OpenSpec validation, and documentation governance. Record independent evidence and confirm `a1 solo` and `a1 pi` stay direct without a Tabs settings section.
