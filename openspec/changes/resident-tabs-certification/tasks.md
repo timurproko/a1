@@ -11,10 +11,10 @@ Milestone 6 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). M
 
 - [ ] 2.1 Add `scripts/development/build-terminal-host.mjs` (new file) per Decision 1: release `--locked` build of the executable and the `node-addon` session lock, executable named from `src/product-identity.json`, `terminal-host.manifest.json` with schema `a1-terminal-host-artifact-v1`, `--version` reporting `generation` and `crateVersion` and checked by the script, and executable mode on Unix. Prove with a unit test of the manifest shape and a CI run on every release runner.
 - [ ] 2.2 Add `macos-15-intel` to the `guardians` job and map `x86_64-apple-darwin` in `native/terminal-host/build_target.rs`. Add a `terminal_hosts` job to `.github/workflows/publish.yml` on `windows-2025`, `ubuntu-24.04`, `macos-15`, and `macos-15-intel` with Zig 0.15.2 and `prepare-ci-rust.sh`; make `package` merge `release-terminal-host-*` and refuse to pack when any platform artifact or manifest is missing. Extend `test/repository-governance/release-pipeline-policy.test.ts` to assert the job, the pinned action digests, and the pack invariant.
-- [ ] 2.3 Update `config/terminal-host-provenance.json` and `scripts/governance/check-terminal-host-provenance.mjs` for change `resident-tabs-certification`, macOS x64, per-platform C toolchains, and the release manifest fields; update `docs/architecture/terminal-host-provenance.md`, `docs/architecture/process-guardian-provenance.md`, and the relevant `docs/architecture/toolchain.md` entries.
-- [ ] 2.4 Add `scripts/release/generate-terminal-host-notices.mjs` (new file) that emits `terminal-host-THIRD-PARTY-NOTICES.txt` from the locked dependency graph and vendored `libghostty-vt`, failing on a missing or non-allowlisted license; wire it into the `terminal-hosts` job and test it with a fixture crate graph.
+- [x] 2.3 Update `config/terminal-host-provenance.json` and `scripts/governance/check-terminal-host-provenance.mjs` for change `resident-tabs-certification`, macOS x64, per-platform C toolchains, and the release manifest fields; update `docs/architecture/terminal-host-provenance.md`, `docs/architecture/process-guardian-provenance.md`, and the relevant `docs/architecture/toolchain.md` entries.
+- [x] 2.4 Add `scripts/release/generate-terminal-host-notices.mjs` (new file) that emits `terminal-host-THIRD-PARTY-NOTICES.txt` from the locked dependency graph and vendored `libghostty-vt`, failing on a missing or non-allowlisted license; wire it into the `terminal-hosts` job and test it with a fixture crate graph.
 - [ ] 2.5 Include the terminal host, session lock, manifest, and notices in the immutable release payload (product files under `dist/native` are retained by the runtime payload model, as the guardian already is) and require every platform's set before packing; extend `scripts/release/repair-native-executable-modes.mjs` and `guardianBinaryReference()` in `scripts/governance/candidate-evidence.mjs` for `terminal-host.manifest.json`; extend `test/foundation/release/package-surface.test.ts` to require them for every supported platform and to keep the Unix executable bit.
-- [ ] 2.6 Add `src/foundation/process-containment/terminal-host-artifact.ts` (new file) per Decision 3 and call it from `ensureTerminalHost()` and every `a1 tabs` path before any spawn or exec; resolve the executable by its product-identity name, add `darwin-x64` to the supported platforms, honor `A1_TERMINAL_HOST_PATH` only in development builds, and resolve the session lock relative to the release root. Tests cover missing, tampered, wrong-platform, wrong-generation, unsupported, and missing-lock artifacts, each ending in the direct fallback with one notice.
+- [ ] 2.6 Add `src/foundation/resident-tabs/terminal-host-artifact.ts` (new file) per Decision 3 and call it from `ensureTerminalHost()` and every `a1 tabs` path before any spawn or exec; resolve the executable by its product-identity name, add `darwin-x64` to the supported platforms, honor `A1_TERMINAL_HOST_PATH` only in development builds, and resolve the session lock relative to the release root. Tests cover missing, tampered, wrong-platform, wrong-generation, unsupported, and missing-lock artifacts, each ending in the direct fallback with one notice.
 - [ ] 2.7 Assert in an exact-package test that the shipped terminal host was built without the `fault-injection` and `resident-fixtures` features.
 
 ## 3. Release retention and version skew
@@ -26,12 +26,12 @@ Milestone 6 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). M
 
 ## 4. Maintenance commands
 
-- [ ] 4.1 Recognize `tabs` in `src/cli/dispatch.ts`, add it to `cliUsage` and complete help, and add focused `a1 tabs --help`; update the help and grammar tests in `test/` for the `a1-shell` delta.
+- [x] 4.1 Recognize `tabs` in `src/cli/dispatch.ts`, add it to `cliUsage` and complete help, and add focused `a1 tabs --help`; update the help and grammar tests in `test/` for the `a1-shell` delta.
 - [ ] 4.2 Implement `a1 tabs` and `a1 tabs host status` in `src/cli/tabs.ts` (new file) with bounded probes that never start a server; tests assert no process is spawned when no server answers, on each platform.
 - [ ] 4.3 Implement `a1 tabs stop <id>` and `a1 tabs stop --all` with graceful shutdown, bounded verified tree termination, and resumable sessions; tests cover a busy tab, an unknown id, and a tab whose holder is hung.
 - [ ] 4.4 Implement `a1 tabs host stop` including the unresponsive-server path (verified termination, then an explicit-restart replacement that is stopped at once), and the unverifiable-owner refusal; crash tests kill the command at each step and assert no orphan, duplicate, or killed unverified process.
-- [ ] 4.5 Implement `a1 tabs doctor` per Decision 8 with the 25 MiB cap and an allowlisted archive; a canary test seeds secrets, tokens, environment values, journals, drafts, last screens, the private child-stderr sink (seeded directly, since no platform captures child stderr yet), and terminal content and fails if any appears in the bundle.
-- [ ] 4.6 Add `--json` output with a versioned schema for every form, and argument-validation tests asserting one-line diagnostics and nonzero status before any I/O.
+- [x] 4.5 Implement `a1 tabs doctor` per Decision 8 with the 25 MiB cap and an allowlisted archive; a canary test seeds secrets, tokens, environment values, journals, drafts, last screens, the private child-stderr sink (seeded directly, since no platform captures child stderr yet), and terminal content and fails if any appears in the bundle.
+- [x] 4.6 Add `--json` output with a versioned schema for every form, and argument-validation tests asserting one-line diagnostics and nonzero status before any I/O.
 
 ## 5. Bounds, counters, and idle exit
 
@@ -49,16 +49,16 @@ Milestone 6 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). M
 
 ## 7. Platform acceptance records
 
-- [ ] 7.1 Write `docs/manual-resident-tabs-acceptance.md` (new file) with the Decision 10 checklist, the record template, the `CI-verified`/`certified` states, and the rule that physical automation never runs on an active workstation.
+- [x] 7.1 Write `docs/manual-resident-tabs-acceptance.md` (new file) with the Decision 10 checklist, the record template, the `CI-verified`/`certified` states, and the rule that physical automation never runs on an active workstation.
 - [ ] 7.2 Record `docs/architecture/evidence/resident-tabs/windows-x64.md` from CI exact-package evidence, citing the milestone-2 physical evidence only for its own package and marking every unrun physical item `pending`.
 - [ ] 7.3 Record `docs/architecture/evidence/resident-tabs/macos-arm64.md` and `docs/architecture/evidence/resident-tabs/macos-x64.md` from CI exact-package evidence with every physical item `pending` for the user's later macOS run.
 - [ ] 7.4 Record `docs/architecture/evidence/resident-tabs/linux-x64.md` from CI exact-package evidence with every physical item, including the `systemd` logout case, `pending`.
 
 ## 8. Documentation
 
-- [ ] 8.1 Update `docs/architecture/resident-tabs.md`: status `implemented`, per-platform certification state, the bounds table, and the known gaps and follow-ups from Decision 12; keep historical spike evidence unchanged.
-- [ ] 8.2 Confirm with a settings test that the Tabs section still exposes only `tabsMax` and `tabsAutoName`, and name `a1 solo` and `a1 tabs host stop` as the rollback paths in the user-facing tabs documentation.
-- [ ] 8.3 Remove this change's requirements from `docs/architecture/resident-tabs-requirements.md`; once the file has no remaining requirements, delete it and remove every link to it.
+- [x] 8.1 Update `docs/architecture/resident-tabs.md`: status `implemented`, per-platform certification state, the bounds table, and the known gaps and follow-ups from Decision 12; keep historical spike evidence unchanged.
+- [x] 8.2 Confirm with a settings test that the Tabs section still exposes only `tabsMax` and `tabsAutoName`, and name `a1 solo` and `a1 tabs host stop` as the rollback paths in the user-facing tabs documentation.
+- [x] 8.3 Remove this change's requirements from `docs/architecture/resident-tabs-requirements.md`; once the file has no remaining requirements, delete it and remove every link to it.
 
 ## 9. Validation
 
