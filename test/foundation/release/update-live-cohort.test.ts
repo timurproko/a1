@@ -21,7 +21,7 @@ const servers: SupervisorServer[] = [];
 const residents: number[] = [];
 afterEach(async () => {
   for (const pid of residents.splice(0)) {
-    try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ }
+    try { process.kill(pid, "SIGKILL"); } catch { /* Rationale: the stand-in may already be gone. */ }
   }
   await Promise.all(servers.splice(0).map(server => server.close().catch(() => undefined)));
   await Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true })));

@@ -16,6 +16,7 @@ use crate::endpoint::{self, OwnerEndpoint};
 use crate::identity::ProcessIdentity;
 use crate::launch::{self, ResidentRole};
 use crate::protocol::{self, BridgeAttachment, BridgeRequest, Welcome};
+use crate::roles::counters::{self, Event as CounterEvent};
 use crate::roles::credentials::ProfileCredentials;
 use crate::roles::registry::{RegistryAuthority, RegistryDocument, RegistryStore, TabRecord};
 use crate::roles::wire::{
@@ -159,8 +160,10 @@ impl Peer {
     }
 
     fn offer_surface(&self, frame: Vec<u8>) {
-        if let Ok(mut slot) = self.surface.lock() {
-            *slot = Some(frame);
+        if let Ok(mut slot) = self.surface.lock()
+            && slot.replace(frame).is_some()
+        {
+            counters::record(CounterEvent::SurfaceReplacement);
         }
         // Performance: an empty frame wakes the writer at once instead of after its idle poll;
         // the flag keeps at most one wake queued so slow clients cannot fill the control lane.
@@ -244,14 +247,30 @@ struct RuntimeState {
     workers: crate::shell::workers::WorkerPool<Result<(), String>>,
     startup_notice: Option<String>,
     diagnostics_root: std::path::PathBuf,
+    shutdown_requested: bool,
 }
 impl RuntimeState {
     fn is_idle(&self) -> bool {
-        self.clients.is_empty()
-            && self.bridges.is_empty()
-            && self.holders.is_empty()
-            && self.holders_starting.is_empty()
-            && self.last_activity.elapsed() >= std::time::Duration::from_secs(10 * 60)
+        let standby = self.standby.as_ref().map(|standby| standby.tab_id.as_str());
+        crate::core::server::idle_exit_due(crate::core::server::IdleObservation {
+            clients: self.clients.len(),
+            bridges: self
+                .bridges
+                .keys()
+                .filter(|tab_id| Some(tab_id.as_str()) != standby)
+                .count(),
+            user_holders: self
+                .holders
+                .keys()
+                .filter(|tab_id| Some(tab_id.as_str()) != standby)
+                .count(),
+            starting_holders: self
+                .holders_starting
+                .iter()
+                .filter(|tab_id| Some(tab_id.as_str()) != standby)
+                .count(),
+            since_activity: self.last_activity.elapsed(),
+        })
     }
 
     fn default_tab(&self) -> String {
@@ -319,6 +338,14 @@ fn verify_session_writer_released(path: &Path, timeout: std::time::Duration) -> 
 }
 
 fn commit_registry(store: RegistryStore, document: RegistryDocument) -> Result<(), String> {
+    let result = commit_registry_bounded(store, document);
+    if result.is_err() {
+        counters::record(CounterEvent::PersistenceDegraded);
+    }
+    result
+}
+
+fn commit_registry_bounded(store: RegistryStore, document: RegistryDocument) -> Result<(), String> {
     let incarnation = document.registry_revision;
     let mut worker = crate::shell::workers::WorkerPool::new(1);
     worker
@@ -565,6 +592,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         workers: crate::shell::workers::WorkerPool::new(8),
         startup_notice,
         diagnostics_root,
+        shutdown_requested: false,
     }));
     let (accepted_tx, accepted_rx) = mpsc::channel();
     thread::spawn(move || {
@@ -598,11 +626,15 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 supervise_holders(&state);
-                if state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?
-                    .is_idle()
-                {
+                let exit = {
+                    let locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    locked.shutdown_requested || locked.is_idle()
+                };
+                if exit {
+                    discard_standby(&state);
+                    remove_owned_marker(&state);
                     return Ok(());
                 }
             }
@@ -722,6 +754,7 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
         let mut registry_changed = false;
         for (tab_id, message) in notices {
             if message == "terminate-unresponsive-child" {
+                counters::record(CounterEvent::ChildHangRecovery);
                 if let Some(holder) = locked.holders.get(&tab_id) {
                     let _ = holder.peer.offer_control(
                         wire::frame(
@@ -786,6 +819,7 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
                 {
                     if record.lifecycle != "unresponsive" {
                         record.lifecycle = "unresponsive".into();
+                        counters::record(CounterEvent::UnresponsiveTransition);
                         registry_changed = true;
                     }
                 }
@@ -803,6 +837,7 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
             .map(|(tab_id, holder)| (tab_id.clone(), holder.identity.clone()))
             .collect::<Vec<_>>();
         for (tab_id, _) in &stale {
+            counters::record(CounterEvent::HolderHangRecovery);
             locked.holders_terminating.insert(tab_id.clone());
         }
         let commit =
@@ -900,7 +935,9 @@ fn serve_peer(
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
         match hello.role.as_str() {
-            "attach" | "internal" | "probe" => locked.credentials.client_token.to_vec(),
+            "attach" | "internal" | "probe" | "maintain" => {
+                locked.credentials.client_token.to_vec()
+            }
             "holder" | "bridge" => {
                 let tab_id = hello.tab_id.as_deref().unwrap_or("");
                 let incarnation = locked
@@ -1018,6 +1055,10 @@ fn serve_peer(
     }
     if hello.role == "probe" {
         return wire::send(&mut stream, "welcome", request_id, welcome(epoch));
+    }
+    if hello.role == "maintain" {
+        wire::send(&mut stream, "welcome", request_id, welcome(epoch))?;
+        return serve_maintain(stream, state);
     }
     wire::send(&mut stream, "welcome", request_id, welcome(epoch))?;
     let writer = stream
@@ -1435,6 +1476,344 @@ fn cancel_controller_transfer(
     Ok(())
 }
 
+/// Asks a tab's bridge and holder to stop gracefully and records it as stopping. Returns false
+/// for an unknown tab.
+fn close_tab(
+    state: &Arc<Mutex<RuntimeState>>,
+    tab_id: &str,
+    request_id: Option<u64>,
+) -> Result<bool, String> {
+    let mut locked = state
+        .lock()
+        .map_err(|_| "resident state poisoned".to_owned())?;
+    if let Some(bridge) = locked.bridges.get(tab_id) {
+        let _ = bridge.peer.offer_control(wire::frame(
+            "bridge.stop",
+            request_id,
+            serde_json::json!({ "deadlineMs": 5000 }),
+        )?);
+    }
+    if let Some(holder) = locked.holders.get(tab_id) {
+        let _ = holder.peer.offer_control(wire::frame(
+            "shutdown",
+            request_id,
+            TabTarget {
+                tab_id: tab_id.to_owned(),
+            },
+        )?);
+    }
+    let commit = if let Some(tab) = locked
+        .registry
+        .tabs
+        .iter_mut()
+        .find(|tab| tab.tab_id == tab_id)
+    {
+        tab.desired = "stopped".into();
+        tab.lifecycle = "stopping".into();
+        locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
+        Some((locked.registry_store.clone(), locked.registry.clone()))
+    } else {
+        None
+    };
+    drop(locked);
+    let known = commit.is_some();
+    if let Some((store, document)) = commit {
+        commit_registry(store, document)?;
+    }
+    Ok(known)
+}
+
+/// How long a maintenance stop waits for graceful holder exit before verified termination.
+const MAINTENANCE_STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(15);
+/// The additional bound for verified termination of holders that ignored the graceful stop.
+const MAINTENANCE_STOP_FORCE: std::time::Duration = std::time::Duration::from_secs(12);
+
+/// Stops the named tabs, waits for their holders to leave, terminates any holder that ignored the
+/// request after verifying its identity, and removes the stopped records. Sessions stay on disk,
+/// so each one remains resumable.
+fn stop_tabs(
+    state: &Arc<Mutex<RuntimeState>>,
+    tab_ids: &[String],
+    request_id: Option<u64>,
+) -> Result<serde_json::Value, String> {
+    for tab_id in tab_ids {
+        close_tab(state, tab_id, request_id)?;
+    }
+    let live = |state: &Arc<Mutex<RuntimeState>>| -> Result<Vec<(String, Option<ProcessIdentity>)>, String> {
+        let locked = state
+            .lock()
+            .map_err(|_| "resident state poisoned".to_owned())?;
+        Ok(tab_ids
+            .iter()
+            .filter(|tab_id| {
+                locked.holders.contains_key(*tab_id) || locked.holders_starting.contains(*tab_id)
+            })
+            .map(|tab_id| {
+                (
+                    tab_id.clone(),
+                    locked.holders.get(tab_id).map(|holder| holder.identity.clone()),
+                )
+            })
+            .collect())
+    };
+    let deadline = std::time::Instant::now() + MAINTENANCE_STOP_GRACE;
+    let mut remaining = live(state)?;
+    while !remaining.is_empty() && std::time::Instant::now() < deadline {
+        thread::sleep(std::time::Duration::from_millis(100));
+        remaining = live(state)?;
+    }
+    let mut forced = Vec::new();
+    for (tab_id, identity) in &remaining {
+        if let Some(identity) = identity {
+            counters::record(CounterEvent::HolderHangRecovery);
+            // Security: termination targets only the identity this server admitted, never a pid alone.
+            if crate::identity::terminate_verified(
+                identity,
+                MAINTENANCE_STOP_FORCE / 2,
+                MAINTENANCE_STOP_FORCE / 2,
+            )
+            .is_ok()
+            {
+                forced.push(tab_id.clone());
+            }
+        }
+    }
+    let force_deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    remaining = live(state)?;
+    while !remaining.is_empty() && std::time::Instant::now() < force_deadline {
+        thread::sleep(std::time::Duration::from_millis(100));
+        remaining = live(state)?;
+    }
+    let remaining = remaining
+        .into_iter()
+        .map(|(tab_id, _)| tab_id)
+        .collect::<Vec<_>>();
+    let stopped = tab_ids
+        .iter()
+        .filter(|tab_id| !remaining.contains(tab_id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let commit = {
+        let mut locked = state
+            .lock()
+            .map_err(|_| "resident state poisoned".to_owned())?;
+        let before = locked.registry.tabs.len();
+        locked
+            .registry
+            .tabs
+            .retain(|tab| !stopped.contains(&tab.tab_id));
+        for tab_id in &stopped {
+            locked.surfaces.remove(tab_id);
+            locked.launches.remove(tab_id);
+        }
+        (locked.registry.tabs.len() != before).then(|| {
+            locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
+            (locked.registry_store.clone(), locked.registry.clone())
+        })
+    };
+    if let Some((store, document)) = commit {
+        commit_registry(store, document)?;
+    }
+    Ok(serde_json::json!({
+        "accepted": remaining.is_empty(),
+        "stopped": stopped,
+        "forced": forced,
+        "remaining": remaining,
+    }))
+}
+
+fn host_status(state: &Arc<Mutex<RuntimeState>>) -> Result<serde_json::Value, String> {
+    let locked = state
+        .lock()
+        .map_err(|_| "resident state poisoned".to_owned())?;
+    let root = locked
+        .diagnostics_root
+        .parent()
+        .map(std::path::Path::to_path_buf);
+    let marker = root
+        .as_ref()
+        .and_then(|root| std::fs::read(root.join("server.json")).ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok());
+    let mut by_status = std::collections::BTreeMap::<String, usize>::new();
+    for tab in &locked.registry.tabs {
+        *by_status.entry(tab.lifecycle.clone()).or_default() += 1;
+    }
+    let logs = std::fs::read_dir(&locked.diagnostics_root)
+        .map(|entries| {
+            let mut logs = entries
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .filter(|path| {
+                    path.file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| {
+                            name.starts_with("terminal-host-") && name.contains(".log")
+                        })
+                })
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect::<Vec<_>>();
+            logs.sort();
+            logs.truncate(64);
+            logs
+        })
+        .unwrap_or_default();
+    Ok(serde_json::json!({
+        "pid": std::process::id(),
+        "build": env!("CARGO_PKG_VERSION"),
+        "release": crate::roles::release_holds::own_release_root(),
+        "generation": protocol::GENERATION,
+        "epoch": locked.registry.epoch,
+        "uptimeSeconds": locked.core_started.elapsed().as_secs(),
+        "endpoint": locked.endpoint,
+        "detachmentMode": marker.as_ref().and_then(|value| value.get("detachmentMode")).cloned(),
+        "detachmentVerified": marker.as_ref().and_then(|value| value.get("verified")).cloned(),
+        "tabs": locked.registry.tabs.len(),
+        "tabsByStatus": by_status,
+        "standby": locked.standby.is_some(),
+        "clients": locked.clients.len(),
+        "limits": {
+            "tabsMax": locked.tabs_max,
+            "tabsMaxHard": 50,
+            "maxConcurrentStarts": locked.max_concurrent_starts,
+            "maxConcurrentStartsHard": crate::core::server::HARD_MAX_CONCURRENT_STARTS,
+            "idleExitSeconds": crate::core::server::IDLE_EXIT.as_secs(),
+        },
+        "counters": counters::snapshot(locked.registry.epoch),
+        "logs": logs,
+    }))
+}
+
+/// Removes the owner marker on exit, but only while it still names this process.
+fn remove_owned_marker(state: &Arc<Mutex<RuntimeState>>) {
+    let Some(root) = state.lock().ok().and_then(|locked| {
+        locked
+            .diagnostics_root
+            .parent()
+            .map(std::path::Path::to_path_buf)
+    }) else {
+        return;
+    };
+    let path = root.join("server.json");
+    let Some(marker) = std::fs::read(&path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+    else {
+        return;
+    };
+    let Ok(Some(own)) = crate::identity::inspect_process(std::process::id()) else {
+        return;
+    };
+    if marker.get("pid").and_then(serde_json::Value::as_u64) == Some(u64::from(own.pid))
+        && marker
+            .get("startIdentity")
+            .and_then(serde_json::Value::as_str)
+            == Some(own.start.as_str())
+    {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+/// Non-interactive maintenance for `a1 tabs`: never a viewing client, never a controller.
+fn serve_maintain(
+    mut stream: endpoint::EndpointStream,
+    state: Arc<Mutex<RuntimeState>>,
+) -> Result<(), String> {
+    while let Some(payload) = wire::read_payload(&mut stream)? {
+        let kind = wire::kind(&payload)?;
+        let request_id = kind.request_id;
+        match kind.message_type.as_str() {
+            "host.status" => {
+                let status = host_status(&state)?;
+                wire::send(&mut stream, "host.status", request_id, status)?;
+            }
+            "tab.list" => {
+                let tabs = {
+                    let locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    let mut tabs = locked.registry.tabs.clone();
+                    tabs.sort_by_key(|tab| tab.order);
+                    tabs.into_iter()
+                        .map(|tab| {
+                            serde_json::json!({
+                                "tabId": tab.tab_id,
+                                "name": tab.display_name,
+                                "status": locked
+                                    .surfaces
+                                    .get(&tab.tab_id)
+                                    .map_or_else(|| tab.lifecycle.clone(), |surface| surface.status.clone()),
+                                "lifecycle": tab.lifecycle,
+                                "desired": tab.desired,
+                                "cwd": tab.cwd,
+                                "release": tab.release,
+                                "holderPid": tab.holder_pid,
+                                "restarts": tab.restarts,
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                };
+                wire::send(
+                    &mut stream,
+                    "tab.list",
+                    request_id,
+                    serde_json::json!({ "tabs": tabs }),
+                )?;
+            }
+            "tab.stop" => {
+                let (_, target): (_, TabTarget) = wire::body(&payload)?;
+                let known = state
+                    .lock()
+                    .map_err(|_| "resident state poisoned".to_owned())?
+                    .registry
+                    .tabs
+                    .iter()
+                    .any(|tab| tab.tab_id == target.tab_id);
+                let result = if known {
+                    stop_tabs(&state, &[target.tab_id], request_id)?
+                } else {
+                    serde_json::json!({ "accepted": false, "message": "unknown tab" })
+                };
+                wire::send(&mut stream, "tab.stopped", request_id, result)?;
+            }
+            "tab.stopAll" | "host.stop" => {
+                let tab_ids = state
+                    .lock()
+                    .map_err(|_| "resident state poisoned".to_owned())?
+                    .registry
+                    .tabs
+                    .iter()
+                    .map(|tab| tab.tab_id.clone())
+                    .collect::<Vec<_>>();
+                let result = stop_tabs(&state, &tab_ids, request_id)?;
+                if kind.message_type == "host.stop" {
+                    // Invariant: the server leaves only after every tab it could verify has stopped;
+                    // a tab that could not be stopped keeps the host running for a retry.
+                    if result["accepted"] == serde_json::Value::Bool(true) {
+                        state
+                            .lock()
+                            .map_err(|_| "resident state poisoned".to_owned())?
+                            .shutdown_requested = true;
+                    }
+                    wire::send(&mut stream, "host.stopping", request_id, result)?;
+                } else {
+                    wire::send(&mut stream, "tab.stopped", request_id, result)?;
+                }
+            }
+            other => {
+                wire::send(
+                    &mut stream,
+                    "maintain.refused",
+                    request_id,
+                    wire::ResultBody {
+                        accepted: false,
+                        message: Some(format!("unsupported maintenance request {other}")),
+                    },
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
 fn serve_attach(
     mut stream: endpoint::EndpointStream,
     tx: Peer,
@@ -2007,41 +2386,7 @@ fn serve_attach(
             }
             "tab.close" => {
                 let (_, target): (_, TabTarget) = wire::body(&payload)?;
-                let mut locked = state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?;
-                if let Some(bridge) = locked.bridges.get(&target.tab_id) {
-                    let _ = bridge.peer.offer_control(wire::frame(
-                        "bridge.stop",
-                        kind.request_id,
-                        serde_json::json!({ "deadlineMs": 5000 }),
-                    )?);
-                }
-                if let Some(holder) = locked.holders.get(&target.tab_id) {
-                    let _ = holder.peer.offer_control(wire::frame(
-                        "shutdown",
-                        kind.request_id,
-                        target.clone(),
-                    )?);
-                }
-                let commit = if let Some(tab) = locked
-                    .registry
-                    .tabs
-                    .iter_mut()
-                    .find(|tab| tab.tab_id == target.tab_id)
-                {
-                    tab.desired = "stopped".into();
-                    tab.lifecycle = "stopping".into();
-                    locked.registry.registry_revision =
-                        locked.registry.registry_revision.saturating_add(1);
-                    Some((locked.registry_store.clone(), locked.registry.clone()))
-                } else {
-                    None
-                };
-                drop(locked);
-                if let Some((store, document)) = commit {
-                    commit_registry(store, document)?;
-                }
+                close_tab(&state, &target.tab_id, kind.request_id)?;
                 tx.offer_control(wire::frame(
                     "tab.closed",
                     kind.request_id,
@@ -3414,6 +3759,7 @@ fn serve_holder(
                     restarts,
                     window_start,
                 } => {
+                    counters::record(CounterEvent::CrashRestart);
                     record.restarts = restarts;
                     record.restart_window_start = Some(window_start.as_secs());
                     record.incarnation = record.incarnation.saturating_add(1);
@@ -3424,6 +3770,7 @@ fn serve_holder(
                     restarts,
                     window_start,
                 } => {
+                    counters::record(CounterEvent::FailedTab);
                     record.restarts = restarts;
                     record.restart_window_start = Some(window_start.as_secs());
                     record.lifecycle = "failed".into();
@@ -3611,6 +3958,13 @@ fn serve_bridge(
                         status.degraded,
                         viewed,
                     );
+                    if surface.status != previous {
+                        match surface.status.as_str() {
+                            "stalled" => counters::record(CounterEvent::StalledTransition),
+                            "degraded" => counters::record(CounterEvent::BridgeDegraded),
+                            _ => {}
+                        }
+                    }
                     if status.accent.is_some() {
                         surface.accent = status.accent;
                     }

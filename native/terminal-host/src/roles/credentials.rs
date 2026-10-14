@@ -31,6 +31,28 @@ impl ProfileCredentials {
         })
     }
 
+    /// Reads existing credentials without creating anything; `None` when this profile never
+    /// started a resident server.
+    pub fn load_existing(root: &Path) -> Result<Option<Self>, String> {
+        let client_token_path = root.join("client-token");
+        let secret_path = root.join("profile-secret");
+        if !client_token_path.is_file() || !secret_path.is_file() {
+            return Ok(None);
+        }
+        let read = |path: &Path| -> Result<[u8; 32], String> {
+            let bytes = fs::read(path).map_err(|error| format!("read credential: {error}"))?;
+            bytes
+                .try_into()
+                .map_err(|_| "resident credential is malformed".to_owned())
+        };
+        Ok(Some(Self {
+            client_token: read(&client_token_path)?,
+            secret: read(&secret_path)?,
+            client_token_path,
+            secret_path,
+        }))
+    }
+
     pub fn derive(&self, role: &str, tab_id: &str, incarnation: u64) -> [u8; 32] {
         derive_credential(&self.secret, role, tab_id, incarnation)
     }

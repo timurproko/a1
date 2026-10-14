@@ -41,6 +41,20 @@ enum Liveness {
 
 const MAX_UNCERTAIN: usize = 32;
 
+/// The installed release root of the running executable, `<root>/dist/native/<target>/<exe>`.
+/// A development build outside that layout has none.
+pub fn own_release_root() -> Option<String> {
+    let executable = std::env::current_exe().ok()?;
+    let target = executable.parent()?;
+    let native = target.parent()?;
+    let dist = native.parent()?;
+    if native.file_name()? != "native" || dist.file_name()? != "dist" {
+        return None;
+    }
+    dist.parent()
+        .map(|root| root.to_string_lossy().into_owned())
+}
+
 pub fn collect<F>(data_dir: &Path, inspect: F) -> ReleaseHolds
 where
     F: Fn(u32) -> Result<Option<ProcessIdentity>, String>,

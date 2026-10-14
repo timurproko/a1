@@ -6,3 +6,7 @@ export { selectResidentHost } from "./routing.js";
 export type { ResidentHostSelectionOptions } from "./routing.js";
 export { readResidentReleaseHolds } from "./release-holds.js";
 export type { ResidentReleaseHoldReport } from "./release-holds.js";
+export { runTerminalHostMaintenance } from "./maintenance.js";
+export type { MaintenanceAction, MaintenanceHostState, MaintenanceOptions, MaintenanceReport } from "./maintenance.js";
+export { DOCTOR_MAX_BYTES, writeDoctorBundle } from "./doctor.js";
+export type { DoctorBundle, DoctorOptions } from "./doctor.js";

@@ -20,6 +20,30 @@ pub const RESTART_BACKOFF: [Duration; 3] = [
     Duration::from_secs(30),
 ];
 
+/// A server with no attached client and no live user tab exits after this long.
+pub const IDLE_EXIT: Duration = Duration::from_secs(10 * 60);
+
+/// What the shell observes when it asks whether the server is idle. The prewarmed standby tab is
+/// deliberately absent: it never keeps a server alive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IdleObservation {
+    pub clients: usize,
+    pub bridges: usize,
+    pub user_holders: usize,
+    pub starting_holders: usize,
+    pub since_activity: Duration,
+}
+
+/// True once the server has been idle for [`IDLE_EXIT`]; any client, bridge, live or starting user
+/// tab, or recent activity keeps it running.
+pub fn idle_exit_due(observation: IdleObservation) -> bool {
+    observation.clients == 0
+        && observation.bridges == 0
+        && observation.user_holders == 0
+        && observation.starting_holders == 0
+        && observation.since_activity >= IDLE_EXIT
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RestartDecision {
     Schedule {
@@ -582,6 +606,56 @@ fn reconcile(state: &mut State, effects: &mut Vec<Effect>, now: Duration) {
     }
 }
 
+#[cfg(test)]
+mod idle_tests {
+    use super::{IDLE_EXIT, IdleObservation, idle_exit_due};
+    use std::time::Duration;
+
+    fn idle(since_activity: Duration) -> IdleObservation {
+        IdleObservation {
+            clients: 0,
+            bridges: 0,
+            user_holders: 0,
+            starting_holders: 0,
+            since_activity,
+        }
+    }
+
+    #[test]
+    fn a_standby_only_server_exits_after_ten_idle_minutes() {
+        assert!(!idle_exit_due(idle(IDLE_EXIT - Duration::from_secs(1))));
+        assert!(idle_exit_due(idle(IDLE_EXIT)));
+    }
+
+    #[test]
+    fn a_client_at_nine_fifty_nine_restarts_the_interval() {
+        let attached = IdleObservation {
+            clients: 1,
+            ..idle(Duration::from_secs(9 * 60 + 59))
+        };
+        assert!(!idle_exit_due(attached));
+        // Invariant: a client that just left restarted activity, so the server is not yet idle.
+        assert!(!idle_exit_due(idle(Duration::from_secs(1))));
+        assert!(idle_exit_due(idle(IDLE_EXIT + Duration::from_secs(1))));
+    }
+
+    #[test]
+    fn live_or_starting_user_tabs_and_bridges_keep_the_server() {
+        let long = IDLE_EXIT * 3;
+        assert!(!idle_exit_due(IdleObservation {
+            user_holders: 1,
+            ..idle(long)
+        }));
+        assert!(!idle_exit_due(IdleObservation {
+            starting_holders: 1,
+            ..idle(long)
+        }));
+        assert!(!idle_exit_due(IdleObservation {
+            bridges: 1,
+            ..idle(long)
+        }));
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

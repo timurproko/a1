@@ -1,8 +1,10 @@
 pub mod attach;
 mod child_containment;
+pub mod counters;
 pub mod credentials;
 pub mod diagnostics;
 pub mod holder;
+pub mod maintain;
 pub mod recovery_artifacts;
 pub mod registry;
 pub mod release_holds;

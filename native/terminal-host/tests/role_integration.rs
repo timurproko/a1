@@ -1052,6 +1052,190 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
     cleanup.pids.extend(holder_pids(&credentials_root));
 }
 
+#[test]
+fn maintenance_lists_stops_reports_and_stops_the_host_without_starting_one() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
+
+    // Invariant: with no host ever run, every read-only form reports none and creates nothing.
+    let none = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+    assert_eq!(none.0, 0);
+    assert_eq!(none.1["host"], "none");
+    assert!(
+        !data.join("tabs").exists(),
+        "maintenance created resident state"
+    );
+
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let mut tab_ids = Vec::new();
+    for _ in 0..2 {
+        let created = internal_command(
+            &executable,
+            "tab-create",
+            &profile,
+            &data,
+            &runtime,
+            &release,
+            &[
+                "--cwd",
+                text(&release),
+                "--release-root",
+                text(&release),
+                "--node-executable",
+                fake_tab,
+            ],
+        );
+        tab_ids.push(
+            serde_json::from_str::<serde_json::Value>(&created).expect("tab-create json")["tabId"]
+                .as_str()
+                .expect("created tab id")
+                .to_owned(),
+        );
+    }
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while holder_pids(&credentials_root).len() < 2 {
+        assert!(Instant::now() < deadline, "holders did not start");
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    cleanup.pids.extend(holder_pids(&credentials_root));
+
+    let listed = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+    assert_eq!(listed.0, 0, "{}", listed.1);
+    assert_eq!(listed.1["host"], "running");
+    let entries = listed.1["result"]["tabs"].as_array().expect("tab list");
+    assert_eq!(entries.len(), 2);
+    assert!(entries.iter().all(|tab| tab["release"] == text(&release)));
+    assert!(
+        entries
+            .iter()
+            .all(|tab| tab["holderPid"].as_u64().is_some())
+    );
+
+    let status = tabs(
+        &executable,
+        &["host-status"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(status.0, 0, "{}", status.1);
+    assert_eq!(status.1["result"]["tabs"], 2);
+    assert_eq!(status.1["result"]["generation"], 1);
+    assert!(status.1["result"]["counters"]["crashRestarts"].is_u64());
+    assert!(status.1["result"]["limits"]["tabsMaxHard"].is_u64());
+
+    let unknown = tabs(
+        &executable,
+        &["stop", "tab-missing"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(unknown.0, 3);
+    assert_eq!(unknown.1["result"]["accepted"], false);
+
+    let first_holder = holder_identities(&credentials_root)
+        .into_iter()
+        .find(|(tab, _, _)| tab == &tab_ids[0])
+        .expect("first holder");
+    let stopped = tabs(
+        &executable,
+        &["stop", &tab_ids[0]],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(stopped.0, 0, "{}", stopped.1);
+    assert_eq!(stopped.1["result"]["stopped"][0], tab_ids[0].as_str());
+    let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+        .expect("read registry")
+        .expect("registry");
+    assert!(registry.tabs.iter().all(|tab| tab.tab_id != tab_ids[0]));
+    assert!(registry.tabs.iter().any(|tab| tab.tab_id == tab_ids[1]));
+    assert!(
+        terminal_host_contracts::identity::inspect_process(first_holder.1)
+            .expect("inspect stopped holder")
+            .is_none_or(|observed| observed.start != first_holder.2),
+        "stopped holder survived"
+    );
+
+    let host = tabs(
+        &executable,
+        &["host-stop"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(host.0, 0, "{}", host.1);
+    assert_eq!(host.1["host"], "stopped");
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while credentials_root.join("server.json").exists() {
+        assert!(
+            Instant::now() < deadline,
+            "server did not exit and remove its marker"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let after = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+    assert_eq!(after.0, 0);
+    assert_eq!(after.1["host"], "none");
+    assert!(
+        !credentials_root.join("server.json").exists(),
+        "listing started a host"
+    );
+}
+
+fn tabs(
+    executable: &Path,
+    command: &[&str],
+    profile: &Path,
+    data: &Path,
+    runtime: &Path,
+    address: &str,
+) -> (i32, serde_json::Value) {
+    let output = Command::new(executable)
+        .arg("tabs")
+        .args(command)
+        .args([
+            "--profile",
+            text(profile),
+            "--data-dir",
+            text(data),
+            "--runtime-dir",
+            text(runtime),
+        ])
+        .env("A1_TABS_ENDPOINT", address)
+        .output()
+        .expect("run tabs maintenance");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let report =
+        serde_json::from_str(stdout.trim().lines().last().unwrap_or("")).unwrap_or_else(|_| {
+            panic!(
+                "no maintenance report: {stdout} {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
+        });
+    (output.status.code().unwrap_or(-1), report)
+}
 struct AttachFixture {
     child: Box<dyn Child + Send + Sync>,
     _master: Box<dyn MasterPty + Send>,

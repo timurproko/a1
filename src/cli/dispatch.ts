@@ -2,6 +2,7 @@ import { interactiveLaunchIntent, parseSessionSelection, type InteractiveLaunchI
 import type { CliCapabilities } from "./capabilities.js";
 import type { PackageCommandRequest } from "./packages.js";
 import type { SessionContextRequest } from "./session-context.js";
+import type { TabsRequest } from "./tabs-request.js";
 import {
   packageCommandHelp,
   renderPackageSyntax,
@@ -19,6 +20,7 @@ export interface CliHandlers {
   readonly update: (channel: UpdateChannel, target?: string) => Promise<number>;
   readonly packages: (request: PackageCommandRequest) => Promise<number>;
   readonly sessionContext: (request: SessionContextRequest) => Promise<number>;
+  readonly tabs: (request: TabsRequest) => Promise<number>;
 }
 
 export interface CliOutput {
@@ -47,6 +49,10 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "session worktrees",
     "session link-worktree <path>",
     "session unlink-worktree",
+    "tabs",
+    "tabs stop <id>|--all",
+    "tabs host status|stop",
+    "tabs doctor",
   ]);
 }
 
@@ -79,6 +85,30 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} session worktrees`,
     `  ${command} session link-worktree <path>`,
     `  ${command} session unlink-worktree`,
+    "",
+    "Tabs:",
+    `  ${command} tabs`,
+    `  ${command} tabs stop <id>|--all`,
+    `  ${command} tabs host status|stop`,
+    `  ${command} tabs doctor`,
+    "",
+  ].join("\n");
+}
+
+/** Focused help for the resident-tab maintenance forms; printing it contacts no host. */
+export function tabsHelp(): string {
+  const command = PRODUCT_TEXT.commandName;
+  return [
+    "Resident tabs:",
+    `  ${command} tabs                    List running tabs`,
+    `  ${command} tabs stop <id>          Stop one tab; its session stays resumable`,
+    `  ${command} tabs stop --all         Stop every tab and keep the host`,
+    `  ${command} tabs host status        Show host identity, limits, and health counters`,
+    `  ${command} tabs host stop          Stop every tab and the host`,
+    `  ${command} tabs doctor             Write a redacted diagnostic bundle`,
+    "",
+    "Options:",
+    "  --json                     Print the versioned machine-readable report",
     "",
   ].join("\n");
 }
@@ -113,6 +143,11 @@ export async function dispatchCli(
   if (command.kind === "version") return await handlers.version();
   if (command.kind === "packages") return await handlers.packages(command.request);
   if (command.kind === "session-context") return await handlers.sessionContext(command.request);
+  if (command.kind === "tabs-help") {
+    output.stdout(tabsHelp());
+    return 0;
+  }
+  if (command.kind === "tabs") return await handlers.tabs(command.request);
   return await handlers.update(command.channel, command.target);
 }
 
@@ -126,6 +161,8 @@ export type CliCommand =
   | { readonly kind: "update"; readonly channel: UpdateChannel; readonly target?: string }
   | { readonly kind: "packages"; readonly request: PackageCommandRequest }
   | { readonly kind: "session-context"; readonly request: SessionContextRequest }
+  | { readonly kind: "tabs"; readonly request: TabsRequest }
+  | { readonly kind: "tabs-help" }
   | { readonly kind: "error"; readonly message: string };
 
 export function parseCliCommand(arguments_: readonly string[], capabilities: CliCapabilities): CliCommand {
@@ -152,11 +189,39 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
   if (command === "solo") return withoutArguments(rest, { kind: "launch", profileId: "a1", launchMode: "solo" });
   if (command === "update") return parseUpdate(rest);
   if (command === "session") return parseSessionContext(rest);
+  if (command === "tabs") return parseTabs(rest);
   if (command?.startsWith("update:")) return { kind: "noop" };
 
   // Rationale: unsupported and reserved command spaces are deliberately quiet. Help is
   // explicit, and a typo must never start an interactive or maintenance path.
   return { kind: "noop" };
+}
+
+/** Parses `a1 tabs` before any I/O; a malformed form fails with one line and contacts no host. */
+function parseTabs(rest: readonly string[]): CliCommand {
+  if (rest.some(value => value === "--help" || value === "-h")) return { kind: "tabs-help" };
+  const json = rest.includes("--json");
+  const words = rest.filter(value => value !== "--json");
+  const fail = (detail: string): CliCommand => ({ kind: "error", message: PRODUCT_TEXT.diagnostic(`could not parse tabs: ${detail}`) });
+  const [action, value, extra] = words;
+  if (action === undefined) return { kind: "tabs", request: { action: "list", json } };
+  if (action === "stop") {
+    if (value === undefined) return fail("stop requires a tab id or --all.");
+    if (extra !== undefined) return fail("stop accepts one tab id or --all.");
+    if (value === "--all") return { kind: "tabs", request: { action: "stop-all", json } };
+    if (value.startsWith("-")) return fail(`unknown option ${value}.`);
+    return { kind: "tabs", request: { action: "stop", tabId: value, json } };
+  }
+  if (action === "host") {
+    if (extra !== undefined || (value !== "status" && value !== "stop")) return fail("host accepts status or stop.");
+    return { kind: "tabs", request: { action: value === "status" ? "host-status" : "host-stop", json } };
+  }
+  if (action === "doctor") {
+    if (value !== undefined) return fail("doctor does not accept arguments.");
+    return { kind: "tabs", request: { action: "doctor", json } };
+  }
+  if (action.startsWith("-")) return fail(`unknown option ${action}.`);
+  return fail(`unknown subcommand ${action}; use list, stop, host, or doctor.`);
 }
 
 function parseSessionContext(rest: readonly string[]): CliCommand {
