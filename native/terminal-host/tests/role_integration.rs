@@ -1425,6 +1425,217 @@ fn maintenance_stop_terminates_a_hung_holder_only_by_its_verified_identity() {
         "hung holder survived its stop"
     );
 }
+
+#[test]
+fn host_stop_terminates_an_unresponsive_server_and_stops_its_tabs() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let created = internal_command(
+        &executable,
+        "tab-create",
+        &profile,
+        &data,
+        &runtime,
+        &release,
+        &[
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            env!("CARGO_BIN_EXE_fake-tab"),
+        ],
+    );
+    let tab_id =
+        serde_json::from_str::<serde_json::Value>(&created).expect("tab-create json")["tabId"]
+            .as_str()
+            .expect("created tab id")
+            .to_owned();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let holder = loop {
+        if let Some(found) = holder_identities(&credentials_root)
+            .into_iter()
+            .find(|(tab, _, _)| tab == &tab_id)
+        {
+            break found;
+        }
+        assert!(Instant::now() < deadline, "holder never registered");
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    cleanup.pids.push(holder.1);
+    let server = server_pids(&credentials_root)[0];
+    let server_identity = terminal_host_contracts::identity::inspect_process(server)
+        .expect("inspect server")
+        .expect("live server");
+
+    // A suspended server keeps its endpoint and holder connections but never answers.
+    suspend(server);
+    let stopped = tabs(
+        &executable,
+        &["host-stop"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(stopped.0, 0, "{}", stopped.1);
+    assert_eq!(stopped.1["host"], "stopped");
+    assert_eq!(stopped.1["terminatedUnresponsive"], server);
+    assert!(
+        terminal_host_contracts::identity::inspect_process(server)
+            .expect("inspect stopped server")
+            .is_none_or(|observed| observed != server_identity),
+        "unresponsive server survived"
+    );
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let holder_gone = terminal_host_contracts::identity::inspect_process(holder.1)
+            .expect("inspect holder")
+            .is_none_or(|observed| observed.start != holder.2);
+        if holder_gone && server_pids(&credentials_root).is_empty() {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the replacement did not stop the tab and exit"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    // Invariant: the tab was stopped, not restarted, and nothing is left running afterwards.
+    let after = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+    assert_eq!(after.1["host"], "none", "{}", after.1);
+}
+
+#[test]
+fn host_stop_refuses_an_unverifiable_owner_and_changes_nothing() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let _cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let stopped = tabs(
+        &executable,
+        &["host-stop"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(stopped.0, 0, "{}", stopped.1);
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while credentials_root.join("server.json").exists() {
+        assert!(Instant::now() < deadline, "server did not exit");
+        std::thread::sleep(Duration::from_millis(100));
+    }
+
+    // An unreadable owner marker cannot be verified, so the stop refuses and leaves it in place.
+    std::fs::write(credentials_root.join("server.json"), b"{not json").expect("write marker");
+    let refused = tabs(
+        &executable,
+        &["host-stop"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(refused.0, 3, "{}", refused.1);
+    assert_eq!(refused.1["host"], "unverifiable");
+    assert_eq!(
+        std::fs::read(credentials_root.join("server.json")).expect("marker kept"),
+        b"{not json"
+    );
+
+    // A marker naming a live process under another start identity is pid reuse: nothing is signalled.
+    let own = terminal_host_contracts::identity::inspect_process(std::process::id())
+        .expect("inspect test process")
+        .expect("live test process");
+    std::fs::write(
+        credentials_root.join("server.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "pid": own.pid,
+            "startIdentity": format!("{}-reused", own.start),
+            "endpoint": address,
+            "generation": 1,
+            "verified": true,
+            "detachmentMode": "fixture",
+        }))
+        .expect("marker json"),
+    )
+    .expect("write reused marker");
+    let reused = tabs(
+        &executable,
+        &["host-stop"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(reused.0, 0, "{}", reused.1);
+    assert_eq!(reused.1["host"], "none");
+    // Invariant: teardown signals marker pids, and this marker names the test process itself.
+    std::fs::remove_file(credentials_root.join("server.json")).expect("remove reused marker");
+}
+
+#[cfg(unix)]
+fn suspend(pid: u32) {
+    unsafe {
+        libc::kill(pid as i32, libc::SIGSTOP);
+    }
+}
+#[cfg(windows)]
+fn suspend(pid: u32) {
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
+    };
+    use windows_sys::Win32::System::Threading::{OpenThread, SuspendThread, THREAD_SUSPEND_RESUME};
+    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
+    assert!(snapshot != INVALID_HANDLE_VALUE, "thread snapshot");
+    let mut entry: THREADENTRY32 = unsafe { std::mem::zeroed() };
+    entry.dwSize = std::mem::size_of::<THREADENTRY32>() as u32;
+    let mut more = unsafe { Thread32First(snapshot, &mut entry) } != 0;
+    while more {
+        if entry.th32OwnerProcessID == pid {
+            let thread = unsafe { OpenThread(THREAD_SUSPEND_RESUME, 0, entry.th32ThreadID) };
+            if !thread.is_null() {
+                unsafe {
+                    SuspendThread(thread);
+                    CloseHandle(thread);
+                }
+            }
+        }
+        more = unsafe { Thread32Next(snapshot, &mut entry) } != 0;
+    }
+    unsafe {
+        CloseHandle(snapshot);
+    }
+}
 fn tabs(
     executable: &Path,
     command: &[&str],
