@@ -19,7 +19,7 @@ export const PROJECT_OWNERS = Object.freeze({
   "terminal-cleanup": owner("terminal-cleanup", "foundation", "src/foundation/terminal-cleanup", "test/foundation/terminal-cleanup", []),
   "launch-context": owner("launch-context", "foundation", "src/foundation/launch-context", "test/foundation/launch-context", []),
   "resident-tabs": owner("resident-tabs", "foundation", "src/foundation/resident-tabs", "test/foundation/resident-tabs", ["owned-ui-settings", "product-identity"]),
-  "session-writer-lock": owner("session-writer-lock", "foundation", "src/foundation/session-writer-lock", "test/foundation/session-writer-lock", []),
+  "session-writer-lock": owner("session-writer-lock", "foundation", "src/foundation/session-writer-lock", "test/foundation/session-writer-lock", ["product-identity"]),
   startup: owner("startup", "foundation", "src/foundation/startup", "test/foundation/startup", ["launch-context"]),
   lifecycle: owner("lifecycle", "foundation", "src/foundation/lifecycle", "test/foundation/lifecycle", []),
   "process-containment": owner("process-containment", "foundation", "src/foundation/process-containment", "test/foundation/process-containment", ["lifecycle"]),

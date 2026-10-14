@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, truncate, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -135,6 +135,13 @@ describe("resident prompt journal", () => {
     expect(p95).toBeLessThan(2_000);
   });
 
+  it("refuses to scan a session past the 64 MiB reconciliation cap", async () => {
+    const session = join(await root(), "large.jsonl");
+    await writeFile(session, "");
+    // A sparse file reaches the cap without writing 64 MiB of content.
+    await truncate(session, 64 * 1024 * 1024 + 1);
+    await expect(readSessionJournal(session)).rejects.toThrow("resident session exceeds the recovery scan limit");
+  });
   it("bounds append size", async () => {
     const directory = await root();
     const journal = new PromptJournal(join(directory, "journal.jsonl"), { maximumBytes: 120 });

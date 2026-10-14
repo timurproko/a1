@@ -40,6 +40,9 @@ export interface SessionWriterHandle {
 let backendOverride: LockBackend | undefined;
 let cachedBackend: LockBackend | undefined;
 
+/** Development-only override naming a native lock addon to load first. */
+export const SESSION_LOCK_OVERRIDE_ENVIRONMENT = "A1_SESSION_LOCK_PATH";
+
 export function nativeCandidates(
   moduleUrl: string = import.meta.url,
   environment: NodeJS.ProcessEnv = process.env,
@@ -52,7 +55,7 @@ export function nativeCandidates(
   const releaseLock = resolve(fileURLToPath(new URL("../../../", moduleUrl)), "dist", "native", target, "a1_session_lock.node");
   // Security: overrides and working-directory addons are development aids; a release that carries its
   // own lock never loads native code chosen by the environment or the current directory.
-  const override = environment[PRODUCT_IDENTITY.environment.developmentInstanceId] ? environment.A1_SESSION_LOCK_PATH?.trim() : undefined;
+  const override = environment[PRODUCT_IDENTITY.environment.developmentInstanceId] ? environment[SESSION_LOCK_OVERRIDE_ENVIRONMENT]?.trim() : undefined;
   if (exists(releaseLock)) return override ? [override, releaseLock] : [releaseLock];
   return [
     override,

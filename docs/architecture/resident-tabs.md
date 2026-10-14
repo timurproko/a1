@@ -375,7 +375,7 @@ Every queue, buffer, file, and collection the resident roles keep has a declared
 
 | Bound | Cap | Enforced in | Test |
 |---|---|---|---|
-| Protocol frame | 2 MiB, nesting 64, 65,536 collection items | `native/terminal-host/src/protocol.rs`, `src/foundation/resident-tabs/protocol.ts` | `refuses_oversized_header_before_payload`; TS protocol tests |
+| Protocol frame | 2 MiB, nesting 64, 65,536 collection items | `native/terminal-host/src/protocol.rs`, `src/foundation/resident-tabs/protocol.ts` | `refuses_oversized_header_before_payload`; `refuses a frame header past 2 MiB before buffering its payload`, `refuses nesting past 64 levels`, `refuses a collection past 65,536 items` |
 | Input per message and holder input queue | 1 MiB | `protocol.rs`, `core/holder.rs`, `roles/holder.rs` | `over_capacity_paste_delivers_no_prefix` |
 | Per-client control lane | 1,024 frames and 4 MiB | `roles/server.rs` | `control_lane_is_bounded_by_frames_and_bytes` |
 | Per-client render slot | one pending full surface; a newer one replaces it | `roles/server.rs` `Peer::offer_surface` | `stalled_client_gets_one_full_current_surface` |
@@ -385,14 +385,15 @@ Every queue, buffer, file, and collection the resident roles keep has a declared
 | Concurrent holder starts | default 2, hard 8 | `core/server.rs` | `limits_starts_and_drops_stale_completion` |
 | Stopped tab records | 16, oldest dropped first | `roles/server.rs` `prune_stopped_records` | `stopped_records_are_bounded_oldest_first_and_live_tabs_are_kept` |
 | Prior tab-set archives | bounded history | `roles/registry.rs` | `prior_tab_sets_are_bounded` |
-| Abandoned blocking workers | 8 | `shell/workers.rs` | worker pool tests |
+| Abandoned blocking workers | 8 | `shell/workers.rs` | `fails_fast_after_eight_abandoned_workers` |
 | Diagnostic logs | 5 MiB × 3 generations per role | `roles/diagnostics.rs` | `logs_rotate_at_their_cap_and_keep_a_bounded_number_of_generations` |
 | Crash records | 64 KiB each, 50 records, 30 days | `roles/diagnostics.rs`, `shell/watchdog.rs` | `crash_records_are_distinct_bounded_and_allowlisted`, `crash_record_is_bounded_and_owner_only` |
 | Last screen and private stderr sink | 2 MiB; 5 MiB × 3 generations, 7 days | `roles/recovery_artifacts.rs` | `recovery_files_are_plain_bounded_private_and_rotated`, `fixture_stderr_sink_caps_content` |
-| Prompt journal | 8 MiB, 2 MiB per record | `src/foundation/resident-tabs/prompt-journal.ts` | recovery storage tests |
-| Session reconciliation read | 64 MiB | `src/foundation/resident-tabs/recovery.ts` | recovery tests |
-| Release-hold report | 32 uncertainty reasons; 1 MiB read | `roles/release_holds.rs`, `release-holds.ts` | release-hold tests |
-| Maintenance exchange | 5 s reads, 60 s stops, 4 MiB report | `roles/maintain.rs`, `maintenance.ts` | maintenance tests |
+| Prompt journal | 8 MiB, 2 MiB per record | `src/foundation/resident-tabs/prompt-journal.ts` | `bounds append size` |
+| Session reconciliation read | 64 MiB | `src/foundation/resident-tabs/recovery.ts` | `refuses to scan a session past the 64 MiB reconciliation cap` |
+| Release-hold report | 32 uncertainty reasons; 1 MiB read | `roles/release_holds.rs`, `release-holds.ts`, `bounded-host-command.ts` | `uncertainty_reasons_stay_within_their_cap`; `fails a release-hold report that pushes past its byte cap without returning a prefix` |
+| Maintenance exchange | 5 s reads, 60 s stops, 4 MiB report | `roles/maintain.rs`, `maintenance.ts`, `bounded-host-command.ts` | `fails a maintenance report that pushes past its byte cap without returning a prefix`, `kills and rejects a command that outlives its deadline` |
+| Attach client | no outbound queue: input is written synchronously in chunks of at most 1 MiB; inbound frames at most 2 MiB; one coalesced wake | `roles/attach.rs` | `refuses_oversized_header_before_payload`, `over_capacity_paste_delivers_no_prefix` |
 | Doctor bundle | 25 MiB, oldest log generations dropped first | `src/foundation/resident-tabs/doctor.ts` | `drops the oldest log generations first to stay within its cap` |
 
 ### 13. Packaging and certification

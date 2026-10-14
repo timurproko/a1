@@ -8,6 +8,7 @@ import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import {
   acquireExisting,
   nativeCandidates,
+  SESSION_LOCK_OVERRIDE_ENVIRONMENT,
   reserveNew,
   SessionWriterConflict,
   setSessionWriterLockBackendForTest,
@@ -71,10 +72,10 @@ describe("session-writer lock addon resolution", () => {
   const moduleUrl = pathToFileURL(join(release, "dist", "foundation", "session-writer-lock", "index.js")).href;
   const target = `${process.platform}-${process.arch}`;
   const releaseLock = join(release, "dist", "native", target, "a1_session_lock.node");
-  const development = { [PRODUCT_IDENTITY.environment.developmentInstanceId]: "dev", A1_SESSION_LOCK_PATH: "/override.node" };
+  const development = { [PRODUCT_IDENTITY.environment.developmentInstanceId]: "dev", [SESSION_LOCK_OVERRIDE_ENVIRONMENT]: "/override.node" };
 
   it("loads only the release's own lock when the release carries one", () => {
-    const candidates = nativeCandidates(moduleUrl, { A1_SESSION_LOCK_PATH: "/override.node" }, resolve("/elsewhere"), path => path === releaseLock);
+    const candidates = nativeCandidates(moduleUrl, { [SESSION_LOCK_OVERRIDE_ENVIRONMENT]: "/override.node" }, resolve("/elsewhere"), path => path === releaseLock);
     expect(candidates).toEqual([releaseLock]);
   });
 

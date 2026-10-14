@@ -168,7 +168,7 @@ fn finish(roots: std::collections::BTreeSet<String>, uncertain: Vec<String>) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::{ReleaseHolds, collect, collect_profile};
+    use super::{MAX_UNCERTAIN, ReleaseHolds, collect, collect_profile};
     use crate::identity::ProcessIdentity;
     use std::path::Path;
 
@@ -339,6 +339,22 @@ mod tests {
         assert!(reasons.contains("corrupt: registry unreadable"));
         assert!(reasons.contains("denied: tab process identity uninspectable"));
         assert!(reasons.contains("legacy: live server release is unrecorded"));
+    }
+
+    #[test]
+    fn uncertainty_reasons_stay_within_their_cap() {
+        let root = tempfile::tempdir().unwrap();
+        for index in 0..(MAX_UNCERTAIN + 8) {
+            profile(
+                root.path(),
+                &format!("corrupt-{index:02}"),
+                Some("{not json"),
+                None,
+            );
+        }
+        let result = holds(root.path());
+        assert!(!result.complete);
+        assert_eq!(result.uncertain.len(), MAX_UNCERTAIN);
     }
 
     #[test]

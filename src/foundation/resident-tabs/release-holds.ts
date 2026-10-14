@@ -1,6 +1,6 @@
-import { spawn } from "node:child_process";
 import { readdir, stat } from "node:fs/promises";
 import { resolve } from "node:path";
+import { runBoundedHostCommand } from "./bounded-host-command.js";
 import { resolveTerminalHostPath } from "./ensure-terminal-host.js";
 import { verifyTerminalHostArtifact } from "./terminal-host-artifact.js";
 
@@ -87,23 +87,9 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(item => typeof item === "string");
 }
 
+/** The largest release-hold report accepted from the terminal host. */
+export const MAX_RELEASE_HOLD_REPORT_BYTES = 1024 * 1024;
+
 async function runHost(executable: string, arguments_: readonly string[], timeoutMs: number): Promise<{ code: number; stdout: string }> {
-  return await new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(executable, [...arguments_], { windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
-    const stdout: Buffer[] = [];
-    let size = 0;
-    child.stdout.on("data", chunk => {
-      size += chunk.length;
-      // Security: the report is small; an oversized answer is treated as a failed inspection.
-      if (size > 1024 * 1024) child.kill("SIGKILL");
-      else stdout.push(Buffer.from(chunk));
-    });
-    child.once("error", rejectPromise);
-    child.once("close", code => { clearTimeout(timer); resolvePromise({ code: code ?? 1, stdout: Buffer.concat(stdout).toString("utf8") }); });
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      rejectPromise(new Error("terminal host release-hold inspection timed out"));
-    }, timeoutMs);
-    timer.unref();
-  });
+  return await runBoundedHostCommand(executable, arguments_, { maxStdoutBytes: MAX_RELEASE_HOLD_REPORT_BYTES, timeoutMs, label: "terminal host release-hold inspection" });
 }

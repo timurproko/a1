@@ -1,7 +1,7 @@
-import { spawn } from "node:child_process";
 import { constants } from "node:fs";
 import { access } from "node:fs/promises";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
+import { runBoundedHostCommand } from "./bounded-host-command.js";
 import { resolveTerminalHostPath } from "./ensure-terminal-host.js";
 import { verifyTerminalHostArtifact } from "./terminal-host-artifact.js";
 
@@ -112,23 +112,9 @@ function unavailable(action: MaintenanceAction, message: string): MaintenanceRep
   return { schema: "a1-tabs-maintenance-v1", command: action, host: "unavailable", message, exitCode: 3 };
 }
 
+/** The largest maintenance report accepted from the terminal host. */
+export const MAX_MAINTENANCE_REPORT_BYTES = 4 * 1024 * 1024;
+
 async function runHost(executable: string, arguments_: readonly string[], timeoutMs: number): Promise<{ code: number; stdout: string }> {
-  return await new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(executable, [...arguments_], { windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
-    const stdout: Buffer[] = [];
-    let size = 0;
-    child.stdout.on("data", chunk => {
-      size += chunk.length;
-      // Security: maintenance reports are small; an oversized answer is a failed exchange.
-      if (size > 4 * 1024 * 1024) child.kill("SIGKILL");
-      else stdout.push(Buffer.from(chunk));
-    });
-    child.once("error", rejectPromise);
-    child.once("close", code => { clearTimeout(timer); resolvePromise({ code: code ?? 1, stdout: Buffer.concat(stdout).toString("utf8") }); });
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      rejectPromise(new Error("terminal host maintenance timed out"));
-    }, timeoutMs);
-    timer.unref();
-  });
+  return await runBoundedHostCommand(executable, arguments_, { maxStdoutBytes: MAX_MAINTENANCE_REPORT_BYTES, timeoutMs, label: "terminal host maintenance" });
 }
