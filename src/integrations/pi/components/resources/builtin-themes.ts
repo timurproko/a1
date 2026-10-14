@@ -1,8 +1,8 @@
 /**
- * Attributed owned theme resources adapted from @earendil-works/pi-coding-agent 1.1.0 (MIT),
- * commit abe508e1b89912adde45528136c3221eb69acdd7.
- * Upstream dark.json SHA-256: c11a588b714d35300293079b425fb09a3693d4b2d453585d211b08163c648b75
- * Upstream light.json SHA-256: f590c51c2bc8b238891efd0e983473ed2e2a6487b6692cc1d4b2845165e703f7
+ * Attributed owned theme resources adapted from @earendil-works/pi-coding-agent 1.2.0 (MIT),
+ * commit 06a466935536f8c9bcacb2d5efc0fc021be1bdff.
+ * Upstream dark.json SHA-256: e1f96982f8cb7d2a48eca7db03c9cb282cb1e14a243680cd855638ecd6a251b6
+ * Upstream light.json SHA-256: 2dee6a4be7f765e7fd7728166b7ebf8c29e4ce313f8ec6b38ae50699e3abc2f3
  * Modifications: removed upstream schema/export metadata; runtime color data is unchanged.
  */
 export const BUILTIN_THEME_RESOURCES = Object.freeze({

@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
+ * Provenance: @earendil-works/pi-coding-agent 1.2.0 (MIT), commit 06a466935536f8c9bcacb2d5efc0fc021be1bdff,
  * packages/coding-agent/src/modes/interactive/components/status-indicator.ts.
  * Modifications: Mechanical source port with public package-root keybinding, Loader, and owned
  * theme/countdown imports plus ECMAScript private fields.
@@ -69,12 +69,18 @@ export class RetryStatusIndicator extends StatusIndicator {
 export type CompactionStatusReason = "manual" | "threshold" | "overflow";
 
 export class CompactionStatusIndicator extends StatusIndicator {
-  constructor(ui: TUI, reason: CompactionStatusReason) {
+  constructor(ui: TUI, reason: CompactionStatusReason, colorFn?: (text: string) => string) {
     const cancelHint = `(${keyText("app.interrupt")} to cancel)`;
     const label = reason === "manual"
       ? `Compacting context... ${cancelHint}`
       : `${reason === "overflow" ? "Context overflow detected, " : ""}Auto-compacting... ${cancelHint}`;
-    super("compaction", ui, spinner => piTheme().fg("accent", spinner), text => piTheme().fg("muted", text), label);
+    super(
+      "compaction",
+      ui,
+      colorFn ?? (spinner => piTheme().fg("accent", spinner)),
+      colorFn ?? (text => piTheme().fg("muted", text)),
+      label,
+    );
   }
 }
 

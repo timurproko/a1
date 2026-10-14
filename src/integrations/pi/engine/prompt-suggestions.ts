@@ -51,6 +51,43 @@ export class PiPromptSuggestions implements OwnedUiPromptSuggestionGeneratorPort
     return readSuggestionReasoning(session.thinkingLevel);
   }
 
+  async completeInstruction(instruction: string, maxTokens: number, signal: AbortSignal): Promise<string | null> {
+    const session = this.#ports.session();
+    const runtime = this.#ports.runtime();
+    if (this.#ports.unavailable() || session === undefined || runtime === undefined || signal.aborted
+      || session.model === undefined || typeof runtime.services.modelRuntime.completeSimple !== "function") return null;
+    const agent = session.agent;
+    try {
+      const transformed = typeof agent.transformContext === "function"
+        ? await agent.transformContext(agent.state.messages, signal)
+        : agent.state.messages;
+      const messages = typeof agent.convertToLlm === "function"
+        ? await agent.convertToLlm(transformed)
+        : transformed.filter(message => message.role === "user" || message.role === "assistant" || message.role === "toolResult");
+      const response: unknown = await runtime.services.modelRuntime.completeSimple(session.model, {
+        systemPrompt: agent.state.systemPrompt,
+        messages: [...messages, { role: "user", content: instruction, timestamp: Date.now() }],
+        tools: [],
+      }, {
+        signal,
+        maxTokens,
+        ...(agent.sessionId === undefined ? {} : { sessionId: agent.sessionId }),
+        ...(agent.transport === undefined ? {} : { transport: agent.transport }),
+        ...(agent.onPayload === undefined ? {} : { onPayload: agent.onPayload }),
+      });
+      if (signal.aborted || !isRecord(response) || response.stopReason === "aborted"
+        || response.stopReason === "error" || response.stopReason === "length"
+        || stringValue(response.errorMessage) !== undefined) return null;
+      const content = Array.isArray(response.content) ? response.content : [];
+      if (content.some(block => isRecord(block) && block.type === "toolCall")) return null;
+      const text = content.filter(block => isRecord(block) && block.type === "text")
+        .map(block => stringValue(block.text) ?? "").join("\n").trim();
+      return text || null;
+    } catch {
+      return null;
+    }
+  }
+
   async generate(request: OwnedUiPromptSuggestionRequest): Promise<OwnedUiPromptSuggestionResult> {
     assertOwnedUiPromptSuggestionRequest(request);
     const identity = request.identity;

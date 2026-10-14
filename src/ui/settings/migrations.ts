@@ -111,7 +111,58 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
       return { ...values };
     },
   }),
+  Object.freeze({
+    to: 14,
+    description: "Introduce the opt-in resident tabs preview with a disabled default.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      return { ...values };
+    },
+  }),
+  Object.freeze({
+    to: 15,
+    description: "Introduce the bounded concurrent resident-tab start limit.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      return { ...values };
+    },
+  }),
+  Object.freeze({
+    to: 16,
+    description: "Make bare A1 tabs unconditional and keep only tab UX controls.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      const migrated: Record<string, unknown> = { ...values };
+      delete migrated.residentTabs;
+      delete migrated.tabsMaxConcurrentStarts;
+      delete migrated.tabsUnresponsiveRestartSeconds;
+      delete migrated.tabsStallNoticeSeconds;
+      return migrated;
+    },
+  }),
 ]);
+
+export interface OwnedUiSettingsCompatibilityResult {
+  readonly values: Readonly<Record<string, unknown>> | null;
+  readonly failure: string | null;
+}
+
+/** Shape-selected compatibility for the metadata-free product object. */
+export function normalizeOwnedUiSettingsValues(
+  source: Readonly<Record<string, unknown>>,
+): OwnedUiSettingsCompatibilityResult {
+  const values: Record<string, unknown> = { ...source };
+  // Compatibility: "high" is valid again, so the old speed meaning is ambiguous without legacy metadata.
+  if (values.scrollbarAppearance === "hover") values.scrollbarAppearance = "auto";
+  if (values.accentColor === "default") values.accentColor = "purple";
+
+  if (values.quitEffect === "off") {
+    if (Object.hasOwn(values, "quitAnimation") && values.quitAnimation !== false) {
+      return { values: null, failure: "legacy quitEffect conflicts with quitAnimation" };
+    }
+    values.quitAnimation = false;
+  }
+  delete values.quitEffect;
+  delete values.quitEffectDurationMs;
+  return { values, failure: null };
+}
 
 export function assertOwnedUiSettingsMigrations(
   migrations: readonly OwnedUiSettingsMigration[],

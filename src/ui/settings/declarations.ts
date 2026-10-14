@@ -1,6 +1,6 @@
 import type { OwnedUiBackgroundStyle, UiAccentColor } from "../../contracts/owned-ui/index.js";
 
-export const OWNED_UI_SETTINGS_VERSION = 13;
+export const OWNED_UI_SETTINGS_VERSION = 16;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
   "purple", "blue", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);
@@ -29,6 +29,8 @@ const GENERIC_SECTION = Object.freeze({ id: "generic", title: "Generic" });
 const APPEARANCE_SECTION = Object.freeze({ id: "appearance", title: "Appearance" });
 const SCROLL_SECTION = Object.freeze({ id: "scroll", title: "Scroll" });
 const AGENT_SECTION = Object.freeze({ id: "agent", title: "Agent" });
+const TABS_SECTION = Object.freeze({ id: "tabs", title: "Tabs" });
+const TABS_MAX_CHOICES = Object.freeze(Array.from({ length: 50 }, (_, index) => index + 1));
 
 /**
  * Every A1 setting, keyed by its id. The table is the one declaration: ids, defaults, and allowed
@@ -144,6 +146,24 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     application: "live",
     defaultValue: 8,
     allowedValues: Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const),
+  }),
+  tabsMax: Object.freeze({
+    id: "tabsMax",
+    label: "Maximum tabs",
+    section: TABS_SECTION,
+    description: "Maximum resident A1 tabs kept in the shared strip.",
+    application: "live",
+    defaultValue: 10,
+    allowedValues: TABS_MAX_CHOICES,
+  }),
+  tabsAutoName: Object.freeze({
+    id: "tabsAutoName",
+    label: "Auto name",
+    section: TABS_SECTION,
+    description: "Automatically name a new tab from its first completed turn with the tab's current model.",
+    application: "live",
+    defaultValue: true,
+    allowedValues: Object.freeze([true, false] as const),
   }),
 } as const satisfies Readonly<Record<string, OwnedUiSettingDeclaration>>);
 

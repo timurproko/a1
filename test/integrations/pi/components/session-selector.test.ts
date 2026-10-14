@@ -3,6 +3,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DynamicBorder, type SessionInfo } from "@earendil-works/pi-coding-agent";
+import { renderFakeCursor } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import { applyPiTheme, createPiShellSessionSelector, piTheme } from "../../../../src/integrations/pi/components/index.js";
 import { cellStyle } from "../../../support/ansi-cell-style.js";
@@ -11,6 +12,7 @@ import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 function stripPortableTerminalSequences(value: string): string {
   return value
     .replace(/\u001b\][\s\S]*?(?:\u0007|\u001b\\)/g, "")
+    .replace(/\u001b_[\s\S]*?\u0007/g, "")
     .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
@@ -146,7 +148,7 @@ describe("owned pinned session selector", () => {
     expect(filterRow).toContain(piTheme().fg("mdHeading", "all"));
     expect(filterRow).toContain(piTheme().fg("mdHeading", "threaded"));
     expect(plainInitialRows[searchIndex]).toContain('> re:<pattern> regex, "phrase" exact');
-    expect(searchRow).toContain("\u001b[7mr\u001b[27m");
+    expect(searchRow).toContain(renderFakeCursor("r"));
     expect(cellStyle(searchRow, "r").faint).toBe(false);
     expect(cellStyle(searchRow, "e").faint).toBe(true);
     expect(plainInitialRows[hintIndex]).toContain(

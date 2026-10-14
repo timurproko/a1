@@ -51,7 +51,7 @@ describe("integration owner registry", () => {
       "launch-integration": ["win32-x64-node24"],
       "update-performance": ["win32-x64-node24"],
       "update-predecessor": ["win32-x64-node24"],
-      "terminal-host": ["win32-x64-node24"],
+      "terminal-host": ["win32-x64-node24", "linux-x64-node24", "darwin-arm64-node24"],
     });
     expect(owners.filter(owner => owner.cadence === "exhaustive").map(owner => owner.id)).toEqual(["update-performance", "update-predecessor"]);
     expect(owners.filter(owner => owner.cadence === "pull-request").map(owner => owner.id)).toEqual(owners.map(owner => owner.id).filter(id => !["update-performance", "update-predecessor"].includes(id)));

@@ -62,6 +62,7 @@ export interface TranscriptViewportFrameInput {
   /** Final transient rows to bottom-align with unused viewport space while content fits. */
   readonly bottomAlignedTailRowCount?: number;
   readonly dockRows: readonly string[];
+  readonly explicitCopyDockRows?: number;
   readonly promptAnchors: readonly TranscriptPromptAnchor[];
   readonly width: number;
   readonly height: number;
@@ -166,6 +167,7 @@ type SelectionRowAnchor =
   | { readonly kind: "transient"; readonly fromBottom: number }
   | { readonly kind: "dock"; readonly fromBottom: number }
   | { readonly kind: "screen"; readonly row: number; readonly source: string };
+type SelectionCopyIntent = "automatic" | "explicit";
 
 function documentSelectionAnchor(row: number, source: string, liveFromBottom?: number): DocumentSelectionRowAnchor {
   return { kind: "document", row, source, identity: stripAnsi(source).trimEnd(), liveFromBottom };
@@ -235,6 +237,7 @@ export class TranscriptViewport {
   #contentWidth = 0;
   #selectionWidth = 0;
   #viewportHeight = 0;
+  #explicitCopyDockRows = 0;
   #firstSelectableRow = 0;
   #selectionRowAnchors: readonly (SelectionRowAnchor | undefined)[] = [];
   #frameId = 0;
@@ -358,23 +361,20 @@ export class TranscriptViewport {
     return true;
   }
 
-  selectedText(): string | null {
+  selectedText(intent: SelectionCopyIntent = "automatic"): string | null {
     const selection = this.#visibleSelection();
     if (selection === undefined) return null;
-    // Invariant: the blue range spans the complete frame, but automatic and Ctrl+C frame copy
-    // admit only persistent transcript rows. Transient status, suggestions, input, and footer
-    // chrome remain visually selectable without becoming clipboard payload.
     const copiedLines = Array.from(
       { length: Math.max(0, selection.end.line - selection.start.line + 1) },
       (_value, index) => selection.start.line + index,
     ).filter(line => {
       const anchor = this.#selectionRowAnchors[line];
-      return anchor?.kind === "document" && anchor.row < this.#selectableDocumentRowCount;
+      return anchor?.kind === "document" && anchor.row < this.#selectableDocumentRowCount
+        || intent === "explicit" && anchor?.kind === "dock" && anchor.fromBottom < this.#explicitCopyDockRows;
     });
     if (copiedLines.length === 0) return null;
-    // Rationale: a prompt selected by itself uses semantic prompt text. Once surrounding transcript text
-    // participates, preserve the prompt's visible prefix, alignment, and timestamp in the bulk range.
-    const prompt = this.#promptAnchors.find(candidate => copiedLines.every(line => {
+    const transcriptLines = copiedLines.filter(line => this.#selectionRowAnchors[line]?.kind === "document");
+    const prompt = transcriptLines.length === 0 ? undefined : this.#promptAnchors.find(candidate => transcriptLines.every(line => {
       const anchor = this.#selectionRowAnchors[line];
       return anchor?.kind === "document" && anchor.row >= candidate.firstRow && anchor.row <= candidate.lastRow;
     }));
@@ -395,10 +395,10 @@ export class TranscriptViewport {
   }
 
   /** Captures visible selected text, not off-screen history. */
-  captureSelectedText(): SelectionCopySnapshot | null {
-    if (!this.#copyableSelection) return null;
+  captureSelectedText(intent: SelectionCopyIntent = "automatic"): SelectionCopySnapshot | null {
+    if (intent === "automatic" && !this.#copyableSelection) return null;
     const started = performance.now();
-    let text = this.selectedText();
+    let text = this.selectedText(intent);
     if (text === null) return null;
     text = text.trim();
     if (text.length === 0) return null;
@@ -498,6 +498,7 @@ export class TranscriptViewport {
     this.#contentWidth = 0;
     this.#selectionWidth = 0;
     this.#viewportHeight = 0;
+    this.#explicitCopyDockRows = 0;
     this.clearTransient();
     this.#frame = null;
   }
@@ -515,6 +516,7 @@ export class TranscriptViewport {
     const theme = input.theme ?? PLAIN_THEME;
     const previousDescriptor = this.#frame?.descriptor ?? null;
     const dock = input.dockRows.length > height ? input.dockRows.slice(-height) : [...input.dockRows];
+    this.#explicitCopyDockRows = clamp(input.explicitCopyDockRows ?? 0, 0, dock.length);
     const viewportHeight = Math.max(0, height - dock.length);
     const bottomAlignedTailRowCount = clamp(
       input.bottomAlignedTailRowCount ?? 0,
@@ -608,8 +610,6 @@ export class TranscriptViewport {
       visibleSource[0] = sourceRow;
     }
 
-    // Invariant: selection uses exact visible source rows within the rendered
-    // content boundary; paint-only guards and the rail gutter stay presentation-only.
     this.#selectionRows = [
       ...visibleSource.map(row => truncateToWidth(row, contentWidth)),
       ...dock,
@@ -625,7 +625,6 @@ export class TranscriptViewport {
           )
         : { kind: "screen", row, source: this.#selectionRows[row] ?? "" };
     });
-    // Invariant: a pinned prompt is chrome over its hidden source row, which clips like off-screen rows.
     this.#firstSelectableRow = stickyActive && viewportHeight > 0 ? 1 : 0;
     this.#selectionRowAnchors = [
       ...visibleAnchors,
@@ -861,7 +860,7 @@ export class TranscriptViewport {
   }
 
   /** Reuses an established transcript frame when only same-height dock rows changed. */
-  composeDockOnly(dockRows: readonly string[], width: number, height: number): TranscriptViewportFrame | null {
+  composeDockOnly(dockRows: readonly string[], width: number, height: number, explicitCopyDockRows = 0): TranscriptViewportFrame | null {
     const previous = this.#frame;
     const boundedWidth = Math.max(1, width);
     const boundedHeight = Math.max(0, height);
@@ -896,6 +895,7 @@ export class TranscriptViewport {
     };
     assertTranscriptViewportFrameDescriptor(descriptor);
     this.#selectionRows = [...this.#selectionRows.slice(0, viewportHeight), ...dock].slice(0, boundedHeight);
+    this.#explicitCopyDockRows = clamp(explicitCopyDockRows, 0, dock.length);
     const frame: TranscriptViewportFrame = {
       rows: [...previous.rows.slice(0, viewportHeight), ...dock].slice(0, boundedHeight),
       contentWidth: previous.contentWidth,

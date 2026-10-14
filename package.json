@@ -1,6 +1,6 @@
 {
   "name": "@timurproko/a1",
-  "version": "0.2.6-dev",
+  "version": "0.2.7-dev",
   "description": "Standalone terminal workspace for supervised native and managed agents",
   "type": "module",
   "privateLaunchContract": "neutral-launch-v1",
@@ -26,7 +26,7 @@
     "build": "node scripts/development/check-environment.mjs && npm run clean && tsc -p tsconfig.build.json && node scripts/release/generate-release-notes-resource.mjs && node scripts/pi/build-pi-settings-metadata.mjs && node scripts/pi/build-startup-public.mjs && node scripts/development/build-process-guardian.mjs && node scripts/release/generate-runtime-payload-inventory.mjs",
     "build:process-guardian": "node scripts/development/build-process-guardian.mjs",
     "typecheck": "tsgo -p tsconfig.json --noEmit && tsgo -p tsconfig.bin.json",
-    "check:architecture": "node scripts/governance/check-architecture.mjs && node scripts/governance/check-product-identity-boundaries.mjs && node scripts/governance/check-package-identity.mjs && node scripts/governance/check-pinned-pi-source-ledger.mjs && node scripts/governance/check-terminal-host-provenance.mjs",
+    "check:architecture": "node scripts/governance/check-architecture.mjs && node scripts/governance/check-session-writer-guard.mjs && node scripts/governance/check-product-identity-boundaries.mjs && node scripts/governance/check-package-identity.mjs && node scripts/governance/check-pinned-pi-source-ledger.mjs && node scripts/governance/check-terminal-host-provenance.mjs",
     "check:names": "node scripts/governance/product-identifier-policy.mjs --check",
     "check:names:changed": "node scripts/governance/product-identifier-policy.mjs --check --selection .artifacts/validation/impact.json",
     "check:code-documentation": "node scripts/governance/check-code-documentation.mjs --mode full",
@@ -57,6 +57,7 @@
     "update:pi-component-parity": "tsx scripts/pi/update-pi-component-parity.ts",
     "update:pi-event-frame-parity": "tsx scripts/pi/update-pi-event-frame-parity.ts",
     "proof:terminal-host": "node scripts/development/run-terminal-host.mjs",
+    "proof:terminal-host:ci": "node scripts/development/certify-ci-terminal-host.mjs",
     "start": "npm run build && node scripts/development/dev-launch.mjs",
     "start:pi": "npm run build && node scripts/development/dev-launch.mjs pi",
     "prepack": "node scripts/release/validate-packaged-release-note.mjs && node scripts/release/prepack-gate.mjs",
@@ -65,12 +66,13 @@
     "typecheck:bin": "tsgo -p tsconfig.bin.json"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "1.1.0",
-    "@earendil-works/pi-tui": "1.1.0",
+    "@earendil-works/pi-coding-agent": "1.2.0",
+    "@earendil-works/pi-tui": "1.2.0",
     "@silvia-odwyer/photon-node": "0.3.4",
     "chalk": "5.6.2",
     "cross-spawn": "7.0.6",
     "grok-mermaid": "0.2.2",
+    "proper-lockfile": "4.1.2",
     "semver": "7.8.5",
     "undici": "8.9.0"
   },
@@ -79,6 +81,7 @@
     "@lezer/python": "1.1.19",
     "@types/cross-spawn": "6.0.6",
     "@types/node": "24.2.1",
+    "@types/proper-lockfile": "4.1.4",
     "@types/semver": "7.8.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@xterm/headless": "6.0.0",

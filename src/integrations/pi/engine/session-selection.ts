@@ -2,6 +2,12 @@ import { accessSync, constants, existsSync, realpathSync, statSync } from "node:
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { SessionManager, type SessionInfo } from "../startup-public.js";
+import {
+  acquireExisting,
+  acquireSessionWriter,
+  SessionWriterConflict,
+  type SessionWriterHandle,
+} from "../../../foundation/session-writer-lock/index.js";
 
 // Invariant: the engine accepts a storage request, not launch/control infrastructure.
 // Public argv validation remains at CLI, guardian, and UI entry boundaries.
@@ -27,19 +33,33 @@ interface SessionSelectionOptions {
   readonly selection: PiSessionSelection;
   readonly sessionDir?: string;
   readonly forkPrompt?: PiSessionForkPrompt;
+  readonly guardWriter?: boolean;
   /** Public API seam for deterministic lookup/open race and listing-order evidence. */
   readonly sessions?: Pick<typeof SessionManager, "list" | "open" | "forkFrom"> & {
     readonly listAll: (sessionDir?: string) => Promise<SessionInfo[]>;
   };
 }
 
+const selectedSessionWriters = new WeakMap<SessionManager, SessionWriterHandle>();
+
+export function takeSelectedSessionWriter(manager: SessionManager): SessionWriterHandle | undefined {
+  const writer = selectedSessionWriters.get(manager);
+  selectedSessionWriters.delete(manager);
+  return writer;
+}
+
+function holdSelectedWriter(manager: SessionManager, writer: SessionWriterHandle): SessionManager {
+  selectedSessionWriters.set(manager, writer);
+  return manager;
+}
+
 /** Pinned Pi 0.84.2 main.ts policy, using SDK APIs rather than importing the CLI. */
 export async function openSelectedPiSession(options: SessionSelectionOptions): Promise<SessionManager> {
+  const sessions = options.sessions ?? SessionManager;
+  const cwd = resolve(options.cwd);
+  const directory = options.selection.sessionDir ?? options.sessionDir ?? process.env.PI_CODING_AGENT_SESSION_DIR;
+  const sessionDir = directory === undefined ? undefined : resolveSessionArgumentPath(directory, cwd);
   try {
-    const sessions = options.sessions ?? SessionManager;
-    const cwd = resolve(options.cwd);
-    const directory = options.selection.sessionDir ?? options.sessionDir ?? process.env.PI_CODING_AGENT_SESSION_DIR;
-    const sessionDir = directory === undefined ? undefined : resolveSessionArgumentPath(directory, cwd);
     const target = options.selection.target;
     let path: string;
     let global: SessionInfo | undefined;
@@ -63,16 +83,36 @@ export async function openSelectedPiSession(options: SessionSelectionOptions): P
       }
       assertResumeFile(path);
       assertCwd(cwd);
-      return sessions.forkFrom(path, cwd, sessionDir);
+      const manager = sessions.forkFrom(path, cwd, sessionDir);
+      if (!options.guardWriter) return manager;
+      const target = manager.getSessionFile();
+      if (target === undefined) throw new PiSessionSelectionError("Fork did not create a session file");
+      return holdSelectedWriter(manager, acquireSessionWriter(target));
     }
     // Invariant: no await between the final guard and SDK open. A disappeared target
     // can otherwise produce a new in-memory header instead of an existing session.
-    const manager = sessions.open(path, sessionDir);
-    assertResumeFile(path);
-    assertCwd(manager.getCwd());
-    return manager;
+    const writer = options.guardWriter ? acquireExisting(path) : undefined;
+    try {
+      const manager = sessions.open(path, sessionDir);
+      assertResumeFile(path);
+      assertCwd(manager.getCwd());
+      return writer === undefined ? manager : holdSelectedWriter(manager, writer);
+    } catch (error) {
+      writer?.release();
+      throw error;
+    }
   } catch (error) {
     if (error instanceof PiSessionSelectionError) throw error;
+    if (error instanceof SessionWriterConflict) {
+      if (options.forkPrompt && await options.forkPrompt({ sourceCwd: cwd })) {
+        const manager = sessions.forkFrom(error.path, cwd, sessionDir);
+        if (!options.guardWriter) return manager;
+        const target = manager.getSessionFile();
+        if (target === undefined) throw new PiSessionSelectionError("Fork did not create a session file");
+        return holdSelectedWriter(manager, acquireSessionWriter(target));
+      }
+      throw new PiSessionSelectionError("session is open in another A1 process");
+    }
     throw new PiSessionSelectionError(`Could not resume session: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

@@ -197,6 +197,22 @@ function dialogFlags(source, className) {
   }));
 }
 
+/** The engine's public settings schema implementation, read as pinned-source governance evidence. */
+export const SETTINGS_SCHEMA_PATH = "node_modules/@earendil-works/pi-coding-agent/dist/core/settings-schema.js";
+
+export function settingsSchemaSource(packagesRoot) {
+  return readFileSync(installedPath(SETTINGS_SCHEMA_PATH, packagesRoot), "utf8");
+}
+
+/** Every root property declared by the pinned settings schema. */
+export function settingsRootKeys(source) {
+  const start = source.indexOf("export const SettingsSchema = Type.Object({");
+  if (start < 0) throw new Error("pinned Pi SettingsSchema declaration was not found");
+  const end = source.indexOf("\n}, { additionalProperties:", start);
+  if (end < 0) throw new Error("pinned Pi SettingsSchema declaration is incomplete");
+  return [...source.slice(start, end).matchAll(/^ {4}([$A-Za-z_][\w$]*):/gm)].map(match => match[1]);
+}
+
 /** The engine's own settings file, where it clamps what a number may be. */
 export const SETTINGS_MANAGER_PATH = "node_modules/@earendil-works/pi-coding-agent/dist/core/settings-manager.js";
 

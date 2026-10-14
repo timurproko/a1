@@ -411,6 +411,10 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     return this.#suggestions.generate(request);
   }
 
+  generateResidentTabName(instruction: string, maxTokens: number, signal: AbortSignal): Promise<string | null> {
+    return this.#suggestions.completeInstruction(instruction, maxTokens, signal);
+  }
+
   async start(): Promise<OwnedUiSessionViewModel> {
     if (this.#engine.started) return this.view();
     await this.#engine.start().catch(error => {
@@ -719,6 +723,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
         get sessionBindingGeneration() { return engine.bindingGeneration; },
         get disposed() { return isDisposed(); },
         currentSessionResumeMetadata: () => engine.currentSessionResumeMetadata(),
+        currentSessionFile: () => engine.currentSessionFile(),
       },
       session: {
         start: () => this.start(),

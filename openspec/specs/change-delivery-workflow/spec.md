@@ -721,3 +721,136 @@ A live-session editing claim SHALL be identified by the owning runtime and the a
 #### Scenario: The lock holder crashed
 - **WHEN** a mutation finds the lock held by a process that is proven dead by identity and start time
 - **THEN** the lock SHALL be replaced atomically and the mutation SHALL proceed
+
+### Requirement: Implementation progress is visible without changing acceptance semantics
+
+Every newly authored version-3 implementation-bound pull request SHALL present its approved scope under `Implementation` as two to ten distinct Markdown task-list items. Each item SHALL describe an implementation-specific outcome at a useful review granularity and SHALL remain separate from the detailed OpenSpec task ledger. Generic CI, review, approval, acceptance, merge, or archive steps SHALL NOT be represented as implementation-progress items.
+
+The agent SHALL leave each item unchecked during planning and SHALL change only its checkbox marker to checked after the associated implementation, focused evidence, and detailed task bookkeeping are complete. Adding, removing, reordering, or changing item wording after approval SHALL be an implementation-scope refinement requiring explicit maintainer approval and coherent planning-artifact reconciliation; affected scope SHALL remain unchecked until complete.
+
+A pull request using Implementation task-list syntax SHALL NOT become ready or finalize while any item is unchecked or malformed. Historical version-3 pull requests containing only plain Implementation bullets SHALL remain readable without body rewrites. Final `Acceptance` scenarios SHALL remain plain bullets, SHALL NOT inherit Implementation checkbox state, and SHALL continue to become accepted only through authorized maintainer integration of the exact validated head.
+
+#### Scenario: Draft exposes approved implementation scope
+
+- **WHEN** an agent creates a new version-3 draft delivery PR
+- **THEN** its `Implementation` section SHALL contain two to ten unchecked implementation-specific task items derived from the proposed scope
+- **AND** GitHub's native task progress SHALL expose the completed and total implementation item counts
+
+#### Scenario: Agent completes one scope item
+
+- **WHEN** the associated implementation, focused evidence, and detailed OpenSpec tasks are complete
+- **THEN** the agent SHALL change only that PR-body item's marker from unchecked to checked
+- **AND** the unchanged item wording and ordering SHALL continue to describe the approved scope
+
+#### Scenario: Implementation scope changes after approval
+
+- **WHEN** an item must be added, removed, reordered, or rewritten
+- **THEN** the change SHALL require explicit maintainer refinement approval and coherent updates to the planning artifacts
+- **AND** new or affected scope SHALL remain unchecked until its implementation and evidence are complete
+
+#### Scenario: Checklist remains incomplete at readiness
+
+- **WHEN** a version-3 candidate uses Implementation task-list syntax and at least one item is unchecked, mixed with plain bullets, malformed, duplicated, or generic process boilerplate
+- **THEN** trusted finalization SHALL fail closed with an actionable implementation-progress reason
+- **AND** it SHALL NOT interpret partial implementation progress as acceptance
+
+#### Scenario: Historical body uses plain Implementation bullets
+
+- **WHEN** a historical version-3 body contains only the former plain-bullet Implementation form
+- **THEN** trusted readers SHALL preserve compatibility without requiring a merged-body edit
+- **AND** the compatibility path SHALL NOT permit mixed plain and task-list syntax
+
+#### Scenario: Completed candidate presents acceptance
+
+- **WHEN** every Implementation task-list item and detailed OpenSpec task is complete and the candidate is prepared for finalization
+- **THEN** `Acceptance` SHALL contain plain implementation-specific behavior-and-result bullets rather than checkboxes
+- **AND** authorized maintainer integration of the exact validated head SHALL remain the acceptance decision
+
+### Requirement: Delivery closeout is always visible to implementation agents
+
+Every repository agent that performs approved implementation-bound work SHALL receive an always-loaded concise progress and ready-transition contract in addition to the selectively loaded detailed delivery skill. The context SHALL direct the agent to load that skill before continuing delivery work.
+
+#### Scenario: Agent starts without selecting the delivery skill
+
+- **WHEN** a repository coding agent begins implementation without loading the optional detailed delivery skill
+- **THEN** always-loaded repository context SHALL still require progress updates and the completed-candidate ready transition
+- **AND** it SHALL direct the agent to load the detailed skill before continuing delivery work
+
+### Requirement: Agents own progress while automation owns readiness
+
+While a pull request remains draft, the agent SHALL check an approved `Implementation` item as soon as that outcome, focused pre-ready evidence, and detailed task bookkeeping are complete. Before checking the final item, the agent SHALL add plain `Acceptance`, finish every pre-ready input, and reconcile and push the branch. The final checkbox update SHALL complete the agent-owned implementation job; the agent SHALL NOT invoke the ready mutation.
+
+#### Scenario: One implementation outcome finishes
+
+- **WHEN** an agent completes one approved outcome with its focused pre-ready evidence and detailed task bookkeeping
+- **THEN** the agent SHALL update only that PR-body item's marker while the pull request remains draft
+- **AND** other incomplete implementation outcomes SHALL remain unchecked
+
+#### Scenario: Final implementation outcome finishes
+
+- **WHEN** the last implementation outcome and every pre-ready input are complete
+- **THEN** the agent SHALL finish acceptance, reconciliation, push, and final progress by checking the last item
+- **AND** trusted automation, not the agent, SHALL own the ready-for-review transition
+
+#### Scenario: Implementation cannot finish
+
+- **WHEN** stale state, incomplete evidence, an unfinished task, or another concrete condition prevents implementation completion
+- **THEN** the agent SHALL leave the affected progress state truthful and report that blocker
+- **AND** it SHALL NOT check incomplete work or invoke the ready mutation
+
+#### Scenario: GitHub checks are green while implementation progress is stale
+
+- **WHEN** GitHub reports completed CI checks but the PR-body Implementation items remain unchecked
+- **THEN** the agent SHALL treat those as separate signals and reconcile only truthful implementation progress
+- **AND** it SHALL NOT present CI check counts as implementation task completion
+
+### Requirement: Trusted automation promotes only a complete draft snapshot
+
+The trusted default-branch finalization entrypoint SHALL mark a draft ready only when one exact same-repository version-3 snapshot targets `develop`, has every current-form `Implementation` item checked, contains valid plain `Acceptance`, and satisfies existing pre-finalization checks for association, detailed tasks, evidence, gaps, target, head, and body. It SHALL re-read and match the PR identity, repository, base, head, body, open state, and draft state immediately before mutation.
+
+#### Scenario: Final checkbox exposes an eligible draft
+
+- **WHEN** a draft version-3 task-list candidate has every Implementation item checked and every exact pre-finalization input is valid
+- **AND** its final re-read matches the inspected snapshot
+- **THEN** trusted automation SHALL mark that pull request ready for review
+- **AND** the resulting event SHALL invoke ordinary finalization followed by exact-head CI
+
+#### Scenario: Implementation item remains unchecked
+
+- **WHEN** any Implementation item remains unchecked
+- **THEN** trusted automation SHALL leave the pull request draft
+- **AND** Development test suites SHALL remain suppressed
+
+#### Scenario: Body completion disagrees with authoritative records
+
+- **WHEN** every PR-body item is checked but acceptance, detailed tasks, evidence, gap disposition, association, or target state is incomplete or invalid
+- **THEN** trusted automation SHALL leave the pull request draft with an actionable stable reason
+- **AND** it SHALL NOT repair, infer, or rewrite the missing state
+
+#### Scenario: Candidate changes during promotion
+
+- **WHEN** the final pre-mutation re-read differs from the inspected head, body, base, repository identity, open state, or draft state
+- **THEN** the promotion attempt SHALL stop without mutating readiness
+- **AND** a later bounded event MAY inspect the new snapshot independently
+
+### Requirement: Draft promotion preserves compatibility and integration authority
+
+The ready mutation SHALL edit no body, branch content, task, evidence, specification, archive, manifest, auto-merge setting, or integration state. Unchecked, malformed, mixed, duplicated, generic, historical plain-list, unassociated, forked, stale, raced, or otherwise incomplete drafts SHALL remain draft with a stable summary and without comments or Development suites. Automation SHALL continue never to accept, arm auto-merge, or merge an implementation PR.
+
+#### Scenario: Historical or unrelated draft is inspected
+
+- **WHEN** a draft uses historical plain Implementation bullets, belongs to a fork, lacks a version-3 implementation association, or is unrelated to implementation delivery
+- **THEN** trusted automation SHALL leave it unchanged
+- **AND** its existing workflow route SHALL remain authoritative
+
+#### Scenario: Invalid draft remains quiet
+
+- **WHEN** a draft is incomplete, malformed, stale, or otherwise ineligible for promotion
+- **THEN** inspection SHALL report a stable skip or blocking reason without comments, repeated body edits, Development suites, or a protected aggregate
+- **AND** the pull request SHALL remain draft
+
+#### Scenario: Ready automation lacks integration authority
+
+- **WHEN** trusted automation promotes a complete draft and exact-head validation later succeeds
+- **THEN** the pull request SHALL remain open without an automation-owned auto-merge arm or merge attempt
+- **AND** only an authorized maintainer SHALL decide acceptance and integration for the unchanged validated head

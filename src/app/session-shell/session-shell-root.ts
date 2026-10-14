@@ -142,6 +142,28 @@ export interface OwnedUiShellEngineOptions {
   };
   /** Bare A1 selects the owned bounded viewport; comparison profiles stay pinned. */
   readonly sessionLayout?: "pinned" | "custom-viewport";
+  /** Resident tab quit routes detach the outer client without stopping this engine session. */
+  readonly residentTab?: {
+    requestDetach(): Promise<boolean>;
+    reportStatus?(status: "working" | "idle" | "stalled"): void;
+    readonly stallNoticeSeconds?: number;
+    admit?(input: {
+      readonly sessionId: string;
+      readonly sessionFile: string | null;
+      readonly kind: "prompt" | "steer" | "follow-up";
+      readonly text: string;
+      readonly images?: readonly unknown[];
+    }): Promise<{ readonly id: string }>;
+    dispatched?(): void;
+    correlated?(submissionId: string, entryId: string): Promise<void>;
+    checkpoint?(text: string): void;
+    gracefulStop?(sessionFile: string | null): Promise<void>;
+    readonly recovered?: {
+      readonly prompts: readonly { readonly id: string; readonly text: string }[];
+      readonly draft: string | null;
+    };
+    readonly unavailableNotice?: string;
+  };
 }
 
 /** Terminal, startup, viewport, and presentation-cadence seams; production leaves most at their defaults. */
@@ -373,7 +395,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly onPromptSuggestionAccepted?: (text: string) => void;
       readonly onInputSurfaceChanged?: () => void;
       readonly onPromptSuggestionEligibilityChanged?: () => void;
-      readonly onCopyText?: (text: string) => void;
+      readonly onCopyText?: (text: string, cut: boolean) => void;
       readonly readClipboardContent?: (signal?: AbortSignal) => Promise<PiShellClipboardContent | null>;
       readonly captureClipboardPaste?: () => PasteSource;
       readonly pasteDiagnostics?: (event: PasteEvent) => void;
@@ -818,7 +840,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       && snapshot.inputSurface === inputSurface
       && snapshot.viewportRevision === viewportRevision
       && snapshot.selectionRevision === selectionRevision
-      ? this.#viewportController.composeDockOnly(dockRows, width, height)
+      ? this.#viewportController.composeDockOnly(dockRows, width, height, dock.footerRows)
       : null;
     if (frame === null) {
       frame = this.#viewportController.compose({
@@ -834,6 +856,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         ...(document.liveTailStartRow === undefined ? {} : { liveTailStartRow: document.liveTailStartRow }),
         bottomAlignedTailRowCount: steeringRows.length + statusRows.length,
         dockRows,
+        explicitCopyDockRows: dock.footerRows,
         promptAnchors: document.promptAnchors,
         width,
         height,
@@ -971,17 +994,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   #renderDockLayout(width: number): {
     readonly rows: readonly string[];
-    /** Offset of the complete input component, before its body-specific row offset. */
     readonly inputOffset: number;
     readonly editorOffset: number;
     readonly inputRows: number;
+    readonly footerRows: number;
   } {
     const queued = this.#customViewport ? [] : this.#renderQueued(width);
     const statusRows = this.#customViewport ? this.#status.renderDock(width) : this.#renderStatus(width);
     const transientRows = [...queued, ...statusRows, ...this.#renderDockNotice(width)];
     const aboveWidgets = this.#renderWidgets("aboveEditor", width);
     const input = this.#inputSurface.render(width);
-    // Invariant: pointer rows describe the body, not the autocomplete block now preceding it.
     const body = this.usesDefaultInputSurface() ? this.editor.bodyGeometry?.() : undefined;
     const belowWidgets = this.#renderWidgets("belowEditor", width);
     const footer = this.#renderFooter(width);
@@ -992,6 +1014,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       inputOffset,
       editorOffset: inputOffset + (body?.rowOffset ?? 0),
       inputRows: body?.rowCount ?? input.length,
+      footerRows: footer.length,
     };
   }
 
@@ -1295,7 +1318,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     if (result.command === "hotkeys" && result.outcome === "completed") {
       this.#lastWorkflowStatusId = undefined;
       const presentation = this.hotkeysPresentation();
-      const hotkeys = createPiShellHotkeys(presentation.bindings, presentation.getShortcuts, presentation.profile);
+      const hotkeys = createPiShellHotkeys(
+        presentation.bindings,
+        presentation.getShortcuts,
+        presentation.profile,
+        presentation.residentTabs,
+      );
       this.#appendAnchoredWorkflowComponent(width => hotkeys.render(width), () => hotkeys.dispose?.());
       return;
     }

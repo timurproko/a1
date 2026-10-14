@@ -150,6 +150,8 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
   #focused = false;
   #pointerReporting = false;
   #started = false;
+  #presentationVisible = true;
+  #releaseVisibilityHold: (() => void) | undefined;
   #ending: Promise<void> | undefined;
 
   constructor(options: OwnedUiTerminalHostOptions) {
@@ -256,14 +258,28 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
   }
 
   requestRender(from: OwnedUiHostedPresenter, force = false): void {
-    if (from === this.#active) this.runtime.requestRender(force);
+    if (this.#presentationVisible && from === this.#active) this.runtime.requestRender(force);
   }
 
   start(): void {
     if (this.#started || this.#ending !== undefined) return;
     this.#started = true;
     this.runtime.start();
+    if (!this.#presentationVisible) this.#releaseVisibilityHold = this.runtime.beginPresentationHold();
     if (this.#customViewport) this.#setPointerReporting(true);
+  }
+
+  /** Hidden resident tabs retain engine/status work but stop producing terminal animation frames. */
+  setPresentationVisible(visible: boolean): void {
+    if (this.#presentationVisible === visible) return;
+    this.#presentationVisible = visible;
+    if (!this.#started || this.#ending !== undefined) return;
+    if (visible) {
+      this.#releaseVisibilityHold?.();
+      this.#releaseVisibilityHold = undefined;
+    } else if (this.#releaseVisibilityHold === undefined) {
+      this.#releaseVisibilityHold = this.runtime.beginPresentationHold();
+    }
   }
 
   /** Closes one presenter. Closing the last one ends the terminal. */

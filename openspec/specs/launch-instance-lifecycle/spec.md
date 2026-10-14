@@ -17,7 +17,7 @@ Each invocation of `a1` or `a1 pi` SHALL create a unique launch instance whose o
 - **THEN** A1 SHALL finalize only that instance and SHALL leave every unrelated instance active
 
 ### Requirement: A launch instance owns its complete runtime process tree
-A launch instance SHALL own its selected root runtime and every agent, extension, tool, daemon, helper, and descendant process created within its declared containment boundary. Default interactive instances SHALL be non-detachable; a process that must survive instance closure requires a separately specified explicit resident capability.
+A launch instance SHALL own its selected root runtime and every agent, extension, tool, daemon, helper, and descendant process created within its declared containment boundary. Default interactive instances SHALL be non-detachable; a process that must survive instance closure requires a separately specified explicit resident capability. The resident terminal host is that explicit capability: its server and session holder SHALL be started only through the authenticated fixed-role native resident-launch path, SHALL be owned and cleaned up by the resident capability rather than by any launch instance, and SHALL NOT expose a generic escape service to other components. Ordinary launch-instance and tab-child jobs SHALL NOT enable job-wide or silent breakaway; native admission SHALL verify artifact, role, profile, and request authority before resident creation. This lifecycle boundary SHALL NOT claim to sandbox malicious same-user code.
 
 #### Scenario: Runtime starts descendants
 - **WHEN** an owned UI or Pi runtime starts extension daemons, agent workers, tools, or further descendants
@@ -26,6 +26,22 @@ A launch instance SHALL own its selected root runtime and every agent, extension
 #### Scenario: A component requests implicit detachment
 - **WHEN** an instance-owned component attempts to survive the closure of its originating instance without an explicit resident capability
 - **THEN** A1 SHALL retain it within terminate-on-close ownership rather than silently detaching it
+
+#### Scenario: Resident tab outlives a bare-A1 instance
+- **WHEN** a bare-A1 launch instance with resident tabs enabled closes normally or through terminal loss
+- **THEN** A1 SHALL terminate that instance's attach-client process tree and SHALL leave the resident server, the holder, and the tab process running
+
+#### Scenario: Processes started inside a tab
+- **WHEN** A1 running in the resident tab starts tools or extension subprocesses
+- **THEN** those processes SHALL belong to that tab's holder-owned process tree and SHALL be terminated when the holder ends
+
+#### Scenario: Ordinary descendant requests job breakaway
+- **WHEN** a tool or helper requests `CREATE_BREAKAWAY_FROM_JOB` inside an ordinary A1-owned job
+- **THEN** A1 SHALL NOT have enabled a job-wide escape permission for it, and an ordinary contained spawn SHALL remain terminate-on-close
+
+#### Scenario: Forced attach termination
+- **WHEN** an attach client is killed without running its own cleanup hooks
+- **THEN** the surviving terminal-restoration owner SHALL restore the invoking terminal, while guardians remain lifecycle-only and the resident tab continues
 
 ### Requirement: Instance closure terminates all instance-owned runtime processes
 When a launch instance closes normally or loses its owner through terminal closure, disconnect, crash, or forced termination, A1 SHALL perform bounded graceful-then-forced termination of that instance's remaining process tree. Cleanup SHALL require no user PID discovery, supervisor restart, control-state deletion, or subsequent launch.
@@ -72,7 +88,7 @@ After the final interactive instance closes, A1 MAY retain an idle verified supe
 - **THEN** all runtime processes from that instance SHALL be gone even if the supervisor remains available for a later command
 
 ### Requirement: Explicit session selection belongs to the originating launch instance
-A supported session launch SHALL carry its validated target and effective session-directory selection intact through release selection, bootstrap, containment, and owned runtime startup. A supported retry or handoff SHALL preserve that same selection. Launch metadata SHALL remain per invocation, SHALL NOT become a supervisor-wide default or leak through inherited stale session metadata, and SHALL NOT require terminal parsing or shell command evaluation. Session launch failures SHALL retain the existing instance cleanup guarantees.
+A supported session launch SHALL carry its validated target and effective session-directory selection intact through release selection, bootstrap, containment, and owned runtime startup. A supported retry or handoff SHALL preserve that same selection. Launch metadata SHALL remain per invocation, SHALL NOT become a supervisor-wide default or leak through inherited stale session metadata, and SHALL NOT require terminal parsing or shell command evaluation. Session launch failures SHALL retain the existing instance cleanup guarantees. A bare-A1 session launch SHALL deliver its selection through its own attach client to the resident server, which SHALL open it as a tab or focus the tab already holding it in that client only; the selection SHALL NOT become a server-wide default for later launches.
 
 #### Scenario: Launch an explicit session through an immutable release
 - **WHEN** the installed command selects a persisted session and launches an approved immutable release
@@ -88,8 +104,13 @@ A supported session launch SHALL carry its validated target and effective sessio
 
 #### Scenario: Start bare A1 after a resume invocation
 - **WHEN** a bare launch follows an explicit resume launch or inherits unrelated session metadata from its parent environment
-- **THEN** it SHALL start a fresh session and SHALL NOT reuse the previous selection implicitly
+- **THEN** it SHALL NOT reuse the previous selection implicitly
+- **AND** bare `a1` SHALL reattach or create one fresh tab only when none exist, while `a1 solo` SHALL start fresh
 
 #### Scenario: Resume fails after containment starts
 - **WHEN** target resolution or runtime initialization fails within an owned launch instance
-- **THEN** the failure SHALL propagate to the invoking command and the instance's processes SHALL be cleaned up without affecting other instances
+- **THEN** the failure SHALL propagate and cleanup SHALL not affect other instances
+
+#### Scenario: Select a session held by a resident tab
+- **WHEN** `a1 --session <id>` names a session held by a live resident tab
+- **THEN** A1 SHALL focus that tab in the launching client only and SHALL NOT open a second writer

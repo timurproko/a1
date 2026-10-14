@@ -4,13 +4,16 @@
 
 | Command | Purpose | Pi user profile |
 |---|---|---|
-| `a1` | Fresh A1-owned Pi-compatible UI session | `~/.a1/agent` |
+| `a1` | A1 | `~/.a1/agent` |
 | `a1 --session <path\|id>` | Resume a persisted A1 session | `~/.a1/agent` (or explicitly selected storage) |
-| `a1 pi` | Pi-compatible comparison surface using the ordinary Pi profile | ordinary `~/.pi/agent` |
+| `a1 solo` | A1 direct single-agent mode | `~/.a1/agent` |
+| `a1 pi` | Pi-compatible direct comparison surface using the ordinary Pi profile | ordinary `~/.pi/agent` |
+
+`a1 solo` is available in release and prerelease builds. It starts A1 in single agent mode, is argument-free, and omits both the tab strip and the Tabs settings section.
 
 `a1 pi` is a development instrument for comparing A1 against pinned Pi. Prerelease builds — what `a1 update --develop` or `a1 update --develop <number>` installs — expose it. A release build does not recognize the launch form. Repository development can run the comparison directly with `npm start:pi`.
 
-There is no `a1 agent` command. The former `a1 ui` subcommand is removed. Unsupported commands return quietly without selecting another runtime. Bare `a1` is the owned agent product surface and remains the entry point when multi-agent UX is introduced.
+There is no `a1 agent` command. The former `a1 ui` subcommand is removed. Unsupported commands return quietly without selecting another runtime. Bare `a1` is the normal A1 product surface.
 
 ## First launch
 
@@ -42,7 +45,7 @@ a1 --session-dir '/path/to/session store' --session <id>
 
 `--session` also accepts a `.jsonl` file path; `--session-dir` may come before or after it. Explicit storage overrides `PI_CODING_AGENT_SESSION_DIR`, which overrides default storage. IDs are searched in the current project before other projects within the A1 store. A cross-project ID match asks before creating a fork with a new identity; an explicit file resumes directly using its stored working directory. Missing or invalid targets fail rather than create an empty replacement.
 
-Resume uses the shipped Pi's public restoration behavior, including the compaction format it writes. It sends no model prompt by itself and does not recover, convert, or modify an unrelated conversation. Bare `a1` remains a fresh launch. Pi picker/continue CLI aliases and `a1 pi --session` are not supported by this repair; in-UI `/resume` is unchanged.
+Resume uses the shipped Pi's public restoration behavior, including the compaction format it writes. It sends no model prompt by itself and does not recover, convert, or modify an unrelated conversation. The selected session opens in a new A1 tab or focuses the tab already holding it. Pi picker/continue CLI aliases, `a1 solo --session`, and `a1 pi --session` are not supported; in-UI `/resume` is unchanged.
 
 Regression evidence creates disposable sessions through Pi 0.84.2, then executes the emitted command through the packed public entry, bootstrap, guardian, and owned UI. Default/custom storage, Windows Git Bash quoting, supervisor restart, failure cleanup, and simultaneous distinct selections are covered in `test/foundation/release/session-resume.integration.test.ts`. CI runs it in the resource-sensitive `package-smoke` scope, not the fast remainder. Unsupported synthetic retained-tail certification is separate deferred work.
 
@@ -52,14 +55,14 @@ Regression evidence creates disposable sessions through Pi 0.84.2, then executes
 
 ## Terminal behavior
 
-Both launch forms run the A1-owned full-viewport TUI over pinned Pi engine, component, and terminal APIs. A1 owns composition, input routing, modal focus, selection behavior, scrolling, and restoration without inserting a PTY or terminal-byte relay. Bare `a1` enables A1-owned screens; `a1 pi` uses the same pipeline with those screens withheld.
+All interactive launch forms run the A1-owned full-viewport TUI over pinned Pi engine, component, and terminal APIs. Bare `a1` attaches to the native resident host; each tab runs the owned UI in a holder-owned pseudoterminal, while Node never relays or renders terminal bytes. `a1 solo` uses the direct owned path without resident infrastructure. `a1 pi` uses that same direct pipeline with A1-specific screens withheld.
 
 ## Concurrent instance lifecycle
 
-Every invocation receives a unique non-detachable launch instance. There is no product-wide foreground slot: the same profile or both profiles may run concurrently in separate terminals. Profile files remain shared according to the selected profile root, while process ownership, lifecycle outcome, and cleanup remain scoped to the command that launched them.
+Each `a1 solo` or `a1 pi` invocation receives a unique non-detachable launch instance. Normal A1 clients instead attach to the profile's tab set, which can be viewed from concurrent terminals with explicit input-controller transfer. Profile files remain shared according to the selected profile root.
 
-Normal root exit, terminal closure, guardian failure, and verified update shutdown all close the instance's remaining process tree within bounded graceful and forced deadlines. Closing one instance never closes another. A control supervisor may remain idle afterward, but closed instances leave no UI, Pi, extension daemon, agent worker, tool, or descendant process.
+Normal exit or terminal closure tears down a solo/comparison launch instance within bounded graceful and forced deadlines. Closing or detaching a normal A1 client leaves its tabs running; a tab and its process tree stop only when the user explicitly closes that tab.
 
 ## Recovery and comparison
 
-If bare `a1` cannot start or a UI workflow diverges, run `a1 pi` from the same working directory and compare the behavior. Profile data is intentionally separate, so authentication or settings may need to be configured independently. Use `a1 --version` to record the installed A1 release before reporting a difference.
+If A1's normal mode cannot start, bare `a1` falls back to the direct path with one notice. To start single agent mode explicitly, run `a1 solo` from the same working directory. To compare against the pinned Pi profile, run `a1 pi`; its profile data is intentionally separate, so authentication or settings may need independent configuration. Use `a1 --version` to record the installed A1 release before reporting a difference.

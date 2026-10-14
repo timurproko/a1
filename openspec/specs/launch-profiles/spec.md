@@ -22,15 +22,22 @@ The `a1` binary SHALL be the sole installed public command. Bare invocation SHAL
 - **THEN** bare `a1` SHALL remain the product entry point and the prerelease Pi comparison SHALL retain its explicit meaning
 
 ### Requirement: Launch profiles use separate user roots
-The normal A1 profile SHALL use `<home>/.a1/agent`. The Pi comparison SHALL leave Pi's configuration-root override unset so Pi preserves its ordinary `<home>/.pi/agent` behavior. Path resolution SHALL use the effective user home consistently and remain overrideable in hermetic tests.
+The normal A1 profile SHALL use `<home>/.a1/agent`, including one global `settings.json` containing Pi-owned root settings and an A1-owned namespaced section. The Pi comparison SHALL leave Pi's configuration-root override unset so Pi preserves its ordinary `<home>/.pi/agent` behavior and SHALL NOT consume the A1-owned section. Path resolution SHALL use the effective user home consistently, remain independent of installed package and materialized release roots, and remain overrideable in hermetic tests.
 
 #### Scenario: Bare A1 resolves its profile
 - **WHEN** A1 launches with user home `H`
-- **THEN** the pinned Pi engine SHALL use `H/.a1/agent` as its configuration root
+- **THEN** the pinned Pi engine and A1-owned settings manager SHALL use `H/.a1/agent/settings.json`
+- **AND** each SHALL read only its owned portion of that document
 
 #### Scenario: Pi comparison resolves its profile
 - **WHEN** the comparison launches with user home `H`
 - **THEN** A1 SHALL leave the configuration-root override unset so Pi resolves `H/.pi/agent`
+- **AND** it SHALL NOT read or apply the product namespace from `H/.a1/agent/settings.json`
+
+#### Scenario: Launch another installed version
+- **WHEN** another A1 version or replacement installation launches under the same effective user home
+- **THEN** it SHALL resolve the same normal-profile `settings.json`
+- **AND** that file SHALL NOT be selected from the package or materialized release directory
 
 ### Requirement: Profile selection isolates settings and resources
 Normal A1 and the Pi comparison SHALL resolve settings, authentication, sessions, extensions, skills, prompts, themes, packages, trust state, and other Pi-owned profile data only from the selected profile root, except for supported environment credentials. A1 SHALL NOT merge profile directories or silently fall back from its profile to Pi's profile.
@@ -115,7 +122,7 @@ guidance and without automatically printing the complete help.
 - **THEN** that unsupported comparison operation SHALL remain a silent no-op rather than fall through to a normal A1 session launch
 
 ### Requirement: Interactive launch forms are concurrently independent
-A1 SHALL permit multiple simultaneous instances of bare `a1`, prerelease `a1 pi`, or both. Profile selection, profile data, lifecycle state, process containment, and closure SHALL remain scoped to the originating invocation rather than a product-wide foreground slot.
+A1 SHALL permit multiple simultaneous instances of bare `a1`, prerelease `a1 pi`, or both. Profile selection, profile data, lifecycle state, process containment, and closure SHALL remain scoped to the originating invocation rather than a product-wide foreground slot. A1-owned runtimes in either profile, whether resident tabs, direct bare `a1`, `a1 --session`, or `a1 pi`, SHALL share the native session-writer admission guard only when selecting the same canonical session file, regardless of the resident setting. The guard SHALL be independent of resident initialization: `a1 pi` and direct A1 SHALL start no host, holder, strip, or bridge. Different session files SHALL remain independently writable, and unmodified external Pi or older nonparticipating builds SHALL NOT be claimed as covered.
 
 #### Scenario: Start the same profile twice
 - **WHEN** the user starts two instances of the same retained profile
@@ -124,6 +131,14 @@ A1 SHALL permit multiple simultaneous instances of bare `a1`, prerelease `a1 pi`
 #### Scenario: Start both profile forms
 - **WHEN** owned A1 or Pi-comparison instances are already active and another supported form is launched
 - **THEN** the new invocation SHALL start independently without requiring an existing instance to exit
+
+#### Scenario: Comparison profile selects a session held by another A1 writer
+- **WHEN** a Pi-comparison runtime selects the canonical file already held by a resident A1 tab or a direct A1 runtime
+- **THEN** the shared writer guard SHALL reject duplicate writing without starting resident infrastructure or changing the comparison UI into a tab client
+
+#### Scenario: Different session files across profiles
+- **WHEN** bare-A1 and Pi-comparison runtimes select distinct unheld session files
+- **THEN** both SHALL proceed concurrently without a product-wide foreground lock
 
 ### Requirement: Launch-instance ownership preserves the shared rendering pipeline
 The launch-instance lifecycle SHALL change process ownership and cleanup only. Bare `a1` and prerelease `a1 pi` SHALL retain the shared A1-owned rendering and input pipeline declared by the canonical launch profile, differing only in configuration root and product-surface availability.

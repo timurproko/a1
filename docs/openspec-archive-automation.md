@@ -8,18 +8,18 @@ Version-1 and version-2 deliveries and their existing comments, acceptance PRs, 
 
 ## Version-3 lifecycle
 
-1. **Draft plan:** create one normally named branch/PR such as `feature/...`, `fix/...`, or `chore/...`. Start the body with `## Proposal`, use it for one or two sentences of intent, follow it with `## Implementation` for the concrete planned work, omit quoted phase lines and routine validation command lists, and keep machine linkage under final collapsed `Automation`. Keep it draft and include only planning artifacts until the maintainer approves the plan and explicitly requests implementation.
-2. **Same-PR implementation:** continue after explicit approval in the same worktree, branch, history, draft PR, and phase-free body. Reconcile approved refinements in proposal, design, deltas, and tasks before corresponding code edits.
-3. **Complete evidence:** finish implementation, required tests/evidence, substantive tasks, and explicit known-gap disposition. CI success is objective evidence, not acceptance.
-4. **Plain acceptance list:** keep the body phase-free and add final `## Acceptance` with one to ten concise implementation-specific behavior-and-result bullets. Do not use checkboxes, generic review/CI/approval/archive statements, URLs, mentions, or automated-test inventory.
-5. **Ready and automated finalization:** mark the PR ready. The trusted `OpenSpec finalization` workflow reconciles current `develop`, conservatively synchronizes all deltas, moves the active change into its dated archive, stages the conditional acceptance manifest, commits that to the same branch with the archive App identity, and writes the emitted paths into the body's implementation fence. Running the [finalization command](#finalization-command) locally first is optional and yields the same bytes.
+1. **Draft plan:** create one normally named branch/PR such as `feature/...`, `fix/...`, or `chore/...`. Start the body with `## Proposal`, use it for one or two sentences of intent, and follow it with two to ten unchecked, outcome-sized task items under `## Implementation`. Omit generic process tasks, quoted phase lines, and routine validation command lists, and keep machine linkage under final collapsed `Automation`. Keep it draft and include only planning artifacts until the maintainer approves the plan and explicitly requests implementation.
+2. **Same-PR implementation:** continue after explicit approval in the same worktree, branch, history, draft PR, and phase-free body. Check an Implementation item as soon as its associated implementation, focused pre-ready evidence, and detailed task bookkeeping are complete; an ordinary progress edit changes only `[ ]` to `[x]` and is not deferred until handoff. Adding, removing, reordering, or rewriting an item is a scope refinement requiring explicit approval and coherent planning updates, with affected scope left unchecked. Reconcile approved refinements before corresponding code edits.
+3. **Complete evidence:** finish implementation, required pre-ready tests/evidence, substantive tasks, and explicit known-gap disposition. CI success is later objective evidence, not acceptance, and GitHub check counts are not Implementation task progress.
+4. **Plain acceptance list:** before checking the final item, keep the body phase-free and add final `## Acceptance` with one to ten concise implementation-specific behavior-and-result bullets. Do not use checkboxes, generic review/CI/approval/archive statements, URLs, mentions, or automated-test inventory.
+5. **Automatic readiness and finalization:** reconcile and push current `origin/develop`, then check the final item. That checkbox update completes the agent-owned implementation job; agents never mark implementation PRs ready themselves. Trusted automation revalidates the exact fully complete version-3 task-list snapshot and all pre-finalization inputs, marks the PR ready, and then conservatively synchronizes all deltas, moves the active change into its dated archive, stages the conditional acceptance manifest, commits that to the same branch with the archive App identity, and writes the emitted paths into the body's implementation fence. It never checks tasks or infers completion. Running the [finalization command](#finalization-command) locally first is optional and yields the same bytes.
 6. **Validate:** one normal exact-head workflow validates the finalized head: implementation, synchronized specs, archive, manifest, tasks/evidence, exact PR-body list, and every selected product/governance scope before emitting the stable protected aggregate. A new commit or acceptance-list change re-finalizes automatically when needed and requires full renewed validation; no lifecycle body edit or second workflow run is required.
 7. **Maintainer integration accepts:** after reviewing the finalized candidate, an authorized human either manually merges the exact validated head after the stable protected aggregate succeeds or personally enables GitHub native auto-merge for that unchanged head so protected integration waits for the aggregate. That human action means the listed scenarios are accepted. Agents, Apps, bots, merge queue, automation-owned implementation arms, and documentation integration remain forbidden. A changed head, acceptance list, or finalization invalidates the earlier arm and requires the maintainer to choose again.
 8. **Verify and clean:** trusted post-merge policy derives `Archived` and reports `accepted-and-archived` from committed bytes and immutable GitHub provenance without editing the accepted PR body. It publishes no lifecycle branch or PR. Shared exact-head remote cleanup may delete the unchanged topic ref; local cleanup remains separately ownership-controlled: the agent parks the worktree with `handoff` at step 7, and the next session's `sweep` removes it once the merge, archive, and remote-ref evidence verify (see [local cleanup](local-worktree-cleanup.md)).
 
 ### Complete-regression evidence ordering
 
-PR-attached Full regression is selected only for a repair that the trusted triage created from a failed Full regression: base policy verifies the immutable `openspec-ci` App author, generated candidate identity, and `regression-provenance.json`. Human-authored lookalikes, publishing or validation-authority changes, labels, Publish-only repairs, and successful-run persistent-overrun candidates retain bounded ordinary validation. Generated repair drafts run no Development test suites, including after implementation begins. Finish substantive implementation tasks, focused local evidence, pre-finalization observations, and known-gap disposition before marking ready. The ready active head defers testing while trusted finalization publishes the candidate; the finalized head then receives all four native lanes as new full evidence, required by `Development validation required` alongside the existing gates.
+PR-attached Full regression is selected only for a repair that the trusted triage created from a failed Full regression: base policy verifies the immutable `openspec-ci` App author, generated candidate identity, and `regression-provenance.json`. Human-authored lookalikes, publishing or validation-authority changes, labels, Publish-only repairs, and successful-run persistent-overrun candidates retain bounded ordinary validation. Generated repair drafts run no Development test suites, including after implementation begins. Finish substantive implementation tasks, focused local evidence, pre-finalization observations, and known-gap disposition before checking the final Implementation item. The ready active head defers testing while trusted finalization publishes the candidate; the finalized head then receives all four native lanes as new full evidence, required by `Development validation required` alongside the existing gates.
 
 The final exact-head run is a handoff gate, not a task requiring a future run ID in committed `design.md`. Keep final head/run/selection identity in Actions outcomes and the maintainer handoff; do not invalidate successful evidence with an extra recording commit. Changed code, acceptance/body metadata, selection labels, or target baseline requires fresh evidence. A selected PR success removes the additional mandatory Full regression dispatch, but a standalone/manual run never substitutes for selected PR checks. Before deployment, existing separate-dispatch obligations remain. Neither PR validation nor manual regression proves numbered-package nightly publication recovery.
 
@@ -27,7 +27,7 @@ The implementation, synchronized canonical specs, conditional acceptance record,
 
 ## Draft PR body
 
-The first screen should separate purpose from delivery detail, not foreground CI mechanics. Distill `Proposal` into one or two sentences answering why the PR exists, then put two to five concrete points under `Implementation` answering what it will deliver:
+The first screen should separate purpose from delivery detail, not foreground CI mechanics. Distill `Proposal` into one or two sentences answering why the PR exists, then put two to ten unchecked, implementation-specific outcomes under `Implementation`. They are a coarse progress summary, not a copy of the detailed OpenSpec task ledger:
 
 ```markdown
 ## Proposal
@@ -36,9 +36,9 @@ Replace the multi-PR OpenSpec handoff with one manually merged development PR wh
 
 ## Implementation
 
-- Keep planning and implementation in the same draft PR.
-- Integrate implementation, synchronized specs, acceptance, and archive atomically.
-- Preserve standalone documentation auto-merge while forbidding automation-owned implementation auto-merge.
+- [ ] Keep planning and implementation in the same draft PR.
+- [ ] Integrate implementation, synchronized specs, acceptance, and archive atomically.
+- [ ] Preserve standalone documentation auto-merge while forbidding automation-owned implementation auto-merge.
 
 ## Automation
 
@@ -50,7 +50,7 @@ Replace the multi-PR OpenSpec handoff with one manually merged development PR wh
 </details>
 ```
 
-Do not add a quoted phase line or a routine `Validation` section listing commands to an initial draft. Actual validation results belong in CI and the eventual implementation handoff. Continue with the same phase-free body after approval. When implementation is complete and ready for required tests, use this visible order:
+Do not add a quoted phase line, generic CI/review/acceptance/merge/archive tasks, or a routine `Validation` section listing commands to an initial draft. Actual validation results belong in CI and the eventual implementation handoff. Continue with the same phase-free body after approval. Toggle only the exact marker when ordinary work completes; body history must not hide a scope change as progress. Historical version-3 bodies with only plain Implementation bullets remain readable, but new bodies use the task-list form. When implementation is complete and ready for required tests, use this visible order:
 
 ```markdown
 ## Proposal
@@ -59,7 +59,8 @@ Do not add a quoted phase line or a routine `Validation` section listing command
 
 ## Implementation
 
-<!-- concrete implementation bullets -->
+- [x] <!-- completed implementation outcome -->
+- [x] <!-- completed implementation outcome -->
 
 ## Acceptance
 
@@ -75,7 +76,7 @@ Do not add a quoted phase line or a routine `Validation` section listing command
 </details>
 ```
 
-Keep acceptance absent during proposal review so unfinished intent is not mistaken for final acceptance criteria. The finalization workflow rewrites only the implementation fence; keep the rest of the phase-free body unchanged through exact-head validation, maintainer review, and authorized integration. The same workflow run validates its finalized delivery record and applicable product/governance scopes before the stable protected aggregate succeeds. Do not add a lifecycle body edit or start a second validation run. After integration, trusted verification derives `Archived`; do not rewrite the accepted body.
+Keep acceptance absent during proposal review so unfinished intent is not mistaken for final acceptance criteria. Every Implementation item must be checked before ready/finalization; those markers report implementation progress and never human acceptance. The finalization workflow rewrites only the implementation fence; keep the rest of the phase-free body unchanged through exact-head validation, maintainer review, and authorized integration. The same workflow run validates its finalized delivery record and applicable product/governance scopes before the stable protected aggregate succeeds. Do not add a lifecycle body edit or start a second validation run. After integration, trusted verification derives `Archived`; do not rewrite the accepted body.
 
 ## Agent scratch files
 
@@ -146,7 +147,7 @@ If the body list changes, candidate validation reruns and compares it with the c
 
 ## Automated finalization
 
-The `OpenSpec finalization` workflow (`.github/workflows/openspec-finalization.yml`) runs on `pull_request_target` for `synchronize`, `ready_for_review`, `reopened`, and `edited` events of every non-draft PR targeting `develop`, one event at a time per PR. It checks out default-branch policy, installs the pinned tooling without hooks, and runs `scripts/governance/publish-openspec-finalization.mjs --pr <n>`; the PR head enters that process only as the `openspec/` tree the pinned OpenSpec engine reads. Drafts, closed, legacy, and unassociated PRs are skipped. For a version-3 candidate it reconciles the head to its finalized form:
+The `OpenSpec finalization` workflow (`.github/workflows/openspec-finalization.yml`) runs on `pull_request_target` for `opened`, `synchronize`, `ready_for_review`, `reopened`, and `edited` events targeting `develop`, one event at a time per PR. It checks out default-branch policy, installs the pinned tooling without hooks, and runs `scripts/governance/publish-openspec-finalization.mjs --pr <n>`; the PR head enters that process only as the `openspec/` tree the pinned OpenSpec engine reads. An all-checked version-3 task-list draft with valid Acceptance and complete detailed pre-finalization inputs is re-read as one exact snapshot and marked ready; no content is changed, and incomplete, malformed, legacy, unassociated, forked, or raced drafts remain draft with a stable reason. Closed PRs are skipped. For a ready version-3 candidate the workflow reconciles the head to its finalized form:
 
 - **Active and current:** ordinary finalization with today's UTC date; one `docs(openspec): finalize <change>` commit.
 - **Finalized, valid, and current:** nothing is pushed; the run reports `already-finalized`.
@@ -155,7 +156,7 @@ The `OpenSpec finalization` workflow (`.github/workflows/openspec-finalization.y
 
 The commit is pushed with a lease on the head the run read, so a developer push in between makes the run report `retry` and the next event finishes the work. Only after the push does the workflow `PATCH` the body fence with `finalizedHead` equal to that exact commit, and only when both the body and PR head still match the operation's expected values. The guaranteed head-binding change triggers native `pull_request: edited` validation even when a re-finalization reuses the same archive paths. The workflow's own body edit triggers further runs that report `already-finalized`; an intermediate run with a missing or stale binding defers before product suites and emits no protected aggregate. Every pushed commit is either a merge of the exact `develop` tip or confined to the change's active path, its archive path, and its declared canonical specs.
 
-Because the branch gains commits from the archive App, pull before pushing. A rebase that drops them is harmless: the next push is reconciled from whatever the head contains. Do not revert a finalization commit to make a fix; push the fix and let the workflow re-finalize. When the workflow fails, its summary names the finalization code (`tasks-incomplete`, `acceptance-*`, `delivery-known-gaps`, `openspec-operation`, `finalization-merge-conflict`, ...), nothing is pushed, and `Finalized delivery validation` on the unfinalized head reports that automated finalization is pending.
+Because the branch gains commits from the archive App, pull before pushing. A rebase that drops them is harmless: the next push is reconciled from whatever the head contains. Do not revert a finalization commit to make a fix; push the fix and let the workflow re-finalize. When the workflow fails, its summary names the finalization code (`tasks-incomplete`, `implementation-progress-*`, `acceptance-*`, `delivery-known-gaps`, `openspec-operation`, `finalization-merge-conflict`, ...), nothing is pushed, and `Finalized delivery validation` on the unfinalized head reports that automated finalization is pending.
 
 A missing fence is not an ordinary ready PR when immutable base/head evidence shows that the candidate introduces or restores an active change, or mixes active-change edits with code or operational paths. Base-controlled readiness and finalization both fail with `missing-implementation-association`; deleting editable body metadata cannot bypass finalization. Existing active-change documentation-only revisions and ordinary code PRs without active delivery paths retain their established routes.
 
@@ -163,7 +164,7 @@ If an unassociated implementation has already integrated, do not edit its merged
 
 ## Finalization command
 
-The local command remains available for inspection or when a developer prefers to finalize before marking the PR ready; the workflow then verifies the head and pushes nothing. It has inspection mode by default and an explicit `--write` mode. It never commits, pushes, edits GitHub, marks a PR ready, or merges. Run from the linked worktree and use an ignored artifact body file so the operation can update exact version-3 paths without mutating remote PR state:
+The local command remains available for inspection or when a developer prefers to finalize before the automatic ready transition; the workflow then verifies the head and pushes nothing. It has inspection mode by default and an explicit `--write` mode. It never commits, pushes, edits GitHub, marks a PR ready, or merges. Run from the linked worktree and use an ignored artifact body file so the operation can update exact version-3 paths without mutating remote PR state:
 
 ```bash
 git fetch origin develop

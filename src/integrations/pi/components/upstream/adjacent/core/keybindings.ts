@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.1.0 (MIT), commit abe508e1b89912adde45528136c3221eb69acdd7,
+ * Provenance: @earendil-works/pi-coding-agent 1.2.0 (MIT), commit 06a466935536f8c9bcacb2d5efc0fc021be1bdff,
  * packages/coding-agent/src/core/keybindings.ts.
  * Modifications: Mechanical source port with Node import prefixes, public package-root agent-directory
  * resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model
@@ -14,6 +14,7 @@ import {
 	type KeybindingDefinitions,
 	type KeybindingsConfig,
 	type KeyId,
+	Key,
 	matchesKey,
 	TUI_KEYBINDINGS,
 	KeybindingsManager as TuiKeybindingsManager,
@@ -358,15 +359,31 @@ function isLegacyKeybindingName(key: string): key is keyof typeof KEYBINDING_NAM
 	return key in KEYBINDING_NAME_MIGRATIONS;
 }
 
+const KEYBINDING_MODIFIERS = ["ctrl", "shift", "alt", "super"] as const;
+const BASE_KEY_PATTERN = `(?:[a-z0-9]|${Object.values(Key)
+	.flatMap((value) => (typeof value === "string" ? [value.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")] : []))
+	.join("|")})`;
+const DUPLICATE_MODIFIER_PATTERN = KEYBINDING_MODIFIERS
+	.map((modifier) => `${modifier}\\+.*${modifier}\\+`)
+	.join("|");
+const KEY_ID_PATTERN = new RegExp(
+	`^(?!.*(?:${DUPLICATE_MODIFIER_PATTERN}))(?:(?:${KEYBINDING_MODIFIERS.join("|")})\\+){0,4}${BASE_KEY_PATTERN}$`,
+);
+
+function isKeyId(value: unknown): value is KeyId {
+	return typeof value === "string" && KEY_ID_PATTERN.test(value);
+}
+
 function toKeybindingsConfig(value: Record<string, unknown>): KeybindingsConfig {
 	const config: KeybindingsConfig = {};
 	for (const [key, binding] of Object.entries(value)) {
-		if (typeof binding === "string") {
-			config[key] = binding as KeyId;
+		if (key === "$schema") continue;
+		if (isKeyId(binding)) {
+			config[key] = binding;
 			continue;
 		}
-		if (Array.isArray(binding) && binding.every((entry) => typeof entry === "string")) {
-			config[key] = binding as KeyId[];
+		if (Array.isArray(binding) && binding.every(isKeyId)) {
+			config[key] = binding;
 		}
 	}
 	return config;

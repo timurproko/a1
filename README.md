@@ -57,6 +57,12 @@ Launch A1 (profile: `~/.a1/agent`):
 a1
 ```
 
+Launch A1 in single agent mode:
+
+```text
+a1 solo
+```
+
 Show all commands:
 
 ```text

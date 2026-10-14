@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -11,14 +12,62 @@ import {
   disposePiRuntimeIntegration,
   replacePiRuntimeSession,
 } from "../../../../src/integrations/pi/engine/index.js";
+import {
+  acquireExisting,
+  acquireSessionWriter,
+  setSessionWriterLockBackendForTest,
+  type LockBackend,
+} from "../../../../src/foundation/session-writer-lock/index.js";
 
 const roots: string[] = [];
-afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, {
-  recursive: true,
-  force: true,
-  maxRetries: 5,
-  retryDelay: 100,
-}))));
+afterEach(async () => {
+  setSessionWriterLockBackendForTest(undefined);
+  await Promise.all(roots.splice(0).map(root => rm(root, {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 100,
+  })));
+});
+
+function exclusiveSessionWriterBackend(onBind?: (path: string) => void): LockBackend {
+  const held = new Set<string>();
+  return {
+    acquire(path) {
+      if (held.has(path)) throw new Error("held");
+      held.add(path);
+      let bound = existsSync(path);
+      return {
+        get bound() { return bound; },
+        bindCreated(created) {
+          if (created !== path || !existsSync(created)) throw new Error("invalid bind");
+          bound = true;
+          onBind?.(path);
+        },
+        release() { held.delete(path); },
+      };
+    },
+  };
+}
+
+async function appendFirstUserMessage(manager: SessionManager, text: string): Promise<string> {
+  const path = manager.getSessionFile()!;
+  const sessionId = manager.getSessionId();
+  expect(() => manager.appendMessage({ role: "user", content: text, timestamp: 1 })).not.toThrow();
+  const entries = (await readFile(path, "utf8")).trim().split("\n").map(line => JSON.parse(line) as {
+    type: string;
+    id?: string;
+    message?: { role?: string; content?: unknown };
+  });
+  expect(entries.filter(entry => entry.type === "session")).toHaveLength(1);
+  expect(entries[0]).toMatchObject({ type: "session", id: sessionId });
+  expect(entries).toContainEqual(expect.objectContaining({
+    type: "message",
+    message: expect.objectContaining({ role: "user", content: text }),
+  }));
+  expect(manager.getSessionId()).toBe(sessionId);
+  return path;
+}
 
 describe("official Pi runtime integration", () => {
   it("creates, rebinds, replaces, and disposes an isolated public runtime", async () => {
@@ -40,6 +89,102 @@ describe("official Pi runtime integration", () => {
 
     unbind();
     await expect(disposePiRuntimeIntegration(runtime)).resolves.toBeUndefined();
+  });
+
+  it("persists the first user message in a newly identity-bound session", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-first-prompt-"));
+    roots.push(root);
+    setSessionWriterLockBackendForTest(exclusiveSessionWriterBackend());
+    const runtime = await createPiRuntimeIntegration({
+      cwd: root,
+      agentDir: resolve(root, "agent"),
+      sessionDir: resolve(root, "sessions"),
+    });
+    const path = await appendFirstUserMessage(runtime.session.sessionManager, "ask me");
+    expect(() => acquireSessionWriter(path)).toThrow("session is open in another A1 process");
+    await disposePiRuntimeIntegration(runtime);
+  });
+
+  it("preserves parent metadata and first-message persistence for a root fork", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-root-fork-"));
+    roots.push(root);
+    setSessionWriterLockBackendForTest(exclusiveSessionWriterBackend());
+    const runtime = await createPiRuntimeIntegration({
+      cwd: root,
+      agentDir: resolve(root, "agent"),
+      sessionDir: resolve(root, "sessions"),
+    });
+    const sourceManager = runtime.session.sessionManager;
+    const sourcePath = await appendFirstUserMessage(sourceManager, "fork this prompt");
+    const result = await runtime.fork(sourceManager.getLeafId()!);
+    expect(result.cancelled).toBe(false);
+    expect(runtime.session.sessionManager.getHeader()).toMatchObject({ parentSession: sourcePath });
+    await appendFirstUserMessage(runtime.session.sessionManager, "forked session prompt");
+    await disposePiRuntimeIntegration(runtime);
+  });
+
+  it("holds the active writer and keeps it when a replacement target is held", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-lock-"));
+    roots.push(root);
+    const sessions = resolve(root, "sessions");
+    const heldTarget = await writeResumeFixture(sessions, root);
+    setSessionWriterLockBackendForTest(exclusiveSessionWriterBackend());
+    const targetWriter = acquireExisting(heldTarget.path);
+    await expect(createPiRuntimeIntegration({
+      cwd: root,
+      agentDir: resolve(root, "agent"),
+      sessionSelection: { target: heldTarget.path },
+    })).rejects.toThrow("session is open in another A1 process");
+    const forked = await createPiRuntimeIntegration({
+      cwd: root,
+      agentDir: resolve(root, "agent"),
+      sessionSelection: { target: heldTarget.path },
+      sessionForkPrompt: async () => true,
+    });
+    expect(forked.session.sessionManager.getSessionFile()).not.toBe(heldTarget.path);
+    await disposePiRuntimeIntegration(forked);
+
+    const runtime = await createPiRuntimeIntegration({
+      cwd: root,
+      agentDir: resolve(root, "agent"),
+      sessionDir: sessions,
+    });
+    const original = runtime.session;
+    const originalPath = original.sessionManager.getSessionFile()!;
+    expect(() => acquireSessionWriter(originalPath)).toThrow("session is open in another A1 process");
+
+    await expect(replacePiRuntimeSession(runtime, { kind: "resume", sessionPath: heldTarget.path }))
+      .rejects.toThrow("session is open in another A1 process");
+    expect(runtime.session).toBe(original);
+    expect(() => acquireSessionWriter(originalPath)).toThrow("session is open in another A1 process");
+
+    targetWriter.release();
+    await disposePiRuntimeIntegration(runtime);
+    const reacquired = acquireSessionWriter(originalPath);
+    reacquired.release();
+  });
+
+  it("binds every new runtime target before releasing the prior writer", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-bind-"));
+    roots.push(root);
+    const binds: string[] = [];
+    setSessionWriterLockBackendForTest(exclusiveSessionWriterBackend(path => binds.push(path)));
+    const runtime = await createPiRuntimeIntegration({
+      cwd: root,
+      agentDir: resolve(root, "agent"),
+      sessionDir: resolve(root, "sessions"),
+    });
+    const firstPath = await appendFirstUserMessage(runtime.session.sessionManager, "first session prompt");
+    expect(binds).toEqual([firstPath]);
+    expect(() => acquireSessionWriter(firstPath)).toThrow("session is open in another A1 process");
+
+    await runtime.newSession();
+    const secondPath = await appendFirstUserMessage(runtime.session.sessionManager, "new session prompt");
+    expect(binds).toEqual([firstPath, secondPath]);
+    expect(() => acquireSessionWriter(secondPath)).toThrow("session is open in another A1 process");
+    const releasedFirst = acquireSessionWriter(firstPath);
+    releasedFirst.release();
+    await disposePiRuntimeIntegration(runtime);
   });
 
   it("loads Windows NUL cleanup inline across session replacement without changing profile extensions", async () => {

@@ -289,7 +289,7 @@ describe("the settings screen", () => {
 
   it("groups concise scrollbar controls with defaults but no default wording", async () => {
     const { app: target } = await app();
-    const lines = target.render({ width: 80, height: 32 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    const lines = target.render({ width: 80, height: 36 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     expect(lines.findIndex(line => line.trim() === "Generic")).toBeLessThan(lines.findIndex(line => line.trim() === "Appearance"));
     expect(lines.findIndex(line => line.trim() === "Appearance")).toBeLessThan(lines.findIndex(line => line.trim() === "Scroll"));
     expect(lines.some(line => line.includes("Quit animation") && line.includes("yes"))).toBe(true);
@@ -385,6 +385,7 @@ describe("the settings screen", () => {
     target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "Persistent history").trimStart()).toMatch(/^→/);
     target.onInput?.(`${ESC}[1;2B`, HOST);
+    target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "Warnings").trimStart()).toMatch(/^→/);
     selectRow(target, "Prompt suggestions");
     target.onInput?.(`${ESC}[C`, HOST);
@@ -466,11 +467,14 @@ describe("the settings screen", () => {
     const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent });
     await session.load();
     const target = new SettingsApp(session);
+    target.onInput?.("/", HOST);
+    for (const letter of "Agent") target.onInput?.(letter, HOST);
     const shown = screen(target);
     expect(shown.filter(line => line.trim() === "Agent")).toHaveLength(1);
     expect(shown.filter(line => line.includes("Prompt suggestions"))).toHaveLength(1);
     expect(shown.join("\n")).not.toContain("unavailable");
     expect(shown.some(line => line.includes("Thinking level"))).toBe(false);
+    target.onInput?.(ESC, HOST);
     selectRow(target, "Prompt suggestions");
     target.onInput?.(`${ESC}[C`, HOST);
     expect(session.value("promptSuggestions")).toBe(false);
@@ -632,7 +636,8 @@ describe("the settings screen", () => {
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
     expect(session.value("promptSuggestions")).toBe(false);
-    expect(find(target, "Could not restore")).toContain("restore refused");
+    expect(find(target, "/ search")).not.toBe("");
+    expect(screen(target).join("\n")).not.toContain("restore refused");
 
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
@@ -700,7 +705,7 @@ describe("the settings screen", () => {
     expect(dialogHint).toContain("Esc close");
     expect(dialogHint).not.toContain("Space");
     expect(dialogHint).not.toContain(" to ");
-    const rendered = target.render({ width: 200, height: 24 }, NAMING_HOST);
+    const rendered = target.render({ width: 200, height: 48 }, NAMING_HOST);
     const styledHint = rendered.find(line => line.includes("<dim>Enter</dim>")) ?? "";
     const title = rendered.find(line => line.includes("Settings")) ?? "";
     expect(firstVisibleTextColumn(styledHint)).toBe(firstVisibleTextColumn(title));
@@ -1144,7 +1149,7 @@ describe("the value dropdown behind the screen", () => {
     await settleChanges();
     expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
     expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes("Thinking level")))
-      .toContain("<muted>high</muted>");
+      .toContain("<muted>high</muted");
 
     target.onInput?.(ENTER, HOST);
     const opened = target.render({ width: 80, height: 24 }, NAMING_HOST);
@@ -1159,7 +1164,7 @@ describe("the value dropdown behind the screen", () => {
 
     target.onInput?.(ESC, HOST);
     expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes("Thinking level")))
-      .toContain("<muted>high</muted>");
+      .toContain("<muted>high</muted");
     expect(writes).toHaveLength(1);
   });
 
@@ -1178,7 +1183,7 @@ describe("the value dropdown behind the screen", () => {
     expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
     const closed = target.render({ width: 80, height: 24 }, NAMING_HOST);
     expect(closed.join("\n")).not.toContain("<panel>");
-    expect(closed.find(line => line.includes("Thinking level"))).toContain("<muted>high</muted>");
+    expect(closed.find(line => line.includes("Thinking level"))).toContain("<muted>high</muted");
   });
 
   it("opens on the effective value under the pointer and navigates from it", async () => {
@@ -1269,6 +1274,10 @@ describe("the input row and status line behind the screen", () => {
     expect(hint).not.toContain("Type search");
     expect(hint).not.toContain(" to ");
     expect(hint).not.toMatch(/[·•]/u);
+    const armed = target.render({ width: 200, height: 24 }, { ...HOST, interruptArmed: true })
+      .map(line => line.replace(STYLE, ""));
+    expect(armed.find(line => line.includes("/ search"))).toBeDefined();
+    expect(armed.join("\n")).not.toContain("press ctrl+c again");
     const narrow = target.render({ width: 24, height: 8 }, HOST).map(line => line.replace(STYLE, ""));
     expect(narrow.at(-1)).toHaveLength(24);
   });
@@ -1448,14 +1457,14 @@ describe("the input row and status line behind the screen", () => {
     expect(paged).toContain("Wheel row 10");
   });
 
-  it("reports a failed write instead of the hint and does not make it undoable", async () => {
+  it("keeps shortcut hints after a failed write and does not make it undoable", async () => {
     const { app: target, writes } = await app(true);
     selectRow(target, "Thinking level");
     target.onInput?.(`${ESC}[C`, HOST);
-    // Invariant: the write is reported once it has been attempted, not on the keypress.
     await settleChanges();
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
-    expect(wide.find(line => line.includes("Could not save"))).toContain("Thinking level");
+    expect(wide.find(line => line.includes("/ search"))).toBeDefined();
+    expect(wide.some(line => line.includes("Could not save"))).toBe(false);
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
     expect(writes).toHaveLength(0);
