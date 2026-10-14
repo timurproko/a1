@@ -1,6 +1,6 @@
 # Resident tabs â€” architecture and roadmap
 
-Status: staged implementation. Milestones 1â€“4 are integrated. Milestone 5 implements the foreground UX, routes bare `a1` through tabs, and adds argument-free `a1 solo` as the explicit direct single-agent route. Windows physical-survival evidence exists for milestone 2 only. macOS and Linux physical survival, packaging, maintenance commands, and certification remain deferred to milestone 6; CI evidence is not a substitute. Discovery or verification failure safely falls back to the direct path. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
+Status: implemented. Milestones 1–6 deliver resident tabs as the bare-`a1` route on Windows x64, Linux x64, macOS arm64, and macOS x64, with `a1 solo` as the direct single-agent route and `a1 tabs` for maintenance. Every release carries a verified terminal host for each of those platforms. Certification is recorded per platform from exact-package evidence (see [Release state and known gaps](#release-state-and-known-gaps)); it is evidence, not a runtime gate. Discovery or verification failure falls back to the direct path with one notice. This document is the living design for multi-agent tabs; each change cites the decisions it implements and updates this file when a decision changes. The one target requirement no milestone has delivered yet is kept in [`resident-tabs-requirements.md`](resident-tabs-requirements.md).
 
 ## Context
 
@@ -517,6 +517,27 @@ Each milestone is its own OpenSpec change and pull request. Milestones 1â€“
 
 A failed milestone keeps its pull request open until fixed and preserves safe direct fallback. Each milestone 2â€“6 PR is a draft that holds its full plan (proposal, design, tasks, spec deltas) and starts implementation only after the previous milestone merges.
 
+### Release state and known gaps
+
+Per-platform state is recorded in `docs/architecture/evidence/resident-tabs/` using [the acceptance checklist](../manual-resident-tabs-acceptance.md). A platform is `CI-verified` until every physical item has a recorded pass on a published candidate, then `certified`.
+
+| Platform | State | Automated evidence | Physical record |
+|---|---|---|---|
+| Windows x64 | CI-verified | terminal-host and resident-chaos lanes; publication build | [windows-x64](evidence/resident-tabs/windows-x64.md) |
+| Linux x64 | CI-verified | terminal-host and resident-chaos lanes, bounded fuzzing; publication build | [linux-x64](evidence/resident-tabs/linux-x64.md) |
+| macOS arm64 | CI-verified | terminal-host and resident-chaos lanes; publication build | [macos-arm64](evidence/resident-tabs/macos-arm64.md) |
+| macOS x64 | CI-verified (build only) | publication build and identity check | [macos-x64](evidence/resident-tabs/macos-x64.md) |
+
+Known gaps:
+
+- Physical acceptance is pending on every platform; the user runs the macOS checks after milestone 6.
+- The 24-hour soak per platform has not run and remains a separate authorization.
+- Intel macOS has no automated behavior suite of its own: modular validation outcomes are keyed by platform without architecture, so the pull-request suites run on macOS arm64 only.
+- Reboot and logout restore, CLI tabs, split layouts, remote attach, worktree isolation, agent coordination, automatic cohort handoff, and image protocols are follow-ups.
+- Raw child stderr is not captured separately on any platform; milestone 4 provides only a tested private sink.
+- Downgrading to a release without the session-writer guard while tabs run is unsupported; stop the host first.
+- A maintenance stop of an unresponsive host uses an ordinary replacement server that is told to stop every tab at once, rather than a dedicated maintenance-only server mode.
+- Revisioned, atomic topology mutations remain a target requirement in [`resident-tabs-requirements.md`](resident-tabs-requirements.md).
 ### Follow-ups outside this roadmap
 
 - **Reboot and logout restore:** reopen the previous tab set after a new OS session.
