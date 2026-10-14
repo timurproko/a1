@@ -17,3 +17,31 @@ path = "fuzz_targets/decode_frame.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "decode_bridge"
+path = "fuzz_targets/decode_bridge.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse_records"
+path = "fuzz_targets/parse_records.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "boundary_marker"
+path = "fuzz_targets/boundary_marker.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vt_composition"
+path = "fuzz_targets/vt_composition.rs"
+test = false
+doc = false
+bench = false

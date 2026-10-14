@@ -24,13 +24,18 @@ pub struct ReleaseHolds {
     pub uncertain: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct OwnerMarker {
-    pid: u32,
-    start_identity: String,
+pub struct OwnerMarker {
+    pub pid: u32,
+    pub start_identity: String,
     #[serde(default)]
-    release_root: Option<String>,
+    pub release_root: Option<String>,
+}
+
+/// Decodes an owner marker's identity fields; anything malformed is `None`.
+pub fn parse_owner_marker(bytes: &[u8]) -> Option<OwnerMarker> {
+    serde_json::from_slice(bytes).ok()
 }
 
 enum Liveness {
@@ -94,7 +99,7 @@ where
         }
         let token = entry.file_name().to_string_lossy().into_owned();
         match std::fs::read(profile.join("server.json")) {
-            Ok(bytes) => match serde_json::from_slice::<OwnerMarker>(&bytes) {
+            Ok(bytes) => match parse_owner_marker(&bytes).ok_or(()) {
                 Ok(marker) => match liveness(marker.pid, &marker.start_identity) {
                     Liveness::Live => match marker.release_root {
                         Some(root) => {

@@ -89,7 +89,7 @@ describe("validation suite ownership", () => {
       return values;
     }));
     const excluded = Object.entries(suites.scopes).filter(([, definition]) => definition.fullReleaseExclusion !== undefined);
-    expect(excluded.map(([scope]) => scope)).toEqual(["terminal-host"]);
+    expect(excluded.map(([scope]) => scope)).toEqual(["terminal-host", "resident-chaos"]);
     for (const [scope, definition] of excluded) {
       expect(definition.fullReleaseExclusion).toMatch(/\S{8,}/u);
       expect(included.has(scope)).toBe(false);

@@ -80,10 +80,15 @@ impl RegistryStore {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(format!("read registry: {error}")),
         };
-        let document: RegistryDocument = serde_json::from_slice(&bytes)
+        Self::parse(&bytes).map(Some)
+    }
+
+    /// Decodes and validates registry bytes without touching the filesystem.
+    pub fn parse(bytes: &[u8]) -> Result<RegistryDocument, String> {
+        let document: RegistryDocument = serde_json::from_slice(bytes)
             .map_err(|error| format!("registry unreadable: {error}"))?;
         validate(&document)?;
-        Ok(Some(document))
+        Ok(document)
     }
 
     pub fn recover(path: &Path) -> Result<(Option<RegistryDocument>, Option<String>), String> {

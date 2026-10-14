@@ -1134,7 +1134,16 @@ fn every_named_crash_point_recovers_to_a_clean_start_with_a_working_tab() {
                 "{point}: registry did not recover"
             );
         }
-        start_server(&executable, &profile, &data, &runtime, &address);
+        // Invariant: an explicit restart resets the crash-loop start budget the faulted phase spent.
+        let restarted = server_command(&executable, &profile, &data, &runtime, &address)
+            .arg("--restart")
+            .output()
+            .expect("restart after crash point");
+        assert!(
+            restarted.status.success(),
+            "{point}: clean restart failed: {}",
+            String::from_utf8_lossy(&restarted.stderr)
+        );
         let mut cleanup = Cleanup {
             credentials_root: credentials_root.clone(),
             pids: server_pids(&credentials_root),

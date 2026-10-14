@@ -376,7 +376,7 @@
     },
     "terminal-host": {
       "kind": "commands",
-      "fullReleaseExclusion": "The three-target native contract is validated by its pull-request owner; packaged complete-regression integration remains deferred to resident-tabs milestone 6.",
+      "fullReleaseExclusion": "The native contract is validated by its pull-request owner on Windows x64, Linux x64, and macOS arm64, and the release-built artifact by the resident-chaos owner; publication builds and verifies every platform's artifact before packing.",
       "commands": [
         {
           "id": "terminal-host-build-and-probes",
@@ -384,6 +384,20 @@
           "arguments": [
             "run",
             "test:terminal-host"
+          ]
+        }
+      ]
+    },
+    "resident-chaos": {
+      "kind": "commands",
+      "fullReleaseExclusion": "Bounded randomized chaos runs on every terminal-host change against the release-built artifact; complete regression does not repeat it.",
+      "commands": [
+        {
+          "id": "resident-chaos-run",
+          "executable": "npm",
+          "arguments": [
+            "run",
+            "test:resident-chaos"
           ]
         }
       ]
