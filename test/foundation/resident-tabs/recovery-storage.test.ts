@@ -138,7 +138,7 @@ describe("resident prompt journal", () => {
   it("refuses to scan a session past the 64 MiB reconciliation cap", async () => {
     const session = join(await root(), "large.jsonl");
     await writeFile(session, "");
-    // A sparse file reaches the cap without writing 64 MiB of content.
+    // Rationale: a sparse file reaches the cap without writing 64 MiB of content.
     await truncate(session, 64 * 1024 * 1024 + 1);
     await expect(readSessionJournal(session)).rejects.toThrow("resident session exceeds the recovery scan limit");
   });

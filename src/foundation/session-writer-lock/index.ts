@@ -43,25 +43,14 @@ let cachedBackend: LockBackend | undefined;
 /** Development-only override naming a native lock addon to load first. */
 export const SESSION_LOCK_OVERRIDE_ENVIRONMENT = "A1_SESSION_LOCK_PATH";
 
-export function nativeCandidates(
-  moduleUrl: string = import.meta.url,
-  environment: NodeJS.ProcessEnv = process.env,
-  cwd: string = process.cwd(),
-  exists: (path: string) => boolean = existsSync,
-): string[] {
-  const suffix = process.platform === "win32" ? "win32" : process.platform;
-  const target = `${suffix}-${process.arch}`;
-  // Invariant: this module sits at dist/foundation/session-writer-lock/ inside the installed release root.
-  const releaseLock = resolve(fileURLToPath(new URL("../../../", moduleUrl)), "dist", "native", target, "a1_session_lock.node");
-  // Security: overrides and working-directory addons are development aids; a release that carries its
-  // own lock never loads native code chosen by the environment or the current directory.
-  const override = environment[PRODUCT_IDENTITY.environment.developmentInstanceId] ? environment[SESSION_LOCK_OVERRIDE_ENVIRONMENT]?.trim() : undefined;
-  if (exists(releaseLock)) return override ? [override, releaseLock] : [releaseLock];
-  return [
-    override,
-    resolve(cwd, "dist", "native", target, "a1_session_lock.node"),
-    resolve(cwd, ".artifacts", "terminal-host", "a1_session_lock.node"),
-  ].filter((value): value is string => typeof value === "string" && value.length > 0);
+/** Security: a release that carries its own lock never loads an addon chosen by the environment or cwd. */
+export function nativeCandidates(moduleUrl = import.meta.url, env = process.env, cwd = process.cwd(), exists = existsSync): string[] {
+  const addon = "a1_session_lock.node";
+  // Invariant: this module sits at dist/foundation/session-writer-lock/ inside the release root.
+  const own = resolve(fileURLToPath(new URL("../../../", moduleUrl)), "dist", "native", `${process.platform}-${process.arch}`, addon);
+  const override = env[PRODUCT_IDENTITY.environment.developmentInstanceId] ? env[SESSION_LOCK_OVERRIDE_ENVIRONMENT]?.trim() || undefined : undefined;
+  const local = exists(own) ? [own] : [resolve(cwd, "dist", "native", `${process.platform}-${process.arch}`, addon), resolve(cwd, ".artifacts", "terminal-host", addon)];
+  return override ? [override, ...local] : local;
 }
 
 function loadNativeBackend(): LockBackend | undefined {

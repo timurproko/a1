@@ -1590,7 +1590,7 @@ fn host_stop_terminates_an_unresponsive_server_and_stops_its_tabs() {
         .expect("inspect server")
         .expect("live server");
 
-    // A suspended server keeps its endpoint and holder connections but never answers.
+    // Rationale: a suspended server keeps its endpoint and holder connections but never answers.
     suspend(server);
     let stopped = tabs(
         &executable,
@@ -1722,7 +1722,7 @@ fn host_stop_refuses_an_unverifiable_owner_and_changes_nothing() {
         std::thread::sleep(Duration::from_millis(100));
     }
 
-    // An unreadable owner marker cannot be verified, so the stop refuses and leaves it in place.
+    // Rationale: an unreadable owner marker cannot be verified, so the stop refuses and leaves it in place.
     std::fs::write(credentials_root.join("server.json"), b"{not json").expect("write marker");
     let refused = tabs(
         &executable,
@@ -1739,7 +1739,7 @@ fn host_stop_refuses_an_unverifiable_owner_and_changes_nothing() {
         b"{not json"
     );
 
-    // A marker naming a live process under another start identity is pid reuse: nothing is signalled.
+    // Rationale: a marker naming a live process under another start identity is pid reuse: nothing is signalled.
     let own = terminal_host_contracts::identity::inspect_process(std::process::id())
         .expect("inspect test process")
         .expect("live test process");

@@ -552,7 +552,7 @@ mod tests {
         assert!(!path.exists(), "an owned socket is removed at exit");
 
         let stale = OwnerEndpoint::bind(profile.path(), runtime.path()).expect("endpoint");
-        // A replacement recovers the stale endpoint and binds a new socket at the same path.
+        // Rationale: a replacement recovers the stale endpoint and binds a new socket at the same path.
         std::fs::remove_file(&path).expect("recover stale socket");
         // Platform: file change times can be coarse; a real replacement binds far later than this.
         std::thread::sleep(std::time::Duration::from_millis(50));
