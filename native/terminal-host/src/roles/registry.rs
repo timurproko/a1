@@ -172,6 +172,10 @@ impl RegistryStore {
         Ok(path)
     }
 
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
     pub fn failure(&self) -> Option<String> {
         self.failed.lock().ok().and_then(|failure| failure.clone())
     }

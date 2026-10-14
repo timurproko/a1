@@ -487,18 +487,24 @@ fn stop_unresponsive_host(
         .arg("--runtime-dir")
         .arg(runtime)
         .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .status()
+        .output()
         .map_err(|error| format!("start replacement host: {error}"))?;
-    if !started.success() {
+    if !started.status.success() {
         host_stop_step(root, "replacement-failed");
         return Ok(TabsOutcome {
             report: serde_json::json!({ "host": "unresponsive", "terminatedUnresponsive": identity.pid, "message": "a replacement host could not start to stop the remaining tabs" }),
             exit: 3,
         });
     }
-    host_stop_step(root, "replacement-started");
+    host_stop_step(
+        root,
+        if String::from_utf8_lossy(&started.stdout).contains("already-running") {
+            "replacement-already-running"
+        } else {
+            "replacement-launched"
+        },
+    );
     let credentials = contracts::roles::credentials::ProfileCredentials::load_existing(root)?
         .ok_or_else(|| "resident credentials disappeared".to_owned())?;
     let endpoint = recorded_server_endpoint(root).unwrap_or_else(|| endpoint.to_owned());
@@ -595,12 +601,19 @@ fn recover_recorded_server(root: &std::path::Path) -> Result<(), String> {
     };
     match contracts::identity::inspect_process(record.pid).map_err(|error| error.to_string())? {
         None => Ok(()),
-        Some(observed) if observed == expected => contracts::identity::terminate_verified(
-            &expected,
-            Duration::from_secs(5),
-            Duration::from_secs(5),
-        )
-        .map_err(|error| format!("host-recovery-blocked: {error}")),
+        Some(observed) if observed == expected => {
+            let _ = contracts::roles::diagnostics::append_log(
+                &root.join("diagnostics"),
+                "server",
+                "host-recovery-terminated-owner",
+            );
+            contracts::identity::terminate_verified(
+                &expected,
+                Duration::from_secs(5),
+                Duration::from_secs(5),
+            )
+            .map_err(|error| format!("host-recovery-blocked: {error}"))
+        }
         Some(_) => Err("host-recovery-blocked: recorded owner identity is unverifiable".into()),
     }
 }

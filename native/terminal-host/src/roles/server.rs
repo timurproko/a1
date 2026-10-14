@@ -388,11 +388,38 @@ fn verify_session_writer_released(path: &Path, timeout: std::time::Duration) -> 
 }
 
 fn commit_registry(store: RegistryStore, document: RegistryDocument) -> Result<(), String> {
+    let diagnostics_root = store.path().parent().map(|root| root.join("diagnostics"));
     let result = commit_registry_bounded(store, document);
-    if result.is_err() {
+    if let Err(error) = &result {
         counters::record(CounterEvent::PersistenceDegraded);
+        if let Some(root) = diagnostics_root {
+            let _ = crate::roles::diagnostics::append_log(
+                &root,
+                "server",
+                registry_commit_event(error),
+            );
+        }
     }
     result
+}
+
+/// The diagnostic event for a failed registry commit, without any text from the error itself.
+fn registry_commit_event(error: &str) -> &'static str {
+    if error.contains("degraded") {
+        "registry-commit-degraded"
+    } else if error.contains("fenced") {
+        "registry-commit-fenced"
+    } else if error.contains("epoch mismatch") {
+        "registry-commit-epoch-mismatch"
+    } else if error.contains("lease") {
+        "registry-commit-lease-lost"
+    } else if error.contains("deadline") {
+        "registry-commit-deadline"
+    } else if error.contains("worker limit") {
+        "registry-commit-worker-limit"
+    } else {
+        "registry-commit-failed"
+    }
 }
 
 fn commit_registry_bounded(store: RegistryStore, document: RegistryDocument) -> Result<(), String> {
@@ -419,6 +446,41 @@ fn commit_registry_bounded(store: RegistryStore, document: RegistryDocument) -> 
     }
 }
 
+/// Binds the server endpoint, waiting a bounded time for a previous owner that is still leaving.
+/// A live owner is never disturbed; a Unix socket nothing answers on is stale and is replaced.
+fn bind_owned_endpoint(
+    profile: &Path,
+    config: &ServerLaunchConfig,
+) -> Result<OwnerEndpoint, String> {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let mut stale_removed = false;
+    loop {
+        let bound = if config.endpoint.is_empty() {
+            OwnerEndpoint::bind(profile, Path::new(&config.runtime_dir))
+        } else {
+            OwnerEndpoint::bind_name(config.endpoint.clone())
+        };
+        let error = match bound {
+            Ok(endpoint) => return Ok(endpoint),
+            Err(error) => error,
+        };
+        if cfg!(unix)
+            && !stale_removed
+            && !config.endpoint.is_empty()
+            && Path::new(&config.endpoint).exists()
+            && endpoint::connect(&config.endpoint).is_err()
+        {
+            endpoint::remove_stale(&config.endpoint).map_err(|error| error.to_string())?;
+            stale_removed = true;
+            continue;
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(format!("endpoint is owned by a live server: {error}"));
+        }
+        thread::sleep(std::time::Duration::from_millis(25));
+    }
+}
+
 pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<(), String> {
     let config: ServerLaunchConfig = serde_json::from_slice(context)
         .map_err(|error| format!("decode server context: {error}"))?;
@@ -429,6 +491,22 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     let root = data.join("tabs").join(token);
     std::fs::create_dir_all(&root)
         .map_err(|error| format!("create resident registry root: {error}"))?;
+    let diagnostics_root = root.join("diagnostics");
+    // Invariant: the endpoint is the one resource only a single server can own, so it is bound
+    // before the lease, the epoch, the registry, or the marker; a server that loses it leaves
+    // nothing behind that could fence or orphan the server that owns it.
+    let mut endpoint = match bind_owned_endpoint(profile, &config) {
+        Ok(endpoint) => endpoint,
+        Err(error) => {
+            let _ = crate::roles::diagnostics::append_log(
+                &diagnostics_root,
+                "server",
+                "endpoint-owned-elsewhere",
+            );
+            return Err(error);
+        }
+    };
+    crate::fault_injection::crash_at("after-bind");
     let lease_path = root.join("registry-writer-lease");
     if !lease_path.exists() {
         std::fs::write(&lease_path, b"a1 resident writer lease\n")
@@ -547,16 +625,6 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
             .map_err(|error| error.to_string())?;
         crate::fault_injection::crash_at("after-marker");
     }
-    if !config.endpoint.is_empty() {
-        endpoint::remove_stale(&config.endpoint).map_err(|error| error.to_string())?;
-    }
-    let mut endpoint = if config.endpoint.is_empty() {
-        OwnerEndpoint::bind(profile, Path::new(&config.runtime_dir))
-            .map_err(|error| error.to_string())?
-    } else {
-        OwnerEndpoint::bind_name(config.endpoint.clone()).map_err(|error| error.to_string())?
-    };
-    crate::fault_injection::crash_at("after-bind");
     std::fs::write(ready, format!("{}:server\n", std::process::id()))
         .map_err(|error| format!("write server readiness: {error}"))?;
     #[cfg(unix)]
@@ -564,7 +632,6 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     #[cfg(windows)]
     let endpoint_address = endpoint.name().to_owned();
     let starting_tabs = adopting_holders.clone();
-    let diagnostics_root = root.join("diagnostics");
     let _ = crate::roles::diagnostics::append_log(&diagnostics_root, "server", "started");
     let watchdog = crate::shell::watchdog::start(
         "server",
@@ -650,7 +717,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         core,
         workers: crate::shell::workers::WorkerPool::new(8),
         startup_notice,
-        diagnostics_root,
+        diagnostics_root: diagnostics_root.clone(),
         shutdown_requested: false,
     }));
     if !adopting_holders.is_empty() {
@@ -714,17 +781,35 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
                 return Err(error);
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
+                let _ = crate::roles::diagnostics::append_log(
+                    &diagnostics_root,
+                    "server",
+                    "endpoint-stopped",
+                );
                 return Err("resident endpoint stopped".to_owned());
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 supervise_holders(&state);
                 let exit = {
-                    let locked = state
-                        .lock()
-                        .map_err(|_| "resident state poisoned".to_owned())?;
-                    locked.shutdown_requested || locked.is_idle()
+                    let Ok(locked) = state.lock() else {
+                        let _ = crate::roles::diagnostics::append_log(
+                            &diagnostics_root,
+                            "server",
+                            "exit-state-poisoned",
+                        );
+                        return Err("resident state poisoned".to_owned());
+                    };
+                    if locked.shutdown_requested {
+                        Some("exit-shutdown")
+                    } else if locked.is_idle() {
+                        Some("exit-idle")
+                    } else {
+                        None
+                    }
                 };
-                if exit {
+                if let Some(event) = exit {
+                    let _ =
+                        crate::roles::diagnostics::append_log(&diagnostics_root, "server", event);
                     discard_standby(&state);
                     remove_owned_marker(&state);
                     return Ok(());
@@ -1224,7 +1309,17 @@ fn serve_peer(
     }
     if hello.role == "maintain" {
         wire::send(&mut stream, "welcome", request_id, welcome(epoch))?;
-        return serve_maintain(stream, state);
+        let served = serve_maintain(stream, state.clone());
+        if served.is_err()
+            && let Ok(locked) = state.lock()
+        {
+            let _ = crate::roles::diagnostics::append_log(
+                &locked.diagnostics_root,
+                "server",
+                "maintenance-request-failed",
+            );
+        }
+        return served;
     }
     wire::send(&mut stream, "welcome", request_id, welcome(epoch))?;
     let writer = stream
