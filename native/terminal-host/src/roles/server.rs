@@ -4029,48 +4029,55 @@ fn expire_unadmitted_holders(
 ) {
     thread::sleep(HOLDER_ADMISSION_DEADLINE);
     for tab_id in adopting {
-        let Ok(locked) = state.lock() else {
-            return;
-        };
-        if locked.holders.contains_key(&tab_id) || !locked.holders_starting.contains(&tab_id) {
-            continue;
-        }
-        let recorded = locked
-            .registry
-            .tabs
-            .iter()
-            .find(|record| record.tab_id == tab_id)
-            .and_then(|record| {
-                Some(ProcessIdentity {
-                    pid: record.holder_pid?,
-                    start: record.holder_start_identity.clone()?,
-                })
-            });
-        let diagnostics_root = locked.diagnostics_root.clone();
-        drop(locked);
-        let _ = crate::roles::diagnostics::append_log(
-            &diagnostics_root,
-            "server",
-            "holder-admission-expired",
-        );
-        if let Some(identity) = recorded {
-            counters::record(CounterEvent::HolderHangRecovery);
-            // Security: only the identity recorded for this tab is terminated, never a pid alone.
-            let _ = crate::identity::terminate_verified(
-                &identity,
-                std::time::Duration::from_secs(5),
-                std::time::Duration::from_secs(5),
-            );
-        }
-        let Ok(locked) = state.lock() else {
-            return;
-        };
-        // Invariant: a holder that reconnected while it was being verified keeps its tab.
-        if locked.holders.contains_key(&tab_id) {
-            continue;
-        }
-        let _ = holder_lost(state, locked, &tab_id, Some("holder not readmitted".into()));
+        // Concurrency: each tab verifies, terminates, and waits out its restart backoff on its
+        // own thread, so one tab's backoff never delays another's recovery.
+        let state = state.clone();
+        thread::spawn(move || expire_unadmitted_holder(&state, &tab_id));
     }
+}
+
+fn expire_unadmitted_holder(state: &Arc<Mutex<RuntimeState>>, tab_id: &str) {
+    let Ok(locked) = state.lock() else {
+        return;
+    };
+    if locked.holders.contains_key(tab_id) || !locked.holders_starting.contains(tab_id) {
+        return;
+    }
+    let recorded = locked
+        .registry
+        .tabs
+        .iter()
+        .find(|record| record.tab_id == tab_id)
+        .and_then(|record| {
+            Some(ProcessIdentity {
+                pid: record.holder_pid?,
+                start: record.holder_start_identity.clone()?,
+            })
+        });
+    let diagnostics_root = locked.diagnostics_root.clone();
+    drop(locked);
+    let _ = crate::roles::diagnostics::append_log(
+        &diagnostics_root,
+        "server",
+        "holder-admission-expired",
+    );
+    if let Some(identity) = recorded {
+        counters::record(CounterEvent::HolderHangRecovery);
+        // Security: only the identity recorded for this tab is terminated, never a pid alone.
+        let _ = crate::identity::terminate_verified(
+            &identity,
+            std::time::Duration::from_secs(5),
+            std::time::Duration::from_secs(5),
+        );
+    }
+    let Ok(locked) = state.lock() else {
+        return;
+    };
+    // Invariant: a holder that reconnected while it was being verified keeps its tab.
+    if locked.holders.contains_key(tab_id) {
+        return;
+    }
+    let _ = holder_lost(state, locked, tab_id, Some("holder not readmitted".into()));
 }
 
 /// The diagnostic event for a peer connection the server refused, without any peer-supplied text.
