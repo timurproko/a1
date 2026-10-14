@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { chmod, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -36,7 +36,10 @@ describe("resident release retention with real processes", () => {
   nativeIt("keeps the release a live holder and child run from through cleanup until the tab stops", async () => {
     const fixture = await releaseFixture(4);
     await activateAll(fixture.store, fixture.releases);
-    const [heldByTab, unheld] = fixture.releases;
+    const [heldByTab, unheld, , active] = fixture.releases;
+    // Invariant: the server records the release it runs from, so the fixture host runs from the
+    // active release layout; a host outside any release would make every release be kept.
+    const releaseHost = await installHost(active!.releaseRoot);
     const profile = resolve(fixture.root, "profile");
     await mkdir(profile, { recursive: true });
     // Platform: Unix socket paths have a short limit, so the runtime directory lives directly under /tmp.
@@ -48,7 +51,7 @@ describe("resident release retention with real processes", () => {
       ? `\\\\.\\pipe\\a1-tabs-retention-${process.pid}-${Date.now().toString(16)}`
       : resolve(runtime, "resident.sock");
     const common = ["--profile", profile, "--data-dir", fixture.dataDir, "--runtime-dir", runtime];
-    const run = (arguments_: readonly string[]) => spawnSync(host, [...arguments_], {
+    const run = (arguments_: readonly string[]) => spawnSync(releaseHost, [...arguments_], {
       encoding: "utf8",
       env: { ...process.env, A1_TABS_ENDPOINT: endpoint },
       cwd: heldByTab!.releaseRoot,
@@ -73,7 +76,7 @@ describe("resident release retention with real processes", () => {
       // Rationale: the fixture host is a debug build, so release artifact verification is replaced
       // by running that exact binary; the inspection itself is the production command.
       verify: async () => undefined,
-      run: async (_executable, arguments_, timeoutMs) => runBoundedHostCommand(host, arguments_, { maxStdoutBytes: 1024 * 1024, timeoutMs, label: "fixture release-hold inspection" }),
+      run: async (_executable, arguments_, timeoutMs) => runBoundedHostCommand(releaseHost, arguments_, { maxStdoutBytes: 1024 * 1024, timeoutMs, label: "fixture release-hold inspection" }),
     });
     await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
     const retained = await fixture.store.read();
@@ -145,6 +148,17 @@ describe("resident release retention with real processes", () => {
     }
   }, 180_000);
 });
+
+async function installHost(releaseRoot: string): Promise<string> {
+  const directory = resolve(releaseRoot, "dist", "native", `${process.platform}-${process.arch}`);
+  // Rationale: materialized releases may be read-only; the fixture adds its host before use.
+  for (const path of [releaseRoot, resolve(releaseRoot, "dist")]) await chmod(path, 0o755).catch(() => undefined);
+  await mkdir(directory, { recursive: true });
+  const installed = resolve(directory, `terminal-host${executable}`);
+  await copyFile(host, installed);
+  await chmod(installed, 0o755);
+  return installed;
+}
 
 async function until(condition: () => Promise<boolean>, timeoutMs = 30_000): Promise<void> {
   const started = Date.now();

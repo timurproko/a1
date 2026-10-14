@@ -1617,10 +1617,29 @@ fn host_stop_terminates_an_unresponsive_server_and_stops_its_tabs() {
         if holder_gone && server_pids(&credentials_root).is_empty() {
             break;
         }
-        assert!(
-            Instant::now() < deadline,
-            "the replacement did not stop the tab and exit"
-        );
+        if Instant::now() >= deadline {
+            let logs = std::fs::read_dir(credentials_root.join("diagnostics"))
+                .map(|entries| {
+                    entries
+                        .filter_map(Result::ok)
+                        .map(|entry| {
+                            format!(
+                                "{}:\n{}",
+                                entry.file_name().to_string_lossy(),
+                                std::fs::read_to_string(entry.path()).unwrap_or_default()
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                })
+                .unwrap_or_default();
+            panic!(
+                "the replacement did not stop the tab and exit: report={} holder_gone={holder_gone} marker={:?} registry={:?}\n{logs}",
+                stopped.1,
+                std::fs::read_to_string(credentials_root.join("server.json")).ok(),
+                std::fs::read_to_string(credentials_root.join("registry.json")).ok(),
+            );
+        }
         std::thread::sleep(Duration::from_millis(100));
     }
     // Invariant: the tab was stopped, not restarted, and nothing is left running afterwards.
