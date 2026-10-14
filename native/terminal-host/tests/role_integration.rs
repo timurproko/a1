@@ -1652,15 +1652,19 @@ fn host_stop_killed_at_each_step_leaves_no_orphan_or_duplicate_host() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
-    for point in [
+    for (index, point) in [
         "host-stop-after-terminate",
         "host-stop-after-replacement",
         "host-stop-after-answer",
-    ] {
-        let profile = directory(root.path(), &format!("profile-{point}"));
-        let data = directory(root.path(), &format!("data-{point}"));
-        let runtime = directory(root.path(), &format!("runtime-{point}"));
-        let release = directory(root.path(), &format!("release-{point}"));
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        // Platform: short names keep the Unix socket path under the platform's length limit.
+        let profile = directory(root.path(), &format!("p{index}"));
+        let data = directory(root.path(), &format!("d{index}"));
+        let runtime = directory(root.path(), &format!("r{index}"));
+        let release = directory(root.path(), &format!("x{index}"));
         protect_runtime(&runtime);
         let address = fixture_endpoint(&runtime);
         // Rationale: processes of this executable that predate the fixture belong to other
