@@ -465,12 +465,14 @@ fn stop_unresponsive_host(
         Duration::from_secs(5),
     )
     .map_err(|error| format!("terminate unresponsive host: {error}"))?;
+    host_stop_step(root, "terminated");
     // Invariant: only this profile's tabs need a replacement host to stop them; another profile's
     // live tabs belong to its own host.
     let holders = contracts::roles::release_holds::collect_profile(root, |pid| {
         contracts::identity::inspect_process(pid).map_err(|error| error.to_string())
     });
     if holders.complete && holders.release_roots.is_empty() {
+        host_stop_step(root, "no-live-tabs");
         return Ok(TabsOutcome {
             report: serde_json::json!({ "host": "stopped", "terminatedUnresponsive": identity.pid }),
             exit: 0,
@@ -490,22 +492,33 @@ fn stop_unresponsive_host(
         .status()
         .map_err(|error| format!("start replacement host: {error}"))?;
     if !started.success() {
+        host_stop_step(root, "replacement-failed");
         return Ok(TabsOutcome {
             report: serde_json::json!({ "host": "unresponsive", "terminatedUnresponsive": identity.pid, "message": "a replacement host could not start to stop the remaining tabs" }),
             exit: 3,
         });
     }
+    host_stop_step(root, "replacement-started");
     let credentials = contracts::roles::credentials::ProfileCredentials::load_existing(root)?
         .ok_or_else(|| "resident credentials disappeared".to_owned())?;
     let endpoint = recorded_server_endpoint(root).unwrap_or_else(|| endpoint.to_owned());
     let answer = contracts::roles::maintain::connect(&endpoint, &credentials.client_token)
         .map_err(|error| format!("replacement host refused maintenance: {error:?}"))?
         .request("host.stop", serde_json::json!({}), TABS_STOP_TIMEOUT);
+    host_stop_step(
+        root,
+        if answer.is_ok() {
+            "answered"
+        } else {
+            "unanswered"
+        },
+    );
     let answer = match answer {
         Ok(answer) => answer,
         // Invariant: a replacement may exit as soon as its last tab stops, closing the connection
         // before it answers; the stop succeeded only if no owner and no live tab remain.
         Err(_) if profile_quiesces(root, TABS_STOP_TIMEOUT) => {
+            host_stop_step(root, "quiesced");
             return Ok(TabsOutcome {
                 report: serde_json::json!({ "host": "stopped", "terminatedUnresponsive": identity.pid }),
                 exit: 0,
@@ -524,6 +537,15 @@ fn stop_unresponsive_host(
         }),
         exit: if accepted { 0 } else { 3 },
     })
+}
+
+/// Records a step of stopping an unresponsive host as a fixed diagnostic event code.
+fn host_stop_step(root: &std::path::Path, step: &str) {
+    let _ = contracts::roles::diagnostics::append_log(
+        &root.join("diagnostics"),
+        "server",
+        &format!("maintenance-host-stop-{step}"),
+    );
 }
 
 /// Waits until this profile has no verified owner and no live tab process, within `timeout`.

@@ -287,6 +287,8 @@ struct RuntimeState {
     tabs_max: usize,
     max_concurrent_starts: usize,
     active_starts: usize,
+    /// The start-gate slot each recovering tab holds, by a token unique to that acquisition.
+    recovery_slots: HashMap<String, u64>,
     last_start: Option<std::time::Instant>,
     last_activity: std::time::Instant,
     core_started: std::time::Instant,
@@ -640,6 +642,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         tabs_max: 10,
         max_concurrent_starts: config.max_concurrent_starts.clamp(1, 8),
         active_starts: 0,
+        recovery_slots: HashMap::new(),
         last_start: None,
         last_activity: std::time::Instant::now(),
         core_started,
@@ -762,6 +765,62 @@ fn acquire_start_gate(state: &Arc<Mutex<RuntimeState>>, timeout: std::time::Dura
 
 fn release_start_gate(state: &Arc<Mutex<RuntimeState>>) {
     if let Ok(mut locked) = state.lock() {
+        locked.active_starts = locked.active_starts.saturating_sub(1);
+    }
+}
+
+/// How long a recovering tab may hold a start-gate slot while its replacement holder starts.
+const RECOVERY_SLOT_BOUND: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Acquires a start-gate slot owned by `tab_id` until its replacement holder connects.
+///
+/// Invariant: a replacement holder can die, or its tab can stop, before it connects, so the slot
+/// is also returned after a bound; otherwise each lost start would shrink the gate until every
+/// later restart and tab start timed out.
+fn acquire_recovery_slot(
+    state: &Arc<Mutex<RuntimeState>>,
+    tab_id: &str,
+    timeout: std::time::Duration,
+) -> bool {
+    if !acquire_start_gate(state, timeout) {
+        return false;
+    }
+    let token = rand::random::<u64>();
+    let Ok(mut locked) = state.lock() else {
+        return false;
+    };
+    if locked
+        .recovery_slots
+        .insert(tab_id.to_owned(), token)
+        .is_some()
+    {
+        // Invariant: a tab holds at most one slot; a newer recovery supersedes the older one.
+        locked.active_starts = locked.active_starts.saturating_sub(1);
+    }
+    drop(locked);
+    let state = state.clone();
+    let tab_id = tab_id.to_owned();
+    thread::spawn(move || {
+        thread::sleep(RECOVERY_SLOT_BOUND);
+        if let Ok(mut locked) = state.lock()
+            && locked.recovery_slots.get(&tab_id) == Some(&token)
+        {
+            locked.recovery_slots.remove(&tab_id);
+            locked.active_starts = locked.active_starts.saturating_sub(1);
+        }
+    });
+    true
+}
+
+fn release_recovery_slot_of(state: &Arc<Mutex<RuntimeState>>, tab_id: &str) {
+    if let Ok(mut locked) = state.lock() {
+        release_recovery_slot(&mut locked, tab_id);
+    }
+}
+
+/// Returns the start-gate slot `tab_id` holds for its recovery, if it still holds one.
+fn release_recovery_slot(locked: &mut RuntimeState, tab_id: &str) {
+    if locked.recovery_slots.remove(tab_id).is_some() {
         locked.active_starts = locked.active_starts.saturating_sub(1);
     }
 }
@@ -3355,8 +3414,10 @@ fn serve_holder(
             core_tab.last_heartbeat_at = heartbeat_at;
             core_tab.missed_heartbeats = 0;
         }
+        // Invariant: only a slot this tab's recovery took is returned; a holder re-adopted by a
+        // replacement server while restarting never took one.
         if recovering {
-            locked.active_starts = locked.active_starts.saturating_sub(1);
+            release_recovery_slot(&mut locked, &tab_id);
         }
         let registry_commit = recovering.then(|| {
             locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
@@ -3384,13 +3445,13 @@ fn serve_holder(
                 },
             )?);
         } else if let Some(respawn) = pending_respawn {
-            if !acquire_start_gate(&state, std::time::Duration::from_secs(40)) {
+            if !acquire_recovery_slot(&state, &tab_id, std::time::Duration::from_secs(40)) {
                 return Err("resident restart start gate timed out".into());
             }
             if let Err(error) =
                 holder_peer.offer_control(wire::frame("holder.respawn", None, respawn)?)
             {
-                release_start_gate(&state);
+                release_recovery_slot_of(&state, &tab_id);
                 return Err(error.to_owned());
             }
         }
@@ -3616,13 +3677,17 @@ fn serve_holder(
                             };
                             commit_registry(commit.0, commit.1)?;
                         } else {
-                            if !acquire_start_gate(&state, std::time::Duration::from_secs(40)) {
+                            if !acquire_recovery_slot(
+                                &state,
+                                &tab_id,
+                                std::time::Duration::from_secs(40),
+                            ) {
                                 return Err("resident restart start gate timed out".into());
                             }
                             if let Err(error) =
                                 peer.offer_control(wire::frame("holder.respawn", None, respawn)?)
                             {
-                                release_start_gate(&state);
+                                release_recovery_slot_of(&state, &tab_id);
                                 return Err(error.to_owned());
                             }
                         }
@@ -3849,18 +3914,22 @@ fn serve_holder(
                                 .filter(|holder| holder.incarnation == connection_incarnation)
                                 .map(|holder| holder.peer.clone())
                         });
-                        if !acquire_start_gate(&state, std::time::Duration::from_secs(40)) {
+                        if !acquire_recovery_slot(
+                            &state,
+                            &tab_id,
+                            std::time::Duration::from_secs(40),
+                        ) {
                             return Err("resident restart start gate timed out".into());
                         }
                         if let Some(peer) = peer {
                             if let Err(error) =
                                 peer.offer_control(wire::frame("holder.respawn", None, respawn)?)
                             {
-                                release_start_gate(&state);
+                                release_recovery_slot_of(&state, &tab_id);
                                 return Err(error.to_owned());
                             }
                         } else {
-                            release_start_gate(&state);
+                            release_recovery_slot_of(&state, &tab_id);
                         }
                     }
                 }
@@ -4014,11 +4083,11 @@ fn holder_lost(
                 return Ok(());
             }
         }
-        if !acquire_start_gate(state, std::time::Duration::from_secs(40)) {
+        if !acquire_recovery_slot(state, tab_id, std::time::Duration::from_secs(40)) {
             return Err("replacement holder start gate timed out".into());
         }
         if let Err(error) = launch_replacement_holder(state, tab_id) {
-            release_start_gate(state);
+            release_recovery_slot_of(state, tab_id);
             let commit = {
                 let mut locked = state
                     .lock()
