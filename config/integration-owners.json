@@ -312,10 +312,12 @@
       "entries": [
         "scripts/development/run-terminal-host-probe.mjs",
         "scripts/development/test-session-lock-addon.mjs",
-        "test/foundation/resident-tabs/resident-tabs.test.ts"
+        "test/foundation/resident-tabs/resident-tabs.test.ts",
+        "test/foundation/release/resident-release-retention.integration.test.ts"
       ],
       "tests": [
-        "test/foundation/resident-tabs/resident-tabs.test.ts"
+        "test/foundation/resident-tabs/resident-tabs.test.ts",
+        "test/foundation/release/resident-release-retention.integration.test.ts"
       ],
       "support": [
         "native/terminal-host/",

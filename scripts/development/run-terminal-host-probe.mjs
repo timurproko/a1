@@ -16,6 +16,7 @@ run(cargo, ["test", "--manifest-path", manifest, "--features", "resident-fixture
 assertNoFixtureProcesses(environment);
 run(process.execPath, [
   resolve("node_modules/vitest/vitest.mjs"), "run",
+  "test/foundation/release/resident-release-retention.integration.test.ts",
   "test/foundation/resident-tabs/recovery-storage.test.ts",
   "test/foundation/resident-tabs/resident-tabs.test.ts",
   "test/foundation/resident-tabs/tab-launch-context.test.ts",
