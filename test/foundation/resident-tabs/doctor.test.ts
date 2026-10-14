@@ -71,7 +71,7 @@ async function residentState() {
 describe("a1 tabs doctor bundle", () => {
   it("includes diagnostics by allowlist and none of the excluded sensitive classes", async () => {
     const { root, state } = await residentState();
-    process.env.A1_DOCTOR_CANARY_ENVIRONMENT = CANARIES.environment;
+    process.env.DOCTOR_CANARY_ENVIRONMENT = CANARIES.environment;
     try {
       const bundle = await writeDoctorBundle({
         stateDir: state,
@@ -97,7 +97,7 @@ describe("a1 tabs doctor bundle", () => {
       expect(JSON.parse(entries.get("settings.json")!)).toEqual({ tabsMax: 10, tabsAutoName: true });
       expect(bundle.path.startsWith(join(state, "doctor"))).toBe(true);
     } finally {
-      delete process.env.A1_DOCTOR_CANARY_ENVIRONMENT;
+      delete process.env.DOCTOR_CANARY_ENVIRONMENT;
     }
   });
 

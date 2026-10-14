@@ -187,6 +187,46 @@ mod tests {
     use super::*;
 
     #[test]
+    fn logs_rotate_at_their_cap_and_keep_a_bounded_number_of_generations() {
+        let root = tempfile::tempdir().unwrap();
+        let base = root.path().join("terminal-host-server.log");
+        std::fs::write(&base, vec![b'x'; MAX_LOG_BYTES as usize]).unwrap();
+        for generation in 1..=MAX_LOG_GENERATIONS {
+            std::fs::write(
+                base.with_extension(format!("log.{generation}")),
+                format!("generation-{generation}"),
+            )
+            .unwrap();
+        }
+        append_log(root.path(), "server", "server-start").unwrap();
+        assert!(std::fs::metadata(&base).unwrap().len() < 128);
+        assert_eq!(
+            std::fs::metadata(base.with_extension("log.1"))
+                .unwrap()
+                .len(),
+            MAX_LOG_BYTES
+        );
+        assert_eq!(
+            std::fs::read_to_string(base.with_extension(format!("log.{MAX_LOG_GENERATIONS}")))
+                .unwrap(),
+            format!("generation-{}", MAX_LOG_GENERATIONS - 1)
+        );
+        let logs = std::fs::read_dir(root.path())
+            .unwrap()
+            .filter(|entry| {
+                entry
+                    .as_ref()
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("terminal-host-server.log")
+            })
+            .count();
+        assert_eq!(logs, MAX_LOG_GENERATIONS + 1);
+        assert!(append_log(root.path(), "server", "contains space").is_err());
+    }
+
+    #[test]
     fn crash_records_are_distinct_bounded_and_allowlisted() {
         let root = tempfile::tempdir().unwrap();
         let one = write_crash(

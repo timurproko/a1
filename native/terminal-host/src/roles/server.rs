@@ -131,6 +131,51 @@ impl ClientRenderLanes {
 
 const CONTROL_LANE_FRAMES: usize = 1024;
 const CONTROL_LANE_BYTES: usize = 4 * 1024 * 1024;
+/// Hard caps on the server's own collections; `docs/architecture/resident-tabs.md` lists every bound.
+pub const MAX_CONNECTIONS: usize = 128;
+pub const MAX_ATTACHED_CLIENTS: usize = 16;
+pub const MAX_STOPPED_RECORDS: usize = 16;
+pub const HARD_TABS_MAX: usize = 50;
+
+/// True while another viewing client may attach.
+pub fn client_slot_available(attached: usize) -> bool {
+    attached < MAX_ATTACHED_CLIENTS
+}
+
+/// Reserves one connection slot, or refuses once [`MAX_CONNECTIONS`] are being served.
+pub fn admit_connection(active: &AtomicUsize) -> bool {
+    if active.fetch_add(1, Ordering::SeqCst) >= MAX_CONNECTIONS {
+        active.fetch_sub(1, Ordering::SeqCst);
+        return false;
+    }
+    true
+}
+
+/// Keeps at most [`MAX_STOPPED_RECORDS`] stopped tab records whose holders are gone, dropping the
+/// oldest first. Their sessions stay on disk; only the registry entry is released.
+pub fn prune_stopped_records(tabs: &mut Vec<TabRecord>) {
+    let mut stopped = tabs
+        .iter()
+        .filter(|tab| tab.desired == "stopped" && tab.holder_pid.is_none())
+        .map(|tab| {
+            (
+                tab.created_at.parse::<u64>().unwrap_or(0),
+                tab.tab_id.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    if stopped.len() <= MAX_STOPPED_RECORDS {
+        return;
+    }
+    stopped.sort();
+    let excess = stopped.len() - MAX_STOPPED_RECORDS;
+    let remove = stopped
+        .into_iter()
+        .take(excess)
+        .map(|(_, tab_id)| tab_id)
+        .collect::<std::collections::HashSet<_>>();
+    tabs.retain(|tab| !remove.contains(&tab.tab_id));
+}
 
 #[derive(Clone)]
 struct Peer {
@@ -610,14 +655,22 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
             }
         }
     });
+    let connections = Arc::new(AtomicUsize::new(0));
     loop {
         watchdog.bump();
         match accepted_rx.recv_timeout(std::time::Duration::from_secs(1)) {
             Ok(Ok(stream)) => {
+                // Security: a same-user process cannot exhaust server threads with idle connections.
+                if !admit_connection(&connections) {
+                    drop(stream);
+                    continue;
+                }
                 let shared = state.clone();
                 let profile = profile.to_path_buf();
+                let connections = connections.clone();
                 thread::spawn(move || {
                     let _ = serve_peer(stream, shared, profile);
+                    connections.fetch_sub(1, Ordering::SeqCst);
                 });
             }
             Ok(Err(error)) => return Err(error),
@@ -640,6 +693,22 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
             }
         }
     }
+}
+
+/// Tabs that count against `tabsMax`: open records plus starts not yet in the registry.
+fn open_tab_count(state: &RuntimeState) -> usize {
+    let open = state
+        .registry
+        .tabs
+        .iter()
+        .filter(|tab| tab.desired != "stopped")
+        .count();
+    let pending = state
+        .holders_starting
+        .iter()
+        .filter(|tab_id| !state.registry.tabs.iter().any(|tab| &tab.tab_id == *tab_id))
+        .count();
+    open + pending
 }
 
 fn acquire_start_gate(state: &Arc<Mutex<RuntimeState>>, timeout: std::time::Duration) -> bool {
@@ -1827,6 +1896,9 @@ fn serve_attach(
         let mut locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
+        if !client_slot_available(locked.clients.len()) {
+            return Err("attached client limit reached".to_owned());
+        }
         let viewed_tab = requested_tab
             .filter(|tab_id| locked.registry.tabs.iter().any(|tab| &tab.tab_id == tab_id))
             .unwrap_or_else(|| locked.default_tab());
@@ -1933,7 +2005,10 @@ fn serve_attach(
                         })
                     {
                         (tab.tab_id.clone(), false)
-                    } else if selected.is_some() && !locked.registry.tabs.is_empty() {
+                    } else if selected.is_some()
+                        && !locked.registry.tabs.is_empty()
+                        && open_tab_count(&locked) < locked.tabs_max.min(HARD_TABS_MAX)
+                    {
                         let tab_id = format!("tab-{:016x}", rand::random::<u64>());
                         let start = locked.holders_starting.insert(tab_id.clone());
                         (tab_id, start)
@@ -2646,6 +2721,7 @@ fn promote_standby(
             .as_secs()
             .to_string();
         let previous = locked.registry.clone();
+        prune_stopped_records(&mut locked.registry.tabs);
         locked.registry.tabs.push(TabRecord {
             tab_id: standby.tab_id.clone(),
             kind: "a1".into(),
@@ -2906,6 +2982,7 @@ fn start_holder(
             .to_string();
         locked.launches.insert(tab_id.clone(), start.clone());
         locked.registry.tabs.retain(|tab| tab.tab_id != tab_id);
+        prune_stopped_records(&mut locked.registry.tabs);
         locked.registry.tabs.push(TabRecord {
             tab_id: tab_id.clone(),
             kind: "a1".into(),
@@ -4267,6 +4344,79 @@ pub fn encoded_bridge_token(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn record(tab_id: &str, created_at: u64, desired: &str, holder_pid: Option<u32>) -> TabRecord {
+        TabRecord {
+            tab_id: tab_id.into(),
+            kind: "a1".into(),
+            created_at: created_at.to_string(),
+            display_name: tab_id.into(),
+            name_source: "default".into(),
+            order: 0,
+            cwd: "/w".into(),
+            session_file: None,
+            session_dir: None,
+            desired: desired.into(),
+            lifecycle: if desired == "stopped" {
+                "stopped".into()
+            } else {
+                "running".into()
+            },
+            incarnation: 1,
+            holder_pid,
+            holder_start_identity: None,
+            child_pid: None,
+            child_start_identity: None,
+            release: "/r".into(),
+            last_exit: None,
+            restarts: 0,
+            restart_window_start: None,
+            requested_restart: false,
+            attention_seq: 0,
+            seen_seq: 0,
+        }
+    }
+
+    #[test]
+    fn attached_clients_are_capped() {
+        assert!(client_slot_available(MAX_ATTACHED_CLIENTS - 1));
+        assert!(!client_slot_available(MAX_ATTACHED_CLIENTS));
+        assert!(!client_slot_available(MAX_ATTACHED_CLIENTS + 1));
+    }
+
+    #[test]
+    fn connections_beyond_the_cap_are_refused_and_released_slots_are_reused() {
+        let active = AtomicUsize::new(0);
+        for _ in 0..MAX_CONNECTIONS {
+            assert!(admit_connection(&active));
+        }
+        assert!(!admit_connection(&active));
+        assert_eq!(active.load(Ordering::SeqCst), MAX_CONNECTIONS);
+        active.fetch_sub(1, Ordering::SeqCst);
+        assert!(admit_connection(&active));
+    }
+
+    #[test]
+    fn stopped_records_are_bounded_oldest_first_and_live_tabs_are_kept() {
+        let mut tabs = (0..MAX_STOPPED_RECORDS as u64 + 5)
+            .map(|index| record(&format!("stopped-{index}"), index, "stopped", None))
+            .collect::<Vec<_>>();
+        tabs.push(record("running", 0, "running", Some(7)));
+        tabs.push(record("stopping", 0, "stopped", Some(8)));
+        prune_stopped_records(&mut tabs);
+        let stopped = tabs
+            .iter()
+            .filter(|tab| tab.desired == "stopped" && tab.holder_pid.is_none())
+            .count();
+        assert_eq!(stopped, MAX_STOPPED_RECORDS);
+        assert!(tabs.iter().all(|tab| tab.tab_id != "stopped-0"));
+        assert!(tabs.iter().any(|tab| tab.tab_id == "stopped-20"));
+        assert!(tabs.iter().any(|tab| tab.tab_id == "running"));
+        assert!(
+            tabs.iter().any(|tab| tab.tab_id == "stopping"),
+            "a stopped record whose holder is still live is kept"
+        );
+    }
 
     #[test]
     fn stalled_client_gets_one_full_current_surface() {

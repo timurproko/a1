@@ -364,10 +364,36 @@ The settings live in the owned settings screen, each with a hard cap.
 - Unresponsive restart and stall-notice timing are internal fixed behavior at 120 and 300 seconds; concurrent starts use internal default 2/hard cap 8 and prewarm uses internal count/hard cap 1.
 - Every open tab keeps its holder and A1 process until explicit close. There is no idle-suspension setting, timer, lifecycle, or glyph.
 - Scrollback is capped at 10 MiB per holder, and the replay after a server restart is the retained model itself.
-- The server exits after 10 minutes with no running tabs, clients, holders, or standby.
+- The server exits after 10 minutes with no attached client and no live user tab; the prewarmed standby does not keep it alive and is stopped first.
 - Structured diagnostic logs are `terminal-host-server.log` and `terminal-host-holder-<tab>.log`, rotated at 5 MiB with three kept. Use allowlisted fields/reason codes, not arbitrary exception strings, prompt text, terminal content, or credentials.
 - Raw child stderr cannot be declared sanitized: when available separately from ConPTY's combined terminal stream, store it only under the owner-only per-tab recovery area, at 5 MiB with three generations and a seven-day maximum age, alongside bounded last-screen files. Do not scrape stderr back out of terminal cells. These private artifacts may contain conversation or sensitive content and are excluded from `a1 tabs doctor`; neither their contents nor arbitrary extension errors enter structured crash records.
-- `a1 tabs host status` prints the server id, build, generation, detachment mode, tab count, and log paths.
+- `a1 tabs host status` prints the server pid, build, release, generation, epoch, uptime, detachment mode, tab count by status, client count, configured and hard limits, volatile health counters since server start, and log paths.
+
+#### Hard bounds (milestone 6 audit)
+
+Every queue, buffer, file, and collection the resident roles keep has a declared cap. Each row names where the cap is enforced and the test that pushes past it.
+
+| Bound | Cap | Enforced in | Test |
+|---|---|---|---|
+| Protocol frame | 2 MiB, nesting 64, 65,536 collection items | `native/terminal-host/src/protocol.rs`, `src/foundation/resident-tabs/protocol.ts` | `refuses_oversized_header_before_payload`; TS protocol tests |
+| Input per message and holder input queue | 1 MiB | `protocol.rs`, `core/holder.rs`, `roles/holder.rs` | `over_capacity_paste_delivers_no_prefix` |
+| Per-client control lane | 1,024 frames and 4 MiB | `roles/server.rs` | `control_lane_is_bounded_by_frames_and_bytes` |
+| Per-client render slot | one pending full surface; a newer one replaces it | `roles/server.rs` `Peer::offer_surface` | `stalled_client_gets_one_full_current_surface` |
+| Concurrent endpoint connections | 128 | `roles/server.rs` `admit_connection` | `connections_beyond_the_cap_are_refused_and_released_slots_are_reused` |
+| Attached viewing clients | 16 | `roles/server.rs` `client_slot_available` | `attached_clients_are_capped` |
+| Open tabs | `tabsMax` (default 10, hard 50), including session-selection starts | `roles/server.rs` `tab.create`, `attach.start` | `ten_concurrent_tab_starts_respect_the_server_limit` |
+| Concurrent holder starts | default 2, hard 8 | `core/server.rs` | `limits_starts_and_drops_stale_completion` |
+| Stopped tab records | 16, oldest dropped first | `roles/server.rs` `prune_stopped_records` | `stopped_records_are_bounded_oldest_first_and_live_tabs_are_kept` |
+| Prior tab-set archives | bounded history | `roles/registry.rs` | `prior_tab_sets_are_bounded` |
+| Abandoned blocking workers | 8 | `shell/workers.rs` | worker pool tests |
+| Diagnostic logs | 5 MiB × 3 generations per role | `roles/diagnostics.rs` | `logs_rotate_at_their_cap_and_keep_a_bounded_number_of_generations` |
+| Crash records | 64 KiB each, 50 records, 30 days | `roles/diagnostics.rs`, `shell/watchdog.rs` | `crash_records_are_distinct_bounded_and_allowlisted`, `crash_record_is_bounded_and_owner_only` |
+| Last screen and private stderr sink | 2 MiB; 5 MiB × 3 generations, 7 days | `roles/recovery_artifacts.rs` | `recovery_files_are_plain_bounded_private_and_rotated`, `fixture_stderr_sink_caps_content` |
+| Prompt journal | 8 MiB, 2 MiB per record | `src/foundation/resident-tabs/prompt-journal.ts` | recovery storage tests |
+| Session reconciliation read | 64 MiB | `src/foundation/resident-tabs/recovery.ts` | recovery tests |
+| Release-hold report | 32 uncertainty reasons; 1 MiB read | `roles/release_holds.rs`, `release-holds.ts` | release-hold tests |
+| Maintenance exchange | 5 s reads, 60 s stops, 4 MiB report | `roles/maintain.rs`, `maintenance.ts` | maintenance tests |
+| Doctor bundle | 25 MiB, oldest log generations dropped first | `src/foundation/resident-tabs/doctor.ts` | `drops the oldest log generations first to stay within its cap` |
 
 ### 13. Packaging and certification
 
