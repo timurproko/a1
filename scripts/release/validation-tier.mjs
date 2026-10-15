@@ -4,6 +4,7 @@ import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { recordBuildReceipt, verifyBuildReceipt, verifyPackageReceipt } from "./validation-receipt.mjs";
 import { FULL_REGRESSION_SHARDS } from "./full-regression-shards.mjs";
+import { expandValidationScopes } from "./validation-scopes.mjs";
 export { FULL_REGRESSION_SHARDS } from "./full-regression-shards.mjs";
 import {
   cleanupExactPackagePreparation,
@@ -57,23 +58,7 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
     try { if (!(await stat(resolve(repository, test))).isFile()) throw new Error("not a file"); }
     catch { throw new Error(`additional validation test does not exist: ${test}`); }
   }
-  const atomic = [];
-  const visiting = new Set();
-
-  function expand(name) {
-    const definition = suites.tiers[name] ?? suites.scopes[name];
-    if (!definition) throw new Error(`unknown validation tier or scope: ${name}`);
-    if (definition.kind !== "composition") {
-      if (!atomic.includes(name)) atomic.push(name);
-      return;
-    }
-    if (visiting.has(name)) throw new Error(`cyclic validation composition: ${name}`);
-    visiting.add(name);
-    for (const child of definition.includes ?? []) expand(child);
-    visiting.delete(name);
-  }
-
-  for (const name of requested) expand(name);
+  const atomic = expandValidationScopes(suites, requested);
   const definitions = atomic.map(name => ({ name, definition: suites.tiers[name] ?? suites.scopes[name] }));
   const full = requested.includes("full-release");
   const requiresBuild = definitions.some(({ definition }) => definition.requiresBuild === true);

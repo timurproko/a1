@@ -566,8 +566,9 @@ jobs:
       # scripts/release/validation-matrix.mjs, and the in-job resolver remains the second check.
       matrix: ${{ fromJSON(needs.changes.outputs.modular-matrix) }}
     runs-on: ${{ matrix.os }}
-    # A cold terminal-host build compiles libghostty-vt with Zig before the Rust crate.
-    timeout-minutes: ${{ (matrix.terminalHost || matrix.chaos) && 45 || 20 }}
+    # A cold terminal-host build compiles libghostty-vt with Zig before the Rust crate; lanes that
+    # pack a candidate build the release host too, which the selection decides after scheduling.
+    timeout-minutes: ${{ (matrix.terminalHost || matrix.chaos) && 45 || 35 }}
     steps:
       - name: Start job timing
         shell: bash
@@ -624,6 +625,26 @@ jobs:
       - name: Install exact dependencies and build
         if: steps.job-selection.outputs.active == 'true' && matrix.build
         run: npm ci
+      # Invariant: a packed candidate carries the release terminal host a published package ships.
+      # Without it every packaged launch falls back to the direct UI and the resident route is untested.
+      - name: Prepare release terminal host Rust toolchain
+        if: steps.job-selection.outputs.packs_candidate == 'true'
+        shell: bash
+        run: bash scripts/development/prepare-ci-rust.sh
+      - name: Set up Zig for the release terminal host
+        if: steps.job-selection.outputs.packs_candidate == 'true'
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.15.2
+      - name: Cache release terminal host build
+        if: steps.job-selection.outputs.packs_candidate == 'true'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: terminal-host-release
+          workspaces: native/terminal-host
+      - name: Build the release terminal host into the candidate
+        if: steps.job-selection.outputs.packs_candidate == 'true'
+        run: npm run build:terminal-host
       - name: Record verified install-time build
         if: steps.job-selection.outputs.active == 'true' && matrix.build
         run: node scripts/release/record-validation-prerequisite.mjs build

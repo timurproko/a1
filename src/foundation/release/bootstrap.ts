@@ -39,6 +39,8 @@ export interface BootstrapOptions {
   readonly scheduleMaintenance?: (dataDir: string, paths: ReturnType<typeof resolveProductPaths>) => Promise<void>;
   /** Test seam for resident launch routing before the guardian starts. */
   readonly ensureTerminalHost?: (options: EnsureTerminalHostOptions) => Promise<EnsureTerminalHostResult>;
+  /** Test seam for whether this process's standard input and output are terminals; absent reads them. */
+  readonly interactiveTerminal?: boolean;
 }
 
 const RELEASE_RESELECTION_MESSAGE = "a1-release-reselection";
@@ -73,6 +75,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
       profileId: launchProfileId,
       currentLaunchContract: isCurrentLaunchContract(release),
       solo: launchMode === "solo",
+      interactive: options.interactiveTerminal ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
       ensureHost: async () => (options.ensureTerminalHost ?? ensureTerminalHost)({
         releaseRoot: release.releaseRoot,
         profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,

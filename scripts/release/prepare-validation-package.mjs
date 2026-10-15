@@ -6,11 +6,19 @@ import { repairNativeExecutableModes } from "./repair-native-executable-modes.mj
 import { assertPackingNpm, normalizeNpmPackMetadata, parseNpmPackOutput } from "./npm-pack-metadata.mjs";
 import { createValidationPhaseRecorder } from "./validation-phase.mjs";
 import { recordPackageReceipt, verifyBuildReceipt } from "./validation-receipt.mjs";
+import { nativeArtifactProblems, RELEASE_NATIVE_TARGETS } from "./verify-native-artifacts.mjs";
 
 const phases = createValidationPhaseRecorder("candidate-package");
 const buildReceipt = process.env.VALIDATION_BUILD_RECEIPT;
 if (!buildReceipt) throw new Error("VALIDATION_BUILD_RECEIPT is required before candidate packing");
 await phases.run("verify-build-receipt", () => verifyBuildReceipt(buildReceipt));
+// Invariant: a CI candidate carries this platform's release terminal host. Without it every launch
+// falls back to the direct UI, so packaged suites pass while testing a route no release ships.
+if (process.env.GITHUB_ACTIONS === "true") {
+  const local = RELEASE_NATIVE_TARGETS.filter(target => target.platform === process.platform && target.architecture === process.arch);
+  const problems = await phases.run("verify-local-native-artifacts", () => nativeArtifactProblems(resolve("dist", "native"), local));
+  if (problems.length > 0) throw new Error(`Validation candidate lacks this platform's release native artifacts; run npm run build:terminal-host before recording the build:\n${problems.map(problem => `- ${problem}`).join("\n")}`);
+}
 const outputDirectory = resolve(".artifacts", "validation", "package");
 await rm(outputDirectory, { recursive: true, force: true });
 await mkdir(outputDirectory, { recursive: true });

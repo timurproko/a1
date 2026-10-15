@@ -27,7 +27,27 @@ describe("workflow prerequisite receipts", () => {
   it("verifies the build immediately before packing and then binds the exact package receipt", async () => {
     const source = await readFile("scripts/release/prepare-validation-package.mjs", "utf8");
     expect(source.indexOf('phases.run("verify-build-receipt"')).toBeLessThan(source.indexOf('phases.runSync("npm-pack"'));
+    expect(source.indexOf('phases.run("verify-local-native-artifacts"')).toBeLessThan(source.indexOf('phases.runSync("npm-pack"'));
     expect(source.indexOf('phases.runSync("npm-pack"')).toBeLessThan(source.indexOf('phases.run("package-receipt"'));
+  });
+
+  // Rationale: a candidate packed without the release terminal host makes every packaged launch fall
+  // back to the direct UI, so #750's packaged suites passed on pull requests and failed at publication.
+  it("builds the release terminal host into every packed candidate before recording the build", async () => {
+    const ci = parse(await readFile(".github/workflows/ci.yml", "utf8")).jobs.modular;
+    const full = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8")).jobs;
+    for (const [job, install, condition] of [
+      [ci, "Install exact dependencies and build", "steps.job-selection.outputs.packs_candidate == 'true'"],
+      [full["windows-shard"], "Install dependencies and build once", "matrix.shard == 'package'"],
+      [full["full-regression"], "Install dependencies and build once", undefined],
+    ] as const) {
+      const build = step(job, "Build the release terminal host into the candidate");
+      expect(build.value.run).toBe("npm run build:terminal-host");
+      expect(build.value.if).toBe(condition);
+      expect(step(job, install).index).toBeLessThan(step(job, "Set up Zig for the release terminal host").index);
+      expect(step(job, "Cache release terminal host build").value.with.key).toBe("terminal-host-release");
+      expect(build.index).toBeLessThan(step(job, "Record verified install-time build").index);
+    }
   });
 
   it("binds full-regression build and package receipts before the complete plan", async () => {
