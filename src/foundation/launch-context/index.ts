@@ -51,10 +51,7 @@ export interface LaunchContext {
   readonly residentFallback?: string;
 }
 
-/**
- * Whether the Tabs settings section is hidden for this launch: it configures resident tabs, so a
- * launch that runs the direct route, by `a1 solo` or by falling back, shows nothing it could apply.
- */
+/** The Tabs settings configure resident tabs; a direct-route launch, by `a1 solo` or by a fallback, hides them. */
 export function hidesTabSettings(context: Pick<LaunchContext, "launchMode" | "residentFallback">): boolean {
   return context.launchMode === "solo" || context.residentFallback !== undefined;
 }
