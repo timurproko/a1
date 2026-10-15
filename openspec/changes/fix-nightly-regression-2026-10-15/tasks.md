@@ -10,6 +10,6 @@
 
 ## 3. Prove
 
-- [ ] 3.1 Record focused implementation evidence and pre-finalization PR Full regression observations under Evidence in design.md; preserve the failed owners and lanes and disposition known gaps before finalization.
+- [x] 3.1 Record the focused test and typecheck evidence, the green diagnostic Full regression #63 on the fix head, the failed owner and lane, and the known-gap disposition under Evidence in design.md.
 
 After finalization, the exact-head PR Full regression lanes and Development validation required must pass before manual handoff. Report final run/head/selection in Actions and handoff, not another committed design edit. Standalone dispatch is diagnostic, not a replacement for selected PR checks. Numbered-package nightly recovery remains independent.
