@@ -15,7 +15,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-15-restore-v2-tab-status-icons/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-15-restore-v2-tab-status-icons/acceptance.md",
   "finalizedDate": "2026-10-15",
-  "specBaseSha": "1cd3afe8d4203fee433ca3ac0d44df307fcdd7b3",
+  "specBaseSha": "4e3b085346ba38cafb86fec39f0c62b31498ac0a",
   "acceptanceScenarios": [
     "Working tabs animate through v2's exact ten Braille frames at 80 ms in each tab's reported accent.",
     "Starting and restoring tabs use the same progress sequence dimly while semantic icons, chip geometry, clipping, and hit targets remain unchanged."
