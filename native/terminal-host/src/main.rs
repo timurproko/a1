@@ -1106,7 +1106,7 @@ fn faint_at(frame: &str, needle: &str) -> Option<bool> {
                 match code {
                     "" | "0" | "22" => faint = false,
                     "2" => faint = true,
-                    // Extended colors carry operands that are not intensity codes.
+                    // Protocol: extended colors carry operands that are not intensity codes.
                     "38" | "48" | "58" => {
                         let operands = match codes.next() {
                             Some("5") => 1,
