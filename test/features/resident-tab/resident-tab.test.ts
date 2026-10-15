@@ -52,8 +52,23 @@ describe("resident tab shortcuts", () => {
       "tui.editor.deleteToLineEnd": ["ctrl+x"],
     }, () => [], "a1", true);
     expect(markdown).toContain("**Tabs**");
-    expect(markdown).toContain("`Alt+]` | View next A1 tab");
+    // Platform: pinned Pi labels Alt as Option on macOS, so the row names the live platform's modifier.
+    expect(markdown).toContain(`\`${process.platform === "darwin" ? "Option" : "Alt"}+]\` | View next A1 tab`);
     expect(markdown).toContain("Unbound | Close A1 tab");
+  });
+
+  it("labels the Alt modifier as Option only on macOS", () => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
+    try {
+      for (const [name, modifier] of [["darwin", "Option"], ["linux", "Alt"], ["win32", "Alt"]] as const) {
+        Object.defineProperty(process, "platform", { ...platform, value: name });
+        const markdown = hotkeysMarkdown({ "tabs.next": ["alt+]"] }, () => [], "a1", true);
+        expect(markdown, name).toContain(`| \`${modifier}+]\` | View next A1 tab |`);
+        expect(markdown, name).toContain(`| \`${modifier}+A\` | New A1 tab |`);
+      }
+    } finally {
+      Object.defineProperty(process, "platform", platform);
+    }
   });
 
   it("provides only the approved global defaults", () => {
