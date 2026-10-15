@@ -1066,10 +1066,62 @@ fn probe_input() -> Result<(), String> {
         }
     }
 
+    probe_faint_intensity()?;
+
     println!(
-        "{{\"schema\":\"a1-terminal-host-fidelity-probe-v1\",\"keyEncoding\":true,\"kittyKeys\":true,\"textImeEncoding\":true,\"mouseEncoding\":true,\"paneRelativeMouse\":true,\"bracketedPaste\":true,\"clipboardOsc52\":true,\"hyperlinkOsc8\":true,\"cursorShape\":true,\"wideCombiningUnicode\":true,\"alternateScreen\":true,\"imageTextFallback\":true,\"nodeRelay\":false}}"
+        "{{\"schema\":\"a1-terminal-host-fidelity-probe-v1\",\"keyEncoding\":true,\"kittyKeys\":true,\"textImeEncoding\":true,\"mouseEncoding\":true,\"paneRelativeMouse\":true,\"bracketedPaste\":true,\"clipboardOsc52\":true,\"hyperlinkOsc8\":true,\"cursorShape\":true,\"wideCombiningUnicode\":true,\"alternateScreen\":true,\"imageTextFallback\":true,\"faintIntensity\":true,\"nodeRelay\":false}}"
     );
     Ok(())
+}
+
+// Protocol: a contextual suggestion is faint ghost text until Tab repaints it as ordinary
+// prompt text; resident frames must carry the faint SGR and clear it on that repaint.
+fn probe_faint_intensity() -> Result<(), String> {
+    let mut terminal = GhosttyTerminal::new(30, 2)?;
+    terminal.write(b"> fix \x1b[2mthe tests\x1b[22m");
+    let ghost = terminal.frame()?;
+    if faint_at(&ghost, "fix") != Some(false) || faint_at(&ghost, "the tests") != Some(true) {
+        return Err(format!("faint ghost text was not preserved: {ghost:?}"));
+    }
+    terminal.write(b"\r\x1b[2K> fix the tests");
+    let accepted = terminal.frame()?;
+    if faint_at(&accepted, "fix the tests") != Some(false) {
+        return Err(format!(
+            "accepted text inherited faint intensity: {accepted:?}"
+        ));
+    }
+    Ok(())
+}
+
+fn faint_at(frame: &str, needle: &str) -> Option<bool> {
+    let end = frame.find(needle)?;
+    let mut faint = false;
+    let mut rest = &frame[..end];
+    while let Some(start) = rest.find("\x1b[") {
+        rest = &rest[start + 2..];
+        let length = rest.find(|c: char| c.is_ascii_alphabetic() || c == '~')?;
+        if rest[length..].starts_with('m') {
+            let mut codes = rest[..length].split(';');
+            while let Some(code) = codes.next() {
+                match code {
+                    "" | "0" | "22" => faint = false,
+                    "2" => faint = true,
+                    // Extended colors carry operands that are not intensity codes.
+                    "38" | "48" | "58" => {
+                        let operands = match codes.next() {
+                            Some("5") => 1,
+                            Some("2") => 3,
+                            _ => 0,
+                        };
+                        for _ in codes.by_ref().take(operands) {}
+                    }
+                    _ => {}
+                }
+            }
+        }
+        rest = &rest[length..];
+    }
+    Some(faint)
 }
 
 #[cfg(feature = "resident-fixtures")]

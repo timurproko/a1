@@ -26,7 +26,7 @@ if (!host) {
   const required = [
     "keyEncoding", "kittyKeys", "textImeEncoding", "mouseEncoding", "paneRelativeMouse",
     "bracketedPaste", "clipboardOsc52", "hyperlinkOsc8", "cursorShape",
-    "wideCombiningUnicode", "alternateScreen", "imageTextFallback",
+    "wideCombiningUnicode", "alternateScreen", "imageTextFallback", "faintIntensity",
   ];
   const missing = required.filter(key => fidelity[key] !== true);
   const report = {

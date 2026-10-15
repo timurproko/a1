@@ -434,6 +434,7 @@ struct ActiveStyle {
     fg: Option<CellColor>,
     bg: Option<CellColor>,
     bold: bool,
+    faint: bool,
     italic: bool,
     inverse: bool,
     underline: bool,
@@ -1479,6 +1480,7 @@ fn cell_style(
                 b: 255,
             })),
             bold: false,
+            faint: false,
             italic: false,
             inverse: false,
             underline: false,
@@ -1488,6 +1490,7 @@ fn cell_style(
         fg,
         bg,
         bold: style.bold,
+        faint: style.faint,
         italic: style.italic,
         inverse: style.inverse,
         underline: style.underline != 0,
@@ -1564,6 +1567,9 @@ fn write_style(out: &mut String, style: ActiveStyle) {
     out.push_str("\u{1b}[0m");
     if style.bold {
         out.push_str("\u{1b}[1m");
+    }
+    if style.faint {
+        out.push_str("\u{1b}[2m");
     }
     if style.italic {
         out.push_str("\u{1b}[3m");
