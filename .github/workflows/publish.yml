@@ -432,7 +432,7 @@ jobs:
           fi
 
   guardians:
-    name: Build process guardian (${{ matrix.os }})
+    name: Build process guardian
     needs: plan
     # Rationale: stable publication adopts the candidate-validated package, so nothing is rebuilt.
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
@@ -472,7 +472,7 @@ jobs:
           retention-days: 1
 
   terminal_hosts:
-    name: Build terminal host (${{ matrix.os }})
+    name: Build terminal host
     needs: plan
     # Rationale: stable publication adopts the candidate-validated package, so nothing is rebuilt.
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
@@ -773,7 +773,7 @@ jobs:
           retention-days: 30
 
   validate_sequential:
-    name: Validate sequential ${{ matrix.platform }}
+    name: Validate sequential
     needs: [plan, package, documentation]
     # Rationale: the successful candidate run already validated the adopted stable bytes on every lane.
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.mode != 'stable' && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped')
@@ -918,7 +918,7 @@ jobs:
   # Concurrency: complete Windows publication lanes use the same canonical four-way ownership
   # partition as standalone full regression. No mutable workspace or package prefix crosses jobs.
   validate_windows_shard:
-    name: Validate ${{ matrix.platform }} / ${{ matrix.shard }}
+    name: Validate Windows shard
     needs: [plan, package, documentation]
     if: always() && needs.plan.result == 'success' && (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'candidate') && needs.package.result == 'success' && needs.documentation.result == 'success'
     strategy:
@@ -1061,7 +1061,7 @@ jobs:
 
   # Invariant: one familiar platform artifact exists only after all four exact-run shards merge.
   validate_windows_lane:
-    name: Reconstruct ${{ matrix.platform }}
+    name: Reconstruct Windows lane
     needs: [plan, validate_windows_shard]
     if: always() && needs.plan.result == 'success' && (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'candidate')
     strategy:
@@ -1260,7 +1260,7 @@ jobs:
         run: node scripts/release/npm-registry-verification.mjs
 
   post_publish:
-    name: Published pair ${{ matrix.platform }} / Node ${{ matrix.node }}
+    name: Published pair
     needs: [plan, package, publish]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success'
     strategy:

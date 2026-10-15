@@ -95,6 +95,22 @@ describe("complete regression automation", () => {
     expect(JSON.stringify(workflow)).not.toMatch(/continue-on-error|--retry/);
   });
 
+  it("names publication matrix jobs statically so skipped jobs never show raw matrix templates", async () => {
+    const release = parse(await readFile(".github/workflows/publish.yml", "utf8"));
+    const names = Object.fromEntries(Object.entries(release.jobs as Record<string, { name?: string; strategy?: { matrix?: unknown } }>)
+      .filter(([, job]) => job.strategy?.matrix)
+      .map(([id, job]) => [id, job.name]));
+    expect(names).toEqual({
+      guardians: "Build process guardian",
+      terminal_hosts: "Build terminal host",
+      validate_sequential: "Validate sequential",
+      validate_windows_shard: "Validate Windows shard",
+      validate_windows_lane: "Reconstruct Windows lane",
+      post_publish: "Published pair",
+    });
+    for (const name of Object.values(names)) expect(name).not.toMatch(/matrix\./);
+  });
+
   it("retains both Windows runtimes outside development previews, Defender, and exact-package gates outside PR startup", async () => {
     const release = parse(await readFile(".github/workflows/publish.yml", "utf8"));
     const regression = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
