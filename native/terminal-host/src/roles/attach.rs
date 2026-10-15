@@ -536,8 +536,12 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         .filter(|tab| tab.lifecycle != "stopped")
                         .map(|tab| {
                             let previous = tabs.iter().find(|current| current.id == tab.tab_id);
-                            let changed_by_auto = tab.name_source == "auto"
-                                && previous.is_some_and(|current| current.name != tab.name);
+                            let title_animation = strip::reconcile_title_animation(
+                                previous,
+                                &tab.name,
+                                &tab.name_source,
+                                Instant::now(),
+                            );
                             StripTab {
                                 id: tab.tab_id,
                                 name: tab.name,
@@ -545,14 +549,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 status: previous
                                     .map_or(tab.lifecycle, |current| current.status.clone()),
                                 accent: previous.and_then(|current| current.accent.clone()),
-                                title_animation: if changed_by_auto {
-                                    previous.map(|current| strip::TitleAnimation {
-                                        from: current.name.clone(),
-                                        started_at: Instant::now(),
-                                    })
-                                } else {
-                                    previous.and_then(|current| current.title_animation.clone())
-                                },
+                                title_animation,
                             }
                         })
                         .collect();
@@ -648,7 +645,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             }
         }
         if strip::animations_active(&tabs)
-            && last_strip_frame.elapsed() >= Duration::from_millis(80)
+            && last_strip_frame.elapsed() >= strip::animation_interval(&tabs)
         {
             strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
             terminal.write(strip_frame.bytes.as_bytes())?;
