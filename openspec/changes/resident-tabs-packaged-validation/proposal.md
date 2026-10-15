@@ -26,6 +26,6 @@ None.
 ## Impact
 
 - `src/foundation/resident-tabs/routing.ts`, `ensure-terminal-host.ts`, and `src/foundation/release/bootstrap.ts`.
-- `.github/workflows/ci.yml` modular lanes (selection output `packs_candidate`, a 35-minute bound for non-native lanes) and `.github/workflows/full-regression-shared.yml`.
+- `.github/workflows/ci.yml` modular lanes (selection output `packs_candidate`, a 35-minute bound for non-native lanes) and `.github/workflows/full-regression-shared.yml`; these and publication's terminal-host build share one `terminal-host-release` Rust cache.
 - `scripts/release/resolve-validation-job.mjs`, a dependency-free `scripts/release/validation-scopes.mjs` shared with `validation-tier.mjs`, and `prepare-validation-package.mjs`.
 - Packaging lanes gain a cached release host build. The shipped package, publication, and selection rules are otherwise unchanged.

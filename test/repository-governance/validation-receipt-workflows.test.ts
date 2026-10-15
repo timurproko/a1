@@ -45,9 +45,13 @@ describe("workflow prerequisite receipts", () => {
       expect(build.value.run).toBe("npm run build:terminal-host");
       expect(build.value.if).toBe(condition);
       expect(step(job, install).index).toBeLessThan(step(job, "Set up Zig for the release terminal host").index);
-      expect(step(job, "Cache release terminal host build").value.with.key).toBe("terminal-host-release");
+      expect(step(job, "Cache release terminal host build").value.with["shared-key"]).toBe("terminal-host-release");
       expect(build.index).toBeLessThan(step(job, "Record verified install-time build").index);
     }
+    // Performance: a pull request reads only its own and develop's caches, so validation shares the
+    // release host cache that publication and nightly Full regression save on develop.
+    const publish = parse(await readFile(".github/workflows/publish.yml", "utf8")).jobs.terminal_hosts;
+    expect(step(publish, "Cache terminal host build").value.with).toEqual({ "shared-key": "terminal-host-release", workspaces: "native/terminal-host" });
   });
 
   it("binds full-regression build and package receipts before the complete plan", async () => {

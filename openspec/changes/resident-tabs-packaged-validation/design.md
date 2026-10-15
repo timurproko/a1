@@ -41,6 +41,8 @@ The modular job resolver reports `packs_candidate` when the job is active and an
 
 Scope expansion moves from `createTierPlan` into `scripts/release/validation-scopes.mjs` without dependencies: the resolver runs before `npm ci` and cannot import `validation-tier.mjs`, which needs `cross-spawn`. `createTierPlan` uses the same function, so the two cannot disagree.
 
+The release host cache uses `shared-key: terminal-host-release` in these jobs and in publication's `terminal_hosts` job. With `key`, rust-cache adds the job id, so no two of these jobs share a cache. A pull request can also read only its own branch's and `develop`'s caches. Sharing lets every pull request restore the release build that publication and nightly Full regression save on `develop`. The first diagnostic run, without a warm cache, added 4 to 9 minutes per packing lane; Exact-package contracts took 15.3 minutes against 5.9 for #750.
+
 Native and chaos lanes never pack a candidate, so their existing Zig steps never overlap the new ones. The modular timeout for non-native lanes rises from 20 to 35 minutes, because `timeout-minutes` is fixed before the selection decides whether a lane builds the host. Publication's measured release host builds were 3 to 5 minutes warm on Linux, macOS arm64, and Windows.
 
 Rejected: reusing the native lanes' host. Those build debug binaries with fixture features, in a different matrix cell; a release candidate must carry the release-built, `--version`-verified artifact.
