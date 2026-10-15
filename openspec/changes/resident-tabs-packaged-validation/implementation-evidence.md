@@ -10,4 +10,5 @@
 On Windows Node 24, at the implementation commit:
 
 - `npx vitest run test/foundation/resident-tabs/resident-tabs.test.ts test/repository-governance/validation-scopes.test.ts test/repository-governance/validation-receipt-workflows.test.ts test/repository-governance/validation-tier.test.ts test/repository-governance/release-pipeline-policy.test.ts test/repository-governance/full-regression-policy.test.ts`: 6 files, 74 tests passed.
+- `npm run preflight` passed every gate on the committed head (base `fd688d3d`, 20 changed paths, 11 steps); its changed-test step passed 82 files and 998 tests. The first run failed typecheck because the new `validation-scopes.mjs` had no declaration; `validation-scopes.d.mts` fixed it.
 - The release terminal host is not built locally (endpoint protection quarantines its Zig build), so the host build, the fail-closed packing check, and the packaged session-resume suite are proven in CI only.
