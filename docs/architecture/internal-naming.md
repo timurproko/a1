@@ -47,6 +47,8 @@ Pending review preserves a possible external interface, not an obsolete private 
 | `RELEASE_RUNNER_LABEL` | Release/full-regression workflows supply certification-runner provenance to `run-release-gates.mjs`. |
 | `TERMINAL_FIXTURE_INPUT`, `TERMINAL_FIXTURE_TOKEN` | Native terminal probe producer/consumer in `native/terminal-host/src/main.rs`; expected input and fixture token. |
 | `TERMINAL_HOST_LOCAL_BUILD` | Developer shell sets exactly `1`; `native/terminal-host/build.rs` then permits a Windows build outside CI. |
+| `TERMINAL_HOST_EXPORT_VT` | Native validation lanes in `.github/workflows/ci.yml` name a directory; `build.rs` copies the linked terminal library, headers, and manifest there for upload. |
+| `TERMINAL_HOST_PREBUILT_VT` | Developer shell names a fetched library directory; with `TERMINAL_HOST_LOCAL_BUILD=1` and no `CI`, `build.rs` verifies its manifest and links it instead of running Zig. |
 | `DOCS_AUTO_MERGE_POLL_ATTEMPTS`, `DOCS_AUTO_MERGE_POLL_MS` | Documentation automation polling controls, produced by governance tests and consumed by `manage-documentation-auto-merge.mjs`. |
 | `VALIDATION_JOB_STARTED_MS`, `RENDERING_JOB_STARTED_MS` | CI timing handoffs within `.github/workflows/ci.yml`; epoch milliseconds. |
 | `RUN_PROCESS_CONTAINMENT_INTEGRATION` | CI enables the real containment fixture with exactly `1`; platform containment tests consume it. |

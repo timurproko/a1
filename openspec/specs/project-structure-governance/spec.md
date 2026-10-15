@@ -191,6 +191,8 @@ Retained first-party implementation comments SHALL declare one accepted intent: 
 ### Requirement: Repository governance is executable
 Architecture, documentation, and hygiene rules SHALL be enforced by deterministic checks that report stable rule identifiers and actionable path, line, and symbol violations where applicable. Checks SHALL cover feature dependency direction, forbidden deep imports, nested package/dependency state, generated artifacts in tracked source, prohibited terminal interception, stale redesign markers in current production documentation, production files with no declared ownership, and the complete first-party code-documentation policy. The code-documentation gate SHALL inspect the complete applicable tracked baseline without a grandfathered count, path allowlist, or accepted-violation snapshot and SHALL run in both fast pull-request validation and full release validation.
 
+One local command, `npm run preflight`, SHALL run the fast governance gates pull-request validation runs against the committed merge-base diff of the current head, in a fixed order, stopping at the first failure, using the same scripts, arguments, and rule identifiers as validation: the core job's install build and build receipt, type check, architecture, changed-file code documentation, release documentation, changed-file naming, docs governance, strict OpenSpec validation with the workflow's pinned validator, the delivery-guidance governance test, and the core job's changed test scopes. Uncommitted paths SHALL be reported rather than selected. Preflight SHALL NOT build the native host and SHALL NOT replace validation as the authority.
+
 #### Scenario: New code violates a boundary
 - **WHEN** a change introduces a forbidden dependency, unowned source location, nested lockfile, prohibited terminal mechanism, or code-documentation violation
 - **THEN** the applicable repository gate SHALL fail with the offending path and stable violated-rule identifier
@@ -212,6 +214,11 @@ Architecture, documentation, and hygiene rules SHALL be enforced by deterministi
 - **WHEN** the complete baseline check runs
 - **THEN** every production file, test, document, workflow, dependency, and applicable source comment SHALL satisfy its current owner and governance contract
 - **AND** all mandatory architecture, documentation, type, unit, integration, update, package, and release checks SHALL pass
+
+#### Scenario: Preflight reproduces a validation failure locally
+- **WHEN** a change would fail a fast governance gate in pull-request validation
+- **THEN** `npm run preflight` on the committed head SHALL fail before the push with the same rule identifier and path
+- **AND** each preflight step SHALL invoke the script and arguments its validation job runs, differing only in the local selection and result paths
 
 ### Requirement: Transparent and composed scope remain explicit
 The transparent baseline SHALL support one direct full-viewport foreground terminal session and SHALL NOT claim A1-managed arbitrary-CLI tabs, resident terminal surfaces, input routing among internal tabs, or visual reconnection. Bare `a1` SHALL evolve into the multi-agent UX only through resident terminal-session tabs, in which every tab runs the complete A1 UI as its own process under the native resident terminal host described in `docs/architecture/resident-tabs.md`, delivered as sequenced milestone changes behind the opt-in `residentTabs` setting. Structured or message-based agent workers SHALL NOT be reintroduced without a new approved plan. Arbitrary interactive CLI tabs and split layouts SHALL each require their own approved change that extends the resident host and defines its own certification, rather than modifying transparent mode or reviving raw relay experiments implicitly.

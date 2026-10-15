@@ -42,7 +42,7 @@ describe("multi-process prompt history", () => {
       try { expect(reopened.snapshot().entries).toEqual(repeated.entries); } finally { reopened.close(); }
     } finally {
       await lock?.stop(); await service.close();
-      await rm(root, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
   }, 15_000);
 
@@ -70,7 +70,7 @@ describe("multi-process prompt history", () => {
           expect(smaller.snapshot().entries[0]?.text).toBe("last");
         } finally { smaller.close(); }
       } finally { store.close(); }
-    } finally { await rm(root, { recursive: true, force: true }); }
+    } finally { await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
   }, 15000);
 
   it.each(["write", "initialization"])("recovers after terminating an uncommitted %s", async phase => {
@@ -94,7 +94,7 @@ describe("multi-process prompt history", () => {
       finally { recovered.close(); }
     } finally {
       if (writer.exitCode === null && writer.signalCode === null) { const exited = once(writer, "exit"); writer.kill("SIGKILL"); await exited; }
-      await rm(root, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
   }, 10000);
 });

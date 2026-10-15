@@ -232,7 +232,7 @@ The complete non-physical automated suite SHALL remain runnable locally (`npm ru
 
 Standalone and selected PR-attached Full regression SHALL execute the complete Windows Node 22 and Node 24 coverage through reviewed parallel hosted-runner shards. Each Windows runtime SHALL have `core`, `resource`, `rendering`, and `package` shard evidence derived from one canonical complete plan. Every canonical command and test invocation SHALL belong to exactly one shard, and one successful Windows lane result SHALL be reconstructed only from all four exact-source, exact-run, exact-attempt, exact-runtime shard results. Missing, duplicate, stale, malformed, failed, cancelled, or unexpected shard evidence SHALL fail the applicable lane and required aggregate. Linux, macOS, local full validation, and publication validation MAY retain one sequential complete plan.
 
-A scope that the complete-regression lanes cannot run MAY be excluded from the `full-release` plan only through an explicit `fullReleaseExclusion` reason on its definition in `config/validation-suites.json`. The only permitted exclusion is the Windows-only `terminal-host` scope, whose pull-request owner validates every change to its paths. Adding another exclusion SHALL require a reviewed change to this requirement.
+A scope that the complete-regression lanes cannot run MAY be excluded from the `full-release` plan only through an explicit `fullReleaseExclusion` reason on its definition in `config/validation-suites.json`. The only permitted exclusions are the `terminal-host` scope, whose pull-request owner validates every change to its paths, and the `resident-chaos` scope, whose bounded randomized run executes on every terminal-host change against the release-built artifact. Adding another exclusion SHALL require a reviewed change to this requirement.
 
 #### Scenario: Maintainer requests full validation
 
@@ -261,7 +261,7 @@ A scope that the complete-regression lanes cannot run MAY be excluded from the `
 #### Scenario: A scope is excluded from complete regression
 
 - **WHEN** a scope definition declares `fullReleaseExclusion`
-- **THEN** it SHALL carry a non-empty reason, SHALL NOT be included by `full-release`, and SHALL be `terminal-host`
+- **THEN** it SHALL carry a non-empty reason, SHALL NOT be included by `full-release`, and SHALL be `terminal-host` or `resident-chaos`
 
 ### Requirement: Publication follows from what was pushed
 Publication SHALL use trusted workflows. It SHALL start nightly, by explicit

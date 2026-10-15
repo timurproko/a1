@@ -22,3 +22,7 @@ mod node_addon;
 #[cfg(test)]
 #[path = "../build_target.rs"]
 mod build_target;
+
+#[cfg(test)]
+#[path = "../build_vt_manifest.rs"]
+mod build_vt_manifest;
