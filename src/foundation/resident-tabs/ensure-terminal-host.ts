@@ -3,10 +3,12 @@ import { access } from "node:fs/promises";
 import { constants } from "node:fs";
 import { resolve } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
+import { TerminalHostArtifactError, verifyTerminalHostArtifact } from "./terminal-host-artifact.js";
 
 export type TerminalHostFallbackReason =
   | "unsupported platform"
   | "terminal host not installed"
+  | "terminal host not verified"
   | "host probe failed"
   | "incompatible generation"
   | "registry unreadable"
@@ -31,6 +33,7 @@ export interface EnsureTerminalHostOptions {
   readonly maxConcurrentStarts?: number;
   readonly unresponsiveRestartSeconds?: number;
   readonly run?: (executable: string, arguments_: readonly string[], environment: NodeJS.ProcessEnv, timeoutMs: number) => Promise<HostCommandResult>;
+  readonly verify?: (executable: string, platform: NodeJS.Platform, architecture: string) => Promise<unknown>;
 }
 
 export function resolveTerminalHostPath(
@@ -39,10 +42,16 @@ export function resolveTerminalHostPath(
   platform: NodeJS.Platform = process.platform,
   architecture: string = process.arch,
 ): string {
-  const override = environment[PRODUCT_IDENTITY.environment.terminalHostPath]?.trim();
+  const override = developmentOverride(environment);
   if (override) return resolve(override);
-  const executable = platform === "win32" ? "a1-terminal-host.exe" : "a1-terminal-host";
+  const executable = platform === "win32" ? `${PRODUCT_IDENTITY.artifacts.nativeExecutable}.exe` : PRODUCT_IDENTITY.artifacts.nativeExecutable;
   return resolve(releaseRoot, "dist", "native", `${platform}-${architecture}`, executable);
+}
+
+/** The terminal-host override is a development aid; installed releases always run their own verified artifact. */
+function developmentOverride(environment: NodeJS.ProcessEnv): string | undefined {
+  if (!environment[PRODUCT_IDENTITY.environment.developmentInstanceId]) return undefined;
+  return environment[PRODUCT_IDENTITY.environment.terminalHostPath]?.trim() || undefined;
 }
 
 export async function ensureTerminalHost(options: EnsureTerminalHostOptions): Promise<EnsureTerminalHostResult> {
@@ -50,8 +59,13 @@ export async function ensureTerminalHost(options: EnsureTerminalHostOptions): Pr
   const architecture = options.architecture ?? process.arch;
   if (!supported(platform, architecture)) return { status: "fallback", reason: "unsupported platform" };
   const executable = resolveTerminalHostPath(options.releaseRoot, options.environment, platform, architecture);
-  try { await access(executable, constants.R_OK | (platform === "win32" ? 0 : constants.X_OK)); }
-  catch { return { status: "fallback", reason: "terminal host not installed" }; }
+  if (developmentOverride(options.environment)) {
+    try { await access(executable, constants.R_OK | (platform === "win32" ? 0 : constants.X_OK)); }
+    catch { return { status: "fallback", reason: "terminal host not installed" }; }
+  } else {
+    try { await (options.verify ?? verifyTerminalHostArtifact)(executable, platform, architecture); }
+    catch (error) { return { status: "fallback", reason: verificationReason(error) }; }
+  }
 
   const run = options.run ?? runHostCommand;
   const timeoutMs = options.timeoutMs ?? 8_000;
@@ -107,7 +121,14 @@ export async function ensureTerminalHost(options: EnsureTerminalHostOptions): Pr
 
 function supported(platform: NodeJS.Platform, architecture: string): boolean {
   return (platform === "win32" || platform === "linux") && architecture === "x64"
-    || platform === "darwin" && architecture === "arm64";
+    || platform === "darwin" && (architecture === "arm64" || architecture === "x64");
+}
+
+function verificationReason(error: unknown): TerminalHostFallbackReason {
+  if (!(error instanceof TerminalHostArtifactError)) return "terminal host not verified";
+  if (error.code === "TERMINAL_HOST_ARTIFACT_MISSING") return "terminal host not installed";
+  if (error.code === "TERMINAL_HOST_ARTIFACT_UNSUPPORTED") return "unsupported platform";
+  return "terminal host not verified";
 }
 
 function parseResult(output: string): Record<string, unknown> | null {

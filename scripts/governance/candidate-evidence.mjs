@@ -112,11 +112,22 @@ export function readPackedEntries(tarball) {
 export function guardianBinaryReference(manifestPath, content) {
   const manifest = JSON.parse(content.toString("utf8"));
   if (manifest?.schema !== "a1-process-guardian-artifact-v1" || manifest.protocolVersion !== 1) return null;
+  return nativeBinaryReference(manifestPath, manifest, "guardian");
+}
+
+/** The packed terminal-host executable named by its separate build manifest beside the guardian's. */
+export function terminalHostBinaryReference(manifestPath, content) {
+  const manifest = JSON.parse(content.toString("utf8"));
+  if (manifest?.schema !== "a1-terminal-host-artifact-v1" || manifest.protocolVersion !== 1) return null;
+  return nativeBinaryReference(manifestPath, manifest, "terminal host");
+}
+
+function nativeBinaryReference(manifestPath, manifest, label) {
   const artifact = manifest.artifact;
   if (typeof manifest.platform !== "string" || typeof manifest.architecture !== "string"
     || typeof artifact?.filename !== "string" || artifact.filename.includes("/") || artifact.filename.includes("..")
     || !/^[a-f0-9]{64}$/.test(artifact?.sha256 ?? "") || !Number.isSafeInteger(artifact?.size)) {
-    throw new Error(`guardian manifest ${manifestPath} is malformed`);
+    throw new Error(`${label} manifest ${manifestPath} is malformed`);
   }
   const directory = manifestPath.slice(0, manifestPath.lastIndexOf("/"));
   return { binaryPath: `${directory}/${artifact.filename}`, sha256: artifact.sha256, size: artifact.size };

@@ -2,7 +2,8 @@ import crossSpawn from "cross-spawn";
 import { readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { guardianBinaryReference } from "../../../scripts/governance/candidate-evidence.mjs";
+import { guardianBinaryReference, terminalHostBinaryReference } from "../../../scripts/governance/candidate-evidence.mjs";
+import { RELEASE_NATIVE_TARGETS } from "../../../scripts/release/verify-native-artifacts.mjs";
 import { extractValidationCandidate, loadValidationCandidate } from "./package-candidate-fixture.js";
 
 let candidate: Awaited<ReturnType<typeof loadValidationCandidate>>;
@@ -74,6 +75,35 @@ describe("exact packed npm command surface", () => {
       if (!binary) throw new Error(`packed guardian binary is missing: ${reference.binaryPath}`);
       expect(binary.mode & 0o111, `${reference.binaryPath} packed with mode ${binary.mode.toString(8)}`).not.toBe(0);
     }
+  });
+
+  // Platform: only the publication package job assembles every platform; a lane that packs its own
+  // candidate carries one guardian and no terminal host, so the full set is required only there.
+  it("carries an executable, verified terminal host for every platform in a full release candidate", async () => {
+    const guardians = candidate.entries.filter(entry => /^package\/dist\/native\/[^/]+\/manifest\.json$/.test(entry.path));
+    if (guardians.length < RELEASE_NATIVE_TARGETS.length) return;
+    for (const { platform, architecture } of RELEASE_NATIVE_TARGETS) {
+      const manifestPath = `package/dist/native/${platform}-${architecture}/terminal-host.manifest.json`;
+      const manifestEntry = candidate.entries.find(entry => entry.path === manifestPath);
+      if (!manifestEntry) throw new Error(`packed terminal host manifest is missing: ${manifestPath}`);
+      const reference = terminalHostBinaryReference(manifestEntry.path, manifestEntry.content);
+      if (!reference) throw new Error(`packed terminal host manifest is foreign: ${manifestPath}`);
+      const binary = candidate.entries.find(entry => entry.path === reference.binaryPath);
+      if (!binary) throw new Error(`packed terminal host binary is missing: ${reference.binaryPath}`);
+      expect(binary.mode & 0o111, `${reference.binaryPath} packed with mode ${binary.mode.toString(8)}`).not.toBe(0);
+      const manifest = JSON.parse(manifestEntry.content.toString("utf8")) as { sessionLock: { filename: string }; notices: { filename: string } };
+      for (const filename of [manifest.sessionLock.filename, manifest.notices.filename]) {
+        expect(candidate.entries.some(entry => entry.path === `package/dist/native/${platform}-${architecture}/${filename}`), filename).toBe(true);
+      }
+    }
+    const local = RELEASE_NATIVE_TARGETS.find(target => target.platform === process.platform && target.architecture === process.arch);
+    if (!local) return;
+    const executable = resolve(extracted.packageRoot, "dist", "native", `${local.platform}-${local.architecture}`, process.platform === "win32" ? "terminal-host.exe" : "terminal-host");
+    const version = crossSpawn.sync(executable, ["--version"], { encoding: "utf8", windowsHide: true });
+    expect(version.status, version.stderr).toBe(0);
+    const report = JSON.parse(version.stdout.trim()) as { generation?: number; features?: { faultInjection?: boolean; residentFixtures?: boolean } };
+    expect(report.generation).toBe(1);
+    expect(report.features).toEqual({ faultInjection: false, residentFixtures: false });
   });
 
   it("resolves Pi's lazily loaded OAuth and bedrock modules from the packed startup artifact", async () => {

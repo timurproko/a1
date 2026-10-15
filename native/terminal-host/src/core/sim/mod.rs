@@ -2,8 +2,16 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use super::holder;
-use super::server::{self, Event, Lifecycle, State};
+use super::server::{self, Event, IdleObservation, Lifecycle, State};
+use crate::controller::{ControllerCore, ControllerError};
 use crate::core::{Completion, Effect};
+
+/// One simulated attached client: which tab it views and the controller generation it holds.
+#[derive(Debug, Clone)]
+struct SimClient {
+    tab_id: String,
+    generation: Option<u64>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulationFailure {
@@ -13,13 +21,40 @@ pub struct SimulationFailure {
 }
 
 pub fn run(seed: u64, steps: usize) -> Result<(), SimulationFailure> {
+    run_masked(seed, steps, &HashSet::new())
+}
+
+/// Replays `seed` with the given step indices skipped. Skipped steps still advance the random
+/// stream and the clock, so the remaining schedule is unchanged and failures stay comparable.
+pub fn run_masked(seed: u64, steps: usize, skip: &HashSet<usize>) -> Result<(), SimulationFailure> {
+    execute(seed, steps, skip, None, &mut Vec::new())
+}
+
+/// The executed event sequence of a schedule, for coverage checks and failure reports.
+pub fn trace(seed: u64, steps: usize) -> Result<Vec<String>, SimulationFailure> {
+    let mut events = Vec::new();
+    execute(seed, steps, &HashSet::new(), None, &mut events)?;
+    Ok(events)
+}
+
+fn execute(
+    seed: u64,
+    steps: usize,
+    skip: &HashSet<usize>,
+    fail_on: Option<&str>,
+    events: &mut Vec<String>,
+) -> Result<(), SimulationFailure> {
     let mut random = seed | 1;
+    let mut controllers = HashMap::<String, ControllerCore>::new();
+    let mut next_generation = 1_u64;
+    let mut clients = HashMap::<u64, SimClient>::new();
+    let mut next_client = 1_u64;
+    let mut last_activity = Duration::ZERO;
     let mut now = Duration::ZERO;
     let mut state = State::new(1, 2);
     let mut holders = HashMap::<String, holder::State>::new();
     let mut session_writers = HashSet::<String>::new();
     let mut committed_revision = 0_u64;
-    let mut events = Vec::new();
     for index in 0..3 {
         let id = format!("tab-{index}");
         server::step(
@@ -36,13 +71,125 @@ pub fn run(seed: u64, steps: usize) -> Result<(), SimulationFailure> {
         now = now.saturating_add(server::START_SPACING);
         server::step(&mut state, Event::Tick { loop_healthy: true }, now);
     }
-    for _ in 0..steps {
+    for step in 0..steps {
         random = next(random);
         now = now.saturating_add(Duration::from_millis(25 + random % 500));
+        if skip.contains(&step) {
+            continue;
+        }
         let index = (random % 3) as usize;
         let id = format!("tab-{index}");
         let incarnation = state.tabs.get(&id).map_or(0, |tab| tab.incarnation);
-        match random % 16 {
+        match random % 20 {
+            16 => {
+                // Concurrency: client churn attaches a viewer, or detaches one and releases any control it held.
+                if random & 32 == 0 || clients.is_empty() {
+                    clients.insert(
+                        next_client,
+                        SimClient {
+                            tab_id: id,
+                            generation: None,
+                        },
+                    );
+                    next_client += 1;
+                    events.push("client-attach".into());
+                } else {
+                    let victim = *clients
+                        .keys()
+                        .nth((random >> 8) as usize % clients.len())
+                        .unwrap();
+                    clients.remove(&victim);
+                    events.push("client-detach".into());
+                }
+                last_activity = now;
+            }
+            17 => {
+                // Protocol: control moves to one viewer through the ordered boundary, sometimes cancelled.
+                let candidates = clients
+                    .iter()
+                    .filter(|(_, client)| client.tab_id == id)
+                    .map(|(client, _)| *client)
+                    .collect::<Vec<_>>();
+                if let Some(target) =
+                    candidates.get((random >> 8) as usize % candidates.len().max(1))
+                {
+                    let core = controllers
+                        .entry(id.clone())
+                        .or_insert_with(|| ControllerCore::new(0));
+                    let old = core.active_generation();
+                    let new = next_generation.max(old + 1);
+                    next_generation = new + 1;
+                    let transferred = (|| -> Result<bool, ControllerError> {
+                        core.freeze(old, new)?;
+                        if random & 64 != 0 {
+                            core.cancel_transfer()?;
+                            return Ok(false);
+                        }
+                        core.begin_drain()?;
+                        while core.next_for_writer()?.is_some() {}
+                        let nonce = (random as u128).to_be_bytes();
+                        core.write_boundary(nonce)?;
+                        core.acknowledge_boundary(new, nonce)?;
+                        Ok(true)
+                    })();
+                    match transferred {
+                        Ok(true) => {
+                            for client in clients.values_mut().filter(|client| client.tab_id == id)
+                            {
+                                client.generation = None;
+                            }
+                            if let Some(client) = clients.get_mut(target) {
+                                client.generation = Some(new);
+                            }
+                            events.push("controller-transfer".into());
+                        }
+                        Ok(false) => events.push("controller-transfer-cancelled".into()),
+                        Err(error) => {
+                            return failure(
+                                seed,
+                                events,
+                                &format!("controller transfer failed: {error}"),
+                            );
+                        }
+                    }
+                } else {
+                    events.push("controller-transfer-without-viewer".into());
+                }
+                last_activity = now;
+            }
+            18 => {
+                // Invariant: input from a random client must be attributable to the tab's active controller.
+                if let Some((client_id, client)) = clients
+                    .iter()
+                    .nth((random >> 8) as usize % clients.len().max(1))
+                    .map(|(client_id, client)| (*client_id, client.clone()))
+                {
+                    let core = controllers
+                        .entry(client.tab_id.clone())
+                        .or_insert_with(|| ControllerCore::new(0));
+                    let offered = client.generation.unwrap_or(0);
+                    let admitted = core.admit(offered, format!("client-{client_id}").into_bytes());
+                    let active = core.active_generation();
+                    if admitted.is_ok() && (client.generation != Some(active) && active != 0) {
+                        return failure(
+                            seed,
+                            events,
+                            "input admitted from a client that is not the controller",
+                        );
+                    }
+                    if admitted.is_ok() && client.generation.is_none() && active != 0 {
+                        return failure(seed, events, "unattributable input was admitted");
+                    }
+                    events.push("client-input".into());
+                } else {
+                    events.push("input-without-client".into());
+                }
+                last_activity = now;
+            }
+            19 => {
+                now = now.saturating_add(server::IDLE_EXIT / 2);
+                events.push("idle-gap".into());
+            }
             0 => {
                 server::step(
                     &mut state,
@@ -159,7 +306,7 @@ pub fn run(seed: u64, steps: usize) -> Result<(), SimulationFailure> {
                     if !effects.iter().any(
                         |effect| matches!(effect, Effect::Send { message, .. } if message == "stale-epoch"),
                     ) {
-                        return failure(seed, &events, "lower epoch command was accepted");
+                        return failure(seed, events, "lower epoch command was accepted");
                     }
                 }
                 events.push("stale-epoch".into());
@@ -228,15 +375,50 @@ pub fn run(seed: u64, steps: usize) -> Result<(), SimulationFailure> {
                 events.push("reordered-stale-heartbeat".into());
             }
         }
+        if fail_on.is_some_and(|event| events.last().is_some_and(|last| last == event)) {
+            return failure(seed, events, "injected failure");
+        }
         committed_revision = committed_revision.max(state.revision);
         check_invariants(
             seed,
-            &events,
+            events,
             &state,
             &holders,
             &session_writers,
             committed_revision,
         )?;
+        let live_holders = holders.len();
+        let idle = server::idle_exit_due(IdleObservation {
+            clients: clients.len(),
+            bridges: 0,
+            user_holders: live_holders,
+            starting_holders: 0,
+            since_activity: now.saturating_sub(last_activity),
+        });
+        if idle && (!clients.is_empty() || live_holders > 0) {
+            return failure(
+                seed,
+                events,
+                "idle exit was due while clients or tabs were live",
+            );
+        }
+        if controllers.values().any(|core| {
+            clients
+                .values()
+                .filter(|client| {
+                    client
+                        .generation
+                        .is_some_and(|generation| generation == core.active_generation())
+                })
+                .count()
+                > 1
+        }) {
+            return failure(
+                seed,
+                events,
+                "two clients held the same controller generation",
+            );
+        }
     }
     // Invariant: drive level-triggered reconciliation to quiescence after the randomized prefix.
     for _ in 0..16 {
@@ -342,9 +524,41 @@ fn next(mut value: u64) -> u64 {
 
 pub fn run_seeds(count: u64, steps: usize) -> Result<(), SimulationFailure> {
     for seed in 0..count {
-        run(seed, steps)?;
+        if let Err(failure) = run(seed, steps) {
+            return Err(minimize(seed, steps).unwrap_or(failure));
+        }
     }
     Ok(())
+}
+
+/// Shrinks a failing schedule by masking one step at a time while the same failure still
+/// reproduces, and returns the smallest event sequence found with its seed.
+pub fn minimize(seed: u64, steps: usize) -> Option<SimulationFailure> {
+    minimize_with(seed, steps, None)
+}
+
+fn minimize_with(seed: u64, steps: usize, fail_on: Option<&str>) -> Option<SimulationFailure> {
+    let mut skip = HashSet::new();
+    let mut failure = execute(seed, steps, &skip, fail_on, &mut Vec::new()).err()?;
+    let reason = failure.reason.clone();
+    for step in 0..steps {
+        skip.insert(step);
+        match execute(seed, steps, &skip, fail_on, &mut Vec::new()) {
+            Err(smaller) if smaller.reason == reason => failure = smaller,
+            _ => {
+                skip.remove(&step);
+            }
+        }
+    }
+    Some(failure)
+}
+
+/// Seeds for the per-change corpus, or a larger nightly budget from `TERMINAL_HOST_SIM_SEEDS`.
+pub fn seed_budget(default: u64) -> u64 {
+    std::env::var("TERMINAL_HOST_SIM_SEEDS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(default)
 }
 
 #[cfg(test)]
@@ -352,7 +566,60 @@ mod tests {
     use super::*;
     #[test]
     fn ten_thousand_schedules_preserve_invariants() {
-        run_seeds(10_000, 96).unwrap();
+        run_seeds(seed_budget(10_000), 96).unwrap();
+    }
+
+    #[test]
+    fn minimization_keeps_the_seed_and_shrinks_to_the_failing_steps() {
+        assert!(
+            minimize(7, 96).is_none(),
+            "a passing schedule has nothing to minimize"
+        );
+        let seed = (0..512)
+            .find(|seed| {
+                trace(*seed, 96)
+                    .unwrap()
+                    .iter()
+                    .filter(|event| *event == "controller-transfer")
+                    .count()
+                    >= 2
+            })
+            .expect("a schedule with two transfers");
+        let minimized = minimize_with(seed, 96, Some("controller-transfer")).unwrap();
+        assert_eq!(minimized.seed, seed);
+        assert_eq!(minimized.reason, "injected failure");
+        assert_eq!(minimized.events.last().unwrap(), "controller-transfer");
+        let full = trace(seed, 96).unwrap();
+        assert!(
+            minimized.events.len() < full.len(),
+            "minimized {} of {} events",
+            minimized.events.len(),
+            full.len()
+        );
+    }
+
+    #[test]
+    fn every_fault_kind_occurs_in_the_corpus() {
+        let mut seen = HashSet::new();
+        for seed in 0..512 {
+            seen.extend(trace(seed, 96).unwrap());
+        }
+        for kind in [
+            "client-attach",
+            "client-detach",
+            "controller-transfer",
+            "controller-transfer-cancelled",
+            "client-input",
+            "idle-gap",
+            "server-death-and-replacement",
+            "holder-death",
+            "stale-epoch",
+            "child-exit",
+            "reordered-stale-heartbeat",
+            "duplicate-start-request",
+        ] {
+            assert!(seen.contains(kind), "corpus never exercised {kind}");
+        }
     }
 
     #[test]

@@ -23,7 +23,7 @@ describe("attempt-aware modular development aggregate", () => {
 
   it("requires exact-head evidence for every conservative target", () => {
     const fixture = conservativeFixture();
-    expect(requireModularValidation(fixture)).toMatchObject({ mode: "conservative", deferredOwners: ["update-performance", "update-predecessor"], evidenceCount: 12, reused: [] });
+    expect(requireModularValidation(fixture)).toMatchObject({ mode: "conservative", deferredOwners: ["update-performance", "update-predecessor"], evidenceCount: 15, reused: [] });
   });
 
   it("reuses successful prior-attempt jobs only within the same run/head/selection", () => {
@@ -34,7 +34,7 @@ describe("attempt-aware modular development aggregate", () => {
     fixture.outcomes.push(rerun);
     fixture.envelopes.push(envelope(rerun.authority, "success"));
     const result = requireModularValidation(fixture);
-    expect(result.reused).toHaveLength(11);
+    expect(result.reused).toHaveLength(14);
     expect(result.reused).not.toContainEqual(expect.objectContaining({ job: "startup:win32:x64:22" }));
     expect(result.reused.every(entry => entry.attempt === 1)).toBe(true);
   });
@@ -46,7 +46,7 @@ describe("attempt-aware modular development aggregate", () => {
     fixture.envelopes.find((value: any) => value.job === "startup").status = "failure";
     const rerun = structuredClone(startup); rerun.passed = true; rerun.outcomes[0].exitCode = 0; rerun.authority.runAttempt = 2;
     fixture.outcomes.push(rerun); fixture.envelopes.push(envelope(rerun.authority, "success"));
-    expect(requireModularValidation(fixture)).toMatchObject({ evidenceCount: 12 });
+    expect(requireModularValidation(fixture)).toMatchObject({ evidenceCount: 15 });
   });
 
   it("uses only current outcomes when all jobs are rerun", () => {
@@ -56,7 +56,7 @@ describe("attempt-aware modular development aggregate", () => {
     });
     fixture.outcomes.push(...rerun);
     fixture.envelopes.push(...rerun.map((value: any) => envelope(value.authority, "success")));
-    expect(requireModularValidation(fixture)).toMatchObject({ evidenceCount: 12, reused: [] });
+    expect(requireModularValidation(fixture)).toMatchObject({ evidenceCount: 15, reused: [] });
   });
 
   it("gives a current-attempt failure precedence over an older success", () => {
@@ -117,7 +117,7 @@ describe("attempt-aware modular development aggregate", () => {
     const fixture = impactFixture(selection, [coreOutcome(1), outcome(selection.selectionId, "startup", "win32", 22, ["startup"], ["package-startup"], 1)], 1, []);
     const matrix = selectDevelopmentValidationMatrix({ impact: fixture.impact, registry });
     expect(matrix.include.map(entry => `${entry.group}:${entry.platform}:${entry.node}`)).toEqual(["core:win32:24", "startup:win32:22"]);
-    expect(matrix.inactive).toHaveLength(10);
+    expect(matrix.inactive).toHaveLength(13);
     expect(requireModularValidation(fixture)).toMatchObject({ selectedOwners: ["startup"], evidenceCount: 2 });
     const unscheduled = fixture.envelopes.find((value: any) => value.job === "startup");
     fixture.outcomes = fixture.outcomes.filter((value: any) => value.authority.job !== "startup");
@@ -150,6 +150,9 @@ function conservativeFixture(): any {
     outcome(selection.selectionId, "terminal-host", "win32", 24, ["terminal-host"], ["terminal-host"], 1),
     outcome(selection.selectionId, "terminal-host", "linux", 24, ["terminal-host"], ["terminal-host"], 1),
     outcome(selection.selectionId, "terminal-host", "darwin", 24, ["terminal-host"], ["terminal-host"], 1),
+    outcome(selection.selectionId, "resident-chaos", "win32", 24, ["resident-chaos"], ["resident-chaos"], 1),
+    outcome(selection.selectionId, "resident-chaos", "linux", 24, ["resident-chaos"], ["resident-chaos"], 1),
+    outcome(selection.selectionId, "resident-chaos", "darwin", 24, ["resident-chaos"], ["resident-chaos"], 1),
   ];
   return impactFixture(selection, outcomes, 1, ["test/resource.test.ts"]);
 }

@@ -24,6 +24,10 @@ const GHOSTTY_ZIG_TARGET: &str = env!("TERMINAL_HOST_ZIG_TARGET");
 const GHOSTTY_ZIG_CPU: &str = env!("TERMINAL_HOST_ZIG_CPU");
 const PORTABLE_PTY_VERSION: &str = "0.9.0";
 const CROSSTERM_VERSION: &str = "0.29.0";
+const GENERATION: u16 = contracts::protocol::GENERATION;
+const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");
+const FAULT_INJECTION: bool = cfg!(feature = "fault-injection");
+const RESIDENT_FIXTURES: bool = cfg!(feature = "resident-fixtures");
 
 fn main() -> ExitCode {
     // Platform: Windows rounds short sleeps up to its ~15.6 ms default timer tick, which the
@@ -51,6 +55,8 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         }
         Some("server") => resident_server_command(&args[1..]),
         Some("probe") => resident_probe_command(&args[1..]),
+        Some("release-holds") => release_holds_command(&args[1..]),
+        Some("tabs") => tabs_command(&args[1..]),
         Some("holder") => Err("holder role is started only by the resident server".to_owned()),
         Some("attach") => resident_attach_command(&args[1..]),
         Some("internal") => resident_internal_command(&args[1..]),
@@ -84,7 +90,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         }
         _ => {
             eprintln!(
-                "usage: a1-terminal-host server --detach --profile <path> --data-dir <path> --runtime-dir <path> | probe --profile <path> --data-dir <path> --runtime-dir <path> | attach --endpoint <endpoint> --cwd <path> --clear-exit-ms <ms> | --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-contracts | --probe-durable | --probe-controller-boundary | --probe-resident-launch | --resolve <command> | --resolve-shell"
+                "usage: a1-terminal-host tabs <list|stop <id>|stop-all|host-status|host-stop> --profile <path> --data-dir <path> --runtime-dir <path> | release-holds --data-dir <path> | server --detach --profile <path> --data-dir <path> --runtime-dir <path> | probe --profile <path> --data-dir <path> --runtime-dir <path> | attach --endpoint <endpoint> --cwd <path> --clear-exit-ms <ms> | --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-contracts | --probe-durable | --probe-controller-boundary | --probe-resident-launch | --resolve <command> | --resolve-shell"
             );
             Err("expected a mode".to_owned())
         }
@@ -100,6 +106,8 @@ struct ResidentServerMetadata {
     generation: u16,
     verified: bool,
     detachment_mode: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    release_root: Option<String>,
 }
 
 fn recorded_server_endpoint(root: &std::path::Path) -> Option<String> {
@@ -164,6 +172,19 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
             "{{\"outcome\":\"already-running\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
             serde_json::to_string(&endpoint).unwrap()
         );
+        return Ok(());
+    }
+    // Invariant: a holder asks for a replacement only to keep its tab; once no recorded tab should
+    // run, as after `a1 tabs host stop`, a late request starts nothing.
+    if arguments
+        .iter()
+        .any(|value| value == "--resident-parent-holder")
+        && contracts::roles::registry::RegistryStore::read(&credentials_root.join("registry.json"))
+            .ok()
+            .flatten()
+            .is_some_and(|registry| registry.tabs.iter().all(|tab| tab.desired != "running"))
+    {
+        println!("{{\"outcome\":\"not-needed\",\"verified\":false}}");
         return Ok(());
     }
     recover_recorded_server(&credentials_root)?;
@@ -231,7 +252,9 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
             return Err(message);
         }
     };
-    if !contracts::fault_injection::freeze_requested("server") {
+    if !contracts::fault_injection::freeze_requested("server")
+        && contracts::fault_injection::server_generation_override().is_none()
+    {
         contracts::roles::server::probe(&endpoint, &credentials.client_token)?;
     }
     let metadata = ResidentServerMetadata {
@@ -241,6 +264,7 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
         generation: contracts::protocol::GENERATION,
         verified: true,
         detachment_mode: observation.mode,
+        release_root: contracts::roles::release_holds::own_release_root(),
     };
     let bytes = serde_json::to_vec_pretty(&metadata).map_err(|error| error.to_string())?;
     contracts::durable::replace(&credentials_root.join("server.json"), &bytes)
@@ -249,6 +273,325 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     println!(
         "{{\"outcome\":\"started\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
         serde_json::to_string(&endpoint).unwrap()
+    );
+    Ok(())
+}
+
+/// Exit status when the running host speaks another protocol generation; the caller retries
+/// with the recorded cohort's own verified binary.
+const TABS_EXIT_INCOMPATIBLE: u8 = 4;
+
+/// Bounds for one maintenance exchange: reads answer fast, stops wait for graceful tab exit.
+const TABS_READ_TIMEOUT: Duration = Duration::from_secs(5);
+const TABS_STOP_TIMEOUT: Duration = Duration::from_secs(60);
+
+struct TabsOutcome {
+    report: serde_json::Value,
+    exit: u8,
+}
+
+/// `a1 tabs` maintenance. It never starts a server to report state; only `host-stop` may start
+/// a replacement, and only to stop holders that an unresponsive server left behind.
+fn tabs_command(arguments: &[String]) -> Result<(), String> {
+    let command = arguments.first().map(String::as_str).unwrap_or("");
+    let tab_id = (command == "stop")
+        .then(|| arguments.get(1).cloned())
+        .flatten();
+    if !matches!(
+        command,
+        "list" | "stop" | "stop-all" | "host-status" | "host-stop"
+    ) || (command == "stop" && tab_id.as_deref().is_none_or(|id| id.starts_with("--")))
+    {
+        return Err("tabs command is invalid".to_owned());
+    }
+    let profile = required_role_path(arguments, "--profile")?;
+    let data = required_role_path(arguments, "--data-dir")?;
+    let runtime = required_role_path(arguments, "--runtime-dir")?;
+    let outcome = tabs_outcome(command, tab_id.as_deref(), &profile, &data, &runtime)?;
+    let state_dir = data
+        .join("tabs")
+        .join(contracts::endpoint::endpoint_token(&profile).map_err(|error| error.to_string())?);
+    let mut report = outcome.report;
+    if let Some(object) = report.as_object_mut() {
+        object.insert("schema".into(), "a1-tabs-maintenance-v1".into());
+        object.insert("command".into(), command.into());
+        object.insert(
+            "stateDir".into(),
+            state_dir.to_string_lossy().into_owned().into(),
+        );
+    }
+    println!("{report}");
+    if outcome.exit != 0 {
+        std::process::exit(i32::from(outcome.exit));
+    }
+    Ok(())
+}
+
+fn tabs_outcome(
+    command: &str,
+    tab_id: Option<&str>,
+    profile: &std::path::Path,
+    data: &std::path::Path,
+    runtime: &std::path::Path,
+) -> Result<TabsOutcome, String> {
+    use contracts::roles::maintain::{self, ConnectError};
+    let token = contracts::endpoint::endpoint_token(profile).map_err(|error| error.to_string())?;
+    let root = data.join("tabs").join(token);
+    let Some(credentials) =
+        contracts::roles::credentials::ProfileCredentials::load_existing(&root)?
+    else {
+        return Ok(no_host());
+    };
+    let endpoint = match recorded_server_endpoint(&root) {
+        Some(endpoint) => endpoint,
+        None => resident_endpoint(profile, runtime)?,
+    };
+    let (request, body, timeout) = match command {
+        "list" => ("tab.list", serde_json::json!({}), TABS_READ_TIMEOUT),
+        "host-status" => ("host.status", serde_json::json!({}), TABS_READ_TIMEOUT),
+        "stop" => (
+            "tab.stop",
+            serde_json::json!({ "tabId": tab_id.unwrap_or_default() }),
+            TABS_STOP_TIMEOUT,
+        ),
+        "stop-all" => ("tab.stopAll", serde_json::json!({}), TABS_STOP_TIMEOUT),
+        _ => ("host.stop", serde_json::json!({}), TABS_STOP_TIMEOUT),
+    };
+    let answered = match maintain::connect(&endpoint, &credentials.client_token) {
+        Ok(connection) => connection.request(request, body, timeout)?,
+        Err(ConnectError::IncompatibleGeneration) => {
+            return Ok(TabsOutcome {
+                report: serde_json::json!({ "host": "incompatible", "releaseRoot": recorded_release_root(&root) }),
+                exit: TABS_EXIT_INCOMPATIBLE,
+            });
+        }
+        Err(ConnectError::Refused(reason)) => {
+            return Ok(TabsOutcome {
+                report: serde_json::json!({ "host": "refused", "message": reason }),
+                exit: 3,
+            });
+        }
+        Err(ConnectError::NotRunning) | Err(ConnectError::Unresponsive) => None,
+    };
+    if let Some((_, value, _)) = answered {
+        let accepted = value
+            .get("accepted")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true);
+        let mut report = serde_json::json!({ "host": "running", "result": value });
+        if command == "host-stop" && accepted {
+            // Invariant: the host answers before it leaves, so a caller that removes the host's
+            // directories right after this report would still find them held; the stop reports
+            // only once no owner and no tab process remain, within a bound.
+            let _ = profile_quiesces(&root, TABS_STOP_TIMEOUT);
+            report["host"] = "stopped".into();
+        }
+        return Ok(TabsOutcome {
+            report,
+            exit: if accepted { 0 } else { 3 },
+        });
+    }
+    // Invariant: nothing answered, so either no server runs or the recorded one is alive but unresponsive.
+    match recorded_owner(&root) {
+        OwnerState::None => Ok(no_host()),
+        OwnerState::Unverifiable(pid) => Ok(TabsOutcome {
+            report: serde_json::json!({ "host": "unverifiable", "pid": pid, "message": "the recorded host owner cannot be verified; nothing was changed" }),
+            exit: 3,
+        }),
+        OwnerState::Live(identity) => {
+            if command != "host-stop" {
+                return Ok(TabsOutcome {
+                    report: serde_json::json!({ "host": "unresponsive", "pid": identity.pid }),
+                    exit: if matches!(command, "list" | "host-status") {
+                        0
+                    } else {
+                        3
+                    },
+                });
+            }
+            stop_unresponsive_host(&identity, &root, profile, data, runtime, &endpoint)
+        }
+    }
+}
+
+fn no_host() -> TabsOutcome {
+    TabsOutcome {
+        report: serde_json::json!({ "host": "none" }),
+        exit: 0,
+    }
+}
+
+enum OwnerState {
+    None,
+    Live(contracts::identity::ProcessIdentity),
+    Unverifiable(u32),
+}
+
+fn recorded_owner(root: &std::path::Path) -> OwnerState {
+    let Ok(bytes) = fs::read(root.join("server.json")) else {
+        return OwnerState::None;
+    };
+    let Ok(marker) = serde_json::from_slice::<ResidentServerMetadata>(&bytes) else {
+        return OwnerState::Unverifiable(0);
+    };
+    let expected = contracts::identity::ProcessIdentity {
+        pid: marker.pid,
+        start: marker.start_identity,
+    };
+    match contracts::identity::inspect_process(expected.pid) {
+        Ok(Some(observed)) if observed == expected => OwnerState::Live(expected),
+        // Invariant: a gone process or a reused pid is not the owner; nothing is signalled.
+        Ok(_) => OwnerState::None,
+        Err(_) => OwnerState::Unverifiable(expected.pid),
+    }
+}
+
+fn recorded_release_root(root: &std::path::Path) -> Option<String> {
+    let bytes = fs::read(root.join("server.json")).ok()?;
+    serde_json::from_slice::<ResidentServerMetadata>(&bytes)
+        .ok()?
+        .release_root
+}
+
+/// Terminates an identity-verified unresponsive server, then lets a replacement re-admit the
+/// surviving holders only to stop them gracefully.
+fn stop_unresponsive_host(
+    identity: &contracts::identity::ProcessIdentity,
+    root: &std::path::Path,
+    profile: &std::path::Path,
+    data: &std::path::Path,
+    runtime: &std::path::Path,
+    endpoint: &str,
+) -> Result<TabsOutcome, String> {
+    contracts::identity::terminate_verified(
+        identity,
+        Duration::from_secs(5),
+        Duration::from_secs(5),
+    )
+    .map_err(|error| format!("terminate unresponsive host: {error}"))?;
+    host_stop_step(root, "terminated");
+    contracts::fault_injection::crash_at("host-stop-after-terminate");
+    // Invariant: only this profile's tabs need a replacement host to stop them; another profile's
+    // live tabs belong to its own host.
+    let holders = contracts::roles::release_holds::collect_profile(root, |pid| {
+        contracts::identity::inspect_process(pid).map_err(|error| error.to_string())
+    });
+    if holders.complete && holders.release_roots.is_empty() {
+        host_stop_step(root, "no-live-tabs");
+        return Ok(TabsOutcome {
+            report: serde_json::json!({ "host": "stopped", "terminatedUnresponsive": identity.pid }),
+            exit: 0,
+        });
+    }
+    let executable = env::current_exe().map_err(|error| error.to_string())?;
+    let started = Command::new(executable)
+        .args(["server", "--detach", "--restart", "--profile"])
+        .arg(profile)
+        .arg("--data-dir")
+        .arg(data)
+        .arg("--runtime-dir")
+        .arg(runtime)
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .map_err(|error| format!("start replacement host: {error}"))?;
+    if !started.status.success() {
+        host_stop_step(root, "replacement-failed");
+        return Ok(TabsOutcome {
+            report: serde_json::json!({ "host": "unresponsive", "terminatedUnresponsive": identity.pid, "message": "a replacement host could not start to stop the remaining tabs" }),
+            exit: 3,
+        });
+    }
+    host_stop_step(
+        root,
+        if String::from_utf8_lossy(&started.stdout).contains("already-running") {
+            "replacement-already-running"
+        } else {
+            "replacement-launched"
+        },
+    );
+    contracts::fault_injection::crash_at("host-stop-after-replacement");
+    let credentials = contracts::roles::credentials::ProfileCredentials::load_existing(root)?
+        .ok_or_else(|| "resident credentials disappeared".to_owned())?;
+    let endpoint = recorded_server_endpoint(root).unwrap_or_else(|| endpoint.to_owned());
+    let answer = contracts::roles::maintain::connect(&endpoint, &credentials.client_token)
+        .map_err(|error| format!("replacement host refused maintenance: {error:?}"))?
+        .request("host.stop", serde_json::json!({}), TABS_STOP_TIMEOUT);
+    host_stop_step(
+        root,
+        if answer.is_ok() {
+            "answered"
+        } else {
+            "unanswered"
+        },
+    );
+    contracts::fault_injection::crash_at("host-stop-after-answer");
+    let answer = match answer {
+        Ok(answer) => answer,
+        // Invariant: a replacement may exit as soon as its last tab stops, closing the connection
+        // before it answers; the stop succeeded only if no owner and no live tab remain.
+        Err(_) if profile_quiesces(root, TABS_STOP_TIMEOUT) => {
+            host_stop_step(root, "quiesced");
+            return Ok(TabsOutcome {
+                report: serde_json::json!({ "host": "stopped", "terminatedUnresponsive": identity.pid }),
+                exit: 0,
+            });
+        }
+        Err(error) => return Err(error),
+    };
+    let accepted = answer.as_ref().is_some_and(|(_, value, _)| {
+        value.get("accepted").and_then(serde_json::Value::as_bool) == Some(true)
+    });
+    if accepted {
+        let _ = profile_quiesces(root, TABS_STOP_TIMEOUT);
+    }
+    Ok(TabsOutcome {
+        report: serde_json::json!({
+            "host": if accepted { "stopped" } else { "unresponsive" },
+            "terminatedUnresponsive": identity.pid,
+            "result": answer.map(|(_, value, _)| value),
+        }),
+        exit: if accepted { 0 } else { 3 },
+    })
+}
+
+/// Records a step of stopping an unresponsive host as a fixed diagnostic event code.
+fn host_stop_step(root: &std::path::Path, step: &str) {
+    let _ = contracts::roles::diagnostics::append_log(
+        &root.join("diagnostics"),
+        "server",
+        &format!("maintenance-host-stop-{step}"),
+    );
+}
+
+/// Waits until this profile has no verified owner and no live tab process, within `timeout`.
+fn profile_quiesces(root: &std::path::Path, timeout: Duration) -> bool {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        let holds = contracts::roles::release_holds::collect_profile(root, |pid| {
+            contracts::identity::inspect_process(pid).map_err(|error| error.to_string())
+        });
+        if matches!(recorded_owner(root), OwnerState::None)
+            && holds.complete
+            && holds.release_roots.is_empty()
+        {
+            return true;
+        }
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+fn release_holds_command(arguments: &[String]) -> Result<(), String> {
+    let data = required_role_path(arguments, "--data-dir")?;
+    let holds = contracts::roles::release_holds::collect(&data, |pid| {
+        contracts::identity::inspect_process(pid).map_err(|error| error.to_string())
+    });
+    println!(
+        "{}",
+        serde_json::to_string(&holds).map_err(|error| error.to_string())?
     );
     Ok(())
 }
@@ -268,12 +611,19 @@ fn recover_recorded_server(root: &std::path::Path) -> Result<(), String> {
     };
     match contracts::identity::inspect_process(record.pid).map_err(|error| error.to_string())? {
         None => Ok(()),
-        Some(observed) if observed == expected => contracts::identity::terminate_verified(
-            &expected,
-            Duration::from_secs(5),
-            Duration::from_secs(5),
-        )
-        .map_err(|error| format!("host-recovery-blocked: {error}")),
+        Some(observed) if observed == expected => {
+            let _ = contracts::roles::diagnostics::append_log(
+                &root.join("diagnostics"),
+                "server",
+                "host-recovery-terminated-owner",
+            );
+            contracts::identity::terminate_verified(
+                &expected,
+                Duration::from_secs(5),
+                Duration::from_secs(5),
+            )
+            .map_err(|error| format!("host-recovery-blocked: {error}"))
+        }
         Some(_) => Err("host-recovery-blocked: recorded owner identity is unverifiable".into()),
     }
 }
@@ -564,7 +914,7 @@ fn resident_endpoint(
 
 fn print_provenance() {
     println!(
-        "{{\"schema\":\"a1-terminal-host-version-v1\",\"protocolVersion\":{PROTOCOL_VERSION},\"hostMode\":\"console-inside-existing-terminal\",\"desktopWindow\":false,\"libghosttyVtCommit\":\"{GHOSTTY_VT_COMMIT}\",\"libghosttyTarget\":\"{GHOSTTY_ZIG_TARGET}\",\"libghosttyCpu\":\"{GHOSTTY_ZIG_CPU}\",\"portablePty\":\"{PORTABLE_PTY_VERSION}\",\"crossterm\":\"{CROSSTERM_VERSION}\"}}"
+        "{{\"schema\":\"a1-terminal-host-version-v1\",\"protocolVersion\":{PROTOCOL_VERSION},\"generation\":{GENERATION},\"crateVersion\":\"{CRATE_VERSION}\",\"features\":{{\"faultInjection\":{FAULT_INJECTION},\"residentFixtures\":{RESIDENT_FIXTURES}}},\"hostMode\":\"console-inside-existing-terminal\",\"desktopWindow\":false,\"libghosttyVtCommit\":\"{GHOSTTY_VT_COMMIT}\",\"libghosttyTarget\":\"{GHOSTTY_ZIG_TARGET}\",\"libghosttyCpu\":\"{GHOSTTY_ZIG_CPU}\",\"portablePty\":\"{PORTABLE_PTY_VERSION}\",\"crossterm\":\"{CROSSTERM_VERSION}\"}}"
     );
 }
 

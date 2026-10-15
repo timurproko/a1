@@ -30,7 +30,7 @@ export interface ReleaseReferences {
   readonly retention: readonly string[];
 }
 
-export type ExternalReleaseHoldAuthority = "agent" | "migration";
+export type ExternalReleaseHoldAuthority = "agent" | "migration" | "resident";
 
 /** A current hold supplied by an authority that must participate in every reconciliation. */
 export interface ExternalReleaseHold {
@@ -161,7 +161,7 @@ export interface ReleaseRetentionReconciliation {
 export function planProtectedReleases(state: CohortState, inputs: ProtectedReleaseInputs = {}): ProtectedReleasePlan {
   const holds = inputs.externalHolds ?? [];
   for (const hold of holds) {
-    if (hold.authority !== "agent" && hold.authority !== "migration") throw new Error(`unknown release hold authority: ${String(hold.authority)}`);
+    if (hold.authority !== "agent" && hold.authority !== "migration" && hold.authority !== "resident") throw new Error(`unknown release hold authority: ${String(hold.authority)}`);
     if (!state.releases[hold.releaseId] && !state.cleanup.pending[hold.releaseId]) {
       throw new Error(`external ${hold.authority} hold names unknown release ${hold.releaseId}`);
     }

@@ -1,0 +1,2 @@
+ƒ¤type®bridge.request©requestId
+¤bodyƒ¦action§restart¨clientId¨client-1²controllerRevision

@@ -188,7 +188,8 @@
         "test/features/resident-tab/"
       ],
       "integrationOwners": [
-        "terminal-host"
+        "terminal-host",
+        "resident-chaos"
       ]
     },
     {

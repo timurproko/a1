@@ -3,7 +3,7 @@ import { PROHIBITED_STARTUP_ENTRIES } from "./startup-graph-policy.mjs";
 
 export const PROJECT_OWNERS = Object.freeze({
   "product-identity": Object.freeze({ id: "product-identity", layer: "foundation", sourceRoot: "src", testRoot: "test/product-identity", publicEntry: "src/product-identity.ts", mayImport: Object.freeze([]) }),
-  cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release", "agent-engine-contracts"]),
+  cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release", "agent-engine-contracts", "lifecycle", "resident-tabs"]),
   composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "release", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters", "session-shell", "ui-apps", "ui-components", "owned-ui", "prompt-history", "prompt-suggestions", "launch", "resident-tabs", "resident-tab"]),
   "session-shell": owner("session-shell", "app", "src/app/session-shell", "test/app/session-shell", [
     "owned-ui-contracts", "agent-engine-contracts", "presentation-contracts", "ui-components", "ui-apps", "owned-ui-settings",
@@ -19,7 +19,7 @@ export const PROJECT_OWNERS = Object.freeze({
   "terminal-cleanup": owner("terminal-cleanup", "foundation", "src/foundation/terminal-cleanup", "test/foundation/terminal-cleanup", []),
   "launch-context": owner("launch-context", "foundation", "src/foundation/launch-context", "test/foundation/launch-context", []),
   "resident-tabs": owner("resident-tabs", "foundation", "src/foundation/resident-tabs", "test/foundation/resident-tabs", ["owned-ui-settings", "product-identity"]),
-  "session-writer-lock": owner("session-writer-lock", "foundation", "src/foundation/session-writer-lock", "test/foundation/session-writer-lock", []),
+  "session-writer-lock": owner("session-writer-lock", "foundation", "src/foundation/session-writer-lock", "test/foundation/session-writer-lock", ["product-identity"]),
   startup: owner("startup", "foundation", "src/foundation/startup", "test/foundation/startup", ["launch-context"]),
   lifecycle: owner("lifecycle", "foundation", "src/foundation/lifecycle", "test/foundation/lifecycle", []),
   "process-containment": owner("process-containment", "foundation", "src/foundation/process-containment", "test/foundation/process-containment", ["lifecycle"]),

@@ -1,10 +1,14 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import {
   acquireExisting,
+  nativeCandidates,
+  SESSION_LOCK_OVERRIDE_ENVIRONMENT,
   reserveNew,
   SessionWriterConflict,
   setSessionWriterLockBackendForTest,
@@ -60,5 +64,27 @@ describe("session writer lock", () => {
     expect(held.bound).toBe(true);
     expect(() => reserveNew(root, "new.jsonl")).toThrow(SessionWriterConflict);
     held.release();
+  });
+});
+
+describe("session-writer lock addon resolution", () => {
+  const release = resolve("/release");
+  const moduleUrl = pathToFileURL(join(release, "dist", "foundation", "session-writer-lock", "index.js")).href;
+  const target = `${process.platform}-${process.arch}`;
+  const releaseLock = join(release, "dist", "native", target, "a1_session_lock.node");
+  const development = { [PRODUCT_IDENTITY.environment.developmentInstanceId]: "dev", [SESSION_LOCK_OVERRIDE_ENVIRONMENT]: "/override.node" };
+
+  it("loads only the release's own lock when the release carries one", () => {
+    const candidates = nativeCandidates(moduleUrl, { [SESSION_LOCK_OVERRIDE_ENVIRONMENT]: "/override.node" }, resolve("/elsewhere"), path => path === releaseLock);
+    expect(candidates).toEqual([releaseLock]);
+  });
+
+  it("honors the override and working-directory addons only as development aids", () => {
+    expect(nativeCandidates(moduleUrl, development, resolve("/elsewhere"), path => path === releaseLock)).toEqual(["/override.node", releaseLock]);
+    const checkout = nativeCandidates(moduleUrl, {}, resolve("/checkout"), () => false);
+    expect(checkout).toEqual([
+      join(resolve("/checkout"), "dist", "native", target, "a1_session_lock.node"),
+      join(resolve("/checkout"), ".artifacts", "terminal-host", "a1_session_lock.node"),
+    ]);
   });
 });

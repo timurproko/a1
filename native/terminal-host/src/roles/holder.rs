@@ -239,6 +239,15 @@ impl BoundedInputQueue {
 pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result<(), String> {
     let config: HolderLaunchConfig = serde_json::from_slice(context)
         .map_err(|error| format!("decode holder context: {error}"))?;
+    run_holder(_profile, ready, config, false)
+}
+
+fn run_holder(
+    _profile: &Path,
+    ready: &Path,
+    config: HolderLaunchConfig,
+    respawned: bool,
+) -> Result<(), String> {
     crate::fault_injection::install(&config.server.fault_environment);
     crate::fault_injection::validate_environment()?;
     let profile_token = crate::endpoint::endpoint_token(Path::new(&config.server.profile))
@@ -267,7 +276,13 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
             thread::sleep(Duration::from_secs(1));
         }
     }
-    let (stream, mut highest_epoch) = connect_holder(&config, false, None, 0)?;
+    let (stream, mut highest_epoch) = match connect_holder(&config, false, None, 0) {
+        Ok(connected) => connected,
+        // Invariant: a respawning holder still owns a registered tab, so a server that died
+        // during the restart is replaced exactly as it is for a holder whose server disconnects.
+        Err(_) if respawned => reconnect_holder(&config, None, 0, &diagnostics_root)?,
+        Err(error) => return Err(error),
+    };
     let (mut server, command_stream) = HolderServerPeer::start(stream)?;
 
     let pty = NativePtySystem::default();
@@ -420,8 +435,12 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
         }
         while let Ok(command) = command_rx.try_recv() {
             if matches!(command, HolderCommand::Disconnected) {
-                let (replacement, epoch) =
-                    reconnect_holder(&config, &child_identity, highest_epoch, &diagnostics_root)?;
+                let (replacement, epoch) = reconnect_holder(
+                    &config,
+                    Some(&child_identity),
+                    highest_epoch,
+                    &diagnostics_root,
+                )?;
                 if epoch < highest_epoch {
                     continue;
                 }
@@ -467,9 +486,7 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
                     respawn.session_file
                 };
                 next.recovery_journals = respawn.recovery_journals;
-                let context = serde_json::to_vec(&next)
-                    .map_err(|error| format!("encode holder respawn context: {error}"))?;
-                return run_holder_child(_profile, ready, &context);
+                return run_holder(_profile, ready, next, true);
             } else if let HolderCommand::SurfaceSubscription(enabled) = command {
                 subscribed = enabled;
                 if subscribed {
@@ -788,10 +805,11 @@ fn input_rejected_message(error: InputAdmissionError) -> &'static str {
     }
 }
 
-fn request_server_replacement(config: &HolderLaunchConfig) -> Result<(), String> {
+/// Asks for a replacement server. Ok(false) means the registry no longer wants any tab to run.
+fn request_server_replacement(config: &HolderLaunchConfig) -> Result<bool, String> {
     let executable = std::env::current_exe()
         .map_err(|error| format!("resolve terminal host executable: {error}"))?;
-    let status = std::process::Command::new(executable)
+    let output = std::process::Command::new(executable)
         .args([
             "server",
             "--detach",
@@ -809,34 +827,49 @@ fn request_server_replacement(config: &HolderLaunchConfig) -> Result<(), String>
         ])
         .env("A1_TABS_ENDPOINT", &config.server.endpoint)
         .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .status()
+        .output()
         .map_err(|error| format!("request server replacement: {error}"))?;
-    if status.success() {
-        Ok(())
+    if output.status.success() {
+        Ok(!String::from_utf8_lossy(&output.stdout).contains("\"not-needed\""))
     } else {
-        Err(format!("server replacement stopped with {status}"))
+        Err(format!("server replacement stopped with {}", output.status))
     }
 }
 
 fn reconnect_holder(
     config: &HolderLaunchConfig,
-    child: &crate::identity::ProcessIdentity,
+    child: Option<&crate::identity::ProcessIdentity>,
     highest_epoch: u64,
     diagnostics_root: &Path,
 ) -> Result<(endpoint::EndpointStream, u64), String> {
     let role = format!("holder-{}", config.tab_id);
     let mut backoff = Duration::from_millis(100);
-    for _ in 0..3 {
-        if request_server_replacement(config).is_err() {
-            let _ = crate::roles::diagnostics::append_log(
-                diagnostics_root,
-                &role,
-                "server-replacement-request-failed",
-            );
+    // Invariant: a holder keeps its tab's server alive. Every attempt asks for a replacement, so
+    // a start that was blocked while another contender held the start gate is tried again; the
+    // server's lease keeps a single owner, and a server that cannot admit this holder terminates
+    // it by its recorded identity after the admission deadline.
+    loop {
+        match request_server_replacement(config) {
+            Ok(true) => {}
+            Ok(false) => {
+                let _ = crate::roles::diagnostics::append_log(
+                    diagnostics_root,
+                    &role,
+                    "server-replacement-not-needed",
+                );
+                // Invariant: no recorded tab should run any more, so this holder ends with its tab.
+                return Err("the resident tab is no longer wanted".to_owned());
+            }
+            Err(_) => {
+                let _ = crate::roles::diagnostics::append_log(
+                    diagnostics_root,
+                    &role,
+                    "server-replacement-request-failed",
+                );
+            }
         }
-        match connect_holder(config, false, Some(child), highest_epoch) {
+        match connect_holder(config, false, child, highest_epoch) {
             Ok(replacement) => {
                 let _ = crate::roles::diagnostics::append_log(
                     diagnostics_root,
@@ -845,19 +878,25 @@ fn reconnect_holder(
                 );
                 return Ok(replacement);
             }
-            Err(_) => {
+            Err(error) => {
                 let _ = crate::roles::diagnostics::append_log(
                     diagnostics_root,
                     &role,
-                    "server-replacement-connect-failed",
+                    match error.as_str() {
+                        "server refused holder handshake" => "server-replacement-refused",
+                        "server closed holder handshake" => "server-replacement-handshake-closed",
+                        _ => "server-replacement-connect-failed",
+                    },
                 );
             }
         }
         thread::sleep(backoff);
         backoff = backoff.saturating_mul(2).min(Duration::from_secs(2));
     }
-    connect_holder(config, true, Some(child), highest_epoch)
 }
+
+/// Long enough for a server to verify the holder and child identities it admits.
+const HOLDER_HANDSHAKE: Duration = Duration::from_secs(10);
 
 fn connect_holder(
     config: &HolderLaunchConfig,
@@ -866,6 +905,12 @@ fn connect_holder(
     highest_epoch: u64,
 ) -> Result<(endpoint::EndpointStream, u64), String> {
     let mut stream = connect_retry(&config.endpoint, retry_forever)?;
+    // Platform: macOS refuses socket options once the peer has closed, so Unix bounds the
+    // handshake before sending; a server that accepts but never answers cannot hold the holder.
+    #[cfg(unix)]
+    endpoint::set_handshake_deadline(&stream, HOLDER_HANDSHAKE)
+        .map_err(|error| error.to_string())?;
+    crate::fault_injection::crash_at("holder-before-ready");
     let identity = crate::identity::inspect_process(std::process::id())
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "inspect holder identity".to_owned())?;
@@ -888,12 +933,18 @@ fn connect_holder(
             highest_epoch,
         },
     )?;
+    // Platform: on Windows the deadline waits for the answer, so it follows the hello.
+    #[cfg(windows)]
+    endpoint::set_handshake_deadline(&stream, HOLDER_HANDSHAKE)
+        .map_err(|error| error.to_string())?;
     let welcome = wire::read_payload(&mut stream)?
         .ok_or_else(|| "server closed holder handshake".to_owned())?;
     if wire::kind(&welcome)?.message_type != "welcome" {
         return Err("server refused holder handshake".to_owned());
     }
+    endpoint::clear_handshake_deadline(&stream).map_err(|error| error.to_string())?;
     let (_, welcome): (Option<u64>, Welcome) = wire::body(&welcome)?;
+    crate::fault_injection::crash_at("holder-after-ready");
     Ok((stream, welcome.epoch))
 }
 

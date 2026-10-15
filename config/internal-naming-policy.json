@@ -282,6 +282,14 @@
       "semantics": "Fault-feature-only named crash point used by native integration tests"
     },
     {
+      "role": "tabsFaultCrashMark",
+      "key": "A1_TABS_FAULT_CRASH_MARK",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "docs/architecture/resident-tabs.md",
+      "semantics": "Fault-feature-only directory where a crash point leaves a breadcrumb before aborting, so recovery tests prove the point was reached"
+    },
+    {
       "role": "tabsFaultStaleEpoch",
       "key": "A1_TABS_FAULT_STALE_EPOCH",
       "exposure": "integration",
@@ -296,6 +304,14 @@
       "owner": "native/terminal-host/src/fault_injection.rs",
       "evidence": "openspec/changes/archive/2026-10-12-resident-tabs-failure-isolation/design.md",
       "semantics": "Fault-feature-only role-loop freeze used to prove watchdog isolation"
+    },
+    {
+      "role": "tabsFaultServerGeneration",
+      "key": "A1_TABS_FAULT_SERVER_GENERATION",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "native/terminal-host/tests/role_integration.rs",
+      "semantics": "Fault-feature-only protocol generation a fixture server answers with, used to test generation-mismatch handling"
     },
     {
       "role": "sessionRuntimeId",

@@ -1,5 +1,5 @@
 export interface DevelopmentValidationMatrixEntry {
-  group: "core" | "resource" | "pi" | "promoted" | "package" | "startup" | "compatibility" | "containment";
+  group: "core" | "resource" | "pi" | "promoted" | "package" | "startup" | "compatibility" | "containment" | "terminal-host" | "resident-chaos";
   label: string;
   os: "windows-2025" | "ubuntu-24.04" | "macos-15";
   platform: "win32" | "linux" | "darwin";

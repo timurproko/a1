@@ -156,6 +156,9 @@ pub struct OwnerEndpoint {
     listener: std::os::unix::net::UnixListener,
     path: PathBuf,
     uid: u32,
+    /// The device, inode, and change time of the socket this endpoint bound, so exit removes only
+    /// its own file even when a replacement reuses the freed inode.
+    socket: Option<(u64, u64, i64, i64)>,
 }
 
 #[cfg(unix)]
@@ -206,32 +209,63 @@ impl OwnerEndpoint {
         }
         let listener = std::os::unix::net::UnixListener::bind(&path)
             .map_err(|error| EndpointError(format!("bind endpoint {}: {error}", path.display())))?;
+        let socket = socket_identity(&path);
         Ok(Self {
             listener,
             path,
             uid: unsafe { libc::geteuid() },
+            socket,
         })
     }
 
     pub fn accept(&mut self) -> Result<EndpointStream, EndpointError> {
-        let (stream, _) = self
-            .listener
-            .accept()
-            .map_err(|error| EndpointError(format!("accept endpoint: {error}")))?;
-        let uid = peer_uid(&stream)?;
-        verify_peer_identity(self.uid as u64, uid as u64)?;
-        Ok(stream)
+        loop {
+            let (stream, _) = self
+                .listener
+                .accept()
+                .map_err(|error| EndpointError(format!("accept endpoint: {error}")))?;
+            // Invariant: one peer that is refused, or already gone before its identity could be
+            // read, is dropped alone; it never ends the endpoint every other peer depends on.
+            if peer_uid(&stream)
+                .and_then(|uid| verify_peer_identity(self.uid as u64, uid as u64))
+                .is_ok()
+            {
+                return Ok(stream);
+            }
+        }
     }
 
     pub fn path(&self) -> &Path {
         &self.path
     }
+
+    /// True while the socket file at this endpoint's path is still the one it bound.
+    pub fn still_owned(&self) -> bool {
+        self.socket.is_some() && socket_identity(&self.path) == self.socket
+    }
+}
+
+#[cfg(unix)]
+fn socket_identity(path: &Path) -> Option<(u64, u64, i64, i64)> {
+    use std::os::unix::fs::MetadataExt;
+    std::fs::symlink_metadata(path).ok().map(|metadata| {
+        (
+            metadata.dev(),
+            metadata.ino(),
+            metadata.ctime(),
+            metadata.ctime_nsec(),
+        )
+    })
 }
 
 #[cfg(unix)]
 impl Drop for OwnerEndpoint {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
+        // Invariant: a replacement server may already have bound a new socket at this path after
+        // recovering this one; exit removes the file only while it is still this endpoint's own.
+        if self.still_owned() {
+            let _ = std::fs::remove_file(&self.path);
+        }
     }
 }
 
@@ -294,25 +328,39 @@ impl OwnerEndpoint {
     /// A replacement instance is created before the connected handle is handed to its worker.
     pub fn accept(&mut self) -> Result<EndpointStream, EndpointError> {
         use std::os::windows::io::FromRawHandle;
-        use windows_sys::Win32::Foundation::{ERROR_PIPE_CONNECTED, GetLastError};
+        use windows_sys::Win32::Foundation::{ERROR_NO_DATA, ERROR_PIPE_CONNECTED, GetLastError};
         use windows_sys::Win32::System::Pipes::{
             ConnectNamedPipe, DisconnectNamedPipe, GetNamedPipeClientProcessId,
         };
-        let connected = unsafe { ConnectNamedPipe(self.pending, std::ptr::null_mut()) };
-        if connected == 0 && unsafe { GetLastError() } != ERROR_PIPE_CONNECTED {
-            return Err(EndpointError(format!(
-                "accept named-pipe client: {}",
-                std::io::Error::last_os_error()
-            )));
-        }
-        let mut pid = 0_u32;
-        if unsafe { GetNamedPipeClientProcessId(self.pending, &mut pid) } == 0
-            || !same_user_as_current_process(pid)?
-        {
-            unsafe { DisconnectNamedPipe(self.pending) };
-            return Err(EndpointError(
-                "named-pipe peer does not match the endpoint owner".to_owned(),
-            ));
+        loop {
+            let connected = unsafe { ConnectNamedPipe(self.pending, std::ptr::null_mut()) };
+            if connected == 0 {
+                match unsafe { GetLastError() } {
+                    ERROR_PIPE_CONNECTED => {}
+                    // Platform: a client that connected and closed before this call, as a short
+                    // probe can, leaves the instance to be reset and reused, not a failed endpoint.
+                    ERROR_NO_DATA => {
+                        unsafe { DisconnectNamedPipe(self.pending) };
+                        continue;
+                    }
+                    _ => {
+                        return Err(EndpointError(format!(
+                            "accept named-pipe client: {}",
+                            std::io::Error::last_os_error()
+                        )));
+                    }
+                }
+            }
+            // Invariant: one peer that is refused, or already gone before its identity could be
+            // read, is dropped alone; it never ends the endpoint every other peer depends on.
+            let mut pid = 0_u32;
+            if unsafe { GetNamedPipeClientProcessId(self.pending, &mut pid) } == 0
+                || !same_user_as_current_process(pid).unwrap_or(false)
+            {
+                unsafe { DisconnectNamedPipe(self.pending) };
+                continue;
+            }
+            break;
         }
         let replacement = create_owner_pipe(&self.name, false)?;
         let accepted = std::mem::replace(&mut self.pending, replacement);
@@ -508,6 +556,37 @@ mod tests {
         let endpoint = OwnerEndpoint::bind(profile.path(), runtime.path()).expect("endpoint");
         assert!(OwnerEndpoint::bind(profile.path(), runtime.path()).is_err());
         drop(endpoint);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exit_removes_only_a_socket_it_still_owns() {
+        use std::os::unix::fs::PermissionsExt;
+        let profile = tempfile::tempdir().expect("profile");
+        let runtime = tempfile::tempdir().expect("runtime");
+        std::fs::set_permissions(runtime.path(), std::fs::Permissions::from_mode(0o700))
+            .expect("permissions");
+        let owned = OwnerEndpoint::bind(profile.path(), runtime.path()).expect("endpoint");
+        let path = owned.path().to_path_buf();
+        assert!(owned.still_owned());
+        drop(owned);
+        assert!(!path.exists(), "an owned socket is removed at exit");
+
+        let stale = OwnerEndpoint::bind(profile.path(), runtime.path()).expect("endpoint");
+        // Rationale: a replacement recovers the stale endpoint and binds a new socket at the same path.
+        std::fs::remove_file(&path).expect("recover stale socket");
+        // Platform: file change times can be coarse; a real replacement binds far later than this.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let replacement = OwnerEndpoint::bind(profile.path(), runtime.path()).expect("replacement");
+        assert!(!stale.still_owned());
+        drop(stale);
+        assert!(
+            path.exists(),
+            "the replacement's socket survives the old server's exit"
+        );
+        assert!(replacement.still_owned());
+        drop(replacement);
+        assert!(!path.exists());
     }
 
     #[cfg(windows)]

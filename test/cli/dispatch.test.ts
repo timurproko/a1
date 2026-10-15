@@ -12,6 +12,7 @@ function handlers() {
     update: vi.fn(async () => 0),
     packages: vi.fn(async () => 0),
     sessionContext: vi.fn(async () => 0),
+    tabs: vi.fn(async () => 0),
   };
 }
 
@@ -51,6 +52,15 @@ describe("A1 CLI dispatch", () => {
     [["session", "worktrees"], { kind: "session-context", request: { action: "worktrees" } }],
     [["session", "link-worktree", "D:/worktree"], { kind: "session-context", request: { action: "link-worktree", path: "D:/worktree" } }],
     [["session", "unlink-worktree"], { kind: "session-context", request: { action: "unlink-worktree" } }],
+    [["tabs"], { kind: "tabs", request: { action: "list", json: false } }],
+    [["tabs", "--json"], { kind: "tabs", request: { action: "list", json: true } }],
+    [["tabs", "stop", "tab-1"], { kind: "tabs", request: { action: "stop", tabId: "tab-1", json: false } }],
+    [["tabs", "stop", "--all"], { kind: "tabs", request: { action: "stop-all", json: false } }],
+    [["tabs", "host", "status", "--json"], { kind: "tabs", request: { action: "host-status", json: true } }],
+    [["tabs", "host", "stop"], { kind: "tabs", request: { action: "host-stop", json: false } }],
+    [["tabs", "doctor"], { kind: "tabs", request: { action: "doctor", json: false } }],
+    [["tabs", "--help"], { kind: "tabs-help" }],
+    [["tabs", "stop", "-h"], { kind: "tabs-help" }],
   ] as const)("parses %j", (arguments_, expected) => {
     expect(parseCliCommand(arguments_, PRERELEASE)).toEqual(expected);
   });
@@ -268,6 +278,37 @@ describe("A1 CLI dispatch", () => {
     expectNoHandler(commands);
   });
 
+  it("prints focused tabs help without contacting a host", async () => {
+    const commands = handlers();
+    const transcript = output();
+    await expect(dispatchCli(["tabs", "--help"], commands, transcript, PRERELEASE)).resolves.toBe(0);
+    const help = String(transcript.stdout.mock.calls[0]?.[0]);
+    for (const form of ["a1 tabs ", "a1 tabs stop <id>", "a1 tabs stop --all", "a1 tabs host status", "a1 tabs host stop", "a1 tabs doctor", "--json"]) {
+      expect(help).toContain(form);
+    }
+    expect(commands.tabs).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [["tabs", "stop"], "stop requires a tab id or --all."],
+    [["tabs", "stop", "a", "b"], "stop accepts one tab id or --all."],
+    [["tabs", "stop", "--force"], "unknown option --force."],
+    [["tabs", "host"], "host accepts status or stop."],
+    [["tabs", "host", "restart"], "host accepts status or stop."],
+    [["tabs", "doctor", "now"], "doctor does not accept arguments."],
+    [["tabs", "--bogus"], "unknown option --bogus."],
+    [["tabs", "restart"], "unknown subcommand restart"],
+  ] as const)("rejects malformed tabs form %j before any I/O", async (arguments_, detail) => {
+    const commands = handlers();
+    const transcript = output();
+    expect(await dispatchCli(arguments_, commands, transcript, PRERELEASE)).toBe(2);
+    const message = String(transcript.stderr.mock.calls[0]?.[0]);
+    expect(message).toContain(detail);
+    expect(message.trim().split("\n")).toHaveLength(1);
+    expect(commands.tabs).not.toHaveBeenCalled();
+    expect(transcript.stdout).not.toHaveBeenCalled();
+  });
+
   it("advertises exactly the preferred command design", () => {
     const usage = cliUsage(PRERELEASE);
     const help = cliHelp(PRERELEASE);
@@ -288,7 +329,12 @@ describe("A1 CLI dispatch", () => {
       "remove <source>",
       "uninstall <source>",
       "list",
+      "tabs",
+      "tabs stop <id>|--all",
+      "tabs host status|stop",
+      "tabs doctor",
     ]) expect(usage).toContain(form);
+    expect(help).toContain("\nTabs:\n");
     expect(usage).not.toContain("--help");
     expect(usage).not.toContain("--version");
     expect(usage).not.toContain("pi install");

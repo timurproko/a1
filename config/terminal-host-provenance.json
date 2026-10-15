@@ -1,7 +1,7 @@
 {
   "schema": "a1-terminal-host-provenance-v1",
-  "recordedAt": "2026-10-11T00:00:00.000Z",
-  "change": "resident-tabs-contracts",
+  "recordedAt": "2026-10-14T00:00:00.000Z",
+  "change": "resident-tabs-certification",
   "hostMode": "console-inside-existing-terminal",
   "desktopApplicationRequired": false,
   "sources": [
@@ -13,9 +13,10 @@
       "role": "terminal parsing, retained state, and input semantics",
       "license": "MIT",
       "licenseNotice": "Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors",
-      "licenseSha256": "3129de97bc7769d683e52ce02cb4eaecd2b0aab144b09d6325a1b135bdc87cc0",
+      "licenseSha256": "386211873e5b7a02f663ae4d7adf96285999f91608f8f9f31fecfd0f4095e6f1",
       "cleanSourceTree": true,
-      "licenseVerification": "verified-local-license-file"
+      "licenseVerification": "verified-local-license-file",
+      "licenseFile": "native/terminal-host/vendor/libghostty-vt/LICENSE"
     },
     {
       "name": "portable-pty",
@@ -34,7 +35,7 @@
       "role": "outer-terminal raw mode and host input events",
       "license": "MIT",
       "cleanSourceTree": true,
-      "licenseVerification": "declared-license-recorded; license notice must be vendored before packaging"
+      "licenseVerification": "registry metadata and checksum pinned; license text shipped in generated notices"
     },
     {
       "name": "rmp-serde",
@@ -132,7 +133,8 @@
       "windows-10",
       "windows-11",
       "ubuntu-24.04",
-      "macos-15"
+      "macos-15",
+      "macos-15-intel"
     ],
     "architectures": [
       "x64",
@@ -140,7 +142,11 @@
     ],
     "language": "Rust",
     "zig": ">=0.15.2 <0.16",
-    "cToolchain": "Visual Studio 2022 Build Tools/MSVC on Windows",
+    "cToolchain": {
+      "win32": "Visual Studio 2022 Build Tools/MSVC",
+      "darwin": "Xcode Clang from the runner image",
+      "linux": "GCC from the runner image"
+    },
     "terminal": "user-owned terminal emulator",
     "isolatedPhysicalWorkerRequired": true,
     "guiSdkRequired": false,
@@ -154,7 +160,13 @@
       "requiredZigAvailable": true,
       "nativeBuildAttempted": true,
       "reason": "Rust 1.97.1 and Zig 0.15.2 are available; the clean console-host build and non-interactive probe pass."
-    }
+    },
+    "releaseTargets": [
+      "win32-x64",
+      "linux-x64",
+      "darwin-arm64",
+      "darwin-x64"
+    ]
   },
   "artifactManifestRequirements": [
     "artifactPath",
@@ -177,7 +189,11 @@
     "dependencyCacheProvenance",
     "cleanSourceTree",
     "evidenceSchema",
-    "physicalVerdictReference"
+    "physicalVerdictReference",
+    "sessionLockSha256",
+    "noticesSha256",
+    "cargoLockSha256",
+    "featureFlags"
   ],
   "checks": {
     "license": "passed",
@@ -186,5 +202,67 @@
     "binaryBuild": "passed",
     "physicalAutomation": "not-run"
   },
-  "passed": true
+  "passed": true,
+  "linkedComponents": [
+    {
+      "name": "libghostty-vt",
+      "version": "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3",
+      "license": "MIT",
+      "role": "terminal model linked statically through Zig",
+      "licenseFiles": [
+        {
+          "path": "native/terminal-host/vendor/libghostty-vt/LICENSE",
+          "sha256": "386211873e5b7a02f663ae4d7adf96285999f91608f8f9f31fecfd0f4095e6f1"
+        }
+      ]
+    },
+    {
+      "name": "simdutf",
+      "version": "9.0.0",
+      "license": "Apache-2.0 OR MIT",
+      "role": "SIMD UTF validation vendored by libghostty-vt (-Dsimd=true)",
+      "licenseFiles": [
+        {
+          "path": "native/terminal-host/vendor/third-party-licenses/simdutf-LICENSE-APACHE",
+          "sha256": "3d34610fc6b5e1b0bfe4e2f36171c2d62c28ef05cb8d704f5a0073be41a43b3d"
+        },
+        {
+          "path": "native/terminal-host/vendor/third-party-licenses/simdutf-LICENSE-MIT",
+          "sha256": "fc8dbc04e03ad4efc08a647ffe7f995b811a95bc04c0e85a56d5277c6593fa5f"
+        }
+      ]
+    },
+    {
+      "name": "highway",
+      "version": "66486a10623fa0d72fe91260f96c892e41aceb06",
+      "license": "Apache-2.0 OR BSD-3-Clause",
+      "role": "SIMD dispatch fetched by the pinned libghostty-vt build (-Dsimd=true)",
+      "licenseFiles": [
+        {
+          "path": "native/terminal-host/vendor/third-party-licenses/highway-LICENSE",
+          "sha256": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
+        },
+        {
+          "path": "native/terminal-host/vendor/third-party-licenses/highway-LICENSE-BSD3",
+          "sha256": "d25e82e26acd42ca3ccc9993622631163425b869b9e16284226d534cff6470f2"
+        }
+      ]
+    }
+  ],
+  "crateLicenseTexts": {
+    "napi": [
+      {
+        "path": "native/terminal-host/vendor/third-party-licenses/napi-rs-LICENSE",
+        "sha256": "3f1ce66533302df3a32edbfdfc0b78f0dd34659e4c1f5817162e5ea3c2297215",
+        "source": "https://github.com/napi-rs/napi-rs/blob/58eea7ab69451198db398ed3117718f92ff25971/LICENSE"
+      }
+    ],
+    "napi-sys": [
+      {
+        "path": "native/terminal-host/vendor/third-party-licenses/napi-rs-LICENSE",
+        "sha256": "3f1ce66533302df3a32edbfdfc0b78f0dd34659e4c1f5817162e5ea3c2297215",
+        "source": "https://github.com/napi-rs/napi-rs/blob/58eea7ab69451198db398ed3117718f92ff25971/LICENSE"
+      }
+    ]
+  }
 }

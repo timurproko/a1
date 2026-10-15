@@ -1,6 +1,6 @@
 # Resident tabs â€” architecture and roadmap
 
-Status: staged implementation. Milestones 1â€“4 are integrated. Milestone 5 implements the foreground UX, routes bare `a1` through tabs, and adds argument-free `a1 solo` as the explicit direct single-agent route. Windows physical-survival evidence exists for milestone 2 only. macOS and Linux physical survival, packaging, maintenance commands, and certification remain deferred to milestone 6; CI evidence is not a substitute. Discovery or verification failure safely falls back to the direct path. This document is the living design for multi-agent tabs; each milestone change cites the decisions it implements and updates this file when a decision changes. The full target behavior is in [`resident-tabs-requirements.md`](resident-tabs-requirements.md); each milestone moves its slice of those requirements into its own OpenSpec change and removes it from that file.
+Status: implemented. Milestones 1–6 deliver resident tabs as the bare-`a1` route on Windows x64, Linux x64, macOS arm64, and macOS x64, with `a1 solo` as the direct single-agent route and `a1 tabs` for maintenance. Every release carries a verified terminal host for each of those platforms. Certification is recorded per platform from exact-package evidence (see [Release state and known gaps](#release-state-and-known-gaps)); it is evidence, not a runtime gate. Discovery or verification failure falls back to the direct path with one notice. This document is the living design for multi-agent tabs; each change cites the decisions it implements and updates this file when a decision changes. The one target requirement no milestone has delivered yet is kept in [`resident-tabs-requirements.md`](resident-tabs-requirements.md).
 
 ## Context
 
@@ -364,14 +364,41 @@ The settings live in the owned settings screen, each with a hard cap.
 - Unresponsive restart and stall-notice timing are internal fixed behavior at 120 and 300 seconds; concurrent starts use internal default 2/hard cap 8 and prewarm uses internal count/hard cap 1.
 - Every open tab keeps its holder and A1 process until explicit close. There is no idle-suspension setting, timer, lifecycle, or glyph.
 - Scrollback is capped at 10 MiB per holder, and the replay after a server restart is the retained model itself.
-- The server exits after 10 minutes with no running tabs, clients, holders, or standby.
+- The server exits after 10 minutes with no attached client and no live user tab; the prewarmed standby does not keep it alive and is stopped first.
 - Structured diagnostic logs are `terminal-host-server.log` and `terminal-host-holder-<tab>.log`, rotated at 5 MiB with three kept. Use allowlisted fields/reason codes, not arbitrary exception strings, prompt text, terminal content, or credentials.
 - Raw child stderr cannot be declared sanitized: when available separately from ConPTY's combined terminal stream, store it only under the owner-only per-tab recovery area, at 5 MiB with three generations and a seven-day maximum age, alongside bounded last-screen files. Do not scrape stderr back out of terminal cells. These private artifacts may contain conversation or sensitive content and are excluded from `a1 tabs doctor`; neither their contents nor arbitrary extension errors enter structured crash records.
-- `a1 tabs host status` prints the server id, build, generation, detachment mode, tab count, and log paths.
+- `a1 tabs host status` prints the server pid, build, release, generation, epoch, uptime, detachment mode, tab count by status, client count, configured and hard limits, volatile health counters since server start, and log paths.
+
+#### Hard bounds (milestone 6 audit)
+
+Every queue, buffer, file, and collection the resident roles keep has a declared cap. Each row names where the cap is enforced and the test that pushes past it.
+
+| Bound | Cap | Enforced in | Test |
+|---|---|---|---|
+| Protocol frame | 2 MiB, nesting 64, 65,536 collection items | `native/terminal-host/src/protocol.rs`, `src/foundation/resident-tabs/protocol.ts` | `refuses_oversized_header_before_payload`; `refuses a frame header past 2 MiB before buffering its payload`, `refuses nesting past 64 levels`, `refuses a collection past 65,536 items` |
+| Input per message and holder input queue | 1 MiB | `protocol.rs`, `core/holder.rs`, `roles/holder.rs` | `over_capacity_paste_delivers_no_prefix` |
+| Per-client control lane | 1,024 frames and 4 MiB | `roles/server.rs` | `control_lane_is_bounded_by_frames_and_bytes` |
+| Per-client render slot | one pending full surface; a newer one replaces it | `roles/server.rs` `Peer::offer_surface` | `stalled_client_gets_one_full_current_surface` |
+| Concurrent endpoint connections | 128 | `roles/server.rs` `admit_connection` | `connections_beyond_the_cap_are_refused_and_released_slots_are_reused` |
+| Attached viewing clients | 16 | `roles/server.rs` `client_slot_available` | `attached_clients_are_capped` |
+| Open tabs | `tabsMax` (default 10, hard 50), including session-selection starts | `roles/server.rs` `tab.create`, `attach.start` | `ten_concurrent_tab_starts_respect_the_server_limit` |
+| Concurrent holder starts | default 2, hard 8 | `core/server.rs` | `limits_starts_and_drops_stale_completion` |
+| Stopped tab records | 16, oldest dropped first | `roles/server.rs` `prune_stopped_records` | `stopped_records_are_bounded_oldest_first_and_live_tabs_are_kept` |
+| Prior tab-set archives | bounded history | `roles/registry.rs` | `prior_tab_sets_are_bounded` |
+| Abandoned blocking workers | 8 | `shell/workers.rs` | `fails_fast_after_eight_abandoned_workers` |
+| Diagnostic logs | 5 MiB × 3 generations per role | `roles/diagnostics.rs` | `logs_rotate_at_their_cap_and_keep_a_bounded_number_of_generations` |
+| Crash records | 64 KiB each, 50 records, 30 days | `roles/diagnostics.rs`, `shell/watchdog.rs` | `crash_records_are_distinct_bounded_and_allowlisted`, `crash_record_is_bounded_and_owner_only` |
+| Last screen and private stderr sink | 2 MiB; 5 MiB × 3 generations, 7 days | `roles/recovery_artifacts.rs` | `recovery_files_are_plain_bounded_private_and_rotated`, `fixture_stderr_sink_caps_content` |
+| Prompt journal | 8 MiB, 2 MiB per record | `src/foundation/resident-tabs/prompt-journal.ts` | `bounds append size` |
+| Session reconciliation read | 64 MiB | `src/foundation/resident-tabs/recovery.ts` | `refuses to scan a session past the 64 MiB reconciliation cap` |
+| Release-hold report | 32 uncertainty reasons; 1 MiB read | `roles/release_holds.rs`, `release-holds.ts`, `bounded-host-command.ts` | `uncertainty_reasons_stay_within_their_cap`; `fails a release-hold report that pushes past its byte cap without returning a prefix` |
+| Maintenance exchange | 5 s reads, 60 s stops, 4 MiB report | `roles/maintain.rs`, `maintenance.ts`, `bounded-host-command.ts` | `fails a maintenance report that pushes past its byte cap without returning a prefix`, `kills and rejects a command that outlives its deadline` |
+| Attach client | no outbound queue: input is written synchronously in chunks of at most 1 MiB; inbound frames at most 2 MiB; one coalesced wake | `roles/attach.rs` | `refuses_oversized_header_before_payload`, `over_capacity_paste_delivers_no_prefix` |
+| Doctor bundle | 25 MiB, oldest log generations dropped first | `src/foundation/resident-tabs/doctor.ts` | `drops the oldest log generations first to stay within its cap` |
 
 ### 13. Packaging and certification
 
-- `a1-terminal-host` is built and packaged for Windows x64, Linux x64, and macOS arm64, extending the impact-selected Windows CI owner introduced by #588 to that exact target matrix, with Zig 0.15.2 for pinned libghostty-vt. It ships in the immutable release with artifact manifest, hash verification, provenance, licenses, and notices.
+- `a1-terminal-host` is built and packaged for Windows x64, Linux x64, macOS arm64, and macOS x64 (see the 2026-10-14 decision), extending the impact-selected Windows CI owner introduced by #588 to that exact target matrix, with Zig 0.15.2 for pinned libghostty-vt. It ships in the immutable release with artifact manifest, hash verification, provenance, licenses, and notices.
 - Acceptance requires exact-package hermetic suites on each platform plus manual or isolated-worker evidence per platform for terminal close, SSH/session loss, reattach, input fidelity, extension text UI, failure recovery, rollback, and render smoothness. Evidence is never inferred from one platform to another.
 - An authorized isolated-worker 24-hour soak remains required certification evidence on each platform; a miss blocks certification without silently changing the approved default or weakening fallback.
 
@@ -401,7 +428,7 @@ The v2 daemon was unreliable for structural reasons, and a forensic pass over it
 5. **Fencing.** The server must hold the OS-exclusive registry-writer lease; each start increments the durable epoch under that lease, each mutation verifies both lease and epoch, and holders and bridges obey only the highest epoch they have seen. A timed-out endpoint alone never authorizes a second writer.
 6. **Explicit durability per data class.** There is no "best effort". Each class of data has a stated guarantee, and each guarantee has a test.
 7. **Evidence survives failure.** Logs rotate but are never truncated at startup. Each crash produces its own record.
-8. **Prove it in stages.** Deterministic simulation, crash-point injection, fuzzing, bounded CI chaos on each platform, and exact-package physical evidence per platform gate certification. A separately authorized isolated-worker 24-hour soak remains required platform evidence; evidence is never inferred across platforms.
+8. **Prove it in stages.** Deterministic simulation, crash-point injection, fuzzing, bounded CI chaos on each platform, and exact-package physical evidence per platform gate certification. A separately authorized isolated-worker 24-hour soak remains required platform evidence; evidence is never inferred across platforms. Every named crash point exists only in the `fault-injection` test build, and `A1_TABS_FAULT_CRASH_MARK` names the directory where a kill-at-point test reads the breadcrumb a crashed role leaves.
 
 **How each v2 failure is closed:**
 
@@ -491,6 +518,28 @@ Each milestone is its own OpenSpec change and pull request. Milestones 1â€“
 
 A failed milestone keeps its pull request open until fixed and preserves safe direct fallback. Each milestone 2â€“6 PR is a draft that holds its full plan (proposal, design, tasks, spec deltas) and starts implementation only after the previous milestone merges.
 
+### Release state and known gaps
+
+Per-platform state is recorded in `docs/architecture/evidence/resident-tabs/` using [the acceptance checklist](../manual-resident-tabs-acceptance.md). A platform is `CI-verified` until every physical item has a recorded pass on a published candidate, then `certified`.
+
+| Platform | State | Automated evidence | Physical record |
+|---|---|---|---|
+| Windows x64 | CI-verified | terminal-host and resident-chaos lanes; publication build | [windows-x64](evidence/resident-tabs/windows-x64.md) |
+| Linux x64 | CI-verified | terminal-host and resident-chaos lanes, bounded fuzzing; publication build | [linux-x64](evidence/resident-tabs/linux-x64.md) |
+| macOS arm64 | CI-verified | terminal-host and resident-chaos lanes; publication build | [macos-arm64](evidence/resident-tabs/macos-arm64.md) |
+| macOS x64 | CI-verified (build only) | publication build and identity check | [macos-x64](evidence/resident-tabs/macos-x64.md) |
+
+Known gaps:
+
+- Physical acceptance is pending on every platform; the user runs the macOS checks after milestone 6.
+- The 24-hour soak per platform has not run and remains a separate authorization.
+- Intel macOS has no automated behavior suite of its own: modular validation outcomes are keyed by platform without architecture, so the pull-request suites run on macOS arm64 only.
+- Reboot and logout restore, CLI tabs, split layouts, remote attach, worktree isolation, agent coordination, automatic cohort handoff, and image protocols are follow-ups.
+- Raw child stderr is not captured separately on any platform; milestone 4 provides only a tested private sink.
+- Arbitrary child VT output is not fuzzed, because the fuzz crate cannot link the Zig-built `libghostty-vt`; the probe and terminal-fidelity steps cover that path.
+- Downgrading to a release without the session-writer guard while tabs run is unsupported; stop the host first.
+- A maintenance stop of an unresponsive host uses an ordinary replacement server that is told to stop every tab at once, rather than a dedicated maintenance-only server mode.
+- Revisioned, atomic topology mutations remain a target requirement in [`resident-tabs-requirements.md`](resident-tabs-requirements.md).
 ### Follow-ups outside this roadmap
 
 - **Reboot and logout restore:** reopen the previous tab set after a new OS session.
@@ -510,6 +559,10 @@ The user made these decisions on 2026-09-24:
 - Icons are the only attention signal, with no bell, sound, or notification: spinner = working, `âœ“` = finished, red `âœ—` = failed, yellow `?` = needs the user.
 - `Ctrl+C` twice leaves `a1` from any tab while tabs keep running. There is no separate detach key.
 - Reliability is a first-class, release-gating requirement (Decision 16).
+
+On 2026-10-14 the user resolved the milestone-6 `darwin-x64` question:
+
+- Add an Intel macOS runner (`macos-15-intel`) for both the process guardian and the terminal host, so every release carries `darwin-x64` binaries beside `darwin-arm64`. Intel macOS is certified separately from Apple silicon: it needs its own physical acceptance record, and the chaos group runs on macOS arm64 only.
 
 On 2026-10-13 the user refined milestone 5:
 

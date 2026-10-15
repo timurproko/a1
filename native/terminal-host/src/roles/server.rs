@@ -16,6 +16,7 @@ use crate::endpoint::{self, OwnerEndpoint};
 use crate::identity::ProcessIdentity;
 use crate::launch::{self, ResidentRole};
 use crate::protocol::{self, BridgeAttachment, BridgeRequest, Welcome};
+use crate::roles::counters::{self, Event as CounterEvent};
 use crate::roles::credentials::ProfileCredentials;
 use crate::roles::registry::{RegistryAuthority, RegistryDocument, RegistryStore, TabRecord};
 use crate::roles::wire::{
@@ -130,6 +131,51 @@ impl ClientRenderLanes {
 
 const CONTROL_LANE_FRAMES: usize = 1024;
 const CONTROL_LANE_BYTES: usize = 4 * 1024 * 1024;
+/// Hard caps on the server's own collections; `docs/architecture/resident-tabs.md` lists every bound.
+pub const MAX_CONNECTIONS: usize = 128;
+pub const MAX_ATTACHED_CLIENTS: usize = 16;
+pub const MAX_STOPPED_RECORDS: usize = 16;
+pub const HARD_TABS_MAX: usize = 50;
+
+/// True while another viewing client may attach.
+pub fn client_slot_available(attached: usize) -> bool {
+    attached < MAX_ATTACHED_CLIENTS
+}
+
+/// Reserves one connection slot, or refuses once [`MAX_CONNECTIONS`] are being served.
+pub fn admit_connection(active: &AtomicUsize) -> bool {
+    if active.fetch_add(1, Ordering::SeqCst) >= MAX_CONNECTIONS {
+        active.fetch_sub(1, Ordering::SeqCst);
+        return false;
+    }
+    true
+}
+
+/// Keeps at most [`MAX_STOPPED_RECORDS`] stopped tab records whose holders are gone, dropping the
+/// oldest first. Their sessions stay on disk; only the registry entry is released.
+pub fn prune_stopped_records(tabs: &mut Vec<TabRecord>) {
+    let mut stopped = tabs
+        .iter()
+        .filter(|tab| tab.desired == "stopped" && tab.holder_pid.is_none())
+        .map(|tab| {
+            (
+                tab.created_at.parse::<u64>().unwrap_or(0),
+                tab.tab_id.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    if stopped.len() <= MAX_STOPPED_RECORDS {
+        return;
+    }
+    stopped.sort();
+    let excess = stopped.len() - MAX_STOPPED_RECORDS;
+    let remove = stopped
+        .into_iter()
+        .take(excess)
+        .map(|(_, tab_id)| tab_id)
+        .collect::<std::collections::HashSet<_>>();
+    tabs.retain(|tab| !remove.contains(&tab.tab_id));
+}
 
 #[derive(Clone)]
 struct Peer {
@@ -137,6 +183,8 @@ struct Peer {
     queued_bytes: Arc<AtomicUsize>,
     surface: Arc<Mutex<Option<Vec<u8>>>>,
     surface_signaled: Arc<AtomicBool>,
+    /// Set when an unsent surface was replaced, so the next delivery counts as a full resync.
+    surface_replaced: Arc<AtomicBool>,
 }
 impl Peer {
     fn offer_control(&self, frame: Vec<u8>) -> Result<(), &'static str> {
@@ -159,8 +207,11 @@ impl Peer {
     }
 
     fn offer_surface(&self, frame: Vec<u8>) {
-        if let Ok(mut slot) = self.surface.lock() {
-            *slot = Some(frame);
+        if let Ok(mut slot) = self.surface.lock()
+            && slot.replace(frame).is_some()
+        {
+            counters::record(CounterEvent::RenderLaneReplacement);
+            self.surface_replaced.store(true, Ordering::SeqCst);
         }
         // Performance: an empty frame wakes the writer at once instead of after its idle poll;
         // the flag keeps at most one wake queued so slow clients cannot fill the control lane.
@@ -236,6 +287,8 @@ struct RuntimeState {
     tabs_max: usize,
     max_concurrent_starts: usize,
     active_starts: usize,
+    /// The start-gate slot each recovering tab holds, by a token unique to that acquisition.
+    recovery_slots: HashMap<String, u64>,
     last_start: Option<std::time::Instant>,
     last_activity: std::time::Instant,
     core_started: std::time::Instant,
@@ -244,14 +297,30 @@ struct RuntimeState {
     workers: crate::shell::workers::WorkerPool<Result<(), String>>,
     startup_notice: Option<String>,
     diagnostics_root: std::path::PathBuf,
+    shutdown_requested: bool,
 }
 impl RuntimeState {
     fn is_idle(&self) -> bool {
-        self.clients.is_empty()
-            && self.bridges.is_empty()
-            && self.holders.is_empty()
-            && self.holders_starting.is_empty()
-            && self.last_activity.elapsed() >= std::time::Duration::from_secs(10 * 60)
+        let standby = self.standby.as_ref().map(|standby| standby.tab_id.as_str());
+        crate::core::server::idle_exit_due(crate::core::server::IdleObservation {
+            clients: self.clients.len(),
+            bridges: self
+                .bridges
+                .keys()
+                .filter(|tab_id| Some(tab_id.as_str()) != standby)
+                .count(),
+            user_holders: self
+                .holders
+                .keys()
+                .filter(|tab_id| Some(tab_id.as_str()) != standby)
+                .count(),
+            starting_holders: self
+                .holders_starting
+                .iter()
+                .filter(|tab_id| Some(tab_id.as_str()) != standby)
+                .count(),
+            since_activity: self.last_activity.elapsed(),
+        })
     }
 
     fn default_tab(&self) -> String {
@@ -319,6 +388,41 @@ fn verify_session_writer_released(path: &Path, timeout: std::time::Duration) -> 
 }
 
 fn commit_registry(store: RegistryStore, document: RegistryDocument) -> Result<(), String> {
+    let diagnostics_root = store.path().parent().map(|root| root.join("diagnostics"));
+    let result = commit_registry_bounded(store, document);
+    if let Err(error) = &result {
+        counters::record(CounterEvent::PersistenceDegraded);
+        if let Some(root) = diagnostics_root {
+            let _ = crate::roles::diagnostics::append_log(
+                &root,
+                "server",
+                registry_commit_event(error),
+            );
+        }
+    }
+    result
+}
+
+/// The diagnostic event for a failed registry commit, without any text from the error itself.
+fn registry_commit_event(error: &str) -> &'static str {
+    if error.contains("degraded") {
+        "registry-commit-degraded"
+    } else if error.contains("fenced") {
+        "registry-commit-fenced"
+    } else if error.contains("epoch mismatch") {
+        "registry-commit-epoch-mismatch"
+    } else if error.contains("lease") {
+        "registry-commit-lease-lost"
+    } else if error.contains("deadline") {
+        "registry-commit-deadline"
+    } else if error.contains("worker limit") {
+        "registry-commit-worker-limit"
+    } else {
+        "registry-commit-failed"
+    }
+}
+
+fn commit_registry_bounded(store: RegistryStore, document: RegistryDocument) -> Result<(), String> {
     let incarnation = document.registry_revision;
     let mut worker = crate::shell::workers::WorkerPool::new(1);
     worker
@@ -342,6 +446,41 @@ fn commit_registry(store: RegistryStore, document: RegistryDocument) -> Result<(
     }
 }
 
+/// Binds the server endpoint, waiting a bounded time for a previous owner that is still leaving.
+/// A live owner is never disturbed; a Unix socket nothing answers on is stale and is replaced.
+fn bind_owned_endpoint(
+    profile: &Path,
+    config: &ServerLaunchConfig,
+) -> Result<OwnerEndpoint, String> {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let mut stale_removed = false;
+    loop {
+        let bound = if config.endpoint.is_empty() {
+            OwnerEndpoint::bind(profile, Path::new(&config.runtime_dir))
+        } else {
+            OwnerEndpoint::bind_name(config.endpoint.clone())
+        };
+        let error = match bound {
+            Ok(endpoint) => return Ok(endpoint),
+            Err(error) => error,
+        };
+        if cfg!(unix)
+            && !stale_removed
+            && !config.endpoint.is_empty()
+            && Path::new(&config.endpoint).exists()
+            && endpoint::connect(&config.endpoint).is_err()
+        {
+            endpoint::remove_stale(&config.endpoint).map_err(|error| error.to_string())?;
+            stale_removed = true;
+            continue;
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(format!("endpoint is owned by a live server: {error}"));
+        }
+        thread::sleep(std::time::Duration::from_millis(25));
+    }
+}
+
 pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<(), String> {
     let config: ServerLaunchConfig = serde_json::from_slice(context)
         .map_err(|error| format!("decode server context: {error}"))?;
@@ -352,6 +491,22 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     let root = data.join("tabs").join(token);
     std::fs::create_dir_all(&root)
         .map_err(|error| format!("create resident registry root: {error}"))?;
+    let diagnostics_root = root.join("diagnostics");
+    // Invariant: the endpoint is the one resource only a single server can own, so it is bound
+    // before the lease, the epoch, the registry, or the marker; a server that loses it leaves
+    // nothing behind that could fence or orphan the server that owns it.
+    let mut endpoint = match bind_owned_endpoint(profile, &config) {
+        Ok(endpoint) => endpoint,
+        Err(error) => {
+            let _ = crate::roles::diagnostics::append_log(
+                &diagnostics_root,
+                "server",
+                "endpoint-owned-elsewhere",
+            );
+            return Err(error);
+        }
+    };
+    crate::fault_injection::crash_at("after-bind");
     let lease_path = root.join("registry-writer-lease");
     if !lease_path.exists() {
         std::fs::write(&lease_path, b"a1 resident writer lease\n")
@@ -410,7 +565,9 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     registry.os_session_id = system.os_session;
     let mut adopting_holders = std::collections::HashSet::new();
     for tab in &mut registry.tabs {
-        if tab.lifecycle != "running" {
+        // Invariant: a stopping tab whose holder outlived its server is tracked like a running one;
+        // a restarting holder is re-admitted through its pending respawn when it reconnects.
+        if !matches!(tab.lifecycle.as_str(), "running" | "stopping") {
             continue;
         }
         let holder_live = tab
@@ -433,7 +590,13 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         if holder_live && child_live {
             adopting_holders.insert(tab.tab_id.clone());
         } else {
-            tab.lifecycle = "holder-lost".into();
+            tab.lifecycle = if tab.desired == "stopped" {
+                "stopped".into()
+            } else if tab.lifecycle == "failed" {
+                "failed".into()
+            } else {
+                "holder-lost".into()
+            };
             tab.holder_pid = None;
             tab.holder_start_identity = None;
             tab.child_pid = None;
@@ -462,24 +625,13 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
             .map_err(|error| error.to_string())?;
         crate::fault_injection::crash_at("after-marker");
     }
-    if !config.endpoint.is_empty() {
-        endpoint::remove_stale(&config.endpoint).map_err(|error| error.to_string())?;
-    }
-    let mut endpoint = if config.endpoint.is_empty() {
-        OwnerEndpoint::bind(profile, Path::new(&config.runtime_dir))
-            .map_err(|error| error.to_string())?
-    } else {
-        OwnerEndpoint::bind_name(config.endpoint.clone()).map_err(|error| error.to_string())?
-    };
-    crate::fault_injection::crash_at("after-bind");
     std::fs::write(ready, format!("{}:server\n", std::process::id()))
         .map_err(|error| format!("write server readiness: {error}"))?;
     #[cfg(unix)]
     let endpoint_address = endpoint.path().to_string_lossy().into_owned();
     #[cfg(windows)]
     let endpoint_address = endpoint.name().to_owned();
-    let starting_tabs = adopting_holders;
-    let diagnostics_root = root.join("diagnostics");
+    let starting_tabs = adopting_holders.clone();
     let _ = crate::roles::diagnostics::append_log(&diagnostics_root, "server", "started");
     let watchdog = crate::shell::watchdog::start(
         "server",
@@ -557,6 +709,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         tabs_max: 10,
         max_concurrent_starts: config.max_concurrent_starts.clamp(1, 8),
         active_starts: 0,
+        recovery_slots: HashMap::new(),
         last_start: None,
         last_activity: std::time::Instant::now(),
         core_started,
@@ -564,8 +717,17 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         core,
         workers: crate::shell::workers::WorkerPool::new(8),
         startup_notice,
-        diagnostics_root,
+        diagnostics_root: diagnostics_root.clone(),
+        shutdown_requested: false,
     }));
+    if !adopting_holders.is_empty() {
+        let state = state.clone();
+        thread::spawn(move || expire_unadmitted_holders(&state, adopting_holders));
+    }
+    {
+        let state = state.clone();
+        thread::spawn(move || reconcile_unconnected_holders(&state));
+    }
     let (accepted_tx, accepted_rx) = mpsc::channel();
     thread::spawn(move || {
         loop {
@@ -582,32 +744,95 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
             }
         }
     });
+    let connections = Arc::new(AtomicUsize::new(0));
     loop {
         watchdog.bump();
         match accepted_rx.recv_timeout(std::time::Duration::from_secs(1)) {
             Ok(Ok(stream)) => {
+                // Security: a same-user process cannot exhaust server threads with idle connections.
+                if !admit_connection(&connections) {
+                    drop(stream);
+                    continue;
+                }
                 let shared = state.clone();
                 let profile = profile.to_path_buf();
+                let connections = connections.clone();
                 thread::spawn(move || {
-                    let _ = serve_peer(stream, shared, profile);
+                    if let Err(error) = serve_peer(stream, shared.clone(), profile)
+                        && let Some(event) = peer_refusal_event(&error)
+                        && let Some(root) = shared
+                            .lock()
+                            .ok()
+                            .map(|locked| locked.diagnostics_root.clone())
+                    {
+                        let _ = crate::roles::diagnostics::append_log(&root, "server", event);
+                    }
+                    connections.fetch_sub(1, Ordering::SeqCst);
                 });
             }
-            Ok(Err(error)) => return Err(error),
+            Ok(Err(error)) => {
+                if let Ok(locked) = state.lock() {
+                    let _ = crate::roles::diagnostics::append_log(
+                        &locked.diagnostics_root,
+                        "server",
+                        "endpoint-accept-failed",
+                    );
+                }
+                return Err(error);
+            }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
+                let _ = crate::roles::diagnostics::append_log(
+                    &diagnostics_root,
+                    "server",
+                    "endpoint-stopped",
+                );
                 return Err("resident endpoint stopped".to_owned());
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 supervise_holders(&state);
-                if state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?
-                    .is_idle()
-                {
+                let exit = {
+                    let Ok(locked) = state.lock() else {
+                        let _ = crate::roles::diagnostics::append_log(
+                            &diagnostics_root,
+                            "server",
+                            "exit-state-poisoned",
+                        );
+                        return Err("resident state poisoned".to_owned());
+                    };
+                    if locked.shutdown_requested {
+                        Some("exit-shutdown")
+                    } else if locked.is_idle() {
+                        Some("exit-idle")
+                    } else {
+                        None
+                    }
+                };
+                if let Some(event) = exit {
+                    let _ =
+                        crate::roles::diagnostics::append_log(&diagnostics_root, "server", event);
+                    discard_standby(&state);
+                    remove_owned_marker(&state);
                     return Ok(());
                 }
             }
         }
     }
+}
+
+/// Tabs that count against `tabsMax`: open records plus starts not yet in the registry.
+fn open_tab_count(state: &RuntimeState) -> usize {
+    let open = state
+        .registry
+        .tabs
+        .iter()
+        .filter(|tab| tab.desired != "stopped")
+        .count();
+    let pending = state
+        .holders_starting
+        .iter()
+        .filter(|tab_id| !state.registry.tabs.iter().any(|tab| &tab.tab_id == *tab_id))
+        .count();
+    open + pending
 }
 
 fn acquire_start_gate(state: &Arc<Mutex<RuntimeState>>, timeout: std::time::Duration) -> bool {
@@ -634,6 +859,62 @@ fn acquire_start_gate(state: &Arc<Mutex<RuntimeState>>, timeout: std::time::Dura
 
 fn release_start_gate(state: &Arc<Mutex<RuntimeState>>) {
     if let Ok(mut locked) = state.lock() {
+        locked.active_starts = locked.active_starts.saturating_sub(1);
+    }
+}
+
+/// How long a recovering tab may hold a start-gate slot while its replacement holder starts.
+const RECOVERY_SLOT_BOUND: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Acquires a start-gate slot owned by `tab_id` until its replacement holder connects.
+///
+/// Invariant: a replacement holder can die, or its tab can stop, before it connects, so the slot
+/// is also returned after a bound; otherwise each lost start would shrink the gate until every
+/// later restart and tab start timed out.
+fn acquire_recovery_slot(
+    state: &Arc<Mutex<RuntimeState>>,
+    tab_id: &str,
+    timeout: std::time::Duration,
+) -> bool {
+    if !acquire_start_gate(state, timeout) {
+        return false;
+    }
+    let token = rand::random::<u64>();
+    let Ok(mut locked) = state.lock() else {
+        return false;
+    };
+    if locked
+        .recovery_slots
+        .insert(tab_id.to_owned(), token)
+        .is_some()
+    {
+        // Invariant: a tab holds at most one slot; a newer recovery supersedes the older one.
+        locked.active_starts = locked.active_starts.saturating_sub(1);
+    }
+    drop(locked);
+    let state = state.clone();
+    let tab_id = tab_id.to_owned();
+    thread::spawn(move || {
+        thread::sleep(RECOVERY_SLOT_BOUND);
+        if let Ok(mut locked) = state.lock()
+            && locked.recovery_slots.get(&tab_id) == Some(&token)
+        {
+            locked.recovery_slots.remove(&tab_id);
+            locked.active_starts = locked.active_starts.saturating_sub(1);
+        }
+    });
+    true
+}
+
+fn release_recovery_slot_of(state: &Arc<Mutex<RuntimeState>>, tab_id: &str) {
+    if let Ok(mut locked) = state.lock() {
+        release_recovery_slot(&mut locked, tab_id);
+    }
+}
+
+/// Returns the start-gate slot `tab_id` holds for its recovery, if it still holds one.
+fn release_recovery_slot(locked: &mut RuntimeState, tab_id: &str) {
+    if locked.recovery_slots.remove(tab_id).is_some() {
         locked.active_starts = locked.active_starts.saturating_sub(1);
     }
 }
@@ -722,6 +1003,7 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
         let mut registry_changed = false;
         for (tab_id, message) in notices {
             if message == "terminate-unresponsive-child" {
+                counters::record(CounterEvent::ChildHangRecovery);
                 if let Some(holder) = locked.holders.get(&tab_id) {
                     let _ = holder.peer.offer_control(
                         wire::frame(
@@ -786,6 +1068,7 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
                 {
                     if record.lifecycle != "unresponsive" {
                         record.lifecycle = "unresponsive".into();
+                        counters::record(CounterEvent::UnresponsiveTransition);
                         registry_changed = true;
                     }
                 }
@@ -803,6 +1086,7 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
             .map(|(tab_id, holder)| (tab_id.clone(), holder.identity.clone()))
             .collect::<Vec<_>>();
         for (tab_id, _) in &stale {
+            counters::record(CounterEvent::HolderHangRecovery);
             locked.holders_terminating.insert(tab_id.clone());
         }
         let commit =
@@ -884,23 +1168,30 @@ fn serve_peer(
         return Err("first resident message is not hello".to_owned());
     }
     let (request_id, hello): (_, RoleHello) = wire::body(&payload)?;
-    if hello.generation != protocol::GENERATION {
+    let supported =
+        crate::fault_injection::server_generation_override().unwrap_or(protocol::GENERATION);
+    if hello.generation != supported {
         return wire::send(
             &mut stream,
             "incompatible-generation",
             request_id,
             protocol::IncompatibleGeneration {
                 offered: hello.generation,
-                supported: protocol::GENERATION,
+                supported,
             },
         );
     }
-    let expected = {
+    // Invariant: a holder or bridge belongs to the incarnation its token was derived with, which
+    // the registry names; a hello that omits its incarnation must not detach a bridge's status
+    // from the surfaces of the holder it runs under.
+    let (expected, admitted_incarnation) = {
         let locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
         match hello.role.as_str() {
-            "attach" | "internal" | "probe" => locked.credentials.client_token.to_vec(),
+            "attach" | "internal" | "probe" | "maintain" => {
+                (locked.credentials.client_token.to_vec(), hello.incarnation)
+            }
             "holder" | "bridge" => {
                 let tab_id = hello.tab_id.as_deref().unwrap_or("");
                 let incarnation = locked
@@ -926,18 +1217,21 @@ fn serve_peer(
                             .map(|standby| standby.incarnation)
                     })
                     .unwrap_or(1);
-                locked
-                    .credentials
-                    .derive(
-                        if hello.role == "holder" {
-                            "holder"
-                        } else {
-                            "bridge"
-                        },
-                        tab_id,
-                        incarnation,
-                    )
-                    .to_vec()
+                (
+                    locked
+                        .credentials
+                        .derive(
+                            if hello.role == "holder" {
+                                "holder"
+                            } else {
+                                "bridge"
+                            },
+                            tab_id,
+                            incarnation,
+                        )
+                        .to_vec(),
+                    incarnation,
+                )
             }
             _ => return Err("unapproved resident peer role".to_owned()),
         }
@@ -1019,6 +1313,20 @@ fn serve_peer(
     if hello.role == "probe" {
         return wire::send(&mut stream, "welcome", request_id, welcome(epoch));
     }
+    if hello.role == "maintain" {
+        wire::send(&mut stream, "welcome", request_id, welcome(epoch))?;
+        let served = serve_maintain(stream, state.clone());
+        if served.is_err()
+            && let Ok(locked) = state.lock()
+        {
+            let _ = crate::roles::diagnostics::append_log(
+                &locked.diagnostics_root,
+                "server",
+                "maintenance-request-failed",
+            );
+        }
+        return served;
+    }
     wire::send(&mut stream, "welcome", request_id, welcome(epoch))?;
     let writer = stream
         .try_clone()
@@ -1027,17 +1335,29 @@ fn serve_peer(
     let queued_bytes = Arc::new(AtomicUsize::new(0));
     let surface = Arc::new(Mutex::new(None));
     let surface_signaled = Arc::new(AtomicBool::new(false));
+    let surface_replaced = Arc::new(AtomicBool::new(false));
     thread::spawn({
         let queued_bytes = queued_bytes.clone();
         let surface = surface.clone();
         let surface_signaled = surface_signaled.clone();
-        move || writer_loop(writer, rx, queued_bytes, surface, surface_signaled)
+        let surface_replaced = surface_replaced.clone();
+        move || {
+            writer_loop(
+                writer,
+                rx,
+                queued_bytes,
+                surface,
+                surface_signaled,
+                surface_replaced,
+            )
+        }
     });
     let peer = Peer {
         tx,
         queued_bytes,
         surface,
         surface_signaled,
+        surface_replaced,
     };
     match hello.role.as_str() {
         "attach" | "internal" => {
@@ -1079,7 +1399,7 @@ fn serve_peer(
                 peer,
                 state,
                 hello.tab_id.unwrap_or_default(),
-                hello.incarnation,
+                admitted_incarnation,
                 heartbeat_supported,
                 controller_boundary,
             )
@@ -1117,6 +1437,7 @@ fn writer_loop(
     queued_bytes: Arc<AtomicUsize>,
     surface: Arc<Mutex<Option<Vec<u8>>>>,
     surface_signaled: Arc<AtomicBool>,
+    surface_replaced: Arc<AtomicBool>,
 ) {
     loop {
         match rx.recv_timeout(std::time::Duration::from_millis(8)) {
@@ -1135,6 +1456,9 @@ fn writer_loop(
         }
         surface_signaled.store(false, Ordering::SeqCst);
         let frame = surface.lock().ok().and_then(|mut slot| slot.take());
+        if frame.is_some() && surface_replaced.swap(false, Ordering::SeqCst) {
+            counters::record(CounterEvent::FullSurfaceResync);
+        }
         if let Some(frame) = frame
             && stream
                 .write_all(&frame)
@@ -1435,6 +1759,416 @@ fn cancel_controller_transfer(
     Ok(())
 }
 
+/// Asks a tab's bridge and holder to stop gracefully and records it as stopping. Returns false
+/// for an unknown tab.
+fn close_tab(
+    state: &Arc<Mutex<RuntimeState>>,
+    tab_id: &str,
+    request_id: Option<u64>,
+) -> Result<bool, String> {
+    let mut locked = state
+        .lock()
+        .map_err(|_| "resident state poisoned".to_owned())?;
+    if let Some(bridge) = locked.bridges.get(tab_id) {
+        let _ = bridge.peer.offer_control(wire::frame(
+            "bridge.stop",
+            request_id,
+            serde_json::json!({ "deadlineMs": 5000 }),
+        )?);
+    }
+    if let Some(holder) = locked.holders.get(tab_id) {
+        let _ = holder.peer.offer_control(wire::frame(
+            "shutdown",
+            request_id,
+            TabTarget {
+                tab_id: tab_id.to_owned(),
+            },
+        )?);
+    }
+    let commit = if let Some(tab) = locked
+        .registry
+        .tabs
+        .iter_mut()
+        .find(|tab| tab.tab_id == tab_id)
+    {
+        tab.desired = "stopped".into();
+        tab.lifecycle = "stopping".into();
+        locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
+        Some((locked.registry_store.clone(), locked.registry.clone()))
+    } else {
+        None
+    };
+    drop(locked);
+    let known = commit.is_some();
+    if let Some((store, document)) = commit {
+        commit_registry(store, document)?;
+    }
+    Ok(known)
+}
+
+/// How long a maintenance stop waits for graceful holder exit before verified termination.
+const MAINTENANCE_STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(15);
+/// The additional bound for verified termination of holders that ignored the graceful stop.
+const MAINTENANCE_STOP_FORCE: std::time::Duration = std::time::Duration::from_secs(12);
+
+/// Stops the named tabs, waits for their holders to leave, terminates any holder that ignored the
+/// request after verifying its identity, and removes the stopped records. Sessions stay on disk,
+/// so each one remains resumable.
+fn stop_tabs(
+    state: &Arc<Mutex<RuntimeState>>,
+    tab_ids: &[String],
+    request_id: Option<u64>,
+) -> Result<serde_json::Value, String> {
+    for tab_id in tab_ids {
+        close_tab(state, tab_id, request_id)?;
+    }
+    type LiveTab = (String, Option<ProcessIdentity>, Option<ProcessIdentity>);
+    let live =
+        |state: &Arc<Mutex<RuntimeState>>| -> Result<Vec<LiveTab>, String> {
+            let locked = state
+                .lock()
+                .map_err(|_| "resident state poisoned".to_owned())?;
+            Ok(tab_ids
+                .iter()
+                .filter(|tab_id| {
+                    // Invariant: a tab whose holder has not started has no process to stop; its
+                    // pending start sees the tab is no longer wanted and never launches one.
+                    locked.holders.contains_key(*tab_id)
+                        || (locked.holders_starting.contains(*tab_id)
+                            && locked.registry.tabs.iter().any(|record| {
+                                &record.tab_id == *tab_id && record.holder_pid.is_some()
+                            }))
+                })
+                .map(|tab_id| {
+                    let record = locked
+                        .registry
+                        .tabs
+                        .iter()
+                        .find(|record| &record.tab_id == tab_id);
+                    // Invariant: a recorded holder that has not reconnected is stopped by the identity
+                    // its registry record holds.
+                    let recorded = || {
+                        Some(ProcessIdentity {
+                            pid: record?.holder_pid?,
+                            start: record?.holder_start_identity.clone()?,
+                        })
+                    };
+                    let child = record.and_then(|record| {
+                        Some(ProcessIdentity {
+                            pid: record.child_pid?,
+                            start: record.child_start_identity.clone()?,
+                        })
+                    });
+                    (
+                        tab_id.clone(),
+                        locked
+                            .holders
+                            .get(tab_id)
+                            .map(|holder| holder.identity.clone())
+                            .or_else(recorded),
+                        child,
+                    )
+                })
+                .collect())
+        };
+    let deadline = std::time::Instant::now() + MAINTENANCE_STOP_GRACE;
+    let mut remaining = live(state)?;
+    while !remaining.is_empty() && std::time::Instant::now() < deadline {
+        thread::sleep(std::time::Duration::from_millis(100));
+        remaining = live(state)?;
+    }
+    let mut forced = Vec::new();
+    for (tab_id, identity, child) in &remaining {
+        if let Some(identity) = identity {
+            counters::record(CounterEvent::HolderHangRecovery);
+            // Security: termination targets only the identity this server admitted, never a pid alone.
+            if crate::identity::terminate_verified(
+                identity,
+                MAINTENANCE_STOP_FORCE / 2,
+                MAINTENANCE_STOP_FORCE / 2,
+            )
+            .is_ok()
+            {
+                forced.push(tab_id.clone());
+                // Invariant: an unconnected recorded holder has no connection whose close would
+                // release its start slot, so its verified termination releases it.
+                if let Ok(mut locked) = state.lock()
+                    && !locked.holders.contains_key(tab_id)
+                {
+                    locked.holders_starting.remove(tab_id);
+                }
+            }
+        }
+        // Invariant: a holder that had to be forced never stopped its child, so the child the
+        // registry records for the tab is terminated by its own verified identity; its session
+        // stays on disk.
+        if let Some(child) = child {
+            let _ = crate::identity::terminate_verified(
+                child,
+                MAINTENANCE_STOP_FORCE / 4,
+                MAINTENANCE_STOP_FORCE / 4,
+            );
+        }
+    }
+    let force_deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    remaining = live(state)?;
+    while !remaining.is_empty() && std::time::Instant::now() < force_deadline {
+        thread::sleep(std::time::Duration::from_millis(100));
+        remaining = live(state)?;
+    }
+    let remaining = remaining
+        .into_iter()
+        .map(|(tab_id, _, _)| tab_id)
+        .collect::<Vec<_>>();
+    let stopped = tab_ids
+        .iter()
+        .filter(|tab_id| !remaining.contains(tab_id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let commit = {
+        let mut locked = state
+            .lock()
+            .map_err(|_| "resident state poisoned".to_owned())?;
+        let before = locked.registry.tabs.len();
+        locked
+            .registry
+            .tabs
+            .retain(|tab| !stopped.contains(&tab.tab_id));
+        for tab_id in &stopped {
+            locked.surfaces.remove(tab_id);
+            locked.launches.remove(tab_id);
+        }
+        (locked.registry.tabs.len() != before).then(|| {
+            locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
+            (locked.registry_store.clone(), locked.registry.clone())
+        })
+    };
+    if let Some((store, document)) = commit {
+        commit_registry(store, document)?;
+    }
+    Ok(serde_json::json!({
+        "accepted": remaining.is_empty(),
+        "stopped": stopped,
+        "forced": forced,
+        "remaining": remaining,
+    }))
+}
+
+fn host_status(state: &Arc<Mutex<RuntimeState>>) -> Result<serde_json::Value, String> {
+    let locked = state
+        .lock()
+        .map_err(|_| "resident state poisoned".to_owned())?;
+    let root = locked
+        .diagnostics_root
+        .parent()
+        .map(std::path::Path::to_path_buf);
+    let marker = root
+        .as_ref()
+        .and_then(|root| std::fs::read(root.join("server.json")).ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok());
+    let mut by_status = std::collections::BTreeMap::<String, usize>::new();
+    for tab in &locked.registry.tabs {
+        *by_status.entry(tab.lifecycle.clone()).or_default() += 1;
+    }
+    let logs = std::fs::read_dir(&locked.diagnostics_root)
+        .map(|entries| {
+            let mut logs = entries
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .filter(|path| {
+                    path.file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| {
+                            name.starts_with("terminal-host-") && name.contains(".log")
+                        })
+                })
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect::<Vec<_>>();
+            logs.sort();
+            logs.truncate(64);
+            logs
+        })
+        .unwrap_or_default();
+    let own = crate::identity::inspect_process(std::process::id())
+        .ok()
+        .flatten();
+    let verified = marker
+        .as_ref()
+        .and_then(|value| value.get("verified"))
+        .and_then(serde_json::Value::as_bool);
+    Ok(serde_json::json!({
+        "serverId": own.map(|identity| format!("{}:{}", identity.pid, identity.start)),
+        "pid": std::process::id(),
+        "build": env!("CARGO_PKG_VERSION"),
+        "release": crate::roles::release_holds::own_release_root(),
+        "generation": protocol::GENERATION,
+        "epoch": locked.registry.epoch,
+        "uptimeSeconds": locked.core_started.elapsed().as_secs(),
+        "endpoint": locked.endpoint,
+        "detachmentMode": marker.as_ref().and_then(|value| value.get("detachmentMode")).cloned(),
+        "detachmentVerified": verified,
+        "detachmentVerificationFailure": match verified {
+            Some(true) => serde_json::Value::Null,
+            Some(false) => marker
+                .as_ref()
+                .and_then(|value| value.get("reason"))
+                .cloned()
+                .unwrap_or_else(|| "the owner marker records an unverified detachment".into()),
+            None => "the owner marker is missing or unreadable".into(),
+        },
+        "tabs": locked.registry.tabs.len(),
+        "tabsByStatus": by_status,
+        "standby": locked.standby.is_some(),
+        "clients": locked.clients.len(),
+        "limits": {
+            "tabsMax": locked.tabs_max,
+            "tabsMaxHard": 50,
+            "maxConcurrentStarts": locked.max_concurrent_starts,
+            "maxConcurrentStartsHard": crate::core::server::HARD_MAX_CONCURRENT_STARTS,
+            "idleExitSeconds": crate::core::server::IDLE_EXIT.as_secs(),
+        },
+        "counters": counters::snapshot(locked.registry.epoch),
+        "logs": logs,
+    }))
+}
+
+/// Removes the owner marker on exit, but only while it still names this process.
+fn remove_owned_marker(state: &Arc<Mutex<RuntimeState>>) {
+    let Some(root) = state.lock().ok().and_then(|locked| {
+        locked
+            .diagnostics_root
+            .parent()
+            .map(std::path::Path::to_path_buf)
+    }) else {
+        return;
+    };
+    let Ok(Some(own)) = crate::identity::inspect_process(std::process::id()) else {
+        return;
+    };
+    remove_marker_if_owned(&root.join("server.json"), &own);
+}
+
+/// Removes the owner marker only while it still names own; a replacement's marker is kept.
+fn remove_marker_if_owned(path: &Path, own: &ProcessIdentity) -> bool {
+    let Some(marker) = std::fs::read(path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+    else {
+        return false;
+    };
+    let owned = marker.get("pid").and_then(serde_json::Value::as_u64) == Some(u64::from(own.pid))
+        && marker
+            .get("startIdentity")
+            .and_then(serde_json::Value::as_str)
+            == Some(own.start.as_str());
+    owned && std::fs::remove_file(path).is_ok()
+}
+
+/// Non-interactive maintenance for `a1 tabs`: never a viewing client, never a controller.
+fn serve_maintain(
+    mut stream: endpoint::EndpointStream,
+    state: Arc<Mutex<RuntimeState>>,
+) -> Result<(), String> {
+    while let Some(payload) = wire::read_payload(&mut stream)? {
+        let kind = wire::kind(&payload)?;
+        let request_id = kind.request_id;
+        match kind.message_type.as_str() {
+            "host.status" => {
+                let status = host_status(&state)?;
+                wire::send(&mut stream, "host.status", request_id, status)?;
+            }
+            "tab.list" => {
+                let tabs = {
+                    let locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    let mut tabs = locked.registry.tabs.clone();
+                    tabs.sort_by_key(|tab| tab.order);
+                    tabs.into_iter()
+                        .map(|tab| {
+                            serde_json::json!({
+                                "tabId": tab.tab_id,
+                                "name": tab.display_name,
+                                "status": locked
+                                    .surfaces
+                                    .get(&tab.tab_id)
+                                    .map_or_else(|| tab.lifecycle.clone(), |surface| surface.status.clone()),
+                                "lifecycle": tab.lifecycle,
+                                "desired": tab.desired,
+                                "cwd": tab.cwd,
+                                "release": tab.release,
+                                "holderPid": tab.holder_pid,
+                                "restarts": tab.restarts,
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                };
+                wire::send(
+                    &mut stream,
+                    "tab.list",
+                    request_id,
+                    serde_json::json!({ "tabs": tabs }),
+                )?;
+            }
+            "tab.stop" => {
+                let (_, target): (_, TabTarget) = wire::body(&payload)?;
+                let known = state
+                    .lock()
+                    .map_err(|_| "resident state poisoned".to_owned())?
+                    .registry
+                    .tabs
+                    .iter()
+                    .any(|tab| tab.tab_id == target.tab_id);
+                let result = if known {
+                    stop_tabs(&state, &[target.tab_id], request_id)?
+                } else {
+                    serde_json::json!({ "accepted": false, "message": "unknown tab" })
+                };
+                wire::send(&mut stream, "tab.stopped", request_id, result)?;
+            }
+            "tab.stopAll" | "host.stop" => {
+                let tab_ids = state
+                    .lock()
+                    .map_err(|_| "resident state poisoned".to_owned())?
+                    .registry
+                    .tabs
+                    .iter()
+                    .map(|tab| tab.tab_id.clone())
+                    .collect::<Vec<_>>();
+                let result = stop_tabs(&state, &tab_ids, request_id)?;
+                if kind.message_type == "host.stop" {
+                    let accepted = result["accepted"] == serde_json::Value::Bool(true);
+                    // Concurrency: the answer is sent before shutdown is requested, so the main loop
+                    // cannot exit and close this connection before the caller learns the outcome.
+                    let sent = wire::send(&mut stream, "host.stopping", request_id, result);
+                    // Invariant: the server leaves only after every tab it could verify has stopped;
+                    // a tab that could not be stopped keeps the host running for a retry.
+                    if accepted {
+                        state
+                            .lock()
+                            .map_err(|_| "resident state poisoned".to_owned())?
+                            .shutdown_requested = true;
+                    }
+                    sent?;
+                } else {
+                    wire::send(&mut stream, "tab.stopped", request_id, result)?;
+                }
+            }
+            other => {
+                wire::send(
+                    &mut stream,
+                    "maintain.refused",
+                    request_id,
+                    wire::ResultBody {
+                        accepted: false,
+                        message: Some(format!("unsupported maintenance request {other}")),
+                    },
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
 fn serve_attach(
     mut stream: endpoint::EndpointStream,
     tx: Peer,
@@ -1448,6 +2182,9 @@ fn serve_attach(
         let mut locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
+        if !client_slot_available(locked.clients.len()) {
+            return Err("attached client limit reached".to_owned());
+        }
         let viewed_tab = requested_tab
             .filter(|tab_id| locked.registry.tabs.iter().any(|tab| &tab.tab_id == tab_id))
             .unwrap_or_else(|| locked.default_tab());
@@ -1554,7 +2291,10 @@ fn serve_attach(
                         })
                     {
                         (tab.tab_id.clone(), false)
-                    } else if selected.is_some() && !locked.registry.tabs.is_empty() {
+                    } else if selected.is_some()
+                        && !locked.registry.tabs.is_empty()
+                        && open_tab_count(&locked) < locked.tabs_max.min(HARD_TABS_MAX)
+                    {
                         let tab_id = format!("tab-{:016x}", rand::random::<u64>());
                         let start = locked.holders_starting.insert(tab_id.clone());
                         (tab_id, start)
@@ -2007,41 +2747,7 @@ fn serve_attach(
             }
             "tab.close" => {
                 let (_, target): (_, TabTarget) = wire::body(&payload)?;
-                let mut locked = state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?;
-                if let Some(bridge) = locked.bridges.get(&target.tab_id) {
-                    let _ = bridge.peer.offer_control(wire::frame(
-                        "bridge.stop",
-                        kind.request_id,
-                        serde_json::json!({ "deadlineMs": 5000 }),
-                    )?);
-                }
-                if let Some(holder) = locked.holders.get(&target.tab_id) {
-                    let _ = holder.peer.offer_control(wire::frame(
-                        "shutdown",
-                        kind.request_id,
-                        target.clone(),
-                    )?);
-                }
-                let commit = if let Some(tab) = locked
-                    .registry
-                    .tabs
-                    .iter_mut()
-                    .find(|tab| tab.tab_id == target.tab_id)
-                {
-                    tab.desired = "stopped".into();
-                    tab.lifecycle = "stopping".into();
-                    locked.registry.registry_revision =
-                        locked.registry.registry_revision.saturating_add(1);
-                    Some((locked.registry_store.clone(), locked.registry.clone()))
-                } else {
-                    None
-                };
-                drop(locked);
-                if let Some((store, document)) = commit {
-                    commit_registry(store, document)?;
-                }
+                close_tab(&state, &target.tab_id, kind.request_id)?;
                 tx.offer_control(wire::frame(
                     "tab.closed",
                     kind.request_id,
@@ -2301,6 +3007,7 @@ fn promote_standby(
             .as_secs()
             .to_string();
         let previous = locked.registry.clone();
+        prune_stopped_records(&mut locked.registry.tabs);
         locked.registry.tabs.push(TabRecord {
             tab_id: standby.tab_id.clone(),
             kind: "a1".into(),
@@ -2511,6 +3218,18 @@ fn start_holder(
     if !spacing.is_zero() {
         std::thread::sleep(spacing);
     }
+    // Invariant: a tab told to stop while its start waited for a slot never launches a holder;
+    // the permit's release takes the tab out of the starting set, so a stop can complete.
+    let stopped_meanwhile = state.lock().ok().is_some_and(|locked| {
+        locked
+            .registry
+            .tabs
+            .iter()
+            .any(|tab| tab.tab_id == tab_id && tab.desired == "stopped")
+    });
+    if stopped_meanwhile {
+        return Ok(());
+    }
     let (
         endpoint,
         server_config,
@@ -2561,6 +3280,7 @@ fn start_holder(
             .to_string();
         locked.launches.insert(tab_id.clone(), start.clone());
         locked.registry.tabs.retain(|tab| tab.tab_id != tab_id);
+        prune_stopped_records(&mut locked.registry.tabs);
         locked.registry.tabs.push(TabRecord {
             tab_id: tab_id.clone(),
             kind: "a1".into(),
@@ -2841,13 +3561,21 @@ fn serve_holder(
             core_tab.last_heartbeat_at = heartbeat_at;
             core_tab.missed_heartbeats = 0;
         }
+        // Invariant: only a slot this tab's recovery took is returned; a holder re-adopted by a
+        // replacement server while restarting never took one.
         if recovering {
-            locked.active_starts = locked.active_starts.saturating_sub(1);
+            release_recovery_slot(&mut locked, &tab_id);
         }
         let registry_commit = recovering.then(|| {
             locked.registry.registry_revision = locked.registry.registry_revision.saturating_add(1);
             (locked.registry_store.clone(), locked.registry.clone())
         });
+        // Invariant: a holder that connects after its tab was told to stop is stopped at once.
+        let stop_now = locked
+            .registry
+            .tabs
+            .iter()
+            .any(|record| record.tab_id == tab_id && record.desired == "stopped");
         locked.holders_terminating.remove(&tab_id);
         locked.holders_starting.remove(&tab_id);
         locked.last_activity = std::time::Instant::now();
@@ -2855,229 +3583,477 @@ fn serve_holder(
         if let Some((store, document)) = registry_commit {
             commit_registry(store, document)?;
         }
-        if let Some(respawn) = pending_respawn {
-            if !acquire_start_gate(&state, std::time::Duration::from_secs(40)) {
+        if stop_now {
+            let _ = holder_peer.offer_control(wire::frame(
+                "shutdown",
+                None,
+                TabTarget {
+                    tab_id: tab_id.clone(),
+                },
+            )?);
+        } else if let Some(respawn) = pending_respawn {
+            if !acquire_recovery_slot(&state, &tab_id, std::time::Duration::from_secs(40)) {
                 return Err("resident restart start gate timed out".into());
             }
             if let Err(error) =
                 holder_peer.offer_control(wire::frame("holder.respawn", None, respawn)?)
             {
-                release_start_gate(&state);
+                release_recovery_slot_of(&state, &tab_id);
                 return Err(error.to_owned());
             }
         }
     }
     let mut last_exit = None;
-    while let Some(payload) = wire::read_payload(&mut stream)? {
-        let kind = wire::kind(&payload)?;
-        match kind.message_type.as_str() {
-            "surface" => {
-                let (_, mut surface): (_, Surface) = wire::body(&payload)?;
-                surface.tab_id = tab_id.clone();
-                let mut locked = state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?;
-                if locked.bridge_status_sequences.get(&tab_id).is_some_and(
-                    |(seen_incarnation, _)| *seen_incarnation == connection_incarnation,
-                ) && let Some(existing) = locked.surfaces.get(&tab_id)
-                {
-                    surface.status = existing.status.clone();
-                    surface.accent = existing.accent.clone();
-                } else if locked
-                    .registry
-                    .tabs
-                    .iter()
-                    .find(|record| record.tab_id == tab_id)
-                    .is_some_and(|record| record.attention_seq > record.seen_seq)
-                {
-                    surface.status = "done-unseen".into();
+    // Invariant: however the connection ends, including a failed request, the holder is
+    // released below; returning early would leave it recorded as connected and its tab stuck.
+    let served = (|| -> Result<(), String> {
+        while let Some(payload) = wire::read_payload(&mut stream)? {
+            let kind = wire::kind(&payload)?;
+            match kind.message_type.as_str() {
+                "surface" => {
+                    let (_, mut surface): (_, Surface) = wire::body(&payload)?;
+                    surface.tab_id = tab_id.clone();
+                    let mut locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    if locked.bridge_status_sequences.get(&tab_id).is_some_and(
+                        |(seen_incarnation, _)| *seen_incarnation == connection_incarnation,
+                    ) && let Some(existing) = locked.surfaces.get(&tab_id)
+                    {
+                        surface.status = existing.status.clone();
+                        surface.accent = existing.accent.clone();
+                    } else if locked
+                        .registry
+                        .tabs
+                        .iter()
+                        .find(|record| record.tab_id == tab_id)
+                        .is_some_and(|record| record.attention_seq > record.seen_seq)
+                    {
+                        surface.status = "done-unseen".into();
+                    }
+                    locked.surfaces.insert(tab_id.clone(), surface.clone());
+                    for client in locked
+                        .clients
+                        .values()
+                        .filter(|client| client.viewed_tab == tab_id)
+                    {
+                        client
+                            .peer
+                            .offer_surface(wire::frame("surface", None, surface.clone())?);
+                    }
                 }
-                locked.surfaces.insert(tab_id.clone(), surface.clone());
-                for client in locked
-                    .clients
-                    .values()
-                    .filter(|client| client.viewed_tab == tab_id)
-                {
-                    client
-                        .peer
-                        .offer_surface(wire::frame("surface", None, surface.clone())?);
+                "input.rejected" | "input.uncertain" => {
+                    let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    let locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    for client in locked
+                        .clients
+                        .values()
+                        .filter(|client| client.viewed_tab == tab_id)
+                    {
+                        let _ = client.peer.offer_control(wire::frame(
+                            &kind.message_type,
+                            kind.request_id,
+                            result.clone(),
+                        )?);
+                    }
                 }
-            }
-            "input.rejected" | "input.uncertain" => {
-                let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
-                let locked = state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?;
-                for client in locked
-                    .clients
-                    .values()
-                    .filter(|client| client.viewed_tab == tab_id)
-                {
-                    let _ = client.peer.offer_control(wire::frame(
-                        &kind.message_type,
-                        kind.request_id,
-                        result.clone(),
-                    )?);
-                }
-            }
-            "holder.heartbeat" => {
-                let (_, ready): (_, wire::HolderReady) = wire::body(&payload)?;
-                let child = inspect_identity_bounded(ready.child_pid)?
-                    .filter(|identity| identity.start == ready.child_start_identity);
-                let mut locked = state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?;
-                let now = locked.core_started.elapsed();
-                let _ = crate::core::server::step(
-                    &mut locked.core,
-                    crate::core::server::Event::HolderHeartbeat {
-                        tab_id: tab_id.clone(),
-                        incarnation: ready.incarnation,
-                    },
-                    now,
-                );
-                let _ = crate::core::server::step(
-                    &mut locked.core,
-                    crate::core::server::Event::ChildObserved {
-                        tab_id: tab_id.clone(),
-                        incarnation: ready.incarnation,
-                        process_id: ready.child_pid,
-                        alive: child.is_some(),
-                    },
-                    now,
-                );
-                locked.holders_terminating.remove(&tab_id);
-                let changed = if ready.tab_id == tab_id {
-                    if let Some(record) = locked.registry.tabs.iter_mut().find(|record| {
-                        record.tab_id == tab_id
-                            && record.incarnation == ready.incarnation
-                            && record.holder_pid == Some(ready.pid)
-                    }) {
-                        if let Some(child) = child {
-                            let changed = record.child_pid != Some(child.pid)
-                                || record.child_start_identity.as_deref()
-                                    != Some(child.start.as_str())
-                                || record.lifecycle != "running";
-                            record.child_pid = Some(child.pid);
-                            record.child_start_identity = Some(child.start);
-                            record.lifecycle = "running".into();
-                            changed
+                "holder.heartbeat" => {
+                    let (_, ready): (_, wire::HolderReady) = wire::body(&payload)?;
+                    let child = inspect_identity_bounded(ready.child_pid)?
+                        .filter(|identity| identity.start == ready.child_start_identity);
+                    let mut locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    let now = locked.core_started.elapsed();
+                    let _ = crate::core::server::step(
+                        &mut locked.core,
+                        crate::core::server::Event::HolderHeartbeat {
+                            tab_id: tab_id.clone(),
+                            incarnation: ready.incarnation,
+                        },
+                        now,
+                    );
+                    let _ = crate::core::server::step(
+                        &mut locked.core,
+                        crate::core::server::Event::ChildObserved {
+                            tab_id: tab_id.clone(),
+                            incarnation: ready.incarnation,
+                            process_id: ready.child_pid,
+                            alive: child.is_some(),
+                        },
+                        now,
+                    );
+                    locked.holders_terminating.remove(&tab_id);
+                    let changed = if ready.tab_id == tab_id {
+                        if let Some(record) = locked.registry.tabs.iter_mut().find(|record| {
+                            record.tab_id == tab_id
+                                && record.incarnation == ready.incarnation
+                                && record.holder_pid == Some(ready.pid)
+                        }) {
+                            if let Some(child) = child {
+                                let changed = record.child_pid != Some(child.pid)
+                                    || record.child_start_identity.as_deref()
+                                        != Some(child.start.as_str())
+                                    || record.lifecycle != "running";
+                                record.child_pid = Some(child.pid);
+                                record.child_start_identity = Some(child.start);
+                                record.lifecycle = "running".into();
+                                changed
+                            } else {
+                                false
+                            }
                         } else {
                             false
                         }
                     } else {
                         false
-                    }
-                } else {
-                    false
-                };
-                let commit = if changed {
-                    locked.registry.registry_revision =
-                        locked.registry.registry_revision.saturating_add(1);
-                    Some((locked.registry_store.clone(), locked.registry.clone()))
-                } else {
-                    None
-                };
-                drop(locked);
-                if let Some((store, document)) = commit {
-                    commit_registry(store, document)?;
-                }
-            }
-            "holder.recovery-action" => {
-                let (_, request): (_, wire::ResultBody) = wire::body(&payload)?;
-                let action = request.message.as_deref().unwrap_or("");
-                let (store, document, peer, respawn) = {
-                    let mut locked = state
-                        .lock()
-                        .map_err(|_| "resident state poisoned".to_owned())?;
-                    let mut next = None;
-                    let mut close = false;
-                    let mut incarnation = 0;
-                    let mut session_file = None;
-                    if let Some(record) = locked
-                        .registry
-                        .tabs
-                        .iter_mut()
-                        .find(|record| record.tab_id == tab_id)
-                    {
-                        if action == "close" {
-                            record.desired = "stopped".into();
-                            record.lifecycle = "stopped".into();
-                            close = true;
-                        } else if matches!(action, "retry" | "fresh")
-                            && matches!(
-                                record.lifecycle.as_str(),
-                                "failed" | "crashed" | "restarting"
-                            )
-                        {
-                            record.restarts = 0;
-                            record.restart_window_start = Some(
-                                SystemTime::now()
-                                    .duration_since(UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_secs(),
-                            );
-                            record.incarnation = record.incarnation.saturating_add(1);
-                            record.lifecycle = "restarting".into();
-                            incarnation = record.incarnation;
-                            session_file = (action == "retry")
-                                .then(|| record.session_file.clone())
-                                .flatten();
-                            next = Some(action == "fresh");
-                        }
-                    }
-                    locked.registry.registry_revision =
-                        locked.registry.registry_revision.saturating_add(1);
-                    let peer = locked
-                        .holders
-                        .get(&tab_id)
-                        .map(|holder| holder.peer.clone());
-                    let respawn = next.map(|start_fresh| wire::HolderRespawn {
-                        tab_id: tab_id.clone(),
-                        incarnation,
-                        session_file,
-                        recovery_journals: Vec::new(),
-                        start_fresh,
-                        holder_token: locked
-                            .credentials
-                            .derive("holder", &tab_id, incarnation)
-                            .to_vec(),
-                        bridge_token: locked
-                            .credentials
-                            .derive("bridge", &tab_id, incarnation)
-                            .to_vec(),
-                    });
-                    let peer = if close || respawn.is_some() {
-                        peer
+                    };
+                    let commit = if changed {
+                        locked.registry.registry_revision =
+                            locked.registry.registry_revision.saturating_add(1);
+                        Some((locked.registry_store.clone(), locked.registry.clone()))
                     } else {
                         None
                     };
-                    (
-                        locked.registry_store.clone(),
-                        locked.registry.clone(),
-                        peer,
-                        respawn,
-                    )
-                };
-                commit_registry(store, document)?;
-                if let Some(peer) = peer {
-                    if let Some(respawn) = respawn {
-                        let session_ok = respawn.session_file.as_deref().map_or(Ok(()), |file| {
-                            verify_session_writer_released(
-                                Path::new(file),
-                                std::time::Duration::from_secs(5),
+                    drop(locked);
+                    if let Some((store, document)) = commit {
+                        commit_registry(store, document)?;
+                    }
+                }
+                "holder.recovery-action" => {
+                    let (_, request): (_, wire::ResultBody) = wire::body(&payload)?;
+                    let action = request.message.as_deref().unwrap_or("");
+                    let (store, document, peer, respawn) = {
+                        let mut locked = state
+                            .lock()
+                            .map_err(|_| "resident state poisoned".to_owned())?;
+                        let mut next = None;
+                        let mut close = false;
+                        let mut incarnation = 0;
+                        let mut session_file = None;
+                        if let Some(record) = locked
+                            .registry
+                            .tabs
+                            .iter_mut()
+                            .find(|record| record.tab_id == tab_id)
+                        {
+                            if action == "close" {
+                                record.desired = "stopped".into();
+                                record.lifecycle = "stopped".into();
+                                close = true;
+                            } else if matches!(action, "retry" | "fresh")
+                                && matches!(
+                                    record.lifecycle.as_str(),
+                                    "failed" | "crashed" | "restarting"
+                                )
+                            {
+                                record.restarts = 0;
+                                record.restart_window_start = Some(
+                                    SystemTime::now()
+                                        .duration_since(UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_secs(),
+                                );
+                                record.incarnation = record.incarnation.saturating_add(1);
+                                record.lifecycle = "restarting".into();
+                                incarnation = record.incarnation;
+                                session_file = (action == "retry")
+                                    .then(|| record.session_file.clone())
+                                    .flatten();
+                                next = Some(action == "fresh");
+                            }
+                        }
+                        locked.registry.registry_revision =
+                            locked.registry.registry_revision.saturating_add(1);
+                        let peer = locked
+                            .holders
+                            .get(&tab_id)
+                            .map(|holder| holder.peer.clone());
+                        let respawn = next.map(|start_fresh| wire::HolderRespawn {
+                            tab_id: tab_id.clone(),
+                            incarnation,
+                            session_file,
+                            recovery_journals: Vec::new(),
+                            start_fresh,
+                            holder_token: locked
+                                .credentials
+                                .derive("holder", &tab_id, incarnation)
+                                .to_vec(),
+                            bridge_token: locked
+                                .credentials
+                                .derive("bridge", &tab_id, incarnation)
+                                .to_vec(),
+                        });
+                        let peer = if close || respawn.is_some() {
+                            peer
+                        } else {
+                            None
+                        };
+                        (
+                            locked.registry_store.clone(),
+                            locked.registry.clone(),
+                            peer,
+                            respawn,
+                        )
+                    };
+                    commit_registry(store, document)?;
+                    if let Some(peer) = peer {
+                        if let Some(respawn) = respawn {
+                            let session_ok =
+                                respawn.session_file.as_deref().map_or(Ok(()), |file| {
+                                    verify_session_writer_released(
+                                        Path::new(file),
+                                        std::time::Duration::from_secs(5),
+                                    )
+                                });
+                            if let Err(error) = session_ok {
+                                let commit = {
+                                    let mut locked = state
+                                        .lock()
+                                        .map_err(|_| "resident state poisoned".to_owned())?;
+                                    if let Some(record) = locked
+                                        .registry
+                                        .tabs
+                                        .iter_mut()
+                                        .find(|record| record.tab_id == tab_id)
+                                    {
+                                        record.lifecycle = "failed".into();
+                                        record.last_exit = Some(error);
+                                    }
+                                    locked.registry.registry_revision =
+                                        locked.registry.registry_revision.saturating_add(1);
+                                    (locked.registry_store.clone(), locked.registry.clone())
+                                };
+                                commit_registry(commit.0, commit.1)?;
+                            } else {
+                                if !acquire_recovery_slot(
+                                    &state,
+                                    &tab_id,
+                                    std::time::Duration::from_secs(40),
+                                ) {
+                                    return Err("resident restart start gate timed out".into());
+                                }
+                                if let Err(error) = peer.offer_control(wire::frame(
+                                    "holder.respawn",
+                                    None,
+                                    respawn,
+                                )?) {
+                                    release_recovery_slot_of(&state, &tab_id);
+                                    return Err(error.to_owned());
+                                }
+                            }
+                        } else {
+                            peer.offer_control(wire::frame(
+                                "shutdown",
+                                None,
+                                wire::ResultBody {
+                                    accepted: true,
+                                    message: None,
+                                },
+                            )?)
+                            .map_err(str::to_owned)?;
+                        }
+                    }
+                }
+                "holder.exit" => {
+                    let (_, exit): (_, HolderExit) = wire::body(&payload)?;
+                    let standby_exit = state.lock().ok().is_some_and(|locked| {
+                        locked
+                            .standby
+                            .as_ref()
+                            .is_some_and(|standby| standby.tab_id == tab_id)
+                            && !locked
+                                .registry
+                                .tabs
+                                .iter()
+                                .any(|record| record.tab_id == tab_id)
+                    });
+                    if standby_exit {
+                        last_exit = Some("standby child ended".into());
+                        break;
+                    }
+                    let reason = exit.signal.clone().unwrap_or_else(|| {
+                        exit.code
+                            .map_or_else(|| "ended".into(), |code| format!("exit {code}"))
+                    });
+                    last_exit = Some(reason.clone());
+                    let (store, document, respawn) = {
+                        let mut locked = state
+                            .lock()
+                            .map_err(|_| "resident state poisoned".to_owned())?;
+                        for client in locked
+                            .clients
+                            .values()
+                            .filter(|client| client.viewed_tab == tab_id)
+                        {
+                            let _ = client.peer.offer_control(wire::frame(
+                                "holder.exit",
+                                None,
+                                exit.clone(),
+                            )?);
+                        }
+                        let now = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs();
+                        let mut restart = None;
+                        let mut failed = false;
+                        let mut next_incarnation = connection_incarnation;
+                        let mut session_file = None;
+                        if let Some(record) = locked.registry.tabs.iter_mut().find(|record| {
+                            record.tab_id == tab_id && record.incarnation == connection_incarnation
+                        }) {
+                            record.last_exit = Some(reason.clone());
+                            record.child_pid = None;
+                            record.child_start_identity = None;
+                            if record.desired != "running" {
+                                record.lifecycle = "stopped".into();
+                            } else if record.requested_restart {
+                                record.requested_restart = false;
+                                record.incarnation = record.incarnation.saturating_add(1);
+                                record.lifecycle = "restarting".into();
+                                next_incarnation = record.incarnation;
+                                session_file = record.session_file.clone();
+                                restart = Some(0);
+                            } else {
+                                match crate::core::server::decide_restart(
+                                    record.restarts,
+                                    record
+                                        .restart_window_start
+                                        .map(std::time::Duration::from_secs),
+                                    std::time::Duration::from_secs(now),
+                                ) {
+                                    crate::core::server::RestartDecision::Schedule {
+                                        delay,
+                                        restarts,
+                                        window_start,
+                                    } => {
+                                        record.restarts = restarts;
+                                        record.restart_window_start = Some(window_start.as_secs());
+                                        record.incarnation = record.incarnation.saturating_add(1);
+                                        record.lifecycle = "restarting".into();
+                                        next_incarnation = record.incarnation;
+                                        session_file = record.session_file.clone();
+                                        restart = Some(delay.as_secs());
+                                    }
+                                    crate::core::server::RestartDecision::Failed {
+                                        restarts,
+                                        window_start,
+                                    } => {
+                                        record.restarts = restarts;
+                                        record.restart_window_start = Some(window_start.as_secs());
+                                        record.lifecycle = "failed".into();
+                                        failed = true;
+                                    }
+                                }
+                            }
+                        }
+                        locked.registry.registry_revision =
+                            locked.registry.registry_revision.saturating_add(1);
+                        let respawn = restart.map(|delay| {
+                            let holder_token = locked
+                                .credentials
+                                .derive("holder", &tab_id, next_incarnation)
+                                .to_vec();
+                            let bridge_token = locked
+                                .credentials
+                                .derive("bridge", &tab_id, next_incarnation)
+                                .to_vec();
+                            (
+                                delay,
+                                wire::HolderRespawn {
+                                    tab_id: tab_id.clone(),
+                                    incarnation: next_incarnation,
+                                    session_file,
+                                    recovery_journals: Vec::new(),
+                                    start_fresh: false,
+                                    holder_token,
+                                    bridge_token,
+                                },
                             )
                         });
-                        if let Err(error) = session_ok {
+                        if respawn.is_some() {
+                            let restarting = locked.surfaces.get_mut(&tab_id).map(|surface| {
+                                surface.status = "restarting".into();
+                                surface.clone()
+                            });
+                            if let Some(surface) = restarting {
+                                for client in locked
+                                    .clients
+                                    .values()
+                                    .filter(|client| client.viewed_tab == tab_id)
+                                {
+                                    client.peer.offer_surface(wire::frame(
+                                        "surface",
+                                        None,
+                                        surface.clone(),
+                                    )?);
+                                }
+                            }
+                        }
+                        if failed {
+                            if let Some(surface) = locked.surfaces.get_mut(&tab_id) {
+                                surface.status = "failed".into();
+                            }
+                            for client in locked
+                                .clients
+                                .values()
+                                .filter(|client| client.viewed_tab == tab_id)
+                            {
+                                let _ = client.peer.offer_control(wire::frame(
+                                    "failure.status",
+                                    None,
+                                    wire::ResultBody {
+                                        accepted: false,
+                                        message: Some(reason.clone()),
+                                    },
+                                )?);
+                            }
+                        }
+                        (
+                            locked.registry_store.clone(),
+                            locked.registry.clone(),
+                            respawn,
+                        )
+                    };
+                    commit_registry(store, document)?;
+                    crate::fault_injection::crash_at("after-restart-budget-commit");
+                    let diagnostics_root = state
+                        .lock()
+                        .ok()
+                        .map(|locked| locked.diagnostics_root.clone());
+                    if let Some(root) = diagnostics_root {
+                        let child_record = crate::roles::diagnostics::newest_child_record(&root);
+                        let _ = crate::roles::diagnostics::write_crash(
+                            &root,
+                            "holder",
+                            connection_incarnation,
+                            "child-exit",
+                            &["child-exited"],
+                            child_record.as_deref(),
+                        );
+                    }
+                    if let Some((delay, respawn)) = respawn {
+                        thread::sleep(std::time::Duration::from_secs(delay));
+                        let session_check =
+                            respawn.session_file.as_deref().map_or(Ok(()), |file| {
+                                verify_session_writer_released(
+                                    Path::new(file),
+                                    std::time::Duration::from_secs(5),
+                                )
+                            });
+                        if let Err(error) = session_check {
                             let commit = {
                                 let mut locked = state
                                     .lock()
                                     .map_err(|_| "resident state poisoned".to_owned())?;
-                                if let Some(record) = locked
-                                    .registry
-                                    .tabs
-                                    .iter_mut()
-                                    .find(|record| record.tab_id == tab_id)
+                                if let Some(record) =
+                                    locked.registry.tabs.iter_mut().find(|record| {
+                                        record.tab_id == tab_id
+                                            && record.incarnation == respawn.incarnation
+                                    })
                                 {
                                     record.lifecycle = "failed".into();
                                     record.last_exit = Some(error);
@@ -3088,258 +4064,40 @@ fn serve_holder(
                             };
                             commit_registry(commit.0, commit.1)?;
                         } else {
-                            if !acquire_start_gate(&state, std::time::Duration::from_secs(40)) {
+                            let peer = state.lock().ok().and_then(|locked| {
+                                locked
+                                    .holders
+                                    .get(&tab_id)
+                                    .filter(|holder| holder.incarnation == connection_incarnation)
+                                    .map(|holder| holder.peer.clone())
+                            });
+                            if !acquire_recovery_slot(
+                                &state,
+                                &tab_id,
+                                std::time::Duration::from_secs(40),
+                            ) {
                                 return Err("resident restart start gate timed out".into());
                             }
-                            if let Err(error) =
-                                peer.offer_control(wire::frame("holder.respawn", None, respawn)?)
-                            {
-                                release_start_gate(&state);
-                                return Err(error.to_owned());
-                            }
-                        }
-                    } else {
-                        peer.offer_control(wire::frame(
-                            "shutdown",
-                            None,
-                            wire::ResultBody {
-                                accepted: true,
-                                message: None,
-                            },
-                        )?)
-                        .map_err(str::to_owned)?;
-                    }
-                }
-            }
-            "holder.exit" => {
-                let (_, exit): (_, HolderExit) = wire::body(&payload)?;
-                let standby_exit = state.lock().ok().is_some_and(|locked| {
-                    locked
-                        .standby
-                        .as_ref()
-                        .is_some_and(|standby| standby.tab_id == tab_id)
-                        && !locked
-                            .registry
-                            .tabs
-                            .iter()
-                            .any(|record| record.tab_id == tab_id)
-                });
-                if standby_exit {
-                    last_exit = Some("standby child ended".into());
-                    break;
-                }
-                let reason = exit.signal.clone().unwrap_or_else(|| {
-                    exit.code
-                        .map_or_else(|| "ended".into(), |code| format!("exit {code}"))
-                });
-                last_exit = Some(reason.clone());
-                let (store, document, respawn) = {
-                    let mut locked = state
-                        .lock()
-                        .map_err(|_| "resident state poisoned".to_owned())?;
-                    for client in locked
-                        .clients
-                        .values()
-                        .filter(|client| client.viewed_tab == tab_id)
-                    {
-                        let _ = client.peer.offer_control(wire::frame(
-                            "holder.exit",
-                            None,
-                            exit.clone(),
-                        )?);
-                    }
-                    let now = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs();
-                    let mut restart = None;
-                    let mut failed = false;
-                    let mut next_incarnation = connection_incarnation;
-                    let mut session_file = None;
-                    if let Some(record) = locked.registry.tabs.iter_mut().find(|record| {
-                        record.tab_id == tab_id && record.incarnation == connection_incarnation
-                    }) {
-                        record.last_exit = Some(reason.clone());
-                        record.child_pid = None;
-                        record.child_start_identity = None;
-                        if record.desired != "running" {
-                            record.lifecycle = "stopped".into();
-                        } else if record.requested_restart {
-                            record.requested_restart = false;
-                            record.incarnation = record.incarnation.saturating_add(1);
-                            record.lifecycle = "restarting".into();
-                            next_incarnation = record.incarnation;
-                            session_file = record.session_file.clone();
-                            restart = Some(0);
-                        } else {
-                            match crate::core::server::decide_restart(
-                                record.restarts,
-                                record
-                                    .restart_window_start
-                                    .map(std::time::Duration::from_secs),
-                                std::time::Duration::from_secs(now),
-                            ) {
-                                crate::core::server::RestartDecision::Schedule {
-                                    delay,
-                                    restarts,
-                                    window_start,
-                                } => {
-                                    record.restarts = restarts;
-                                    record.restart_window_start = Some(window_start.as_secs());
-                                    record.incarnation = record.incarnation.saturating_add(1);
-                                    record.lifecycle = "restarting".into();
-                                    next_incarnation = record.incarnation;
-                                    session_file = record.session_file.clone();
-                                    restart = Some(delay.as_secs());
-                                }
-                                crate::core::server::RestartDecision::Failed {
-                                    restarts,
-                                    window_start,
-                                } => {
-                                    record.restarts = restarts;
-                                    record.restart_window_start = Some(window_start.as_secs());
-                                    record.lifecycle = "failed".into();
-                                    failed = true;
-                                }
-                            }
-                        }
-                    }
-                    locked.registry.registry_revision =
-                        locked.registry.registry_revision.saturating_add(1);
-                    let respawn = restart.map(|delay| {
-                        let holder_token = locked
-                            .credentials
-                            .derive("holder", &tab_id, next_incarnation)
-                            .to_vec();
-                        let bridge_token = locked
-                            .credentials
-                            .derive("bridge", &tab_id, next_incarnation)
-                            .to_vec();
-                        (
-                            delay,
-                            wire::HolderRespawn {
-                                tab_id: tab_id.clone(),
-                                incarnation: next_incarnation,
-                                session_file,
-                                recovery_journals: Vec::new(),
-                                start_fresh: false,
-                                holder_token,
-                                bridge_token,
-                            },
-                        )
-                    });
-                    if respawn.is_some() {
-                        let restarting = locked.surfaces.get_mut(&tab_id).map(|surface| {
-                            surface.status = "restarting".into();
-                            surface.clone()
-                        });
-                        if let Some(surface) = restarting {
-                            for client in locked
-                                .clients
-                                .values()
-                                .filter(|client| client.viewed_tab == tab_id)
-                            {
-                                client.peer.offer_surface(wire::frame(
-                                    "surface",
+                            if let Some(peer) = peer {
+                                if let Err(error) = peer.offer_control(wire::frame(
+                                    "holder.respawn",
                                     None,
-                                    surface.clone(),
-                                )?);
+                                    respawn,
+                                )?) {
+                                    release_recovery_slot_of(&state, &tab_id);
+                                    return Err(error.to_owned());
+                                }
+                            } else {
+                                release_recovery_slot_of(&state, &tab_id);
                             }
-                        }
-                    }
-                    if failed {
-                        if let Some(surface) = locked.surfaces.get_mut(&tab_id) {
-                            surface.status = "failed".into();
-                        }
-                        for client in locked
-                            .clients
-                            .values()
-                            .filter(|client| client.viewed_tab == tab_id)
-                        {
-                            let _ = client.peer.offer_control(wire::frame(
-                                "failure.status",
-                                None,
-                                wire::ResultBody {
-                                    accepted: false,
-                                    message: Some(reason.clone()),
-                                },
-                            )?);
-                        }
-                    }
-                    (
-                        locked.registry_store.clone(),
-                        locked.registry.clone(),
-                        respawn,
-                    )
-                };
-                commit_registry(store, document)?;
-                crate::fault_injection::crash_at("after-restart-budget-commit");
-                let diagnostics_root = state
-                    .lock()
-                    .ok()
-                    .map(|locked| locked.diagnostics_root.clone());
-                if let Some(root) = diagnostics_root {
-                    let child_record = crate::roles::diagnostics::newest_child_record(&root);
-                    let _ = crate::roles::diagnostics::write_crash(
-                        &root,
-                        "holder",
-                        connection_incarnation,
-                        "child-exit",
-                        &["child-exited"],
-                        child_record.as_deref(),
-                    );
-                }
-                if let Some((delay, respawn)) = respawn {
-                    thread::sleep(std::time::Duration::from_secs(delay));
-                    let session_check = respawn.session_file.as_deref().map_or(Ok(()), |file| {
-                        verify_session_writer_released(
-                            Path::new(file),
-                            std::time::Duration::from_secs(5),
-                        )
-                    });
-                    if let Err(error) = session_check {
-                        let commit = {
-                            let mut locked = state
-                                .lock()
-                                .map_err(|_| "resident state poisoned".to_owned())?;
-                            if let Some(record) = locked.registry.tabs.iter_mut().find(|record| {
-                                record.tab_id == tab_id && record.incarnation == respawn.incarnation
-                            }) {
-                                record.lifecycle = "failed".into();
-                                record.last_exit = Some(error);
-                            }
-                            locked.registry.registry_revision =
-                                locked.registry.registry_revision.saturating_add(1);
-                            (locked.registry_store.clone(), locked.registry.clone())
-                        };
-                        commit_registry(commit.0, commit.1)?;
-                    } else {
-                        let peer = state.lock().ok().and_then(|locked| {
-                            locked
-                                .holders
-                                .get(&tab_id)
-                                .filter(|holder| holder.incarnation == connection_incarnation)
-                                .map(|holder| holder.peer.clone())
-                        });
-                        if !acquire_start_gate(&state, std::time::Duration::from_secs(40)) {
-                            return Err("resident restart start gate timed out".into());
-                        }
-                        if let Some(peer) = peer {
-                            if let Err(error) =
-                                peer.offer_control(wire::frame("holder.respawn", None, respawn)?)
-                            {
-                                release_start_gate(&state);
-                                return Err(error.to_owned());
-                            }
-                        } else {
-                            release_start_gate(&state);
                         }
                     }
                 }
+                _ => {}
             }
-            _ => {}
         }
-    }
+        Ok(())
+    })();
     let mut locked = state
         .lock()
         .map_err(|_| "resident state poisoned".to_owned())?;
@@ -3348,7 +4106,7 @@ fn serve_holder(
         .get(&tab_id)
         .is_some_and(|holder| holder.incarnation != connection_incarnation)
     {
-        return Ok(());
+        return served;
     }
     locked.holders.remove(&tab_id);
     let was_standby = locked
@@ -3364,24 +4122,37 @@ fn serve_holder(
         locked.standby = None;
         locked.surfaces.remove(&tab_id);
         locked.last_activity = std::time::Instant::now();
-        return Ok(());
+        return served;
     }
+    let lost = holder_lost(&state, locked, &tab_id, last_exit);
+    served.and(lost)
+}
+
+/// Records a tab whose holder is gone or unreachable and schedules its restart under the restart
+/// policy, exactly as for a holder whose connection closed.
+fn holder_lost(
+    state: &Arc<Mutex<RuntimeState>>,
+    mut locked: std::sync::MutexGuard<'_, RuntimeState>,
+    tab_id: &str,
+    last_exit: Option<String>,
+) -> Result<(), String> {
     let incarnation = locked
         .core
         .tabs
-        .get(&tab_id)
+        .get(tab_id)
         .map_or(0, |tab| tab.incarnation);
     let now = locked.core_started.elapsed();
     let _ = crate::core::server::step(
         &mut locked.core,
         crate::core::server::Event::HolderConnectionLost {
-            tab_id: tab_id.clone(),
+            tab_id: tab_id.to_owned(),
             incarnation,
         },
         now,
     );
-    locked.holders_terminating.remove(&tab_id);
-    locked.surfaces.remove(&tab_id);
+    locked.holders_terminating.remove(tab_id);
+    locked.holders_starting.remove(tab_id);
+    locked.surfaces.remove(tab_id);
     locked.last_activity = std::time::Instant::now();
     let now_epoch = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -3414,6 +4185,7 @@ fn serve_holder(
                     restarts,
                     window_start,
                 } => {
+                    counters::record(CounterEvent::CrashRestart);
                     record.restarts = restarts;
                     record.restart_window_start = Some(window_start.as_secs());
                     record.incarnation = record.incarnation.saturating_add(1);
@@ -3424,6 +4196,7 @@ fn serve_holder(
                     restarts,
                     window_start,
                 } => {
+                    counters::record(CounterEvent::FailedTab);
                     record.restarts = restarts;
                     record.restart_window_start = Some(window_start.as_secs());
                     record.lifecycle = "failed".into();
@@ -3438,14 +4211,22 @@ fn serve_holder(
     commit_registry(registry_store, document)?;
     if let Some(delay) = restart_delay {
         thread::sleep(delay);
-        let session_file = state.lock().ok().and_then(|locked| {
+        let record = state.lock().ok().and_then(|locked| {
             locked
                 .registry
                 .tabs
                 .iter()
                 .find(|record| record.tab_id == tab_id)
-                .and_then(|record| record.session_file.clone())
+                .map(|record| (record.desired.clone(), record.session_file.clone()))
         });
+        // Invariant: a tab stopped or removed while its restart waited out the backoff stays
+        // stopped; the backoff never resurrects it.
+        let Some((desired, session_file)) = record else {
+            return Ok(());
+        };
+        if desired != "running" {
+            return Ok(());
+        }
         if let Some(session_file) = session_file {
             if let Err(error) = verify_session_writer_released(
                 Path::new(&session_file),
@@ -3472,11 +4253,11 @@ fn serve_holder(
                 return Ok(());
             }
         }
-        if !acquire_start_gate(&state, std::time::Duration::from_secs(40)) {
+        if !acquire_recovery_slot(state, tab_id, std::time::Duration::from_secs(40)) {
             return Err("replacement holder start gate timed out".into());
         }
-        if let Err(error) = launch_replacement_holder(&state, &tab_id) {
-            release_start_gate(&state);
+        if let Err(error) = launch_replacement_holder(state, tab_id) {
+            release_recovery_slot_of(state, tab_id);
             let commit = {
                 let mut locked = state
                     .lock()
@@ -3501,6 +4282,168 @@ fn serve_holder(
     Ok(())
 }
 
+/// How long a replacement server waits for a recorded live holder to reconnect before treating it
+/// as lost.
+const HOLDER_ADMISSION_DEADLINE: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Treats every recorded holder that has not reconnected by the admission deadline as lost: a live
+/// one is terminated by its recorded identity first, then the tab follows the restart policy.
+fn expire_unadmitted_holders(
+    state: &Arc<Mutex<RuntimeState>>,
+    adopting: std::collections::HashSet<String>,
+) {
+    thread::sleep(HOLDER_ADMISSION_DEADLINE);
+    for tab_id in adopting {
+        // Concurrency: each tab verifies, terminates, and waits out its restart backoff on its
+        // own thread, so one tab's backoff never delays another's recovery.
+        let state = state.clone();
+        thread::spawn(move || expire_unadmitted_holder(&state, &tab_id));
+    }
+}
+
+fn expire_unadmitted_holder(state: &Arc<Mutex<RuntimeState>>, tab_id: &str) {
+    let Ok(locked) = state.lock() else {
+        return;
+    };
+    if locked.holders.contains_key(tab_id) || !locked.holders_starting.contains(tab_id) {
+        return;
+    }
+    let recorded = locked
+        .registry
+        .tabs
+        .iter()
+        .find(|record| record.tab_id == tab_id)
+        .and_then(|record| {
+            Some(ProcessIdentity {
+                pid: record.holder_pid?,
+                start: record.holder_start_identity.clone()?,
+            })
+        });
+    let diagnostics_root = locked.diagnostics_root.clone();
+    drop(locked);
+    let _ = crate::roles::diagnostics::append_log(
+        &diagnostics_root,
+        "server",
+        "holder-admission-expired",
+    );
+    if let Some(identity) = recorded {
+        counters::record(CounterEvent::HolderHangRecovery);
+        // Security: only the identity recorded for this tab is terminated, never a pid alone.
+        let _ = crate::identity::terminate_verified(
+            &identity,
+            std::time::Duration::from_secs(5),
+            std::time::Duration::from_secs(5),
+        );
+    }
+    let Ok(locked) = state.lock() else {
+        return;
+    };
+    // Invariant: a holder that reconnected while it was being verified keeps its tab.
+    if locked.holders.contains_key(tab_id) {
+        return;
+    }
+    let _ = holder_lost(state, locked, tab_id, Some("holder not readmitted".into()));
+}
+
+/// How often recorded holders that are neither connected nor starting are checked.
+const UNCONNECTED_HOLDER_CHECK: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Releases tabs whose recorded holder is neither connected nor starting: a gone holder at once,
+/// and a live but unreachable one after the admission deadline, by its recorded identity. A tab
+/// whose holder outlived its server in any lifecycle therefore never stays stale.
+fn reconcile_unconnected_holders(state: &Arc<Mutex<RuntimeState>>) {
+    let mut unconnected_since = HashMap::<String, std::time::Instant>::new();
+    loop {
+        thread::sleep(UNCONNECTED_HOLDER_CHECK);
+        let candidates = {
+            let Ok(locked) = state.lock() else {
+                return;
+            };
+            locked
+                .registry
+                .tabs
+                .iter()
+                .filter(|record| {
+                    !locked.holders.contains_key(&record.tab_id)
+                        && !locked.holders_starting.contains(&record.tab_id)
+                        && !locked.holders_terminating.contains(&record.tab_id)
+                })
+                .filter_map(|record| {
+                    Some((
+                        record.tab_id.clone(),
+                        ProcessIdentity {
+                            pid: record.holder_pid?,
+                            start: record.holder_start_identity.clone()?,
+                        },
+                    ))
+                })
+                .collect::<Vec<_>>()
+        };
+        unconnected_since.retain(|tab_id, _| candidates.iter().any(|(tab, _)| tab == tab_id));
+        for (tab_id, identity) in candidates {
+            let since = *unconnected_since
+                .entry(tab_id.clone())
+                .or_insert_with(std::time::Instant::now);
+            let live = inspect_identity_bounded(identity.pid)
+                .ok()
+                .flatten()
+                .is_some_and(|observed| observed.start == identity.start);
+            if live && since.elapsed() < HOLDER_ADMISSION_DEADLINE {
+                continue;
+            }
+            if live {
+                counters::record(CounterEvent::HolderHangRecovery);
+                // Security: only the identity recorded for this tab is terminated, never a pid alone.
+                let _ = crate::identity::terminate_verified(
+                    &identity,
+                    std::time::Duration::from_secs(5),
+                    std::time::Duration::from_secs(5),
+                );
+            }
+            unconnected_since.remove(&tab_id);
+            let state = state.clone();
+            // Concurrency: the restart backoff runs on its own thread, never in this check.
+            thread::spawn(move || {
+                let Ok(locked) = state.lock() else {
+                    return;
+                };
+                let still_unconnected = !locked.holders.contains_key(&tab_id)
+                    && !locked.holders_starting.contains(&tab_id)
+                    && locked.registry.tabs.iter().any(|record| {
+                        record.tab_id == tab_id && record.holder_pid == Some(identity.pid)
+                    });
+                if still_unconnected {
+                    let _ =
+                        holder_lost(&state, locked, &tab_id, Some("holder not connected".into()));
+                }
+            });
+        }
+    }
+}
+
+/// The diagnostic event for a peer connection the server refused, without any peer-supplied text.
+fn peer_refusal_event(error: &str) -> Option<&'static str> {
+    Some(match error {
+        "resident credential rejected" => "peer-refused-credential",
+        "peer has observed a newer server epoch" => "peer-refused-epoch",
+        "holder has no registry or standby record" => "peer-refused-no-record",
+        "holder incarnation does not match the registry" => "peer-refused-incarnation",
+        "holder identity does not match the registry" => "peer-refused-holder-identity",
+        "holder child identity does not match the registry" => "peer-refused-child-identity",
+        "holder process is not live" | "holder child process is not live" => {
+            "peer-refused-not-live"
+        }
+        "holder did not present a pid" | "holder did not present its child pid" => {
+            "peer-refused-missing-pid"
+        }
+        "unapproved resident peer role" => "peer-refused-role",
+        "identity inspection deadline exceeded" | "identity inspection worker limit reached" => {
+            "peer-refused-inspection-timeout"
+        }
+        _ => return None,
+    })
+}
+
 fn serve_bridge(
     mut stream: endpoint::EndpointStream,
     tx: Peer,
@@ -3510,6 +4453,7 @@ fn serve_bridge(
     heartbeat_supported: bool,
     controller_boundary: bool,
 ) -> Result<(), String> {
+    crate::fault_injection::crash_at("bridge-before-admit");
     {
         let mut locked = state
             .lock()
@@ -3556,6 +4500,7 @@ fn serve_bridge(
         )?)
         .map_err(str::to_owned)?;
     }
+    crate::fault_injection::crash_at("bridge-after-admit");
     while let Some(payload) = wire::read_payload(&mut stream)? {
         let current = state
             .lock()
@@ -3611,6 +4556,13 @@ fn serve_bridge(
                         status.degraded,
                         viewed,
                     );
+                    if surface.status != previous {
+                        match surface.status.as_str() {
+                            "stalled" => counters::record(CounterEvent::StalledTransition),
+                            "degraded" => counters::record(CounterEvent::CheckpointDegraded),
+                            _ => {}
+                        }
+                    }
                     if status.accent.is_some() {
                         surface.accent = status.accent;
                     }
@@ -3825,6 +4777,15 @@ fn serve_bridge(
     if removed_current {
         locked.bridges.remove(&tab_id);
         if locked
+            .registry
+            .tabs
+            .iter()
+            .any(|tab| tab.tab_id == tab_id && tab.desired == "running")
+            && locked.holders.contains_key(&tab_id)
+        {
+            counters::record(CounterEvent::BridgeDegraded);
+        }
+        if locked
             .bridge_status_sequences
             .get(&tab_id)
             .is_some_and(|(seen_incarnation, _)| *seen_incarnation == incarnation)
@@ -3915,6 +4876,118 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_replaced_surface_counts_a_lane_replacement_and_marks_a_resync() {
+        let (tx, _rx) = mpsc::sync_channel(CONTROL_LANE_FRAMES);
+        let peer = Peer {
+            tx,
+            queued_bytes: Arc::new(AtomicUsize::new(0)),
+            surface: Arc::new(Mutex::new(None)),
+            surface_signaled: Arc::new(AtomicBool::new(false)),
+            surface_replaced: Arc::new(AtomicBool::new(false)),
+        };
+        let before = counters::snapshot(1);
+        peer.offer_surface(vec![1]);
+        assert!(!peer.surface_replaced.load(Ordering::SeqCst));
+        peer.offer_surface(vec![2]);
+        assert!(peer.surface_replaced.load(Ordering::SeqCst));
+        assert_eq!(*peer.surface.lock().unwrap(), Some(vec![2]));
+        // Concurrency: other tests may record events too, so the delta is a lower bound.
+        assert!(counters::snapshot(1).render_lane_replacements > before.render_lane_replacements);
+    }
+
+    #[test]
+    fn idle_exit_removes_the_owner_marker_only_while_still_owned() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("server.json");
+        let own = ProcessIdentity {
+            pid: 41,
+            start: "own-start".into(),
+        };
+        assert!(!remove_marker_if_owned(&path, &own), "no marker is a no-op");
+        std::fs::write(&path, r#"{"pid":41,"startIdentity":"replacement-start"}"#).unwrap();
+        assert!(!remove_marker_if_owned(&path, &own));
+        std::fs::write(&path, r#"{"pid":42,"startIdentity":"own-start"}"#).unwrap();
+        assert!(!remove_marker_if_owned(&path, &own));
+        assert!(path.exists(), "a replacement's marker is kept");
+        std::fs::write(&path, r#"{"pid":41,"startIdentity":"own-start"}"#).unwrap();
+        assert!(remove_marker_if_owned(&path, &own));
+        assert!(!path.exists());
+    }
+
+    fn record(tab_id: &str, created_at: u64, desired: &str, holder_pid: Option<u32>) -> TabRecord {
+        TabRecord {
+            tab_id: tab_id.into(),
+            kind: "a1".into(),
+            created_at: created_at.to_string(),
+            display_name: tab_id.into(),
+            name_source: "default".into(),
+            order: 0,
+            cwd: "/w".into(),
+            session_file: None,
+            session_dir: None,
+            desired: desired.into(),
+            lifecycle: if desired == "stopped" {
+                "stopped".into()
+            } else {
+                "running".into()
+            },
+            incarnation: 1,
+            holder_pid,
+            holder_start_identity: None,
+            child_pid: None,
+            child_start_identity: None,
+            release: "/r".into(),
+            last_exit: None,
+            restarts: 0,
+            restart_window_start: None,
+            requested_restart: false,
+            attention_seq: 0,
+            seen_seq: 0,
+        }
+    }
+
+    #[test]
+    fn attached_clients_are_capped() {
+        assert!(client_slot_available(MAX_ATTACHED_CLIENTS - 1));
+        assert!(!client_slot_available(MAX_ATTACHED_CLIENTS));
+        assert!(!client_slot_available(MAX_ATTACHED_CLIENTS + 1));
+    }
+
+    #[test]
+    fn connections_beyond_the_cap_are_refused_and_released_slots_are_reused() {
+        let active = AtomicUsize::new(0);
+        for _ in 0..MAX_CONNECTIONS {
+            assert!(admit_connection(&active));
+        }
+        assert!(!admit_connection(&active));
+        assert_eq!(active.load(Ordering::SeqCst), MAX_CONNECTIONS);
+        active.fetch_sub(1, Ordering::SeqCst);
+        assert!(admit_connection(&active));
+    }
+
+    #[test]
+    fn stopped_records_are_bounded_oldest_first_and_live_tabs_are_kept() {
+        let mut tabs = (0..MAX_STOPPED_RECORDS as u64 + 5)
+            .map(|index| record(&format!("stopped-{index}"), index, "stopped", None))
+            .collect::<Vec<_>>();
+        tabs.push(record("running", 0, "running", Some(7)));
+        tabs.push(record("stopping", 0, "stopped", Some(8)));
+        prune_stopped_records(&mut tabs);
+        let stopped = tabs
+            .iter()
+            .filter(|tab| tab.desired == "stopped" && tab.holder_pid.is_none())
+            .count();
+        assert_eq!(stopped, MAX_STOPPED_RECORDS);
+        assert!(tabs.iter().all(|tab| tab.tab_id != "stopped-0"));
+        assert!(tabs.iter().any(|tab| tab.tab_id == "stopped-20"));
+        assert!(tabs.iter().any(|tab| tab.tab_id == "running"));
+        assert!(
+            tabs.iter().any(|tab| tab.tab_id == "stopping"),
+            "a stopped record whose holder is still live is kept"
+        );
+    }
+
+    #[test]
     fn stalled_client_gets_one_full_current_surface() {
         let mut lane = SingleSlotRenderLane::default();
         lane.offer(1, b"patch-1".to_vec());
@@ -3957,6 +5030,7 @@ mod tests {
             queued_bytes: Arc::new(AtomicUsize::new(0)),
             surface: Arc::new(Mutex::new(None)),
             surface_signaled: Arc::new(AtomicBool::new(false)),
+            surface_replaced: Arc::new(AtomicBool::new(false)),
         };
         for _ in 0..CONTROL_LANE_FRAMES {
             assert_eq!(peer.offer_control(vec![0]), Ok(()));
@@ -3969,6 +5043,7 @@ mod tests {
             queued_bytes: Arc::new(AtomicUsize::new(0)),
             surface: Arc::new(Mutex::new(None)),
             surface_signaled: Arc::new(AtomicBool::new(false)),
+            surface_replaced: Arc::new(AtomicBool::new(false)),
         };
         assert_eq!(
             peer.offer_control(vec![0; CONTROL_LANE_BYTES + 1]),
