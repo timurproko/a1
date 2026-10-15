@@ -1181,13 +1181,16 @@ fn serve_peer(
             },
         );
     }
-    let expected = {
+    // Invariant: a holder or bridge belongs to the incarnation its token was derived with, which
+    // the registry names; a hello that omits its incarnation must not detach a bridge's status
+    // from the surfaces of the holder it runs under.
+    let (expected, admitted_incarnation) = {
         let locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
         match hello.role.as_str() {
             "attach" | "internal" | "probe" | "maintain" => {
-                locked.credentials.client_token.to_vec()
+                (locked.credentials.client_token.to_vec(), hello.incarnation)
             }
             "holder" | "bridge" => {
                 let tab_id = hello.tab_id.as_deref().unwrap_or("");
@@ -1214,18 +1217,21 @@ fn serve_peer(
                             .map(|standby| standby.incarnation)
                     })
                     .unwrap_or(1);
-                locked
-                    .credentials
-                    .derive(
-                        if hello.role == "holder" {
-                            "holder"
-                        } else {
-                            "bridge"
-                        },
-                        tab_id,
-                        incarnation,
-                    )
-                    .to_vec()
+                (
+                    locked
+                        .credentials
+                        .derive(
+                            if hello.role == "holder" {
+                                "holder"
+                            } else {
+                                "bridge"
+                            },
+                            tab_id,
+                            incarnation,
+                        )
+                        .to_vec(),
+                    incarnation,
+                )
             }
             _ => return Err("unapproved resident peer role".to_owned()),
         }
@@ -1393,7 +1399,7 @@ fn serve_peer(
                 peer,
                 state,
                 hello.tab_id.unwrap_or_default(),
-                hello.incarnation,
+                admitted_incarnation,
                 heartbeat_supported,
                 controller_boundary,
             )

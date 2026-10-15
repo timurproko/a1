@@ -1810,6 +1810,157 @@ fn host_stop_killed_at_each_step_leaves_no_orphan_or_duplicate_host() {
 }
 
 #[test]
+fn a_bridge_status_survives_the_surfaces_of_the_holder_it_reports_under() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    // Rationale: a streaming child makes its holder send surfaces continuously, which is exactly
+    // when a working status is reported and must stay visible.
+    let created = Command::new(&executable)
+        .args([
+            "internal",
+            "tab-create",
+            "--profile",
+            text(&profile),
+            "--data-dir",
+            text(&data),
+            "--runtime-dir",
+            text(&runtime),
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            env!("CARGO_BIN_EXE_fake-tab"),
+        ])
+        .env("A1_TABS_ENDPOINT", &address)
+        .env("TERMINAL_HOST_FAKE_TAB_MODE", "stream")
+        .env("TERMINAL_HOST_FAKE_TAB_STREAM_BYTES", "4096")
+        .current_dir(&release)
+        .output()
+        .expect("create streaming tab");
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    let tab_id = serde_json::from_slice::<serde_json::Value>(&created.stdout)
+        .expect("tab-create json")["tabId"]
+        .as_str()
+        .expect("created tab id")
+        .to_owned();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let holder = loop {
+        if let Some(found) = holder_identities(&credentials_root)
+            .into_iter()
+            .find(|(tab, _, _)| tab == &tab_id)
+        {
+            break found;
+        }
+        assert!(Instant::now() < deadline, "holder never registered");
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    cleanup.pids.push(holder.1);
+    let incarnation = RegistryStore::read(&credentials_root.join("registry.json"))
+        .expect("read registry")
+        .expect("registry")
+        .tabs
+        .iter()
+        .find(|tab| tab.tab_id == tab_id)
+        .map(|tab| tab.incarnation)
+        .expect("tab incarnation");
+    let credentials =
+        terminal_host_contracts::roles::credentials::ProfileCredentials::load_existing(
+            &credentials_root,
+        )
+        .expect("load credentials")
+        .expect("credentials");
+
+    // Invariant: the A1 bridge never names its incarnation in its hello; the server takes it from
+    // the registry record its token was derived against, so the status it reports stays attached
+    // to the holder whose surfaces keep arriving instead of being reset by every one of them.
+    let mut bridge = endpoint::connect(&address).expect("connect bridge");
+    terminal_host_contracts::roles::wire::send(
+        &mut bridge,
+        "hello",
+        Some(1),
+        terminal_host_contracts::roles::wire::RoleHello {
+            role: "bridge".into(),
+            generation: 1,
+            build: "a1".into(),
+            features: vec!["bridge-status".into()],
+            token: credentials.derive("bridge", &tab_id, incarnation).to_vec(),
+            tab_id: Some(tab_id.clone()),
+            pid: Some(std::process::id()),
+            start_identity: None,
+            incarnation: 0,
+            child_pid: None,
+            child_start_identity: None,
+            highest_epoch: 0,
+        },
+    )
+    .expect("send bridge hello");
+    let welcome = terminal_host_contracts::roles::wire::read_payload(&mut bridge)
+        .expect("read welcome")
+        .expect("welcome payload");
+    assert_eq!(
+        terminal_host_contracts::roles::wire::kind(&welcome)
+            .expect("welcome kind")
+            .message_type,
+        "welcome"
+    );
+    terminal_host_contracts::roles::wire::send(
+        &mut bridge,
+        "bridge.status",
+        Some(2),
+        serde_json::json!({ "seq": 1, "state": "working" }),
+    )
+    .expect("send working status");
+
+    let status_of = || {
+        let listed = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+        listed.1["result"]["tabs"]
+            .as_array()
+            .and_then(|tabs| tabs.iter().find(|tab| tab["tabId"] == tab_id.as_str()))
+            .map(|tab| tab["status"].as_str().unwrap_or("").to_owned())
+    };
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while status_of().as_deref() != Some("working") {
+        assert!(
+            Instant::now() < deadline,
+            "the working status never reached the tab list: {:?}",
+            status_of()
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    // The status must hold while surfaces keep arriving, not merely appear once.
+    let hold = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < hold {
+        assert_eq!(
+            status_of().as_deref(),
+            Some("working"),
+            "a holder surface reset the bridge status"
+        );
+        std::thread::sleep(Duration::from_millis(150));
+    }
+    drop(bridge);
+}
+
+#[test]
 fn a_server_of_another_generation_is_reported_incompatible_and_never_signalled() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
