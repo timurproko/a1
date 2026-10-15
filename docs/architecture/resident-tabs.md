@@ -480,6 +480,16 @@ The v2 daemon was unreliable for structural reasons, and a forensic pass over it
 - Bounded CI chaos on each platform with high-rate fake agents, random process death, resize/attach churn, controller transfer, blocked writes, pseudoterminal creation hang, rename denial, and containment escape attempts.
 - Exact-package manual or isolated-worker physical acceptance on each platform. Certification must additionally supply an authorized 24-hour soak on that platform with zero lost journaled prompts/committed entries, zero orphans/duplicates, bounded memory/handles, reattach p95 under 300 ms, tab restart under 3 s, and server recovery under 2 s.
 
+**Local native iteration.** Zig never runs on a developer workstation, but native tests can, by linking the terminal library a CI lane built:
+
+1. `node scripts/development/fetch-terminal-vt.mjs [--branch <name>]` downloads this platform's `terminal-vt-<platform>-<architecture>` artifact from the branch's newest run that published one (default: the current branch) into `.artifacts/terminal-vt/`. If none exists, dispatch `gh workflow run ci.yml --ref <branch>`; native lanes keep it for 14 days.
+2. With `TERMINAL_HOST_LOCAL_BUILD=1` and `TERMINAL_HOST_PREBUILT_VT` naming that directory, `build.rs` verifies `terminal-vt.manifest.json` against the vendored `VERSION`, the Ghostty commit, the Cargo and Zig targets, and each file's SHA-256, then links it and skips Zig. A mismatch fails the build in one line and never falls back. Builds with `CI` set ignore the variable.
+3. Run one test: `cargo test --manifest-path native/terminal-host/Cargo.toml --features resident-fixtures --test role_integration <name>`.
+
+Every chaos run prints its seed and records its executed action schedule in its report; `node scripts/development/run-resident-chaos.mjs --build --replay <report.json>` re-executes that schedule and reports actions it could not apply as divergence.
+
+Known limit (2026-10-15): on a Windows desktop whose shells already run inside a job, a server started by a role test cannot leave that job, `verify_detached` rejects it, and tests that expect `started` fail locally while passing in CI. A separate change addresses this.
+
 **Milestone 5 preview performance budgets (p95 on each exact platform build):** cold launch to first input is the direct startup budget plus 800 ms; matching-standby creation to first input is 250 ms; reattach first paint is 300 ms and first accepted input is 400 ms; input-to-process is 16 ms; output-to-present is 33 ms. Each result or miss is recorded independently for Windows x64, macOS arm64, and Linux x64. The platform-native validation lanes run `measure-resident-tabs.mjs` against their built host: its instrumented child reports process-admission timestamps through a real resident holder, while the outer test PTY records presentation, standby promotion, and retained-surface reattach timestamps.
 
 ## Risks / Trade-offs

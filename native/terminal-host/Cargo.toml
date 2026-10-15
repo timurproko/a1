@@ -58,6 +58,7 @@ windows-sys = { version = "=0.61.2", features = [
 ] }
 
 [build-dependencies]
+serde_json = "=1.0.145"
 sha2 = "=0.10.9"
 
 [dev-dependencies]
