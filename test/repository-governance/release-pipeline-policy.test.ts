@@ -138,6 +138,20 @@ describe("deliberate publication pipeline", () => {
     expect(ciZig).toBe("d1434d08867e3ee9daa34448df10607b98908d29");
   });
 
+  it("publishes the linked terminal library from native validation lanes only and never feeds it to a release build", async () => {
+    const ci = await readFile(".github/workflows/ci.yml", "utf8");
+    expect(ci).toContain("TERMINAL_HOST_EXPORT_VT: ${{ matrix.terminalHost && format('{0}/.artifacts/terminal-vt', github.workspace) || '' }}");
+    const upload = ci.slice(ci.indexOf("- name: Upload linked terminal library"), ci.indexOf("- name: Add modular timing summary"));
+    expect(upload).toContain("if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost");
+    expect(upload).toContain("name: terminal-vt-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}");
+    expect(upload).toContain("path: .artifacts/terminal-vt/");
+    expect(upload).toContain("if-no-files-found: error");
+    for (const name of await readdir(".github/workflows")) {
+      expect(await readFile(`.github/workflows/${name}`, "utf8"), name).not.toContain("TERMINAL_HOST_PREBUILT_VT");
+    }
+    expect(await workflow()).not.toContain("TERMINAL_HOST_EXPORT_VT");
+  });
+
   it("publishes stable releases from the candidate-validated package without rebuilding or revalidating", async () => {
     const source = await workflow();
     const job = (name: string, next: string) => source.slice(source.indexOf(`\n  ${name}:`), source.indexOf(`\n  ${next}:`));

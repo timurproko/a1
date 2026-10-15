@@ -7,10 +7,22 @@ use std::process::Command;
 
 const GHOSTTY_COMMIT: &str = "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3";
 const LOCAL_BUILD_OVERRIDE: &str = "TERMINAL_HOST_LOCAL_BUILD";
+/// Directory that receives the linked library, its headers, and its manifest after a Zig build.
+const EXPORT_VT: &str = "TERMINAL_HOST_EXPORT_VT";
+const VT_MANIFEST: &str = "terminal-vt.manifest.json";
+
+/// The build identity a published terminal library must match before a development build links it.
+struct VtIdentity<'a> {
+    version: &'a str,
+    cargo_target: &'a str,
+    zig_target: &'a str,
+    zig_cpu: &'a str,
+}
 
 fn main() {
     println!("cargo:rerun-if-env-changed=CI");
     println!("cargo:rerun-if-env-changed={LOCAL_BUILD_OVERRIDE}");
+    println!("cargo:rerun-if-env-changed={EXPORT_VT}");
     refuse_local_windows_build();
     println!("cargo:rerun-if-env-changed=ZIG");
     println!("cargo:rerun-if-env-changed=TERMINAL_HOST_CONTRACTS_ONLY");
@@ -73,6 +85,25 @@ fn main() {
     assert!(status.success(), "libghostty-vt Zig build failed: {status}");
 
     let lib_dir = work.join("zig-out/lib");
+    if let Some(export) = env::var_os(EXPORT_VT).filter(|value| !value.is_empty()) {
+        let identity = VtIdentity {
+            version: &version,
+            cargo_target: &target,
+            zig_target: zig_target.triple,
+            zig_cpu: zig_target.cpu,
+        };
+        export_library(
+            &lib_dir,
+            &source.join("include"),
+            Path::new(&export),
+            &identity,
+        );
+        // Invariant: a cached build whose export was removed reruns this script and exports again.
+        println!(
+            "cargo:rerun-if-changed={}",
+            Path::new(&export).join(VT_MANIFEST).display()
+        );
+    }
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
     if target.contains("windows") {
         // Platform: MSVC must resolve Zig and Rust compiler intrinsics through normal archive
@@ -112,6 +143,47 @@ fn refuse_local_windows_build() {
          Push the branch and read the job result, or set {LOCAL_BUILD_OVERRIDE}=1 to build locally anyway."
     );
     std::process::exit(1);
+}
+
+// Rationale: CI publishes exactly the library it linked, so a later development build can link
+// those bytes without running Zig; the manifest binds them to the vendored version and target.
+fn export_library(lib_dir: &Path, include: &Path, export: &Path, identity: &VtIdentity) {
+    use sha2::{Digest, Sha256};
+    if export.exists() {
+        fs::remove_dir_all(export).expect("remove stale terminal library export");
+    }
+    let exported_lib = export.join("lib");
+    fs::create_dir_all(&exported_lib).expect("create terminal library export");
+    let mut names: Vec<_> = fs::read_dir(lib_dir)
+        .expect("read libghostty-vt output")
+        .map(|entry| entry.expect("read libghostty-vt output entry"))
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    let mut files = Vec::new();
+    for name in &names {
+        let bytes = fs::read(lib_dir.join(name)).expect("read libghostty-vt library");
+        fs::write(exported_lib.join(name), &bytes).expect("export libghostty-vt library");
+        let digest: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        files.push(format!(
+            "{{\"path\":{:?},\"sha256\":{digest:?}}}",
+            format!("lib/{name}")
+        ));
+    }
+    copy_dir(include, &export.join("include"));
+    let manifest = format!(
+        "{{\"schema\":\"a1-terminal-vt-v1\",\"version\":{:?},\"ghosttyCommit\":{GHOSTTY_COMMIT:?},\"cargoTarget\":{:?},\"zigTarget\":{:?},\"zigCpu\":{:?},\"files\":[{}]}}\n",
+        identity.version,
+        identity.cargo_target,
+        identity.zig_target,
+        identity.zig_cpu,
+        files.join(",")
+    );
+    fs::write(export.join(VT_MANIFEST), manifest).expect("write terminal library manifest");
 }
 
 fn copy_dir(source: &Path, target: &Path) {

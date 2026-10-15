@@ -677,6 +677,9 @@ jobs:
           # an overrun, and nightly publication and Full regression still fail on it.
           STARTUP_BUDGET_ENFORCEMENT: record
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-node${{ matrix.node }}-performance.json
+          # Rationale: native lanes export the terminal library they link so a developer build can
+          # link the same bytes without Zig; other lanes leave it empty, which build.rs ignores.
+          TERMINAL_HOST_EXPORT_VT: ${{ matrix.terminalHost && format('{0}/.artifacts/terminal-vt', github.workspace) || '' }}
         run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}.json
       - name: Certify terminal fidelity and resident latency
         if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
@@ -718,6 +721,14 @@ jobs:
             .artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json
           if-no-files-found: error
           retention-days: 1
+      - name: Upload linked terminal library
+        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: terminal-vt-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}
+          path: .artifacts/terminal-vt/
+          if-no-files-found: error
+          retention-days: 7
       - name: Add modular timing summary
         if: always() && steps.job-selection.outputs.active == 'true'
         shell: bash
