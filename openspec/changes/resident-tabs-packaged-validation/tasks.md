@@ -16,4 +16,4 @@ Repair of the `0.2.7-dev.750` publication failure and the validation gap that hi
 ## 3. Evidence
 
 - [x] 3.1 Record focused local tests and a green `npm run preflight` in `implementation-evidence.md`.
-- [ ] 3.2 Record a diagnostic Development validation run on this branch with resident-routing scope selected, showing the packed candidate carries the terminal host and the session-resume suite passes on Windows, Linux, and macOS.
+- [x] 3.2 Record a diagnostic Development validation run on this branch with resident-routing scope selected, showing the packed candidate carries the terminal host and the session-resume suite passes on Windows, Linux, and macOS.

@@ -26,3 +26,11 @@ Diagnostic Development validation run 38755755118 on head `b35a5e13` succeeded; 
 | First-attempt startup budget (Windows x64) | true | passed | not selected | 14.3 min (7.4) |
 
 The Windows candidate's packed native files were `package/dist/native/win32-x64/process-guardian.exe` and `package/dist/native/win32-x64/terminal-host.exe`; #750's held only the guardian. Each packing lane ran `npm run build:terminal-host` before recording the build. These durations are cold-cache: every job then used a job-scoped `key`, and a pull request cannot read another branch's cache. The cache now uses `shared-key: terminal-host-release`, shared with publication's host build on `develop`.
+
+Diagnostic run 38760616782 on head `305ef33e` (shared key) succeeded with every selected lane passing. The Linux lane's computed key was `v0-rust-terminal-host-release-Linux-x64-b9e20461-3261ba80`, with no job id, and it reported `No cache found` because nothing had saved under the shared key yet. Durations: Pi release and resume 8.8 min, Unix Linux 4.9, Unix macOS 6.2, Exact-package 12.2, startup 14.6.
+
+## Gaps
+
+- Warm-cache durations are unmeasured. The first publication or nightly Full regression on `develop` after this merges saves the shared cache. Publication's environment hash matching validation's is expected (same `prepare-ci-rust.sh` toolchain), not yet observed. A miss costs time, not correctness; the 35-minute bound covers the measured cold builds.
+- macOS x64 has no pull-request packing lane, as before this change. Publication's `macos-15-intel` lanes remain its only packaged check.
+- Every packaged suite drives launches through pipes. With Decision 1 they take the direct route by design, so the resident attach path through the public entry is still exercised by resident chaos and physical acceptance, not by packaged suites. That is unchanged scope: this change makes candidates match what ships and stops non-terminal launches from entering the resident route.
