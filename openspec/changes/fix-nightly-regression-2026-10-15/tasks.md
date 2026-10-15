@@ -1,12 +1,12 @@
 ## 1. Reproduce
 
-- [ ] 1.1 Reproduce the failure locally or on a dispatched Full regression of the failed head and record the exact failing test or command.
-- [ ] 1.2 Identify the introducing commit among the suspect range, or record that the failure is environmental.
+- [x] 1.1 Identify the exact failure as the resident-tab hotkeys test expecting the literal `Alt+]` Tabs row while the macOS lane renders `Option+]`, and reproduce the identical assertion on Windows by redefining `process.platform` as `darwin`.
+- [x] 1.2 Trace the failure to `ff11eab6`, which added the test with a platform-blind label while the hotkeys presenter deliberately labels Alt as Option on macOS.
 
 ## 2. Fix
 
-- [ ] 2.1 Fix the cause without weakening assertions, budgets, timeouts, or coverage.
-- [ ] 2.2 Add or adjust regression evidence where the failure exposed a gap.
+- [x] 2.1 Make the live-platform assertion expect the modifier the running platform renders, leaving the presenter and every other assertion, budget, timeout, and coverage unchanged.
+- [x] 2.2 Add a regression case that renders the Tabs rows under `darwin`, `linux`, and `win32` in turn so every lane proves the macOS labelling rather than only the macOS lane.
 
 ## 3. Prove
 
