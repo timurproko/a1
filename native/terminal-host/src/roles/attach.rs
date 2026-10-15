@@ -526,7 +526,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut registry_revision = 0u64;
     let mut drag: Option<(String, u16, Instant)> = None;
     let bindings = TabBindings::load(options.profile);
-    // Paints the open prompt's notice over the strip row it shares.
+    // Invariant: an open prompt's notice shares the strip row and is painted after each repaint.
     macro_rules! paint_prompt {
         () => {{
             if let Some(notice) = prompt_notice(
@@ -539,7 +539,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             }
         }};
     }
-    // Repaints the strip row, then the open prompt's notice.
+    // Invariant: no strip repaint inside the loop may leave an open prompt without its notice.
     macro_rules! paint_strip {
         () => {{
             terminal.write(strip_frame.bytes.as_bytes())?;
@@ -809,7 +809,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     } else if key.code != KeyCode::Esc {
                         pending_close = Some(tab_id);
                     }
-                    // Repaint so a swallowed key shows why, and an answer restores the strip.
+                    // Rationale: a swallowed key repaints the notice that explains it; an answer restores the strip.
                     strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
                     paint_strip!();
                     continue;
@@ -1535,7 +1535,7 @@ mod tests {
             prompt_notice(false, None, None, true).as_deref(),
             Some("Tab menu: r rename · c close · Esc cancel")
         );
-        // Notices share the strip row, so they render there and replace it while open.
+        // Invariant: notices share the strip row and replace it while open.
         assert!(
             render_notice("Stop this agent? Enter stop · Esc cancel", 80).starts_with("\x1b[1;1H")
         );

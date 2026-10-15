@@ -480,7 +480,7 @@ setInterval(() => {}, 1000);
     .expect("fake child");
     let address = fixture_endpoint(&runtime);
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
-    // Every tab start holds the server's only start slot for eight seconds.
+    // Rationale: every tab start holds the server's only start slot for eight seconds.
     let mut server = server_command(&executable, &profile, &data, &runtime, &address);
     server
         .args(["--max-concurrent-starts", "1"])
@@ -505,7 +505,7 @@ setInterval(() => {}, 1000);
         "{}",
         attach.output_text()
     );
-    // Another client's start takes the only slot, then this terminal asks for a new tab, which
+    // Rationale: another client's start takes the only slot, then this terminal asks for a new tab, which
     // must wait for that slot.
     let occupying = Command::new(&executable)
         .args([
