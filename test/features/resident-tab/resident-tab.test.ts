@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fallbackAutoName, generateAutoName, normalizeAutoName } from "../../../src/features/resident-tab/auto-name.js";
+import { AUTO_NAME_TOKEN_BUDGETS, fallbackAutoName, generateAutoName, normalizeAutoName } from "../../../src/features/resident-tab/auto-name.js";
 import { deriveResidentTabStatus } from "../../../src/features/resident-tab/status-deriver.js";
 import { RESIDENT_TAB_SHORTCUTS, residentTabShortcutRegistry } from "../../../src/features/resident-tab/shortcuts.js";
 import { hotkeysMarkdown, TAB_HOTKEYS } from "../../../src/integrations/pi/components/shell-presenters-info.js";
@@ -11,14 +11,44 @@ describe("resident tab auto naming", () => {
     expect(fallbackAutoName("Fix the login callback failure")).toBe("fix-the-login");
   });
 
-  it("retries once before deterministic fallback", async () => {
-    let calls = 0;
+  it("keeps strictly increasing bounded budgets that leave reasoning models room to answer", () => {
+    expect(AUTO_NAME_TOKEN_BUDGETS).toEqual([4_096, 32_768]);
+    expect(AUTO_NAME_TOKEN_BUDGETS.every((budget, index) => index === 0 || budget > AUTO_NAME_TOKEN_BUDGETS[index - 1]!)).toBe(true);
+  });
+
+  it("returns the first normalized answer without spending a larger budget", async () => {
+    const budgets: number[] = [];
     await expect(generateAutoName("Fix login callback", async request => {
-      calls++;
-      expect(request.maxTokens).toBe(64);
-      return null;
+      budgets.push(request.maxTokens);
+      expect(request.prompt).toContain("Fix login callback");
+      return "  Login Callback Fix ";
+    }, 50)).resolves.toBe("login-callback");
+    expect(budgets).toEqual([4_096]);
+  });
+
+  it("escalates an answerless first attempt to the larger budget", async () => {
+    const budgets: number[] = [];
+    await expect(generateAutoName("Fix login callback", async request => {
+      budgets.push(request.maxTokens);
+      return budgets.length === 1 ? null : "auth-callback";
+    }, 50)).resolves.toBe("auth-callback");
+    expect(budgets).toEqual([4_096, 32_768]);
+  });
+
+  it("falls back deterministically after unusable, failing, or timed-out attempts", async () => {
+    const budgets: number[] = [];
+    await expect(generateAutoName("Fix login callback", async request => {
+      budgets.push(request.maxTokens);
+      if (budgets.length === 1) return "!!!";
+      throw new Error("provider failed");
     }, 50)).resolves.toBe("fix-login");
-    expect(calls).toBe(2);
+    expect(budgets).toEqual([4_096, 32_768]);
+
+    let aborted = 0;
+    await expect(generateAutoName("Fix login callback", request => new Promise<string | null>((_, reject) => {
+      request.signal.addEventListener("abort", () => { aborted++; reject(new Error("aborted")); });
+    }), 5)).resolves.toBe("fix-login");
+    expect(aborted).toBe(2);
   });
 });
 

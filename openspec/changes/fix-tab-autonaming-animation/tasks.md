@@ -2,8 +2,8 @@
 
 ## 1. Prompt auto-naming
 
-- [ ] 1.1 Replace the fixed 64-token attempts with strictly increasing v2-compatible bounded budgets and verify focused auto-name tests cover successful output, answerless first attempts, retry escalation, timeout/failure fallback, normalization, and budget bounds.
-- [ ] 1.2 Launch naming from the first valid `agent-run-started` event, revalidate default-name ownership before applying the result, and verify composition tests cover a long-running first turn, one attempt per tab, disabled/missing-input paths, and a manual rename that completes during generation.
+- [x] 1.1 Replace the fixed 64-token attempts with strictly increasing v2-compatible bounded budgets and verify focused auto-name tests cover successful output, answerless first attempts, retry escalation, timeout/failure fallback, normalization, and budget bounds.
+- [x] 1.2 Launch naming from the first valid `agent-run-started` event, revalidate default-name ownership before applying the result, and verify composition tests cover a long-running first turn, one attempt per tab, disabled/missing-input paths, and a manual rename that completes during generation.
 
 ## 2. Native title transition
 

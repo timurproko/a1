@@ -503,14 +503,36 @@ export async function bindResidentTabBridge(
   tabBridge.status("starting");
   const currentSessionFile = () => currentBackendSessionFile(backend);
   let pendingAutoName: string | null = null;
+  const isDefaultName = (name: string | null | undefined) => name == null || /^agent(?: \d+)?$/i.test(name);
+  const currentSessionName = () => backend.session.view().status.footer?.sessionName ?? null;
   const announceSession = () => {
-    const name = backend.session.view().status.footer?.sessionName ?? null;
-    const nameSource = name === pendingAutoName ? "auto" : name === null || /^agent(?: \d+)?$/i.test(name) ? "default" : "user";
+    const name = currentSessionName();
+    const nameSource = name === pendingAutoName ? "auto" : isDefaultName(name) ? "default" : "user";
     tabBridge.session(currentSessionFile(), name, nameSource);
   };
   let working = false;
   let lastTurnFailed = false;
   let autoNameAttempted = false;
+  let autoNameArmed = false;
+  // Invariant: naming launches once per tab during an agent run, as soon as its prompt is projected,
+  // and runs beside the turn instead of waiting for it to settle.
+  const launchAutoName = () => {
+    if (!autoNameArmed || autoNameAttempted || options.autoName !== true || !isDefaultName(currentSessionName())) return;
+    const prompt = backend.session.view().transcript.find(block => block.kind === "user")?.text.trim();
+    if (!prompt) return;
+    autoNameAttempted = true;
+    void import("../features/resident-tab/index.js").then(({ generateAutoName }) => generateAutoName(
+      prompt,
+      request => backend.generateResidentTabName(request.prompt, request.maxTokens, request.signal),
+    )).then(async name => {
+      // Invariant: a manual rename made while generation was pending owns both the session and the tab.
+      if (!isDefaultName(currentSessionName())) return;
+      pendingAutoName = name;
+      const result = await backend.workflows.executeWorkflow({ command: "name", argument: name });
+      if (result.outcome === "completed") tabBridge.session(currentSessionFile(), name, "auto");
+      else if (pendingAutoName === name) pendingAutoName = null;
+    }).catch(() => { pendingAutoName = null; });
+  };
   const reportStatus = (lifecycle?: string) => {
     const view = backend.session.view();
     const pendingRequests = view.dialog == null ? 0 : 1;
@@ -541,25 +563,16 @@ export async function bindResidentTabBridge(
       if (wasWorking && !working && recovery !== null) {
         void recovery.settled(currentSessionFile()).catch(() => tabBridge.degraded(true));
       }
-      if (wasWorking && !working && options.autoName === true && !autoNameAttempted) {
-        autoNameAttempted = true;
-        const view = backend.session.view();
-        const currentName = view.status.footer?.sessionName;
-        const prompt = view.transcript.find(block => block.kind === "user")?.text.trim();
-        if (prompt && (currentName == null || /^agent(?: \d+)?$/i.test(currentName))) {
-          void import("../features/resident-tab/index.js").then(({ generateAutoName }) => generateAutoName(
-            prompt,
-            request => backend.generateResidentTabName(request.prompt, request.maxTokens, request.signal),
-          )).then(async name => {
-            pendingAutoName = name;
-            const result = await backend.workflows.executeWorkflow({ command: "name", argument: name });
-            if (result.outcome === "completed") tabBridge.session(currentSessionFile(), name, "auto");
-            else if (pendingAutoName === name) pendingAutoName = null;
-          }).catch(() => { pendingAutoName = null; });
-        }
-      }
     }
+    if (event.type === "agent-run-started") {
+      autoNameArmed = true;
+      launchAutoName();
+    }
+    // Rationale: Pi starts the run before it projects the user message, so the prompt may arrive later.
+    if (event.type === "transcript-block" || event.type === "session-view") launchAutoName();
     if (event.type === "agent-run-settled") {
+      launchAutoName();
+      autoNameArmed = false;
       lastTurnFailed = !event.successful && !event.aborted;
       tabBridge.prompt(event.aborted);
       reportStatus();
