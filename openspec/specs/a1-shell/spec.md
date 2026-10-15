@@ -168,7 +168,7 @@ The immutable interactive launcher SHALL establish the same non-detachable launc
 - **THEN** it SHALL create another independent instance rather than acquiring a product-wide foreground slot
 
 ### Requirement: Help is explicit and unsupported commands are quiet
-The installed application SHALL expose `a1 help` as the preferred complete-help command and SHALL retain equivalent `a1 --help` and `a1 -h` compatibility forms. Complete help and generated usage SHALL advertise only the bare launch and `--session` launch forms, `solo`, the `session` context forms, and the direct `help`, `version`, `install`, `remove`, `uninstall`, `list`, `update`, and `tabs` forms and SHALL NOT include a compatibility-alias section or package forms under `a1 pi`. Explicit help on recognized direct or compatibility package commands SHALL print focused help for A1's supported subset without executing the command. Direct `a1 update --help` SHALL describe the supported stable, development, extension, model, and single-package update forms together. `a1 tabs --help` SHALL describe the resident-tab maintenance forms without probing or starting a resident server. A1 SHALL NOT append the complete application or command help to command failures; a focused syntax diagnostic MAY include pinned-style usage guidance for the affected supported command.
+The installed application SHALL expose `a1 help` as the preferred complete-help command and SHALL retain equivalent `a1 --help` and `a1 -h` compatibility forms. Complete help and generated usage SHALL advertise only the direct `help`, `version`, `install`, `remove`, `uninstall`, `list`, and `update` forms and SHALL NOT include a compatibility-alias section or package forms under `a1 pi`. Explicit help on recognized direct or compatibility package commands SHALL print focused help for A1's supported subset without executing the command. Direct `a1 update --help` SHALL describe the supported stable, development, extension, model, and single-package update forms together. A1 SHALL NOT append the complete application or command help to command failures; a focused syntax diagnostic MAY include pinned-style usage guidance for the affected supported command.
 
 A word outside the supported command grammar SHALL be a silent successful no-op. It SHALL write nothing to stdout or stderr and SHALL NOT start an interactive runtime, supervisor, shell, update, package operation, or model refresh. A malformed invocation whose leading command is recognized MAY fail with one focused diagnostic and applicable usage guidance. A1-only update-selector errors SHALL retain their focused product-specific diagnostics.
 
@@ -201,14 +201,6 @@ A word outside the supported command grammar SHALL be a silent successful no-op.
 #### Scenario: Focused package syntax guidance is needed
 - **WHEN** a recognized direct or compatibility package command has a missing source, unexpected argument, or genuinely unknown option
 - **THEN** A1 SHALL emit its pinned-style diagnostic and focused usage guidance for the invoked namespace rather than the complete command help
-
-#### Scenario: Resident-tab maintenance help is requested
-- **WHEN** the user runs `a1 tabs --help`
-- **THEN** A1 SHALL print the `a1 tabs` maintenance forms and exit successfully without probing or starting a resident server, profile preparation, or runtime launch
-
-#### Scenario: Resident-tab maintenance command is malformed
-- **WHEN** the user runs `a1 tabs` with an unknown subcommand or option
-- **THEN** A1 SHALL fail with one concise diagnostic and a nonzero status, without the complete help text and without contacting a resident server
 
 ### Requirement: Interrupted update preserves the public command
 After an update accepts cancellation or loses its invoking updater or terminal process, A1 SHALL automatically leave or restore the complete platform launcher set needed to invoke `a1`. The recovered command SHALL execute either the prior verified immutable release or the completely installed target and SHALL retain the durable update transaction needed to continue or roll back. Recovery SHALL require no manual npm installation, launcher reconstruction, process termination, or A1 state deletion.

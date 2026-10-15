@@ -465,8 +465,11 @@ fn spawn_via_wmi(
         context.display()
     )
     .replace('\'', "''");
+    // Platform: a console program created through WMI gets a new visible console unless its
+    // startup information says otherwise; DETACHED_PROCESS with a new process group gives the
+    // resident role no console at all, exactly as the direct spawn path does.
     let script = format!(
-        "$r=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{{CommandLine='{command_line}';CurrentDirectory='{}'}}; if($r.ReturnValue -ne 0){{exit $r.ReturnValue}}; Write-Output $r.ProcessId",
+        "$s=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{{ShowWindow=[uint16]0;CreateFlags=[uint32]0x208}}; $r=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{{CommandLine='{command_line}';CurrentDirectory='{}';ProcessStartupInformation=$s}}; if($r.ReturnValue -ne 0){{exit $r.ReturnValue}}; Write-Output $r.ProcessId",
         quote(profile)
     );
     let output = Command::new("powershell.exe")
