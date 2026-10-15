@@ -258,6 +258,48 @@ pub fn render_empty_hint(columns: u16) -> String {
     )
 }
 
+/// The notice of the open tab prompt, checked in the order prompts capture keys.
+///
+/// Notices share the strip's row, so the attach loop redraws this after every strip repaint;
+/// otherwise a prompt would keep capturing keys after its notice had been painted over.
+pub fn prompt_notice(
+    pending_close: bool,
+    overflow: Option<&str>,
+    rename: Option<&str>,
+    context_menu: bool,
+) -> Option<String> {
+    if pending_close {
+        Some("Stop this agent? Enter stop · Esc cancel".into())
+    } else if let Some(name) = overflow {
+        Some(format!(
+            "Tabs: {name} · ↑/↓ choose · Enter view · Esc cancel"
+        ))
+    } else if let Some(value) = rename {
+        Some(format!("Rename: {value} · Enter save · Esc cancel"))
+    } else if context_menu {
+        Some("Tab menu: r rename · c close · Esc cancel".into())
+    } else {
+        None
+    }
+}
+
+/// The notice for a refused or failed new-tab request.
+pub fn tab_create_failure_notice(reason: Option<&str>) -> String {
+    let reason = match reason {
+        Some("tab-limit") => "the tab limit is reached",
+        Some("tab-start-busy") => "tab starts are busy, try again shortly",
+        Some("busy") => "a tab change is still running, try again shortly",
+        Some(reason) if !reason.trim().is_empty() => reason,
+        _ => "the tab could not start",
+    };
+    format!("Could not open a tab: {reason}")
+}
+
+/// True when the failed tab's restricted input rules apply: only while that tab is viewed.
+pub fn failure_applies(failed_tab: Option<&str>, viewed: Option<&str>) -> bool {
+    failed_tab.is_some() && failed_tab == viewed
+}
+
 pub fn render_notice(message: &str, columns: u16) -> String {
     let mut notice = format!(" ! {message} ");
     notice.retain(|value| !value.is_control());
@@ -474,14 +516,36 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut last_strip_frame = Instant::now();
     let mut last_list = Instant::now();
     let mut chord = DoubleCtrlC::new(options.clear_exit_ms);
-    let mut failed = false;
+    // Invariant: failure input rules belong to one tab and apply only while it is viewed.
+    let mut failed_tab: Option<String> = None;
     let mut rename: Option<(String, String)> = None;
     let mut context_tab: Option<String> = None;
     let mut overflow_index: Option<usize> = None;
     let mut pending_close: Option<String> = None;
+    let mut prompt_view = viewed.clone();
     let mut registry_revision = 0u64;
     let mut drag: Option<(String, u16, Instant)> = None;
     let bindings = TabBindings::load(options.profile);
+    // Paints the open prompt's notice over the strip row it shares.
+    macro_rules! paint_prompt {
+        () => {{
+            if let Some(notice) = prompt_notice(
+                pending_close.is_some(),
+                overflow_index.map(|index| tabs.get(index).map_or("", |tab| tab.name.as_str())),
+                rename.as_ref().map(|(_, value)| value.as_str()),
+                context_tab.is_some(),
+            ) {
+                terminal.write(render_notice(&notice, columns).as_bytes())?;
+            }
+        }};
+    }
+    // Repaints the strip row, then the open prompt's notice.
+    macro_rules! paint_strip {
+        () => {{
+            terminal.write(strip_frame.bytes.as_bytes())?;
+            paint_prompt!();
+        }};
+    }
     loop {
         watchdog.bump();
         while let Ok(payload) = message_rx.try_recv() {
@@ -492,7 +556,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             match kind.message_type.as_str() {
                 "surface" => {
                     let (_, surface): (_, Surface) = wire::body(&payload)?;
-                    failed = surface.status == "failed";
+                    if surface.status == "failed" {
+                        failed_tab = Some(surface.tab_id.clone());
+                    } else if failed_tab.as_deref() == Some(surface.tab_id.as_str()) {
+                        failed_tab = None;
+                    }
                     if viewed.is_none() {
                         viewed = Some(surface.tab_id.clone());
                     }
@@ -509,6 +577,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 .as_bytes(),
                         )?;
                     }
+                    paint_prompt!();
                 }
                 "tab.status" => {
                     let (_, status): (_, TabStatus) = wire::body(&payload)?;
@@ -516,8 +585,13 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         tab.status = status.status.clone();
                         tab.accent = status.accent.clone();
                     }
+                    if status.status != "failed"
+                        && failed_tab.as_deref() == Some(status.tab_id.as_str())
+                    {
+                        failed_tab = None;
+                    }
                     strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    terminal.write(strip_frame.bytes.as_bytes())?;
+                    paint_strip!();
                     if viewed.as_deref() == Some(status.tab_id.as_str())
                         && matches!(status.status.as_str(), "stalled" | "unresponsive")
                     {
@@ -565,8 +639,24 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
                         }
                     }
+                    let listed = |id: &String| tabs.iter().any(|tab| &tab.id == id);
+                    if !pending_close.as_ref().is_none_or(listed) {
+                        pending_close = None;
+                    }
+                    if !context_tab.as_ref().is_none_or(listed) {
+                        context_tab = None;
+                    }
+                    if !rename.as_ref().is_none_or(|(id, _)| listed(id)) {
+                        rename = None;
+                    }
+                    if !failed_tab.as_ref().is_none_or(listed) {
+                        failed_tab = None;
+                    }
+                    if overflow_index.is_some_and(|index| index >= tabs.len()) {
+                        overflow_index = None;
+                    }
                     strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    terminal.write(strip_frame.bytes.as_bytes())?;
+                    paint_strip!();
                     if tabs.is_empty() {
                         terminal.write(render_empty_hint(columns).as_bytes())?;
                     }
@@ -585,7 +675,31 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         },
                     )?;
                 }
+                "tab.create-failed" | "tab.create-refused" => {
+                    let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    terminal.write(
+                        render_notice(
+                            &tab_create_failure_notice(result.message.as_deref()),
+                            columns,
+                        )
+                        .as_bytes(),
+                    )?;
+                }
+                "tab.rename-refused" | "tab.restarted" => {
+                    let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    if !result.accepted
+                        && let Some(message) = result.message
+                    {
+                        terminal.write(render_notice(&message, columns).as_bytes())?;
+                    }
+                }
                 "tab.closed" => {
+                    let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    if !result.accepted
+                        && let Some(message) = result.message
+                    {
+                        terminal.write(render_notice(&message, columns).as_bytes())?;
+                    }
                     wire::send(
                         &mut stream,
                         "tab.list",
@@ -619,7 +733,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "failure.status" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
-                    failed = true;
+                    failed_tab = viewed.clone();
                     let reason = result.message.unwrap_or_else(|| "tab failed".into());
                     terminal.write(
                         render_notice(
@@ -651,7 +765,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             && last_strip_frame.elapsed() >= Duration::from_millis(80)
         {
             strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-            terminal.write(strip_frame.bytes.as_bytes())?;
+            paint_strip!();
             last_strip_frame = Instant::now();
         }
         if last_list.elapsed() >= Duration::from_millis(500) {
@@ -676,6 +790,17 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 return Err("outer terminal input stopped".to_owned());
             }
         };
+        // Invariant: a prompt belongs to the view it was opened in; a strip click, shortcut, or
+        // tab removal that changes the viewed tab cancels it instead of letting it swallow the
+        // new tab's keys.
+        if prompt_view != viewed {
+            pending_close = None;
+            overflow_index = None;
+            rename = None;
+            context_tab = None;
+            prompt_view = viewed.clone();
+        }
+        let failed = failure_applies(failed_tab.as_deref(), viewed.as_deref());
         match next {
             Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => {
                 if let Some(tab_id) = pending_close.take() {
@@ -684,6 +809,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     } else if key.code != KeyCode::Esc {
                         pending_close = Some(tab_id);
                     }
+                    // Repaint so a swallowed key shows why, and an answer restores the strip.
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    paint_strip!();
                     continue;
                 }
                 if let Some(index) = overflow_index {
@@ -709,19 +837,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                         _ => {}
                     }
-                    if let Some(index) = overflow_index {
-                        let name = tabs.get(index).map_or("", |tab| tab.name.as_str());
-                        terminal.write(
-                            render_notice(
-                                &format!("Tabs: {name} · ↑/↓ choose · Enter view · Esc cancel"),
-                                columns,
-                            )
-                            .as_bytes(),
-                        )?;
-                    } else {
-                        strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                        terminal.write(strip_frame.bytes.as_bytes())?;
-                    }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    paint_strip!();
                     continue;
                 }
                 if let Some((tab_id, value)) = rename.as_mut() {
@@ -743,14 +860,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                         _ => {}
                     }
-                    if let Some((_, value)) = rename.as_ref() {
-                        terminal.write(
-                            render_notice(&format!("Rename: {value}"), columns).as_bytes(),
-                        )?;
-                    } else {
-                        strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                        terminal.write(strip_frame.bytes.as_bytes())?;
-                    }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    paint_strip!();
                     continue;
                 }
                 if let Some(tab_id) = context_tab.take() {
@@ -770,19 +881,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 });
                             if busy {
                                 pending_close = Some(tab_id);
-                                terminal.write(
-                                    render_notice(
-                                        "Stop this agent? Enter stop · Esc cancel",
-                                        columns,
-                                    )
-                                    .as_bytes(),
-                                )?;
                             } else {
                                 wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
                             }
                         }
                         _ => {}
                     }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    paint_strip!();
                     continue;
                 }
                 if let Some(action) = bindings.action(&key) {
@@ -796,13 +902,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     });
                                 if busy {
                                     pending_close = Some(tab_id);
-                                    terminal.write(
-                                        render_notice(
-                                            "Stop this agent? Enter stop · Esc cancel",
-                                            columns,
-                                        )
-                                        .as_bytes(),
-                                    )?;
                                 } else {
                                     wire::send(
                                         &mut stream,
@@ -821,13 +920,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     .map(|tab| tab.name.clone())
                                     .unwrap_or_default();
                                 rename = Some((tab_id, name));
-                                terminal.write(
-                                    render_notice(
-                                        "Rename: type a name · Enter save · Esc cancel",
-                                        columns,
-                                    )
-                                    .as_bytes(),
-                                )?;
                             }
                         }
                         "tabs.next" | "tabs.previous" => {
@@ -888,7 +980,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         _ => {}
                     }
                     strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    terminal.write(strip_frame.bytes.as_bytes())?;
+                    paint_strip!();
                     continue;
                 }
                 let bytes = encode_key(key.code, key.modifiers);
@@ -984,7 +1076,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 create.columns = cols;
                 create.rows = rows;
                 strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                terminal.write(strip_frame.bytes.as_bytes())?;
+                paint_strip!();
                 wire::send(
                     &mut stream,
                     "resize",
@@ -1043,7 +1135,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 columns,
                                 hovered_tab.as_deref(),
                             );
-                            terminal.write(strip_frame.bytes.as_bytes())?;
+                            paint_strip!();
                         }
                     } else if matches!(mouse.kind, MouseEventKind::Drag(MouseButton::Left)) {
                         if let Some((_, start, since)) = drag.as_ref()
@@ -1143,7 +1235,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 if hovered_tab.take().is_some() {
                     strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    terminal.write(strip_frame.bytes.as_bytes())?;
+                    paint_strip!();
                 }
                 if let Some(bytes) =
                     encode_mouse(mouse.kind, mouse.column, mouse.row.saturating_sub(1))
@@ -1413,6 +1505,63 @@ mod tests {
                 KeyModifiers::CONTROL,
             )),
             None
+        );
+    }
+
+    #[test]
+    fn failure_input_rules_apply_only_to_the_viewed_failed_tab() {
+        assert!(failure_applies(Some("tab-a"), Some("tab-a")));
+        assert!(!failure_applies(Some("tab-a"), Some("tab-b")));
+        assert!(!failure_applies(None, Some("tab-a")));
+        assert!(!failure_applies(None, None));
+    }
+
+    #[test]
+    fn the_open_prompt_names_itself_in_capture_order() {
+        assert_eq!(prompt_notice(false, None, None, false), None);
+        assert_eq!(
+            prompt_notice(true, Some("agent"), Some("x"), true).as_deref(),
+            Some("Stop this agent? Enter stop · Esc cancel")
+        );
+        assert_eq!(
+            prompt_notice(false, Some("agent"), Some("x"), true).as_deref(),
+            Some("Tabs: agent · ↑/↓ choose · Enter view · Esc cancel")
+        );
+        assert_eq!(
+            prompt_notice(false, None, Some("docs"), true).as_deref(),
+            Some("Rename: docs · Enter save · Esc cancel")
+        );
+        assert_eq!(
+            prompt_notice(false, None, None, true).as_deref(),
+            Some("Tab menu: r rename · c close · Esc cancel")
+        );
+        // Notices share the strip row, so they render there and replace it while open.
+        assert!(
+            render_notice("Stop this agent? Enter stop · Esc cancel", 80).starts_with("\x1b[1;1H")
+        );
+    }
+
+    #[test]
+    fn new_tab_failures_name_their_reason() {
+        assert_eq!(
+            tab_create_failure_notice(Some("tab-limit")),
+            "Could not open a tab: the tab limit is reached"
+        );
+        assert_eq!(
+            tab_create_failure_notice(Some("tab-start-busy")),
+            "Could not open a tab: tab starts are busy, try again shortly"
+        );
+        assert_eq!(
+            tab_create_failure_notice(Some("busy")),
+            "Could not open a tab: a tab change is still running, try again shortly"
+        );
+        assert_eq!(
+            tab_create_failure_notice(Some("holder launch failed")),
+            "Could not open a tab: holder launch failed"
+        );
+        assert_eq!(
+            tab_create_failure_notice(None),
+            "Could not open a tab: the tab could not start"
         );
     }
 

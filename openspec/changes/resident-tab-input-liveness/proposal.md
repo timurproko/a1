@@ -11,7 +11,7 @@ The attach client adds two smaller ways to lose input: one `failed` flag shared 
 - The server reads a terminal's input, paste, resize, focus claims, tab views, and tab lists on its connection thread and never runs tab lifecycle work there. Attach start, tab create, close, restart, rename, and reorder run in order on a per-connection lifecycle worker; a failure there is reported to the terminal instead of closing its connection.
 - Waiting for a start slot has a deadline and fails with a visible `tab-start-busy` reason. Crash recovery yields free slots to a waiting interactive start, and the concurrent-start limit is unchanged.
 - The attach client tracks failure per tab, cancels tab prompts when the viewed tab changes or disappears, redraws an active prompt after tab output, and shows create failures.
-- The server logs slow lifecycle work and exposes start-slot use and lifecycle backlog in host status; `a1 tabs status` flags a stalled backlog and the `a1 tabs doctor` bundle carries it.
+- The server logs slow lifecycle work and exposes start-slot use and lifecycle backlog in host status; `a1 tabs host status` flags a stalled backlog and the `a1 tabs doctor` bundle carries it.
 - Integration tests prove input keeps flowing to an existing tab while a tab start is blocked.
 
 ## Capabilities

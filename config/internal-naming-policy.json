@@ -258,6 +258,22 @@
       "semantics": "Fault-feature-only existing-registry sync delay used by native integration tests"
     },
     {
+      "role": "tabsFaultDelayTabStart",
+      "key": "A1_TABS_FAULT_DELAY_TAB_START_MS",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/specs/resident-tab-reliability/spec.md",
+      "semantics": "Fault-feature-only delay of a user-requested tab start while it holds its start slot, used by native integration tests"
+    },
+    {
+      "role": "tabsFaultStartDeadline",
+      "key": "A1_TABS_FAULT_START_DEADLINE_MS",
+      "exposure": "integration",
+      "owner": "native/terminal-host/src/fault_injection.rs",
+      "evidence": "openspec/specs/resident-tab-reliability/spec.md",
+      "semantics": "Fault-feature-only shortened start-slot wait deadline used by native integration tests"
+    },
+    {
       "role": "tabsFaultRegistryReplace",
       "key": "A1_TABS_FAULT_REGISTRY_REPLACE",
       "exposure": "integration",

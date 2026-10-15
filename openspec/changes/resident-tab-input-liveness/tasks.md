@@ -21,7 +21,7 @@ Keep terminal input flowing to resident tabs while tab lifecycle work is slow or
 ## 4. Liveness diagnostics
 
 - [ ] 4.1 Track per-client lifecycle backlog, expose `starts` and `lifecycle` in host status, and log `attach-lifecycle-slow`.
-- [ ] 4.2 Print `starts` and `lifecycle` in `a1 tabs status`, with `(stalled)` past 10 s, and cover it in the tabs CLI test.
+- [ ] 4.2 Print `starts` and `lifecycle` in `a1 tabs host status`, with `(stalled)` past 10 s, and cover it in the tabs CLI test.
 
 ## 5. Evidence
 

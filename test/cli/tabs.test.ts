@@ -45,6 +45,22 @@ describe("a1 tabs", () => {
     expect(JSON.parse(result.stdout)).toEqual({ schema: "a1-tabs-maintenance-v1", command: "host-status", host: "running", result: { pid: 7 } });
   });
 
+  it("shows start slots and lifecycle backlog, and flags lifecycle work stuck past ten seconds", async () => {
+    const healthy = await run({ action: "host-status", json: false }, report({
+      command: "host-status",
+      result: { pid: 7, starts: { active: 2, interactiveWaiting: 1, recoverySlots: 2 }, lifecycle: { pending: 1, oldestMs: 900 } },
+    }));
+    expect(healthy.stdout).toContain("starts: active 2, waiting 1, recovering 2\n");
+    expect(healthy.stdout).toContain("lifecycle: pending 1, oldest 900ms\n");
+    const stalled = await run({ action: "host-status", json: false }, report({
+      command: "host-status",
+      result: { pid: 7, starts: { active: 2, interactiveWaiting: 1, recoverySlots: 2 }, lifecycle: { pending: 3, oldestMs: 12_500 } },
+    }));
+    expect(stalled.stdout).toContain("lifecycle: pending 3, oldest 12500ms (stalled)\n");
+    const older = await run({ action: "host-status", json: false }, report({ command: "host-status", result: { pid: 7 } }));
+    expect(older.stdout).not.toContain("lifecycle:");
+  });
+
   it("explains an unresponsive host and fails an unknown tab with one line", async () => {
     const unresponsive = await run({ action: "list", json: false }, report({ host: "unresponsive", pid: 9 }));
     expect(unresponsive.stdout).toContain("a1 tabs host stop");

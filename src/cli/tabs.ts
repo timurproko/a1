@@ -143,9 +143,25 @@ function status(result: Record<string, unknown>): string {
     `detachment: ${String(result.detachmentMode ?? "unknown")}${result.detachmentVerified === false ? " (not verified)" : ""}`,
     `tabs: ${String(result.tabs ?? 0)}${Object.keys(byStatus).length > 0 ? ` (${Object.entries(byStatus).map(([key, value]) => `${key} ${String(value)}`).join(", ")})` : ""}`,
     `clients: ${String(result.clients ?? 0)}`,
+    ...startsAndLifecycle(result),
     `limits: ${Object.entries(limits).map(([key, value]) => `${key} ${String(value)}`).join(", ")}`,
     `counters: ${Object.entries(counters).map(([key, value]) => `${key} ${String(value)}`).join(", ")}`,
     ...(Array.isArray(result.logs) ? result.logs.map(path => `log: ${String(path)}`) : []),
   ];
   return `${lines.join("\n")}\n`;
+}
+
+/** Lifecycle work running this long means a terminal's tab requests are stuck. */
+const LIFECYCLE_STALL_MS = 10_000;
+
+function startsAndLifecycle(result: Record<string, unknown>): string[] {
+  const lines: string[] = [];
+  const starts = result.starts as Record<string, unknown> | undefined;
+  if (starts) lines.push(`starts: active ${String(starts.active ?? 0)}, waiting ${String(starts.interactiveWaiting ?? 0)}, recovering ${String(starts.recoverySlots ?? 0)}`);
+  const lifecycle = result.lifecycle as Record<string, unknown> | undefined;
+  if (lifecycle) {
+    const oldest = typeof lifecycle.oldestMs === "number" ? lifecycle.oldestMs : 0;
+    lines.push(`lifecycle: pending ${String(lifecycle.pending ?? 0)}, oldest ${oldest}ms${oldest > LIFECYCLE_STALL_MS ? " (stalled)" : ""}`);
+  }
+  return lines;
 }

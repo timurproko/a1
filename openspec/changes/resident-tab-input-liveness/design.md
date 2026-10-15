@@ -26,7 +26,7 @@ A registry commit failure in any of these handlers returns `Err` from `serve_att
 ### Attach-side input loss
 
 - `failed` is one boolean for the whole client. A `failure.status` frame or a `surface` frame with status `failed` sets it. Only the next `surface` clears it, and the server sends one only when the newly viewed tab has a retained surface and produces output. While it is set, every key except `r`, `f`, and `Alt+W` is dropped, along with paste and focus events. After a switch to an idle or newly starting tab, that tab can stay locked.
-- `pending_close` (the busy-tab "Stop this agent?" prompt) swallows every key except Enter and Esc. `overflow_index` swallows every key except arrows, Enter, and Esc. Their notice line is drawn once, and the next surface frame repaints the whole screen over it, so the user sees an ordinary tab that ignores typing. Neither prompt is cancelled when the viewed tab changes or the target tab disappears.
+- `pending_close` (the busy-tab "Stop this agent?" prompt) swallows every key except Enter and Esc. `overflow_index` swallows every key except arrows, Enter, and Esc. Their notice is drawn once with `render_notice`, which paints row 1, the tab strip's row. The strip is repainted on every `tab.list` reply (polled every 500 ms), every status change, and every 80 ms during a title animation, so the notice disappears within half a second while the prompt keeps capturing keys. The user sees an ordinary strip and a tab that ignores typing. Neither prompt is cancelled when the viewed tab changes or the target tab disappears.
 - The client ignores `tab.create-failed` and `tab.create-refused`, so a refused or failed new tab gives no feedback.
 
 ## Decisions
@@ -37,7 +37,7 @@ A registry commit failure in any of these handlers returns `Err` from `serve_att
 
 `attach.start`, `tab.create`, `tab.close`, `tab.restart`, `tab.rename`, and `tab.reorder` go to a lifecycle worker thread owned by the connection, through a bounded channel of 32 requests. The worker handles them one at a time in arrival order, so lifecycle requests from one terminal keep their order relative to each other. Input may now overtake a lifecycle request, which is the point. The existing frames already make the client reconcile: `tab.created` makes the client send `tab.view`, and every lifecycle reply is followed by a `tab.list`.
 
-When the channel is full, the read loop answers the request at once with its existing refusal frame (`tab.create-refused` and so on, message `busy`) instead of waiting. A handler error no longer closes the connection. `attach.start` replies with the existing `error` frame, which the client already reports when it exits. Every other request replies with its refusal frame and the message `Tab change could not be completed`. The registry commit diagnostic event is still logged. When the read loop ends, it drops the channel and the worker exits after its current request. A request still running finishes against shared state, as before.
+When the channel is full, the read loop answers the request at once with its failure reply (`tab.create-failed`, `tab.closed`, `tab.restarted`, `tab.rename-refused`, or `tab.reordered`, each with `accepted: false`, message `busy`) instead of waiting. A handler error no longer closes the connection. `attach.start` replies with the existing `error` frame, which the client already reports when it exits. A failed `tab.create` passes its reason through, and every other request replies with the message `Tab change could not be completed`, because registry errors can name paths. The registry commit diagnostic event is still logged. When the read loop ends, it drops the channel and the worker exits after its current request. A request still running finishes against shared state, as before.
 
 Rejected: an async runtime or one server-wide lifecycle queue. A per-connection thread keeps today's threading model, and one stuck terminal cannot delay another terminal's lifecycle requests.
 
@@ -48,12 +48,12 @@ Rejected: an async runtime or one server-wide lifecycle queue. A per-connection 
 ### 3. Attach input rules scoped to the viewed tab
 
 - `failed: bool` becomes `failed_tab: Option<String>`. A surface sets or clears it for its own `tab_id`, and `failure.status` sets it for the tab viewed when the frame arrives. Input rules apply only when `failed_tab` equals the viewed tab.
-- `pending_close`, `overflow_index`, `rename`, and `context_tab` are cancelled whenever the viewed tab changes or a `tab.list` no longer contains their tab. One `prompt_notice()` derives the active prompt's notice, and the client redraws it after every surface and strip repaint while a prompt is open. A key the close prompt swallows also redraws it.
-- `tab.create-failed` and `tab.create-refused` show a notice: `Could not open a tab: <reason>`, with `tab-limit` and `tab-start-busy` mapped to plain text.
+- `pending_close`, `overflow_index`, `rename`, and `context_tab` are cancelled whenever the viewed tab changes or a `tab.list` no longer contains their tab. One `prompt_notice()` derives the open prompt's notice in the order prompts capture keys, and every strip repaint inside the loop goes through `paint_strip!`, which repaints the notice after the strip. Surfaces repaint it too, and every key a prompt handles, swallowed or not, repaints the strip and the notice.
+- `tab.create-failed` and `tab.create-refused` show a notice: `Could not open a tab: <reason>`, with `tab-limit`, `tab-start-busy`, and `busy` mapped to plain text. A refused rename, restart, or close shows its message.
 
 ### 4. Lifecycle liveness in host status
 
-`RuntimeState` tracks each client's queued lifecycle requests and the start time of the request running. Host status adds `starts: { active, interactiveWaiting, recoverySlots }` and `lifecycle: { pending, oldestMs }`. `a1 tabs status` prints both lines and appends `(stalled)` when `oldestMs` exceeds 10 000. The doctor bundle already includes host status verbatim. A lifecycle request that runs longer than 5 s appends the allowlisted diagnostic event `attach-lifecycle-slow`. It records only the request type, never its content.
+`RuntimeState` tracks each client's queued lifecycle requests and the start time of the request running. Host status adds `starts: { active, interactiveWaiting, recoverySlots }` and `lifecycle: { pending, oldestMs }`. `a1 tabs host status` prints both lines and appends `(stalled)` when `oldestMs` exceeds 10 000. The doctor bundle already includes host status verbatim. A lifecycle request that runs longer than 5 s appends the allowlisted diagnostic event `attach-lifecycle-slow`. It records only the request type, never its content.
 
 ### 5. Proof with a start-delay fault
 

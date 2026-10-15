@@ -17,4 +17,4 @@ The resident server SHALL read and route an attached terminal's input, paste, mo
 
 #### Scenario: Diagnosing a stuck lifecycle request
 - **WHEN** a lifecycle request has run longer than ten seconds
-- **THEN** `a1 tabs status` SHALL show the pending lifecycle work as stalled along with start-slot use, and a diagnostic event without request content SHALL be logged
+- **THEN** `a1 tabs host status` SHALL show the pending lifecycle work as stalled along with start-slot use, and a diagnostic event without request content SHALL be logged

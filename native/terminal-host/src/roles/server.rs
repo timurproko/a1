@@ -289,6 +289,10 @@ struct RuntimeState {
     active_starts: usize,
     /// The start-gate slot each recovering tab holds, by a token unique to that acquisition.
     recovery_slots: HashMap<String, u64>,
+    /// User-requested tab starts waiting for a slot; recovery and standby yield free slots to them.
+    interactive_start_waiters: usize,
+    /// Each attached client's lifecycle requests that are queued or running.
+    lifecycle: HashMap<String, LifecycleBacklog>,
     last_start: Option<std::time::Instant>,
     last_activity: std::time::Instant,
     core_started: std::time::Instant,
@@ -710,6 +714,8 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         max_concurrent_starts: config.max_concurrent_starts.clamp(1, 8),
         active_starts: 0,
         recovery_slots: HashMap::new(),
+        interactive_start_waiters: 0,
+        lifecycle: HashMap::new(),
         last_start: None,
         last_activity: std::time::Instant::now(),
         core_started,
@@ -842,7 +848,12 @@ fn acquire_start_gate(state: &Arc<Mutex<RuntimeState>>, timeout: std::time::Dura
             let spaced = locked
                 .last_start
                 .is_none_or(|last| last.elapsed() >= crate::core::server::START_SPACING);
-            if locked.active_starts < locked.max_concurrent_starts && spaced {
+            if gate_slot_free(
+                locked.active_starts,
+                locked.max_concurrent_starts,
+                locked.interactive_start_waiters,
+            ) && spaced
+            {
                 locked.active_starts = locked.active_starts.saturating_add(1);
                 locked.last_start = Some(std::time::Instant::now());
                 return true;
@@ -855,6 +866,12 @@ fn acquire_start_gate(state: &Arc<Mutex<RuntimeState>>, timeout: std::time::Dura
         }
         thread::sleep(std::time::Duration::from_millis(10));
     }
+}
+
+/// True when recovery or standby may take a start slot: one is free and no user-requested start
+/// is waiting for it.
+fn gate_slot_free(active: usize, max: usize, interactive_waiters: usize) -> bool {
+    active < max && interactive_waiters == 0
 }
 
 fn release_start_gate(state: &Arc<Mutex<RuntimeState>>) {
@@ -2020,6 +2037,12 @@ fn host_status(state: &Arc<Mutex<RuntimeState>>) -> Result<serde_json::Value, St
         "tabsByStatus": by_status,
         "standby": locked.standby.is_some(),
         "clients": locked.clients.len(),
+        "starts": {
+            "active": locked.active_starts,
+            "interactiveWaiting": locked.interactive_start_waiters,
+            "recoverySlots": locked.recovery_slots.len(),
+        },
+        "lifecycle": lifecycle_status(&locked.lifecycle, std::time::Instant::now()),
         "limits": {
             "tabsMax": locked.tabs_max,
             "tabsMaxHard": 50,
@@ -2169,6 +2192,503 @@ fn serve_maintain(
     }
     Ok(())
 }
+
+/// Lifecycle requests one attached client may queue before further ones are refused as busy.
+const LIFECYCLE_QUEUE: usize = 32;
+/// A lifecycle request that runs longer than this is logged as slow.
+const LIFECYCLE_SLOW: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// A tab lifecycle request taken off a client's input path.
+struct LifecycleRequest {
+    message_type: String,
+    request_id: Option<u64>,
+    payload: Vec<u8>,
+}
+
+/// One client's lifecycle requests that are queued or running.
+#[derive(Default)]
+struct LifecycleBacklog {
+    pending: usize,
+    running_since: Option<std::time::Instant>,
+}
+
+/// The reply frame type that reports a refused or failed lifecycle request to its client.
+fn lifecycle_refusal(message_type: &str) -> &'static str {
+    match message_type {
+        "attach.start" => "error",
+        "tab.create" => "tab.create-failed",
+        "tab.close" => "tab.closed",
+        "tab.restart" => "tab.restarted",
+        "tab.rename" => "tab.rename-refused",
+        _ => "tab.reordered",
+    }
+}
+
+/// The message shown for a failed lifecycle request. Only a tab start's typed reasons pass through;
+/// other errors may name paths, so they are summarized.
+fn lifecycle_failure_message(message_type: &str, error: &str) -> String {
+    match message_type {
+        "attach.start" | "tab.create" => error.to_owned(),
+        _ => "Tab change could not be completed".to_owned(),
+    }
+}
+
+fn refuse_lifecycle(tx: &Peer, request: &LifecycleRequest, message: String) {
+    if let Ok(frame) = wire::frame(
+        lifecycle_refusal(&request.message_type),
+        request.request_id,
+        wire::ResultBody {
+            accepted: false,
+            message: Some(message),
+        },
+    ) {
+        let _ = tx.offer_control(frame);
+    }
+}
+
+/// Queues a lifecycle request for the client's worker, or refuses it at once when the queue is
+/// full. Never waits, so the input path keeps reading.
+fn enqueue_lifecycle(
+    state: &Arc<Mutex<RuntimeState>>,
+    queue: &mpsc::SyncSender<LifecycleRequest>,
+    tx: &Peer,
+    client_id: &str,
+    request: LifecycleRequest,
+) -> Result<(), String> {
+    state
+        .lock()
+        .map_err(|_| "resident state poisoned".to_owned())?
+        .lifecycle
+        .entry(client_id.to_owned())
+        .or_default()
+        .pending += 1;
+    if let Err(error) = queue.try_send(request) {
+        let request = match error {
+            mpsc::TrySendError::Full(request) | mpsc::TrySendError::Disconnected(request) => {
+                request
+            }
+        };
+        if let Ok(mut locked) = state.lock()
+            && let Some(backlog) = locked.lifecycle.get_mut(client_id)
+        {
+            backlog.pending = backlog.pending.saturating_sub(1);
+        }
+        refuse_lifecycle(tx, &request, "busy".into());
+    }
+    Ok(())
+}
+
+/// Runs a client's lifecycle requests in arrival order until its connection's read loop ends and
+/// the queue drains.
+fn run_lifecycle_worker(
+    queue: mpsc::Receiver<LifecycleRequest>,
+    state: Arc<Mutex<RuntimeState>>,
+    profile: std::path::PathBuf,
+    tx: Peer,
+    client_id: String,
+) {
+    while let Ok(request) = queue.recv() {
+        let started = std::time::Instant::now();
+        if let Ok(mut locked) = state.lock() {
+            locked
+                .lifecycle
+                .entry(client_id.clone())
+                .or_default()
+                .running_since = Some(started);
+        }
+        let result = handle_lifecycle(&state, &profile, &tx, &client_id, &request);
+        let diagnostics_root = state.lock().ok().map(|mut locked| {
+            if let Some(backlog) = locked.lifecycle.get_mut(&client_id) {
+                backlog.pending = backlog.pending.saturating_sub(1);
+                backlog.running_since = None;
+            }
+            locked.diagnostics_root.clone()
+        });
+        if started.elapsed() >= LIFECYCLE_SLOW
+            && let Some(root) = diagnostics_root
+        {
+            let _ = crate::roles::diagnostics::append_log(&root, "server", "attach-lifecycle-slow");
+        }
+        if let Err(error) = result {
+            let message = lifecycle_failure_message(&request.message_type, &error);
+            refuse_lifecycle(&tx, &request, message);
+        }
+    }
+    if let Ok(mut locked) = state.lock() {
+        locked.lifecycle.remove(&client_id);
+    }
+}
+
+/// Totals the lifecycle backlog of every attached client for host status.
+fn lifecycle_status(
+    backlog: &HashMap<String, LifecycleBacklog>,
+    now: std::time::Instant,
+) -> serde_json::Value {
+    let pending = backlog.values().map(|entry| entry.pending).sum::<usize>();
+    let oldest_ms = backlog
+        .values()
+        .filter_map(|entry| entry.running_since)
+        .map(|since| now.saturating_duration_since(since).as_millis() as u64)
+        .max()
+        .unwrap_or(0);
+    serde_json::json!({ "pending": pending, "oldestMs": oldest_ms })
+}
+
+/// Runs one lifecycle request from an attached client on that client's lifecycle worker.
+fn handle_lifecycle(
+    state: &Arc<Mutex<RuntimeState>>,
+    profile: &Path,
+    tx: &Peer,
+    client_id: &str,
+    request: &LifecycleRequest,
+) -> Result<(), String> {
+    let state = state.clone();
+    let profile = profile.to_path_buf();
+    let client_id = client_id.to_owned();
+    let request_id = request.request_id;
+    let payload = &request.payload;
+    match request.message_type.as_str() {
+        "attach.start" => {
+            let (_, start): (_, AttachStart) = wire::body(payload)?;
+            let selected = start
+                .session_file
+                .as_deref()
+                .map(canonical_session_identity);
+            let (tab_id, should_start) = {
+                let mut locked = state
+                    .lock()
+                    .map_err(|_| "resident state poisoned".to_owned())?;
+                locked.tabs_max = start.tabs_max.clamp(1, 50);
+                if let Some(selected) = selected.as_deref()
+                    && let Some(tab) = locked.registry.tabs.iter().find(|tab| {
+                        tab.session_file
+                            .as_deref()
+                            .map(canonical_session_identity)
+                            .as_deref()
+                            == Some(selected)
+                    })
+                {
+                    (tab.tab_id.clone(), false)
+                } else if selected.is_some()
+                    && !locked.registry.tabs.is_empty()
+                    && open_tab_count(&locked) < locked.tabs_max.min(HARD_TABS_MAX)
+                {
+                    let tab_id = format!("tab-{:016x}", rand::random::<u64>());
+                    let start = locked.holders_starting.insert(tab_id.clone());
+                    (tab_id, start)
+                } else {
+                    let tab_id = locked.default_tab();
+                    let start = locked.registry.tabs.is_empty()
+                        && locked.holders_starting.insert(tab_id.clone());
+                    (tab_id, start)
+                }
+            };
+            if should_start
+                && let Err(error) = start_holder(&profile, &state, tab_id.clone(), start)
+            {
+                if let Ok(mut locked) = state.lock() {
+                    locked.holders_starting.remove(&tab_id);
+                }
+                return Err(error);
+            }
+            if selected.is_some() {
+                tx.offer_control(wire::frame(
+                    "tab.selected",
+                    request_id,
+                    TabTarget { tab_id },
+                )?)
+                .map_err(str::to_owned)?;
+            }
+        }
+        "tab.create" => {
+            let (_, create): (_, TabCreate) = wire::body(payload)?;
+            let tabs_max = {
+                let locked = state
+                    .lock()
+                    .map_err(|_| "resident state poisoned".to_owned())?;
+                let active_tabs = locked
+                    .registry
+                    .tabs
+                    .iter()
+                    .filter(|tab| tab.desired != "stopped")
+                    .count();
+                let pending_tabs = locked
+                    .holders_starting
+                    .iter()
+                    .filter(|tab_id| {
+                        !locked
+                            .registry
+                            .tabs
+                            .iter()
+                            .any(|tab| &tab.tab_id == *tab_id)
+                    })
+                    .count();
+                if active_tabs + pending_tabs >= locked.tabs_max {
+                    tx.offer_control(wire::frame(
+                        "tab.create-refused",
+                        request_id,
+                        wire::ResultBody {
+                            accepted: false,
+                            message: Some("tab-limit".into()),
+                        },
+                    )?)
+                    .map_err(str::to_owned)?;
+                    return Ok(());
+                }
+                locked.tabs_max
+            };
+            let mut start = AttachStart {
+                client_id: client_id.clone(),
+                tabs_max,
+                cwd: create.cwd,
+                columns: create.columns,
+                rows: create.rows,
+                release_root: create.release_root,
+                node_executable: create.node_executable,
+                environment: create.environment,
+                session_file: None,
+                session_dir: None,
+            };
+            sanitize_tab_environment(&mut start.environment);
+            match promote_standby(&state, start.clone()) {
+                Ok(Some(tab_id)) => {
+                    tx.offer_control(wire::frame(
+                        "tab.created",
+                        request_id,
+                        TabTarget { tab_id },
+                    )?)
+                    .map_err(str::to_owned)?;
+                    return Ok(());
+                }
+                Ok(None) => discard_standby(&state),
+                Err(error) => {
+                    tx.offer_control(wire::frame(
+                        "tab.create-failed",
+                        request_id,
+                        wire::ResultBody {
+                            accepted: false,
+                            message: Some(error),
+                        },
+                    )?)
+                    .map_err(str::to_owned)?;
+                    return Ok(());
+                }
+            }
+            let tab_id = format!("tab-{:016x}", rand::random::<u64>());
+            state
+                .lock()
+                .map_err(|_| "resident state poisoned".to_owned())?
+                .holders_starting
+                .insert(tab_id.clone());
+            match start_holder(&profile, &state, tab_id.clone(), start) {
+                Ok(()) => {
+                    tx.offer_control(wire::frame(
+                        "tab.created",
+                        request_id,
+                        TabTarget { tab_id },
+                    )?)
+                    .map_err(str::to_owned)?;
+                }
+                Err(error) => {
+                    if let Ok(mut locked) = state.lock() {
+                        locked.holders_starting.remove(&tab_id);
+                    }
+                    tx.offer_control(wire::frame(
+                        "tab.create-failed",
+                        request_id,
+                        wire::ResultBody {
+                            accepted: false,
+                            message: Some(error),
+                        },
+                    )?)
+                    .map_err(str::to_owned)?;
+                }
+            }
+        }
+        "tab.reorder" => {
+            let (_, reorder): (_, wire::TabReorder) = wire::body(payload)?;
+            let commit = {
+                let mut locked = state
+                    .lock()
+                    .map_err(|_| "resident state poisoned".to_owned())?;
+                if locked.registry.registry_revision != reorder.expected_revision {
+                    None
+                } else if let Some(from) = locked
+                    .registry
+                    .tabs
+                    .iter()
+                    .position(|tab| tab.tab_id == reorder.tab_id)
+                {
+                    let tab = locked.registry.tabs.remove(from);
+                    let target = reorder.target_index.min(locked.registry.tabs.len());
+                    locked.registry.tabs.insert(target, tab);
+                    for (index, tab) in locked.registry.tabs.iter_mut().enumerate() {
+                        tab.order = index as u32;
+                    }
+                    locked.registry.registry_revision =
+                        locked.registry.registry_revision.saturating_add(1);
+                    Some((locked.registry_store.clone(), locked.registry.clone()))
+                } else {
+                    None
+                }
+            };
+            let accepted = commit.is_some();
+            if let Some((store, document)) = commit {
+                commit_registry(store, document)?;
+            }
+            tx.offer_control(wire::frame(
+                "tab.reordered",
+                request_id,
+                wire::ResultBody {
+                    accepted,
+                    message: if accepted {
+                        None
+                    } else {
+                        Some("stale tab order".into())
+                    },
+                },
+            )?)
+            .map_err(str::to_owned)?;
+        }
+        "tab.rename" => {
+            let (_, rename): (_, wire::TabRename) = wire::body(payload)?;
+            let name = rename.name.trim();
+            let valid = !name.is_empty()
+                && name.chars().count() <= 64
+                && !name.chars().any(char::is_control);
+            if !valid {
+                tx.offer_control(wire::frame(
+                    "tab.rename-refused",
+                    request_id,
+                    wire::ResultBody {
+                        accepted: false,
+                        message: Some("Tab names must be 1–64 printable characters.".into()),
+                    },
+                )?)
+                .map_err(str::to_owned)?;
+                return Ok(());
+            }
+            let commit = {
+                let mut locked = state
+                    .lock()
+                    .map_err(|_| "resident state poisoned".to_owned())?;
+                if let Some(tab) = locked
+                    .registry
+                    .tabs
+                    .iter_mut()
+                    .find(|tab| tab.tab_id == rename.tab_id)
+                {
+                    tab.display_name = name.to_owned();
+                    tab.name_source = "user".into();
+                    locked.registry.registry_revision =
+                        locked.registry.registry_revision.saturating_add(1);
+                    Some((locked.registry_store.clone(), locked.registry.clone()))
+                } else {
+                    None
+                }
+            };
+            let accepted = commit.is_some();
+            if let Some((store, document)) = commit {
+                commit_registry(store, document)?;
+            }
+            if accepted
+                && let Ok(locked) = state.lock()
+                && let Some(bridge) = locked.bridges.get(&rename.tab_id)
+            {
+                let _ = bridge.peer.offer_control(wire::frame(
+                    "bridge.rename",
+                    None,
+                    serde_json::json!({ "name": name, "nameSource": "user" }),
+                )?);
+            }
+            tx.offer_control(wire::frame(
+                "tab.renamed",
+                request_id,
+                wire::ResultBody {
+                    accepted,
+                    message: None,
+                },
+            )?)
+            .map_err(str::to_owned)?;
+        }
+        "tab.restart" => {
+            let (_, target): (_, TabTarget) = wire::body(payload)?;
+            let restart = {
+                let mut locked = state
+                    .lock()
+                    .map_err(|_| "resident state poisoned".to_owned())?;
+                let authorized = locked
+                    .clients
+                    .get(&client_id)
+                    .is_some_and(|client| client.controller && client.viewed_tab == target.tab_id);
+                if !authorized {
+                    None
+                } else {
+                    let changed = locked
+                        .registry
+                        .tabs
+                        .iter_mut()
+                        .find(|record| record.tab_id == target.tab_id)
+                        .is_some_and(|record| {
+                            record.requested_restart = true;
+                            true
+                        });
+                    if changed {
+                        locked.registry.registry_revision =
+                            locked.registry.registry_revision.saturating_add(1);
+                    }
+                    locked.holders.get(&target.tab_id).map(|holder| {
+                        (
+                            holder.peer.clone(),
+                            locked.registry_store.clone(),
+                            locked.registry.clone(),
+                        )
+                    })
+                }
+            };
+            let accepted = if let Some((holder, store, document)) = restart {
+                commit_registry(store, document)?;
+                holder
+                    .offer_control(wire::frame(
+                        "holder.terminate-child",
+                        None,
+                        wire::ResultBody {
+                            accepted: true,
+                            message: Some("explicit restart".into()),
+                        },
+                    )?)
+                    .is_ok()
+            } else {
+                false
+            };
+            tx.offer_control(wire::frame(
+                "tab.restarted",
+                request_id,
+                wire::ResultBody {
+                    accepted,
+                    message: (!accepted).then(|| "restart is unavailable".into()),
+                },
+            )?)
+            .map_err(str::to_owned)?;
+        }
+        "tab.close" => {
+            let (_, target): (_, TabTarget) = wire::body(payload)?;
+            close_tab(&state, &target.tab_id, request_id)?;
+            tx.offer_control(wire::frame(
+                "tab.closed",
+                request_id,
+                wire::ResultBody {
+                    accepted: true,
+                    message: None,
+                },
+            )?)
+            .map_err(str::to_owned)?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 fn serve_attach(
     mut stream: endpoint::EndpointStream,
     tx: Peer,
@@ -2267,161 +2787,31 @@ fn serve_attach(
         )?)
         .map_err(str::to_owned)?;
     }
+    // Invariant: this loop reads the client's input and never waits on tab lifecycle work; tab
+    // starts, stops, and registry commits run in order on the client's lifecycle worker.
+    let (lifecycle_tx, lifecycle_rx) = mpsc::sync_channel::<LifecycleRequest>(LIFECYCLE_QUEUE);
+    thread::spawn({
+        let state = state.clone();
+        let profile = profile.clone();
+        let tx = tx.clone();
+        let client_id = client_id.clone();
+        move || run_lifecycle_worker(lifecycle_rx, state, profile, tx, client_id)
+    });
     while let Some(payload) = wire::read_payload(&mut stream)? {
         let kind = wire::kind(&payload)?;
         match kind.message_type.as_str() {
-            "attach.start" => {
-                let (_, start): (_, AttachStart) = wire::body(&payload)?;
-                let selected = start
-                    .session_file
-                    .as_deref()
-                    .map(canonical_session_identity);
-                let (tab_id, should_start) = {
-                    let mut locked = state
-                        .lock()
-                        .map_err(|_| "resident state poisoned".to_owned())?;
-                    locked.tabs_max = start.tabs_max.clamp(1, 50);
-                    if let Some(selected) = selected.as_deref()
-                        && let Some(tab) = locked.registry.tabs.iter().find(|tab| {
-                            tab.session_file
-                                .as_deref()
-                                .map(canonical_session_identity)
-                                .as_deref()
-                                == Some(selected)
-                        })
-                    {
-                        (tab.tab_id.clone(), false)
-                    } else if selected.is_some()
-                        && !locked.registry.tabs.is_empty()
-                        && open_tab_count(&locked) < locked.tabs_max.min(HARD_TABS_MAX)
-                    {
-                        let tab_id = format!("tab-{:016x}", rand::random::<u64>());
-                        let start = locked.holders_starting.insert(tab_id.clone());
-                        (tab_id, start)
-                    } else {
-                        let tab_id = locked.default_tab();
-                        let start = locked.registry.tabs.is_empty()
-                            && locked.holders_starting.insert(tab_id.clone());
-                        (tab_id, start)
-                    }
-                };
-                if should_start {
-                    start_holder(&profile, &state, tab_id.clone(), start)?;
-                }
-                if selected.is_some() {
-                    tx.offer_control(wire::frame(
-                        "tab.selected",
-                        kind.request_id,
-                        TabTarget { tab_id },
-                    )?)
-                    .map_err(str::to_owned)?;
-                }
-            }
-            "tab.create" => {
-                let (_, create): (_, TabCreate) = wire::body(&payload)?;
-                let tabs_max = {
-                    let locked = state
-                        .lock()
-                        .map_err(|_| "resident state poisoned".to_owned())?;
-                    let active_tabs = locked
-                        .registry
-                        .tabs
-                        .iter()
-                        .filter(|tab| tab.desired != "stopped")
-                        .count();
-                    let pending_tabs = locked
-                        .holders_starting
-                        .iter()
-                        .filter(|tab_id| {
-                            !locked
-                                .registry
-                                .tabs
-                                .iter()
-                                .any(|tab| &tab.tab_id == *tab_id)
-                        })
-                        .count();
-                    if active_tabs + pending_tabs >= locked.tabs_max {
-                        tx.offer_control(wire::frame(
-                            "tab.create-refused",
-                            kind.request_id,
-                            wire::ResultBody {
-                                accepted: false,
-                                message: Some("tab-limit".into()),
-                            },
-                        )?)
-                        .map_err(str::to_owned)?;
-                        continue;
-                    }
-                    locked.tabs_max
-                };
-                let mut start = AttachStart {
-                    client_id: client_id.clone(),
-                    tabs_max,
-                    cwd: create.cwd,
-                    columns: create.columns,
-                    rows: create.rows,
-                    release_root: create.release_root,
-                    node_executable: create.node_executable,
-                    environment: create.environment,
-                    session_file: None,
-                    session_dir: None,
-                };
-                sanitize_tab_environment(&mut start.environment);
-                match promote_standby(&state, start.clone()) {
-                    Ok(Some(tab_id)) => {
-                        tx.offer_control(wire::frame(
-                            "tab.created",
-                            kind.request_id,
-                            TabTarget { tab_id },
-                        )?)
-                        .map_err(str::to_owned)?;
-                        continue;
-                    }
-                    Ok(None) => discard_standby(&state),
-                    Err(error) => {
-                        tx.offer_control(wire::frame(
-                            "tab.create-failed",
-                            kind.request_id,
-                            wire::ResultBody {
-                                accepted: false,
-                                message: Some(error),
-                            },
-                        )?)
-                        .map_err(str::to_owned)?;
-                        continue;
-                    }
-                }
-                let tab_id = format!("tab-{:016x}", rand::random::<u64>());
-                state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?
-                    .holders_starting
-                    .insert(tab_id.clone());
-                match start_holder(&profile, &state, tab_id.clone(), start) {
-                    Ok(()) => {
-                        tx.offer_control(wire::frame(
-                            "tab.created",
-                            kind.request_id,
-                            TabTarget { tab_id },
-                        )?)
-                        .map_err(str::to_owned)?;
-                    }
-                    Err(error) => {
-                        if let Ok(mut locked) = state.lock() {
-                            locked.holders_starting.remove(&tab_id);
-                        }
-                        tx.offer_control(wire::frame(
-                            "tab.create-failed",
-                            kind.request_id,
-                            wire::ResultBody {
-                                accepted: false,
-                                message: Some(error),
-                            },
-                        )?)
-                        .map_err(str::to_owned)?;
-                    }
-                }
-            }
+            "attach.start" | "tab.create" | "tab.close" | "tab.restart" | "tab.rename"
+            | "tab.reorder" => enqueue_lifecycle(
+                &state,
+                &lifecycle_tx,
+                &tx,
+                &client_id,
+                LifecycleRequest {
+                    message_type: kind.message_type.clone(),
+                    request_id: kind.request_id,
+                    payload,
+                },
+            )?,
             "tab.list" => {
                 let (revision, tabs) = {
                     let locked = state
@@ -2580,184 +2970,6 @@ fn serve_attach(
                     persist_status_after(state.clone(), target.tab_id, delay);
                 }
             }
-            "tab.reorder" => {
-                let (_, reorder): (_, wire::TabReorder) = wire::body(&payload)?;
-                let commit = {
-                    let mut locked = state
-                        .lock()
-                        .map_err(|_| "resident state poisoned".to_owned())?;
-                    if locked.registry.registry_revision != reorder.expected_revision {
-                        None
-                    } else if let Some(from) = locked
-                        .registry
-                        .tabs
-                        .iter()
-                        .position(|tab| tab.tab_id == reorder.tab_id)
-                    {
-                        let tab = locked.registry.tabs.remove(from);
-                        let target = reorder.target_index.min(locked.registry.tabs.len());
-                        locked.registry.tabs.insert(target, tab);
-                        for (index, tab) in locked.registry.tabs.iter_mut().enumerate() {
-                            tab.order = index as u32;
-                        }
-                        locked.registry.registry_revision =
-                            locked.registry.registry_revision.saturating_add(1);
-                        Some((locked.registry_store.clone(), locked.registry.clone()))
-                    } else {
-                        None
-                    }
-                };
-                let accepted = commit.is_some();
-                if let Some((store, document)) = commit {
-                    commit_registry(store, document)?;
-                }
-                tx.offer_control(wire::frame(
-                    "tab.reordered",
-                    kind.request_id,
-                    wire::ResultBody {
-                        accepted,
-                        message: if accepted {
-                            None
-                        } else {
-                            Some("stale tab order".into())
-                        },
-                    },
-                )?)
-                .map_err(str::to_owned)?;
-            }
-            "tab.rename" => {
-                let (_, rename): (_, wire::TabRename) = wire::body(&payload)?;
-                let name = rename.name.trim();
-                let valid = !name.is_empty()
-                    && name.chars().count() <= 64
-                    && !name.chars().any(char::is_control);
-                if !valid {
-                    tx.offer_control(wire::frame(
-                        "tab.rename-refused",
-                        kind.request_id,
-                        wire::ResultBody {
-                            accepted: false,
-                            message: Some("Tab names must be 1–64 printable characters.".into()),
-                        },
-                    )?)
-                    .map_err(str::to_owned)?;
-                    continue;
-                }
-                let commit = {
-                    let mut locked = state
-                        .lock()
-                        .map_err(|_| "resident state poisoned".to_owned())?;
-                    if let Some(tab) = locked
-                        .registry
-                        .tabs
-                        .iter_mut()
-                        .find(|tab| tab.tab_id == rename.tab_id)
-                    {
-                        tab.display_name = name.to_owned();
-                        tab.name_source = "user".into();
-                        locked.registry.registry_revision =
-                            locked.registry.registry_revision.saturating_add(1);
-                        Some((locked.registry_store.clone(), locked.registry.clone()))
-                    } else {
-                        None
-                    }
-                };
-                let accepted = commit.is_some();
-                if let Some((store, document)) = commit {
-                    commit_registry(store, document)?;
-                }
-                if accepted
-                    && let Ok(locked) = state.lock()
-                    && let Some(bridge) = locked.bridges.get(&rename.tab_id)
-                {
-                    let _ = bridge.peer.offer_control(wire::frame(
-                        "bridge.rename",
-                        None,
-                        serde_json::json!({ "name": name, "nameSource": "user" }),
-                    )?);
-                }
-                tx.offer_control(wire::frame(
-                    "tab.renamed",
-                    kind.request_id,
-                    wire::ResultBody {
-                        accepted,
-                        message: None,
-                    },
-                )?)
-                .map_err(str::to_owned)?;
-            }
-            "tab.restart" => {
-                let (_, target): (_, TabTarget) = wire::body(&payload)?;
-                let restart = {
-                    let mut locked = state
-                        .lock()
-                        .map_err(|_| "resident state poisoned".to_owned())?;
-                    let authorized = locked.clients.get(&client_id).is_some_and(|client| {
-                        client.controller && client.viewed_tab == target.tab_id
-                    });
-                    if !authorized {
-                        None
-                    } else {
-                        let changed = locked
-                            .registry
-                            .tabs
-                            .iter_mut()
-                            .find(|record| record.tab_id == target.tab_id)
-                            .is_some_and(|record| {
-                                record.requested_restart = true;
-                                true
-                            });
-                        if changed {
-                            locked.registry.registry_revision =
-                                locked.registry.registry_revision.saturating_add(1);
-                        }
-                        locked.holders.get(&target.tab_id).map(|holder| {
-                            (
-                                holder.peer.clone(),
-                                locked.registry_store.clone(),
-                                locked.registry.clone(),
-                            )
-                        })
-                    }
-                };
-                let accepted = if let Some((holder, store, document)) = restart {
-                    commit_registry(store, document)?;
-                    holder
-                        .offer_control(wire::frame(
-                            "holder.terminate-child",
-                            None,
-                            wire::ResultBody {
-                                accepted: true,
-                                message: Some("explicit restart".into()),
-                            },
-                        )?)
-                        .is_ok()
-                } else {
-                    false
-                };
-                tx.offer_control(wire::frame(
-                    "tab.restarted",
-                    kind.request_id,
-                    wire::ResultBody {
-                        accepted,
-                        message: (!accepted).then(|| "restart is unavailable".into()),
-                    },
-                )?)
-                .map_err(str::to_owned)?;
-            }
-            "tab.close" => {
-                let (_, target): (_, TabTarget) = wire::body(&payload)?;
-                close_tab(&state, &target.tab_id, kind.request_id)?;
-                tx.offer_control(wire::frame(
-                    "tab.closed",
-                    kind.request_id,
-                    wire::ResultBody {
-                        accepted: true,
-                        message: None,
-                    },
-                )?)
-                .map_err(str::to_owned)?;
-            }
             "tab.claimInput" => {
                 let claim = {
                     let mut locked = state
@@ -2915,10 +3127,43 @@ impl Drop for StartPermit {
     }
 }
 
+/// How long a user-requested tab start waits for a start slot. It exceeds
+/// [`RECOVERY_SLOT_BOUND`], so an ordinary wait behind recovering tabs still succeeds.
+const START_PERMIT_DEADLINE: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// The typed failure of a user-requested tab start that found no free start slot in time.
+pub const TAB_START_BUSY: &str = "tab-start-busy";
+
+fn start_permit_deadline() -> std::time::Duration {
+    crate::fault_injection::setting("A1_TABS_FAULT_START_DEADLINE_MS")
+        .and_then(|value| value.parse::<u64>().ok())
+        .map_or(START_PERMIT_DEADLINE, std::time::Duration::from_millis)
+}
+
+/// Registers a waiting user-requested start for as long as it lives.
+struct InteractiveStartWaiter<'a> {
+    state: &'a Arc<Mutex<RuntimeState>>,
+}
+impl Drop for InteractiveStartWaiter<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut locked) = self.state.lock() {
+            locked.interactive_start_waiters = locked.interactive_start_waiters.saturating_sub(1);
+        }
+    }
+}
+
 fn acquire_start_permit(
     state: &Arc<Mutex<RuntimeState>>,
     tab_id: &str,
 ) -> Result<(StartPermit, std::time::Duration), String> {
+    let deadline = std::time::Instant::now() + start_permit_deadline();
+    let _waiter = {
+        let mut locked = state
+            .lock()
+            .map_err(|_| "resident state poisoned".to_owned())?;
+        locked.interactive_start_waiters = locked.interactive_start_waiters.saturating_add(1);
+        InteractiveStartWaiter { state }
+    };
     loop {
         {
             let mut locked = state
@@ -2941,6 +3186,11 @@ fn acquire_start_permit(
                     scheduled.saturating_duration_since(now),
                 ));
             }
+        }
+        // Invariant: this wait runs on a client's lifecycle worker, never its input path, and it
+        // ends; a start slot that never frees becomes a typed failure the client can show.
+        if std::time::Instant::now() >= deadline {
+            return Err(TAB_START_BUSY.to_owned());
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
@@ -3214,6 +3464,7 @@ fn start_holder(
     mut start: AttachStart,
 ) -> Result<(), String> {
     let (_permit, spacing) = acquire_start_permit(state, &tab_id)?;
+    crate::fault_injection::delay("A1_TABS_FAULT_DELAY_TAB_START_MS");
     sanitize_tab_environment(&mut start.environment);
     if !spacing.is_zero() {
         std::thread::sleep(spacing);
@@ -5161,5 +5412,85 @@ mod tests {
         assert!(state.attach("tab-b", "two".into()).is_ok());
         assert!(!state.detach("tab-a", "one", revision + 1));
         assert!(state.detach("tab-a", "one", revision));
+    }
+
+    #[test]
+    fn recovery_yields_free_start_slots_to_a_waiting_user_start() {
+        assert!(gate_slot_free(1, 2, 0));
+        assert!(!gate_slot_free(1, 2, 1));
+        assert!(!gate_slot_free(2, 2, 0));
+    }
+
+    #[test]
+    fn lifecycle_failures_answer_with_their_request_reply_and_hide_paths() {
+        assert_eq!(lifecycle_refusal("attach.start"), "error");
+        assert_eq!(lifecycle_refusal("tab.create"), "tab.create-failed");
+        assert_eq!(lifecycle_refusal("tab.close"), "tab.closed");
+        assert_eq!(lifecycle_refusal("tab.restart"), "tab.restarted");
+        assert_eq!(lifecycle_refusal("tab.rename"), "tab.rename-refused");
+        assert_eq!(lifecycle_refusal("tab.reorder"), "tab.reordered");
+        assert_eq!(
+            lifecycle_failure_message("tab.create", TAB_START_BUSY),
+            TAB_START_BUSY
+        );
+        assert_eq!(
+            lifecycle_failure_message("tab.rename", "commit C:\\Users\\someone\\registry.json"),
+            "Tab change could not be completed"
+        );
+    }
+
+    #[test]
+    fn a_full_lifecycle_refusal_reaches_the_client_without_waiting() {
+        let (tx, rx) = mpsc::sync_channel(CONTROL_LANE_FRAMES);
+        let peer = Peer {
+            tx,
+            queued_bytes: Arc::new(AtomicUsize::new(0)),
+            surface: Arc::new(Mutex::new(None)),
+            surface_signaled: Arc::new(AtomicBool::new(false)),
+            surface_replaced: Arc::new(AtomicBool::new(false)),
+        };
+        let request = LifecycleRequest {
+            message_type: "tab.create".into(),
+            request_id: Some(7),
+            payload: Vec::new(),
+        };
+        refuse_lifecycle(&peer, &request, "busy".into());
+        let frame = rx.try_recv().expect("refusal frame");
+        let payload = &frame[4..];
+        assert_eq!(
+            wire::kind(payload).unwrap().message_type,
+            "tab.create-failed"
+        );
+        let (request_id, body): (_, wire::ResultBody) = wire::body(payload).unwrap();
+        assert_eq!(request_id, Some(7));
+        assert!(!body.accepted);
+        assert_eq!(body.message.as_deref(), Some("busy"));
+    }
+
+    #[test]
+    fn lifecycle_status_totals_pending_work_and_reports_the_oldest_running_request() {
+        let now = std::time::Instant::now();
+        let mut backlog = HashMap::new();
+        backlog.insert(
+            "one".to_owned(),
+            LifecycleBacklog {
+                pending: 2,
+                running_since: now.checked_sub(std::time::Duration::from_secs(12)),
+            },
+        );
+        backlog.insert(
+            "two".to_owned(),
+            LifecycleBacklog {
+                pending: 1,
+                running_since: None,
+            },
+        );
+        let status = lifecycle_status(&backlog, now);
+        assert_eq!(status["pending"], 3);
+        assert!(status["oldestMs"].as_u64().unwrap() >= 12_000);
+        assert_eq!(
+            lifecycle_status(&HashMap::new(), now),
+            serde_json::json!({ "pending": 0, "oldestMs": 0 })
+        );
     }
 }
