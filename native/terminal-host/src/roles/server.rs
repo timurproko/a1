@@ -1823,47 +1823,54 @@ fn stop_tabs(
         close_tab(state, tab_id, request_id)?;
     }
     type LiveTab = (String, Option<ProcessIdentity>, Option<ProcessIdentity>);
-    let live = |state: &Arc<Mutex<RuntimeState>>| -> Result<Vec<LiveTab>, String> {
-        let locked = state
-            .lock()
-            .map_err(|_| "resident state poisoned".to_owned())?;
-        Ok(tab_ids
-            .iter()
-            .filter(|tab_id| {
-                locked.holders.contains_key(*tab_id) || locked.holders_starting.contains(*tab_id)
-            })
-            .map(|tab_id| {
-                let record = locked
-                    .registry
-                    .tabs
-                    .iter()
-                    .find(|record| &record.tab_id == tab_id);
-                // Invariant: a recorded holder that has not reconnected is stopped by the identity
-                // its registry record holds.
-                let recorded = || {
-                    Some(ProcessIdentity {
-                        pid: record?.holder_pid?,
-                        start: record?.holder_start_identity.clone()?,
-                    })
-                };
-                let child = record.and_then(|record| {
-                    Some(ProcessIdentity {
-                        pid: record.child_pid?,
-                        start: record.child_start_identity.clone()?,
-                    })
-                });
-                (
-                    tab_id.clone(),
-                    locked
-                        .holders
-                        .get(tab_id)
-                        .map(|holder| holder.identity.clone())
-                        .or_else(recorded),
-                    child,
-                )
-            })
-            .collect())
-    };
+    let live =
+        |state: &Arc<Mutex<RuntimeState>>| -> Result<Vec<LiveTab>, String> {
+            let locked = state
+                .lock()
+                .map_err(|_| "resident state poisoned".to_owned())?;
+            Ok(tab_ids
+                .iter()
+                .filter(|tab_id| {
+                    // Invariant: a tab whose holder has not started has no process to stop; its
+                    // pending start sees the tab is no longer wanted and never launches one.
+                    locked.holders.contains_key(*tab_id)
+                        || (locked.holders_starting.contains(*tab_id)
+                            && locked.registry.tabs.iter().any(|record| {
+                                &record.tab_id == *tab_id && record.holder_pid.is_some()
+                            }))
+                })
+                .map(|tab_id| {
+                    let record = locked
+                        .registry
+                        .tabs
+                        .iter()
+                        .find(|record| &record.tab_id == tab_id);
+                    // Invariant: a recorded holder that has not reconnected is stopped by the identity
+                    // its registry record holds.
+                    let recorded = || {
+                        Some(ProcessIdentity {
+                            pid: record?.holder_pid?,
+                            start: record?.holder_start_identity.clone()?,
+                        })
+                    };
+                    let child = record.and_then(|record| {
+                        Some(ProcessIdentity {
+                            pid: record.child_pid?,
+                            start: record.child_start_identity.clone()?,
+                        })
+                    });
+                    (
+                        tab_id.clone(),
+                        locked
+                            .holders
+                            .get(tab_id)
+                            .map(|holder| holder.identity.clone())
+                            .or_else(recorded),
+                        child,
+                    )
+                })
+                .collect())
+        };
     let deadline = std::time::Instant::now() + MAINTENANCE_STOP_GRACE;
     let mut remaining = live(state)?;
     while !remaining.is_empty() && std::time::Instant::now() < deadline {
@@ -3210,6 +3217,18 @@ fn start_holder(
     sanitize_tab_environment(&mut start.environment);
     if !spacing.is_zero() {
         std::thread::sleep(spacing);
+    }
+    // Invariant: a tab told to stop while its start waited for a slot never launches a holder;
+    // the permit's release takes the tab out of the starting set, so a stop can complete.
+    let stopped_meanwhile = state.lock().ok().is_some_and(|locked| {
+        locked
+            .registry
+            .tabs
+            .iter()
+            .any(|tab| tab.tab_id == tab_id && tab.desired == "stopped")
+    });
+    if stopped_meanwhile {
+        return Ok(());
     }
     let (
         endpoint,
