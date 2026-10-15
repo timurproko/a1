@@ -7,6 +7,7 @@ import { TerminalHostArtifactError, verifyTerminalHostArtifact } from "./termina
 
 export type TerminalHostFallbackReason =
   | "unsupported platform"
+  | "no interactive terminal"
   | "terminal host not installed"
   | "terminal host not verified"
   | "host probe failed"

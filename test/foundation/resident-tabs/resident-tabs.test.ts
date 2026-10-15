@@ -68,14 +68,22 @@ describe("resident tab launch contracts", () => {
       { profileId: "a1" as const, solo: true, currentLaunchContract: true },
       { profileId: "a1" as const, solo: false, currentLaunchContract: false },
     ]) {
-      await expect(selectResidentHost({ ...selection, ensureHost })).resolves.toBeNull();
+      await expect(selectResidentHost({ ...selection, interactive: true, ensureHost })).resolves.toBeNull();
     }
     expect(ensureHost).not.toHaveBeenCalled();
 
     await expect(selectResidentHost({
-      profileId: "a1", solo: false, currentLaunchContract: true, ensureHost,
+      profileId: "a1", solo: false, currentLaunchContract: true, interactive: true, ensureHost,
     })).resolves.toMatchObject({ status: "ready" });
     expect(ensureHost).toHaveBeenCalledOnce();
+  });
+
+  it("runs a piped or redirected bare A1 direct without probing the resident host", async () => {
+    const ensureHost = vi.fn(async () => ({ status: "ready" as const, executable: "host", endpoint: "endpoint" }));
+    await expect(selectResidentHost({
+      profileId: "a1", solo: false, currentLaunchContract: true, interactive: false, ensureHost,
+    })).resolves.toEqual({ status: "fallback", reason: "no interactive terminal" });
+    expect(ensureHost).not.toHaveBeenCalled();
   });
 
   it("frames bridge metadata without terminal or prompt content", () => {

@@ -52,12 +52,12 @@ The read-only review used A1 `develop` at `b42b3c9e`, PR #586 at `8fdb7361`, `E:
 
 ### Milestone 2 pinned launch contract (2026-10-11)
 
-- Bare `a1` always requests the resident tab route. Tab enablement is not persisted or configurable; host discovery or verification failure uses the bounded direct single-agent fallback.
+- Bare `a1` from a terminal always requests the resident tab route; with piped or redirected standard input or output it runs the direct UI without probing the host, because the attach client needs a terminal to size and own. Tab enablement is not persisted or configurable; host discovery or verification failure uses the bounded direct single-agent fallback.
 - Tab settings `tabsMax` and `tabsAutoName` live in the flat `a1` object of the global agent `settings.json`; the former versioned profile document remains a read-only compatibility fallback while that object is absent.
 - The host artifact resolves to `dist/native/<platform>-<arch>/a1-terminal-host[.exe]`, with hermetic `A1_TERMINAL_HOST_PATH`; discovery may use `A1_TABS_ENDPOINT`.
 - Tab children consume and erase `A1_TAB_ID`, `A1_TAB_TOKEN`, and `A1_TAB_ENDPOINT` before loading A1, Pi, extensions, or tools.
 - Client-scoped bridge detach binds `clientId` and `controllerRevision` captured when the command is admitted. The additive generation-1 `attachment` and `bridge.request` fixtures freeze that shape.
-- Launch fallback reasons are bounded to unsupported platform, missing artifact, failed probe, incompatible generation, unreadable registry, blocked recovery, unverified launch, and startup timeout. Fallback preserves resident records and presents exactly one direct-session notice.
+- Launch fallback reasons are bounded to unsupported platform, no interactive terminal, missing artifact, failed probe, incompatible generation, unreadable registry, blocked recovery, unverified launch, and startup timeout. Fallback preserves resident records and presents exactly one direct-session notice.
 - Until milestone 4 adds quarantine and history recovery, an unreadable registry fails closed and is left untouched.
 - Milestone 2 multiplexes authenticated attach, holder, bridge, and probe roles over the owner endpoint and sends a replaceable full current surface through each client's single-slot render lane. Dedicated holder endpoints and patch deltas remain multi-tab optimizations rather than claims of this one-tab milestone.
 - The native server, holder, attach, bridge reconnect, child containment, and role integration fixture are implemented. Milestone 2 records complete Windows x64 terminal-close and OpenSSH-loss evidence; macOS arm64 and Linux x64 physical terminal/SSH evidence remains uncertified and is an explicit milestone-6 gate rather than an inferred milestone-2 result.
