@@ -50,6 +50,17 @@ Changed-file naming rejects a selection whose changes differ from the committed 
 
 ## 6. Validation
 
+**6.1 local validation (2026-10-15, maintainer's Windows workstation):**
+
+- `npm run preflight` on `f7c5c8da`: all 11 gates passed. An earlier run failed `changed-tests` on `test/foundation/release/resident-release-retention.integration.test.ts`, which runs only when `native/terminal-host/target/debug` holds the host and `fake-tab` binaries; the spike build had left them there. Its unheld release was retained because the live server's release was unrecorded, a consequence of the desktop-job defect in section 4. The CI core job has no native binaries and skips the test. With the binaries moved aside, preflight passed.
+- Native test from the prebuilt library: see the 4.2 spike. It linked and ran; the test failed only from the desktop-job defect.
+- Seeded chaos and replay, built through the prebuilt library (`cargo build --release --locked --features resident-fixtures --bin terminal-host --bin fake-tab` with `TERMINAL_HOST_LOCAL_BUILD=1` and `TERMINAL_HOST_PREBUILT_VT`; `--build` is unavailable locally because the release packaging build records the Zig version):
+  - `run-resident-chaos.mjs --host … --fake-tab … --seed 4242 --seconds 60 --result .artifacts/validation/chaos-local.json` printed `resident chaos seed 4242` and recorded 25 actions. It found 2 violations, each labeled with seed 4242 and the report path: "server was not replaced after it was killed" at steps 3 and 11. Holder diagnostics show `server-replacement-request-failed` and `server-replacement-connect-failed`. This is consistent with the desktop-job defect, since a holder's replacement launch passes the same detachment check, but not yet proven; the CI Windows chaos run on `9a7e697e` had none.
+  - `--replay .artifacts/validation/chaos-local.json` printed `replaying 25 actions of seed 4242`, issued the same 25 actions in the same order with no divergence, and reproduced both violations at steps 3 and 11.
+- No resident process survived any run.
+
+**Dispatched CI run:**
+
 - Dispatched Development validation [run 38726193361](https://github.com/timurproko/a1/actions/runs/38726193361) on `9a7e697e` (conservative selection). All three native terminal-host lanes passed and published `terminal-vt-win32-x64-attempt-1`, `terminal-vt-linux-x64-attempt-1`, and `terminal-vt-darwin-arm64-attempt-1`. The Linux and macOS chaos lanes passed.
 - Windows chaos was cancelled by its 20-minute job timeout during post-job cleanup after every step succeeded. Its uploaded report is `a1-resident-chaos-v2` with seed `890278119`, a 246-action recorded schedule, and no violations. The terminal-host build cache missed because this change adds a build dependency, so Zig rebuilt for about five and a half minutes before the 600-second run. On #750 the lane took 16.5 to 17 minutes with a warm cache. Chaos lanes now share the native lanes' 45-minute timeout (task 6.2).
 - The resource-sensitive partition failed one test, `prompt-history/concurrency.integration.test.ts` › serializes simultaneous first-open, writes and pruning, with `EBUSY` unlinking `history.sqlite3` during fixture removal after the body completed. Its removals now retry cleanup only, within the bound the `continuous-integration` specification permits (task 6.2).
