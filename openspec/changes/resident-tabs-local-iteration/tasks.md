@@ -30,3 +30,4 @@ Workflow change for resident tabs iteration (see `design.md`). The branch is rec
 ## 6. Validation
 
 - [ ] 6.1 Run preflight, one seeded chaos run and its replay, and (if the spike passed) one native test locally from the prebuilt library; record commands, seeds, and results in `implementation-evidence.md`.
+- [x] 6.2 Repair the dispatched validation run (maintainer-approved scope refinement): give chaos lanes the native lanes' 45-minute job timeout, since a cold native build plus the 600-second run exceeds 20 minutes, and retry only fixture cleanup in `test/features/prompt-history/concurrency.integration.test.ts` as its sibling package test does.

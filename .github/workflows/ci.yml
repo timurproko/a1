@@ -567,7 +567,7 @@ jobs:
       matrix: ${{ fromJSON(needs.changes.outputs.modular-matrix) }}
     runs-on: ${{ matrix.os }}
     # A cold terminal-host build compiles libghostty-vt with Zig before the Rust crate.
-    timeout-minutes: ${{ matrix.terminalHost && 45 || 20 }}
+    timeout-minutes: ${{ (matrix.terminalHost || matrix.chaos) && 45 || 20 }}
     steps:
       - name: Start job timing
         shell: bash
