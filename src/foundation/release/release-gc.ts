@@ -23,6 +23,7 @@ import { UpdateTransactionStore, type UpdateTransaction } from "./update-transac
 import { cleanupUpdateRecoveryCapsules } from "./update-recovery.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { collectCompileCaches, startupCompileCachePath } from "../startup/index.js";
+import { readResidentReleaseHolds, type ResidentReleaseHoldReport } from "../resident-tabs/index.js";
 
 const DEFAULT_CANDIDATE_AGE_MS = 60 * 60 * 1_000;
 const DEFAULT_LIMITS: ReleaseCleanupLimits = { maxItems: 8, maxDurationMs: 2_000, concurrency: 1 };
@@ -54,6 +55,8 @@ export interface ReleaseCleanupOptions {
   readonly operations?: ReleaseCleanupOperations;
   /** Process-start seam for scheduler and continuation tests. */
   readonly workerSpawner?: (entry: string, environment: NodeJS.ProcessEnv) => Promise<void>;
+  /** Resident-tab inspection seam; the default asks a verified installed terminal host. */
+  readonly residentHolds?: (dataDir: string, releaseRoots: readonly string[]) => Promise<ResidentReleaseHoldReport>;
 }
 
 export interface ReleaseCleanupWorkerOptions {
@@ -94,7 +97,7 @@ export async function prepareReleaseCleanup(
   const store = new CohortStateStore(dataDir);
   const discovered = await discoverCleanupInputs(dataDir, store, options);
   const transactionStore = options.transactionStore ?? new UpdateTransactionStore(dataDir);
-  await store.reconcileRetention(async () => await protectionInputs(paths, transactionStore, options.externalHolds ?? []), discovered.orphans);
+  await store.reconcileRetention(async () => await protectionInputs(dataDir, paths, transactionStore, options.externalHolds ?? [], options.residentHolds), discovered.orphans);
   for (const diagnostic of discovered.diagnostics.slice(0, 16)) {
     await store.recordCleanupFailure(diagnostic.releaseId, diagnostic.stage, diagnostic.error);
   }
@@ -147,7 +150,7 @@ export async function runBoundedReleaseCleanup(
       maximum -= 1;
       const certificationId = certificationReleaseId(artifact);
       if (certificationId !== null) {
-        const inputs = await protectionInputs(paths, transactionStore, options.externalHolds ?? []);
+        const inputs = await protectionInputs(dataDir, paths, transactionStore, options.externalHolds ?? [], options.residentHolds);
         if (isProtectedDetachedRelease(await store.read(), inputs, certificationId)) continue;
       }
       attempted += 1;
@@ -309,7 +312,7 @@ export async function collectRelease(
   const holds = externalReferences.map(referenced => ({ authority: "migration" as const, releaseId: referenced }));
   const state = await store.read();
   if (!state.releases[releaseId]) throw new Error(`unknown release ${releaseId}`);
-  await store.reconcileRetention(async () => ({ ...(await protectionInputs(paths, new UpdateTransactionStore(dataDir), holds) ) }));
+  await store.reconcileRetention(async () => ({ ...(await protectionInputs(dataDir, paths, new UpdateTransactionStore(dataDir), holds) ) }));
   const disposition = (await store.read()).cleanup.pending[releaseId];
   if (!disposition) throw new Error(`release ${releaseId} is still referenced and cannot be collected`);
   const removed = await collectDisposition(store, dataDir, paths, disposition, { externalHolds: holds, limits: { maxItems: 1 } });
@@ -325,7 +328,7 @@ async function collectDisposition(
 ): Promise<boolean> {
   const releaseId = disposition.release.releaseId;
   try {
-    const inputs = await protectionInputs(paths, options.transactionStore ?? new UpdateTransactionStore(dataDir), options.externalHolds ?? []);
+    const inputs = await protectionInputs(dataDir, paths, options.transactionStore ?? new UpdateTransactionStore(dataDir), options.externalHolds ?? [], options.residentHolds);
     const current = await store.read();
     if (isProtectedDetachedRelease(current, inputs, releaseId)) return false;
 
@@ -372,15 +375,53 @@ function isProtectedDetachedRelease(state: CohortState, inputs: ProtectedRelease
 }
 
 async function protectionInputs(
+  dataDir: string,
   paths: ProductPaths | undefined,
   transactionStore: Pick<UpdateTransactionStore, "read">,
   externalHolds: readonly ExternalReleaseHold[],
+  residentHolds?: ResidentHoldReader,
 ): Promise<ProtectedReleaseInputs> {
-  const [liveIds, transaction] = await Promise.all([
+  const [liveIds, transaction, resident] = await Promise.all([
     paths ? liveReleaseIds(paths) : Promise.resolve([] as readonly string[]),
     transactionStore.read(),
+    residentReleaseHolds(dataDir, residentHolds),
   ]);
-  return { liveReleaseIds: liveIds, externalHolds, transaction: transactionReference(transaction) };
+  return { liveReleaseIds: liveIds, externalHolds: [...externalHolds, ...resident], transaction: transactionReference(transaction) };
+}
+
+type ResidentHoldReader = (dataDir: string, releaseRoots: readonly string[]) => Promise<ResidentReleaseHoldReport>;
+
+/**
+ * Holds every release a live resident server, holder, or tab child runs from. Retention fails
+ * closed: an incomplete report, or a recorded root inside the release store that names no known
+ * release, holds every known release.
+ */
+async function residentReleaseHolds(dataDir: string, reader?: ResidentHoldReader): Promise<readonly ExternalReleaseHold[]> {
+  const state = await new CohortStateStore(dataDir).read();
+  const records = [
+    ...Object.values(state.releases),
+    ...Object.values(state.cleanup.pending).map(disposition => disposition.release),
+  ];
+  const preferred = [state.references.active, state.references.rollback]
+    .flatMap(id => id && state.releases[id] ? [state.releases[id].releaseRoot] : []);
+  const roots = [...new Set([...preferred, ...Object.values(state.releases).map(record => record.releaseRoot)])];
+  const report = await (reader ?? ((directory, releaseRoots) => readResidentReleaseHolds({ dataDir: directory, releaseRoots })))(dataDir, roots);
+  const everything = () => [...new Set(records.map(record => record.releaseId))].map(releaseId => ({ authority: "resident" as const, releaseId }));
+  if (!report.complete) return everything();
+  const byRoot = new Map(records.map(record => [comparablePath(record.releaseRoot), record.releaseId]));
+  const store = comparablePath(resolve(dataDir, "releases"));
+  const holds = new Set<string>();
+  for (const root of report.releaseRoots) {
+    const releaseId = byRoot.get(comparablePath(root));
+    if (releaseId) holds.add(releaseId);
+    else if (comparablePath(root).startsWith(`${store}${sep}`)) return everything();
+  }
+  return [...holds].sort().map(releaseId => ({ authority: "resident" as const, releaseId }));
+}
+
+function comparablePath(path: string): string {
+  const absolute = resolve(path);
+  return process.platform === "win32" ? absolute.toLowerCase() : absolute;
 }
 
 function transactionReference(transaction: UpdateTransaction | null) {
@@ -817,7 +858,7 @@ function parseWorkerHolds(value: string | undefined): readonly ExternalReleaseHo
     const parsed = JSON.parse(value) as unknown;
     if (!Array.isArray(parsed)) return [];
     return parsed.filter((hold): hold is ExternalReleaseHold => Boolean(hold) && typeof hold === "object"
-      && ((hold as ExternalReleaseHold).authority === "agent" || (hold as ExternalReleaseHold).authority === "migration")
+      && ["agent", "migration", "resident"].includes((hold as ExternalReleaseHold).authority)
       && typeof (hold as ExternalReleaseHold).releaseId === "string");
   } catch {
     return [];

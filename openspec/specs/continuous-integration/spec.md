@@ -1143,7 +1143,7 @@ The publication workflow final result job SHALL, when the selected outcome was n
 - **THEN** the command output and result summary SHALL be unchanged apart from the earlier run URL line
 
 ### Requirement: A failed nightly regression proposes its fix
-When a `Full regression` run on `develop` or a scheduled `Publish` validation completes with a failure, one trusted workflow SHALL open or refresh a draft pull request against `develop` whose body carries the failure evidence: the failed owners per platform and Node lane, the test files those owners retain, a bounded excerpt of the failing test output, the `develop` commits since the last successful run of the same workflow, and a link to the failed run. The pull request SHALL start from the failed head, SHALL contain only an OpenSpec change scaffold for the fix, and SHALL follow the ordinary implementation-bound delivery rules from there. The generated scaffold SHALL include bounded machine-readable source provenance naming the workflow, run, event, conclusion, source head, and candidate identity.
+When a `Full regression` run on `develop` or a scheduled `Publish` validation completes with a failure, one trusted workflow SHALL open or refresh a draft pull request against `develop` that carries the failure evidence in a triage comment and in the change's design: the failed owners per platform and Node lane, the test files those owners retain, a bounded excerpt of the failing test output, the `develop` commits since the last successful run of the same workflow, and a link to the failed run. The pull request body SHALL use the ordinary delivery layout with two generated unchecked implementation outcomes, reproduce and fix, one generated acceptance outcome, and the triage key inside the automation block, so that the fixer checks the generated outcomes as they complete and trusted readiness promotes the all-checked draft like any other; the triage SHALL NOT edit that body again. The pull request SHALL start from the failed head, SHALL contain only an OpenSpec change scaffold for the fix, and SHALL follow the ordinary implementation-bound delivery rules from there. The generated scaffold SHALL include bounded machine-readable source provenance naming the workflow, run, event, conclusion, source head, and candidate identity.
 
 After implementation, a repair candidate created from a failed Full regression SHALL receive complete regression inside its PR workflow and SHALL be handed off only after that complete suite and the other required checks succeed on the final candidate head. A repair created only from a scheduled Publish failure SHALL retain ordinary selected PR validation and the publication pipeline's independent complete validation, but SHALL NOT select PR-attached Full regression solely because it is a triage candidate. A separate manual dispatch SHALL NOT be required in addition to successful selected PR-attached complete regression. Pre-finalization investigation evidence MAY remain in design.md, while final-head run identity and outcomes SHALL be bound through PR checks, Actions artifacts, and the handoff without a self-invalidating evidence-only commit.
 
@@ -1151,12 +1151,19 @@ A run on any other branch, including manually dispatched or PR-attached Full reg
 
 #### Scenario: Nightly regression fails on one lane
 - **WHEN** the scheduled Full regression fails with owners `a` and `b` on Windows Node 24 and passes elsewhere
-- **THEN** a draft pull request `fix/nightly-regression-<date>` SHALL exist with `a` and `b`, their test files, the lane, the log excerpt, the suspect commits, the run link, and generated source provenance
+- **THEN** a draft pull request `fix/nightly-regression-<date>` SHALL exist whose triage comment and change design carry `a` and `b`, their test files, the lane, the log excerpt, the suspect commits, and the run link, with generated source provenance in its scaffold
+- **AND** its body SHALL carry two unchecked generated implementation outcomes, one generated acceptance outcome, and the triage key inside the automation block
 - **AND** its branch SHALL add only the OpenSpec planning scaffold
 
 #### Scenario: The same owners fail again
 - **WHEN** a later nightly fails with the same failed owner set while that triage pull request is open
-- **THEN** the workflow SHALL append the new run's evidence and refresh generated provenance in the existing pull request and change instead of opening another
+- **THEN** the workflow SHALL post the new run's evidence as another triage comment and append it to the change's design and generated provenance instead of opening another pull request
+- **AND** it SHALL NOT edit the pull request body or any checked outcome
+
+#### Scenario: The generated outcomes are checked
+- **WHEN** the fixer checks both generated implementation outcomes of a repair candidate
+- **THEN** the body SHALL be a complete version-3 candidate with one acceptance scenario under the unchanged readiness policy
+- **AND** trusted readiness SHALL promote it without any repair-specific rule
 
 #### Scenario: A lane fails before producing owner evidence
 - **WHEN** a lane fails in installation, packing, or runner preparation and uploads no owner outcomes

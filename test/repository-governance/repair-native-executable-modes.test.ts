@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { guardianBinaryReference, readPackedEntries } from "../../scripts/governance/candidate-evidence.mjs";
+import { guardianBinaryReference, readPackedEntries, terminalHostBinaryReference } from "../../scripts/governance/candidate-evidence.mjs";
 import { repairNativeExecutableModes, repairPackedExecutableModes } from "../../scripts/release/repair-native-executable-modes.mjs";
 
 const guardianContent = Buffer.from("guardian-binary-bytes");
@@ -82,6 +82,31 @@ describe("repairNativeExecutableModes", () => {
     const archive = Buffer.from(gunzipSync(tarball));
     archive[0] = 0x21;
     expect(() => repairNativeExecutableModes(gzipSync(archive))).toThrow("checksum");
+  });
+
+  it("restores terminal-host executability from its separate manifest beside the guardian", () => {
+    const host = Buffer.from("terminal-host-binary-bytes");
+    const hostManifest = JSON.stringify({
+      schema: "a1-terminal-host-artifact-v1",
+      protocolVersion: 1,
+      platform: "darwin",
+      architecture: "x64",
+      artifact: { filename: "terminal-host", sha256: createHash("sha256").update(host).digest("hex"), size: host.length },
+    });
+    const entries = [
+      ...fixtureEntries(0o644),
+      { path: "package/dist/native/darwin-x64/terminal-host.manifest.json", content: Buffer.from(hostManifest), mode: 0o644 },
+      { path: "package/dist/native/darwin-x64/terminal-host", content: host, mode: 0o644 },
+    ];
+    const tarball = gzipSync(Buffer.concat([...entries.map(entry => tarEntry(entry.path, entry.content, entry.mode)), Buffer.alloc(1024)]));
+    const { bytes, repaired } = repairNativeExecutableModes(tarball);
+    expect(repaired).toEqual(["package/dist/native/linux-x64/process-guardian", "package/dist/native/darwin-x64/terminal-host"]);
+    expect(readPackedEntries(bytes).find(entry => entry.path.endsWith("/terminal-host"))?.mode).toBe(0o755);
+    expect(terminalHostBinaryReference("package/dist/native/darwin-x64/terminal-host.manifest.json", JSON.stringify({ schema: "foreign" }))).toBeNull();
+
+    const tampered = entries.map(entry => entry.path.endsWith("/terminal-host") ? { ...entry, content: Buffer.from("terminal-host-binary-bytez") } : entry);
+    const tamperedTarball = gzipSync(Buffer.concat([...tampered.map(entry => tarEntry(entry.path, entry.content, entry.mode)), Buffer.alloc(1024)]));
+    expect(() => repairNativeExecutableModes(tamperedTarball)).toThrow("terminal host binary package/dist/native/darwin-x64/terminal-host differs");
   });
 
   it("ignores manifests outside the guardian artifact schema", () => {

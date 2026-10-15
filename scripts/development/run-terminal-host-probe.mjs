@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 // Rationale: a probe that stops making progress fails here instead of running into the CI job timeout.
 const PROBE_TIMEOUT_MS = 120_000;
+const RELEASE_BUILD_TIMEOUT_MS = 900_000;
 
 const cargo = process.env.CARGO ?? resolve(homedir(), ".cargo", "bin", platform() === "win32" ? "cargo.exe" : "cargo");
 const manifest = resolve("native/terminal-host/Cargo.toml");
@@ -15,6 +16,7 @@ run(cargo, ["test", "--manifest-path", manifest, "--features", "resident-fixture
 assertNoFixtureProcesses(environment);
 run(process.execPath, [
   resolve("node_modules/vitest/vitest.mjs"), "run",
+  "test/foundation/release/resident-release-retention.integration.test.ts",
   "test/foundation/resident-tabs/recovery-storage.test.ts",
   "test/foundation/resident-tabs/resident-tabs.test.ts",
   "test/foundation/resident-tabs/tab-launch-context.test.ts",
@@ -37,7 +39,11 @@ run(executable, ["--probe-controller-boundary"], environment, PROBE_TIMEOUT_MS);
 run(executable, ["--probe-resident-launch"], environment, PROBE_TIMEOUT_MS);
 run(executable, ["--probe-selection"], environment, PROBE_TIMEOUT_MS);
 run(executable, ["--probe-input"], environment, PROBE_TIMEOUT_MS);
-console.log("Terminal host binary/addon, contracts/durability/controller boundary, fixed-role launch, retained model, and native input/selection probes OK");
+// Rationale: the release artifact is otherwise built only by publication; building it here proves
+// the release profile, manifest, notices, and feature-free identity on every pull-request lane.
+run(process.execPath, [resolve("scripts/development/build-terminal-host.mjs")], { ...environment, CARGO: cargo }, RELEASE_BUILD_TIMEOUT_MS);
+run(process.execPath, [resolve("scripts/release/verify-native-artifacts.mjs"), "--local"], environment, PROBE_TIMEOUT_MS);
+console.log("Terminal host binary/addon, contracts/durability/controller boundary, fixed-role launch, retained model, native input/selection probes, and release artifact OK");
 
 function assertNoFixtureProcesses(env) {
   const executable = resolve("native/terminal-host/target/debug", platform() === "win32" ? "terminal-host.exe" : "terminal-host");

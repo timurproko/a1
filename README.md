@@ -83,6 +83,30 @@ a1 pi
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
 
+## Tabs
+
+Tabs keep running after their terminal closes. List them, or stop one; its session stays resumable:
+
+```text
+a1 tabs
+a1 tabs stop <id>
+```
+
+Stop every tab and the resident host, for example before going back to single agent mode with `a1 solo`:
+
+```text
+a1 tabs host stop
+```
+
+Show host health, or write a redacted diagnostic bundle:
+
+```text
+a1 tabs host status
+a1 tabs doctor
+```
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
+
 ## Update
 
 Install the release:

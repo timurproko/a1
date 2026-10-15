@@ -69,6 +69,10 @@ process.exitCode = await dispatchCli(process.argv.slice(2), {
       },
     });
   },
+  tabs: async request => {
+    const { runTabsCommand } = await import("../dist/cli/tabs.js");
+    return await runTabsCommand(request, { packageRoot: fileURLToPath(packageRoot) });
+  },
 }, {
   stdout: message => process.stdout.write(message),
   stderr: message => process.stderr.write(message),

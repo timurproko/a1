@@ -19,6 +19,9 @@ export const DEVELOPMENT_VALIDATION_MATRIX = Object.freeze([
   { group: "terminal-host", label: "Native terminal host (Windows x64)", ...WINDOWS, node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostBinary: "terminal-host.exe" },
   { group: "terminal-host", label: "Native terminal host (Linux x64)", os: "ubuntu-24.04", platform: "linux", architecture: "x64", node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostBinary: "terminal-host" },
   { group: "terminal-host", label: "Native terminal host (macOS arm64)", os: "macos-15", platform: "darwin", architecture: "arm64", node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostBinary: "terminal-host" },
+  { group: "resident-chaos", label: "Resident tabs chaos (Windows x64)", ...WINDOWS, node: 24, build: true, guardian: false, defender: false, chaos: true },
+  { group: "resident-chaos", label: "Resident tabs chaos (Linux x64)", os: "ubuntu-24.04", platform: "linux", architecture: "x64", node: 24, build: true, guardian: false, defender: false, chaos: true },
+  { group: "resident-chaos", label: "Resident tabs chaos (macOS arm64)", os: "macos-15", platform: "darwin", architecture: "arm64", node: 24, build: true, guardian: false, defender: false, chaos: true },
 ].map(entry => Object.freeze(entry)));
 
 /** Map an integration owner to the modular job that executes it on a platform. */
@@ -30,6 +33,7 @@ export function validationJobGroup(owner, platform) {
   if (["image-compatibility", "history-compatibility"].includes(owner)) return platform === "win32" ? "compatibility" : "containment";
   if (owner === "unix-containment") return "containment";
   if (owner === "terminal-host") return "terminal-host";
+  if (owner === "resident-chaos") return "resident-chaos";
   throw new Error(`unknown validation owner: ${owner}`);
 }
 

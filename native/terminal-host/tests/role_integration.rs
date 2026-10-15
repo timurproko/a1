@@ -1052,6 +1052,1137 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
     cleanup.pids.extend(holder_pids(&credentials_root));
 }
 
+/// Crash points a fresh start plus one tab always reaches; the rest need a corrupted registry,
+/// an exhausted restart budget, a dying child, or an A1 bridge, which their dedicated tests set up.
+const REACHED_ON_START_AND_TAB: &[&str] = &[
+    "after-lease",
+    "after-epoch",
+    "after-marker",
+    "after-bind",
+    "durable-temporary-created",
+    "durable-bytes-written",
+    "durable-file-synchronized",
+    "durable-target-replaced",
+    "durable-directory-synchronized",
+    "frame-before-send",
+    "frame-after-send",
+    "frame-after-receive",
+];
+
+#[test]
+fn every_named_crash_point_recovers_to_a_clean_start_with_a_working_tab() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
+    let mut unreached = Vec::new();
+    for (index, point) in terminal_host_contracts::fault_injection::CRASH_POINTS
+        .iter()
+        .enumerate()
+    {
+        // Platform: short names keep the Unix socket path under the platform's length limit.
+        let profile = directory(root.path(), &format!("p{index}"));
+        let data = directory(root.path(), &format!("d{index}"));
+        let runtime = directory(root.path(), &format!("r{index}"));
+        let marks = directory(root.path(), &format!("m{index}"));
+        let release = directory(root.path(), &format!("x{index}"));
+        protect_runtime(&runtime);
+        let address = fixture_endpoint(&runtime);
+        let credentials_root = data
+            .join("tabs")
+            .join(endpoint::endpoint_token(&profile).expect("profile token"));
+        let mut cleanup = Cleanup {
+            credentials_root: credentials_root.clone(),
+            pids: Vec::new(),
+        };
+
+        // Invariant: the faulted phase may die anywhere; only what survives it is inspected.
+        let mut faulted = server_command(&executable, &profile, &data, &runtime, &address);
+        faulted
+            .env("A1_TABS_FAULT_CRASH_POINT", point)
+            .env("A1_TABS_FAULT_CRASH_MARK", &marks);
+        let _ = faulted.output();
+        if credentials_root.join("server.json").is_file() {
+            let _ = Command::new(&executable)
+                .args([
+                    "internal",
+                    "tab-create",
+                    "--profile",
+                    text(&profile),
+                    "--data-dir",
+                    text(&data),
+                    "--runtime-dir",
+                    text(&runtime),
+                    "--cwd",
+                    text(&release),
+                    "--release-root",
+                    text(&release),
+                    "--node-executable",
+                    fake_tab,
+                ])
+                .env("A1_TABS_ENDPOINT", &address)
+                .current_dir(&release)
+                .output();
+            std::thread::sleep(Duration::from_secs(2));
+        }
+        if !marks.join(point).exists() {
+            unreached.push(*point);
+        }
+        cleanup.pids.extend(server_pids(&credentials_root));
+        cleanup.pids.extend(holder_pids(&credentials_root));
+        drop(cleanup);
+
+        if credentials_root.join("registry.json").is_file() {
+            assert!(
+                RegistryStore::recover(&credentials_root.join("registry.json")).is_ok(),
+                "{point}: registry did not recover"
+            );
+        }
+        // Invariant: an explicit restart resets the crash-loop start budget the faulted phase spent.
+        let restarted = server_command(&executable, &profile, &data, &runtime, &address)
+            .arg("--restart")
+            .output()
+            .expect("restart after crash point");
+        assert!(
+            restarted.status.success(),
+            "{point}: clean restart failed: {}",
+            String::from_utf8_lossy(&restarted.stderr)
+        );
+        let mut cleanup = Cleanup {
+            credentials_root: credentials_root.clone(),
+            pids: server_pids(&credentials_root),
+        };
+        let created = internal_command(
+            &executable,
+            "tab-create",
+            &profile,
+            &data,
+            &runtime,
+            &release,
+            &[
+                "--cwd",
+                text(&release),
+                "--release-root",
+                text(&release),
+                "--node-executable",
+                fake_tab,
+            ],
+        );
+        let tab_id = serde_json::from_str::<serde_json::Value>(&created).expect("tab-create json")
+            ["tabId"]
+            .as_str()
+            .expect("created tab id")
+            .to_owned();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while !holder_identities(&credentials_root)
+            .iter()
+            .any(|(tab, _, _)| tab == &tab_id)
+        {
+            assert!(
+                Instant::now() < deadline,
+                "{point}: a clean start did not run a tab"
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        cleanup.pids.extend(holder_pids(&credentials_root));
+    }
+    let required_but_unreached = unreached
+        .iter()
+        .filter(|point| REACHED_ON_START_AND_TAB.contains(point))
+        .collect::<Vec<_>>();
+    assert!(
+        required_but_unreached.is_empty(),
+        "crash points were never hit: {required_but_unreached:?}"
+    );
+}
+#[test]
+fn maintenance_lists_stops_reports_and_stops_the_host_without_starting_one() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
+
+    // Invariant: with no host ever run, every read-only form reports none and creates nothing.
+    let none = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+    assert_eq!(none.0, 0);
+    assert_eq!(none.1["host"], "none");
+    assert!(
+        !data.join("tabs").exists(),
+        "maintenance created resident state"
+    );
+
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let mut tab_ids = Vec::new();
+    for _ in 0..2 {
+        let created = internal_command(
+            &executable,
+            "tab-create",
+            &profile,
+            &data,
+            &runtime,
+            &release,
+            &[
+                "--cwd",
+                text(&release),
+                "--release-root",
+                text(&release),
+                "--node-executable",
+                fake_tab,
+            ],
+        );
+        tab_ids.push(
+            serde_json::from_str::<serde_json::Value>(&created).expect("tab-create json")["tabId"]
+                .as_str()
+                .expect("created tab id")
+                .to_owned(),
+        );
+    }
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while holder_pids(&credentials_root).len() < 2 {
+        assert!(Instant::now() < deadline, "holders did not start");
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    cleanup.pids.extend(holder_pids(&credentials_root));
+
+    let listed = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+    assert_eq!(listed.0, 0, "{}", listed.1);
+    assert_eq!(listed.1["host"], "running");
+    let entries = listed.1["result"]["tabs"].as_array().expect("tab list");
+    assert_eq!(entries.len(), 2);
+    assert!(entries.iter().all(|tab| tab["release"] == text(&release)));
+    assert!(
+        entries
+            .iter()
+            .all(|tab| tab["holderPid"].as_u64().is_some())
+    );
+
+    let status = tabs(
+        &executable,
+        &["host-status"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(status.0, 0, "{}", status.1);
+    assert_eq!(status.1["result"]["tabs"], 2);
+    assert_eq!(status.1["result"]["generation"], 1);
+    assert!(status.1["result"]["counters"]["crashRestarts"].is_u64());
+    assert!(status.1["result"]["limits"]["tabsMaxHard"].is_u64());
+
+    let unknown = tabs(
+        &executable,
+        &["stop", "tab-missing"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(unknown.0, 3);
+    assert_eq!(unknown.1["result"]["accepted"], false);
+
+    let first_holder = holder_identities(&credentials_root)
+        .into_iter()
+        .find(|(tab, _, _)| tab == &tab_ids[0])
+        .expect("first holder");
+    let stopped = tabs(
+        &executable,
+        &["stop", &tab_ids[0]],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(stopped.0, 0, "{}", stopped.1);
+    assert_eq!(stopped.1["result"]["stopped"][0], tab_ids[0].as_str());
+    let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+        .expect("read registry")
+        .expect("registry");
+    assert!(registry.tabs.iter().all(|tab| tab.tab_id != tab_ids[0]));
+    assert!(registry.tabs.iter().any(|tab| tab.tab_id == tab_ids[1]));
+    assert!(
+        terminal_host_contracts::identity::inspect_process(first_holder.1)
+            .expect("inspect stopped holder")
+            .is_none_or(|observed| observed.start != first_holder.2),
+        "stopped holder survived"
+    );
+
+    let host = tabs(
+        &executable,
+        &["host-stop"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(host.0, 0, "{}", host.1);
+    assert_eq!(host.1["host"], "stopped");
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while credentials_root.join("server.json").exists() {
+        assert!(
+            Instant::now() < deadline,
+            "server did not exit and remove its marker"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let after = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+    assert_eq!(after.0, 0);
+    assert_eq!(after.1["host"], "none");
+    assert!(
+        !credentials_root.join("server.json").exists(),
+        "listing started a host"
+    );
+}
+
+#[test]
+fn maintenance_stop_terminates_a_hung_holder_only_by_its_verified_identity() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let mut server = server_command(&executable, &profile, &data, &runtime, &address);
+    server.env("A1_TABS_FAULT_FREEZE_ROLE", "holder");
+    assert!(
+        server
+            .output()
+            .expect("hung-holder server")
+            .status
+            .success()
+    );
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let created = internal_command(
+        &executable,
+        "tab-create",
+        &profile,
+        &data,
+        &runtime,
+        &release,
+        &[
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            env!("CARGO_BIN_EXE_fake-tab"),
+        ],
+    );
+    let tab_id =
+        serde_json::from_str::<serde_json::Value>(&created).expect("tab-create json")["tabId"]
+            .as_str()
+            .expect("created tab id")
+            .to_owned();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let holder = loop {
+        if let Some(found) = holder_identities(&credentials_root)
+            .into_iter()
+            .find(|(tab, _, _)| tab == &tab_id)
+        {
+            break found;
+        }
+        assert!(Instant::now() < deadline, "hung holder never registered");
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    cleanup.pids.push(holder.1);
+
+    let stopped = tabs(
+        &executable,
+        &["stop", &tab_id],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(stopped.0, 0, "{}", stopped.1);
+    assert_eq!(stopped.1["result"]["accepted"], true);
+    assert!(
+        terminal_host_contracts::identity::inspect_process(holder.1)
+            .expect("inspect hung holder")
+            .is_none_or(|observed| observed.start != holder.2),
+        "hung holder survived its stop"
+    );
+}
+
+#[test]
+fn maintenance_stops_a_streaming_tab_and_keeps_its_session_on_disk() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    let sessions = directory(root.path(), "sessions");
+    let session = sessions.join("session.jsonl");
+    std::fs::write(&session, b"{\"type\":\"session\"}\n").expect("seed session");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let created = Command::new(&executable)
+        .args([
+            "internal",
+            "tab-create",
+            "--profile",
+            text(&profile),
+            "--data-dir",
+            text(&data),
+            "--runtime-dir",
+            text(&runtime),
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--session-dir",
+            text(&sessions),
+            "--node-executable",
+            env!("CARGO_BIN_EXE_fake-tab"),
+        ])
+        .env("A1_TABS_ENDPOINT", &address)
+        .env("TERMINAL_HOST_FAKE_TAB_MODE", "stream")
+        .env("TERMINAL_HOST_FAKE_TAB_STREAM_BYTES", "4096")
+        .current_dir(&release)
+        .output()
+        .expect("create streaming tab");
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    let tab_id = serde_json::from_slice::<serde_json::Value>(&created.stdout)
+        .expect("tab-create json")["tabId"]
+        .as_str()
+        .expect("created tab id")
+        .to_owned();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let holder = loop {
+        let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+            .ok()
+            .flatten();
+        let running = registry.as_ref().and_then(|registry| {
+            registry
+                .tabs
+                .iter()
+                .find(|tab| tab.tab_id == tab_id && tab.child_pid.is_some())
+                .and_then(|tab| Some((tab.holder_pid?, tab.holder_start_identity.clone()?)))
+        });
+        if let Some(found) = running {
+            break found;
+        }
+        assert!(Instant::now() < deadline, "streaming tab never started");
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    cleanup.pids.push(holder.0);
+    // Invariant: the agent is busy streaming output when the stop arrives.
+    std::thread::sleep(Duration::from_millis(500));
+
+    let stopped = tabs(
+        &executable,
+        &["stop", &tab_id],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(stopped.0, 0, "{}", stopped.1);
+    assert_eq!(stopped.1["result"]["accepted"], true);
+    assert_eq!(stopped.1["result"]["stopped"][0], tab_id.as_str());
+    assert!(
+        terminal_host_contracts::identity::inspect_process(holder.0)
+            .expect("inspect stopped holder")
+            .is_none_or(|observed| observed.start != holder.1),
+        "streaming holder survived its stop"
+    );
+    let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+        .expect("read registry")
+        .expect("registry");
+    assert!(registry.tabs.iter().all(|tab| tab.tab_id != tab_id));
+    // Invariant: stopping releases the tab, never its session, so it stays resumable.
+    assert_eq!(
+        std::fs::read(&session).expect("session kept"),
+        b"{\"type\":\"session\"}\n"
+    );
+}
+
+#[test]
+fn host_stop_terminates_an_unresponsive_server_and_stops_its_tabs() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let created = internal_command(
+        &executable,
+        "tab-create",
+        &profile,
+        &data,
+        &runtime,
+        &release,
+        &[
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            env!("CARGO_BIN_EXE_fake-tab"),
+        ],
+    );
+    let tab_id =
+        serde_json::from_str::<serde_json::Value>(&created).expect("tab-create json")["tabId"]
+            .as_str()
+            .expect("created tab id")
+            .to_owned();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let holder = loop {
+        if let Some(found) = holder_identities(&credentials_root)
+            .into_iter()
+            .find(|(tab, _, _)| tab == &tab_id)
+        {
+            break found;
+        }
+        assert!(Instant::now() < deadline, "holder never registered");
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    cleanup.pids.push(holder.1);
+    let server = server_pids(&credentials_root)[0];
+    let server_identity = terminal_host_contracts::identity::inspect_process(server)
+        .expect("inspect server")
+        .expect("live server");
+
+    // Rationale: a suspended server keeps its endpoint and holder connections but never answers.
+    suspend(server);
+    let stopped = tabs(
+        &executable,
+        &["host-stop"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(stopped.0, 0, "{}", stopped.1);
+    assert_eq!(stopped.1["host"], "stopped");
+    assert_eq!(stopped.1["terminatedUnresponsive"], server);
+    assert!(
+        terminal_host_contracts::identity::inspect_process(server)
+            .expect("inspect stopped server")
+            .is_none_or(|observed| observed != server_identity),
+        "unresponsive server survived"
+    );
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let holder_gone = terminal_host_contracts::identity::inspect_process(holder.1)
+            .expect("inspect holder")
+            .is_none_or(|observed| observed.start != holder.2);
+        if holder_gone && server_pids(&credentials_root).is_empty() {
+            break;
+        }
+        if Instant::now() >= deadline {
+            let logs = std::fs::read_dir(credentials_root.join("diagnostics"))
+                .map(|entries| {
+                    entries
+                        .filter_map(Result::ok)
+                        .map(|entry| {
+                            format!(
+                                "{}:\n{}",
+                                entry.file_name().to_string_lossy(),
+                                std::fs::read_to_string(entry.path()).unwrap_or_default()
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                })
+                .unwrap_or_default();
+            panic!(
+                "the replacement did not stop the tab and exit: report={} holder_gone={holder_gone} marker={:?} registry={:?}\n{logs}",
+                stopped.1,
+                std::fs::read_to_string(credentials_root.join("server.json")).ok(),
+                std::fs::read_to_string(credentials_root.join("registry.json")).ok(),
+            );
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    // Invariant: the tab was stopped, not restarted, and nothing is left running afterwards.
+    let after = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+    assert_eq!(after.1["host"], "none", "{}", after.1);
+}
+
+#[test]
+fn host_stop_killed_at_each_step_leaves_no_orphan_or_duplicate_host() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    for (index, point) in [
+        "host-stop-after-terminate",
+        "host-stop-after-replacement",
+        "host-stop-after-answer",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        // Platform: short names keep the Unix socket path under the platform's length limit.
+        let profile = directory(root.path(), &format!("p{index}"));
+        let data = directory(root.path(), &format!("d{index}"));
+        let runtime = directory(root.path(), &format!("r{index}"));
+        let release = directory(root.path(), &format!("x{index}"));
+        protect_runtime(&runtime);
+        let address = fixture_endpoint(&runtime);
+        // Rationale: processes of this executable that predate the fixture belong to other
+        // tests' teardown, so only processes this fixture adds count as orphans.
+        let baseline = fixture_terminal_host_pids();
+        start_server(&executable, &profile, &data, &runtime, &address);
+        let credentials_root = data
+            .join("tabs")
+            .join(endpoint::endpoint_token(&profile).expect("profile token"));
+        let mut cleanup = Cleanup {
+            credentials_root: credentials_root.clone(),
+            pids: server_pids(&credentials_root),
+        };
+        let created = internal_command(
+            &executable,
+            "tab-create",
+            &profile,
+            &data,
+            &runtime,
+            &release,
+            &[
+                "--cwd",
+                text(&release),
+                "--release-root",
+                text(&release),
+                "--node-executable",
+                env!("CARGO_BIN_EXE_fake-tab"),
+            ],
+        );
+        let tab_id = serde_json::from_str::<serde_json::Value>(&created).expect("tab-create json")
+            ["tabId"]
+            .as_str()
+            .expect("created tab id")
+            .to_owned();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let holder = loop {
+            if let Some(found) = holder_identities(&credentials_root)
+                .into_iter()
+                .find(|(tab, _, _)| tab == &tab_id)
+            {
+                break found;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "{point}: holder never registered"
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        };
+        cleanup.pids.push(holder.1);
+        let server = server_pids(&credentials_root)[0];
+        let server_identity = terminal_host_contracts::identity::inspect_process(server)
+            .expect("inspect server")
+            .expect("live server");
+        suspend(server);
+
+        // Invariant: the command may die at any step after terminating the unresponsive server;
+        // what survives is the one recorded tab and at most one host, never a duplicate.
+        let killed = Command::new(&executable)
+            .args([
+                "tabs",
+                "host-stop",
+                "--profile",
+                text(&profile),
+                "--data-dir",
+                text(&data),
+                "--runtime-dir",
+                text(&runtime),
+            ])
+            .env("A1_TABS_ENDPOINT", &address)
+            .env("A1_TABS_FAULT_CRASH_POINT", point)
+            .output()
+            .expect("run killed host stop");
+        assert!(
+            !killed.status.success(),
+            "{point}: the host stop was not killed: {}",
+            String::from_utf8_lossy(&killed.stdout)
+        );
+        assert!(
+            terminal_host_contracts::identity::inspect_process(server)
+                .expect("inspect stopped server")
+                .is_none_or(|observed| observed != server_identity),
+            "{point}: unresponsive server survived"
+        );
+        let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+            .expect("read registry after the kill")
+            .expect("registry after the kill");
+        // Invariant: a kill after the answer finds the tab already stopped and its record gone,
+        // which is the stop completing; a kill earlier finds the one record. Never two.
+        assert!(
+            registry.tabs.len() <= 1,
+            "{point}: the tab record was duplicated: {registry:?}"
+        );
+        cleanup.pids.extend(server_pids(&credentials_root));
+
+        // Invariant: a stop without the fault finishes the job. A holder that lost its host may
+        // still be starting the replacement, so a stop that found no host yet is repeated.
+        let holder_gone = || {
+            terminal_host_contracts::identity::inspect_process(holder.1)
+                .expect("inspect holder")
+                .is_none_or(|observed| observed.start != holder.2)
+        };
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            let stopped = tabs(
+                &executable,
+                &["host-stop"],
+                &profile,
+                &data,
+                &runtime,
+                &address,
+            );
+            assert_eq!(stopped.0, 0, "{point}: {}", stopped.1);
+            if stopped.1["host"] == "stopped" || holder_gone() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "{point}: no host ever answered the recovery stop: {}",
+                stopped.1
+            );
+            std::thread::sleep(Duration::from_millis(500));
+        }
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            let orphans = fixture_terminal_host_pids()
+                .into_iter()
+                .filter(|pid| !baseline.contains(pid))
+                .collect::<Vec<_>>();
+            if holder_gone() && server_pids(&credentials_root).is_empty() && orphans.is_empty() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "{point}: something survived the recovery stop: holder_gone={} marker={:?} orphans={orphans:?}",
+                holder_gone(),
+                std::fs::read_to_string(credentials_root.join("server.json")).ok(),
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let after = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+        assert_eq!(after.1["host"], "none", "{point}: {}", after.1);
+    }
+}
+
+#[test]
+fn a_bridge_status_survives_the_surfaces_of_the_holder_it_reports_under() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    // Rationale: a streaming child makes its holder send surfaces continuously, which is exactly
+    // when a working status is reported and must stay visible.
+    let created = Command::new(&executable)
+        .args([
+            "internal",
+            "tab-create",
+            "--profile",
+            text(&profile),
+            "--data-dir",
+            text(&data),
+            "--runtime-dir",
+            text(&runtime),
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            env!("CARGO_BIN_EXE_fake-tab"),
+        ])
+        .env("A1_TABS_ENDPOINT", &address)
+        .env("TERMINAL_HOST_FAKE_TAB_MODE", "stream")
+        .env("TERMINAL_HOST_FAKE_TAB_STREAM_BYTES", "4096")
+        .current_dir(&release)
+        .output()
+        .expect("create streaming tab");
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    let tab_id = serde_json::from_slice::<serde_json::Value>(&created.stdout)
+        .expect("tab-create json")["tabId"]
+        .as_str()
+        .expect("created tab id")
+        .to_owned();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let holder = loop {
+        if let Some(found) = holder_identities(&credentials_root)
+            .into_iter()
+            .find(|(tab, _, _)| tab == &tab_id)
+        {
+            break found;
+        }
+        assert!(Instant::now() < deadline, "holder never registered");
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    cleanup.pids.push(holder.1);
+    // Rationale: the server keeps a bridge's status on the tab's surface, and a holder sends
+    // surfaces only while a client views the tab, so the test views it as the real UI does.
+    let attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    let incarnation = RegistryStore::read(&credentials_root.join("registry.json"))
+        .expect("read registry")
+        .expect("registry")
+        .tabs
+        .iter()
+        .find(|tab| tab.tab_id == tab_id)
+        .map(|tab| tab.incarnation)
+        .expect("tab incarnation");
+    let credentials =
+        terminal_host_contracts::roles::credentials::ProfileCredentials::load_existing(
+            &credentials_root,
+        )
+        .expect("load credentials")
+        .expect("credentials");
+
+    // Invariant: the A1 bridge never names its incarnation in its hello; the server takes it from
+    // the registry record its token was derived against, so the status it reports stays attached
+    // to the holder whose surfaces keep arriving instead of being reset by every one of them.
+    let mut bridge = endpoint::connect(&address).expect("connect bridge");
+    terminal_host_contracts::roles::wire::send(
+        &mut bridge,
+        "hello",
+        Some(1),
+        terminal_host_contracts::roles::wire::RoleHello {
+            role: "bridge".into(),
+            generation: 1,
+            build: "a1".into(),
+            features: vec!["bridge-status".into()],
+            token: credentials.derive("bridge", &tab_id, incarnation).to_vec(),
+            tab_id: Some(tab_id.clone()),
+            pid: Some(std::process::id()),
+            start_identity: None,
+            incarnation: 0,
+            child_pid: None,
+            child_start_identity: None,
+            highest_epoch: 0,
+        },
+    )
+    .expect("send bridge hello");
+    let welcome = terminal_host_contracts::roles::wire::read_payload(&mut bridge)
+        .expect("read welcome")
+        .expect("welcome payload");
+    assert_eq!(
+        terminal_host_contracts::roles::wire::kind(&welcome)
+            .expect("welcome kind")
+            .message_type,
+        "welcome"
+    );
+    terminal_host_contracts::roles::wire::send(
+        &mut bridge,
+        "bridge.status",
+        Some(2),
+        serde_json::json!({ "seq": 1, "state": "working" }),
+    )
+    .expect("send working status");
+
+    let status_of = || {
+        let listed = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+        listed.1["result"]["tabs"]
+            .as_array()
+            .and_then(|tabs| tabs.iter().find(|tab| tab["tabId"] == tab_id.as_str()))
+            .map(|tab| tab["status"].as_str().unwrap_or("").to_owned())
+    };
+    let deadline = Instant::now() + Duration::from_secs(15);
+    let mut sequence = 1_u64;
+    while status_of().as_deref() != Some("working") {
+        assert!(
+            Instant::now() < deadline,
+            "the working status never reached the tab list: {:?}",
+            status_of()
+        );
+        // Rationale: the status is re-sent, each time under a newer sequence, until the first
+        // surface exists to carry it; a repeated sequence is stale and ignored.
+        sequence += 1;
+        terminal_host_contracts::roles::wire::send(
+            &mut bridge,
+            "bridge.status",
+            None,
+            serde_json::json!({ "seq": sequence, "state": "working" }),
+        )
+        .expect("resend working status");
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    // Invariant: the status holds while surfaces keep arriving; appearing once is not enough.
+    let hold = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < hold {
+        assert_eq!(
+            status_of().as_deref(),
+            Some("working"),
+            "a holder surface reset the bridge status"
+        );
+        std::thread::sleep(Duration::from_millis(150));
+    }
+    drop(bridge);
+    drop(attach);
+}
+
+#[test]
+fn a_server_of_another_generation_is_reported_incompatible_and_never_signalled() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let mut server = server_command(&executable, &profile, &data, &runtime, &address);
+    server.env("A1_TABS_FAULT_SERVER_GENERATION", "2");
+    let started = server.output().expect("other-generation server");
+    assert!(
+        started.status.success(),
+        "{}",
+        String::from_utf8_lossy(&started.stderr)
+    );
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let _cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let server_pid = server_pids(&credentials_root)[0];
+    let server_identity = terminal_host_contracts::identity::inspect_process(server_pid)
+        .expect("inspect server")
+        .expect("live server");
+
+    let probe = Command::new(&executable)
+        .args([
+            "probe",
+            "--profile",
+            text(&profile),
+            "--data-dir",
+            text(&data),
+            "--runtime-dir",
+            text(&runtime),
+        ])
+        .env("A1_TABS_ENDPOINT", &address)
+        .output()
+        .expect("probe");
+    assert!(!probe.status.success());
+    assert!(
+        String::from_utf8_lossy(&probe.stdout).contains("incompatible-generation"),
+        "{}",
+        String::from_utf8_lossy(&probe.stdout)
+    );
+    for command in [&["list"][..], &["host-status"], &["host-stop"]] {
+        let answer = tabs(&executable, command, &profile, &data, &runtime, &address);
+        assert_eq!(answer.0, 4, "{command:?}: {}", answer.1);
+        assert_eq!(answer.1["host"], "incompatible", "{command:?}");
+    }
+    // Invariant: a mismatched generation is reported with a stop instruction, never signalled.
+    assert_eq!(
+        terminal_host_contracts::identity::inspect_process(server_pid).expect("inspect server"),
+        Some(server_identity)
+    );
+}
+
+#[test]
+fn host_stop_refuses_an_unverifiable_owner_and_changes_nothing() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let _cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let stopped = tabs(
+        &executable,
+        &["host-stop"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(stopped.0, 0, "{}", stopped.1);
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while credentials_root.join("server.json").exists() {
+        assert!(Instant::now() < deadline, "server did not exit");
+        std::thread::sleep(Duration::from_millis(100));
+    }
+
+    // Rationale: an unreadable owner marker cannot be verified, so the stop refuses and leaves it in place.
+    std::fs::write(credentials_root.join("server.json"), b"{not json").expect("write marker");
+    let refused = tabs(
+        &executable,
+        &["host-stop"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(refused.0, 3, "{}", refused.1);
+    assert_eq!(refused.1["host"], "unverifiable");
+    assert_eq!(
+        std::fs::read(credentials_root.join("server.json")).expect("marker kept"),
+        b"{not json"
+    );
+
+    // Rationale: a marker naming a live process under another start identity is pid reuse: nothing is signalled.
+    let own = terminal_host_contracts::identity::inspect_process(std::process::id())
+        .expect("inspect test process")
+        .expect("live test process");
+    std::fs::write(
+        credentials_root.join("server.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "pid": own.pid,
+            "startIdentity": format!("{}-reused", own.start),
+            "endpoint": address,
+            "generation": 1,
+            "verified": true,
+            "detachmentMode": "fixture",
+        }))
+        .expect("marker json"),
+    )
+    .expect("write reused marker");
+    let reused = tabs(
+        &executable,
+        &["host-stop"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(reused.0, 0, "{}", reused.1);
+    assert_eq!(reused.1["host"], "none");
+    // Invariant: teardown signals marker pids, and this marker names the test process itself.
+    std::fs::remove_file(credentials_root.join("server.json")).expect("remove reused marker");
+}
+
+#[cfg(unix)]
+fn suspend(pid: u32) {
+    unsafe {
+        libc::kill(pid as i32, libc::SIGSTOP);
+    }
+}
+#[cfg(windows)]
+fn suspend(pid: u32) {
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
+    };
+    use windows_sys::Win32::System::Threading::{OpenThread, SuspendThread, THREAD_SUSPEND_RESUME};
+    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
+    assert!(snapshot != INVALID_HANDLE_VALUE, "thread snapshot");
+    let mut entry: THREADENTRY32 = unsafe { std::mem::zeroed() };
+    entry.dwSize = std::mem::size_of::<THREADENTRY32>() as u32;
+    let mut more = unsafe { Thread32First(snapshot, &mut entry) } != 0;
+    while more {
+        if entry.th32OwnerProcessID == pid {
+            let thread = unsafe { OpenThread(THREAD_SUSPEND_RESUME, 0, entry.th32ThreadID) };
+            if !thread.is_null() {
+                unsafe {
+                    SuspendThread(thread);
+                    CloseHandle(thread);
+                }
+            }
+        }
+        more = unsafe { Thread32Next(snapshot, &mut entry) } != 0;
+    }
+    unsafe {
+        CloseHandle(snapshot);
+    }
+}
+fn tabs(
+    executable: &Path,
+    command: &[&str],
+    profile: &Path,
+    data: &Path,
+    runtime: &Path,
+    address: &str,
+) -> (i32, serde_json::Value) {
+    let output = Command::new(executable)
+        .arg("tabs")
+        .args(command)
+        .args([
+            "--profile",
+            text(profile),
+            "--data-dir",
+            text(data),
+            "--runtime-dir",
+            text(runtime),
+        ])
+        .env("A1_TABS_ENDPOINT", address)
+        .output()
+        .expect("run tabs maintenance");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let report =
+        serde_json::from_str(stdout.trim().lines().last().unwrap_or("")).unwrap_or_else(|_| {
+            panic!(
+                "no maintenance report: {stdout} {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
+        });
+    (output.status.code().unwrap_or(-1), report)
+}
 struct AttachFixture {
     child: Box<dyn Child + Send + Sync>,
     _master: Box<dyn MasterPty + Send>,
@@ -1380,13 +2511,15 @@ fn wait_for_holder_started_server(
 }
 
 fn server_pids(root: &Path) -> Vec<u32> {
-    serde_json::from_slice::<serde_json::Value>(
-        &std::fs::read(root.join("server.json")).expect("server metadata"),
-    )
-    .ok()
-    .and_then(|value| value.get("pid").and_then(serde_json::Value::as_u64))
-    .map(|pid| vec![pid as u32])
-    .unwrap_or_default()
+    // Invariant: a cleanly stopped server removes its marker, leaving nothing to collect.
+    let Ok(marker) = std::fs::read(root.join("server.json")) else {
+        return Vec::new();
+    };
+    serde_json::from_slice::<serde_json::Value>(&marker)
+        .ok()
+        .and_then(|value| value.get("pid").and_then(serde_json::Value::as_u64))
+        .map(|pid| vec![pid as u32])
+        .unwrap_or_default()
 }
 fn registry_epoch(root: &Path) -> u64 {
     RegistryStore::read(&root.join("registry.json"))

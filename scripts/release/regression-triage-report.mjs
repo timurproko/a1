@@ -234,8 +234,28 @@ export function renderRunEvidence({ workflow, run, summary, lastGreen, commits }
   return lines;
 }
 
-/** Render the draft pull-request body in the repository's OpenSpec layout; nothing may follow the details block. */
-export function renderTriageBody({ workflow, run, date, summary, lastGreen, commits, key }) {
+/**
+ * The two implementation outcomes every repair candidate carries. The fixer checks them as the work
+ * completes and never rewrites them; the body is otherwise the ordinary delivery layout, so trusted
+ * readiness promotes the candidate exactly as it promotes any other all-checked draft.
+ */
+export const TRIAGE_IMPLEMENTATION_ITEMS = Object.freeze([
+  "Reproduce the failure on the failed lane from the recorded tests or commands and identify the introducing commit or the environmental cause.",
+  "Fix the cause without weakening assertions, budgets, timeouts, or coverage, and record the focused evidence in the change design.",
+]);
+
+/** The one acceptance outcome of a repair; a chore repairs the recorded failure and proves nothing beyond it. */
+export function triageAcceptance({ workflow, date }) {
+  return `The ${date.slice(0, 10)} ${workflow.name} failure on develop is repaired, and its failed lanes pass on the fix head without weakened assertions, budgets, timeouts, or coverage.`;
+}
+
+/**
+ * Render the draft pull-request body in the repository's ordinary delivery layout: the proposal, the
+ * two unchecked implementation outcomes, the acceptance outcome, and the automation block, which also
+ * carries the triage key the next triage matches. Nothing may follow the details block; the run
+ * evidence goes to the candidate's triage comment and the change's design instead.
+ */
+export function renderTriageBody({ workflow, run, date, summary, key }) {
   const scopes = [...new Set(summary.failures.flatMap(failure => failure.scopes))];
   const what = summary.failures.length
     ? `${summary.failures.length} validation ${summary.failures.length === 1 ? "command" : "commands"} (${scopes.slice(0, 6).map(scope => `\`${scope}\``).join(", ")}${scopes.length > 6 ? ", ..." : ""})`
@@ -243,18 +263,22 @@ export function renderTriageBody({ workflow, run, date, summary, lastGreen, comm
   const lines = [
     "## Proposal",
     "",
-    `Fix the ${workflow.name} failure of ${date} on \`develop\` at \`${run.headSha.slice(0, 7)}\`, where ${what} failed; this draft was opened by the nightly triage with the evidence below so the fix starts scoped.`,
+    `Fix the ${workflow.name} failure of ${date} on \`develop\` at \`${run.headSha.slice(0, 7)}\`, where ${what} failed; this draft was opened by the nightly triage with the evidence in its triage comment and the change design so the fix starts scoped.`,
     "",
     "## Implementation",
     "",
-    `- ${TRIAGE_KEY_LABEL} \`${key}\``,
-    "- Reproduce the failure from the listed tests or commands on the failed lane, fix the cause without weakening assertions, budgets, or coverage, and prove it with a dispatched Full regression of the fix head recorded in the change's design evidence.",
-    ...renderRunEvidence({ workflow, run, summary, lastGreen, commits }),
+    ...TRIAGE_IMPLEMENTATION_ITEMS.map(item => `- [ ] ${item}`),
+    "",
+    "## Acceptance",
+    "",
+    `- ${triageAcceptance({ workflow, date })}`,
     "",
     "## Automation",
     "",
     "<details>",
     "<summary>Used by CI to link this PR to its OpenSpec change</summary>",
+    "",
+    `- ${TRIAGE_KEY_LABEL} \`${key}\``,
     "",
     "```openspec-implementation",
     JSON.stringify({ version: 3, change: changeId(date) }, null, 2),
@@ -265,14 +289,12 @@ export function renderTriageBody({ workflow, run, date, summary, lastGreen, comm
   return `${lines.join("\n")}\n`;
 }
 
-/** Append another run's evidence to an existing candidate body, before its `## Automation` section. */
-export function appendRunToBody(body, evidence) {
-  const normalized = String(body).replaceAll("\r\n", "\n");
-  const marker = "\n## Automation\n";
-  const index = normalized.indexOf(marker);
-  if (index === -1) throw new Error("existing triage body has no Automation section");
-  const head = normalized.slice(0, index).trimEnd();
-  return `${head}\n${renderRunEvidence(evidence).join("\n")}\n${normalized.slice(index)}`;
+/** The evidence comment of one run; a refresh posts another under the same candidate. */
+export function renderRunComment(evidence, { refresh = false } = {}) {
+  const intro = refresh
+    ? `The nightly regression triage recorded another ${evidence.workflow.name} failure with the same failed scope set; the change's design evidence carries the same record.`
+    : "The nightly regression triage opened this candidate from the evidence below; the change's design evidence carries the same record.";
+  return `${intro}\n\n${renderRunEvidence(evidence).join("\n")}\n`;
 }
 
 /** The OpenSpec change files of the fix; no spec delta, because the automation cannot know which capability the fix touches. */
@@ -307,7 +329,7 @@ export function renderTriageChange({ workflow, run, date, summary, lastGreen, co
       "",
       "## Impact",
       "",
-      `Recorded in the pull-request body: failed commands per lane, their test files, a bounded log excerpt, and the \`develop\` commits since the last successful run${lastGreen ? ` (${commits.length} since \`${lastGreen.headSha.slice(0, 7)}\`)` : " (no retained successful run)"}.`,
+      `Recorded in the pull request's triage comment and this change's design: failed commands per lane, their test files, a bounded log excerpt, and the \`develop\` commits since the last successful run${lastGreen ? ` (${commits.length} since \`${lastGreen.headSha.slice(0, 7)}\`)` : " (no retained successful run)"}.`,
       "",
     ].join("\n"),
     [`openspec/changes/${id}/design.md`]: [

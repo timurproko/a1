@@ -213,15 +213,20 @@ async function collectMeasurements(host) {
     if (!created) throw new Error("promoted standby was absent from the tab list");
 
     const hot = [];
+    let lastHotToken = "";
     for (let index = 0; index < 20; index++) {
-      hot.push(await measureInput(first, String.fromCharCode("c".charCodeAt(0) + index), `hot-${index}`));
+      lastHotToken = String.fromCharCode("c".charCodeAt(0) + index);
+      hot.push(await measureInput(first, lastHotToken, `hot-${index}`));
     }
     await killAttach(first.terminal);
 
     const reattachStartNs = process.hrtime.bigint();
     const reattached = await createAttach(spawn, host, context, created.tabId);
     attachments.push(reattached);
-    const paint = await reattached.waitFor(/measurement-ready:(\d+)/u, "reattach first paint");
+    // Rationale: the ready line can scroll off a full screen (a keyboard-protocol reply alone adds
+    // a line), so the retained surface is proven by the last hot line, whose exact timestamp
+    // nothing but that surface can carry.
+    const paint = await reattached.waitFor(new RegExp(`measurement:${lastHotToken}:${hot.at(-1).processedNs}`, "u"), "reattach first paint");
     sample.reattachPaintMs = milliseconds(paint.receivedNs - reattachStartNs);
     const reattach = await measureInput(reattached, "w", "reattach");
     sample.reattachInputMs = milliseconds(reattach.processedNs - reattachStartNs);

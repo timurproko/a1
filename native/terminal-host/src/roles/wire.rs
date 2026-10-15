@@ -262,6 +262,7 @@ pub fn read_payload(stream: &mut endpoint::EndpointStream) -> Result<Option<Vec<
     stream
         .read_exact(&mut payload)
         .map_err(|error| format!("read resident frame payload: {error}"))?;
+    crate::fault_injection::crash_at("frame-after-receive");
     Ok(Some(payload))
 }
 
@@ -337,8 +338,11 @@ pub fn send<T: Serialize>(
     body: T,
 ) -> Result<(), String> {
     let frame = frame(message_type, request_id, body)?;
+    crate::fault_injection::crash_at("frame-before-send");
     stream
         .write_all(&frame)
         .and_then(|()| stream.flush())
-        .map_err(|error| format!("write resident frame: {error}"))
+        .map_err(|error| format!("write resident frame: {error}"))?;
+    crate::fault_injection::crash_at("frame-after-send");
+    Ok(())
 }

@@ -9,7 +9,7 @@ const { installPinnedPiTuiResolver } = await import("./module-resolver.js");
 installPinnedPiTuiResolver(new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1").replace(/\/$/, ""));
 const startup = await import("../dist/foundation/startup/startup-runtime.js");
 startup.enableEnvironmentCompileCache(process.env);
-const { readLaunchContext } = await import("../dist/foundation/launch-context/index.js");
+const { hidesTabSettings, readLaunchContext } = await import("../dist/foundation/launch-context/index.js");
 const launchContext = readLaunchContext(process.env, "profile");
 const profile = launchContext.launchProfile;
 if (profile === undefined) throw new Error("A1 launch profile is missing");
@@ -78,7 +78,7 @@ Promise.resolve().then(async () => {
         cwd: process.cwd(),
         profileId,
         ownedSurfaces,
-        ...(launchContext.launchMode === "solo" ? { hideTabSettings: true } : {}),
+        ...(hidesTabSettings(launchContext) ? { hideTabSettings: true } : {}),
         ...(processInspector === null ? {} : { inspectProcess: pid => processInspector.observe(pid) }),
         projectTrustPrompt: createConsoleProjectTrustPrompt({ presentation: profile === "a1" ? "bare" : "comparison" }),
         sessionForkPrompt: createConsoleSessionForkPrompt(),

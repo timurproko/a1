@@ -386,6 +386,26 @@ fn configure_detached(command: &mut Command) -> Result<String, LaunchError> {
     Ok("windows-detached-breakaway".to_owned())
 }
 
+/// Platform: Windows spawns with handle inheritance enabled, so a detached role would also inherit
+/// this launcher's own inheritable stdio even though its own stdio is null. A caller reading the
+/// launcher's output, as a holder requesting a replacement server does, would then wait for the
+/// end of a pipe the long-lived role keeps open. Stdio a later spawn inherits is duplicated anew.
+#[cfg(windows)]
+fn stop_inheriting_own_stdio() {
+    use windows_sys::Win32::Foundation::{
+        HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
+    };
+    use windows_sys::Win32::System::Console::{
+        GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+    };
+    for which in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
+        let handle = unsafe { GetStdHandle(which) };
+        if !handle.is_null() && handle != INVALID_HANDLE_VALUE {
+            unsafe { SetHandleInformation(handle, HANDLE_FLAG_INHERIT, 0) };
+        }
+    }
+}
+
 fn spawn_with_fallback(
     command: Command,
     artifact: &Path,
@@ -405,6 +425,8 @@ fn spawn_with_fallback(
             return spawn_via_wmi(artifact, role, profile, result, context).map_err(LaunchError);
         }
     }
+    #[cfg(windows)]
+    stop_inheriting_own_stdio();
     let mut command = command;
     match command.spawn() {
         Ok(child) => Ok(ResidentProcess {
@@ -443,8 +465,11 @@ fn spawn_via_wmi(
         context.display()
     )
     .replace('\'', "''");
+    // Platform: a console program created through WMI gets a new visible console unless its
+    // startup information says otherwise; DETACHED_PROCESS with a new process group gives the
+    // resident role no console at all, exactly as the direct spawn path does.
     let script = format!(
-        "$r=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{{CommandLine='{command_line}';CurrentDirectory='{}'}}; if($r.ReturnValue -ne 0){{exit $r.ReturnValue}}; Write-Output $r.ProcessId",
+        "$s=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{{ShowWindow=[uint16]0;CreateFlags=[uint32]0x208}}; $r=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{{CommandLine='{command_line}';CurrentDirectory='{}';ProcessStartupInformation=$s}}; if($r.ReturnValue -ne 0){{exit $r.ReturnValue}}; Write-Output $r.ProcessId",
         quote(profile)
     );
     let output = Command::new("powershell.exe")

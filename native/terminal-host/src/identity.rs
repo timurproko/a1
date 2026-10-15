@@ -217,15 +217,18 @@ mod platform {
             )
         };
         if received == 0 {
+            let error = std::io::Error::last_os_error();
+            // Platform: a process that has exited but is not yet reaped still answers a signal
+            // check, yet has no BSD info; it is gone for every purpose of this identity.
+            if error.raw_os_error() == Some(libc::ESRCH) {
+                return Ok(None);
+            }
             if unsafe { libc::kill(pid as i32, 0) } != 0
                 && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
             {
                 return Ok(None);
             }
-            return Err(IdentityError(format!(
-                "inspect macOS process: {}",
-                std::io::Error::last_os_error()
-            )));
+            return Err(IdentityError(format!("inspect macOS process: {error}")));
         }
         if received as usize != expected || info.pbi_pid != pid {
             return Err(IdentityError(

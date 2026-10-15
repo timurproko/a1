@@ -44,6 +44,7 @@ describe("resident tab composition bridge", () => {
   it("renders exactly one direct fallback notice and stays silent when the feature is off", () => {
     const reasons = [
       "terminal host not installed",
+      "terminal host not verified",
       "incompatible generation",
       "launch not verified",
       "host startup timed out",
@@ -55,6 +56,7 @@ describe("resident tab composition bridge", () => {
         startup: { notices: [{ kind: "warning", message: notice }] },
       });
     }
+    expect(formatResidentFallbackNotice("incompatible generation")).toBe("A1 normal mode unavailable (running tabs use another version); running in single agent mode. Run `a1 tabs host stop` to restart them on this version.");
     expect(residentStartupPresentation(false)).toEqual({});
     expect(residentStartupPresentation(true, formatResidentFallbackNotice("ignored")))
       .toEqual({ startup: { quiet: true } });
