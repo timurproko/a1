@@ -16,7 +16,6 @@ import { promisify } from "node:util";
 import {
   BRANCH_PREFIX,
   TRIAGE_PROVENANCE_FILE,
-  appendRunToBody,
   appendRunToDesign,
   appendTriageProvenance,
   branchName,
@@ -24,6 +23,7 @@ import {
   extractLogExcerpts,
   isTierResult,
   parseTriageKey,
+  renderRunComment,
   renderTriageBody,
   renderTriageChange,
   renderTriageProvenance,
@@ -85,8 +85,8 @@ export async function proposeRegressionFix({ runId, repository, output, gh, git,
   const report = { schema: REPORT_SCHEMA, workflow: workflow.name, run, key, summary, startup: trendReport(trend), lastGreen, commits, existing: existing ? { number: existing.number, branch: existing.headRefName, url: existing.url } : null };
 
   if (existing) {
-    const body = appendRunToBody(existing.body, evidence);
-    await files.write(join(output, "body.md"), body);
+    // Rationale: the candidate body is the ordinary delivery layout the fixer checks off; another run is a comment plus the design record, never a body edit.
+    await files.write(join(output, "comment.md"), renderRunComment(evidence, { refresh: true }));
     if (dryRun) return finish({ ...report, changed: false, mode: "refresh", branch: existing.headRefName, pr: existing.number, message: `dry run: would refresh #${existing.number}` }, output, files);
     await git(["fetch", "origin", existing.headRefName]);
     await git(["checkout", "-B", existing.headRefName, `origin/${existing.headRefName}`]);
@@ -103,7 +103,7 @@ export async function proposeRegressionFix({ runId, repository, output, gh, git,
     await git(["add", "-A"]);
     await git(["commit", "--allow-empty", "-m", `chore(regression): record the ${date(today)} ${workflow.name} failure`, "-m", `Appended by the nightly regression triage from run ${run.url}.`]);
     await git(["push", "origin", existing.headRefName]);
-    await gh(["pr", "edit", String(existing.number), "--body-file", join(output, "body.md")]);
+    await gh(["pr", "comment", String(existing.number), "--body-file", join(output, "comment.md")]);
     return finish({ ...report, changed: true, mode: "refresh", branch: existing.headRefName, pr: existing.number, message: `refreshed #${existing.number}` }, output, files);
   }
 
@@ -112,6 +112,7 @@ export async function proposeRegressionFix({ runId, repository, output, gh, git,
   const body = renderTriageBody({ ...evidence, date: stamp, key });
   const scaffold = renderTriageChange({ ...evidence, date: stamp });
   await files.write(join(output, "body.md"), body);
+  await files.write(join(output, "comment.md"), renderRunComment(evidence));
   if (dryRun) return finish({ ...report, changed: false, mode: "new", branch, pr: null, message: `dry run: would open ${branch}` }, output, files);
   await git(["checkout", "-B", branch, run.headSha]);
   for (const [path, content] of Object.entries(scaffold)) await files.write(join(repository, path), content);
@@ -120,6 +121,7 @@ export async function proposeRegressionFix({ runId, repository, output, gh, git,
   await git(["push", "--force-with-lease", "origin", branch]);
   const created = (await gh(["pr", "create", "--draft", "--base", "develop", "--head", branch, "--title", `chore(regression): repair the ${stamp} ${workflow.name.toLowerCase()} failure`, "--body-file", join(output, "body.md")])).stdout.trim();
   const number = Number(/\/pull\/(\d+)\s*$/.exec(created)?.[1] ?? 0) || null;
+  if (number !== null) await gh(["pr", "comment", String(number), "--body-file", join(output, "comment.md")]);
   return finish({ ...report, changed: true, mode: "new", branch, pr: number, change: changeId(stamp), message: `opened ${branch}${number ? ` as #${number}` : ""}` }, output, files);
 }
 
@@ -258,7 +260,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const readToken = process.env.GH_READ_TOKEN;
   // Platform: gh is a .cmd shim on Windows and needs a shell; git does not.
   const gh = args => {
-    const write = args[0] === "pr" && ["create", "edit"].includes(args[1]);
+    const write = args[0] === "pr" && ["create", "comment"].includes(args[1]);
     const env = readToken && !write ? { ...process.env, GH_TOKEN: readToken } : process.env;
     return execute("gh", args, { cwd: repository, env, maxBuffer: 64 * 1024 * 1024, shell: process.platform === "win32", windowsHide: true });
   };
