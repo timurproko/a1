@@ -22,6 +22,11 @@
 - `npx vitest run test/app/session-shell/shell-host.test.ts test/composition/resident-tabs.test.ts test/foundation/resident-tabs test/integrations/pi/session-presenters test/integrations/pi/tui-runtime/adapter.test.ts test/app/session-shell/session-shell-lifecycle.test.ts test/app/session-shell/session-shell-resident-recovery.test.ts`: 16 files, 149 tests passed.
 - `npx --yes @fission-ai/openspec@1.8.0 validate --all --strict --no-interactive`: 35 passed.
 - Native, contracts-only (this workstation must not run the Zig build): `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --all-targets --features resident-fixtures` passed, which type-checks `role_integration.rs` and the `fake-tab` fixture. `rustfmt --check --edition 2024` on both edited files passed. The native integration test runs only in CI; its result is recorded below.
+- `npm run preflight` on `2d12930c` (implementation merged with `origin/develop` at `1cd3afe8`): passed.
+
+**Dispatched CI run:** Development validation [run 38780430821](https://github.com/timurproko/a1/actions/runs/38780430821) on `2d12930c` succeeded. All three native terminal-host lanes (Linux x64, macOS arm64, Windows x64) report `an_unviewed_tab_keeps_its_terminal_current_and_presents_it_in_full_when_viewed ... ok`. The resident-tabs chaos lanes on all three platforms, the rendering validation, and the PR core and affected unit owners also passed.
+
+**Known gaps:** none. The two-tab manual check below is left for maintainer review; automated coverage does not replace it.
 
 **Diff review (3.2):** the change removes only the child-side visibility hold and its composition wiring, and adds tests plus a fake-tab mode. It changes no protocol message, generation, or fixture; no native product code; no tab-status derivation; no input routing or controller boundary; and no direct-mode behavior.
 
