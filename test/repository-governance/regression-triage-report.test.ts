@@ -1,21 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
-  appendRunToBody,
   appendRunToDesign,
   branchName,
   changeId,
   commandTests,
   extractLogExcerpts,
   parseTriageKey,
+  renderRunComment,
   renderTriageBody,
   renderTriageChange,
   summarizeLanes,
   triageDecision,
   triageKey,
+  TRIAGE_IMPLEMENTATION_ITEMS,
   type TriageEvidence,
   type TriageLane,
 } from "../../scripts/release/regression-triage-report.mjs";
-import { parseImplementationAcceptanceScenarios } from "../../scripts/governance/openspec-acceptance-checklist.mjs";
+import { parseImplementationAcceptanceScenarios, parseImplementationProgress } from "../../scripts/governance/openspec-acceptance-checklist.mjs";
 import { parseImplementation } from "../../scripts/governance/openspec-archive-policy.mjs";
 
 const workflow = { name: "Full regression", file: "full-regression.yml", scheduledOnly: false };
@@ -140,39 +141,50 @@ describe("nightly regression triage report", () => {
     expect(Buffer.byteLength(bounded.slice(0, -1).join("\n"))).toBeLessThanOrEqual(2048);
   });
 
-  it("renders a body in the OpenSpec layout that the delivery policy accepts and that carries the evidence", () => {
+  it("renders a body in the ordinary delivery layout whose two generated outcomes promote it once checked", () => {
     const body = renderTriageBody({ ...evidence(), date: "2026-09-19", key: "full-regression.yml:fast-remainder,package-startup,orchestration" });
-    expect(parseImplementationAcceptanceScenarios(body.replace("## Automation", "## Acceptance\n\n- The failed owners pass on the failed lane.\n\n## Automation"), 3)).toEqual(["The failed owners pass on the failed lane."]);
     expect(parseImplementation(body)).toEqual({ version: 3, change: "fix-nightly-regression-2026-09-19" });
     expect(body.startsWith("## Proposal\n\nFix the Full regression failure of 2026-09-19 on `develop` at `30546e1`, where 2 validation commands (`fast-remainder`, `package-startup`) failed;")).toBe(true);
-    expect(body).toContain("- Triage key: `full-regression.yml:fast-remainder,package-startup,orchestration`");
-    expect(body).toContain("- Run [Full regression #412](https://github.com/timurproko/a1/actions/runs/9001) (attempt 1, schedule) on `30546e1` at 2026-09-19T02:47:13Z:");
-    expect(body).toContain("  - `vitest-package-startup` (`package-startup`) failed on windows-2025-node24, windows-2025-node22 with exit 1.");
-    expect(body).toContain("    - Tests: `test/foundation/release/package-startup.integration.test.ts`");
-    expect(body).toContain("      AssertionError: expected 2412 to be less than 2000");
-    expect(body).toContain("  - `vitest-fast` (`fast-remainder`) failed on windows-2025-node24 with exit 1.\n    - Command: `npx vitest run test --exclude");
-    expect(body).toContain("  - Lane macos-15-node24 failed in job `Complete non-physical regression (macos-15, node 24)` before producing owner outcomes (orchestration failure).");
-    expect(body).toContain("  - Last successful Full regression run: [#411](https://github.com/timurproko/a1/actions/runs/8990) on `82d76c5`; 2 `develop` commits since:");
-    expect(body).toContain("    - `30546e1` refactor(settings): consolidate the settings path (#500)");
-    expect(body).not.toContain("## Acceptance");
+    expect(body).toContain("## Implementation\n\n- [ ] Reproduce the failure on the failed lane from the recorded tests or commands and identify the introducing commit or the environmental cause.\n- [ ] Fix the cause without weakening assertions, budgets, timeouts, or coverage, and record the focused evidence in the change design.\n\n## Acceptance\n\n- The 2026-09-19 Full regression failure on develop is repaired, and its failed lanes pass on the fix head without weakened assertions, budgets, timeouts, or coverage.\n\n## Automation\n");
+    // Invariant: the triage key stays machine-readable inside the automation block, where the layout policy allows it.
+    expect(body.indexOf("- Triage key: `full-regression.yml:fast-remainder,package-startup,orchestration`")).toBeGreaterThan(body.indexOf("<details>"));
+    expect(body.indexOf("- Triage key:")).toBeLessThan(body.indexOf("```openspec-implementation"));
+    expect(body).not.toContain("Run [Full regression #412]");
     expect(body.trimEnd().endsWith("</details>")).toBe(true);
+
+    // Invariant: the generated draft is incomplete until the fixer checks both outcomes, and then it is an ordinary complete candidate.
+    expect(parseImplementationProgress(body)).toEqual({ format: "checklist", complete: false, items: TRIAGE_IMPLEMENTATION_ITEMS.map(text => ({ checked: false, text })) });
+    expect(() => parseImplementationAcceptanceScenarios(body, 3)).toThrow();
+    const checked = body.replaceAll("- [ ] ", "- [x] ");
+    expect(parseImplementationAcceptanceScenarios(checked, 3)).toEqual(["The 2026-09-19 Full regression failure on develop is repaired, and its failed lanes pass on the fix head without weakened assertions, budgets, timeouts, or coverage."]);
+    expect(parseTriageKey(checked)).toBe("full-regression.yml:fast-remainder,package-startup,orchestration");
+  });
+
+  it("carries the run evidence in the triage comment", () => {
+    const comment = renderRunComment(evidence());
+    expect(comment.startsWith("The nightly regression triage opened this candidate from the evidence below; the change's design evidence carries the same record.\n\n- Run [Full regression #412](https://github.com/timurproko/a1/actions/runs/9001) (attempt 1, schedule) on `30546e1` at 2026-09-19T02:47:13Z:")).toBe(true);
+    expect(comment).toContain("  - `vitest-package-startup` (`package-startup`) failed on windows-2025-node24, windows-2025-node22 with exit 1.");
+    expect(comment).toContain("    - Tests: `test/foundation/release/package-startup.integration.test.ts`");
+    expect(comment).toContain("      AssertionError: expected 2412 to be less than 2000");
+    expect(comment).toContain("  - `vitest-fast` (`fast-remainder`) failed on windows-2025-node24 with exit 1.\n    - Command: `npx vitest run test --exclude");
+    expect(comment).toContain("  - Lane macos-15-node24 failed in job `Complete non-physical regression (macos-15, node 24)` before producing owner outcomes (orchestration failure).");
+    expect(comment).toContain("  - Last successful Full regression run: [#411](https://github.com/timurproko/a1/actions/runs/8990) on `82d76c5`; 2 `develop` commits since:");
+    expect(comment).toContain("    - `30546e1` refactor(settings): consolidate the settings path (#500)");
+    expect(comment).not.toContain("## ");
   });
 
   it("says when no green run bounds the suspect range and when only orchestration failed", () => {
-    const body = renderTriageBody({ ...evidence({ lastGreen: null, commits: [], summary: summarizeLanes([lanes()[3]!]) }), date: "2026-09-19", key: "full-regression.yml:orchestration" });
+    const orchestration = evidence({ lastGreen: null, commits: [], summary: summarizeLanes([lanes()[3]!]) });
+    const body = renderTriageBody({ ...orchestration, date: "2026-09-19", key: "full-regression.yml:orchestration" });
     expect(body).toContain("where 1 lane before any owner ran failed;");
-    expect(body).toContain("No successful Full regression run is retained on `develop`");
-    expect(body).not.toContain("Last successful");
+    const comment = renderRunComment(orchestration);
+    expect(comment).toContain("No successful Full regression run is retained on `develop`");
+    expect(comment).not.toContain("Last successful");
   });
 
-  it("appends a later run before the Automation section and to the design evidence", () => {
-    const first = renderTriageBody({ ...evidence(), date: "2026-09-19", key: "k" });
-    const second = appendRunToBody(first, evidence({ run: { ...run, id: 9002, number: 413, createdAt: "2026-09-20T02:47:00Z" } }));
-    expect(second.indexOf("Full regression #413")).toBeGreaterThan(second.indexOf("Full regression #412"));
-    expect(second.indexOf("Full regression #413")).toBeLessThan(second.indexOf("## Automation"));
-    expect(parseImplementation(second)).toEqual({ version: 3, change: "fix-nightly-regression-2026-09-19" });
-    expect(second.trimEnd().endsWith("</details>")).toBe(true);
-    expect(() => appendRunToBody("## Proposal\n\nNo automation.\n", evidence())).toThrow("no Automation section");
+  it("posts a later run as another comment and appends it to the design evidence", () => {
+    const later = renderRunComment(evidence({ run: { ...run, id: 9002, number: 413, createdAt: "2026-09-20T02:47:00Z" } }), { refresh: true });
+    expect(later.startsWith("The nightly regression triage recorded another Full regression failure with the same failed scope set; the change's design evidence carries the same record.\n\n- Run [Full regression #413]")).toBe(true);
 
     const files = renderTriageChange({ ...evidence(), date: "2026-09-19" });
     expect(Object.keys(files).sort()).toEqual([
