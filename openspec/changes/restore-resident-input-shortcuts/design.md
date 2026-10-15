@@ -24,7 +24,7 @@ The direct path receives terminal-native sequences and the Pi input layer alread
 
 ### Encode modifiers at the attach boundary
 
-The existing key-event-to-bytes function will become modifier-aware. Plain keys retain their current legacy bytes. Modified arrows, Home/End, and tilde navigation keys use the conventional xterm modifier parameter; modified Enter, Backspace, Tab, and combinations that legacy control bytes cannot represent unambiguously use CSI-u. Character chords retain the established legacy form where it is lossless and use CSI-u for combined modifiers.
+The existing key-event-to-bytes function will become modifier-aware. Plain keys retain their current legacy bytes. Modified arrows, Home/End, and tilde navigation keys use the conventional xterm modifier parameter; modified Enter, Backspace, Tab, and combinations that legacy control bytes cannot represent unambiguously use CSI-u. Character chords retain the established legacy form where it is lossless and use CSI-u for combined modifiers. On Windows, Ctrl+Enter forwards LF because Windows terminals send LF for that chord and ConPTY reports LF as Ctrl+Enter, so LF is what the direct prompt observes there.
 
 This keeps the protocol and child unchanged while producing forms its shared key parser already understands. Forwarding the outer terminal's original bytes was considered, but `crossterm` has already parsed those bytes before attach dispatch and the implementation needs structured events to intercept tab actions.
 

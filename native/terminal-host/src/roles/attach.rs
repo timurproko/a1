@@ -1339,7 +1339,7 @@ fn encode_char(character: char, modifiers: KeyModifiers) -> Vec<u8> {
     let control = modifiers.contains(KeyModifiers::CONTROL);
     let alt = modifiers.contains(KeyModifiers::ALT);
     if !control {
-        // Shift is already reflected in the produced character, so ESC-prefixing keeps Alt lossless.
+        // Invariant: Shift is already reflected in the produced character, so ESC-prefixing keeps Alt lossless.
         let mut out = Vec::new();
         if alt {
             out.push(0x1b);
@@ -1377,6 +1377,9 @@ fn encode_key(code: KeyCode, modifiers: KeyModifiers) -> Vec<u8> {
     };
     match code {
         KeyCode::Char(character) => encode_char(character, modifiers),
+        // Platform: Windows terminals send LF for Ctrl+Enter and ConPTY reports LF as Ctrl+Enter,
+        // so LF is the byte the direct prompt observes there.
+        KeyCode::Enter if cfg!(windows) && parameter == Some(5) => b"\n".to_vec(),
         KeyCode::Enter => control(b"\r", 13),
         KeyCode::Tab if parameter == Some(2) => b"\x1b[Z".to_vec(),
         KeyCode::Tab => control(b"\t", 9),
@@ -1516,7 +1519,6 @@ mod tests {
     #[test]
     fn navigation_and_editing_keys_keep_every_modifier() {
         assert_encodes(&[
-            // Plain keys keep their established legacy bytes.
             (KeyCode::Left, NONE, b"\x1b[D"),
             (KeyCode::Home, NONE, b"\x1b[H"),
             (KeyCode::Delete, NONE, b"\x1b[3~"),
@@ -1525,7 +1527,6 @@ mod tests {
             (KeyCode::BackTab, SHIFT, b"\x1b[Z"),
             (KeyCode::Backspace, NONE, b"\x7f"),
             (KeyCode::Esc, NONE, b"\x1b"),
-            // Word movement and selection.
             (KeyCode::Left, CTRL, b"\x1b[1;5D"),
             (KeyCode::Right, CTRL, b"\x1b[1;5C"),
             (KeyCode::Left, ALT, b"\x1b[1;3D"),
@@ -1534,21 +1535,27 @@ mod tests {
             (KeyCode::Down, ALT, b"\x1b[1;3B"),
             (KeyCode::Home, SHIFT, b"\x1b[1;2H"),
             (KeyCode::End, CTRL | SHIFT, b"\x1b[1;6F"),
-            // Deletion.
             (KeyCode::Backspace, CTRL, b"\x1b[127;5u"),
             (KeyCode::Backspace, ALT, b"\x1b[127;3u"),
             (KeyCode::Delete, CTRL, b"\x1b[3;5~"),
             (KeyCode::Insert, SHIFT, b"\x1b[2;2~"),
-            // Newline and focus.
             (KeyCode::Enter, SHIFT, b"\x1b[13;2u"),
             (KeyCode::Enter, ALT, b"\x1b[13;3u"),
-            (KeyCode::Enter, CTRL, b"\x1b[13;5u"),
+            (
+                KeyCode::Enter,
+                CTRL,
+                if cfg!(windows) {
+                    &b"\n"[..]
+                } else {
+                    &b"\x1b[13;5u"[..]
+                },
+            ),
+            (KeyCode::Enter, CTRL | SHIFT, b"\x1b[13;6u"),
             (KeyCode::Tab, SHIFT, b"\x1b[Z"),
             (KeyCode::Tab, CTRL, b"\x1b[9;5u"),
             (KeyCode::BackTab, NONE, b"\x1b[Z"),
             (KeyCode::BackTab, CTRL | SHIFT, b"\x1b[9;6u"),
             (KeyCode::Esc, ALT, b"\x1b[27;3u"),
-            // Viewport navigation.
             (KeyCode::PageUp, NONE, b"\x1b[5~"),
             (KeyCode::PageUp, SHIFT, b"\x1b[5;2~"),
             (KeyCode::PageDown, CTRL, b"\x1b[6;5~"),
