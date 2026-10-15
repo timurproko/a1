@@ -124,6 +124,8 @@ describe("nightly regression fix proposal", () => {
     expect(result.startup).toMatchObject({ window: 3, summary: "startup: no measurements", persistent: [] });
     expect(git.calls.find(call => call[0] === "checkout")).toEqual(["checkout", "-B", "fix/nightly-regression-2026-09-19", head]);
     expect(gh.calls.find(call => call[1] === "create")).toEqual(["pr", "create", "--draft", "--base", "develop", "--head", "fix/nightly-regression-2026-09-19", "--title", "chore(regression): repair the 2026-09-19 full regression failure", "--body-file", `${output}/body.md`.replaceAll("/", process.platform === "win32" ? "\\" : "/")]);
+    expect(gh.calls.find(call => call[1] === "comment")).toEqual(["pr", "comment", "777", "--body-file", `${output}/comment.md`.replaceAll("/", process.platform === "win32" ? "\\" : "/")]);
+    expect(gh.calls.some(call => call[1] === "edit")).toBe(false);
     expect([...files.files.keys()].filter(path => path.includes("openspec/changes/"))).toEqual([
       "D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/.openspec.yaml",
       "D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/regression-provenance.json",
@@ -131,7 +133,11 @@ describe("nightly regression fix proposal", () => {
       "D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/design.md",
       "D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/tasks.md",
     ]);
-    expect(files.files.get(`${output}/body.md`)).toContain("- Triage key: `full-regression.yml:package-startup`");
+    const body = files.files.get(`${output}/body.md`)!;
+    expect(body).toContain("- [ ] Reproduce the failure on the failed lane");
+    expect(body).toContain("- Triage key: `full-regression.yml:package-startup`");
+    expect(body).not.toContain("Full regression #412");
+    expect(files.files.get(`${output}/comment.md`)).toContain("- Run [Full regression #412](https://github.com/timurproko/a1/actions/runs/9001)");
     expect(JSON.parse(files.files.get("D:/repo/openspec/changes/fix-nightly-regression-2026-09-19/regression-provenance.json")!)).toMatchObject({
       schema: "a1-regression-triage-provenance-v1",
       candidate: { branch: "fix/nightly-regression-2026-09-19", change: "fix-nightly-regression-2026-09-19" },
@@ -141,7 +147,7 @@ describe("nightly regression fix proposal", () => {
   });
 
   it("refreshes the open candidate with the same failed scope set instead of opening another", async () => {
-    const existingBody = "## Proposal\n\nFix it.\n\n## Implementation\n\n- Triage key: `full-regression.yml:package-startup`\n- Run [Full regression #411](x) (attempt 1, schedule) on `82d76c5` at 2026-09-18T02:47:00Z:\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n```openspec-implementation\n{\n  \"version\": 3,\n  \"change\": \"fix-nightly-regression-2026-09-18\"\n}\n```\n\n</details>\n";
+    const existingBody = "## Proposal\n\nFix it.\n\n## Implementation\n\n- [x] Reproduce the failure on the failed lane from the recorded tests or commands and identify the introducing commit or the environmental cause.\n- [ ] Fix the cause without weakening assertions, budgets, timeouts, or coverage, and record the focused evidence in the change design.\n\n## Acceptance\n\n- The 2026-09-18 Full regression failure on develop is repaired.\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n- Triage key: `full-regression.yml:package-startup`\n\n```openspec-implementation\n{\n  \"version\": 3,\n  \"change\": \"fix-nightly-regression-2026-09-18\"\n}\n```\n\n</details>\n";
     const gh = recorder(ghAnswers({ openPulls: JSON.stringify([
       { number: 700, headRefName: "fix/nightly-regression-2026-09-18", body: existingBody, url: "https://github.com/timurproko/a1/pull/700" },
       { number: 701, headRefName: "fix/nightly-regression-2026-09-10", body: existingBody.replace("package-startup", "typecheck"), url: "https://github.com/timurproko/a1/pull/701" },
@@ -160,11 +166,13 @@ describe("nightly regression fix proposal", () => {
     expect(result).toMatchObject({ changed: true, mode: "refresh", branch: "fix/nightly-regression-2026-09-18", pr: 700 });
     expect(git.calls.map(call => call.slice(0, 2).join(" "))).toEqual(["log --first-parent", "fetch origin", "checkout -B", "add -A", "commit --allow-empty", "push origin"]);
     expect(git.calls.find(call => call[0] === "push")).toEqual(["push", "origin", "fix/nightly-regression-2026-09-18"]);
-    expect(gh.calls.find(call => call[1] === "edit")?.slice(0, 3)).toEqual(["pr", "edit", "700"]);
-    expect(gh.calls.some(call => call[1] === "create")).toBe(false);
-    const body = files.files.get(`${output}/body.md`)!;
-    expect(body.indexOf("Full regression #412")).toBeGreaterThan(body.indexOf("Full regression #411"));
-    expect(body.indexOf("Full regression #412")).toBeLessThan(body.indexOf("## Automation"));
+    // Invariant: the fixer's checked outcomes are never rewritten by a refresh; the new run is a comment and a design record.
+    expect(gh.calls.find(call => call[1] === "comment")).toEqual(["pr", "comment", "700", "--body-file", `${output}/comment.md`.replaceAll("/", process.platform === "win32" ? "\\" : "/")]);
+    expect(gh.calls.some(call => call[1] === "create" || call[1] === "edit")).toBe(false);
+    expect(files.files.has(`${output}/body.md`)).toBe(false);
+    const comment = files.files.get(`${output}/comment.md`)!;
+    expect(comment.startsWith("The nightly regression triage recorded another Full regression failure with the same failed scope set;")).toBe(true);
+    expect(comment).toContain("- Run [Full regression #412]");
     expect(files.files.get("D:/repo/openspec/changes/fix-nightly-regression-2026-09-18/design.md")).toContain("- Run [Full regression #412]");
     expect(JSON.parse(files.files.get("D:/repo/openspec/changes/fix-nightly-regression-2026-09-18/regression-provenance.json")!).sources.map((source: any) => source.runId)).toEqual([8995, 9001]);
   });
@@ -198,7 +206,8 @@ describe("nightly regression fix proposal", () => {
     expect(result.summary).toEqual({ failures: [], orchestration: [{ lane: "windows-2025-node24", job: "Complete non-physical regression (windows-2025, node 24)", excerpt: [" FAIL  test/foundation/release/package-startup.integration.test.ts > warm launch"] }] });
     expect(git.calls.map(call => call[0])).toEqual(["ls-remote", "ls-remote"]);
     expect(gh.calls.some(call => call[0] === "pr" && call[1] !== "list")).toBe(false);
-    expect(files.files.get(`${output}/body.md`)).toContain("No successful Full regression run is retained");
+    expect(files.files.get(`${output}/body.md`)).toContain("where 1 lane before any owner ran failed;");
+    expect(files.files.get(`${output}/comment.md`)).toContain("No successful Full regression run is retained");
     expect([...files.files.keys()].some(path => path.includes("openspec/changes/"))).toBe(false);
   });
 
@@ -222,9 +231,9 @@ describe("nightly regression fix proposal", () => {
     expect(result.summary!.failures).toEqual([expect.objectContaining({ id: "startup-budget", scopes: ["package-startup"], tests: ["test/foundation/release/package-startup.integration.test.ts"], lanes: [expect.objectContaining({ id: "windows-2025-node22" })] })]);
     expect(result.startup).toMatchObject({ persistent: ["windows-2025-node22/a1/no-live-supervisor"] });
     expect(gh.calls.some(call => call.includes("--log-failed"))).toBe(false);
-    const body = files.files.get(`${output}/body.md`)!;
-    expect(body).toContain("- `startup-budget` (`package-startup`) failed on windows-2025-node22 with exit 1.");
-    expect(body).toContain("| windows-2025-node22 | a1 | no-live-supervisor | 2500ms | 2715ms (over) #412 | 2532ms (over) #411 | 2601ms (over) #410 |");
+    const comment = files.files.get(`${output}/comment.md`)!;
+    expect(comment).toContain("- `startup-budget` (`package-startup`) failed on windows-2025-node22 with exit 1.");
+    expect(comment).toContain("| windows-2025-node22 | a1 | no-live-supervisor | 2500ms | 2715ms (over) #412 | 2532ms (over) #411 | 2601ms (over) #410 |");
   });
 
   it("records a single overrun on a green run and proposes nothing", async () => {
@@ -285,9 +294,9 @@ describe("nightly regression fix proposal", () => {
       { lane: "windows-2025-node24", shard: "resource", job: "Complete non-physical regression (windows-2025, node 24, resource)", excerpt: [] },
       { lane: "windows-2025-node22", job: "Complete non-physical regression (windows-2025, node 22)", excerpt: [] },
     ]);
-    const body = files.files.get(`${output}/body.md`)!;
-    expect(body).toContain("failed on windows-2025-node24 (package shard) with exit 1");
-    expect(body).toContain("Lane windows-2025-node24 (resource shard) failed in job `Complete non-physical regression (windows-2025, node 24, resource)`");
+    const comment = files.files.get(`${output}/comment.md`)!;
+    expect(comment).toContain("failed on windows-2025-node24 (package shard) with exit 1");
+    expect(comment).toContain("Lane windows-2025-node24 (resource shard) failed in job `Complete non-physical regression (windows-2025, node 24, resource)`");
   });
 
   it("fails closed when one lane carries more than one startup evidence source", async () => {
