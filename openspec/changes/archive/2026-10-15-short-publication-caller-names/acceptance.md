@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-15-short-publication-caller-names/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-15-short-publication-caller-names/acceptance.md",
   "finalizedDate": "2026-10-15",
-  "specBaseSha": "37bc59a76963c39810546df04ba76146ba8095e5",
+  "specBaseSha": "1cd3afe8d4203fee433ca3ac0d44df307fcdd7b3",
   "acceptanceScenarios": [
     "A development publication lists its jobs as `Develop / Build process guardian` instead of `Validate and publish development packages / Build process guardian`.",
     "Candidate validation and stable publication prefix their jobs with `Candidate /` and `Release /`.",
