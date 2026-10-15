@@ -19,7 +19,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-15-resident-tabs-certification/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-15-resident-tabs-certification/acceptance.md",
   "finalizedDate": "2026-10-15",
-  "specBaseSha": "ff11eab6c7a9c24766375e4625e5300c92708866",
+  "specBaseSha": "96e54a0afde25dbd7f8a6c098ff196a7e63989a4",
   "acceptanceScenarios": [
     "Every published release contains a hash-verified terminal host for each supported platform, and an altered binary is never executed",
     "`a1 update` during a streaming tab leaves the turn running and its release retained",
