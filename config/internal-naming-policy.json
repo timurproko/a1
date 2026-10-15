@@ -286,7 +286,7 @@
       "key": "A1_TABS_FAULT_CRASH_MARK",
       "exposure": "integration",
       "owner": "native/terminal-host/src/fault_injection.rs",
-      "evidence": "openspec/changes/archive/2026-10-15-resident-tabs-certification/design.md",
+      "evidence": "docs/architecture/resident-tabs.md",
       "semantics": "Fault-feature-only directory where a crash point leaves a breadcrumb before aborting, so recovery tests prove the point was reached"
     },
     {

@@ -428,7 +428,7 @@ The v2 daemon was unreliable for structural reasons, and a forensic pass over it
 5. **Fencing.** The server must hold the OS-exclusive registry-writer lease; each start increments the durable epoch under that lease, each mutation verifies both lease and epoch, and holders and bridges obey only the highest epoch they have seen. A timed-out endpoint alone never authorizes a second writer.
 6. **Explicit durability per data class.** There is no "best effort". Each class of data has a stated guarantee, and each guarantee has a test.
 7. **Evidence survives failure.** Logs rotate but are never truncated at startup. Each crash produces its own record.
-8. **Prove it in stages.** Deterministic simulation, crash-point injection, fuzzing, bounded CI chaos on each platform, and exact-package physical evidence per platform gate certification. A separately authorized isolated-worker 24-hour soak remains required platform evidence; evidence is never inferred across platforms.
+8. **Prove it in stages.** Deterministic simulation, crash-point injection, fuzzing, bounded CI chaos on each platform, and exact-package physical evidence per platform gate certification. A separately authorized isolated-worker 24-hour soak remains required platform evidence; evidence is never inferred across platforms. Every named crash point exists only in the `fault-injection` test build, and `A1_TABS_FAULT_CRASH_MARK` names the directory where a kill-at-point test reads the breadcrumb a crashed role leaves.
 
 **How each v2 failure is closed:**
 
