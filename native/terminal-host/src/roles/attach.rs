@@ -206,21 +206,22 @@ pub fn is_ctrl_c_console(character: char, control: bool, key_down: bool) -> bool
 }
 
 pub fn render_strip(status: &str, name: &str, accent: Option<&str>, columns: u16) -> String {
+    let spinner = strip::tab_spinner_frame();
     let working = match accent.unwrap_or("purple") {
-        "blue" => "\x1b[38;2;91;141;239m◐\x1b[39m ",
-        "cyan" => "\x1b[38;2;74;174;196m◐\x1b[39m ",
-        "green" => "\x1b[38;2;88;183;132m◐\x1b[39m ",
-        "orange" => "\x1b[38;2;226;159;72m◐\x1b[39m ",
-        "pink" => "\x1b[38;2;218;112;158m◐\x1b[39m ",
-        _ => "\x1b[38;2;167;152;215m◐\x1b[39m ",
+        "blue" => format!("\x1b[38;2;91;141;239m{spinner}\x1b[39m "),
+        "cyan" => format!("\x1b[38;2;74;174;196m{spinner}\x1b[39m "),
+        "green" => format!("\x1b[38;2;88;183;132m{spinner}\x1b[39m "),
+        "orange" => format!("\x1b[38;2;226;159;72m{spinner}\x1b[39m "),
+        "pink" => format!("\x1b[38;2;218;112;158m{spinner}\x1b[39m "),
+        _ => format!("\x1b[38;2;167;152;215m{spinner}\x1b[39m "),
     };
     let glyph = match status {
-        "starting" => "… ",
+        "starting" | "restoring" => format!("{spinner} "),
         "working" => working,
-        "restarting" => "↻ ",
-        "unresponsive" | "stalled" | "degraded" => "! ",
-        "crashed" | "failed" | "ended" => "✗ ",
-        _ => "",
+        "restarting" => "↻ ".into(),
+        "unresponsive" | "stalled" | "degraded" => "! ".into(),
+        "crashed" | "failed" | "ended" => "✗ ".into(),
+        _ => String::new(),
     };
     let safe_name: String = name
         .chars()
@@ -648,7 +649,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             }
         }
         if strip::animations_active(&tabs)
-            && last_strip_frame.elapsed() >= Duration::from_millis(80)
+            && last_strip_frame.elapsed() >= Duration::from_millis(strip::TAB_SPINNER_MS)
         {
             strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
             terminal.write(strip_frame.bytes.as_bytes())?;
@@ -1384,8 +1385,19 @@ mod tests {
             without_bell(b"\x1b]8;;https://example.com\x07link\x1b]8;;\x07"),
             b"\x1b]8;;https://example.com\x07link\x1b]8;;\x07"
         );
-        assert!(render_strip("working", "agent", Some("orange"), 80).contains("agent ×"));
-        assert!(render_strip("working", "agent", Some("orange"), 80).contains("38;2;226;159;72"));
+        let working = render_strip("working", "agent", Some("orange"), 80);
+        assert!(working.contains("agent ×"));
+        assert!(working.contains("38;2;226;159;72"));
+        assert!(
+            strip::TAB_SPINNER_FRAMES
+                .iter()
+                .any(|glyph| working.contains(glyph))
+        );
+        assert!(
+            ["◐", "◓", "◑", "◒", "…"]
+                .iter()
+                .all(|glyph| !working.contains(glyph))
+        );
         assert!(!render_strip("working", "a\x07gent", None, 80).contains('\u{7}'));
         assert!(render_notice("input rejected", 40).contains("input rejected"));
         assert!(render_empty_hint(80).contains("Alt+A new tab"));

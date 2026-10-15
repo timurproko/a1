@@ -3,6 +3,8 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 pub const TITLE_RAINBOW_MS: u128 = 600;
 pub const TITLE_TYPE_MS_PER_CHAR: u128 = 45;
 pub const TITLE_SETTLE_MS: u128 = 300;
+pub const TAB_SPINNER_FRAMES: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+pub const TAB_SPINNER_MS: u64 = 80;
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
@@ -62,28 +64,42 @@ fn truncate(value: &str, width: usize) -> String {
     result
 }
 
-fn status_glyph(status: &str) -> &'static str {
-    match status {
-        "starting" | "restoring" => "… ",
-        "working" => match SystemTime::now()
+fn tab_spinner_frame_at(elapsed_ms: u128) -> &'static str {
+    TAB_SPINNER_FRAMES
+        [(elapsed_ms / u128::from(TAB_SPINNER_MS)) as usize % TAB_SPINNER_FRAMES.len()]
+}
+
+pub fn tab_spinner_frame() -> &'static str {
+    tab_spinner_frame_at(
+        SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
-            .as_millis()
-            / 80
-            % 4
-        {
-            0 => "◐ ",
-            1 => "◓ ",
-            2 => "◑ ",
-            _ => "◒ ",
-        },
-        "needs-input" => "? ",
-        "unresponsive" | "stalled" | "degraded" => "! ",
-        "done-unseen" => "✓ ",
-        "restarting" => "↻ ",
-        "crashed" | "failed" | "ended" => "✗ ",
-        _ => "",
+            .as_millis(),
+    )
+}
+
+fn status_glyph_at(status: &str, elapsed_ms: u128) -> String {
+    match status {
+        "starting" | "restoring" | "working" => {
+            format!("{} ", tab_spinner_frame_at(elapsed_ms))
+        }
+        "needs-input" => "? ".into(),
+        "unresponsive" | "stalled" | "degraded" => "! ".into(),
+        "done-unseen" => "✓ ".into(),
+        "restarting" => "↻ ".into(),
+        "crashed" | "failed" | "ended" => "✗ ".into(),
+        _ => String::new(),
     }
+}
+
+fn status_glyph(status: &str) -> String {
+    status_glyph_at(
+        status,
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+    )
 }
 
 fn accent(status: &str, value: Option<&str>) -> &'static str {
@@ -267,7 +283,7 @@ fn palette_fallback_requested() -> bool {
 
 pub fn animations_active(tabs: &[StripTab]) -> bool {
     tabs.iter().any(|tab| {
-        tab.status == "working"
+        matches!(tab.status.as_str(), "starting" | "restoring" | "working")
             || tab.title_animation.as_ref().is_some_and(|animation| {
                 animation.started_at.elapsed()
                     < Duration::from_millis(
@@ -362,11 +378,75 @@ mod tests {
     }
 
     #[test]
-    fn uses_semantic_status_glyphs_without_a_suspended_state() {
-        assert_eq!(status_glyph("needs-input"), "? ");
-        assert_eq!(status_glyph("done-unseen"), "✓ ");
-        assert_eq!(status_glyph("failed"), "✗ ");
-        assert_eq!(status_glyph("suspended"), "");
+    fn uses_v2_progress_frames_at_eighty_millisecond_cadence() {
+        assert_eq!(
+            TAB_SPINNER_FRAMES,
+            ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        );
+        for (index, expected) in TAB_SPINNER_FRAMES.iter().enumerate() {
+            let elapsed = index as u128 * u128::from(TAB_SPINNER_MS);
+            assert_eq!(UnicodeWidthStr::width(*expected), 1);
+            assert_eq!(tab_spinner_frame_at(elapsed), *expected);
+            assert_eq!(tab_spinner_frame_at(elapsed + 79), *expected);
+            for status in ["working", "starting", "restoring"] {
+                assert_eq!(status_glyph_at(status, elapsed), format!("{expected} "));
+            }
+        }
+        assert_eq!(
+            tab_spinner_frame_at(TAB_SPINNER_FRAMES.len() as u128 * u128::from(TAB_SPINNER_MS)),
+            TAB_SPINNER_FRAMES[0]
+        );
+    }
+
+    #[test]
+    fn uses_semantic_status_glyphs_without_old_progress_or_suspended_glyphs() {
+        assert_eq!(status_glyph_at("needs-input", 0), "? ");
+        assert_eq!(status_glyph_at("unresponsive", 0), "! ");
+        assert_eq!(status_glyph_at("done-unseen", 0), "✓ ");
+        assert_eq!(status_glyph_at("failed", 0), "✗ ");
+        assert_eq!(status_glyph_at("suspended", 0), "");
+        for old in ["◐", "◓", "◑", "◒", "…"] {
+            assert!(!status_glyph_at("working", 0).contains(old));
+            assert!(!status_glyph_at("starting", 0).contains(old));
+            assert!(!status_glyph_at("restoring", 0).contains(old));
+        }
+    }
+
+    #[test]
+    fn progress_states_keep_animation_active() {
+        for status in ["working", "starting", "restoring"] {
+            let mut progress = tab("tab-0", "agent");
+            progress.status = status.into();
+            assert!(animations_active(&[progress]));
+            if status != "working" {
+                assert_eq!(accent(status, None), "\x1b[38;2;170;170;170m");
+            }
+        }
+        assert!(!animations_active(&[tab("tab-0", "agent")]));
+    }
+
+    #[test]
+    fn progress_keeps_one_column_geometry_and_independent_accents() {
+        let mut blue = tab("blue", "agent");
+        blue.status = "working".into();
+        blue.accent = Some("blue".into());
+        let mut pink = tab("pink", "agent 2");
+        pink.status = "working".into();
+        pink.accent = Some("pink".into());
+        let frame = render(&[blue, pink], Some("blue"), 80);
+        assert!(frame.bytes.contains("\x1b[38;2;91;141;239m"));
+        assert!(frame.bytes.contains("\x1b[38;2;218;112;158m"));
+        assert!(
+            TAB_SPINNER_FRAMES
+                .iter()
+                .any(|glyph| frame.bytes.contains(glyph))
+        );
+        assert!(frame.hits.iter().any(|(start, end, hit)| {
+            end - start == 8 && matches!(hit, StripHit::View(id) if id == "blue")
+        }));
+        assert!(frame.hits.iter().any(|(start, end, hit)| {
+            end - start == 3 && matches!(hit, StripHit::Close(id) if id == "blue")
+        }));
     }
 
     #[test]
