@@ -44,7 +44,7 @@ jobs:
           printf 'version=%s\nrelease_id=%s\n' "$version" "$RELEASE_ID" >> "$GITHUB_OUTPUT"
 
   publish:
-    name: Publish the exact stable release
+    name: Release
     needs: identify
     uses: timurproko/a1/.github/workflows/publish.yml@develop
     with:
