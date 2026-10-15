@@ -5,8 +5,9 @@
  * preserves the latest physical route for virtual models; an explicit bare-A1 profile colors the
  * thinking-level name, renders its repository-context path, and reserves its linked pull-request badge
  * before path truncation while preserving the remaining footer layout and formatting; replacement
- * surfaces may suppress a thinking level they already present.
- * Deviations: owned-status-level-color, owned-pull-request-badge.
+ * surfaces may suppress a thinking level they already present; a resident tab whose chip already shows
+ * the session name may suppress its path-row suffix.
+ * Deviations: owned-status-level-color, owned-pull-request-badge, owned-resident-session-name.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { hyperlink, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
@@ -18,8 +19,9 @@ export class SessionFooter implements Component {
   private readonly cwd: string;
   private readonly profile: "pi" | "a1";
   private readonly show: () => boolean;
-  constructor(getView: () => OwnedUiSessionViewModel, cwd: string, profile: "pi" | "a1" = "pi", show: () => boolean = () => true) {
-    this.getView = getView; this.cwd = cwd; this.profile = profile; this.show = show;
+  private readonly showSessionName: boolean;
+  constructor(getView: () => OwnedUiSessionViewModel, cwd: string, profile: "pi" | "a1" = "pi", show: () => boolean = () => true, showSessionName = true) {
+    this.getView = getView; this.cwd = cwd; this.profile = profile; this.show = show; this.showSessionName = showSessionName;
   }
   invalidate(): void {}
   dispose(): void {}
@@ -42,7 +44,7 @@ export class SessionFooter implements Component {
     let pwd = formatCwd(repositoryPath, process.env.HOME || process.env.USERPROFILE);
     const branch = view.status.footer?.branch;
     if (branch) pwd = `${pwd} (${branch})`;
-    const sessionName = view.status.footer?.sessionName;
+    const sessionName = this.showSessionName ? view.status.footer?.sessionName : null;
     const pullRequest = this.profile === "a1" ? view.status.footer?.pullRequest : null;
     let pathRow: string;
     if (pullRequest === undefined || pullRequest === null) {
