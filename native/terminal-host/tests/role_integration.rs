@@ -105,15 +105,27 @@ setInterval(() => {}, 1000);
         first.output_text()
     );
     first.write(b"\x03\x03");
-    first.wait(Duration::from_secs(8));
-    assert!(
-        first.output_containing(
-            "1 agent still running run a1 to return.",
-            Duration::from_secs(2)
-        ),
-        "{}",
-        first.output_text()
-    );
+    let detached = first.wait(Duration::from_secs(8));
+    if !first.output_containing(
+        "1 agent still running run a1 to return.",
+        Duration::from_secs(2),
+    ) {
+        let status = tabs(
+            &executable,
+            &["host-status"],
+            &profile,
+            &data,
+            &runtime,
+            &address,
+        );
+        let listed = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+        panic!(
+            "no detach hint; attach exit {detached:?}\n--- host status ---\n{}\n--- tabs ---\n{}\n--- attach ---\n{}",
+            status.1,
+            listed.1,
+            first.output_text()
+        );
+    }
     for mode in observable_modes {
         assert!(
             first.output_text().contains(&format!("?{mode}l")),
