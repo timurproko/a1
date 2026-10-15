@@ -23,7 +23,7 @@ Milestone 6 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). M
 - [x] 3.2 Merge resident holds into `protectionInputs` on every reconciliation path, including the detached cleanup worker. Integration test on Windows, Linux, and macOS: a live holder and child recorded on an old release keep that release through `a1 update` and a forced cleanup run, and the release becomes collectible only after the tab stops.
 - [x] 3.3 Assert that cohort update coordination in `src/foundation/release/update.ts` and `src/foundation/supervision/server.ts` never signals or stops a process recorded in a resident registry; an update mid-turn on each platform keeps the turn streaming and every resident identity unchanged.
 - [x] 3.4 Implement generation-mismatch handling per Decision 5: one notice naming `a1 tabs host stop`, direct fallback with the session-writer lease, no signal to resident processes, and maintenance through the recorded cohort's verified binary in `maintain` mode. Test with a fixture server that answers a different generation.
-- [ ] 3.5 Hide the Tabs settings section whenever the launch runs the direct route, by `a1 solo` or by a resident fallback, since nothing in it can apply; `bin/ui.js` decides through one launch-context rule, and a test proves the rule for tabs, solo, and fallback launches.
+- [x] 3.5 Hide the Tabs settings section whenever the launch runs the direct route, by `a1 solo` or by a resident fallback, since nothing in it can apply; `bin/ui.js` decides through one launch-context rule, and a test proves the rule for tabs, solo, and fallback launches.
 
 ## 4. Maintenance commands
 

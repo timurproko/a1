@@ -89,3 +89,16 @@ Head `81cc411d` on 2026-10-14, Development validation run [38620254089](https://
 | Exact-package contracts | 6 passed | — | — |
 
 Chaos measurements on this run (reported, not gating): server recovery p95 473 ms (Windows), 106 ms (Linux), 2442 ms (macOS: one of 18 recoveries on a loaded runner exceeded the 2 s soak target; the earlier run measured 71 ms); undisturbed holder restart p50 1.0–1.2 s on every platform; cold tab create p95 269 / 293 / 459 ms. The soak target itself is judged by the separately authorized 24-hour soak, not by a 600-second chaos run.
+
+### Reopened head (task 3.5 and the defects found in manual Windows use)
+
+Head `4b81b250` on 2026-10-15, Development validation run [38698400317](https://github.com/timurproko/a1/actions/runs/38698400317): every job succeeded. Changes after the previous record: a resident role started through WMI gets no console (a terminal window no longer opens on Windows); a bridge's status is kept under the registry incarnation its token was derived with, so the working spinner shows while the agent streams; a forced holder's recorded child is terminated; a tab stopped during its restart backoff or before its holder started never launches one, so a host stop completes; the Tabs settings are hidden on every direct-route launch (task 3.5, `hidesTabSettings` with its launch-context test); the latency harness proves a reattach paint by the retained last line; the naming policy cites the architecture document for the crash-mark variable.
+
+| Lane | Windows x64 | Linux x64 | macOS arm64 |
+|---|---|---|---|
+| Crate unit tests | 85 passed, 1 ignored | 87 passed, 1 ignored | 86 passed, 1 ignored |
+| `tests/role_integration.rs` (19 tests, incl. the host-stop crash test and the bridge-status test) | 19 passed (704 s) | 19 passed (635 s) | 19 passed (672 s) |
+| TypeScript probe suites, fidelity, latency budgets | 8 files passed | 8 files passed | 8 files passed |
+| `npm run test:resident-chaos` (600 s) | 0 violations; server recovery p95 651 ms | 0 violations; server recovery p95 31 ms | 0 violations; server recovery p95 79 ms |
+
+Undisturbed holder restart p50 stayed at 1.0–1.1 s and cold tab create p95 at 258–419 ms on every platform. The user's manual Windows use of the previous head's CI-built host showed the tab strip and found the spawned console window and the missing working spinner that this head fixes; their re-check with this head's host is pending and belongs to the physical acceptance record.
