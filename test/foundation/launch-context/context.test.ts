@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PRIVATE_ENVIRONMENT, PRIVATE_LAUNCH_CONTRACT, assertCurrentLaunchContract, readLaunchContext, withLaunchContext, withoutLaunchContext } from "../../../src/foundation/launch-context/index.js";
+import { PRIVATE_ENVIRONMENT, PRIVATE_LAUNCH_CONTRACT, assertCurrentLaunchContract, hidesTabSettings, readLaunchContext, withLaunchContext, withoutLaunchContext } from "../../../src/foundation/launch-context/index.js";
 import { PRODUCT_IDENTITY, validateProductIdentity } from "../../../src/product-identity.js";
 
 const release = {
@@ -10,6 +10,16 @@ const release = {
   launchProfile: "a1" as const,
   launchMode: "tabs" as const,
 };
+
+describe("tab settings visibility", () => {
+  it("hides the Tabs settings for every launch that runs the direct route", () => {
+    expect(hidesTabSettings({ launchMode: "tabs" })).toBe(false);
+    expect(hidesTabSettings({ launchMode: "solo" })).toBe(true);
+    // Invariant: a bare launch that fell back shows no Tabs section either; nothing in it could apply.
+    expect(hidesTabSettings({ launchMode: "tabs", residentFallback: "terminal host not installed" })).toBe(true);
+    expect(hidesTabSettings({})).toBe(false);
+  });
+});
 
 describe("neutral private launch contract", () => {
   it("reads and writes only one supported set of private keys", () => {
