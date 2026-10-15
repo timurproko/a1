@@ -23,6 +23,7 @@ fn main() {
             run_echo(false);
         }
         "stream" => run_stream(false),
+        "progress" => run_progress(),
         "stop-reading" => run_stream(true),
         "ignore-shutdown" => run_echo(true),
         _ => run_echo(false),
@@ -46,6 +47,23 @@ fn run_echo(ignore_shutdown: bool) {
         loop {
             thread::sleep(Duration::from_secs(60));
         }
+    }
+}
+
+/// Advances a counter in place and, once far enough along, prints a line and drops a marker file in
+/// its working directory, so a test can tell when the tab has produced output nobody has seen yet.
+fn run_progress() {
+    let mut stdout = std::io::stdout().lock();
+    writeln!(stdout, "fake-tab-ready\r").expect("ready");
+    for tick in 1_u64.. {
+        if tick == 50 {
+            writeln!(stdout, "\r\nprogress-reached\r").expect("progress line");
+            stdout.flush().expect("flush progress line");
+            std::fs::write("fake-tab-progress-reached", b"reached\n").expect("progress marker");
+        }
+        write!(stdout, "\rtick:{tick:08}").expect("tick");
+        stdout.flush().expect("flush tick");
+        thread::sleep(Duration::from_millis(20));
     }
 }
 

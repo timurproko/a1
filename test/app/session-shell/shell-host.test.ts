@@ -17,7 +17,7 @@ vi.mock("node:worker_threads", async importOriginal => {
     }
   } };
 });
-import { fixture, nextImmediate, secondPresenter } from "./session-shell-fixture.js";
+import { fixture, nextImmediate, residentFixture, secondPresenter } from "./session-shell-fixture.js";
 
 const reply = (text: string) => ({ role: "assistant", content: [{ type: "text", text }], timestamp: 1 });
 
@@ -70,22 +70,31 @@ describe("OwnedUiTerminalHost", () => {
     }
   });
 
-  it("holds hidden resident presentation and repaints once when visible", async () => {
-    const { terminal, shell } = await fixture([], [], true);
+  it("keeps a resident tab streaming into its terminal with no visibility gate to defer it", async () => {
+    const { engine, adapter, terminal, shell } = await residentFixture({ requestDetach: async () => true });
     try {
       await settledFrames();
-      shell.terminalHost.setPresentationVisible(false);
-      const writes = terminal.writes.length;
+      // Invariant: whether a client views the tab is the native holder's concern; nothing here can pause it.
+      expect("setPresentationVisible" in shell.terminalHost).toBe(false);
       const redraws = shell.runtime.fullRedraws;
-      shell.root.editor.setText("hidden change");
-      shell.terminalHost.requestRender(shell);
+      const beforeStart = terminal.writes.length;
+      engine.session.emit({ type: "agent_start" });
+      engine.session.emit({ type: "message_start", message: reply("Background stream") });
+      await adapter.flushEvents();
       await settledFrames();
-      expect(terminal.writes.length).toBe(writes);
+      expect(stripTerminalSequences(terminal.writes.slice(beforeStart).join(""))).toContain("Background stream");
+
+      // Invariant: each streamed delta paints as it arrives, never saved up for a later catch-up repaint.
+      const beforeDelta = terminal.writes.length;
+      engine.session.emit({
+        type: "message_update",
+        message: reply("Background stream advances"),
+        assistantMessageEvent: { type: "text_delta", delta: " advances" },
+      });
+      await adapter.flushEvents();
+      await settledFrames();
+      expect(stripTerminalSequences(terminal.writes.slice(beforeDelta).join(""))).toContain("advances");
       expect(shell.runtime.fullRedraws).toBe(redraws);
-      shell.terminalHost.setPresentationVisible(true);
-      await settledFrames();
-      expect(shell.runtime.fullRedraws).toBe(redraws + 1);
-      expect(stripTerminalSequences(terminal.writes.slice(writes).join(""))).toContain("hidden change");
     } finally {
       await shell.dispose();
     }

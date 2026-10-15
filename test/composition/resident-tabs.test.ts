@@ -89,14 +89,17 @@ describe("resident tab composition bridge", () => {
     expect(JSON.stringify(value.bridge.status.mock.calls)).not.toContain("queued prompt");
   });
 
-  it("applies host visibility without stopping status reporting", async () => {
+  it("accepts host visibility without pausing the tab or interrupting status reporting", async () => {
     const value = fixture();
-    const onVisibility = vi.fn();
-    await bindResidentTabBridge(value.bridge as never, value.backend as never, null, { onVisibility });
+    await bindResidentTabBridge(value.bridge as never, value.backend as never);
     value.command({ type: "visibility", visible: false });
     value.event({ type: "session-lifecycle", lifecycle: "busy" });
-    expect(onVisibility).toHaveBeenCalledWith(false);
     expect(value.bridge.status).toHaveBeenLastCalledWith("working", false, 0, 0);
+    value.command({ type: "visibility", visible: true });
+    value.event({ type: "session-lifecycle", lifecycle: "idle" });
+    expect(value.bridge.status).toHaveBeenLastCalledWith("idle", false, 0, 0);
+    // Invariant: visibility is a no-op for the child; it neither renames nor stops the session.
+    expect(value.backend.workflows.executeWorkflow).not.toHaveBeenCalled();
   });
 
   it("generates and persists one bounded automatic name after the first settled turn", async () => {

@@ -1976,6 +1976,111 @@ fn a_bridge_status_survives_the_surfaces_of_the_holder_it_reports_under() {
 }
 
 #[test]
+fn an_unviewed_tab_keeps_its_terminal_current_and_presents_it_in_full_when_viewed() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let mut viewer = AttachFixture::spawn_view(
+        &executable,
+        &address,
+        &profile,
+        &data,
+        &release,
+        fake_tab,
+        None,
+    );
+    assert!(viewer.output_containing("fake-tab-ready", Duration::from_secs(15)));
+
+    let created = Command::new(&executable)
+        .args([
+            "internal",
+            "tab-create",
+            "--profile",
+            text(&profile),
+            "--data-dir",
+            text(&data),
+            "--runtime-dir",
+            text(&runtime),
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            fake_tab,
+        ])
+        .env("A1_TABS_ENDPOINT", &address)
+        .env("TERMINAL_HOST_FAKE_TAB_MODE", "progress")
+        .current_dir(&release)
+        .output()
+        .expect("create progress tab");
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    let hidden_tab = serde_json::from_slice::<serde_json::Value>(&created.stdout)
+        .expect("tab-create json")["tabId"]
+        .as_str()
+        .expect("created tab id")
+        .to_owned();
+
+    // Invariant: the unviewed tab's child keeps producing output with no client subscribed to it.
+    let marker = release.join("fake-tab-progress-reached");
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !marker.exists() {
+        assert!(
+            Instant::now() < deadline,
+            "the unviewed tab never advanced: {}",
+            viewer.output_text()
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    cleanup.pids.extend(holder_pids(&credentials_root));
+    // Invariant: an inactive tab's surfaces never reach a client viewing another tab.
+    assert!(
+        !viewer.output_containing("progress-reached", Duration::from_secs(1)),
+        "an unviewed tab's surface reached another tab's client"
+    );
+
+    // Invariant: viewing the tab presents what it produced while unviewed in its first complete
+    // surface; nothing has to be produced again before it shows.
+    let mut selected = AttachFixture::spawn_view(
+        &executable,
+        &address,
+        &profile,
+        &data,
+        &release,
+        fake_tab,
+        Some(&hidden_tab),
+    );
+    assert!(
+        selected.output_containing("progress-reached", Duration::from_secs(10)),
+        "{}",
+        selected.output_text()
+    );
+    assert!(selected.output_containing("tick:", Duration::from_secs(5)));
+    selected.lose_launch_tree();
+    viewer.lose_launch_tree();
+    selected.wait(Duration::from_secs(8));
+    viewer.wait(Duration::from_secs(8));
+}
+
+#[test]
 fn a_server_of_another_generation_is_reported_incompatible_and_never_signalled() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
