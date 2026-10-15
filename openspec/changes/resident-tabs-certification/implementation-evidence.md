@@ -75,3 +75,17 @@ Server recovery meets the soak target (< 2 s) on every platform. Restart p95 val
 ### Acceptance state and gaps
 
 Every platform record in `docs/architecture/evidence/resident-tabs/` is `CI-verified`; no physical item has run on a published candidate, and the per-platform 24-hour soak remains a separate authorization. Intel macOS has no automated behavior suite because modular validation outcomes are keyed by platform without architecture. The remaining gaps are listed under "Release state and known gaps" in `docs/architecture/resident-tabs.md`.
+
+### Final head (task 4.4 and task 9.1 closure)
+
+Head `81cc411d` on 2026-10-14, Development validation run [38620254089](https://github.com/timurproko/a1/actions/runs/38620254089): every job succeeded. Changes after the record above: `a1 tabs host stop` reports only once no owner and no tab process remain; a holder that must be forced has its recorded child terminated by its own verified identity; a tab stopped during its restart backoff is never relaunched; the host-stop command carries named crash points (`host-stop-after-terminate`, `host-stop-after-replacement`, `host-stop-after-answer`) and `host_stop_killed_at_each_step_leaves_no_orphan_or_duplicate_host` kills it at each one, then recovers with a stop that leaves no orphan and no duplicate host; the latency harness proves a reattach paint by the retained last line.
+
+| Lane | Windows x64 | Linux x64 | macOS arm64 |
+|---|---|---|---|
+| Crate unit tests | 85 passed, 1 ignored | 87 passed, 1 ignored | 86 passed, 1 ignored |
+| `tests/role_integration.rs` (18 tests, incl. the host-stop crash test) | 18 passed (703 s) | 18 passed (628 s) | 18 passed (664 s) |
+| TypeScript probe suites, fidelity, latency budgets | 8 files passed; all budgets passed | 8 files passed; all budgets passed | 8 files passed; all budgets passed |
+| `npm run test:resident-chaos` (600 s) | 0 violations | 0 violations | 0 violations |
+| Exact-package contracts | 6 passed | — | — |
+
+Chaos measurements on this run (reported, not gating): server recovery p95 473 ms (Windows), 106 ms (Linux), 2442 ms (macOS: one of 18 recoveries on a loaded runner exceeded the 2 s soak target; the earlier run measured 71 ms); undisturbed holder restart p50 1.0–1.2 s on every platform; cold tab create p95 269 / 293 / 459 ms. The soak target itself is judged by the separately authorized 24-hour soak, not by a 600-second chaos run.

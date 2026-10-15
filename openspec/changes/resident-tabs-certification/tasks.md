@@ -29,7 +29,7 @@ Milestone 6 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). M
 - [x] 4.1 Recognize `tabs` in `src/cli/dispatch.ts`, add it to `cliUsage` and complete help, and add focused `a1 tabs --help`; update the help and grammar tests in `test/` for the `a1-shell` delta.
 - [x] 4.2 Implement `a1 tabs` and `a1 tabs host status` in `src/cli/tabs.ts` (new file) with bounded probes that never start a server; tests assert no process is spawned when no server answers, on each platform.
 - [x] 4.3 Implement `a1 tabs stop <id>` and `a1 tabs stop --all` with graceful shutdown, bounded verified tree termination, and resumable sessions; tests cover a busy tab, an unknown id, and a tab whose holder is hung.
-- [ ] 4.4 Implement `a1 tabs host stop` including the unresponsive-server path (verified termination, then an explicit-restart replacement that is stopped at once), and the unverifiable-owner refusal; crash tests kill the command at each step and assert no orphan, duplicate, or killed unverified process.
+- [x] 4.4 Implement `a1 tabs host stop` including the unresponsive-server path (verified termination, then an explicit-restart replacement that is stopped at once), and the unverifiable-owner refusal; crash tests kill the command at each step and assert no orphan, duplicate, or killed unverified process.
 - [x] 4.5 Implement `a1 tabs doctor` per Decision 8 with the 25 MiB cap and an allowlisted archive; a canary test seeds secrets, tokens, environment values, journals, drafts, last screens, the private child-stderr sink (seeded directly, since no platform captures child stderr yet), and terminal content and fails if any appears in the bundle.
 - [x] 4.6 Add `--json` output with a versioned schema for every form, and argument-validation tests asserting one-line diagnostics and nonzero status before any I/O.
 
@@ -62,4 +62,4 @@ Milestone 6 of 6 for resident tabs (see `docs/architecture/resident-tabs.md`). M
 
 ## 9. Validation
 
-- [ ] 9.1 Run the native suites, simulation corpus, fault-injection tests, bounded fuzzing, chaos group, exact-package tests, strict OpenSpec validation, and documentation governance on every platform where they apply, and record commands, results, artifact hashes, measurements, and each platform's acceptance state in `implementation-evidence.md`.
+- [x] 9.1 Run the native suites, simulation corpus, fault-injection tests, bounded fuzzing, chaos group, exact-package tests, strict OpenSpec validation, and documentation governance on every platform where they apply, and record commands, results, artifact hashes, measurements, and each platform's acceptance state in `implementation-evidence.md`.
