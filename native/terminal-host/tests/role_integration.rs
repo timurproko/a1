@@ -1942,18 +1942,21 @@ fn a_bridge_status_survives_the_surfaces_of_the_holder_it_reports_under() {
             .map(|tab| tab["status"].as_str().unwrap_or("").to_owned())
     };
     let deadline = Instant::now() + Duration::from_secs(15);
+    let mut sequence = 1_u64;
     while status_of().as_deref() != Some("working") {
         assert!(
             Instant::now() < deadline,
             "the working status never reached the tab list: {:?}",
             status_of()
         );
-        // Rationale: the status is re-sent until the first surface exists to carry it.
+        // Rationale: the status is re-sent, each time under a newer sequence, until the first
+        // surface exists to carry it; a repeated sequence is stale and ignored.
+        sequence += 1;
         terminal_host_contracts::roles::wire::send(
             &mut bridge,
             "bridge.status",
             None,
-            serde_json::json!({ "seq": 2, "state": "working" }),
+            serde_json::json!({ "seq": sequence, "state": "working" }),
         )
         .expect("resend working status");
         std::thread::sleep(Duration::from_millis(250));
