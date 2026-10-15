@@ -206,10 +206,10 @@ describe("deliberate publication pipeline", () => {
     expect(new Set(checkoutReferences)).toEqual(new Set(["fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09"]));
   });
 
-  it("names published-pair jobs from authoritative matrix fields", async () => {
+  it("names published-pair jobs statically so GitHub appends the authoritative matrix fields", async () => {
     const source = await workflow();
     const postPublish = source.slice(source.indexOf("\n  post_publish:"), source.indexOf("\n  complete:"));
-    expect(postPublish).toContain("name: Published pair ${{ matrix.platform }} / Node ${{ matrix.node }}");
+    expect(postPublish).toContain("\n    name: Published pair\n");
     expect(postPublish).not.toContain("matrix.label");
   });
 
