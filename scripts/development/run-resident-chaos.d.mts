@@ -8,6 +8,7 @@ export type ChaosAction =
 
 export function createGenerator(seed: number): (limit: number) => number;
 export function chooseAction(random: (limit: number) => number, openOrdinals: readonly number[]): ChaosAction;
+export function nextAction(planned: readonly ChaosAction[] | null, random: (limit: number) => number, openOrdinals: readonly number[], step: number): ChaosAction;
 export function readSchedule(report: unknown): ChaosAction[];
 export function labelViolations(violations: readonly (string | Record<string, unknown>)[], seed: number, report: string | null): Record<string, unknown>[];
 export function percentile(values: readonly number[], fraction: number): number | null;

@@ -13,19 +13,19 @@ Workflow change for resident tabs iteration (see `design.md`). The branch is rec
 
 ## 3. Seeded, replayable chaos
 
-- [ ] 3.1 Replace the unseeded random source in `scripts/development/run-resident-chaos.mjs` with a seeded generator; print the seed at start and store it in the report; record each executed action with kind, resolved parameters, and timestamp; name the seed and report path in every violation.
-- [ ] 3.2 Add `--replay <report.json>` that re-executes the recorded schedule and reports divergence; `test/repository-governance/resident-chaos.test.ts` proves generator determinism, schedule round-trip, and replay issuing the recorded actions.
+- [x] 3.1 Replace the unseeded random source in `scripts/development/run-resident-chaos.mjs` with a seeded generator; print the seed at start and store it in the report; record each executed action with kind, resolved parameters, and timestamp; name the seed and report path in every violation.
+- [x] 3.2 Add `--replay <report.json>` that re-executes the recorded schedule and reports divergence; `test/repository-governance/resident-chaos.test.ts` proves generator determinism, schedule round-trip, and replay issuing the recorded actions.
 
 ## 4. Prebuilt terminal library (gated)
 
-- [ ] 4.1 Add `TERMINAL_HOST_EXPORT_VT` to `build.rs` per Decision 3 and upload `terminal-vt-<platform>-<architecture>` from the terminal-host validation job; extend `test/repository-governance/release-pipeline-policy.test.ts` for the upload.
+- [x] 4.1 Add `TERMINAL_HOST_EXPORT_VT` to `build.rs` per Decision 3 and upload `terminal-vt-<platform>-<architecture>` from the terminal-host validation job; extend `test/repository-governance/release-pipeline-policy.test.ts` for the upload.
 - [ ] 4.2 Spike gate: on Windows with endpoint protection active, link the fetched library through a minimal development override and run one `role_integration` test; record the result. If anything is quarantined, stop and refine scope to remove section 4's remaining tasks and the prebuilt-library requirement.
 - [ ] 4.3 Complete the development override: manifest verification against the vendored `VERSION` and Cargo target, one-line mismatch failure with no fallback, ignored in CI and release builds; unit-test the manifest check.
 - [ ] 4.4 Add `scripts/development/fetch-terminal-vt.mjs` (latest successful validation run of a named branch into `.artifacts/terminal-vt/`) and document the local `cargo test --test role_integration <name>` loop in `docs/architecture/resident-tabs.md`.
 
 ## 5. Specification
 
-- [ ] 5.1 Correct the full-regression exclusion requirement per Decision 4; confirm `test/repository-governance/validation-suite-policy.test.ts` already enforces both exclusions.
+- [x] 5.1 Correct the full-regression exclusion requirement per Decision 4; confirm `test/repository-governance/validation-suite-policy.test.ts` already enforces both exclusions.
 
 ## 6. Validation
 

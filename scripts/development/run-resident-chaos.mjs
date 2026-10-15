@@ -88,7 +88,12 @@ export function chooseAction(random, openOrdinals) {
   return { kind: "idle", delayMs: 50 + random(500) };
 }
 
-const ACTION_FIELDS = { create: ["mode", "bytes"], "kill-server": [], "kill-holder": ["tab"], "kill-child": ["tab"], "stop-tab": ["tab"], idle: ["delayMs"] };
+/** The action for a step: the recorded one when replaying, otherwise a fresh seeded draw. */
+export function nextAction(planned, random, openOrdinals, step) {
+  return planned === null ? chooseAction(random, openOrdinals) : planned[step];
+}
+
+const ACTION_FIELDS ={ create: ["mode", "bytes"], "kill-server": [], "kill-holder": ["tab"], "kill-child": ["tab"], "stop-tab": ["tab"], idle: ["delayMs"] };
 
 /** The replayable actions of a recorded report, without their timing or outcomes. */
 export function readSchedule(report) {
@@ -258,7 +263,7 @@ async function main() {
     const open = listing.result?.tabs ?? [];
     violations.push(...listingViolations(open));
     const openOrdinals = open.map(tab => ordinals.get(tab.tabId)).filter(ordinal => ordinal !== undefined);
-    const chosen = planned === null ? chooseAction(random, openOrdinals) : planned[schedule.length];
+    const chosen = nextAction(planned, random, openOrdinals, schedule.length);
     const entry = { step: schedule.length, atMs: Math.round(performance.now() - runStarted), ...chosen };
     schedule.push(entry);
     const target = "tab" in chosen ? open.find(tab => ordinals.get(tab.tabId) === chosen.tab) : undefined;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHAOS_SCHEMA, chooseAction, createGenerator, labelViolations, listingViolations, percentile, readSchedule, recordContext, summarize, type ChaosAction } from "../../scripts/development/run-resident-chaos.mjs";
+import { CHAOS_SCHEMA, chooseAction, createGenerator, labelViolations, listingViolations, nextAction, percentile, readSchedule, recordContext, summarize, type ChaosAction } from "../../scripts/development/run-resident-chaos.mjs";
 
 /** Simulate a run's choices against a tab set that loses every third targeted tab, as kills and stops do. */
 function simulate(seed: number, steps: number): ChaosAction[] {
@@ -51,7 +51,12 @@ describe("resident chaos harness", () => {
     const actions = simulate(11, 200);
     const schedule = actions.map((action, step) => ({ step, atMs: step * 37, ...action, outcome: action.kind }));
     const saved = JSON.parse(JSON.stringify({ schema: CHAOS_SCHEMA, seed: 11, schedule }));
-    expect(readSchedule(saved)).toEqual(actions);
+    const planned = readSchedule(saved);
+    expect(planned).toEqual(actions);
+    // Invariant: a replay issues the recorded actions in order and never draws from a generator.
+    const exhausted = () => { throw new Error("replay drew a random value"); };
+    expect(planned.map((_, step) => nextAction(planned, exhausted, [], step))).toEqual(actions);
+    expect(nextAction(null, createGenerator(11), [], 0)).toEqual(chooseAction(createGenerator(11), []));
     expect(() => readSchedule({ ...saved, schema: "a1-resident-chaos-v1" })).toThrow(/report with a seed and a schedule/u);
     expect(() => readSchedule({ ...saved, schedule: [{ kind: "kill-holder" }] })).toThrow(/entry 0 is not a recorded action/u);
   });

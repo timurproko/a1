@@ -728,7 +728,7 @@ jobs:
           name: terminal-vt-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}
           path: .artifacts/terminal-vt/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
       - name: Add modular timing summary
         if: always() && steps.job-selection.outputs.active == 'true'
         shell: bash
