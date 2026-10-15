@@ -1,51 +1,55 @@
 ## Context
 
-See `proposal.md` for motivation. Milestone 6 (`resident-tabs-certification`, #750) found about twelve genuine lifecycle defects, each through one randomized 600-second chaos run or one platform's integration lane, and each cost a full validation cycle to confirm because nothing native runs on the developer's machine and nothing random can be replayed. The sans-IO core and its simulator exist, but most lifecycle logic still lives in `native/terminal-host/src/roles/server.rs`; moving it into the core is a later, separately planned change. This change only makes iteration cheap and failures reproducible, so that later change and every fix before it cost minutes instead of twenty-minute cycles.
+See `proposal.md` for motivation. Milestone 6 (`resident-tabs-certification`, #750, now merged) found about twelve genuine lifecycle defects, each through one randomized 600-second chaos run or one platform's integration lane, and each cost a full validation cycle to confirm because nothing native runs on the developer's machine and nothing random can be replayed. The sans-IO core and its simulator exist, but most lifecycle logic still lives in `native/terminal-host/src/roles/server.rs`; moving it into the core is a later, separately planned change. This change only makes iteration cheap and failures reproducible.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Run any one native integration test locally in minutes on Windows, Linux, and macOS without a Zig toolchain.
-- Replay any chaos violation from its seed.
-- Catch every fast governance failure before a push.
-- Dispatch only the native lanes when only native code changed.
+- Catch fast governance failures before a push.
+- Replay any chaos run's action schedule from its report.
+- Run one native integration test locally on Windows without a Zig toolchain, if endpoint protection permits the linked binary.
 
 **Non-Goals:**
 - Changing the host's behavior, protocol, verification, or packaging.
 - Moving lifecycle logic into the sans-IO core (a later change).
-- Changing pull-request or nightly validation selection; only manual dispatch gains a subset.
+- Changing pull-request, nightly, or dispatch validation selection. A lane-scoped dispatch was considered and dropped: once native tests run locally, a native-only CI cycle saves little, and it would add a new selection path to the protected aggregate.
 - Weakening any governance gate; preflight runs the same checks with the same identifiers.
 
 ## Decisions
 
-### 1. The prebuilt terminal library is a CI artifact consumed by an explicit development override
+### 1. Preflight is a composition of existing gates, not a new policy
 
-`build.rs` keeps the Zig build as the only path for release artifacts. When `TERMINAL_HOST_PREBUILT_VT` names a directory holding the static library and headers for the current Cargo target, and the build is not a release build (`CI` unset and `TERMINAL_HOST_LOCAL_BUILD=1`, as today), it links that library and skips Zig. The directory carries a `terminal-vt.manifest.json` with the vendored `libghostty-vt` version, the Zig target and CPU, and the library SHA-256; a manifest that does not match the vendored `VERSION` and the Cargo target fails the build with a one-line reason. The `terminal_hosts` and terminal-host validation jobs upload `terminal-vt-<platform>-<architecture>` from the same build that produced the host, so the local build links exactly what CI linked. A development script downloads the artifact for the current platform from the latest green run of a branch.
+`npm run preflight` runs, in this order and stopping at the first failure: `typecheck`, `check:architecture`, `check:code-documentation:changed`, changed-file naming, strict OpenSpec validation of every active change, the delivery-guidance governance test, and the changed test selection. Each step invokes the same script CI runs, so a failure reports the same rule identifier and path. Changed-file naming reuses the local impact selection that `scripts/release/run-changed-documentation.mjs` already derives (`.artifacts/validation/local-impact.json`) against the merge base with `origin/develop`, instead of CI's `impact.json`, which exists only in a workflow run. Where `npm run test:fast` already runs a step, preflight calls the same script rather than duplicating it. Preflight does not build the native host. It narrows the gap with CI but does not guarantee CI parity: CI computes its selection from the pull request's base, and validation remains the authority. The delivery skill and `docs/validation.md` state that a push follows a green preflight.
+
+### 2. Chaos replay re-executes the recorded schedule, not just the seed
+
+`run-resident-chaos.mjs` derives every random choice from one seeded generator (`--seed <n>`, default a fresh seed printed at start and stored in the report). A seed alone does not reproduce a run: whether a draw happens and its range depend on live state (`random(6)` is drawn only while tabs are open, `random(open.length)` depends on which tabs survived kills, and process timing changes both). So the report records the executed action schedule: each action with its kind, its resolved parameters (target tab by its schedule-local ordinal, stream mode, byte count, delay), and its timestamp. `--replay <report.json>` re-executes that schedule in order, resolving each tab ordinal against the replay's own tabs, and reports actions it could not apply (for example, a target that no longer exists) as divergence rather than silently substituting another. Every violation names the seed and the report path. The governance test proves the generator is deterministic for a seed, the schedule round-trips through the report, and a replay of a recorded schedule issues the same actions.
+
+### 3. The prebuilt terminal library is gated on a spike, then a development-only override
+
+Endpoint protection deleted a file the local Zig build touched; it is unproven whether linking a prebuilt `libghostty-vt` into a locally compiled Rust test binary is accepted. The outcome therefore starts with a spike, and only continues if the spike passes.
+
+- **Publish.** When `TERMINAL_HOST_EXPORT_VT=<dir>` is set, `build.rs` copies the static library, headers, and a `terminal-vt.manifest.json` (vendored `libghostty-vt` version, Zig target and CPU, library SHA-256) into that directory after its Zig build; the build itself is unchanged. The terminal-host validation job sets it and uploads `terminal-vt-<platform>-<architecture>`, so the published library is exactly what CI linked.
+- **Spike gate.** On the maintainer's Windows machine, with the artifact fetched by hand and a minimal development override, build and run one `role_integration` test with endpoint protection active. Record the result in `implementation-evidence.md`. If the link step, the test binary, or the library is quarantined, stop: remove this outcome and its requirement through scope refinement in this pull request, and keep the CI export only if it is useful on its own.
+- **Override.** If the spike passes: when `TERMINAL_HOST_PREBUILT_VT` names a directory and the build is a local development build (`CI` unset and `TERMINAL_HOST_LOCAL_BUILD=1`, as today), `build.rs` verifies the manifest against the vendored `VERSION` and the Cargo target, links that library, and skips Zig; a mismatch fails with one line and never falls back. CI and release builds ignore the variable. `scripts/development/fetch-terminal-vt.mjs` downloads the artifact for the current platform from a named branch's latest successful validation run into `.artifacts/terminal-vt/`.
 
 Alternatives rejected: an endpoint-protection exclusion (not reproducible for other developers and silently weakens the machine); vendoring prebuilt binaries in the repository (large, unverifiable, and against the provenance policy).
 
-### 2. Preflight is a composition of existing gates, not a new policy
+### 4. Correct the full-regression exclusion rule
 
-`npm run preflight` runs, in this order and stopping at the first failure: `typecheck`, `check:architecture`, `check:code-documentation:changed`, `check:names:changed`, strict OpenSpec validation of every active change, the delivery-guidance governance test, and the changed test selection. Each step is the same script CI runs with the same rule identifiers, so a preflight failure reads like the CI failure it prevents. The delivery skill and `docs/validation.md` state that a push follows a green preflight. Preflight does not build the native host.
-
-### 3. Chaos is seeded, logged, and replayable
-
-`run-resident-chaos.mjs` derives every random choice from a seeded generator (`--seed <n>`, default a fresh seed printed at start and in the report). The run appends each action with its parameters and timestamp to an action log in the report. `--replay <n>` reruns the recorded action sequence under that seed; timing still varies with the runner, so replay reproduces the schedule, not the clock. A violation message names the seed. The governance test for the chaos report proves that the same seed yields the same action sequence.
-
-### 4. A dispatch may name its lanes
-
-Development validation's `workflow_dispatch` gains a `lanes` input: empty keeps today's selection; `native` selects only the `terminal-host` and `resident-chaos` owners on their platforms. Pull-request and nightly selection ignore the input. The selection is recorded in the run's impact artifact so the aggregate explains what it covered, and a lane-scoped dispatch never emits the protected required aggregate.
+The `continuous-integration` requirement says the only permitted `fullReleaseExclusion` is `terminal-host`, but `config/validation-suites.json` also excludes `resident-chaos` since #750. This change modifies resident chaos, so it corrects the requirement to name both and keeps the rule that any further exclusion needs a reviewed change. No selection changes.
 
 ### 5. Order of work
 
-Local native tests first, because every other item is verified faster with them; then preflight; then seeded chaos; then the dispatch input. Implementation starts after #750 merges or rebases onto it, since both touch `run-resident-chaos.mjs` and `ci.yml`.
+Preflight first, because it shortens every later push; then seeded chaos; then the prebuilt-library spike and, only if it passes, the override and fetch script.
 
 ## Risks / Trade-offs
 
-- **[A stale prebuilt library hides a VT regression]** → the manifest binds the vendored version and target, and release artifacts never use the override.
-- **[Replay drifts from the original run]** → replay reproduces the action schedule and reports timing separately; the seed and schedule are still enough to reproduce ordering bugs, which were every chaos violation of milestone 6.
-- **[Preflight is skipped]** → it is the stated rule in the skill and runbook, and CI remains the authority; preflight only makes failures local.
+- **[Endpoint protection still quarantines the linked binary]** → the spike gate decides before the override and fetch script are built; the outcome is removed rather than left half-built.
+- **[A stale prebuilt library hides a VT regression]** → the manifest binds the vendored version and target, and CI and release builds never read the override.
+- **[Replay diverges from the original run]** → replay re-executes the recorded schedule and reports any action it could not apply; timing is reported separately. Ordering bugs, which were every chaos violation of milestone 6, reproduce from the schedule.
+- **[Preflight passes but CI fails]** → CI's base and selection can differ from the local merge base; preflight reports which base it used, and CI remains the authority.
 
 ## Resolved Questions
 
-- A lane-scoped dispatch is diagnostic only: it never satisfies the required pull-request aggregate.
+- No lane-scoped dispatch in this change (see Non-Goals).

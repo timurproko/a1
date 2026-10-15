@@ -6,10 +6,9 @@ Fixing one resident-tabs defect costs an eighteen-minute CI cycle per hypothesis
 
 ## What Changes
 
-- Publish the Zig-built `libghostty-vt` static library as a CI artifact per platform and let `native/terminal-host/build.rs` consume a prebuilt library from `TERMINAL_HOST_PREBUILT_VT`, so a developer runs `cargo test` for one native test locally in minutes with no Zig toolchain and nothing for endpoint protection to quarantine.
-- Add `npm run preflight`: one command that runs every fast governance gate pull-request validation runs (type check, architecture, changed-file code documentation, naming, strict OpenSpec validation, delivery guidance, changed tests) and fails with the same rule identifiers, so a push with a green preflight does not fail governance in CI.
-- Seed the resident chaos run: every run prints its seed, records its action schedule, and `--replay <seed>` reproduces that schedule; a violation names the seed that produced it.
-- Let Development validation be dispatched for a named lane subset (`lanes=native`: the terminal-host and resident-chaos owners) so iterating on host code costs the native lanes alone.
+- Add `npm run preflight`: one command that runs the fast governance gates pull-request validation runs (type check, architecture, changed-file code documentation, changed-file naming, strict OpenSpec validation, delivery guidance, changed tests) with the same scripts and rule identifiers, so governance failures surface before a push.
+- Make the resident chaos run reproducible: every run prints its seed and records its executed action schedule in its report, every violation names its seed and report, and `--replay <report>` re-executes that recorded schedule.
+- Publish the Zig-built `libghostty-vt` static library as a per-platform CI artifact and let `native/terminal-host/build.rs` link it in local development builds through `TERMINAL_HOST_PREBUILT_VT`, so one native test runs locally without Zig. Because it is unproven that endpoint protection accepts the linked test binary, this outcome starts with a gated spike: if the local link or test binary is still quarantined, the outcome is removed from this change through scope refinement instead of being built out.
 
 ## Capabilities
 
@@ -19,14 +18,13 @@ None.
 
 ### Modified Capabilities
 
-- `continuous-integration`: manual Development validation dispatch accepts a declared lane subset while pull-request and nightly selection are unchanged.
+- `continuous-integration`: the full-regression exclusion rule names both scopes `config/validation-suites.json` already excludes (`terminal-host` and `resident-chaos`), correcting the requirement this change's chaos work depends on.
 - `project-structure-governance`: one local preflight command runs the fast governance gates with CI's rule identifiers.
-- `resident-tab-reliability`: native host verification runs locally from a published prebuilt terminal library, and resident chaos runs are seeded and replayable.
+- `resident-tab-reliability`: resident chaos runs are seeded and replayable from their report, and native host verification runs locally from a published prebuilt terminal library.
 
 ## Impact
 
-- `native/terminal-host/build.rs`, the `terminal_hosts` and terminal-host validation jobs in `.github/workflows/`, and a `terminal-vt-<platform>` artifact.
-- `scripts/development/run-resident-chaos.mjs` and its governance test gain `--seed` and `--replay`.
-- `package.json` gains `preflight`; `docs/validation.md` and the delivery skill name it as the pre-push rule.
-- `.github/workflows/ci.yml` gains a `lanes` dispatch input; `scripts/release/validation-matrix.mjs` and its selection tests honor it.
-- No product behavior changes; the shipped host, its verification, and release packaging are untouched.
+- `package.json` gains `preflight`; `docs/validation.md`, `openspec/config.yaml`, and the delivery skill name it as the pre-push rule.
+- `scripts/development/run-resident-chaos.mjs` and `test/repository-governance/resident-chaos.test.ts` gain the seeded generator, the action schedule, and `--replay`.
+- `native/terminal-host/build.rs`, the terminal-host validation job in `.github/workflows/ci.yml`, a `terminal-vt-<platform>-<architecture>` artifact, and a fetch script, subject to the spike.
+- No product behavior changes; the shipped host, its verification, release packaging, and pull-request and nightly validation selection are untouched.
