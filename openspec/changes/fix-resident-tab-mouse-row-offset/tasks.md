@@ -1,12 +1,12 @@
 ## 1. Correct resident surface coordinates
 
-- [ ] 1.1 Pass the unmodified outer-terminal row into the resident attach mouse encoder and keep the encoder as the single strip-offset boundary.
-- [ ] 1.2 Preserve attach-owned row-zero tab interactions and unchanged column, event-kind, and SGR one-based encoding behavior.
+- [x] 1.1 Pass the unmodified outer-terminal row into the resident attach mouse encoder and keep the encoder as the single strip-offset boundary.
+- [x] 1.2 Preserve attach-owned row-zero tab interactions and unchanged column, event-kind, and SGR one-based encoding behavior.
 
 ## 2. Prevent regression
 
-- [ ] 2.1 Add focused native assertions that the first and later child surface rows encode without displacement for hover and activation reports.
-- [ ] 2.2 Retain explicit coverage that the tab-strip row has no child coordinate and cannot be forwarded.
+- [x] 2.1 Add focused native assertions that the first and later child surface rows encode without displacement for hover and activation reports.
+- [x] 2.2 Retain explicit coverage that the tab-strip row has no child coordinate and cannot be forwarded.
 
 ## 3. Validate delivery
 
