@@ -8,4 +8,4 @@
 
 - [x] 2.1 Add focused native tests for every frame, cadence wraparound, working/start/restore mappings, semantic `?`/`✓`/`!`/`✗` preservation, and absence of quarter-circle progress glyphs.
 - [x] 2.2 Verify one-column chip width, clipping, close-control hit targets, palette/truecolor paths, and independent per-tab accent styling remain unchanged.
-- [ ] 2.3 Run focused terminal-host tests, strict OpenSpec validation, type checking, and preflight; record results and any known-gap disposition in implementation evidence.
+- [x] 2.3 Run focused terminal-host tests, strict OpenSpec validation, type checking, and preflight; record results and any known-gap disposition in implementation evidence.
