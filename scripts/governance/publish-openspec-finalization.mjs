@@ -18,6 +18,15 @@ function summaryLine(number, result) {
   return `- PR #${number}: ${result.disposition}${detail}${commits}${body}${result.archive ? `; archive ${result.archive}` : ""}`;
 }
 
+/** Print one result and return the process exit code; a `blocked` draft fails with an error annotation. */
+export function reportResult(result, log = console.log) {
+  log(JSON.stringify(result, null, 2));
+  if (result.disposition !== "blocked") return 0;
+  // Rationale: every item is checked, so the author expects promotion; a green run would hide the refusal.
+  log(`::error title=OpenSpec finalization::PR stays draft: ${result.reason}`);
+  return 1;
+}
+
 export async function main(args = process.argv.slice(2), environment = process.env) {
   const { values } = parseArgs({ args, options: { pr: { type: "string" }, "dry-run": { type: "boolean" } } });
   if (!/^[1-9]\d*$/.test(values.pr ?? "")) throw archiveFailure("implementation-pr");
@@ -57,7 +66,7 @@ export async function main(args = process.argv.slice(2), environment = process.e
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main().then(value => console.log(JSON.stringify(value, null, 2))).catch(async error => {
+  main().then(value => { process.exitCode = reportResult(value); }).catch(async error => {
     const code = error.archiveCode ?? "internal-error";
     const detail = error.archiveDetail ? `: ${error.archiveDetail}` : "";
     console.error(`OpenSpec finalization blocked: ${code}${detail}`);
