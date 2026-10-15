@@ -10,4 +10,4 @@
 
 ## 3. Validate delivery
 
-- [ ] 3.1 Run the focused native tests, required repository preflight, strict OpenSpec validation, and diff checks; record evidence and any explicit known-gap disposition.
+- [x] 3.1 Run the focused native tests, required repository preflight, strict OpenSpec validation, and diff checks; record evidence and any explicit known-gap disposition.
