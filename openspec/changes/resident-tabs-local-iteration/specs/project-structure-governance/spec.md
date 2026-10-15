@@ -3,7 +3,7 @@
 ### Requirement: Repository governance is executable
 Architecture, documentation, and hygiene rules SHALL be enforced by deterministic checks that report stable rule identifiers and actionable path, line, and symbol violations where applicable. Checks SHALL cover feature dependency direction, forbidden deep imports, nested package/dependency state, generated artifacts in tracked source, prohibited terminal interception, stale redesign markers in current production documentation, production files with no declared ownership, and the complete first-party code-documentation policy. The code-documentation gate SHALL inspect the complete applicable tracked baseline without a grandfathered count, path allowlist, or accepted-violation snapshot and SHALL run in both fast pull-request validation and full release validation.
 
-One local command, `npm run preflight`, SHALL run the fast governance gates pull-request validation runs, in a fixed order, stopping at the first failure, using the same scripts and rule identifiers as validation: type check, architecture, changed-file code documentation, changed-file naming, strict validation of every active OpenSpec change, the delivery-guidance governance test, and the changed test selection. Preflight SHALL NOT build the native host and SHALL NOT replace validation as the authority.
+One local command, `npm run preflight`, SHALL run the fast governance gates pull-request validation runs against the committed merge-base diff of the current head, in a fixed order, stopping at the first failure, using the same scripts, arguments, and rule identifiers as validation: the core job's install build and build receipt, type check, architecture, changed-file code documentation, release documentation, changed-file naming, docs governance, strict OpenSpec validation with the workflow's pinned validator, the delivery-guidance governance test, and the core job's changed test scopes. Uncommitted paths SHALL be reported rather than selected. Preflight SHALL NOT build the native host and SHALL NOT replace validation as the authority.
 
 #### Scenario: New code violates a boundary
 - **WHEN** a change introduces a forbidden dependency, unowned source location, nested lockfile, prohibited terminal mechanism, or code-documentation violation
@@ -29,5 +29,5 @@ One local command, `npm run preflight`, SHALL run the fast governance gates pull
 
 #### Scenario: Preflight reproduces a validation failure locally
 - **WHEN** a change would fail a fast governance gate in pull-request validation
-- **THEN** `npm run preflight` SHALL fail before the push with the same rule identifier and path
-- **AND** a change with a green preflight SHALL NOT fail that gate in validation for the same bytes
+- **THEN** `npm run preflight` on the committed head SHALL fail before the push with the same rule identifier and path
+- **AND** each preflight step SHALL invoke the script and arguments its validation job runs, differing only in the local selection and result paths

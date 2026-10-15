@@ -4,12 +4,12 @@ Workflow change for resident tabs iteration (see `design.md`). The branch is rec
 
 ## 1. Baseline
 
-- [ ] 1.1 Record in `implementation-evidence.md` the CI scripts each preflight step mirrors, the chaos script's current random draws, and the Zig invocation and output paths in `native/terminal-host/build.rs` this change builds on.
+- [x] 1.1 Record in `implementation-evidence.md` the CI scripts each preflight step mirrors, the chaos script's current random draws, and the Zig invocation and output paths in `native/terminal-host/build.rs` this change builds on.
 
 ## 2. Preflight
 
-- [ ] 2.1 Add `npm run preflight` per Decision 1 with the exact gate order, stop-at-first-failure, and changed-file naming from the local impact selection; a governance test proves each step invokes the script CI runs.
-- [ ] 2.2 Name preflight as the pre-push rule in `.agents/skills/change-delivery/SKILL.md` (within its word bound), `openspec/config.yaml`, and `docs/validation.md`.
+- [x] 2.1 Add `npm run preflight` per Decision 1 with the exact gate order, stop-at-first-failure, and changed-file naming from the local impact selection; a governance test proves each step invokes the script CI runs.
+- [x] 2.2 Name preflight as the pre-push rule in `.agents/skills/change-delivery/SKILL.md` (within its word bound), `openspec/config.yaml`, and `docs/validation.md`.
 
 ## 3. Seeded, replayable chaos
 
