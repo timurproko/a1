@@ -1306,35 +1306,97 @@ fn print_hint(count: usize) {
         println!("\x1b[2m{count} agents still running run a1 to return.\x1b[0m");
     }
 }
+/// Xterm modifier parameter for the supported Ctrl/Alt/Shift mask; `None` when unmodified.
+/// Lock and other modifier state is deliberately ignored.
+fn modifier_parameter(modifiers: KeyModifiers) -> Option<u8> {
+    let mut bits = 0;
+    if modifiers.contains(KeyModifiers::SHIFT) {
+        bits |= 1;
+    }
+    if modifiers.contains(KeyModifiers::ALT) {
+        bits |= 2;
+    }
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        bits |= 4;
+    }
+    (bits != 0).then_some(bits + 1)
+}
+
+fn csi_u(codepoint: u32, parameter: u8) -> Vec<u8> {
+    format!("\x1b[{codepoint};{parameter}u").into_bytes()
+}
+
+/// Legacy control byte for Ctrl+character when that byte identifies the key losslessly.
+fn legacy_control_byte(character: char) -> Option<u8> {
+    match character.to_ascii_lowercase() {
+        value @ ('a'..='z' | '@' | '[' | '\\' | ']' | '^' | '_') => Some(value as u8 & 0x1f),
+        ' ' => Some(0),
+        _ => None,
+    }
+}
+
+fn encode_char(character: char, modifiers: KeyModifiers) -> Vec<u8> {
+    let control = modifiers.contains(KeyModifiers::CONTROL);
+    let alt = modifiers.contains(KeyModifiers::ALT);
+    if !control {
+        // Shift is already reflected in the produced character, so ESC-prefixing keeps Alt lossless.
+        let mut out = Vec::new();
+        if alt {
+            out.push(0x1b);
+        }
+        let mut encoded = [0_u8; 4];
+        out.extend_from_slice(character.encode_utf8(&mut encoded).as_bytes());
+        return out;
+    }
+    if !alt && !modifiers.contains(KeyModifiers::SHIFT) {
+        if let Some(byte) = legacy_control_byte(character) {
+            return vec![byte];
+        }
+    }
+    let codepoint = if character.is_ascii_alphabetic() {
+        character.to_ascii_lowercase()
+    } else {
+        character
+    };
+    csi_u(codepoint as u32, modifier_parameter(modifiers).unwrap_or(1))
+}
+
 fn encode_key(code: KeyCode, modifiers: KeyModifiers) -> Vec<u8> {
+    let parameter = modifier_parameter(modifiers);
+    let cursor = |letter: char| match parameter {
+        Some(parameter) => format!("\x1b[1;{parameter}{letter}").into_bytes(),
+        None => format!("\x1b[{letter}").into_bytes(),
+    };
+    let tilde = |number: u8| match parameter {
+        Some(parameter) => format!("\x1b[{number};{parameter}~").into_bytes(),
+        None => format!("\x1b[{number}~").into_bytes(),
+    };
+    let control = |legacy: &[u8], codepoint: u32| match parameter {
+        Some(parameter) => csi_u(codepoint, parameter),
+        None => legacy.to_vec(),
+    };
     match code {
-        KeyCode::Char(character) if modifiers.contains(KeyModifiers::CONTROL) => {
-            vec![(character.to_ascii_lowercase() as u8) & 0x1f]
-        }
-        KeyCode::Char(character) => {
-            let mut out = Vec::new();
-            if modifiers.contains(KeyModifiers::ALT) {
-                out.push(0x1b);
-            }
-            let mut encoded = [0_u8; 4];
-            out.extend_from_slice(character.encode_utf8(&mut encoded).as_bytes());
-            out
-        }
-        KeyCode::Enter => b"\r".to_vec(),
-        KeyCode::Tab => b"\t".to_vec(),
-        KeyCode::BackTab => b"\x1b[Z".to_vec(),
-        KeyCode::Backspace => vec![0x7f],
-        KeyCode::Esc => vec![0x1b],
-        KeyCode::Delete => b"\x1b[3~".to_vec(),
-        KeyCode::Insert => b"\x1b[2~".to_vec(),
-        KeyCode::Up => b"\x1b[A".to_vec(),
-        KeyCode::Down => b"\x1b[B".to_vec(),
-        KeyCode::Right => b"\x1b[C".to_vec(),
-        KeyCode::Left => b"\x1b[D".to_vec(),
-        KeyCode::Home => b"\x1b[H".to_vec(),
-        KeyCode::End => b"\x1b[F".to_vec(),
-        KeyCode::PageUp => b"\x1b[5~".to_vec(),
-        KeyCode::PageDown => b"\x1b[6~".to_vec(),
+        KeyCode::Char(character) => encode_char(character, modifiers),
+        KeyCode::Enter => control(b"\r", 13),
+        KeyCode::Tab if parameter == Some(2) => b"\x1b[Z".to_vec(),
+        KeyCode::Tab => control(b"\t", 9),
+        KeyCode::BackTab => match modifier_parameter(modifiers | KeyModifiers::SHIFT) {
+            Some(2) => b"\x1b[Z".to_vec(),
+            Some(parameter) => csi_u(9, parameter),
+            None => unreachable!("BackTab always carries Shift"),
+        },
+        KeyCode::Backspace => control(&[0x7f], 127),
+        KeyCode::Esc => control(&[0x1b], 27),
+        KeyCode::Delete => tilde(3),
+        KeyCode::Insert => tilde(2),
+        KeyCode::Up => cursor('A'),
+        KeyCode::Down => cursor('B'),
+        KeyCode::Right => cursor('C'),
+        KeyCode::Left => cursor('D'),
+        KeyCode::Home => cursor('H'),
+        KeyCode::End => cursor('F'),
+        KeyCode::PageUp => tilde(5),
+        KeyCode::PageDown => tilde(6),
         _ => Vec::new(),
     }
 }
@@ -1414,6 +1476,83 @@ mod tests {
             )),
             None
         );
+    }
+
+    const NONE: KeyModifiers = KeyModifiers::NONE;
+    const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+    const ALT: KeyModifiers = KeyModifiers::ALT;
+    const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+
+    fn assert_encodes(cases: &[(KeyCode, KeyModifiers, &[u8])]) {
+        for (code, modifiers, expected) in cases {
+            assert_eq!(
+                encode_key(*code, *modifiers),
+                *expected,
+                "{code:?} with {modifiers:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn character_chords_keep_every_modifier() {
+        assert_encodes(&[
+            (KeyCode::Char('a'), NONE, b"a"),
+            (KeyCode::Char('A'), SHIFT, b"A"),
+            (KeyCode::Char('é'), NONE, "é".as_bytes()),
+            (KeyCode::Char('a'), CTRL, b"\x01"),
+            (KeyCode::Char('C'), CTRL, b"\x03"),
+            (KeyCode::Char(' '), CTRL, b"\x00"),
+            (KeyCode::Char(']'), CTRL, b"\x1d"),
+            (KeyCode::Char('b'), ALT, b"\x1bb"),
+            (KeyCode::Char('B'), ALT | SHIFT, b"\x1bB"),
+            (KeyCode::Char('1'), CTRL, b"\x1b[49;5u"),
+            (KeyCode::Char('A'), CTRL | SHIFT, b"\x1b[97;6u"),
+            (KeyCode::Char('z'), CTRL | ALT, b"\x1b[122;7u"),
+            (KeyCode::Char('Z'), CTRL | ALT | SHIFT, b"\x1b[122;8u"),
+            (KeyCode::Char('a'), CTRL | KeyModifiers::SUPER, b"\x01"),
+        ]);
+    }
+
+    #[test]
+    fn navigation_and_editing_keys_keep_every_modifier() {
+        assert_encodes(&[
+            // Plain keys keep their established legacy bytes.
+            (KeyCode::Left, NONE, b"\x1b[D"),
+            (KeyCode::Home, NONE, b"\x1b[H"),
+            (KeyCode::Delete, NONE, b"\x1b[3~"),
+            (KeyCode::Enter, NONE, b"\r"),
+            (KeyCode::Tab, NONE, b"\t"),
+            (KeyCode::BackTab, SHIFT, b"\x1b[Z"),
+            (KeyCode::Backspace, NONE, b"\x7f"),
+            (KeyCode::Esc, NONE, b"\x1b"),
+            // Word movement and selection.
+            (KeyCode::Left, CTRL, b"\x1b[1;5D"),
+            (KeyCode::Right, CTRL, b"\x1b[1;5C"),
+            (KeyCode::Left, ALT, b"\x1b[1;3D"),
+            (KeyCode::Right, CTRL | SHIFT, b"\x1b[1;6C"),
+            (KeyCode::Up, SHIFT, b"\x1b[1;2A"),
+            (KeyCode::Down, ALT, b"\x1b[1;3B"),
+            (KeyCode::Home, SHIFT, b"\x1b[1;2H"),
+            (KeyCode::End, CTRL | SHIFT, b"\x1b[1;6F"),
+            // Deletion.
+            (KeyCode::Backspace, CTRL, b"\x1b[127;5u"),
+            (KeyCode::Backspace, ALT, b"\x1b[127;3u"),
+            (KeyCode::Delete, CTRL, b"\x1b[3;5~"),
+            (KeyCode::Insert, SHIFT, b"\x1b[2;2~"),
+            // Newline and focus.
+            (KeyCode::Enter, SHIFT, b"\x1b[13;2u"),
+            (KeyCode::Enter, ALT, b"\x1b[13;3u"),
+            (KeyCode::Enter, CTRL, b"\x1b[13;5u"),
+            (KeyCode::Tab, SHIFT, b"\x1b[Z"),
+            (KeyCode::Tab, CTRL, b"\x1b[9;5u"),
+            (KeyCode::BackTab, NONE, b"\x1b[Z"),
+            (KeyCode::BackTab, CTRL | SHIFT, b"\x1b[9;6u"),
+            (KeyCode::Esc, ALT, b"\x1b[27;3u"),
+            // Viewport navigation.
+            (KeyCode::PageUp, NONE, b"\x1b[5~"),
+            (KeyCode::PageUp, SHIFT, b"\x1b[5;2~"),
+            (KeyCode::PageDown, CTRL, b"\x1b[6;5~"),
+        ]);
     }
 
     #[test]
