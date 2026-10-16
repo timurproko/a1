@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   publish:
-    name: Validate and publish development packages
+    name: Develop
     uses: timurproko/a1/.github/workflows/publish.yml@develop
     with:
       channel: develop

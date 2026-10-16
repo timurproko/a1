@@ -1,6 +1,6 @@
 export interface FinalizationCommit { kind: "restore" | "merge" | "finalize" | "refinalize"; sha: string }
 export interface FinalizationResult {
-  disposition: "skipped" | "promoted" | "already-finalized" | "finalized" | "refinalized" | "body-updated" | "retry";
+  disposition: "skipped" | "blocked" | "promoted" | "already-finalized" | "finalized" | "refinalized" | "body-updated" | "retry";
   reason?: string;
   head: string | null;
   pushedHead?: string;

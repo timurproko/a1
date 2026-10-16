@@ -80,21 +80,27 @@ const DRAFT_INFRASTRUCTURE_FAILURES = new Set([
   "archive-deadline", "finalization-git", "publication-app-setup", "target-identity", "target-advanced",
 ]);
 
-function draftBlock(error) {
+/**
+ * Classify a refused draft. Once the author has checked every task-list item, a content refusal is `blocked` so the
+ * run fails visibly; an unfinished draft stays a quiet `skipped`.
+ */
+function draftBlock(error, declaredComplete = false) {
   if (error?.archiveCode === "finalization-head-changed") return { disposition: "retry", reason: "draft-head-changed", commits: [] };
   return typeof error?.archiveCode === "string" && !DRAFT_INFRASTRUCTURE_FAILURES.has(error.archiveCode)
-    ? { disposition: "skipped", reason: `draft-${error.archiveCode}`, commits: [] }
+    ? { disposition: declaredComplete ? "blocked" : "skipped", reason: `draft-${error.archiveCode}`, commits: [] }
     : null;
 }
 
 /** Validate one exact completed draft without writing its branch, then perform only the ready mutation. */
 async function promoteCompletedDraft({ reader, publisher, pull, implementation, number, toolRoot, gitImpl, remoteUrl, date, deadline }) {
+  let declaredComplete = false;
   try {
     const progress = parseImplementationProgress(pull.body ?? "", { requireComplete: true });
     if (progress.format !== "checklist") throw archiveFailure("implementation-progress-legacy-draft");
+    declaredComplete = true;
     parseImplementationAcceptanceScenarios(pull.body ?? "", 3);
   } catch (error) {
-    const blocked = draftBlock(error);
+    const blocked = draftBlock(error, declaredComplete);
     if (blocked) return { ...blocked, head: pull.head.sha };
     throw error;
   }
@@ -131,7 +137,7 @@ async function promoteCompletedDraft({ reader, publisher, pull, implementation, 
     await prepareSinglePrDelivery({ root: checkout, change: implementation.change, repository: reader.repository, sourcePr: number,
       body: pull.body ?? "", specBaseSha: target, date, targetSpecs, write: false, toolRoot });
   } catch (error) {
-    const blocked = draftBlock(error);
+    const blocked = draftBlock(error, true);
     if (blocked) return { ...blocked, head: pull.head.sha };
     throw error;
   } finally { await rm(root, { recursive: true, force: true }); }

@@ -197,6 +197,44 @@ describe("owned shared input and status presentation", () => {
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink + 3)).toBe("https://github.com/timurproko/a1/pull/540");
   });
 
+  it("omits only the duplicate session name when a resident tab chip already shows it", () => {
+    applyPiTheme("dark", false, "truecolor");
+    const state = view();
+    const footerState: OwnedUiSessionViewModel = {
+      ...state,
+      status: {
+        ...state.status,
+        footer: {
+          ...state.status.footer!,
+          branch: "feature/show-pr-id-status-bar",
+          repositoryPath: "/DELIVERY/WORKTREE/WITH/A/LONG/PATH",
+          pullRequest: { number: 540, url: "https://github.com/timurproko/a1/pull/540" },
+          sessionName: "footer-test",
+          extensionStatuses: [["ext", "extension ready"]],
+        },
+      },
+    };
+    const direct = createPiShellFooter(footerState, "/WORK", "a1").render(120);
+    const resident = createPiShellFooter(footerState, "/WORK", "a1", () => true, false).render(120);
+    expect(stripTerminalSequences(resident[0]!)).toBe("/DELIVERY/WORKTREE/WITH/A/LONG/PATH (feature/show-pr-id-status-bar) #540");
+    const linkColumn = stripTerminalSequences(resident[0]!).indexOf("#540");
+    expect(hyperlinkTargetAtColumn(resident[0]!, linkColumn)).toBe("https://github.com/timurproko/a1/pull/540");
+    expect(hyperlinkTargetAtColumn(resident[0]!, linkColumn + 3)).toBe("https://github.com/timurproko/a1/pull/540");
+    expect(resident.slice(1)).toEqual(direct.slice(1));
+    expect(stripTerminalSequences(resident[2]!)).toBe("extension ready");
+    expect(footerState.status.footer?.sessionName).toBe("footer-test");
+
+    const unlinked = { ...footerState, status: { ...footerState.status, footer: { ...footerState.status.footer!, pullRequest: null } } };
+    expect(stripTerminalSequences(createPiShellFooter(unlinked, "/WORK", "a1", () => true, false).render(120)[0]!))
+      .toBe("/DELIVERY/WORKTREE/WITH/A/LONG/PATH (feature/show-pr-id-status-bar)");
+    expect(stripTerminalSequences(createPiShellFooter(unlinked, "/WORK", "a1").render(120)[0]!))
+      .toBe("/DELIVERY/WORKTREE/WITH/A/LONG/PATH (feature/show-pr-id-status-bar) • footer-test");
+
+    const truncated = createPiShellFooter(footerState, "/WORK", "a1", () => true, false).render(40)[0]!;
+    expect(visibleWidth(truncated)).toBeLessThanOrEqual(40);
+    expect(stripTerminalSequences(truncated)).toMatch(/\.\.\. #540$/);
+  });
+
   it.each(["dark", "light"] as const)("colors only the effective level span in the %s footer", themeName => {
     applyPiTheme(themeName, false, "truecolor");
     const state = view();
