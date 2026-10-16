@@ -17,7 +17,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-16-restore-resident-input-shortcuts/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-16-restore-resident-input-shortcuts/acceptance.md",
   "finalizedDate": "2026-10-16",
-  "specBaseSha": "cacc980f678c5869fc90d3a20644764eb63ac889",
+  "specBaseSha": "2f26f1b431db74e50e82d9a2ac0a24a152c560bd",
   "acceptanceScenarios": [
     "In a resident tab, Ctrl+Left and Ctrl+Right move the prompt cursor by one word, matching direct solo-agent mode.",
     "Shift+Left and Shift+Right extend the prompt selection instead of acting as plain movement.",
@@ -25,7 +25,7 @@ The maintainer integration decision accepts these scenarios:
     "Plain typing, Enter, arrows, and existing tab shortcuts behave as before."
   ],
   "archiveDigest": "d36aef51fc6c8031ea655ff40105f0763c4d0ed87a77aabfe101d0948de22012",
-  "specDigest": "a74ae53ffcd0255ea1c235dcc83c38cf759d895fc910c1d5651a31941c5a88c5",
+  "specDigest": "99852c404ef5c75debe5ac0cd28375d6959b07d31922c549535e1d5bbbff68c6",
   "tasksDigest": "54fe8e863aa7ca60bf93dcd1c2f719619686e8cc4dde9dba0a4cd6cb1fe5faa2",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []

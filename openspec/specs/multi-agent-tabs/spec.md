@@ -312,21 +312,6 @@ A bare or session-selected A1 launch SHALL take the resident route only when its
 - **WHEN** the same package is launched from a terminal on a supported platform
 - **THEN** resident routing SHALL proceed as before
 
-### Requirement: Resident tabs preserve prompt keyboard modifiers
-After resolving tab-owned actions, bare A1's resident attach client SHALL forward supported Ctrl, Alt, and Shift keyboard combinations with the same key identity and modifiers observed by the direct solo-agent prompt. A modified key SHALL NOT degrade into its unmodified form while crossing the resident terminal boundary.
-
-#### Scenario: Move by word in a resident prompt
-- **WHEN** the user presses Ctrl+Left or Ctrl+Right while editing a prompt in a resident tab
-- **THEN** the prompt cursor SHALL move by one word in the requested direction exactly as it does in direct solo-agent mode
-
-#### Scenario: Use other modified prompt keys
-- **WHEN** the user invokes a supported prompt action with modified arrow, navigation, Enter, Backspace, Delete, Tab, or character input in a resident tab
-- **THEN** the child prompt SHALL receive the original key identity and modifiers and invoke the same effective binding as direct solo-agent mode
-
-#### Scenario: Keep tab actions authoritative
-- **WHEN** a modified key resolves to an active tab-owned action
-- **THEN** the attach client SHALL invoke that tab action without also forwarding the key to the child prompt
-
 ### Requirement: Tab input rules and prompts follow the viewed tab
 The attach client SHALL apply a failed tab's restricted input rules only while that tab is viewed, and SHALL forward input normally to any other viewed tab. A tab prompt that captures keys, such as the busy-close confirmation, the overflow chooser, rename, or the tab context menu, SHALL be cancelled when the viewed tab changes or its tab is removed. While such a prompt is open, its notice SHALL stay visible over tab output. A failed or refused new-tab request SHALL show its reason.
 
@@ -345,3 +330,18 @@ The attach client SHALL apply a failed tab's restricted input rules only while t
 #### Scenario: New tab refused
 - **WHEN** a new-tab request is refused for the tab limit or fails with `tab-start-busy`
 - **THEN** the terminal SHALL show a notice naming the reason
+
+### Requirement: Resident tabs preserve prompt keyboard modifiers
+After resolving tab-owned actions, bare A1's resident attach client SHALL forward supported Ctrl, Alt, and Shift keyboard combinations with the same key identity and modifiers observed by the direct solo-agent prompt. A modified key SHALL NOT degrade into its unmodified form while crossing the resident terminal boundary.
+
+#### Scenario: Move by word in a resident prompt
+- **WHEN** the user presses Ctrl+Left or Ctrl+Right while editing a prompt in a resident tab
+- **THEN** the prompt cursor SHALL move by one word in the requested direction exactly as it does in direct solo-agent mode
+
+#### Scenario: Use other modified prompt keys
+- **WHEN** the user invokes a supported prompt action with modified arrow, navigation, Enter, Backspace, Delete, Tab, or character input in a resident tab
+- **THEN** the child prompt SHALL receive the original key identity and modifiers and invoke the same effective binding as direct solo-agent mode
+
+#### Scenario: Keep tab actions authoritative
+- **WHEN** a modified key resolves to an active tab-owned action
+- **THEN** the attach client SHALL invoke that tab action without also forwarding the key to the child prompt
