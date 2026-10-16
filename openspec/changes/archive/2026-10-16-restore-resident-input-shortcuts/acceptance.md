@@ -17,7 +17,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-16-restore-resident-input-shortcuts/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-16-restore-resident-input-shortcuts/acceptance.md",
   "finalizedDate": "2026-10-16",
-  "specBaseSha": "633517a1c1afc2519b6011204a07cf42fe8e7800",
+  "specBaseSha": "e61958fc995e4e680d49b5fbd0de3a3c838f0b21",
   "acceptanceScenarios": [
     "In a resident tab, Ctrl+Left and Ctrl+Right move the prompt cursor by one word, matching direct solo-agent mode.",
     "Shift+Left and Shift+Right extend the prompt selection instead of acting as plain movement.",
