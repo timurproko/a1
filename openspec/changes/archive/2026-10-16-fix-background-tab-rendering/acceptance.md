@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-16-fix-background-tab-rendering/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-16-fix-background-tab-rendering/acceptance.md",
   "finalizedDate": "2026-10-16",
-  "specBaseSha": "cacc980f678c5869fc90d3a20644764eb63ac889",
+  "specBaseSha": "512a078cc484f93123a2a37ae2d5210bbd180c20",
   "acceptanceScenarios": [
     "A tab that keeps streaming while another tab is viewed shows its current content the moment it is selected, with no burst of delayed frames.",
     "A background tab's terminal output never appears in a client viewing another tab.",
