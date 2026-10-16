@@ -338,7 +338,8 @@ async function main() {
   const finalListing = tabs(["list"]);
   violations.push(...listingViolations(finalListing.result?.tabs ?? []));
   const stopped = tabs(["host-stop"]);
-  if (!["stopped", "none"].includes(stopped.host)) violations.push(`host stop reported ${stopped.host}: ${JSON.stringify(stopped).slice(0, 800)}`);
+  // Rationale: the result's `remainingReasons` names why each tab stayed, so the text keeps room for it.
+  if (!["stopped", "none"].includes(stopped.host)) violations.push(`host stop reported ${stopped.host}: ${JSON.stringify(stopped).slice(0, 2000)}`);
   const orphanDeadline = Date.now() + 15_000;
   let orphans = processesUsing([host, fakeTab]);
   while (orphans.length > 0 && Date.now() < orphanDeadline) {
