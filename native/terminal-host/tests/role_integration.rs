@@ -1875,6 +1875,127 @@ fn host_stop_terminates_an_unresponsive_server_and_stops_its_tabs() {
 }
 
 #[test]
+fn host_stop_releases_a_tab_whose_holder_died_awaiting_readmission() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let created = internal_command(
+        &executable,
+        "tab-create",
+        &profile,
+        &data,
+        &runtime,
+        &release,
+        &[
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            env!("CARGO_BIN_EXE_fake-tab"),
+        ],
+    );
+    let tab_id =
+        serde_json::from_str::<serde_json::Value>(&created).expect("tab-create json")["tabId"]
+            .as_str()
+            .expect("created tab id")
+            .to_owned();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let (holder, child) = loop {
+        let recorded = RegistryStore::read(&credentials_root.join("registry.json"))
+            .ok()
+            .flatten()
+            .and_then(|registry| registry.tabs.into_iter().find(|tab| tab.tab_id == tab_id))
+            .and_then(|tab| {
+                Some((
+                    terminal_host_contracts::identity::ProcessIdentity {
+                        pid: tab.holder_pid?,
+                        start: tab.holder_start_identity?,
+                    },
+                    terminal_host_contracts::identity::ProcessIdentity {
+                        pid: tab.child_pid?,
+                        start: tab.child_start_identity?,
+                    },
+                ))
+            });
+        if let Some(found) = recorded {
+            break found;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "holder and child never registered"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    cleanup.pids.extend([holder.pid, child.pid]);
+
+    // Rationale: a suspended holder neither replaces the killed server nor reconnects, so the
+    // replacement adopts it as live and waits for its readmission.
+    suspend(holder.pid);
+    let server =
+        terminal_host_contracts::identity::inspect_process(server_pids(&credentials_root)[0])
+            .expect("inspect server")
+            .expect("live server");
+    kill_now(server.pid);
+    wait_for_terminated_identity(Some(server));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    cleanup.pids.extend(server_pids(&credentials_root));
+    kill_now(holder.pid);
+    kill_now(child.pid);
+    wait_for_terminated_identity(Some(holder));
+    wait_for_terminated_identity(Some(child));
+
+    // Invariant: the stop finishes well inside the replacement's 30 s admission deadline, so only
+    // the release of the gone tab can make it accepted.
+    let stopped = tabs(
+        &executable,
+        &["host-stop"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(stopped.0, 0, "{}", stopped.1);
+    assert_eq!(stopped.1["host"], "stopped", "{}", stopped.1);
+    assert_eq!(
+        stopped.1["result"]["released"],
+        serde_json::json!([tab_id]),
+        "{}",
+        stopped.1
+    );
+    assert_eq!(
+        stopped.1["result"]["remaining"],
+        serde_json::json!([]),
+        "{}",
+        stopped.1
+    );
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while !server_pids(&credentials_root).is_empty() {
+        assert!(
+            Instant::now() < deadline,
+            "the server did not exit after the stop"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let after = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+    assert_eq!(after.1["host"], "none", "{}", after.1);
+}
+
+#[test]
 fn host_stop_killed_at_each_step_leaves_no_orphan_or_duplicate_host() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
@@ -2972,6 +3093,18 @@ fn terminate_launch_tree(pid: u32) {
 }
 fn terminate(pid: u32) {
     terminate_batch(&[pid]);
+}
+
+/// Kills a process at once, including one that is suspended and cannot handle a graceful signal.
+#[cfg(unix)]
+fn kill_now(pid: u32) {
+    unsafe {
+        libc::kill(pid as i32, libc::SIGKILL);
+    }
+}
+#[cfg(windows)]
+fn kill_now(pid: u32) {
+    signal_terminate(pid);
 }
 
 fn terminate_batch(pids: &[u32]) {

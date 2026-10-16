@@ -1933,9 +1933,31 @@ fn stop_tabs(
         thread::sleep(std::time::Duration::from_millis(100));
         remaining = live(state)?;
     }
+    // Invariant: a tab still tracked after verified termination whose holder and child are both
+    // gone has no process left to stop; only its bookkeeping is released, and no pid is signalled.
+    let mut released = Vec::new();
+    let mut remaining_reasons = serde_json::Map::new();
+    for (tab_id, identity, child) in &remaining {
+        let disposition = stop_disposition(
+            process_state(identity.as_ref()),
+            process_state(child.as_ref()),
+        );
+        match disposition {
+            StopDisposition::Release if release_gone_tab(state, tab_id, identity.as_ref())? => {
+                released.push(tab_id.clone());
+            }
+            StopDisposition::Release => {
+                remaining_reasons.insert(tab_id.clone(), "holder-live".into());
+            }
+            StopDisposition::Remain(reason) => {
+                remaining_reasons.insert(tab_id.clone(), reason.into());
+            }
+        }
+    }
     let remaining = remaining
         .into_iter()
         .map(|(tab_id, _, _)| tab_id)
+        .filter(|tab_id| !released.contains(tab_id))
         .collect::<Vec<_>>();
     let stopped = tab_ids
         .iter()
@@ -1967,8 +1989,84 @@ fn stop_tabs(
         "accepted": remaining.is_empty(),
         "stopped": stopped,
         "forced": forced,
+        "released": released,
         "remaining": remaining,
+        "remainingReasons": remaining_reasons,
     }))
+}
+
+/// What inspecting one recorded process identity found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProcessState {
+    Live,
+    /// No process, or a different process reusing the pid.
+    Gone,
+    /// No identity is recorded.
+    Unknown,
+    /// The inspection itself failed.
+    Unverifiable,
+}
+
+/// What a maintenance stop does with a tab still tracked after its grace and forced termination.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StopDisposition {
+    Release,
+    Remain(&'static str),
+}
+
+fn stop_disposition(holder: ProcessState, child: ProcessState) -> StopDisposition {
+    match (holder, child) {
+        (ProcessState::Live, _) => StopDisposition::Remain("holder-live"),
+        (_, ProcessState::Live) => StopDisposition::Remain("child-live"),
+        // Invariant: a process whose state cannot be verified may still exist, so it is never
+        // released.
+        (ProcessState::Unverifiable, _) | (_, ProcessState::Unverifiable) => {
+            StopDisposition::Remain("unverifiable")
+        }
+        _ => StopDisposition::Release,
+    }
+}
+
+fn process_state(identity: Option<&ProcessIdentity>) -> ProcessState {
+    let Some(identity) = identity else {
+        return ProcessState::Unknown;
+    };
+    match inspect_identity_bounded(identity.pid) {
+        Ok(Some(observed)) if observed.start == identity.start => ProcessState::Live,
+        Ok(_) => ProcessState::Gone,
+        Err(_) => ProcessState::Unverifiable,
+    }
+}
+
+/// Clears the server's tracking of a stopping tab whose holder and child are gone. Returns false,
+/// changing nothing, when a different holder connected for the tab after it was inspected.
+fn release_gone_tab(
+    state: &Arc<Mutex<RuntimeState>>,
+    tab_id: &str,
+    inspected: Option<&ProcessIdentity>,
+) -> Result<bool, String> {
+    let mut locked = state
+        .lock()
+        .map_err(|_| "resident state poisoned".to_owned())?;
+    if locked
+        .holders
+        .get(tab_id)
+        .is_some_and(|holder| Some(&holder.identity) != inspected)
+    {
+        return Ok(false);
+    }
+    locked.holders.remove(tab_id);
+    locked.holders_starting.remove(tab_id);
+    locked.holders_terminating.remove(tab_id);
+    release_recovery_slot(&mut locked, tab_id);
+    let diagnostics_root = locked.diagnostics_root.clone();
+    drop(locked);
+    let _ = crate::roles::diagnostics::append_log(
+        &diagnostics_root,
+        "server",
+        "maintenance-stop-released",
+    );
+    Ok(true)
 }
 
 fn host_status(state: &Arc<Mutex<RuntimeState>>) -> Result<serde_json::Value, String> {
@@ -5508,5 +5606,49 @@ mod tests {
             lifecycle_status(&HashMap::new(), now),
             serde_json::json!({ "pending": 0, "oldestMs": 0 })
         );
+    }
+
+    #[test]
+    fn stop_releases_only_tabs_whose_processes_are_verified_gone() {
+        use ProcessState::{Gone, Live, Unknown, Unverifiable};
+        let release = StopDisposition::Release;
+        let holder_live = StopDisposition::Remain("holder-live");
+        let child_live = StopDisposition::Remain("child-live");
+        let unverifiable = StopDisposition::Remain("unverifiable");
+        for (holder, child, expected) in [
+            (Gone, Gone, release),
+            (Gone, Unknown, release),
+            (Unknown, Gone, release),
+            (Unknown, Unknown, release),
+            (Live, Gone, holder_live),
+            (Live, Live, holder_live),
+            (Live, Unverifiable, holder_live),
+            (Gone, Live, child_live),
+            (Unknown, Live, child_live),
+            (Unverifiable, Live, child_live),
+            (Unverifiable, Gone, unverifiable),
+            (Gone, Unverifiable, unverifiable),
+            (Unknown, Unverifiable, unverifiable),
+        ] {
+            assert_eq!(
+                stop_disposition(holder, child),
+                expected,
+                "holder {holder:?}, child {child:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_missing_or_exited_identity_is_not_live() {
+        assert_eq!(process_state(None), ProcessState::Unknown);
+        let current = crate::identity::inspect_process(std::process::id())
+            .unwrap()
+            .unwrap();
+        assert_eq!(process_state(Some(&current)), ProcessState::Live);
+        let reused = ProcessIdentity {
+            pid: current.pid,
+            start: format!("{}-not-this-process", current.start),
+        };
+        assert_eq!(process_state(Some(&reused)), ProcessState::Gone);
     }
 }

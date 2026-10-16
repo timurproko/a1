@@ -44,9 +44,9 @@ The `host.stop` result gains `released`, the tabs from Decision 1, and `remainin
 
 ### 3. Proof
 
-- Unit tests for `stop_disposition` cover every combination of holder and child state.
-- Role-integration test: start a tab, kill the server, let a replacement start (`server --detach --restart`), kill the holder during the readmission window, and run `host-stop`. It must report `host: stopped`, the tab as `released`, and leave no resident process running.
-- Role-integration test: a tab whose holder and child are killed with no server restart, followed by `host-stop`, must give the same result.
+- Unit tests for `stop_disposition` cover every combination of holder and child state, and `process_state` is checked against a missing identity, the live test process, and a reused pid.
+- Role-integration test `host_stop_releases_a_tab_whose_holder_died_awaiting_readmission`: start a tab, suspend its holder so it can neither replace the server nor reconnect, kill the server, and start a replacement that adopts the suspended holder and waits for it to come back. Then kill the holder and its child and run `host-stop` before the 30 s admission deadline. It must report `host: stopped`, list the tab in `released`, leave `remaining` empty, and the server must exit. Without Decision 1 this is the reported failure: `accepted: false` with the tab remaining.
+- A connection entry that outlives its holder (path 1) has no deterministic fixture. It goes through the same release, and the `remainingReasons` from Decision 2 identify it if the chaos lane trips again.
 
 ## Risks
 
