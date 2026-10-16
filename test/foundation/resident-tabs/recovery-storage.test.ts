@@ -118,7 +118,7 @@ describe("resident prompt journal", () => {
     const recovery = new ResidentTabRecovery(directory);
     await recovery.initialize(session);
     const submission = await recovery.admit({ sessionId: "s", sessionFile: session, incarnation: 1, kind: "prompt", text: "send once" });
-    await recovery.settled(session); // The ready observer ran before correlation became active.
+    await recovery.settled(session); // Concurrency: the ready observer ran before correlation became active.
     await recovery.correlated(submission.id, "pi-shell-prompt-1");
     await Promise.all([recovery.settled(session), recovery.settled(session)]);
     expect(await readFile(join(directory, "journal.jsonl"), "utf8")).toBe("");
