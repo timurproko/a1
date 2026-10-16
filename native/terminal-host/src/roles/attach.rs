@@ -1238,9 +1238,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
                     paint_strip!();
                 }
-                if let Some(bytes) =
-                    encode_mouse(mouse.kind, mouse.column, mouse.row.saturating_sub(1))
-                {
+                if let Some(bytes) = encode_mouse(mouse.kind, mouse.column, mouse.row) {
                     wire::send(
                         &mut stream,
                         "input",
@@ -1468,6 +1466,15 @@ mod tests {
         assert_eq!(tab_rows(24), Ok(23));
         assert_eq!(child_mouse_row(0), None);
         assert_eq!(child_mouse_row(1), Some(0));
+        assert_eq!(encode_mouse(MouseEventKind::Moved, 4, 0), None);
+        assert_eq!(
+            encode_mouse(MouseEventKind::Moved, 4, 1),
+            Some(b"\x1b[<35;5;1M".to_vec())
+        );
+        assert_eq!(
+            encode_mouse(MouseEventKind::Down(MouseButton::Left), 2, 8),
+            Some(b"\x1b[<0;3;8M".to_vec())
+        );
         assert_eq!(without_bell(b"a\x07b"), b"ab");
         assert_eq!(
             without_bell(b"a\x1b]9;notify\x07b\x1b]777;alert\x1b\\c"),
