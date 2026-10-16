@@ -280,6 +280,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
           replacementSurfaceActive: !this.root.usesDefaultInputSurface(),
         }),
         enableDockInputReuse: inputPresentation?.viewportReuse !== false,
+        footerSessionName: this.#residentTabOptions === undefined,
         persistentHistory: this.#customViewport && promptHistory !== undefined,
         ...(promptHistory === undefined ? {} : { historyEditor: promptHistory.editor }),
         onSubmit: text => { void this.submit(text).catch(() => this.#reportSubmissionError()); },
