@@ -379,6 +379,11 @@ During a resident bare-A1 launch, A1 SHALL expose only `tabsMax` and `tabsAutoNa
 - **WHEN** one platform exceeds a declared budget
 - **THEN** evidence SHALL record that value and miss without inference from another platform
 
+#### Scenario: Latency sample is matched to its own input
+- **WHEN** the fixture echoes a processed-input line for a token before that token's measured send, such as from a late in-band standby-promotion marker
+- **THEN** the measurement SHALL ignore that earlier line and time only a line stamped at or after the send
+- **AND** a negative or non-numeric recorded latency SHALL fail its metric instead of being dropped from the p95 sample set
+
 ### Requirement: Updates retain the active resident cohort
 Installing or activating a release SHALL NOT terminate the server, holders, or tab processes. Resident binaries and tab processes SHALL run from immutable release directories, and every release used by a live verified resident process SHALL be retained; when a recorded resident identity cannot be verified or read, its release SHALL be retained. In this version a same-generation newer client MAY attach with unsupported optional operations disabled, while the existing resident cohort remains on its release until all tabs stop. A generation mismatch SHALL report that the host must be stopped explicitly with `a1 tabs host stop`, SHALL use the direct single-agent path for that launch, and SHALL NOT kill or recycle tabs. Automatic endpoint handoff and idle release recycling require a later change.
 
