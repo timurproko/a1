@@ -9,6 +9,7 @@ export function parseImplementationAcceptanceChecks(body: string): string[];
 export function parseImplementationProgress(body: string, options?: { requireComplete?: boolean }):
   | { format: "legacy"; complete: true; items: string[] }
   | { format: "checklist"; complete: boolean; items: Array<{ checked: boolean; text: string }> };
+export function assertImplementationOnlyProgress(items: Array<{ checked: boolean; text: string }>): void;
 export function parseImplementationAcceptanceScenarios(body: string, version: number,
   options?: { allowLegacyVersion3Phase?: boolean }): string[];
 export function acceptanceChecklistDigest(checks: string[]): string;

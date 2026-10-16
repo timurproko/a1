@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acceptanceChecklistDigest, acceptancePullBody, MAX_ACCEPTANCE_CHECKS, MAX_IMPLEMENTATION_PROGRESS_ITEMS,
+import { acceptanceChecklistDigest, acceptancePullBody, assertImplementationOnlyProgress, MAX_ACCEPTANCE_CHECKS, MAX_IMPLEMENTATION_PROGRESS_ITEMS,
   parseImplementationAcceptanceChecks, parseImplementationAcceptanceScenarios, parseImplementationProgress,
   verifyAcceptancePullBody } from "../../scripts/governance/openspec-acceptance-checklist.mjs";
 import type { AcceptanceRecord } from "../../scripts/governance/openspec-acceptance-policy.mjs";
@@ -62,6 +62,14 @@ describe("implementation-specific acceptance checklist", () => {
       Array.from({ length: MAX_IMPLEMENTATION_PROGRESS_ITEMS + 1 }, (_value, index) => `Implement distinct viewport progress outcome number ${index}.`)), "implementation-progress-count"],
   ])("rejects %s in an Implementation checklist", (_name, body, code) => {
     expect(() => parseImplementationProgress(body())).toThrow(code);
+  });
+
+  it("rejects validation items only where implementation-only progress is asserted", () => {
+    const merged = progressBody(["x", "x"], [progressItems[0], "Validate the scrollbar across supported terminals and fonts."]);
+    const { items } = parseImplementationProgress(merged);
+    expect(() => assertImplementationOnlyProgress(items)).toThrow("implementation-progress-validation");
+    expect(parseImplementationAcceptanceScenarios(merged, 3)).toEqual(checks);
+    expect(() => assertImplementationOnlyProgress(parseImplementationProgress(progressBody(["x", "x"])).items)).not.toThrow();
   });
 
   it("requires the canonical phase-free section layout and scopes historical compatibility", () => {

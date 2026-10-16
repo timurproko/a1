@@ -23,6 +23,13 @@ const genericImplementationItems = [
   /^(?:merge|archive|finalize)(?: this| the)? (?:implementation|change|pull request|pr)?\.?$/i,
   /^(?:confirm )?(?:there are )?no (?:known )?(?:blocking |unresolved )?(?:gaps|issues)\.?$/i,
 ];
+// Validation is CI's job after readiness and the maintainer's at merge, so an item that names it can never be checked truthfully.
+const validationImplementationItems = [
+  /^(?:manually|validate|verify|confirm|prove|run|smoke[- ]test|test)\b/i,
+  /\bmanual(?:ly)? (?:test|validat|verif)/i,
+  /\b(?:record|capture|collect)\b.*\bevidence\b/i,
+  /\bwith (?:focused )?(?:regression )?(?:coverage|evidence|validation)\b/i,
+];
 
 const normalizedBody = value => {
   if (typeof value !== "string" || Buffer.byteLength(value) > MAX_BODY_BYTES || value.replaceAll("\r\n", "").includes("\r")) {
@@ -118,6 +125,16 @@ export function parseImplementationProgress(body, { requireComplete = false } = 
   const complete = items.every(item => item.checked);
   if (requireComplete && !complete) throw archiveFailure("implementation-progress-incomplete");
   return { format: "checklist", complete, items };
+}
+
+/**
+ * Reject Implementation items that name validation instead of a delivered outcome. Only draft promotion and the local
+ * body check apply this, so merged bodies written under the earlier rule stay readable.
+ */
+export function assertImplementationOnlyProgress(items) {
+  if (items.some(({ text }) => validationImplementationItems.some(pattern => pattern.test(text)))) {
+    throw archiveFailure("implementation-progress-validation");
+  }
 }
 
 function assertVersion3BodyLayout(body, { allowLegacyPhaseLine = false } = {}) {

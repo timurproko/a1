@@ -144,6 +144,14 @@ describe("trusted finalization publication", () => {
     });
     expect(placeholder.state).toMatchObject({ draft: true, readyCalls: 0 });
 
+    const validation = await fixture();
+    validation.state.draft = true;
+    validation.state.body = validation.state.body.replace(/- \[x\] Reconcile[^\n]+/u, "- [x] Manually validate the example behavior in the development shell.");
+    await expect(validation.reconcile()).resolves.toMatchObject({
+      disposition: "blocked", reason: "draft-implementation-progress-validation",
+    });
+    expect(validation.state).toMatchObject({ draft: true, readyCalls: 0 });
+
     const unfinishedPlaceholder = await fixture();
     unfinishedPlaceholder.state.draft = true;
     unfinishedPlaceholder.state.body = placeholder.state.body.replace("- [x] Implement the updated", "- [ ] Implement the updated");

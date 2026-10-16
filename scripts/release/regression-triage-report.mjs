@@ -241,7 +241,7 @@ export function renderRunEvidence({ workflow, run, summary, lastGreen, commits }
  */
 export const TRIAGE_IMPLEMENTATION_ITEMS = Object.freeze([
   "Reproduce the failure on the failed lane from the recorded tests or commands and identify the introducing commit or the environmental cause.",
-  "Fix the cause without weakening assertions, budgets, timeouts, or coverage, and record the focused evidence in the change design.",
+  "Fix the cause without weakening assertions, budgets, timeouts, or coverage.",
 ]);
 
 /** The one acceptance outcome of a repair; a chore repairs the recorded failure and proves nothing beyond it. */

@@ -17,6 +17,22 @@ describe("delivery body check", () => {
     }
   });
 
+  it("rejects Implementation items that name validation instead of a delivered outcome", () => {
+    for (const item of [
+      "Manually validate the example behavior in the development shell.",
+      "Verify the example behavior across the supported terminals.",
+      "Run the focused example tests and confirm they pass.",
+      "Reproduce the example layout with focused regression coverage.",
+      "Fix the example and record the focused evidence in the change design.",
+      "Ship the example once manual testing confirms the layout.",
+    ]) {
+      const withItem = body().replace(/- \[x\] Reconcile[^\n]+/u, `- [ ] ${item}`);
+      expect(inspectDeliveryBody(withItem)).toEqual({ ok: false, complete: false, reason: "draft-implementation-progress-validation" });
+    }
+    expect(inspectDeliveryBody(body().replace(/- \[x\] Reconcile[^\n]+/u, "- [x] Reproduce the example layout and cover it with unit tests.")))
+      .toEqual({ ok: true, complete: true });
+  });
+
   it("leaves an unfinished body alone unless the final form is requested", () => {
     const unfinished = body({ first: " ", acceptance: "" });
     expect(inspectDeliveryBody(unfinished)).toEqual({ ok: true, complete: false });
