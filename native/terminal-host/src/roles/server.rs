@@ -2391,9 +2391,7 @@ fn handle_lifecycle(
                 }
                 return Err(error);
             }
-            // Protocol: attach start now completes after the client's first tab list, which may
-            // predate the tab it started; selecting that tab makes the client view and relist it.
-            if selected.is_some() || should_start {
+            if selected.is_some() {
                 tx.offer_control(wire::frame(
                     "tab.selected",
                     request_id,
@@ -2789,8 +2787,9 @@ fn serve_attach(
         )?)
         .map_err(str::to_owned)?;
     }
-    // Invariant: this loop reads the client's input and never waits on tab lifecycle work; tab
-    // starts, stops, and registry commits run in order on the client's lifecycle worker.
+    // Invariant: once attach start returns, this loop reads the client's input and never waits on
+    // tab lifecycle work; tab starts, stops, and registry commits run in order on the client's
+    // lifecycle worker.
     let (lifecycle_tx, lifecycle_rx) = mpsc::sync_channel::<LifecycleRequest>(LIFECYCLE_QUEUE);
     thread::spawn({
         let state = state.clone();
@@ -2802,18 +2801,33 @@ fn serve_attach(
     while let Some(payload) = wire::read_payload(&mut stream)? {
         let kind = wire::kind(&payload)?;
         match kind.message_type.as_str() {
-            "attach.start" | "tab.create" | "tab.close" | "tab.restart" | "tab.rename"
-            | "tab.reorder" => enqueue_lifecycle(
-                &state,
-                &lifecycle_tx,
-                &tx,
-                &client_id,
-                LifecycleRequest {
+            // Protocol: attach start completes before the client's first tab list is answered,
+            // so that list already holds the tab it started. It runs before the terminal views
+            // any tab, and its start-slot wait is bounded, so no tab's input waits on it.
+            "attach.start" => {
+                let request = LifecycleRequest {
                     message_type: kind.message_type.clone(),
                     request_id: kind.request_id,
                     payload,
-                },
-            )?,
+                };
+                if let Err(error) = handle_lifecycle(&state, &profile, &tx, &client_id, &request) {
+                    let message = lifecycle_failure_message(&request.message_type, &error);
+                    refuse_lifecycle(&tx, &request, message);
+                }
+            }
+            "tab.create" | "tab.close" | "tab.restart" | "tab.rename" | "tab.reorder" => {
+                enqueue_lifecycle(
+                    &state,
+                    &lifecycle_tx,
+                    &tx,
+                    &client_id,
+                    LifecycleRequest {
+                        message_type: kind.message_type.clone(),
+                        request_id: kind.request_id,
+                        payload,
+                    },
+                )?;
+            }
             "tab.list" => {
                 let (revision, tabs) = {
                     let locked = state

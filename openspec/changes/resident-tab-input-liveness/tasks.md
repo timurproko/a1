@@ -4,7 +4,7 @@ Keep terminal input flowing to resident tabs while tab lifecycle work is slow or
 
 ## 1. Server lifecycle worker
 
-- [ ] 1.1 Move `attach.start`, `tab.create`, `tab.close`, `tab.restart`, `tab.rename`, and `tab.reorder` handling in `serve_attach` to a per-connection lifecycle worker behind a bounded channel per Decision 1; a full channel answers `busy` at once.
+- [ ] 1.1 Move `tab.create`, `tab.close`, `tab.restart`, `tab.rename`, and `tab.reorder` handling in `serve_attach` to a per-connection lifecycle worker behind a bounded channel per Decision 1; a full channel answers `busy` at once.
 - [ ] 1.2 Report lifecycle handler errors with reply frames instead of closing the connection.
 
 ## 2. Bounded start slots
