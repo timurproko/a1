@@ -1,6 +1,8 @@
 export const AUTO_NAME_MAX_LENGTH = 16;
-export const AUTO_NAME_TIMEOUT_MS = 10_000;
-export const AUTO_NAME_MAX_TOKENS = 64;
+export const AUTO_NAME_TIMEOUT_MS = 30_000;
+// Rationale: reasoning models can spend a small ceiling on hidden thinking and emit no title, so an
+// answerless attempt retries with a larger bound; budgets stay strictly increasing, as in v2.
+export const AUTO_NAME_TOKEN_BUDGETS = [4_096, 32_768] as const;
 
 export function normalizeAutoName(value: string): string | null {
   const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").replace(/-+/g, "-");
@@ -28,20 +30,20 @@ export async function generateAutoName(
   complete: (request: AutoNameCompletion) => Promise<string | null>,
   timeoutMs = AUTO_NAME_TIMEOUT_MS,
 ): Promise<string> {
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (const maxTokens of AUTO_NAME_TOKEN_BUDGETS) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     timer.unref?.();
     try {
       const response = await complete({
         prompt: `Name this coding task with a lowercase hyphenated title of at most ${AUTO_NAME_MAX_LENGTH} characters. Reply only with the title.\n\n${firstPrompt.slice(0, 500)}`,
-        maxTokens: AUTO_NAME_MAX_TOKENS,
+        maxTokens,
         signal: controller.signal,
       });
       const name = response === null ? null : normalizeAutoName(response);
       if (name !== null) return name;
     } catch {
-      // Rationale: naming is best effort; one retry precedes the deterministic fallback.
+      // Rationale: naming is best effort; the larger bounded attempt precedes the deterministic fallback.
     } finally {
       clearTimeout(timer);
     }
