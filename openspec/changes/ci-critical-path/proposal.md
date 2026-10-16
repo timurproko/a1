@@ -13,6 +13,17 @@ Development validation reports its own targets unmet on every full-lane pull req
 - The Zig cache uses one stable key per platform with a size limit instead of one cache per run, the Rust toolchain is pinned by a `rust-toolchain.toml` instead of installing the newest stable in every job, and the Linux fuzz toolchain and `cargo-fuzz` binary are cached.
 - The pinned npm installation step runs only on Node 22 lanes, where the pack-script compatibility it exists for applies.
 
+## Deferred
+
+These were proposed in the same analysis and are intentionally outside this change. Each needs its own change if pursued.
+
+- **Chaos lane flakiness.** The chaos lane failed in the four most recent failed PR runs and in PR #787's first attempt; each re-run costs a full 27-minute run. Diagnosing it starts from the `resident-chaos-<platform>-<arch>-attempt-<n>` report artifacts of runs 38884454064, 38877825409, 38877772898, and 38874197809 and is a correctness fix, not a speed change.
+- **Reusing one release host build across pull-request jobs.** Five PR jobs each build the release host (Exact-package contracts 228 s, startup 230 s, Pi 167 s, Unix macOS 125 s, Unix Linux 81 s), all in parallel. A shared build stage would add a sequential stage before them and gain nothing on the critical path; it saves runner minutes only.
+- **Moving Linux decoder fuzzing to nightly.** The Linux lane spends 220 s on the nightly toolchain, `cargo-fuzz`, and four 30-second fuzz runs. The `continuous-integration` requirement says Linux x64 runs the fuzz target on every selected pull request; this change only caches the toolchain and binary.
+- **Nightly reuse of the development publication's host builds.** On 16 October nightly rebuilt all four hosts for a commit the per-merge publication had just built. Reuse needs artifact lookup by source commit across runs with provenance verification inside the publication authority and is reviewed separately.
+- **Registry propagation wait.** `Verify the registry serves the validated bytes` took 165 s and 379 s waiting for npm to serve the published bytes (up to 60 polls at 10 s). That is external; starting published-pair smoke from the same poll would save about a minute and is not included.
+- **Publication concurrency serialization.** A no-op development publication waited 29 minutes behind the previous run in the `a1-registry-publication` group. Letting `plan` run outside the group changes the documented single critical section and is reviewed separately.
+
 ## Capabilities
 
 ### New Capabilities
