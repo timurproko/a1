@@ -135,6 +135,13 @@ describe("impact-aware validation workflows", () => {
     for (const file of ["full-regression-shared.yml", "publish.yml"]) expect(await readFile(`.github/workflows/${file}`, "utf8")).not.toContain("RESIDENT_CHAOS_SECONDS");
   });
 
+  it("pins npm only on Node 22 lanes, because packing needs npm 11 and Node 24 ships it", async () => {
+    const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
+    const pin = workflow.jobs.modular.steps.find((step: any) => step.name === "Use the pinned npm for packing");
+    expect(pin.if).toBe("matrix.node == 22");
+    expect(pin.run).toContain('npm install -g "npm@$pinned"');
+  });
+
   it("retains Node 22 Defender startup and all declared platform/runtime owner targets", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
     const entries = DEVELOPMENT_VALIDATION_MATRIX as any[];

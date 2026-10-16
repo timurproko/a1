@@ -262,6 +262,17 @@ describe("deliberate publication pipeline", () => {
     expect(source.indexOf("Exercise the exact published pair")).toBeLessThan(source.indexOf("Upload the exact asset to the published Release"));
   });
 
+  it("replaces npm only on Node 22 lanes, because packing needs npm 11 and Node 24 ships it", async () => {
+    const regression = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
+    const pinName = "Use the pinned npm for packing";
+    expect(regression.jobs["windows-shard"].steps.find((step: { name?: string }) => step.name === pinName).if).toBe("matrix.node == 22");
+    expect(regression.jobs["full-regression"].strategy.matrix.include.every((entry: { node: number }) => entry.node === 24)).toBe(true);
+    expect(regression.jobs["full-regression"].steps.some((step: { name?: string }) => step.name === pinName)).toBe(false);
+    expect(await workflow()).not.toContain(pinName);
+    const packing = await readFile("scripts/release/npm-pack-metadata.mjs", "utf8");
+    expect(packing).toContain("export const MINIMUM_PACK_NPM_MAJOR = 11;");
+  });
+
   it("packs native process guardians with host-independent executability", async () => {
     const packScript = await readFile("scripts/release/prepare-validation-package.mjs", "utf8");
     expect(packScript).toContain("./repair-native-executable-modes.mjs");

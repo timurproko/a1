@@ -80,8 +80,10 @@ jobs:
 
       # Compatibility: Node 22 ships npm 10, whose pack runs the prepare script even under
       # --ignore-scripts and rebuilds the workspace, invalidating the build receipt. Every lane
-      # packs with the pinned package manager so the candidate is produced the same way.
+      # packs with the pinned package manager so the candidate is produced the same way; Node 24
+      # ships npm 11 and needs no replacement.
       - name: Use the pinned npm for packing
+        if: matrix.node == 22
         shell: bash
         run: |
           pinned=$(node -p "require('./package.json').packageManager.split('@')[1]")
@@ -332,14 +334,6 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-
-      - name: Use the pinned npm for packing
-        shell: bash
-        run: |
-          pinned=$(node -p "require('./package.json').packageManager.split('@')[1]")
-          current=$(npm --version)
-          if [ "$current" != "$pinned" ]; then npm install -g "npm@$pinned"; fi
-          npm --version
 
       - name: Prepare Rust toolchain
         shell: bash
