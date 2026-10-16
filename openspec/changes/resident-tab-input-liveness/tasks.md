@@ -4,8 +4,8 @@ Keep terminal input flowing to resident tabs while tab lifecycle work is slow or
 
 ## 1. Server lifecycle worker
 
-- [ ] 1.1 Move `tab.create`, `tab.close`, `tab.restart`, `tab.rename`, and `tab.reorder` handling in `serve_attach` to a per-connection lifecycle worker behind a bounded channel per Decision 1; a full channel answers `busy` at once.
-- [ ] 1.2 Report lifecycle handler errors with reply frames instead of closing the connection.
+- [x] 1.1 Move `tab.create`, `tab.close`, `tab.restart`, `tab.rename`, and `tab.reorder` handling in `serve_attach` to a per-connection lifecycle worker behind a bounded channel per Decision 1; a full channel answers `busy` at once.
+- [x] 1.2 Report lifecycle handler errors with reply frames instead of closing the connection.
 
 ## 2. Bounded start slots
 
@@ -26,4 +26,4 @@ Keep terminal input flowing to resident tabs while tab lifecycle work is slow or
 ## 5. Evidence
 
 - [x] 5.1 Add `A1_TABS_FAULT_DELAY_TAB_START_MS` and role-integration tests for input during a blocked start and for the start deadline.
-- [ ] 5.2 Record focused local tests, a green `npm run preflight`, and the terminal-host CI lanes in `implementation-evidence.md`.
+- [x] 5.2 Record focused local tests, a green `npm run preflight`, and the terminal-host CI lanes in `implementation-evidence.md`.
