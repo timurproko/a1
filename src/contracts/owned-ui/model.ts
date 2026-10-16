@@ -69,8 +69,11 @@ export interface OwnedUiPromptSuggestionGeneratorPort {
 }
 
 export type OwnedUiThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+export type OwnedUiTimeFormat = "20:00" | "8:00 PM";
 
 export interface OwnedUiViewportSettings {
+  /** Omitted by older SDK callers; bare A1 composition always supplies the owned default. */
+  readonly timeFormat?: OwnedUiTimeFormat;
   readonly scrollbarAppearance: "auto" | "always" | "hidden";
   readonly scrollbarStyle: "thin" | "thick";
   /** normal is baseline; fast is 2x normal; high is normal plus fast. */

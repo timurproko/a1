@@ -137,6 +137,13 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
       return migrated;
     },
   }),
+  Object.freeze({
+    to: 17,
+    description: "Introduce the shared twelve-hour time format default.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      return { ...values };
+    },
+  }),
 ]);
 
 export interface OwnedUiSettingsCompatibilityResult {

@@ -128,7 +128,8 @@ async function prepareNodePty() {
 async function createAttach(spawnPty, host, context, viewTab = null) {
   const arguments_ = [
     "attach", "--endpoint", context.endpoint, "--cwd", context.root,
-    "--clear-exit-ms", "500", "--profile", context.profile, "--data-dir", context.data,
+    "--clear-exit-ms", "500", "--profile", context.profile,
+    "--settings-file", resolve(context.profile, "settings.json"), "--data-dir", context.data,
     "--runtime-dir", context.runtime, "--release-root", context.release,
     "--node-executable", process.execPath,
   ];

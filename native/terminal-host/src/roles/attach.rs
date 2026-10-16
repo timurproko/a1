@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::io::{Write, stdout};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use unicode_width::UnicodeWidthStr;
 
@@ -15,20 +15,23 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use crate::endpoint;
 use crate::protocol::{self, BridgeAttachment, MAX_INPUT_BYTES, Welcome};
 use crate::roles::credentials::ProfileCredentials;
-use crate::roles::strip::{self, StripHit, StripTab};
+use crate::roles::strip::{self, StripHit, StripHover, StripTab, TimeFormat};
 use crate::roles::wire::{
     self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface, TabCreate, TabList,
     TabRename, TabReorder, TabStatus, TabTarget,
 };
 
 pub const ENTER_OUTER_MODES: &[u8] =
-    b"\x1b[?1049h\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1003h\x1b[?1006h\x1b[?2026h";
+    b"\x1b[?1049h\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1003h\x1b[?1006h";
 pub const RESTORE_OUTER_MODES: &[u8] =
-    b"\x1b[?2026l\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?1049l";
+    b"\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?1049l";
+const BEGIN_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026h";
+const END_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026l";
 
 #[derive(Debug, Default)]
 struct TabBindings {
     by_key: HashMap<String, String>,
+    by_action: HashMap<String, String>,
 }
 
 impl TabBindings {
@@ -121,7 +124,15 @@ impl TabBindings {
         for key in conflicts {
             by_key.remove(&key);
         }
-        Self { by_key }
+        let mut effective = by_key.iter().collect::<Vec<_>>();
+        effective.sort_by(|left, right| left.0.cmp(right.0));
+        let mut by_action = HashMap::new();
+        for (key, action) in effective {
+            by_action
+                .entry(action.clone())
+                .or_insert_with(|| key.clone());
+        }
+        Self { by_key, by_action }
     }
 
     fn action(&self, key: &crossterm::event::KeyEvent) -> Option<&str> {
@@ -129,6 +140,28 @@ impl TabBindings {
             .get(&key_token(key.code, key.modifiers))
             .map(String::as_str)
     }
+
+    fn label(&self, action: &str) -> String {
+        self.by_action
+            .get(action)
+            .map_or_else(String::new, |key| shortcut_label(key))
+    }
+}
+
+fn shortcut_label(key: &str) -> String {
+    key.split('+')
+        .map(|part| match part {
+            "alt" => "Alt".into(),
+            "ctrl" => "Ctrl".into(),
+            "shift" => "Shift".into(),
+            value if value.starts_with('f') && value[1..].chars().all(|ch| ch.is_ascii_digit()) => {
+                value.to_uppercase()
+            }
+            value if value.len() == 1 => value.to_uppercase(),
+            value => value.to_owned(),
+        })
+        .collect::<Vec<_>>()
+        .join("+")
 }
 
 fn key_token(code: KeyCode, modifiers: KeyModifiers) -> String {
@@ -205,82 +238,19 @@ pub fn is_ctrl_c_console(character: char, control: bool, key_down: bool) -> bool
     key_down && control && matches!(character, 'c' | 'C' | '\u{3}')
 }
 
-pub fn render_strip(status: &str, name: &str, accent: Option<&str>, columns: u16) -> String {
-    let spinner = strip::tab_spinner_frame();
-    let working = match accent.unwrap_or("purple") {
-        "blue" => format!("\x1b[38;2;91;141;239m{spinner}\x1b[39m "),
-        "cyan" => format!("\x1b[38;2;74;174;196m{spinner}\x1b[39m "),
-        "green" => format!("\x1b[38;2;88;183;132m{spinner}\x1b[39m "),
-        "orange" => format!("\x1b[38;2;226;159;72m{spinner}\x1b[39m "),
-        "pink" => format!("\x1b[38;2;218;112;158m{spinner}\x1b[39m "),
-        _ => format!("\x1b[38;2;167;152;215m{spinner}\x1b[39m "),
-    };
-    let glyph = match status {
-        "starting" | "restoring" => format!("{spinner} "),
-        "working" => working,
-        "restarting" => "↻ ".into(),
-        "unresponsive" | "stalled" | "degraded" => "! ".into(),
-        "crashed" | "failed" | "ended" => "✗ ".into(),
-        _ => String::new(),
-    };
-    let safe_name: String = name
-        .chars()
-        .filter(|value| *value != '\u{7}' && !value.is_control())
-        .collect();
-    let maximum = usize::from(columns).min(20);
-    let fixed_width = 4 + usize::from(!glyph.is_empty()) * 2;
-    let name_capacity = maximum.saturating_sub(fixed_width);
-    let name_length = safe_name.chars().count();
-    let visible_name = if name_length > name_capacity {
-        safe_name
-            .chars()
-            .take(name_capacity.saturating_sub(1))
-            .collect::<String>()
-            + "…"
-    } else {
-        safe_name
-    };
-    let chip = format!(" {glyph}{visible_name} × ");
-    let visible_width = fixed_width + visible_name.chars().count();
-    format!(
-        "\x1b[1;1H{chip}{}",
-        " ".repeat(usize::from(columns).saturating_sub(visible_width))
-    )
-}
-
-pub fn render_empty_hint(columns: u16) -> String {
-    let hint = "Alt+A new tab · Ctrl+C Ctrl+C leave";
-    let width = usize::from(columns);
-    let visible = hint.chars().take(width).collect::<String>();
-    let padding = width.saturating_sub(UnicodeWidthStr::width(visible.as_str()));
-    format!(
-        "\x1b[2;1H\x1b[48;2;20;20;20m\x1b[38;2;110;110;110m{visible}{}\x1b[0m",
-        "░".repeat(padding)
-    )
-}
-
-/// The notice of the open tab prompt, checked in the order prompts capture keys.
-///
-/// Notices share the strip's row, so the attach loop redraws this after every strip repaint;
-/// otherwise a prompt would keep capturing keys after its notice had been painted over.
-pub fn prompt_notice(
-    pending_close: bool,
+fn prompt_overlay_notice(
+    pending_close_name: Option<&str>,
     overflow: Option<&str>,
     rename: Option<&str>,
-    context_menu: bool,
 ) -> Option<String> {
-    if pending_close {
-        Some("Stop this agent? Enter stop · Esc cancel".into())
+    if let Some(name) = pending_close_name {
+        Some(format!("Stop \"{name}\"? Enter stop · Esc cancel"))
     } else if let Some(name) = overflow {
         Some(format!(
             "Tabs: {name} · ↑/↓ choose · Enter view · Esc cancel"
         ))
-    } else if let Some(value) = rename {
-        Some(format!("Rename: {value} · Enter save · Esc cancel"))
-    } else if context_menu {
-        Some("Tab menu: r rename · c close · Esc cancel".into())
     } else {
-        None
+        rename.map(|value| format!("Rename: {value} · Enter save · Esc cancel"))
     }
 }
 
@@ -301,6 +271,16 @@ pub fn failure_applies(failed_tab: Option<&str>, viewed: Option<&str>) -> bool {
     failed_tab.is_some() && failed_tab == viewed
 }
 
+fn render_drag_marker(column: u16, columns: u16) -> String {
+    if columns == 0 {
+        return String::new();
+    }
+    format!(
+        "\x1b[s\x1b[1;{}H\x1b[38;2;220;220;220m│\x1b[0m\x1b[u",
+        column.min(columns - 1) + 1
+    )
+}
+
 pub fn render_notice(message: &str, columns: u16) -> String {
     let mut notice = format!(" ! {message} ");
     notice.retain(|value| !value.is_control());
@@ -312,7 +292,195 @@ pub fn render_notice(message: &str, columns: u16) -> String {
             .collect::<String>()
             + "…";
     }
-    format!("\x1b[1;1H{notice:<width$}", width = maximum)
+    format!(
+        "\x1b[s\x1b[2;1H\x1b[48;2;38;38;38m\x1b[38;2;220;220;220m{notice:<width$}\x1b[0m\x1b[u",
+        width = maximum
+    )
+}
+
+const MAX_SETTINGS_BYTES: u64 = 256 * 1024;
+const SETTINGS_POLL_INTERVAL: Duration = Duration::from_millis(250);
+
+fn read_time_format(path: &Path) -> TimeFormat {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return TimeFormat::Twelve;
+    };
+    if metadata.len() > MAX_SETTINGS_BYTES {
+        return TimeFormat::Twelve;
+    }
+    let Ok(bytes) = std::fs::read(path) else {
+        return TimeFormat::Twelve;
+    };
+    let Ok(document) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+        return TimeFormat::Twelve;
+    };
+    TimeFormat::from_setting(
+        document
+            .get("a1")
+            .and_then(|value| value.get("timeFormat"))
+            .and_then(serde_json::Value::as_str),
+    )
+}
+
+#[derive(Debug)]
+struct TimeFormatWatch {
+    path: PathBuf,
+    signature: Option<(std::time::SystemTime, u64)>,
+    value: TimeFormat,
+    checked_at: Instant,
+}
+
+impl TimeFormatWatch {
+    fn new(path: &Path) -> Self {
+        Self {
+            path: path.to_owned(),
+            signature: settings_signature(path),
+            value: read_time_format(path),
+            checked_at: Instant::now(),
+        }
+    }
+
+    fn refresh(&mut self) -> bool {
+        if self.checked_at.elapsed() < SETTINGS_POLL_INTERVAL {
+            return false;
+        }
+        self.checked_at = Instant::now();
+        let signature = settings_signature(&self.path);
+        if signature == self.signature {
+            return false;
+        }
+        self.signature = signature;
+        let value = read_time_format(&self.path);
+        if value == self.value {
+            return false;
+        }
+        self.value = value;
+        true
+    }
+}
+
+fn clock_minute() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        / 60
+}
+
+fn settings_signature(path: &Path) -> Option<(std::time::SystemTime, u64)> {
+    let metadata = std::fs::metadata(path).ok()?;
+    Some((metadata.modified().ok()?, metadata.len()))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ContextAction {
+    Close,
+    Rename,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ContextMenu {
+    tab_id: String,
+    anchor_column: u16,
+    column: u16,
+    width: u16,
+    hovered: Option<ContextAction>,
+    close_label: String,
+    rename_label: String,
+}
+
+impl ContextMenu {
+    fn new(tab_id: String, column: u16, columns: u16, bindings: &TabBindings) -> Self {
+        let close = bindings.label("tabs.close");
+        let rename = bindings.label("tabs.rename");
+        let close_label = if close.is_empty() {
+            "Close".into()
+        } else {
+            format!("Close  {close}")
+        };
+        let rename_label = if rename.is_empty() {
+            "Rename".into()
+        } else {
+            format!("Rename  {rename}")
+        };
+        let width = UnicodeWidthStr::width(close_label.as_str())
+            .max(UnicodeWidthStr::width(rename_label.as_str()))
+            .saturating_add(2)
+            .min(usize::from(columns)) as u16;
+        let anchor_column = column;
+        let column = anchor_column.min(columns.saturating_sub(width));
+        Self {
+            tab_id,
+            anchor_column,
+            column,
+            width,
+            hovered: None,
+            close_label,
+            rename_label,
+        }
+    }
+
+    fn resize(&mut self, columns: u16) {
+        self.width = UnicodeWidthStr::width(self.close_label.as_str())
+            .max(UnicodeWidthStr::width(self.rename_label.as_str()))
+            .saturating_add(2)
+            .min(usize::from(columns)) as u16;
+        self.column = self.anchor_column.min(columns.saturating_sub(self.width));
+    }
+
+    fn action_at(&self, column: u16, row: u16) -> Option<ContextAction> {
+        if column < self.column || column >= self.column.saturating_add(self.width) {
+            return None;
+        }
+        match row {
+            1 => Some(ContextAction::Close),
+            2 => Some(ContextAction::Rename),
+            _ => None,
+        }
+    }
+
+    fn render(&self) -> String {
+        let mut output = String::from("\x1b[s");
+        for (row, action, label) in [
+            (2, ContextAction::Close, self.close_label.as_str()),
+            (3, ContextAction::Rename, self.rename_label.as_str()),
+        ] {
+            let background = if self.hovered == Some(action) {
+                "55;55;55"
+            } else {
+                "38;38;38"
+            };
+            let inner = usize::from(self.width).saturating_sub(2);
+            let clipped = label.chars().take(inner).collect::<String>();
+            output.push_str(&format!(
+                "\x1b[{row};{}H\x1b[48;2;{background}m\x1b[38;2;220;220;220m {clipped:<inner$} \x1b[0m",
+                self.column.saturating_add(1),
+            ));
+        }
+        output.push_str("\x1b[u");
+        output
+    }
+}
+
+fn compose_presentation(
+    strip: &strip::StripFrame,
+    surface: &[u8],
+    overlay: Option<&str>,
+    clear: bool,
+) -> Vec<u8> {
+    let mut output =
+        Vec::with_capacity(strip.bytes.len() + surface.len() + overlay.map_or(0, str::len) + 32);
+    output.extend_from_slice(BEGIN_SYNCHRONIZED_UPDATE);
+    if clear {
+        output.extend_from_slice(b"\x1b[2J\x1b[H");
+    }
+    output.extend_from_slice(strip.bytes.as_bytes());
+    output.extend_from_slice(surface);
+    if let Some(overlay) = overlay {
+        output.extend_from_slice(overlay.as_bytes());
+    }
+    output.extend_from_slice(END_SYNCHRONIZED_UPDATE);
+    output
 }
 
 /// BEL is attention data and never reaches the outer terminal. Other bytes, including OSC 8/52
@@ -368,6 +536,7 @@ pub struct AttachOptions<'a> {
     pub clear_exit_ms: u64,
     pub tabs_max: usize,
     pub profile: &'a Path,
+    pub settings_file: &'a Path,
     pub data_dir: &'a Path,
     pub runtime_dir: &'a Path,
     pub release_root: &'a str,
@@ -508,43 +677,105 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         }
     });
     let mut tabs = Vec::<StripTab>::new();
+    let mut staged_tabs: Option<Vec<StripTab>> = None;
     let mut viewed = options.view_tab.map(str::to_owned);
-    let mut hovered_tab: Option<String> = None;
-    let mut strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-    terminal.write(strip_frame.bytes.as_bytes())?;
-    terminal.write(render_empty_hint(columns).as_bytes())?;
+    let mut requested_view: Option<String> = options.view_tab.map(str::to_owned);
+    let mut pending_surface: Option<Surface> = None;
+    let mut hovered: Option<StripHover> = None;
+    let mut time_format = TimeFormatWatch::new(options.settings_file);
+    let mut strip_frame = strip::render_configured(
+        &tabs,
+        viewed.as_deref(),
+        columns,
+        hovered.as_ref(),
+        time_format.value,
+    );
+    let mut latest_surface = Vec::<u8>::new();
+    terminal.write(&compose_presentation(
+        &strip_frame,
+        &latest_surface,
+        None,
+        true,
+    ))?;
     let started = Instant::now();
     let mut last_strip_frame = Instant::now();
+    let mut displayed_clock_minute = clock_minute();
     let mut last_list = Instant::now();
     let mut chord = DoubleCtrlC::new(options.clear_exit_ms);
     // Invariant: failure input rules belong to one tab and apply only while it is viewed.
     let mut failed_tab: Option<String> = None;
     let mut rename: Option<(String, String)> = None;
-    let mut context_tab: Option<String> = None;
+    let mut context_menu: Option<ContextMenu> = None;
     let mut overflow_index: Option<usize> = None;
     let mut pending_close: Option<String> = None;
+    let mut close_fallback: Option<CloseFallback> = None;
+    let mut transient_notice: Option<String> = None;
     let mut prompt_view = viewed.clone();
     let mut registry_revision = 0u64;
     let mut drag: Option<(String, u16, Instant)> = None;
+    let mut drag_marker: Option<u16> = None;
     let bindings = TabBindings::load(options.profile);
-    // Invariant: an open prompt's notice shares the strip row and is painted after each repaint.
-    macro_rules! paint_prompt {
-        () => {{
-            if let Some(notice) = prompt_notice(
-                pending_close.is_some(),
-                overflow_index.map(|index| tabs.get(index).map_or("", |tab| tab.name.as_str())),
-                rename.as_ref().map(|(_, value)| value.as_str()),
-                context_tab.is_some(),
-            ) {
-                terminal.write(render_notice(&notice, columns).as_bytes())?;
+    macro_rules! paint_current {
+        ($clear:expr) => {{
+            strip_frame = strip::render_configured(
+                &tabs,
+                viewed.as_deref(),
+                columns,
+                hovered.as_ref(),
+                time_format.value,
+            );
+            if hovered
+                .as_ref()
+                .is_some_and(|target| !strip_hover_present(&strip_frame, target))
+            {
+                hovered = None;
+                strip_frame = strip::render_configured(
+                    &tabs,
+                    viewed.as_deref(),
+                    columns,
+                    None,
+                    time_format.value,
+                );
             }
-        }};
-    }
-    // Invariant: no strip repaint inside the loop may leave an open prompt without its notice.
-    macro_rules! paint_strip {
-        () => {{
-            terminal.write(strip_frame.bytes.as_bytes())?;
-            paint_prompt!();
+            let pending_name = pending_close.as_ref().and_then(|id| {
+                tabs.iter()
+                    .find(|tab| &tab.id == id)
+                    .map(|tab| tab.name.as_str())
+            });
+            let prompt = prompt_overlay_notice(
+                pending_name,
+                overflow_index.and_then(|index| tabs.get(index).map(|tab| tab.name.as_str())),
+                rename.as_ref().map(|(_, value)| value.as_str()),
+            );
+            let status_notice = viewed
+                .as_ref()
+                .and_then(|id| tabs.iter().find(|tab| &tab.id == id))
+                .and_then(|tab| {
+                    if matches!(tab.status.as_str(), "stalled" | "unresponsive") {
+                        Some("Agent stalled · R restart · Alt+W close".to_owned())
+                    } else if tab.status == "failed" {
+                        Some("Tab failed · R retry · F start fresh · Alt+W close".to_owned())
+                    } else {
+                        None
+                    }
+                });
+            let overlay = if let Some(menu) = context_menu.as_ref() {
+                Some(menu.render())
+            } else if let Some(column) = drag_marker {
+                Some(render_drag_marker(column, columns))
+            } else if let Some(prompt) = prompt {
+                Some(render_notice(&prompt, columns))
+            } else if let Some(notice) = transient_notice.as_deref().or(status_notice.as_deref()) {
+                Some(render_notice(notice, columns))
+            } else {
+                None
+            };
+            terminal.write(&compose_presentation(
+                &strip_frame,
+                &latest_surface,
+                overlay.as_deref(),
+                $clear,
+            ))?;
         }};
     }
     loop {
@@ -557,32 +788,53 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             match kind.message_type.as_str() {
                 "surface" => {
                     let (_, surface): (_, Surface) = wire::body(&payload)?;
+                    let requested = requested_view.as_deref() == Some(surface.tab_id.as_str());
+                    if requested
+                        && staged_tabs.is_none()
+                        && !tabs.iter().any(|tab| tab.id == surface.tab_id)
+                    {
+                        pending_surface = Some(surface);
+                        continue;
+                    }
+                    if requested {
+                        if let Some(next) = staged_tabs.take() {
+                            tabs = next;
+                        }
+                        viewed = Some(surface.tab_id.clone());
+                        requested_view = None;
+                        close_fallback = None;
+                        transient_notice = None;
+                        if prompt_view != viewed {
+                            pending_close = None;
+                            overflow_index = None;
+                            rename = None;
+                            context_menu = None;
+                            prompt_view = viewed.clone();
+                        }
+                    } else if viewed.as_deref() != Some(surface.tab_id.as_str()) {
+                        continue;
+                    }
                     if surface.status == "failed" {
                         failed_tab = Some(surface.tab_id.clone());
                     } else if failed_tab.as_deref() == Some(surface.tab_id.as_str()) {
                         failed_tab = None;
                     }
-                    if viewed.is_none() {
-                        viewed = Some(surface.tab_id.clone());
-                    }
                     if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id) {
                         tab.status = surface.status.clone();
                         tab.accent = surface.accent.clone();
                     }
-                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    terminal.write(strip_frame.bytes.as_bytes())?;
-                    terminal.write(&without_bell(&surface.bytes))?;
-                    if matches!(surface.status.as_str(), "stalled" | "unresponsive") {
-                        terminal.write(
-                            render_notice("Agent stalled · R restart · Alt+W close", columns)
-                                .as_bytes(),
-                        )?;
-                    }
-                    paint_prompt!();
+                    latest_surface = without_bell(&surface.bytes);
+                    paint_current!(false);
                 }
                 "tab.status" => {
                     let (_, status): (_, TabStatus) = wire::body(&payload)?;
                     if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == status.tab_id) {
+                        tab.status = status.status.clone();
+                        tab.accent = status.accent.clone();
+                    }
+                    if let Some(staged) = staged_tabs.as_mut()
+                        && let Some(tab) = staged.iter_mut().find(|tab| tab.id == status.tab_id)
+                    {
                         tab.status = status.status.clone();
                         tab.accent = status.accent.clone();
                     }
@@ -591,26 +843,20 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     {
                         failed_tab = None;
                     }
-                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    paint_strip!();
-                    if viewed.as_deref() == Some(status.tab_id.as_str())
-                        && matches!(status.status.as_str(), "stalled" | "unresponsive")
-                    {
-                        terminal.write(
-                            render_notice("Agent stalled · R restart · Alt+W close", columns)
-                                .as_bytes(),
-                        )?;
-                    }
+                    paint_current!(false);
                 }
                 "tab.list" => {
                     let (_, list): (_, TabList) = wire::body(&payload)?;
                     registry_revision = list.revision;
-                    tabs = list
+                    let previous_tabs = staged_tabs.as_ref().unwrap_or(&tabs);
+                    let next_tabs = list
                         .tabs
                         .into_iter()
                         .filter(|tab| tab.lifecycle != "stopped")
                         .map(|tab| {
-                            let previous = tabs.iter().find(|current| current.id == tab.tab_id);
+                            let previous = previous_tabs
+                                .iter()
+                                .find(|current| current.id == tab.tab_id);
                             let title_animation = strip::reconcile_title_animation(
                                 previous,
                                 &tab.name,
@@ -627,22 +873,72 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 title_animation,
                             }
                         })
-                        .collect();
-                    if viewed
+                        .collect::<Vec<_>>();
+                    let viewed_missing = viewed
                         .as_ref()
-                        .is_none_or(|id| !tabs.iter().any(|tab| &tab.id == id))
-                    {
-                        viewed = tabs.first().map(|tab| tab.id.clone());
-                        if let Some(tab_id) = viewed.clone() {
+                        .is_some_and(|id| !next_tabs.iter().any(|tab| &tab.id == id));
+                    let requested_missing = requested_view
+                        .as_ref()
+                        .is_some_and(|id| !next_tabs.iter().any(|tab| &tab.id == id));
+                    if requested_missing {
+                        requested_view = None;
+                        staged_tabs = None;
+                        pending_surface = None;
+                    }
+                    if viewed_missing && requested_view.is_none() {
+                        let target = close_fallback
+                            .as_ref()
+                            .and_then(|fallback| fallback.resolve(&next_tabs))
+                            .or_else(|| next_tabs.first().map(|tab| tab.id.clone()));
+                        if let Some(tab_id) = target {
+                            requested_view = Some(tab_id.clone());
                             wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
                         }
                     }
+                    let target_pending = requested_view.as_ref().is_some_and(|id| {
+                        viewed.as_ref() != Some(id) && next_tabs.iter().any(|tab| &tab.id == id)
+                    });
+                    if target_pending {
+                        let target = requested_view.clone().expect("checked pending target");
+                        if let Some(surface) = pending_surface
+                            .take()
+                            .filter(|surface| surface.tab_id == target)
+                        {
+                            tabs = next_tabs;
+                            viewed = Some(target);
+                            requested_view = None;
+                            close_fallback = None;
+                            if prompt_view != viewed {
+                                pending_close = None;
+                                overflow_index = None;
+                                rename = None;
+                                context_menu = None;
+                                prompt_view = viewed.clone();
+                            }
+                            latest_surface = without_bell(&surface.bytes);
+                            if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id)
+                            {
+                                tab.status = surface.status;
+                                tab.accent = surface.accent;
+                            }
+                            paint_current!(false);
+                        } else {
+                            staged_tabs = Some(next_tabs);
+                        }
+                        continue;
+                    }
+                    let changed = tabs != next_tabs;
+                    tabs = next_tabs;
+                    staged_tabs = None;
                     let listed = |id: &String| tabs.iter().any(|tab| &tab.id == id);
                     if !pending_close.as_ref().is_none_or(listed) {
                         pending_close = None;
                     }
-                    if !context_tab.as_ref().is_none_or(listed) {
-                        context_tab = None;
+                    if !context_menu
+                        .as_ref()
+                        .is_none_or(|menu| listed(&menu.tab_id))
+                    {
+                        context_menu = None;
                     }
                     if !rename.as_ref().is_none_or(|(id, _)| listed(id)) {
                         rename = None;
@@ -653,15 +949,19 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     if overflow_index.is_some_and(|index| index >= tabs.len()) {
                         overflow_index = None;
                     }
-                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    paint_strip!();
                     if tabs.is_empty() {
-                        terminal.write(render_empty_hint(columns).as_bytes())?;
+                        viewed = None;
+                        requested_view = None;
+                        latest_surface.clear();
+                        close_fallback = None;
+                        paint_current!(true);
+                    } else if changed {
+                        paint_current!(false);
                     }
                 }
                 "tab.created" | "tab.selected" => {
                     let (_, target): (_, TabTarget) = wire::body(&payload)?;
-                    viewed = Some(target.tab_id.clone());
+                    requested_view = Some(target.tab_id.clone());
                     wire::send(&mut stream, "tab.view", None, target)?;
                     wire::send(
                         &mut stream,
@@ -675,28 +975,25 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "tab.create-failed" | "tab.create-refused" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
-                    terminal.write(
-                        render_notice(
-                            &tab_create_failure_notice(result.message.as_deref()),
-                            columns,
-                        )
-                        .as_bytes(),
-                    )?;
+                    requested_view = None;
+                    staged_tabs = None;
+                    pending_surface = None;
+                    transient_notice = Some(tab_create_failure_notice(result.message.as_deref()));
+                    paint_current!(false);
                 }
                 "tab.rename-refused" | "tab.restarted" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
-                    if !result.accepted
-                        && let Some(message) = result.message
-                    {
-                        terminal.write(render_notice(&message, columns).as_bytes())?;
+                    if !result.accepted {
+                        transient_notice = result.message;
+                        paint_current!(false);
                     }
                 }
                 "tab.closed" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
-                    if !result.accepted
-                        && let Some(message) = result.message
-                    {
-                        terminal.write(render_notice(&message, columns).as_bytes())?;
+                    if !result.accepted {
+                        transient_notice = result.message;
+                        close_fallback = None;
+                        paint_current!(false);
                     }
                     wire::send(
                         &mut stream,
@@ -727,24 +1024,25 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     return Err("a1 is attached in another terminal".to_owned());
                 }
                 "holder.exit" => {
-                    terminal.write(render_strip("crashed", "agent", None, columns).as_bytes())?;
+                    if let Some(tab) = viewed
+                        .as_ref()
+                        .and_then(|id| tabs.iter_mut().find(|tab| &tab.id == id))
+                    {
+                        tab.status = "crashed".into();
+                    }
+                    paint_current!(false);
                 }
                 "failure.status" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
                     failed_tab = viewed.clone();
-                    let reason = result.message.unwrap_or_else(|| "tab failed".into());
-                    terminal.write(
-                        render_notice(
-                            &format!("✗ {reason} — [r] retry · [f] start fresh · [alt+w] close"),
-                            columns,
-                        )
-                        .as_bytes(),
-                    )?;
+                    transient_notice = Some(result.message.unwrap_or_else(|| "tab failed".into()));
+                    paint_current!(false);
                 }
                 "viewer.status" | "input.rejected" | "input.uncertain" | "recovery.notice" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
-                    if let Some(message) = result.message {
-                        terminal.write(render_notice(&message, columns).as_bytes())?;
+                    if result.message.is_some() {
+                        transient_notice = result.message;
+                        paint_current!(false);
                     }
                 }
                 "error" => {
@@ -762,9 +1060,18 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         if strip::animations_active(&tabs)
             && last_strip_frame.elapsed() >= strip::animation_interval(&tabs)
         {
-            strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-            paint_strip!();
+            paint_current!(false);
             last_strip_frame = Instant::now();
+        }
+        if time_format.refresh() {
+            paint_current!(false);
+        }
+        let current_clock_minute = clock_minute();
+        if current_clock_minute != displayed_clock_minute {
+            displayed_clock_minute = current_clock_minute;
+            if !tabs.is_empty() {
+                paint_current!(false);
+            }
         }
         if last_list.elapsed() >= Duration::from_millis(500) {
             wire::send(
@@ -795,21 +1102,21 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             pending_close = None;
             overflow_index = None;
             rename = None;
-            context_tab = None;
+            context_menu = None;
             prompt_view = viewed.clone();
         }
         let failed = failure_applies(failed_tab.as_deref(), viewed.as_deref());
         match next {
             Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => {
+                transient_notice = None;
                 if let Some(tab_id) = pending_close.take() {
                     if key.code == KeyCode::Enter {
+                        close_fallback = close_fallback_for(&tabs, viewed.as_deref(), &tab_id);
                         wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
                     } else if key.code != KeyCode::Esc {
                         pending_close = Some(tab_id);
                     }
-                    // Rationale: a swallowed key repaints the notice that explains it; an answer restores the strip.
-                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    paint_strip!();
+                    paint_current!(false);
                     continue;
                 }
                 if let Some(index) = overflow_index {
@@ -821,7 +1128,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                         KeyCode::Enter => {
                             if let Some(tab) = tabs.get(index) {
-                                viewed = Some(tab.id.clone());
+                                requested_view = Some(tab.id.clone());
                                 wire::send(
                                     &mut stream,
                                     "tab.view",
@@ -835,8 +1142,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                         _ => {}
                     }
-                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    paint_strip!();
+                    paint_current!(false);
                     continue;
                 }
                 if let Some((tab_id, value)) = rename.as_mut() {
@@ -858,35 +1164,62 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                         _ => {}
                     }
-                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    paint_strip!();
+                    paint_current!(false);
                     continue;
                 }
-                if let Some(tab_id) = context_tab.take() {
-                    match key.code {
-                        KeyCode::Char('r' | 'R') => {
-                            let name = tabs
-                                .iter()
-                                .find(|tab| tab.id == tab_id)
-                                .map(|tab| tab.name.clone())
-                                .unwrap_or_default();
-                            rename = Some((tab_id, name));
+                if let Some(mut menu) = context_menu.take() {
+                    let action = match key.code {
+                        KeyCode::Esc => None,
+                        KeyCode::Up => {
+                            menu.hovered = Some(ContextAction::Close);
+                            context_menu = Some(menu);
+                            paint_current!(false);
+                            continue;
                         }
-                        KeyCode::Char('c' | 'C') => {
-                            let busy =
-                                tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
-                                    matches!(tab.status.as_str(), "working" | "needs-input")
-                                });
-                            if busy {
-                                pending_close = Some(tab_id);
-                            } else {
-                                wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
+                        KeyCode::Down => {
+                            menu.hovered = Some(ContextAction::Rename);
+                            context_menu = Some(menu);
+                            paint_current!(false);
+                            continue;
+                        }
+                        KeyCode::Enter => menu.hovered.or(Some(ContextAction::Close)),
+                        _ => {
+                            context_menu = Some(menu);
+                            continue;
+                        }
+                    };
+                    if let Some(action) = action {
+                        let tab_id = menu.tab_id;
+                        match action {
+                            ContextAction::Rename => {
+                                let name = tabs
+                                    .iter()
+                                    .find(|tab| tab.id == tab_id)
+                                    .map(|tab| tab.name.clone())
+                                    .unwrap_or_default();
+                                rename = Some((tab_id, name));
+                            }
+                            ContextAction::Close => {
+                                let busy =
+                                    tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
+                                        matches!(tab.status.as_str(), "working" | "needs-input")
+                                    });
+                                if busy {
+                                    pending_close = Some(tab_id);
+                                } else {
+                                    close_fallback =
+                                        close_fallback_for(&tabs, viewed.as_deref(), &tab_id);
+                                    wire::send(
+                                        &mut stream,
+                                        "tab.close",
+                                        None,
+                                        TabTarget { tab_id },
+                                    )?;
+                                }
                             }
                         }
-                        _ => {}
                     }
-                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    paint_strip!();
+                    paint_current!(false);
                     continue;
                 }
                 if let Some(action) = bindings.action(&key) {
@@ -901,6 +1234,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 if busy {
                                     pending_close = Some(tab_id);
                                 } else {
+                                    close_fallback =
+                                        close_fallback_for(&tabs, viewed.as_deref(), &tab_id);
                                     wire::send(
                                         &mut stream,
                                         "tab.close",
@@ -932,7 +1267,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     (current + tabs.len() - 1) % tabs.len()
                                 };
                                 let tab_id = tabs[index].id.clone();
-                                viewed = Some(tab_id.clone());
+                                requested_view = Some(tab_id.clone());
                                 wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
                             }
                         }
@@ -964,7 +1299,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 .unwrap_or(1)
                                 .saturating_sub(1);
                             if let Some(tab) = tabs.get(index) {
-                                viewed = Some(tab.id.clone());
+                                requested_view = Some(tab.id.clone());
                                 wire::send(
                                     &mut stream,
                                     "tab.view",
@@ -977,8 +1312,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                         _ => {}
                     }
-                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    paint_strip!();
+                    paint_current!(false);
                     continue;
                 }
                 let bytes = encode_key(key.code, key.modifiers);
@@ -1073,8 +1407,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 columns = cols;
                 create.columns = cols;
                 create.rows = rows;
-                strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                paint_strip!();
+                if let Some(menu) = context_menu.as_mut() {
+                    menu.resize(columns);
+                }
+                paint_current!(true);
                 wire::send(
                     &mut stream,
                     "resize",
@@ -1118,44 +1454,98 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 },
             )?,
             Event::Mouse(mouse) => {
+                transient_notice = None;
+                if let Some(mut menu) = context_menu.take() {
+                    let action = menu.action_at(mouse.column, mouse.row);
+                    if matches!(mouse.kind, MouseEventKind::Moved) {
+                        if menu.hovered != action {
+                            menu.hovered = action;
+                            context_menu = Some(menu);
+                            paint_current!(false);
+                        } else {
+                            context_menu = Some(menu);
+                        }
+                        continue;
+                    }
+                    if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
+                        if let Some(action) = action {
+                            let tab_id = menu.tab_id;
+                            match action {
+                                ContextAction::Rename => {
+                                    let name = tabs
+                                        .iter()
+                                        .find(|tab| tab.id == tab_id)
+                                        .map(|tab| tab.name.clone())
+                                        .unwrap_or_default();
+                                    rename = Some((tab_id, name));
+                                }
+                                ContextAction::Close => {
+                                    let busy = tabs
+                                        .iter()
+                                        .find(|tab| tab.id == tab_id)
+                                        .is_some_and(|tab| {
+                                            matches!(tab.status.as_str(), "working" | "needs-input")
+                                        });
+                                    if busy {
+                                        pending_close = Some(tab_id);
+                                    } else {
+                                        close_fallback =
+                                            close_fallback_for(&tabs, viewed.as_deref(), &tab_id);
+                                        wire::send(
+                                            &mut stream,
+                                            "tab.close",
+                                            None,
+                                            TabTarget { tab_id },
+                                        )?;
+                                    }
+                                }
+                            }
+                        }
+                        paint_current!(false);
+                        continue;
+                    }
+                    context_menu = Some(menu);
+                }
+                if drag.is_some() && matches!(mouse.kind, MouseEventKind::Drag(MouseButton::Left)) {
+                    let next_marker = Some(mouse.column.min(columns.saturating_sub(1)));
+                    if drag_marker != next_marker {
+                        drag_marker = next_marker;
+                        paint_current!(false);
+                    }
+                    continue;
+                }
+                if drag.is_some()
+                    && mouse.row != 0
+                    && matches!(mouse.kind, MouseEventKind::Up(MouseButton::Left))
+                {
+                    drag = None;
+                    drag_marker = None;
+                    paint_current!(false);
+                    continue;
+                }
                 if mouse.row == 0 {
                     let target = strip::hit(&strip_frame, mouse.column).cloned();
                     if matches!(mouse.kind, MouseEventKind::Moved) {
                         let next_hover = match target {
-                            Some(StripHit::View(id) | StripHit::Close(id)) => Some(id),
-                            _ => None,
+                            Some(StripHit::View(id)) => Some(StripHover::Tab(id)),
+                            Some(StripHit::Overflow) => Some(StripHover::Overflow),
+                            Some(StripHit::New) => Some(StripHover::New),
+                            None => None,
                         };
-                        if next_hover != hovered_tab {
-                            hovered_tab = next_hover;
-                            strip_frame = strip::render_with_hover(
-                                &tabs,
-                                viewed.as_deref(),
-                                columns,
-                                hovered_tab.as_deref(),
-                            );
-                            paint_strip!();
-                        }
-                    } else if matches!(mouse.kind, MouseEventKind::Drag(MouseButton::Left)) {
-                        if let Some((_, start, since)) = drag.as_ref()
-                            && (start.abs_diff(mouse.column) >= 1
-                                || since.elapsed() >= Duration::from_millis(250))
-                        {
-                            terminal.write(
-                                render_notice("│ release to move tab", columns).as_bytes(),
-                            )?;
+                        if next_hover != hovered {
+                            hovered = next_hover;
+                            paint_current!(false);
                         }
                     } else if matches!(mouse.kind, MouseEventKind::Up(MouseButton::Left)) {
+                        let marker_visible = drag_marker.take().is_some();
                         if let Some((tab_id, start, since)) = drag.take()
                             && (start.abs_diff(mouse.column) >= 1
                                 || since.elapsed() >= Duration::from_millis(250))
                         {
-                            let target_id = match target {
-                                Some(StripHit::View(id) | StripHit::Close(id)) => Some(id),
+                            if let Some(target_index) = target.and_then(|hit| match hit {
+                                StripHit::View(id) => tabs.iter().position(|tab| tab.id == id),
                                 _ => None,
-                            };
-                            if let Some(target_index) =
-                                target_id.and_then(|id| tabs.iter().position(|tab| tab.id == id))
-                            {
+                            }) {
                                 wire::send(
                                     &mut stream,
                                     "tab.reorder",
@@ -1168,72 +1558,41 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 )?;
                             }
                         }
+                        if marker_visible {
+                            paint_current!(false);
+                        }
                     } else if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Right)) {
-                        if let Some(StripHit::View(tab_id) | StripHit::Close(tab_id)) = target {
-                            context_tab = Some(tab_id);
-                            terminal.write(
-                                render_notice("Tab menu: r rename · c close · Esc cancel", columns)
-                                    .as_bytes(),
-                            )?;
+                        if let Some(StripHit::View(tab_id)) = target {
+                            context_menu =
+                                Some(ContextMenu::new(tab_id, mouse.column, columns, &bindings));
+                            paint_current!(false);
                         }
                     } else if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
                         match target {
                             Some(StripHit::View(tab_id)) => {
                                 drag = Some((tab_id.clone(), mouse.column, Instant::now()));
-                                viewed = Some(tab_id.clone());
+                                requested_view = Some(tab_id.clone());
                                 wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
-                            }
-                            Some(StripHit::Close(tab_id)) => {
-                                let busy =
-                                    tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
-                                        matches!(tab.status.as_str(), "working" | "needs-input")
-                                    });
-                                if busy {
-                                    pending_close = Some(tab_id);
-                                    terminal.write(
-                                        render_notice(
-                                            "Stop this agent? Enter stop · Esc cancel",
-                                            columns,
-                                        )
-                                        .as_bytes(),
-                                    )?;
-                                } else {
-                                    wire::send(
-                                        &mut stream,
-                                        "tab.close",
-                                        None,
-                                        TabTarget { tab_id },
-                                    )?;
-                                }
                             }
                             Some(StripHit::New) => {
                                 wire::send(&mut stream, "tab.create", None, create.clone())?
                             }
                             Some(StripHit::Overflow) => {
-                                let index = viewed
-                                    .as_ref()
-                                    .and_then(|id| tabs.iter().position(|tab| &tab.id == id))
-                                    .unwrap_or(0);
-                                overflow_index = Some(index);
-                                let name = tabs.get(index).map_or("", |tab| tab.name.as_str());
-                                terminal.write(
-                                    render_notice(
-                                        &format!(
-                                            "Tabs: {name} · ↑/↓ choose · Enter view · Esc cancel"
-                                        ),
-                                        columns,
-                                    )
-                                    .as_bytes(),
-                                )?;
+                                overflow_index = Some(
+                                    viewed
+                                        .as_ref()
+                                        .and_then(|id| tabs.iter().position(|tab| &tab.id == id))
+                                        .unwrap_or(0),
+                                );
+                                paint_current!(false);
                             }
                             None => {}
                         }
                     }
                     continue;
                 }
-                if hovered_tab.take().is_some() {
-                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    paint_strip!();
+                if hovered.take().is_some() {
+                    paint_current!(false);
                 }
                 if let Some(bytes) = encode_mouse(mouse.kind, mouse.column, mouse.row) {
                     wire::send(
@@ -1251,6 +1610,49 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             _ => {}
         }
     }
+}
+
+fn strip_hover_present(frame: &strip::StripFrame, hovered: &StripHover) -> bool {
+    frame.hits.iter().any(|(_, _, hit)| match (hovered, hit) {
+        (StripHover::Tab(hovered), StripHit::View(id)) => hovered == id,
+        (StripHover::Overflow, StripHit::Overflow) | (StripHover::New, StripHit::New) => true,
+        _ => false,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CloseFallback {
+    candidates: Vec<String>,
+}
+
+impl CloseFallback {
+    fn resolve(&self, survivors: &[StripTab]) -> Option<String> {
+        self.candidates
+            .iter()
+            .find(|id| survivors.iter().any(|tab| &tab.id == *id))
+            .cloned()
+    }
+}
+
+fn close_fallback_for(
+    tabs: &[StripTab],
+    viewed: Option<&str>,
+    closing: &str,
+) -> Option<CloseFallback> {
+    if viewed != Some(closing) {
+        return None;
+    }
+    let index = tabs.iter().position(|tab| tab.id == closing)?;
+    let mut candidates = Vec::with_capacity(tabs.len().saturating_sub(1));
+    for distance in 1..tabs.len() {
+        if let Some(left) = index.checked_sub(distance).and_then(|left| tabs.get(left)) {
+            candidates.push(left.id.clone());
+        }
+        if let Some(right) = tabs.get(index + distance) {
+            candidates.push(right.id.clone());
+        }
+    }
+    Some(CloseFallback { candidates })
 }
 
 fn outer_size() -> Result<(u16, u16), String> {
@@ -1546,23 +1948,7 @@ mod tests {
             without_bell(b"\x1b]8;;https://example.com\x07link\x1b]8;;\x07"),
             b"\x1b]8;;https://example.com\x07link\x1b]8;;\x07"
         );
-        let working = render_strip("working", "agent", Some("orange"), 80);
-        assert!(working.contains("agent ×"));
-        assert!(working.contains("38;2;226;159;72"));
-        assert!(
-            strip::TAB_SPINNER_FRAMES
-                .iter()
-                .any(|glyph| working.contains(glyph))
-        );
-        assert!(
-            ["◐", "◓", "◑", "◒", "…"]
-                .iter()
-                .all(|glyph| !working.contains(glyph))
-        );
-        assert!(!render_strip("working", "a\x07gent", None, 80).contains('\u{7}'));
         assert!(render_notice("input rejected", 40).contains("input rejected"));
-        assert!(render_empty_hint(80).contains("Alt+A new tab"));
-        assert!(!render_empty_hint(8).contains("new tab"));
     }
     #[test]
     fn tab_bindings_load_assignable_actions_and_disable_conflicts() {
@@ -1679,28 +2065,155 @@ mod tests {
     }
 
     #[test]
-    fn the_open_prompt_names_itself_in_capture_order() {
-        assert_eq!(prompt_notice(false, None, None, false), None);
+    fn active_close_prefers_the_immediate_predecessor_then_next_survivor() {
+        let tab = |id: &str| StripTab {
+            id: id.into(),
+            name: id.into(),
+            name_source: "default".into(),
+            status: "idle".into(),
+            accent: None,
+            title_animation: None,
+        };
+        let tabs = vec![tab("a"), tab("b"), tab("c"), tab("d")];
+        let ids = |fallback: Option<CloseFallback>| fallback.unwrap().candidates;
         assert_eq!(
-            prompt_notice(true, Some("agent"), Some("x"), true).as_deref(),
-            Some("Stop this agent? Enter stop · Esc cancel")
+            ids(close_fallback_for(&tabs, Some("b"), "b")),
+            ["a", "c", "d"]
         );
         assert_eq!(
-            prompt_notice(false, Some("agent"), Some("x"), true).as_deref(),
+            ids(close_fallback_for(&tabs, Some("a"), "a")),
+            ["b", "c", "d"]
+        );
+        assert_eq!(
+            ids(close_fallback_for(&tabs, Some("d"), "d")),
+            ["c", "b", "a"]
+        );
+        assert_eq!(close_fallback_for(&tabs, Some("a"), "b"), None);
+
+        let fallback = close_fallback_for(&tabs, Some("c"), "c").unwrap();
+        assert_eq!(
+            fallback.resolve(&[tab("a"), tab("b"), tab("d")]).as_deref(),
+            Some("b")
+        );
+        assert_eq!(
+            fallback.resolve(&[tab("a"), tab("d")]).as_deref(),
+            Some("d")
+        );
+        assert_eq!(fallback.resolve(&[]), None);
+        assert_eq!(
+            close_fallback_for(&[tab("a")], Some("a"), "a")
+                .unwrap()
+                .resolve(&[]),
+            None
+        );
+    }
+
+    #[test]
+    fn strip_hover_survives_unrelated_updates_only_while_geometry_exists() {
+        let tab = |id: &str| StripTab {
+            id: id.into(),
+            name: "long resident agent".into(),
+            name_source: "default".into(),
+            status: "idle".into(),
+            accent: None,
+            title_animation: None,
+        };
+        let many = (0..10)
+            .map(|index| tab(&format!("tab-{index}")))
+            .collect::<Vec<_>>();
+        let crowded = strip::render(&many, Some("tab-0"), 40);
+        assert!(strip_hover_present(
+            &crowded,
+            &StripHover::Tab("tab-0".into())
+        ));
+        assert!(strip_hover_present(&crowded, &StripHover::Overflow));
+        assert!(strip_hover_present(&crowded, &StripHover::New));
+        let changed = strip::render(&[tab("tab-1")], Some("tab-1"), 80);
+        assert!(!strip_hover_present(
+            &changed,
+            &StripHover::Tab("tab-0".into())
+        ));
+        assert!(!strip_hover_present(&changed, &StripHover::Overflow));
+        assert!(strip_hover_present(&changed, &StripHover::New));
+    }
+
+    #[test]
+    fn modeled_overlays_name_their_action_and_preserve_the_strip() {
+        assert_eq!(prompt_overlay_notice(None, None, None), None);
+        assert_eq!(
+            prompt_overlay_notice(Some("agent"), Some("x"), Some("docs")).as_deref(),
+            Some("Stop \"agent\"? Enter stop · Esc cancel")
+        );
+        assert_eq!(
+            prompt_overlay_notice(None, Some("agent"), Some("docs")).as_deref(),
             Some("Tabs: agent · ↑/↓ choose · Enter view · Esc cancel")
         );
         assert_eq!(
-            prompt_notice(false, None, Some("docs"), true).as_deref(),
+            prompt_overlay_notice(None, None, Some("docs")).as_deref(),
             Some("Rename: docs · Enter save · Esc cancel")
         );
-        assert_eq!(
-            prompt_notice(false, None, None, true).as_deref(),
-            Some("Tab menu: r rename · c close · Esc cancel")
-        );
-        // Invariant: notices share the strip row and replace it while open.
+        let profile = tempfile::tempdir().unwrap();
+        let bindings = TabBindings::load(profile.path());
+        let mut menu = ContextMenu::new("tab-1".into(), 79, 80, &bindings);
+        let rendered = menu.render();
+        assert!(rendered.contains("Close  Alt+W"));
+        assert!(rendered.contains("Rename  F2"));
+        assert_eq!(menu.column + menu.width, 80);
+        assert_eq!(menu.action_at(menu.column, 1), Some(ContextAction::Close));
+        assert_eq!(menu.action_at(menu.column, 2), Some(ContextAction::Rename));
+        assert_eq!(menu.action_at(menu.column, 0), None);
+        assert_eq!(menu.action_at(menu.column.saturating_sub(1), 1), None);
+        menu.resize(8);
+        assert_eq!(menu.column + menu.width, 8);
+        menu.resize(80);
+        assert_eq!(menu.column + menu.width, 80);
+
+        std::fs::write(
+            profile.path().join("keybindings.json"),
+            br#"{"tabs.close":"ctrl+x","tabs.rename":"alt+r"}"#,
+        )
+        .unwrap();
+        let rebound = ContextMenu::new("tab-1".into(), 0, 80, &TabBindings::load(profile.path()));
+        assert!(rebound.render().contains("Close  Ctrl+X"));
+        assert!(rebound.render().contains("Rename  Alt+R"));
         assert!(
-            render_notice("Stop this agent? Enter stop · Esc cancel", 80).starts_with("\x1b[1;1H")
+            render_notice("Stop \"agent\"? Enter stop · Esc cancel", 80)
+                .contains("Stop \"agent\"?")
         );
+        let marker = render_drag_marker(79, 80);
+        assert!(marker.contains("│"));
+        assert!(!marker.contains("release to move"));
+    }
+
+    #[test]
+    fn settings_time_format_is_bounded_and_observed_live() {
+        let profile = tempfile::tempdir().unwrap();
+        let file = profile.path().join("settings.json");
+        assert_eq!(read_time_format(&file), TimeFormat::Twelve);
+        std::fs::write(&file, br#"{"a1":{"timeFormat":"20:00"}}"#).unwrap();
+        assert_eq!(read_time_format(&file), TimeFormat::TwentyFour);
+        let mut watch = TimeFormatWatch::new(&file);
+        std::fs::write(&file, br#"{"a1":{"timeFormat":"8:00 PM"}}"#).unwrap();
+        watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
+        assert!(watch.refresh());
+        assert_eq!(watch.value, TimeFormat::Twelve);
+
+        std::fs::write(&file, br#"{"a1":{"timeFormat":"invalid"}}"#).unwrap();
+        assert_eq!(read_time_format(&file), TimeFormat::Twelve);
+        std::fs::write(&file, vec![b'x'; MAX_SETTINGS_BYTES as usize + 1]).unwrap();
+        assert_eq!(read_time_format(&file), TimeFormat::Twelve);
+    }
+
+    #[test]
+    fn presentation_is_one_ordered_synchronized_write() {
+        let strip = strip::render(&[], None, 20);
+        let frame = compose_presentation(&strip, b"SURFACE", Some("OVERLAY"), true);
+        assert!(frame.starts_with(BEGIN_SYNCHRONIZED_UPDATE));
+        assert!(frame.ends_with(END_SYNCHRONIZED_UPDATE));
+        let text = String::from_utf8(frame).unwrap();
+        assert!(text.find("\x1b[2J").unwrap() < text.find(" + ").unwrap());
+        assert!(text.find(" + ").unwrap() < text.find("SURFACE").unwrap());
+        assert!(text.find("SURFACE").unwrap() < text.find("OVERLAY").unwrap());
     }
 
     #[test]
@@ -1729,10 +2242,12 @@ mod tests {
 
     #[test]
     fn mode_restore_disables_every_enabled_outer_mode() {
-        for mode in ["1049", "2004", "1004", "1000", "1003", "1006", "2026"] {
+        for mode in ["1049", "2004", "1004", "1000", "1003", "1006"] {
             assert!(String::from_utf8_lossy(ENTER_OUTER_MODES).contains(&format!("?{mode}h")));
             assert!(String::from_utf8_lossy(RESTORE_OUTER_MODES).contains(&format!("?{mode}l")));
         }
+        assert_eq!(BEGIN_SYNCHRONIZED_UPDATE, b"\x1b[?2026h");
+        assert_eq!(END_SYNCHRONIZED_UPDATE, b"\x1b[?2026l");
         assert_eq!(KITTY_ENABLE, b"\x1b[>1u");
         assert_eq!(KITTY_RESTORE, b"\x1b[<1u");
         assert!(kitty_query_answered(b"noise\x1b[?3u\x1b[?1;2c"));

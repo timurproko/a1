@@ -42,10 +42,11 @@ describe("mutable bootstrap boundary", () => {
     expect(`${guardianEntry}\n${guardianMain}\n${bootstrap}`).not.toMatch(/--no-warnings|NODE_NO_WARNINGS|disable-warning|process\.emitWarning/);
   });
 
-  it("carries selected launch identity without importing terminal implementation", async () => {
+  it("carries selected launch identity and the canonical settings file without importing terminal implementation", async () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
     expect(bootstrap).toContain("options.launchIntent?.profileId");
     expect(bootstrap).toContain("withLaunchContext(options.environment ?? process.env");
+    expect(bootstrap).toContain('"--settings-file", resolve(agentProfileDir, "settings.json")');
     expect(bootstrap).not.toMatch(/foundation\/transparent-terminal/);
   });
 

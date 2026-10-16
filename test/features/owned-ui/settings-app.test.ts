@@ -521,6 +521,24 @@ describe("the settings screen", () => {
     expect(writes).toEqual([]);
   });
 
+  it("previews both time-format choices with the current local time", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 3, 2, 21, 4));
+    try {
+      const { app: target } = await app();
+      selectRow(target, "Time format");
+      expect(find(target, "Time format")).toMatch(/Time format\s+9:04 PM/u);
+      target.onInput?.(`${ESC}[C`, HOST);
+      expect(find(target, "Time format")).toMatch(/Time format\s+21:04/u);
+      target.onInput?.(ENTER, HOST);
+      const menu = target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n");
+      expect(menu).toContain("21:04");
+      expect(menu).toContain("9:04 PM");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("shows only the selected value through a deferred save and keeps shortcut guidance", async () => {
     const { app: target, session } = await app();
     selectRow(target, "Update check");

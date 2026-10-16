@@ -603,6 +603,7 @@ function quitOutroSettingsSnapshot(settings: OwnedSettingsManager): OwnedUiQuitO
 
 function viewportSettingsSnapshot(settings: OwnedSettingsManager): OwnedUiViewportSettings {
   return {
+    timeFormat: settings.value("timeFormat"),
     scrollbarAppearance: settings.value("scrollbarAppearance"),
     scrollbarStyle: settings.value("scrollbarStyle"),
     scrollbarSpeed: settings.value("scrollbarSpeed"),
