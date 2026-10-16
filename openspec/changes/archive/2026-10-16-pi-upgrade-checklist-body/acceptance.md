@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-16-pi-upgrade-checklist-body/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-16-pi-upgrade-checklist-body/acceptance.md",
   "finalizedDate": "2026-10-16",
-  "specBaseSha": "2f26f1b431db74e50e82d9a2ac0a24a152c560bd",
+  "specBaseSha": "adcf47913ad728bf16ba70e45391bcc9c3a5bfec",
   "acceptanceScenarios": [
     "A new nightly Pi upgrade proposal opens with four unchecked generated implementation outcomes, one generated acceptance outcome, and its version delta, changelog excerpt, and gate report in a sync report comment.",
     "A later scheduled or refresh run against an open proposal posts another sync report comment without editing the proposal body.",
