@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-16-ci-only-validation/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-16-ci-only-validation/acceptance.md",
   "finalizedDate": "2026-10-16",
-  "specBaseSha": "1734b91d6d6b1051ee7de51ac2c09a6560b0f440",
+  "specBaseSha": "f89da8ff21ed1f134b3922e640da1283487fbf13",
   "acceptanceScenarios": [
     "Agents push implementation after only the type check, the touched test files, and strict change validation, without running preflight or broad test suites first.",
     "CI after the pull request becomes ready is the validation authority, and a CI failure is fixed by a further push to the same pull request.",
