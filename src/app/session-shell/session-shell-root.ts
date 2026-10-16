@@ -403,6 +403,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly keybindings?: PiKeybindingsHost;
       readonly promptImageLimit?: () => number;
       readonly skillsPresentation?: () => "collapse" | "expand";
+      /** A resident tab chip already shows the session name, so its footer omits the duplicate. */
+      readonly footerSessionName?: boolean;
     },
     startup: PiShellHeaderOptions = {},
     agentDir?: string,
@@ -445,7 +447,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       frame: progressStatusFrame,
     }, handlers);
     this.#status.setProgressPresentation(this.#customViewport ? "custom-viewport" : "pinned");
-    this.#footer = createPiShellFooter(this.#viewWithExtensionStatuses(view), cwd, this.#customViewport ? "a1" : "pi", () => this.#footerLevel);
+    this.#footer = createPiShellFooter(this.#viewWithExtensionStatuses(view), cwd, this.#customViewport ? "a1" : "pi", () => this.#footerLevel, handlers.footerSessionName ?? true);
     this.editor = createPiShellEditor({
       ...handlers,
       keybindingProfile: this.#customViewport ? "a1" : "pi",

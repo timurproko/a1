@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-13T08:21:51.644Z",
+  "recordedAt": "2026-10-15T17:40:08.683Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "06a466935536f8c9bcacb2d5efc0fc021be1bdff",
@@ -1889,9 +1889,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; preserves the latest physical route for virtual models; an explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and reserves its linked pull-request badge before path truncation while preserving the remaining footer layout and formatting; replacement surfaces may suppress a thinking level they already present.",
+      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; preserves the latest physical route for virtual models; an explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and reserves its linked pull-request badge before path truncation while preserving the remaining footer layout and formatting; replacement surfaces may suppress a thinking level they already present; a resident tab whose chip already shows the session name may suppress its path-row suffix.",
       "upgradeStrategy": "three-way",
-      "localSha256": "67e6f01798e851519e71ab441fa46f3b935e9dc9f3f7099ece2dba87ea387678",
+      "localSha256": "0fe29046fb579baa55f8a13617bd8e78f5be89b2ee27276518e3afe490ec45a9",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1903,6 +1903,12 @@
           "id": "owned-pull-request-badge",
           "reason": "Approved show-pr-id-status-bar adds `PR #<number>` to bare A1 so the current branch's open pull request is available from the footer; only the number is a terminal-native hyperlink.",
           "upstreamBehavior": "The pinned comparison footer remains unchanged. Bare A1 preserves the upstream path, branch, session, width, usage, and extension-row behavior when no validated pull request identity is available.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-resident-session-name",
+          "reason": "Approved hide-resident-footer-session-name shows a resident session name once, in its tab chip, so the viewed resident shell omits the duplicate path-row suffix.",
+          "upstreamBehavior": "Direct bare A1, solo, resident fallback, and the pinned comparison footer keep the upstream session suffix; the session name stays in the owned view model, and path, branch, pull-request badge, width, usage, and extension rows are unchanged.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],
