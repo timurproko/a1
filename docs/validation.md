@@ -24,7 +24,15 @@ npm run test:full                  # complete deduplicated local composition
 npm run test:release               # release gates; publication authority is unchanged
 ```
 
-Before every push, run the fast governance gates locally:
+Before a push, run only quick targeted checks of what changed; CI after the pull request becomes ready is the validation authority:
+
+```bash
+npm run typecheck                          # type check
+npx vitest run <changed test files...>     # tests covering the changed code
+npx openspec validate <change> --strict    # the OpenSpec change
+```
+
+Do not run preflight, `test:fast`, `test:full`, `test:release`, or directory-wide test runs before pushing. They are for reproducing a failure CI reported, or when the maintainer asks. Preflight is the optional tool for reproducing a fast-gate failure:
 
 ```bash
 npm run preflight                  # pull-request validation's fast gates on the committed head
