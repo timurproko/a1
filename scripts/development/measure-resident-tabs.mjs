@@ -31,11 +31,28 @@ function percentile(values, fraction) {
 export function summarizeResidentTabMeasurements(samples, directStartupBudgetMs) {
   const definitions = { coldLaunchMs: directStartupBudgetMs + 800, ...budgets };
   const measurements = Object.fromEntries(Object.entries(definitions).map(([metric, budgetMs]) => {
-    const values = samples.map(sample => sample[metric]).filter(value => Number.isFinite(value) && value >= 0);
+    const recorded = samples.map(sample => sample[metric]).filter(value => value !== undefined);
+    const values = recorded.filter(value => Number.isFinite(value) && value >= 0);
+    // Rationale: a negative or non-numeric latency is a measurement fault, not a fast sample;
+    // dropping it silently shrinks the set until p95 collapses onto a single outlier.
+    const rejectedSamples = recorded.length - values.length;
     const p95Ms = percentile(values, 0.95);
-    return [metric, { samples: values.length, p95Ms, budgetMs, passed: p95Ms !== null && p95Ms <= budgetMs }];
+    return [metric, { samples: values.length, rejectedSamples, p95Ms, budgetMs, passed: rejectedSamples === 0 && p95Ms !== null && p95Ms <= budgetMs }];
   }));
   return { platform: `${process.platform}-${process.arch}`, directStartupBudgetMs, measurements };
+}
+
+/**
+ * Find the fixture's processed-input line for one send.
+ * Rationale: a standby promoted by its file can receive the in-band promotion marker later, and the
+ * fixture echoes that marker's letters as measurement lines, so an earlier line for the same token
+ * belongs to no send; only a line stamped at or after this send measures it.
+ */
+export function findProcessedInput(output, token, sentNs) {
+  for (const match of output.matchAll(new RegExp(`measurement:${token}:(\\d+)`, "gu"))) {
+    if (BigInt(match[1]) >= sentNs) return match;
+  }
+  return null;
 }
 
 function run(host, arguments_, options = {}) {
@@ -248,7 +265,7 @@ async function collectMeasurements(host) {
 async function measureInput(attach, token, description) {
   const sentNs = process.hrtime.bigint();
   attach.terminal.write(token);
-  const observed = await attach.waitFor(new RegExp(`measurement:${token}:(\\d+)`, "u"), `processed input ${description}`);
+  const observed = await attach.waitFor({ exec: output => findProcessedInput(output, token, sentNs) }, `processed input ${description}`);
   return { sentNs, processedNs: BigInt(observed.match[1]), receivedNs: observed.receivedNs };
 }
 
@@ -274,7 +291,9 @@ async function main() {
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   const failed = Object.entries(summary.measurements).filter(([, result]) => !result.passed);
   if (failed.length > 0) {
-    console.error(`resident latency budgets exceeded: ${failed.map(([metric, result]) => `${metric}=${result.p95Ms}ms>${result.budgetMs}ms`).join(", ")}`);
+    console.error(`resident latency budgets exceeded: ${failed.map(([metric, result]) => result.rejectedSamples > 0
+      ? `${metric} rejected ${result.rejectedSamples} invalid samples`
+      : `${metric}=${result.p95Ms}ms>${result.budgetMs}ms`).join(", ")}`);
     process.exitCode = 1;
   }
 }
