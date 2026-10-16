@@ -4,7 +4,9 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs, promisify } from "node:util";
-import { parseImplementationAcceptanceScenarios, parseImplementationProgress } from "./openspec-acceptance-checklist.mjs";
+import {
+  assertImplementationOnlyProgress, parseImplementationAcceptanceScenarios, parseImplementationProgress,
+} from "./openspec-acceptance-checklist.mjs";
 import { archiveFailure, parseImplementation } from "./openspec-archive-policy.mjs";
 
 /** Check every Implementation item so `--final` validates the body the author is about to complete. */
@@ -30,6 +32,7 @@ export function inspectDeliveryBody(body, { final = false } = {}) {
     const progress = parseImplementationProgress(body);
     if (progress.format !== "checklist") throw archiveFailure("implementation-progress-legacy-draft");
     complete = progress.complete;
+    assertImplementationOnlyProgress(progress.items);
     if (complete || final) parseImplementationAcceptanceScenarios(final ? withImplementationChecked(body) : body, 3);
     return { ok: true, complete };
   } catch (error) {
