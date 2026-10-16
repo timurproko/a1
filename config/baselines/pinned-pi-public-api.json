@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -1240,6 +1240,12 @@
           "consumers": []
         },
         {
+          "name": "formatReadLineRange",
+          "kind": "function",
+          "hash": "823553527c89cee5bcfa3a1c455e0daa20c6dd3c3c9e1eac084fcdb59988ddf7",
+          "consumers": []
+        },
+        {
           "name": "formatSize",
           "kind": "function",
           "hash": "74933aabbee6ea0f5ebe7ea252f01e4e23ab9724c71fa97f7d4ead7a449c1242",
@@ -1822,7 +1828,7 @@
         {
           "name": "ModelScopeDiagnostic",
           "kind": "interface",
-          "hash": "7f1191dda68d499032290653e7a2169c2f3883941ab01e65f365a7a7be120340",
+          "hash": "cc38db46a35a8d0f57106497ce482f2ad18d4cca3259a33e56652b325fccc155",
           "consumers": []
         },
         {
@@ -2183,7 +2189,7 @@
         {
           "name": "resolveCliModel",
           "kind": "function",
-          "hash": "fcfa8c09b185974307d35caa58e59a81869a6eb992637c9a504ed186f7ea9ddd",
+          "hash": "4a4247e8f7cd741df26c77862675129914029ce555dec2f5897a53645a5ba013",
           "consumers": []
         },
         {
@@ -2522,7 +2528,7 @@
         {
           "name": "SettingsCallbacks",
           "kind": "interface",
-          "hash": "fadc657070cc68c5e811619effe43e3eb7229f986d901ce9a8d3dee12dc57d2f",
+          "hash": "3a133c780f7eaa5e16480c6276998160468e9019fa48975285a35da2096ee35e",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts"
           ]
@@ -2530,7 +2536,7 @@
         {
           "name": "SettingsConfig",
           "kind": "interface",
-          "hash": "c2fe2c4c29ff60d8f4f0ab28251df03384d845bfbe05579f8356483892137da3",
+          "hash": "5e3d20c8d54cfbfebcb892c54ba747e476843f10b41438ae783897edf16a89be",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts"
           ]
@@ -2538,7 +2544,7 @@
         {
           "name": "SettingsManager",
           "kind": "class",
-          "hash": "1f803efde767896d621e8d67264d190217af3902c206957a4f19811240006fa5",
+          "hash": "bd45a6ccdf45b4f6f1efa18c7ce2bce9edd1f2c3206a6a5144fe65387b4e3951",
           "consumers": [
             "src/integrations/pi/engine/package-integration.ts",
             "src/integrations/pi/engine/project-trust-preflight.ts",
@@ -3046,7 +3052,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "entry": "dist/index.d.ts",
       "exports": [
         {

@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "1.2.0"
+    "version": "1.3.0"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -1526,6 +1526,13 @@
       "test": "test/features/owned-ui/pinned-settings-presentation-parity.test.ts"
     },
     {
+      "id": "settings-callback:onSessionShareDestinationChange",
+      "kind": "settings-callback",
+      "feature": "onSessionShareDestinationChange",
+      "since": "1.3.0",
+      "disposition": "pending"
+    },
+    {
       "id": "settings-callback:onShowCacheMissNoticesChange",
       "kind": "settings-callback",
       "feature": "onShowCacheMissNoticesChange",
@@ -2703,6 +2710,51 @@
       "since": "1.2.0",
       "disposition": "pinned",
       "note": "Pi's public settings and model loaders remain authoritative; A1's owned keybinding and theme ports accept the published $schema property while retaining Pi 1.2 validation semantics."
+    },
+    {
+      "id": "changelog:1.3.0:cache-preserving-thinking-level-changes-on-openai-gpt-6",
+      "kind": "changelog",
+      "feature": "Cache-preserving thinking level changes on OpenAI GPT-6",
+      "version": "1.3.0",
+      "summary": "changing the thinking level mid-session with an API key keeps the prompt cache.",
+      "since": "1.3.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.3.0:choose-where-share-uploads",
+      "kind": "changelog",
+      "feature": "Choose where `/share` uploads",
+      "version": "1.3.0",
+      "summary": "`sessionShareDestination` selects `auto`, `gist`, or `radius`.",
+      "since": "1.3.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.3.0:clean-model-switching",
+      "kind": "changelog",
+      "feature": "Clean model switching",
+      "version": "1.3.0",
+      "summary": "thinking from a previous model is dropped instead of being shown to the new model as text.",
+      "since": "1.3.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.3.0:kimi-code-over-chat-completions",
+      "kind": "changelog",
+      "feature": "Kimi Code over Chat Completions",
+      "version": "1.3.0",
+      "summary": "tools added mid-conversation no longer invalidate the prompt cache. `models.json` base URL overrides must now include `/v1`.",
+      "since": "1.3.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.3.0:resumed-sessions-keep-their-active-tools",
+      "kind": "changelog",
+      "feature": "Resumed sessions keep their active tools",
+      "version": "1.3.0",
+      "summary": "`--tools +name`/`-name` applies on top of them.",
+      "since": "1.3.0",
+      "disposition": "pending"
     }
   ]
 }
