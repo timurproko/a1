@@ -94,11 +94,11 @@ setInterval(() => {}, 1000);
         "{}",
         competing.output_text()
     );
-    competing.write(b"read-only-input\n");
+    competing.write(b"read-only-input\r");
     competing.write(b"\x03\x03");
     assert!(competing.wait(Duration::from_secs(8)).success());
     drop(competing);
-    first.write(b"typed-value\n");
+    first.write(b"typed-value\r");
     assert!(
         first.output_containing("echo:typed-value", Duration::from_secs(10)),
         "{}",
@@ -148,7 +148,7 @@ setInterval(() => {}, 1000);
     );
     assert_eq!(holder_pids(&credentials_root), holder_before_replacement);
     assert!(registry_epoch(&credentials_root) > epoch_before_replacement);
-    second.write(b"after-reattach\n");
+    second.write(b"after-reattach\r");
     assert!(
         second.output_containing("echo:after-reattach", Duration::from_secs(10)),
         "{}",
@@ -164,7 +164,7 @@ setInterval(() => {}, 1000);
         "{}",
         third.output_text()
     );
-    third.write(b"after-forced-loss\n");
+    third.write(b"after-forced-loss\r");
     assert!(
         third.output_containing("echo:after-forced-loss", Duration::from_secs(10)),
         "{}",
@@ -895,7 +895,7 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         None,
     );
     assert!(first.output_containing("fake-tab-ready", Duration::from_secs(15)));
-    first.write(b"first-tab\n");
+    first.write(b"first-tab\r");
     assert!(first.output_containing("echo:first-tab", Duration::from_secs(10)));
 
     let created = internal_command(
@@ -941,9 +941,9 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         Some(&second_tab),
     );
     assert!(second.output_containing("fake-tab-ready", Duration::from_secs(15)));
-    second.write(b"second-tab\n");
+    second.write(b"second-tab\r");
     assert!(second.output_containing("echo:second-tab", Duration::from_secs(10)));
-    first.write(b"first-still-live\n");
+    first.write(b"first-still-live\r");
     assert!(first.output_containing("echo:first-still-live", Duration::from_secs(10)));
 
     let mut takeover = AttachFixture::spawn_view(
@@ -956,13 +956,13 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         Some(&second_tab),
     );
     assert!(takeover.output_containing("fake-tab-ready", Duration::from_secs(10)));
-    takeover.write(b"claimed-by-first-input\n");
+    takeover.write(b"claimed-by-first-input\r");
     assert!(
         takeover.output_containing("echo:claimed-by-first-input", Duration::from_secs(10)),
         "{}",
         takeover.output_text()
     );
-    second.write(b"reclaimed-by-first-input\n");
+    second.write(b"reclaimed-by-first-input\r");
     assert!(
         second.output_containing("echo:reclaimed-by-first-input", Duration::from_secs(10)),
         "{}",
