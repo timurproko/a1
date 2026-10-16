@@ -1243,7 +1243,9 @@
           "name": "formatReadLineRange",
           "kind": "function",
           "hash": "823553527c89cee5bcfa3a1c455e0daa20c6dd3c3c9e1eac084fcdb59988ddf7",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/components/tree-selector.ts"
+          ]
         },
         {
           "name": "formatSize",

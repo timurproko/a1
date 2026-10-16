@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-16T01:30:27.045Z",
+  "recordedAt": "2026-10-16T15:56:41.858Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "71023aec1546d6d677a65669c5665c0927ce0dd0",
@@ -968,7 +968,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Unchanged image bytes are losslessly encoded in an attributed owned JSON resource by scripts/pi/update-command-resources.mjs. Source bytes and digest are verified against this pinned asset authority; runtime reads only the owned resource, never the dependency directory.",
       "upgradeStrategy": "three-way",
-      "localSha256": "b006ca6e9eebb98c4e7cdce5c5b8adcff14a8d64dfa58d46af9476b588632894",
+      "localSha256": "99649c253449cc85534dda2c3a6e4ca989601d7b9ed4734cdc3f8f683f905ca6",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -2829,7 +2829,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation excluding internal bookkeeping, standard search input, blue full-row menu-arrow selection that preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed timestamps, numeric result counters without duplicate label-time status, and a stateful time on/off shortcut, semantic role colors with session naming for the system root, standard paging/first-last/non-root containing-branch folding keys with a permanently expanded system session entry even behind hidden metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic Type/search shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "cd256390373fd923fa8c9bfd30850997613fc037eff5e2465d07b03e76a1ed2c",
+      "localSha256": "d10f7c95c2864cb26e0634cb8ec836e0292fa716b00257699c8bbd080d20bf70",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",

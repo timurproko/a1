@@ -167,3 +167,106 @@ The A1-owned UI SHALL reproduce the complete visible and interactive behavior of
 - **THEN** every source-reachable built-in and extension modal node and every transition edge SHALL have a mapped specialized controller and independent pinned-versus-A1 evidence
 - **AND** removing a nested node, transition, style, instruction, ownership region, or restoration edge SHALL make the gate fail
 - **AND** top-level open/cancel snapshots alone SHALL NOT establish modal completeness
+
+### Requirement: Command outcome messages retain pinned wording and severity
+Except for the named missing-GitHub-CLI diagnostic and bare-A1 share presentation below, every existing supported Pi-backed command SHALL reproduce pinned Pi's user-visible messages for equivalent success, failure, warning, empty, progress, and cancellation states. Parity SHALL include whether a message is emitted at all, its literal wording and punctuation, contextual prefixes, links, severity, and order. Existing declared A1 route replacements, the bare-A1 share presentation, and layout/progress customizations SHALL remain explicit exceptions only within their declared scope; they SHALL NOT justify changing unrelated command-result messages. Actual selected-profile paths and truthful runtime values SHALL remain contextual data, not copied values from another profile.
+
+For fatal `/new`, `/resume`, and `/import` outcomes, A1 SHALL preserve Pi-compatible visible error semantics but SHALL retain its recoverable workflow/session contract: the route returns a failed result and the owning A1 session remains active rather than stopping the terminal or propagating Pi's process exit. This lifecycle difference SHALL be recorded as an explicit contextual exception and SHALL NOT be presented as process-behavior parity.
+
+The slash-command workflows that produce these messages, their admission and cancellation, provider authentication, and the selector contexts the owned dialogs read SHALL be adapter-owned workflow components testable without the engine: a runner and a contexts reader that reach the current session, runtime, model state, view publication, and the interaction host only through explicit ports, while the adapter alone decides which session is current and when work is refused.
+
+#### Scenario: Login saves an API key
+- **WHEN** a supported provider login successfully stores an API key
+- **THEN** the success label SHALL be `Saved API key for <provider>` rather than `Logged in to <provider>`
+- **AND** the selected-model clause and `Credentials saved to <auth path>` clause SHALL appear exactly when pinned Pi emits them for the equivalent state
+
+#### Scenario: Login completes OAuth or has a partial failure
+- **WHEN** OAuth authentication succeeds, default-model selection fails, catalog refresh times out or fails, or credentials are saved but local state cannot synchronize
+- **THEN** A1 SHALL emit the same success, warning, and contextual failure sequence as pinned Pi for that outcome
+- **AND** it SHALL NOT claim a model was selected or credentials synchronized unless that work succeeded
+
+#### Scenario: Logout has no stored credentials
+- **WHEN** no stored credentials are available to remove
+- **THEN** A1 SHALL emit dim `No stored credentials to remove. /logout only removes credentials saved by /login; environment variables and models.json config are unchanged.`
+- **AND** it SHALL NOT substitute `No authenticated providers available.`
+
+#### Scenario: Logout fails
+- **WHEN** logout fails before credential removal or removes credentials but fails local synchronization
+- **THEN** A1 SHALL retain pinned Pi's distinct `Logout failed: <detail>` or `Credentials removed for <provider>, but local model state could not be synchronized: <detail>` error context as applicable
+
+#### Scenario: Fork has no messages
+- **WHEN** there are no messages available for `/fork`
+- **THEN** A1 SHALL emit dim `No messages to fork from` as a status, not an error
+
+#### Scenario: Clone has no session position
+- **WHEN** `/clone` has no active branch position to clone
+- **THEN** A1 SHALL emit dim `Nothing to clone yet` as a status, not an error
+
+#### Scenario: Import fails
+- **WHEN** a session import fails after any applicable confirmation or missing-cwd recovery
+- **THEN** the error SHALL preserve Pi's `Failed to import session: <detail>` context
+- **AND** usage, declined confirmation, extension cancellation, and successful import SHALL retain their distinct pinned messages or silence
+
+#### Scenario: A fatal command outcome remains recoverable in A1
+- **WHEN** `/new`, `/resume`, or `/import` reaches an outcome for which pinned Pi stops its terminal and exits one
+- **THEN** A1 SHALL emit the equivalent contextual error with the pinned wording, severity, and order and SHALL NOT emit a false success
+- **AND** A1 SHALL return its recoverable failed workflow result and keep the owning session active
+- **AND** acceptance evidence SHALL label shutdown and process-exit behavior as an explicit contextual exception rather than claim lifecycle parity
+
+#### Scenario: Share destination selects the upload route
+- **WHEN** the user invokes `/share`
+- **THEN** A1 SHALL read the pinned `sessionShareDestination` setting for that run and SHALL offer it as Pi's `Session share destination` row with `auto`, `gist`, and `radius` choices
+- **AND** `auto` SHALL upload to Radius when the model runtime has a Radius provider and credential and SHALL otherwise create a gist, `gist` SHALL always create a gist, and `radius` SHALL stop with error-colored `Error: Radius authentication is not configured. Run '/login radius' first.` when Radius is unavailable
+- **AND** a Radius upload that starts and then fails SHALL NOT fall back to a gist
+
+#### Scenario: Bare A1 starts sharing
+- **WHEN** bare A1 begins a `/share` upload
+- **THEN** it SHALL replace the editor with a standard modal whose full-width top rule is followed immediately by the bold accent title `Share`
+- **AND** its progress row SHALL read `Uploading to Radius…` while uploading to Radius and `Creating gist…` while creating a gist
+- **AND** the progress row and canonical close shortcut row SHALL use the modal's one-cell content inset
+- **AND** the shortcut row SHALL align with the title, distinguish `Esc` from its `close` action using the shared dialog-hint style, and sit immediately above the full-width bottom rule with no intervening blank row
+- **AND** Escape SHALL abort the active share operation while the existing Ctrl+C alias remains functional but undisclosed
+
+#### Scenario: Share succeeds
+- **WHEN** bare A1's `/share` successfully creates a secret gist
+- **THEN** A1 SHALL close the share dialog and emit `Share URL: <viewer URL>` followed by `Gist: <gist URL>` with Pi's line break and ordering
+- **AND** each URL value SHALL use the theme's blue web-link role and a bounded native hyperlink target while the surrounding labels retain their status presentation
+- **AND** each URL SHALL have terminal-native dashed idle decoration, normal solid underline on hover, and SHALL open its exact target through the supported terminal's Ctrl+click interaction
+- **AND** for the current pinned version the default viewer URL SHALL be `https://pi.dev/session/#<gist ID>` and a configured `PI_SHARE_VIEWER_URL` SHALL determine the base using pinned semantics
+
+#### Scenario: Share uploads to Radius
+- **WHEN** `/share` uploads to Radius
+- **THEN** A1 SHALL post the current branch as JSONL with Pi's trailing `pi.share` entry carrying the system prompt and tool schemas to the pinned Radius gateway's artifacts endpoint with organization visibility and the title `Pi session`
+- **AND** on success A1 SHALL close the share dialog and emit only `Share URL: <artifact URL>` with the same link presentation as a gist share
+
+#### Scenario: Compare pinned share presentation
+- **WHEN** `/share` is invoked through the `a1 pi` comparison profile
+- **THEN** its loader, shortcut wording, spacing, and successful status presentation SHALL retain pinned Pi behavior rather than the bare-A1 share-dialog and link-style exceptions
+
+#### Scenario: Share cannot find the GitHub CLI
+- **WHEN** the user invokes `/share` and the `gh` executable is missing or cannot be found on PATH
+- **THEN** A1 SHALL display error-colored `Error: GitHub CLI (gh) is not installed. Install it from https://cli.github.com/`
+- **AND** sharing SHALL stop before session export or gist creation, without a success link, while the current session remains usable
+- **AND** this SHALL be a named wording exception to Pi 0.84.2's misleading `Error: GitHub CLI is not logged in. Run 'gh auth login' first.` for a missing executable, not a claim of identical output
+- **AND** the exception SHALL NOT change error styling, padding, wrapping rules, or any other command outcome, and SHALL NOT apply to permission or other non-missing-executable failures
+
+#### Scenario: Share finds an unauthenticated GitHub CLI
+- **WHEN** the user invokes `/share`, `gh` is installed and found, but its authentication check fails
+- **THEN** A1 SHALL display error-colored `Error: GitHub CLI is not logged in. Run 'gh auth login' first.` exactly as pinned Pi does
+- **AND** sharing SHALL stop before session export or gist creation, without a success link, while the current session remains usable
+- **AND** A1 SHALL NOT substitute the missing-executable installation message
+
+#### Scenario: Share fails or is cancelled
+- **WHEN** session export fails, gist creation or Radius upload fails, or the user cancels the upload
+- **THEN** A1 SHALL retain Pi's export, gist, or `Failed to upload Radius artifact: <detail>` error context or `Share cancelled` status as applicable
+- **AND** no success link SHALL be emitted on failure or cancellation
+
+#### Scenario: Existing matching commands complete
+- **WHEN** `/copy`, `/export`, `/name`, `/session`, `/hotkeys`, `/changelog`, `/model`, `/scoped-models`, `/tree`, `/trust`, `/resume`, `/reload`, `/new`, `/compact`, or `/quit` reaches an already-matching state
+- **THEN** A1 SHALL preserve the pinned message or structured presentation rather than replace it with a generic success/failure sentence
+- **AND** operation-specific silent completion or cancellation SHALL remain silent where pinned Pi is silent
+
+#### Scenario: Run a workflow without an engine
+- **WHEN** the workflow runner is driven directly with a fake session, runtime, and interaction host
+- **THEN** it SHALL refuse work while admission is stopped or the shared budget is spent, track and cancel admitted workflows except `/quit`, and produce the same per-command wording, clipboard acknowledgment, model cycling, and login completion the shell observes through the adapter
+- **AND** the contexts reader SHALL shape the same provider, model, fork, tree, scoped-model, and session selector state from the same session and settings
