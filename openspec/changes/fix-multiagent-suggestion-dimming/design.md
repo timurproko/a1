@@ -42,4 +42,11 @@ No state or protocol migration is required. Ship the corrected terminal-host art
 
 ## Evidence
 
-Planning diagnosis only; implementation evidence will be recorded after approval. Known gaps at planning: the current native fidelity probe does not exercise faint intensity, and no implementation has been changed yet.
+`ActiveStyle` now carries `faint` from `GhosttyStyle.faint`, the host-owned selected-cell style sets it false, and `write_style` emits SGR `2` after its leading reset. Every style change still begins with `ESC[0m`, so ordinary cells after faint ones return to normal intensity; foreground, background, bold, italic, underline, and inverse emission is unchanged.
+
+`--probe-input` writes `> fix ` followed by faint `the tests`, then repaints the row as plain `> fix the tests`. It resolves SGR intensity at each needle in the composed frames, skipping extended-color operands, and requires `fix` normal and `the tests` faint in the first frame and the accepted text normal in the repaint. It reports `faintIntensity`, which `verify-terminal-fidelity.mjs` now requires.
+
+- Local, Windows: `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --all-targets` and `cargo fmt --check` passed; `npm run preflight` passed. The terminal host is not built locally (endpoint protection quarantines its Zig build), so the probe runs in CI only.
+- CI, Development validation on `4b07fc24`: native terminal host passed on Linux x64, macOS arm64, and Windows x64 with `"faintIntensity":true` in the probe output, and resident chaos passed on all three. Changed-file documentation validation failed on one unprefixed probe comment (DOC005); `228db6ee` prefixed it, and the run on that head succeeded with every selected lane passing.
+
+Gaps: the physical bare-A1 suggestion in a resident tab is not exercised by an automated test; the editor's own faint/accept tests plus the native probe cover each side of the boundary, and the end-to-end view is left to maintainer acceptance. The selection-over-faint scenario relies on the unchanged uniform selection path with `faint` forced false, covered by the existing `--probe-selection` uniform-style check rather than a faint-specific probe.
