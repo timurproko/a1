@@ -54,7 +54,8 @@ describe("repository-owned atomic delivery guidance", () => {
       expect(guidance).toMatch(/two to ten/i);
       expect(guidance).toContain("`## Implementation`");
       expect(guidance).toMatch(/\[ \].*\[x\]|\[ \].*to.*\[x\]/s);
-      expect(guidance).toMatch(/focused (?:pre-ready )?evidence/i);
+      expect(guidance).not.toMatch(/focused (?:pre-ready )?evidence/i);
+      expect(guidance).toMatch(/manual validation[^.]*never (?:blocks|gates) a checkbox, finalization, or merge/i);
       expect(guidance).toMatch(/scope refinement/i);
       expect(guidance).toMatch(/before (?:ready\/finalization|ready or finalization)/i);
     }
