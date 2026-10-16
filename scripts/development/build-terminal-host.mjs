@@ -1,9 +1,11 @@
 import crossSpawn from "cross-spawn";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { chmod, copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { hostTriple, NOTICES_FILENAME, writeTerminalHostNotices } from "../release/generate-terminal-host-notices.mjs";
+import { observeExecutableIdentity, resolveBuildTarget, targetIdentity, ZIG_BASELINE_CPU } from "./native-target.mjs";
 
 export const TERMINAL_HOST_MANIFEST = "terminal-host.manifest.json";
 export const TERMINAL_HOST_SCHEMA = "a1-terminal-host-artifact-v1";
@@ -38,7 +40,8 @@ export function verifyVersionReport(report, crateVersion) {
   return problems;
 }
 
-export function buildManifest({ platform, architecture, triple, crateVersion, report, executable, sessionLock, notices, cargoLockSha256, rustVersion, zigVersion, builtAt }) {
+export function buildManifest({ platform, architecture, triple, crateVersion, report, executable, sessionLock, notices, cargoLockSha256, rustVersion, zigVersion, builtAt, identityCheck = "executed" }) {
+  if (!["executed", "mach-o-header"].includes(identityCheck)) throw new Error(`unknown terminal host identity check ${identityCheck}`);
   return {
     schema: TERMINAL_HOST_SCHEMA,
     protocolVersion: PROTOCOL_VERSION,
@@ -64,6 +67,9 @@ export function buildManifest({ platform, architecture, triple, crateVersion, re
       rustVersion,
       features: { executable: [], sessionLock: ["node-addon"] },
       signatureStatus: "ci-attestation-required",
+      // Rationale: a cross build the producing runner could not execute records that only its Mach-O
+      // architecture was observed, never a version report nobody saw.
+      identityCheck,
     },
   };
 }
@@ -93,8 +99,10 @@ function run(executable, arguments_, verbose, options = {}) {
 
 async function main() {
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-  const platform = process.platform;
-  const architecture = process.arch;
+  // Rationale: `--target <triple>` cross-compiles another architecture of the host OS; publication builds
+  // macOS x64 this way on the arm64 runner, where the Intel runner took two to three times as long.
+  const target = resolveBuildTarget({ argv: process.argv.slice(2) });
+  const { platform, architecture } = target;
   const cargo = process.env.CARGO ?? "cargo";
   // Rationale: a build that worked has nothing to say; output is shown only on failure or with A1_BUILD_VERBOSE=1.
   const verbose = process.env.A1_BUILD_VERBOSE === "1";
@@ -102,26 +110,40 @@ async function main() {
   const cargoManifest = resolve(repositoryRoot, "native/terminal-host/Cargo.toml");
   const crateVersion = (await readFile(cargoManifest, "utf8")).match(/^version\s*=\s*"([^"]+)"/m)?.[1];
   if (!crateVersion) throw new Error("terminal host Cargo manifest has no package version");
-  const releaseDirectory = resolve(repositoryRoot, "native/terminal-host/target/release");
+  const releaseDirectory = resolve(repositoryRoot, "native/terminal-host/target", target.outputDirectory);
   const targetDirectory = resolve(repositoryRoot, "dist/native", `${platform}-${architecture}`);
   await mkdir(targetDirectory, { recursive: true });
 
   // Invariant: the executable is copied before the addon build so the feature-enabled library build cannot replace it.
   const executableName = terminalHostExecutableName(identity, platform);
-  run(cargo, ["build", "--release", "--locked", "--manifest-path", cargoManifest, "--bin", "terminal-host"], verbose);
+  run(cargo, ["build", "--release", "--locked", ...target.cargoArguments, "--manifest-path", cargoManifest, "--bin", "terminal-host"], verbose);
   const executablePath = resolve(targetDirectory, executableName);
   await copyFile(resolve(releaseDirectory, platform === "win32" ? "terminal-host.exe" : "terminal-host"), executablePath);
   if (platform !== "win32") await chmod(executablePath, 0o755);
 
-  run(cargo, ["build", "--release", "--locked", "--manifest-path", cargoManifest, "--lib", "--features", "node-addon"], verbose);
+  run(cargo, ["build", "--release", "--locked", ...target.cargoArguments, "--manifest-path", cargoManifest, "--lib", "--features", "node-addon"], verbose);
   const sessionLockPath = resolve(targetDirectory, SESSION_LOCK_FILENAME);
   await copyFile(resolve(releaseDirectory, sessionLockLibraryName(platform)), sessionLockPath);
 
-  const report = JSON.parse(run(executablePath, ["--version"], false, { encoding: "utf8" }).trim());
-  const problems = verifyVersionReport(report, crateVersion);
-  if (problems.length > 0) throw new Error(`built terminal host failed identity checks:\n${problems.map(problem => `- ${problem}`).join("\n")}`);
+  const observed = observeExecutableIdentity({
+    executable: executablePath,
+    arguments_: ["--version"],
+    target,
+    execute: (executable, arguments_) => crossSpawn.sync(executable, arguments_, { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }),
+    readBytes: path => readFileSync(path),
+  });
+  const triple = target.triple ?? hostTriple();
+  let report;
+  if (observed.check === "executed") {
+    report = JSON.parse(observed.stdout.trim());
+    const problems = verifyVersionReport(report, crateVersion);
+    if (problems.length > 0) throw new Error(`built terminal host failed identity checks:\n${problems.map(problem => `- ${problem}`).join("\n")}`);
+  } else {
+    // Rationale: without a version report the Zig target and CPU come from the same table build.rs used.
+    const zig = targetIdentity(triple);
+    report = { libghosttyVtCommit: GHOSTTY_VT_COMMIT, libghosttyTarget: zig.zigTarget, libghosttyCpu: ZIG_BASELINE_CPU };
+  }
 
-  const triple = hostTriple();
   await writeTerminalHostNotices({ repositoryRoot, targetDirectory, triple });
   const manifest = buildManifest({
     platform,
@@ -136,9 +158,10 @@ async function main() {
     rustVersion: run(process.env.RUSTC ?? "rustc", ["--version"], false, { encoding: "utf8" }).trim(),
     zigVersion: run(process.env.ZIG ?? "zig", ["version"], false, { encoding: "utf8" }).trim(),
     builtAt: new Date().toISOString(),
+    identityCheck: observed.check,
   });
   await writeFile(resolve(targetDirectory, TERMINAL_HOST_MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-  if (verbose) process.stdout.write(`Built ${executablePath} (${manifest.artifact.sha256})\n`);
+  if (verbose) process.stdout.write(`Built ${executablePath} (${manifest.artifact.sha256}, identity ${observed.check})\n`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) await main();

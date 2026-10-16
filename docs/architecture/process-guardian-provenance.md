@@ -21,7 +21,7 @@ dist/native/darwin-x64/process-guardian
 dist/native/darwin-arm64/process-guardian
 ```
 
-The publication `guardians` job builds them on `windows-2025`, `ubuntu-24.04`, `macos-15` (arm64), and `macos-15-intel` (x64).
+The publication `guardians` job builds them on `windows-2025`, `ubuntu-24.04`, and `macos-15` (arm64); the macOS arm64 job also cross-compiles the x64 guardian with `--target x86_64-apple-darwin`, and its manifest records whether the identity was observed by execution or only from the Mach-O header.
 
 Each supported artifact must be named in the release integrity manifest with target triple, crate version, guardian protocol version, SHA-256, byte size, build provenance, and signature/attestation status. The build marks a platform supported only after its native containment integration runs on that platform. A missing, altered, incompatible, unsupported, or wrong-platform artifact is a concise containment launch error; A1 never silently falls back to PID-only cleanup.
 

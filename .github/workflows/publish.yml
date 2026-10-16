@@ -439,7 +439,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2025, ubuntu-24.04, macos-15, macos-15-intel]
+        os: [windows-2025, ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -464,6 +464,14 @@ jobs:
           workspaces: native/process-guardian
       - run: npm ci --ignore-scripts
       - run: npm run build:process-guardian
+      # Rationale: the Intel runner took 6 to 11 minutes for the same native builds the arm64 runner
+      # finishes in about 4; the arm64 job cross-compiles macOS x64 and uploads both architectures.
+      - name: Add the macOS x64 target
+        if: runner.os == 'macOS'
+        run: rustup target add x86_64-apple-darwin
+      - name: Build the macOS x64 process guardian
+        if: runner.os == 'macOS'
+        run: npm run build:process-guardian -- --target x86_64-apple-darwin
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: release-process-guardian-${{ runner.os }}-${{ runner.arch }}
@@ -479,7 +487,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2025, ubuntu-24.04, macos-15, macos-15-intel]
+        os: [windows-2025, ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
@@ -512,6 +520,14 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Build, verify, and record the release terminal host
         run: npm run build:terminal-host
+      # Rationale: see the guardians job; the x64 host's identity is read through Rosetta 2 when the
+      # runner can execute it, otherwise the manifest records a Mach-O header check.
+      - name: Add the macOS x64 target
+        if: runner.os == 'macOS'
+        run: rustup target add x86_64-apple-darwin
+      - name: Build, verify, and record the macOS x64 release terminal host
+        if: runner.os == 'macOS'
+        run: npm run build:terminal-host -- --target x86_64-apple-darwin
       - name: Run the nightly server-core simulation budget
         # Rationale: pull requests run the fixed simulation corpus; nightly builds explore a much
         # larger seed budget once, on one platform, because the sans-IO core is platform-neutral.

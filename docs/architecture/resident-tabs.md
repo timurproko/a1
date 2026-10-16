@@ -570,6 +570,10 @@ The user made these decisions on 2026-09-24:
 - `Ctrl+C` twice leaves `a1` from any tab while tabs keep running. There is no separate detach key.
 - Reliability is a first-class, release-gating requirement (Decision 16).
 
+On 2026-10-16 the `ci-critical-path` change replaced the Intel runner for the release builds:
+
+- The macOS x64 process guardian and terminal host are cross-compiled on the `macos-15` arm64 runner (`npm run build:terminal-host -- --target x86_64-apple-darwin`, same for the guardian) and uploaded beside the arm64 artifacts; the Intel runner took 6 to 11 minutes for builds the arm64 runner finishes in about 4, and it gated packing in every publication. The x64 executable's `--version` identity is read by executing it through Rosetta 2 when the runner can; otherwise the manifest records a Mach-O architecture check as `provenance.identityCheck: "mach-o-header"` instead of a report nobody observed. Intel macOS stays certified separately and its physical acceptance record is unchanged; no publication lane ran the x64 bytes beyond that identity check before either, because the published-pair smoke matrix has no Intel lane.
+
 On 2026-10-14 the user resolved the milestone-6 `darwin-x64` question:
 
 - Add an Intel macOS runner (`macos-15-intel`) for both the process guardian and the terminal host, so every release carries `darwin-x64` binaries beside `darwin-arm64`. Intel macOS is certified separately from Apple silicon: it needs its own physical acceptance record, and the chaos group runs on macOS arm64 only.

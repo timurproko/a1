@@ -114,10 +114,20 @@ describe("deliberate publication pipeline", () => {
   it("builds the guardian and terminal host on all four release platforms and packs only a complete set", async () => {
     const source = await workflow();
     const job = (name: string, next: string) => source.slice(source.indexOf(`\n  ${name}:`), source.indexOf(`\n  ${next}:`));
-    const runners = "os: [windows-2025, ubuntu-24.04, macos-15, macos-15-intel]";
-    expect(job("guardians", "terminal_hosts")).toContain(runners);
+    // Rationale: macOS x64 is cross-compiled on the arm64 runner; the Intel runner took two to three times as long.
+    const runners = "os: [windows-2025, ubuntu-24.04, macos-15]";
+    expect(source).not.toContain("macos-15-intel");
+    const guardians = job("guardians", "terminal_hosts");
+    expect(guardians).toContain(runners);
+    expect(guardians).toContain("- name: Add the macOS x64 target\n        if: runner.os == 'macOS'\n        run: rustup target add x86_64-apple-darwin");
+    expect(guardians).toContain("- name: Build the macOS x64 process guardian\n        if: runner.os == 'macOS'\n        run: npm run build:process-guardian -- --target x86_64-apple-darwin");
+    expect(guardians.indexOf("run: npm run build:process-guardian\n")).toBeLessThan(guardians.indexOf("- name: Add the macOS x64 target"));
     const hosts = job("terminal_hosts", "package");
     expect(hosts).toContain(runners);
+    expect(hosts).toContain("- name: Add the macOS x64 target\n        if: runner.os == 'macOS'\n        run: rustup target add x86_64-apple-darwin");
+    expect(hosts).toContain("- name: Build, verify, and record the macOS x64 release terminal host\n        if: runner.os == 'macOS'\n        run: npm run build:terminal-host -- --target x86_64-apple-darwin");
+    expect(hosts.indexOf("run: npm run build:terminal-host\n")).toBeLessThan(hosts.indexOf("- name: Add the macOS x64 target"));
+    expect(hosts.indexOf("- name: Build, verify, and record the macOS x64 release terminal host")).toBeLessThan(hosts.indexOf("- name: Run the nightly server-core simulation budget"));
     expect(hosts.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'");
     expect(hosts).toContain("uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1");
     expect(hosts).toContain("version: 0.15.2");
