@@ -105,6 +105,8 @@ jobs:
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.15.2
+          cache-key: full-regression
+          cache-size-limit: 512
 
       - name: Cache release terminal host build
         if: matrix.shard == 'package'
@@ -348,6 +350,8 @@ jobs:
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.15.2
+          cache-key: full-regression
+          cache-size-limit: 512
 
       - name: Cache release terminal host build
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2

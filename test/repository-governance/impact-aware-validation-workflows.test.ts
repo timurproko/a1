@@ -142,6 +142,13 @@ describe("impact-aware validation workflows", () => {
     expect(pin.run).toContain('npm install -g "npm@$pinned"');
   });
 
+  it("keeps one bounded Zig cache per workflow instead of one per run", async () => {
+    const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
+    const zig = workflow.jobs.modular.steps.filter((step: any) => step.uses?.startsWith("mlugg/setup-zig@"));
+    expect(zig).toHaveLength(2);
+    for (const step of zig) expect(step.with).toEqual({ version: "0.15.2", "cache-key": "development-validation", "cache-size-limit": 512 });
+  });
+
   it("retains Node 22 Defender startup and all declared platform/runtime owner targets", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
     const entries = DEVELOPMENT_VALIDATION_MATRIX as any[];

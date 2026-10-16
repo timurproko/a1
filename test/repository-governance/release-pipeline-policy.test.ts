@@ -121,6 +121,12 @@ describe("deliberate publication pipeline", () => {
     expect(hosts.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'");
     expect(hosts).toContain("uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1");
     expect(hosts).toContain("version: 0.15.2");
+    expect(hosts).toContain("cache-key: publication");
+    expect(hosts).toContain("cache-size-limit: 512");
+    const regression = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
+    for (const step of Object.values(regression.jobs as Record<string, { steps?: { uses?: string; with?: Record<string, unknown> }[] }>).flatMap(job => job.steps ?? [])) {
+      if (step.uses?.startsWith("mlugg/setup-zig@")) expect(step.with).toEqual({ version: "0.15.2", "cache-key": "full-regression", "cache-size-limit": 512 });
+    }
     expect(hosts).toContain("run: bash scripts/development/prepare-ci-rust.sh");
     expect(hosts).toContain("run: npm run build:terminal-host");
     // Invariant: the larger simulation budget runs nightly on one platform, never on stable publication.

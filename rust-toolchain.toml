@@ -1,0 +1,5 @@
+# The exact Rust toolchain every CI validation and publication job installs through
+# scripts/development/prepare-ci-rust.sh; rustup also selects it for local Cargo commands here.
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
