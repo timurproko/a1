@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { parseImplementation } from "../../scripts/governance/openspec-archive-policy.mjs";
 import { parseConditionalAcceptance } from "../../scripts/governance/openspec-delivery-policy.mjs";
 import { classifyFinalizationCandidate, reconcileFinalization } from "../../scripts/governance/openspec-finalization-publication.mjs";
+import { reportResult } from "../../scripts/governance/publish-openspec-finalization.mjs";
 
 const execute = promisify(execFile);
 const roots: string[] = [];
@@ -93,6 +94,17 @@ async function fixture() {
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))); });
 
 describe("trusted finalization publication", () => {
+  it("fails the run with an annotation only for a blocked draft", () => {
+    const lines: string[] = [];
+    expect(reportResult({ disposition: "blocked", reason: "draft-acceptance-checklist-item", head: null, commits: [] }, line => lines.push(line))).toBe(1);
+    expect(lines.at(-1)).toBe("::error title=OpenSpec finalization::PR stays draft: draft-acceptance-checklist-item");
+    for (const disposition of ["skipped", "retry", "promoted"] as const) {
+      const quiet: string[] = [];
+      expect(reportResult({ disposition, reason: "draft-implementation-progress-incomplete", head: null, commits: [] }, line => quiet.push(line))).toBe(0);
+      expect(quiet.join("\n")).not.toContain("::error");
+    }
+  });
+
   it("promotes one exact complete draft, then finalizes only on the ready event", async () => {
     const f = await fixture();
     f.state.draft = true;
@@ -107,7 +119,7 @@ describe("trusted finalization publication", () => {
     expect(f.state.readyCalls).toBe(1);
   }, 120_000);
 
-  it("leaves incomplete, legacy, and raced draft snapshots unchanged", async () => {
+  it("leaves incomplete, refused, legacy, and raced draft snapshots unchanged and blocks only fully checked refusals", async () => {
     const incomplete = await fixture();
     incomplete.state.draft = true;
     incomplete.state.body = incomplete.state.body.replace("- [x] Implement the updated", "- [ ] Implement the updated");
@@ -123,6 +135,28 @@ describe("trusted finalization publication", () => {
       disposition: "skipped", reason: "draft-implementation-progress-legacy-draft",
     });
     expect(legacy.state).toMatchObject({ draft: true, readyCalls: 0 });
+
+    const placeholder = await fixture();
+    placeholder.state.draft = true;
+    placeholder.state.body = placeholder.state.body.replace("- Using the example preserves", "- Using <example> preserves");
+    await expect(placeholder.reconcile()).resolves.toMatchObject({
+      disposition: "blocked", reason: "draft-acceptance-checklist-item",
+    });
+    expect(placeholder.state).toMatchObject({ draft: true, readyCalls: 0 });
+
+    const unfinishedPlaceholder = await fixture();
+    unfinishedPlaceholder.state.draft = true;
+    unfinishedPlaceholder.state.body = placeholder.state.body.replace("- [x] Implement the updated", "- [ ] Implement the updated");
+    await expect(unfinishedPlaceholder.reconcile()).resolves.toMatchObject({
+      disposition: "skipped", reason: "draft-implementation-progress-incomplete",
+    });
+
+    const tasks = await fixture();
+    tasks.state.draft = true;
+    await commit(tasks.seed, "chore: reopen task", { "openspec/changes/example/tasks.md": "## 1. Work\n\n- [ ] 1.1 Implement and verify example behavior.\n" });
+    await git(tasks.seed, ["push", "--quiet", "origin", "feature/example"]);
+    await expect(tasks.reconcile()).resolves.toMatchObject({ disposition: "blocked", reason: expect.stringMatching(/^draft-/) });
+    expect(tasks.state).toMatchObject({ draft: true, readyCalls: 0 });
 
     const raced = await fixture();
     raced.state.draft = true;
