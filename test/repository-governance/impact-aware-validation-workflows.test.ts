@@ -108,7 +108,8 @@ describe("impact-aware validation workflows", () => {
     const entries = DEVELOPMENT_VALIDATION_MATRIX as any[];
     expect(entries.find(entry => entry.group === "core")).toMatchObject({ os: "windows-2025", node: 24, build: true, guardian: true });
     expect(entries.find(entry => entry.group === "resource")).toMatchObject({ os: "windows-2025", node: 24, build: true, guardian: false });
-    expect(entries.every(entry => entry.build)).toBe(true);
+    // Invariant: every job builds the workspace except the terminal-host test partitions, which run only Cargo.
+    expect(entries.every(entry => entry.build || (entry.partition && entry.group === "terminal-host"))).toBe(true);
     expect(workflow.jobs.modular.steps.some((step: any) => step.name === "Install exact analysis dependencies")).toBe(false);
     expect(entries.filter(entry => ["core", "resource"].includes(entry.group))).toHaveLength(2);
     const resolver = workflow.jobs.modular.steps.find((step: any) => step.id === "job-selection");
@@ -122,6 +123,34 @@ describe("impact-aware validation workflows", () => {
     expect(run.env.VALIDATION_SELECTION_JSON).toBe("${{ steps.job-selection.outputs.scopes_json }}");
     expect(run.env.VALIDATION_TESTS_JSON).toBe("${{ steps.job-selection.outputs.tests_json }}");
     expect(run.env).toMatchObject({ VALIDATION_HEAD: "${{ steps.job-selection.outputs.head }}", VALIDATION_SELECTION_ID: "${{ steps.job-selection.outputs.selection_id }}" });
+  });
+
+  it("runs terminal-host test partitions as their own evidence-bearing jobs", async () => {
+    const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
+    const modular = workflow.jobs.modular;
+    expect(modular["timeout-minutes"]).toBe("${{ matrix.partition && 25 || (matrix.terminalHost || matrix.chaos) && 45 || 35 }}");
+    const install = modular.steps.find((step: any) => step.name === "Install dependencies for the test partition");
+    expect(install).toMatchObject({ if: "steps.job-selection.outputs.active == 'true' && matrix.partition", run: "npm ci --ignore-scripts" });
+    for (const name of ["Prepare terminal host Rust toolchain", "Set up Zig for terminal host", "Cache terminal host build"]) {
+      expect(modular.steps.find((step: any) => step.name === name).if, name).toBe("steps.job-selection.outputs.active == 'true' && (matrix.terminalHost || matrix.chaos || matrix.partition)");
+    }
+    const run = modular.steps.find((step: any) => step.name === "Run exact selected scopes");
+    expect(run.env.VALIDATION_PARTITION).toBe("${{ matrix.partition || '' }}");
+    expect(run.env.TERMINAL_HOST_PARTITION).toBe("${{ matrix.partition || (matrix.terminalHost && 'none') || '' }}");
+    const suffix = "${{ matrix.partitionSlug && format('-{0}', matrix.partitionSlug) || '' }}-attempt-${{ github.run_attempt }}";
+    expect(run.run).toContain(`node${"${{ matrix.node }}"}${suffix}.json`);
+    expect(modular.steps.find((step: any) => step.name === "Upload modular outcome and fixture phases").with.name).toContain(suffix);
+    const envelope = modular.steps.find((step: any) => step.name === "Complete content-free job envelope");
+    expect(envelope.env).toMatchObject({ PARTITION: "${{ matrix.partition || '' }}", PARTITION_SLUG: "${{ matrix.partitionSlug || '' }}" });
+    expect(envelope.run).toContain("...(process.env.PARTITION?{partition:process.env.PARTITION}:{})");
+    expect(envelope.run).toContain("${process.env.PARTITION_SLUG?`-${process.env.PARTITION_SLUG}`:\"\"}-attempt-");
+    const summary = modular.steps.find((step: any) => step.name === "Add modular timing summary");
+    expect(summary.env.PARTITION_SLUG).toBe("${{ matrix.partitionSlug || '' }}");
+    expect(summary.run).toContain("${process.env.PARTITION_SLUG ? `-${process.env.PARTITION_SLUG}` : \"\"}-attempt-");
+    // Invariant: certification, fuzzing, and host uploads stay with the build-and-probe job.
+    for (const name of ["Certify terminal fidelity and resident latency", "Run bounded terminal-host decoder fuzzing", "Upload terminal host contract artifacts", "Upload linked terminal library"]) {
+      expect(modular.steps.find((step: any) => step.name === name).if, name).toContain("matrix.terminalHost");
+    }
   });
 
   it("shortens the resident chaos budget on pull requests only and leaves the script default elsewhere", async () => {
