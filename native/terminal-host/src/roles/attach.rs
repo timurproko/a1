@@ -206,21 +206,22 @@ pub fn is_ctrl_c_console(character: char, control: bool, key_down: bool) -> bool
 }
 
 pub fn render_strip(status: &str, name: &str, accent: Option<&str>, columns: u16) -> String {
+    let spinner = strip::tab_spinner_frame();
     let working = match accent.unwrap_or("purple") {
-        "blue" => "\x1b[38;2;91;141;239m◐\x1b[39m ",
-        "cyan" => "\x1b[38;2;74;174;196m◐\x1b[39m ",
-        "green" => "\x1b[38;2;88;183;132m◐\x1b[39m ",
-        "orange" => "\x1b[38;2;226;159;72m◐\x1b[39m ",
-        "pink" => "\x1b[38;2;218;112;158m◐\x1b[39m ",
-        _ => "\x1b[38;2;167;152;215m◐\x1b[39m ",
+        "blue" => format!("\x1b[38;2;91;141;239m{spinner}\x1b[39m "),
+        "cyan" => format!("\x1b[38;2;74;174;196m{spinner}\x1b[39m "),
+        "green" => format!("\x1b[38;2;88;183;132m{spinner}\x1b[39m "),
+        "orange" => format!("\x1b[38;2;226;159;72m{spinner}\x1b[39m "),
+        "pink" => format!("\x1b[38;2;218;112;158m{spinner}\x1b[39m "),
+        _ => format!("\x1b[38;2;167;152;215m{spinner}\x1b[39m "),
     };
     let glyph = match status {
-        "starting" => "… ",
+        "starting" | "restoring" => format!("{spinner} "),
         "working" => working,
-        "restarting" => "↻ ",
-        "unresponsive" | "stalled" | "degraded" => "! ",
-        "crashed" | "failed" | "ended" => "✗ ",
-        _ => "",
+        "restarting" => "↻ ".into(),
+        "unresponsive" | "stalled" | "degraded" => "! ".into(),
+        "crashed" | "failed" | "ended" => "✗ ".into(),
+        _ => String::new(),
     };
     let safe_name: String = name
         .chars()
@@ -256,6 +257,48 @@ pub fn render_empty_hint(columns: u16) -> String {
         "\x1b[2;1H\x1b[48;2;20;20;20m\x1b[38;2;110;110;110m{visible}{}\x1b[0m",
         "░".repeat(padding)
     )
+}
+
+/// The notice of the open tab prompt, checked in the order prompts capture keys.
+///
+/// Notices share the strip's row, so the attach loop redraws this after every strip repaint;
+/// otherwise a prompt would keep capturing keys after its notice had been painted over.
+pub fn prompt_notice(
+    pending_close: bool,
+    overflow: Option<&str>,
+    rename: Option<&str>,
+    context_menu: bool,
+) -> Option<String> {
+    if pending_close {
+        Some("Stop this agent? Enter stop · Esc cancel".into())
+    } else if let Some(name) = overflow {
+        Some(format!(
+            "Tabs: {name} · ↑/↓ choose · Enter view · Esc cancel"
+        ))
+    } else if let Some(value) = rename {
+        Some(format!("Rename: {value} · Enter save · Esc cancel"))
+    } else if context_menu {
+        Some("Tab menu: r rename · c close · Esc cancel".into())
+    } else {
+        None
+    }
+}
+
+/// The notice for a refused or failed new-tab request.
+pub fn tab_create_failure_notice(reason: Option<&str>) -> String {
+    let reason = match reason {
+        Some("tab-limit") => "the tab limit is reached",
+        Some("tab-start-busy") => "tab starts are busy, try again shortly",
+        Some("busy") => "a tab change is still running, try again shortly",
+        Some(reason) if !reason.trim().is_empty() => reason,
+        _ => "the tab could not start",
+    };
+    format!("Could not open a tab: {reason}")
+}
+
+/// True when the failed tab's restricted input rules apply: only while that tab is viewed.
+pub fn failure_applies(failed_tab: Option<&str>, viewed: Option<&str>) -> bool {
+    failed_tab.is_some() && failed_tab == viewed
 }
 
 pub fn render_notice(message: &str, columns: u16) -> String {
@@ -474,14 +517,36 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut last_strip_frame = Instant::now();
     let mut last_list = Instant::now();
     let mut chord = DoubleCtrlC::new(options.clear_exit_ms);
-    let mut failed = false;
+    // Invariant: failure input rules belong to one tab and apply only while it is viewed.
+    let mut failed_tab: Option<String> = None;
     let mut rename: Option<(String, String)> = None;
     let mut context_tab: Option<String> = None;
     let mut overflow_index: Option<usize> = None;
     let mut pending_close: Option<String> = None;
+    let mut prompt_view = viewed.clone();
     let mut registry_revision = 0u64;
     let mut drag: Option<(String, u16, Instant)> = None;
     let bindings = TabBindings::load(options.profile);
+    // Invariant: an open prompt's notice shares the strip row and is painted after each repaint.
+    macro_rules! paint_prompt {
+        () => {{
+            if let Some(notice) = prompt_notice(
+                pending_close.is_some(),
+                overflow_index.map(|index| tabs.get(index).map_or("", |tab| tab.name.as_str())),
+                rename.as_ref().map(|(_, value)| value.as_str()),
+                context_tab.is_some(),
+            ) {
+                terminal.write(render_notice(&notice, columns).as_bytes())?;
+            }
+        }};
+    }
+    // Invariant: no strip repaint inside the loop may leave an open prompt without its notice.
+    macro_rules! paint_strip {
+        () => {{
+            terminal.write(strip_frame.bytes.as_bytes())?;
+            paint_prompt!();
+        }};
+    }
     loop {
         watchdog.bump();
         while let Ok(payload) = message_rx.try_recv() {
@@ -492,7 +557,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             match kind.message_type.as_str() {
                 "surface" => {
                     let (_, surface): (_, Surface) = wire::body(&payload)?;
-                    failed = surface.status == "failed";
+                    if surface.status == "failed" {
+                        failed_tab = Some(surface.tab_id.clone());
+                    } else if failed_tab.as_deref() == Some(surface.tab_id.as_str()) {
+                        failed_tab = None;
+                    }
                     if viewed.is_none() {
                         viewed = Some(surface.tab_id.clone());
                     }
@@ -509,6 +578,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 .as_bytes(),
                         )?;
                     }
+                    paint_prompt!();
                 }
                 "tab.status" => {
                     let (_, status): (_, TabStatus) = wire::body(&payload)?;
@@ -516,8 +586,13 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         tab.status = status.status.clone();
                         tab.accent = status.accent.clone();
                     }
+                    if status.status != "failed"
+                        && failed_tab.as_deref() == Some(status.tab_id.as_str())
+                    {
+                        failed_tab = None;
+                    }
                     strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    terminal.write(strip_frame.bytes.as_bytes())?;
+                    paint_strip!();
                     if viewed.as_deref() == Some(status.tab_id.as_str())
                         && matches!(status.status.as_str(), "stalled" | "unresponsive")
                     {
@@ -536,8 +611,12 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         .filter(|tab| tab.lifecycle != "stopped")
                         .map(|tab| {
                             let previous = tabs.iter().find(|current| current.id == tab.tab_id);
-                            let changed_by_auto = tab.name_source == "auto"
-                                && previous.is_some_and(|current| current.name != tab.name);
+                            let title_animation = strip::reconcile_title_animation(
+                                previous,
+                                &tab.name,
+                                &tab.name_source,
+                                Instant::now(),
+                            );
                             StripTab {
                                 id: tab.tab_id,
                                 name: tab.name,
@@ -545,14 +624,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 status: previous
                                     .map_or(tab.lifecycle, |current| current.status.clone()),
                                 accent: previous.and_then(|current| current.accent.clone()),
-                                title_animation: if changed_by_auto {
-                                    previous.map(|current| strip::TitleAnimation {
-                                        from: current.name.clone(),
-                                        started_at: Instant::now(),
-                                    })
-                                } else {
-                                    previous.and_then(|current| current.title_animation.clone())
-                                },
+                                title_animation,
                             }
                         })
                         .collect();
@@ -565,8 +637,24 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
                         }
                     }
+                    let listed = |id: &String| tabs.iter().any(|tab| &tab.id == id);
+                    if !pending_close.as_ref().is_none_or(listed) {
+                        pending_close = None;
+                    }
+                    if !context_tab.as_ref().is_none_or(listed) {
+                        context_tab = None;
+                    }
+                    if !rename.as_ref().is_none_or(|(id, _)| listed(id)) {
+                        rename = None;
+                    }
+                    if !failed_tab.as_ref().is_none_or(listed) {
+                        failed_tab = None;
+                    }
+                    if overflow_index.is_some_and(|index| index >= tabs.len()) {
+                        overflow_index = None;
+                    }
                     strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    terminal.write(strip_frame.bytes.as_bytes())?;
+                    paint_strip!();
                     if tabs.is_empty() {
                         terminal.write(render_empty_hint(columns).as_bytes())?;
                     }
@@ -585,7 +673,31 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         },
                     )?;
                 }
+                "tab.create-failed" | "tab.create-refused" => {
+                    let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    terminal.write(
+                        render_notice(
+                            &tab_create_failure_notice(result.message.as_deref()),
+                            columns,
+                        )
+                        .as_bytes(),
+                    )?;
+                }
+                "tab.rename-refused" | "tab.restarted" => {
+                    let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    if !result.accepted
+                        && let Some(message) = result.message
+                    {
+                        terminal.write(render_notice(&message, columns).as_bytes())?;
+                    }
+                }
                 "tab.closed" => {
+                    let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    if !result.accepted
+                        && let Some(message) = result.message
+                    {
+                        terminal.write(render_notice(&message, columns).as_bytes())?;
+                    }
                     wire::send(
                         &mut stream,
                         "tab.list",
@@ -619,7 +731,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "failure.status" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
-                    failed = true;
+                    failed_tab = viewed.clone();
                     let reason = result.message.unwrap_or_else(|| "tab failed".into());
                     terminal.write(
                         render_notice(
@@ -648,10 +760,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             }
         }
         if strip::animations_active(&tabs)
-            && last_strip_frame.elapsed() >= Duration::from_millis(80)
+            && last_strip_frame.elapsed() >= strip::animation_interval(&tabs)
         {
             strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-            terminal.write(strip_frame.bytes.as_bytes())?;
+            paint_strip!();
             last_strip_frame = Instant::now();
         }
         if last_list.elapsed() >= Duration::from_millis(500) {
@@ -676,6 +788,17 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 return Err("outer terminal input stopped".to_owned());
             }
         };
+        // Invariant: a prompt belongs to the view it was opened in; a strip click, shortcut, or
+        // tab removal that changes the viewed tab cancels it instead of letting it swallow the
+        // new tab's keys.
+        if prompt_view != viewed {
+            pending_close = None;
+            overflow_index = None;
+            rename = None;
+            context_tab = None;
+            prompt_view = viewed.clone();
+        }
+        let failed = failure_applies(failed_tab.as_deref(), viewed.as_deref());
         match next {
             Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => {
                 if let Some(tab_id) = pending_close.take() {
@@ -684,6 +807,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     } else if key.code != KeyCode::Esc {
                         pending_close = Some(tab_id);
                     }
+                    // Rationale: a swallowed key repaints the notice that explains it; an answer restores the strip.
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    paint_strip!();
                     continue;
                 }
                 if let Some(index) = overflow_index {
@@ -709,19 +835,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                         _ => {}
                     }
-                    if let Some(index) = overflow_index {
-                        let name = tabs.get(index).map_or("", |tab| tab.name.as_str());
-                        terminal.write(
-                            render_notice(
-                                &format!("Tabs: {name} · ↑/↓ choose · Enter view · Esc cancel"),
-                                columns,
-                            )
-                            .as_bytes(),
-                        )?;
-                    } else {
-                        strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                        terminal.write(strip_frame.bytes.as_bytes())?;
-                    }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    paint_strip!();
                     continue;
                 }
                 if let Some((tab_id, value)) = rename.as_mut() {
@@ -743,14 +858,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                         _ => {}
                     }
-                    if let Some((_, value)) = rename.as_ref() {
-                        terminal.write(
-                            render_notice(&format!("Rename: {value}"), columns).as_bytes(),
-                        )?;
-                    } else {
-                        strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                        terminal.write(strip_frame.bytes.as_bytes())?;
-                    }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    paint_strip!();
                     continue;
                 }
                 if let Some(tab_id) = context_tab.take() {
@@ -770,19 +879,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 });
                             if busy {
                                 pending_close = Some(tab_id);
-                                terminal.write(
-                                    render_notice(
-                                        "Stop this agent? Enter stop · Esc cancel",
-                                        columns,
-                                    )
-                                    .as_bytes(),
-                                )?;
                             } else {
                                 wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
                             }
                         }
                         _ => {}
                     }
+                    strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
+                    paint_strip!();
                     continue;
                 }
                 if let Some(action) = bindings.action(&key) {
@@ -796,13 +900,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     });
                                 if busy {
                                     pending_close = Some(tab_id);
-                                    terminal.write(
-                                        render_notice(
-                                            "Stop this agent? Enter stop · Esc cancel",
-                                            columns,
-                                        )
-                                        .as_bytes(),
-                                    )?;
                                 } else {
                                     wire::send(
                                         &mut stream,
@@ -821,13 +918,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     .map(|tab| tab.name.clone())
                                     .unwrap_or_default();
                                 rename = Some((tab_id, name));
-                                terminal.write(
-                                    render_notice(
-                                        "Rename: type a name · Enter save · Esc cancel",
-                                        columns,
-                                    )
-                                    .as_bytes(),
-                                )?;
                             }
                         }
                         "tabs.next" | "tabs.previous" => {
@@ -888,7 +978,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         _ => {}
                     }
                     strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    terminal.write(strip_frame.bytes.as_bytes())?;
+                    paint_strip!();
                     continue;
                 }
                 let bytes = encode_key(key.code, key.modifiers);
@@ -984,7 +1074,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 create.columns = cols;
                 create.rows = rows;
                 strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                terminal.write(strip_frame.bytes.as_bytes())?;
+                paint_strip!();
                 wire::send(
                     &mut stream,
                     "resize",
@@ -1043,7 +1133,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 columns,
                                 hovered_tab.as_deref(),
                             );
-                            terminal.write(strip_frame.bytes.as_bytes())?;
+                            paint_strip!();
                         }
                     } else if matches!(mouse.kind, MouseEventKind::Drag(MouseButton::Left)) {
                         if let Some((_, start, since)) = drag.as_ref()
@@ -1143,11 +1233,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 if hovered_tab.take().is_some() {
                     strip_frame = strip::render(&tabs, viewed.as_deref(), columns);
-                    terminal.write(strip_frame.bytes.as_bytes())?;
+                    paint_strip!();
                 }
-                if let Some(bytes) =
-                    encode_mouse(mouse.kind, mouse.column, mouse.row.saturating_sub(1))
-                {
+                if let Some(bytes) = encode_mouse(mouse.kind, mouse.column, mouse.row) {
                     wire::send(
                         &mut stream,
                         "input",
@@ -1306,35 +1394,100 @@ fn print_hint(count: usize) {
         println!("\x1b[2m{count} agents still running run a1 to return.\x1b[0m");
     }
 }
+/// Xterm modifier parameter for the supported Ctrl/Alt/Shift mask; `None` when unmodified.
+/// Lock and other modifier state is deliberately ignored.
+fn modifier_parameter(modifiers: KeyModifiers) -> Option<u8> {
+    let mut bits = 0;
+    if modifiers.contains(KeyModifiers::SHIFT) {
+        bits |= 1;
+    }
+    if modifiers.contains(KeyModifiers::ALT) {
+        bits |= 2;
+    }
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        bits |= 4;
+    }
+    (bits != 0).then_some(bits + 1)
+}
+
+fn csi_u(codepoint: u32, parameter: u8) -> Vec<u8> {
+    format!("\x1b[{codepoint};{parameter}u").into_bytes()
+}
+
+/// Legacy control byte for Ctrl+character when that byte identifies the key losslessly.
+fn legacy_control_byte(character: char) -> Option<u8> {
+    match character.to_ascii_lowercase() {
+        value @ ('a'..='z' | '@' | '[' | '\\' | ']' | '^' | '_') => Some(value as u8 & 0x1f),
+        ' ' => Some(0),
+        _ => None,
+    }
+}
+
+fn encode_char(character: char, modifiers: KeyModifiers) -> Vec<u8> {
+    let control = modifiers.contains(KeyModifiers::CONTROL);
+    let alt = modifiers.contains(KeyModifiers::ALT);
+    if !control {
+        // Invariant: Shift is already reflected in the produced character, so ESC-prefixing keeps Alt lossless.
+        let mut out = Vec::new();
+        if alt {
+            out.push(0x1b);
+        }
+        let mut encoded = [0_u8; 4];
+        out.extend_from_slice(character.encode_utf8(&mut encoded).as_bytes());
+        return out;
+    }
+    if !alt && !modifiers.contains(KeyModifiers::SHIFT) {
+        if let Some(byte) = legacy_control_byte(character) {
+            return vec![byte];
+        }
+    }
+    let codepoint = if character.is_ascii_alphabetic() {
+        character.to_ascii_lowercase()
+    } else {
+        character
+    };
+    csi_u(codepoint as u32, modifier_parameter(modifiers).unwrap_or(1))
+}
+
 fn encode_key(code: KeyCode, modifiers: KeyModifiers) -> Vec<u8> {
+    let parameter = modifier_parameter(modifiers);
+    let cursor = |letter: char| match parameter {
+        Some(parameter) => format!("\x1b[1;{parameter}{letter}").into_bytes(),
+        None => format!("\x1b[{letter}").into_bytes(),
+    };
+    let tilde = |number: u8| match parameter {
+        Some(parameter) => format!("\x1b[{number};{parameter}~").into_bytes(),
+        None => format!("\x1b[{number}~").into_bytes(),
+    };
+    let control = |legacy: &[u8], codepoint: u32| match parameter {
+        Some(parameter) => csi_u(codepoint, parameter),
+        None => legacy.to_vec(),
+    };
     match code {
-        KeyCode::Char(character) if modifiers.contains(KeyModifiers::CONTROL) => {
-            vec![(character.to_ascii_lowercase() as u8) & 0x1f]
-        }
-        KeyCode::Char(character) => {
-            let mut out = Vec::new();
-            if modifiers.contains(KeyModifiers::ALT) {
-                out.push(0x1b);
-            }
-            let mut encoded = [0_u8; 4];
-            out.extend_from_slice(character.encode_utf8(&mut encoded).as_bytes());
-            out
-        }
-        KeyCode::Enter => b"\r".to_vec(),
-        KeyCode::Tab => b"\t".to_vec(),
-        KeyCode::BackTab => b"\x1b[Z".to_vec(),
-        KeyCode::Backspace => vec![0x7f],
-        KeyCode::Esc => vec![0x1b],
-        KeyCode::Delete => b"\x1b[3~".to_vec(),
-        KeyCode::Insert => b"\x1b[2~".to_vec(),
-        KeyCode::Up => b"\x1b[A".to_vec(),
-        KeyCode::Down => b"\x1b[B".to_vec(),
-        KeyCode::Right => b"\x1b[C".to_vec(),
-        KeyCode::Left => b"\x1b[D".to_vec(),
-        KeyCode::Home => b"\x1b[H".to_vec(),
-        KeyCode::End => b"\x1b[F".to_vec(),
-        KeyCode::PageUp => b"\x1b[5~".to_vec(),
-        KeyCode::PageDown => b"\x1b[6~".to_vec(),
+        KeyCode::Char(character) => encode_char(character, modifiers),
+        // Platform: Windows terminals send LF for Ctrl+Enter and ConPTY reports LF as Ctrl+Enter,
+        // so LF is the byte the direct prompt observes there.
+        KeyCode::Enter if cfg!(windows) && parameter == Some(5) => b"\n".to_vec(),
+        KeyCode::Enter => control(b"\r", 13),
+        KeyCode::Tab if parameter == Some(2) => b"\x1b[Z".to_vec(),
+        KeyCode::Tab => control(b"\t", 9),
+        KeyCode::BackTab => match modifier_parameter(modifiers | KeyModifiers::SHIFT) {
+            Some(2) => b"\x1b[Z".to_vec(),
+            Some(parameter) => csi_u(9, parameter),
+            None => unreachable!("BackTab always carries Shift"),
+        },
+        KeyCode::Backspace => control(&[0x7f], 127),
+        KeyCode::Esc => control(&[0x1b], 27),
+        KeyCode::Delete => tilde(3),
+        KeyCode::Insert => tilde(2),
+        KeyCode::Up => cursor('A'),
+        KeyCode::Down => cursor('B'),
+        KeyCode::Right => cursor('C'),
+        KeyCode::Left => cursor('D'),
+        KeyCode::Home => cursor('H'),
+        KeyCode::End => cursor('F'),
+        KeyCode::PageUp => tilde(5),
+        KeyCode::PageDown => tilde(6),
         _ => Vec::new(),
     }
 }
@@ -1375,6 +1528,15 @@ mod tests {
         assert_eq!(tab_rows(24), Ok(23));
         assert_eq!(child_mouse_row(0), None);
         assert_eq!(child_mouse_row(1), Some(0));
+        assert_eq!(encode_mouse(MouseEventKind::Moved, 4, 0), None);
+        assert_eq!(
+            encode_mouse(MouseEventKind::Moved, 4, 1),
+            Some(b"\x1b[<35;5;1M".to_vec())
+        );
+        assert_eq!(
+            encode_mouse(MouseEventKind::Down(MouseButton::Left), 2, 8),
+            Some(b"\x1b[<0;3;8M".to_vec())
+        );
         assert_eq!(without_bell(b"a\x07b"), b"ab");
         assert_eq!(
             without_bell(b"a\x1b]9;notify\x07b\x1b]777;alert\x1b\\c"),
@@ -1384,8 +1546,19 @@ mod tests {
             without_bell(b"\x1b]8;;https://example.com\x07link\x1b]8;;\x07"),
             b"\x1b]8;;https://example.com\x07link\x1b]8;;\x07"
         );
-        assert!(render_strip("working", "agent", Some("orange"), 80).contains("agent ×"));
-        assert!(render_strip("working", "agent", Some("orange"), 80).contains("38;2;226;159;72"));
+        let working = render_strip("working", "agent", Some("orange"), 80);
+        assert!(working.contains("agent ×"));
+        assert!(working.contains("38;2;226;159;72"));
+        assert!(
+            strip::TAB_SPINNER_FRAMES
+                .iter()
+                .any(|glyph| working.contains(glyph))
+        );
+        assert!(
+            ["◐", "◓", "◑", "◒", "…"]
+                .iter()
+                .all(|glyph| !working.contains(glyph))
+        );
         assert!(!render_strip("working", "a\x07gent", None, 80).contains('\u{7}'));
         assert!(render_notice("input rejected", 40).contains("input rejected"));
         assert!(render_empty_hint(80).contains("Alt+A new tab"));
@@ -1413,6 +1586,144 @@ mod tests {
                 KeyModifiers::CONTROL,
             )),
             None
+        );
+    }
+
+    const NONE: KeyModifiers = KeyModifiers::NONE;
+    const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+    const ALT: KeyModifiers = KeyModifiers::ALT;
+    const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+
+    fn assert_encodes(cases: &[(KeyCode, KeyModifiers, &[u8])]) {
+        for (code, modifiers, expected) in cases {
+            assert_eq!(
+                encode_key(*code, *modifiers),
+                *expected,
+                "{code:?} with {modifiers:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn character_chords_keep_every_modifier() {
+        assert_encodes(&[
+            (KeyCode::Char('a'), NONE, b"a"),
+            (KeyCode::Char('A'), SHIFT, b"A"),
+            (KeyCode::Char('é'), NONE, "é".as_bytes()),
+            (KeyCode::Char('a'), CTRL, b"\x01"),
+            (KeyCode::Char('C'), CTRL, b"\x03"),
+            (KeyCode::Char(' '), CTRL, b"\x00"),
+            (KeyCode::Char(']'), CTRL, b"\x1d"),
+            (KeyCode::Char('b'), ALT, b"\x1bb"),
+            (KeyCode::Char('B'), ALT | SHIFT, b"\x1bB"),
+            (KeyCode::Char('1'), CTRL, b"\x1b[49;5u"),
+            (KeyCode::Char('A'), CTRL | SHIFT, b"\x1b[97;6u"),
+            (KeyCode::Char('z'), CTRL | ALT, b"\x1b[122;7u"),
+            (KeyCode::Char('Z'), CTRL | ALT | SHIFT, b"\x1b[122;8u"),
+            (KeyCode::Char('a'), CTRL | KeyModifiers::SUPER, b"\x01"),
+        ]);
+    }
+
+    #[test]
+    fn navigation_and_editing_keys_keep_every_modifier() {
+        assert_encodes(&[
+            (KeyCode::Left, NONE, b"\x1b[D"),
+            (KeyCode::Home, NONE, b"\x1b[H"),
+            (KeyCode::Delete, NONE, b"\x1b[3~"),
+            (KeyCode::Enter, NONE, b"\r"),
+            (KeyCode::Tab, NONE, b"\t"),
+            (KeyCode::BackTab, SHIFT, b"\x1b[Z"),
+            (KeyCode::Backspace, NONE, b"\x7f"),
+            (KeyCode::Esc, NONE, b"\x1b"),
+            (KeyCode::Left, CTRL, b"\x1b[1;5D"),
+            (KeyCode::Right, CTRL, b"\x1b[1;5C"),
+            (KeyCode::Left, ALT, b"\x1b[1;3D"),
+            (KeyCode::Right, CTRL | SHIFT, b"\x1b[1;6C"),
+            (KeyCode::Up, SHIFT, b"\x1b[1;2A"),
+            (KeyCode::Down, ALT, b"\x1b[1;3B"),
+            (KeyCode::Home, SHIFT, b"\x1b[1;2H"),
+            (KeyCode::End, CTRL | SHIFT, b"\x1b[1;6F"),
+            (KeyCode::Backspace, CTRL, b"\x1b[127;5u"),
+            (KeyCode::Backspace, ALT, b"\x1b[127;3u"),
+            (KeyCode::Delete, CTRL, b"\x1b[3;5~"),
+            (KeyCode::Insert, SHIFT, b"\x1b[2;2~"),
+            (KeyCode::Enter, SHIFT, b"\x1b[13;2u"),
+            (KeyCode::Enter, ALT, b"\x1b[13;3u"),
+            (
+                KeyCode::Enter,
+                CTRL,
+                if cfg!(windows) {
+                    &b"\n"[..]
+                } else {
+                    &b"\x1b[13;5u"[..]
+                },
+            ),
+            (KeyCode::Enter, CTRL | SHIFT, b"\x1b[13;6u"),
+            (KeyCode::Tab, SHIFT, b"\x1b[Z"),
+            (KeyCode::Tab, CTRL, b"\x1b[9;5u"),
+            (KeyCode::BackTab, NONE, b"\x1b[Z"),
+            (KeyCode::BackTab, CTRL | SHIFT, b"\x1b[9;6u"),
+            (KeyCode::Esc, ALT, b"\x1b[27;3u"),
+            (KeyCode::PageUp, NONE, b"\x1b[5~"),
+            (KeyCode::PageUp, SHIFT, b"\x1b[5;2~"),
+            (KeyCode::PageDown, CTRL, b"\x1b[6;5~"),
+        ]);
+    }
+
+    #[test]
+    fn failure_input_rules_apply_only_to_the_viewed_failed_tab() {
+        assert!(failure_applies(Some("tab-a"), Some("tab-a")));
+        assert!(!failure_applies(Some("tab-a"), Some("tab-b")));
+        assert!(!failure_applies(None, Some("tab-a")));
+        assert!(!failure_applies(None, None));
+    }
+
+    #[test]
+    fn the_open_prompt_names_itself_in_capture_order() {
+        assert_eq!(prompt_notice(false, None, None, false), None);
+        assert_eq!(
+            prompt_notice(true, Some("agent"), Some("x"), true).as_deref(),
+            Some("Stop this agent? Enter stop · Esc cancel")
+        );
+        assert_eq!(
+            prompt_notice(false, Some("agent"), Some("x"), true).as_deref(),
+            Some("Tabs: agent · ↑/↓ choose · Enter view · Esc cancel")
+        );
+        assert_eq!(
+            prompt_notice(false, None, Some("docs"), true).as_deref(),
+            Some("Rename: docs · Enter save · Esc cancel")
+        );
+        assert_eq!(
+            prompt_notice(false, None, None, true).as_deref(),
+            Some("Tab menu: r rename · c close · Esc cancel")
+        );
+        // Invariant: notices share the strip row and replace it while open.
+        assert!(
+            render_notice("Stop this agent? Enter stop · Esc cancel", 80).starts_with("\x1b[1;1H")
+        );
+    }
+
+    #[test]
+    fn new_tab_failures_name_their_reason() {
+        assert_eq!(
+            tab_create_failure_notice(Some("tab-limit")),
+            "Could not open a tab: the tab limit is reached"
+        );
+        assert_eq!(
+            tab_create_failure_notice(Some("tab-start-busy")),
+            "Could not open a tab: tab starts are busy, try again shortly"
+        );
+        assert_eq!(
+            tab_create_failure_notice(Some("busy")),
+            "Could not open a tab: a tab change is still running, try again shortly"
+        );
+        assert_eq!(
+            tab_create_failure_notice(Some("holder launch failed")),
+            "Could not open a tab: holder launch failed"
+        );
+        assert_eq!(
+            tab_create_failure_notice(None),
+            "Could not open a tab: the tab could not start"
         );
     }
 

@@ -94,26 +94,38 @@ setInterval(() => {}, 1000);
         "{}",
         competing.output_text()
     );
-    competing.write(b"read-only-input\n");
+    competing.write(b"read-only-input\r");
     competing.write(b"\x03\x03");
     assert!(competing.wait(Duration::from_secs(8)).success());
     drop(competing);
-    first.write(b"typed-value\n");
+    first.write(b"typed-value\r");
     assert!(
         first.output_containing("echo:typed-value", Duration::from_secs(10)),
         "{}",
         first.output_text()
     );
     first.write(b"\x03\x03");
-    first.wait(Duration::from_secs(8));
-    assert!(
-        first.output_containing(
-            "1 agent still running run a1 to return.",
-            Duration::from_secs(2)
-        ),
-        "{}",
-        first.output_text()
-    );
+    let detached = first.wait(Duration::from_secs(8));
+    if !first.output_containing(
+        "1 agent still running run a1 to return.",
+        Duration::from_secs(2),
+    ) {
+        let status = tabs(
+            &executable,
+            &["host-status"],
+            &profile,
+            &data,
+            &runtime,
+            &address,
+        );
+        let listed = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+        panic!(
+            "no detach hint; attach exit {detached:?}\n--- host status ---\n{}\n--- tabs ---\n{}\n--- attach ---\n{}",
+            status.1,
+            listed.1,
+            first.output_text()
+        );
+    }
     for mode in observable_modes {
         assert!(
             first.output_text().contains(&format!("?{mode}l")),
@@ -148,7 +160,7 @@ setInterval(() => {}, 1000);
     );
     assert_eq!(holder_pids(&credentials_root), holder_before_replacement);
     assert!(registry_epoch(&credentials_root) > epoch_before_replacement);
-    second.write(b"after-reattach\n");
+    second.write(b"after-reattach\r");
     assert!(
         second.output_containing("echo:after-reattach", Duration::from_secs(10)),
         "{}",
@@ -164,7 +176,7 @@ setInterval(() => {}, 1000);
         "{}",
         third.output_text()
     );
-    third.write(b"after-forced-loss\n");
+    third.write(b"after-forced-loss\r");
     assert!(
         third.output_containing("echo:after-forced-loss", Duration::from_secs(10)),
         "{}",
@@ -446,6 +458,221 @@ fn blocked_registry_sync_times_out_without_stalling_server_progress() {
         credentials_root: credentials_root.clone(),
         pids: server_pids(&credentials_root),
     };
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
+fn input_reaches_the_viewed_tab_while_its_terminal_waits_for_a_start_slot() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    let bin = directory(&release, "bin");
+    std::fs::write(
+        bin.join("ui.js"),
+        r#"
+process.stdin.setEncoding("utf8");
+if (process.stdin.isTTY) process.stdin.setRawMode(true);
+let typed = "";
+process.stdin.on("data", value => {
+  for (const character of value) {
+    if (character === "\n" || character === "\r") {
+      if (typed) process.stdout.write(`echo:${typed}\r\n`);
+      typed = "";
+    } else typed += character;
+  }
+});
+process.stdout.write("fake-a1-ready\r\n");
+setInterval(() => {}, 1000);
+"#,
+    )
+    .expect("fake child");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    // Rationale: every tab start holds the server's only start slot for eight seconds.
+    let mut server = server_command(&executable, &profile, &data, &runtime, &address);
+    server
+        .args(["--max-concurrent-starts", "1"])
+        .env("A1_TABS_FAULT_DELAY_TAB_START_MS", "8000");
+    let started = server.output().expect("delayed-start server");
+    assert!(
+        started.status.success(),
+        "{}",
+        String::from_utf8_lossy(&started.stderr)
+    );
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+
+    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    assert!(
+        attach.output_containing("fake-a1-ready", Duration::from_secs(30)),
+        "{}",
+        attach.output_text()
+    );
+    // Rationale: another client's start takes the only slot, then this terminal asks for a new tab, which
+    // must wait for that slot.
+    let occupying = Command::new(&executable)
+        .args([
+            "internal",
+            "tab-create",
+            "--profile",
+            text(&profile),
+            "--data-dir",
+            text(&data),
+            "--runtime-dir",
+            text(&runtime),
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            &node_executable(),
+        ])
+        .env("A1_TABS_ENDPOINT", &address)
+        .current_dir(&release)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("occupying tab create");
+    std::thread::sleep(Duration::from_millis(500));
+    attach.write(b"\x1ba");
+    std::thread::sleep(Duration::from_millis(300));
+
+    let typed_at = Instant::now();
+    attach.write(b"while-starting\n");
+    assert!(
+        attach.output_containing("echo:while-starting", Duration::from_secs(4)),
+        "input waited behind the tab start: {}",
+        attach.output_text()
+    );
+    assert!(typed_at.elapsed() < Duration::from_secs(4));
+
+    let occupying = occupying
+        .wait_with_output()
+        .expect("occupying create result");
+    assert!(
+        occupying.status.success(),
+        "{}",
+        String::from_utf8_lossy(&occupying.stderr)
+    );
+    let deadline = Instant::now() + Duration::from_secs(40);
+    loop {
+        let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+            .expect("read registry")
+            .expect("registry");
+        if registry.tabs.len() == 3 && registry.tabs.iter().all(|tab| tab.lifecycle == "running") {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the waiting tab start never completed: {registry:?}"
+        );
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    attach.write(b"\x03\x03");
+    attach.wait(Duration::from_secs(8));
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
+fn a_start_slot_that_never_frees_fails_the_new_tab_and_keeps_the_client() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    directory(&release, "bin");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
+    let mut server = server_command(&executable, &profile, &data, &runtime, &address);
+    server
+        .args(["--max-concurrent-starts", "1"])
+        .env("A1_TABS_FAULT_DELAY_TAB_START_MS", "6000")
+        .env("A1_TABS_FAULT_START_DEADLINE_MS", "1000");
+    let started = server.output().expect("bounded-start server");
+    assert!(
+        started.status.success(),
+        "{}",
+        String::from_utf8_lossy(&started.stderr)
+    );
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let create = |executable: &Path| {
+        Command::new(executable)
+            .args([
+                "internal",
+                "tab-create",
+                "--profile",
+                text(&profile),
+                "--data-dir",
+                text(&data),
+                "--runtime-dir",
+                text(&runtime),
+                "--cwd",
+                text(&release),
+                "--release-root",
+                text(&release),
+                "--node-executable",
+                fake_tab,
+            ])
+            .env("A1_TABS_ENDPOINT", &address)
+            .current_dir(&release)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("tab create")
+    };
+    let occupying = create(&executable);
+    std::thread::sleep(Duration::from_millis(500));
+    let refused_at = Instant::now();
+    let refused = create(&executable)
+        .wait_with_output()
+        .expect("refused create result");
+    assert!(!refused.status.success());
+    assert!(
+        String::from_utf8_lossy(&refused.stderr).contains("tab-start-busy"),
+        "{}",
+        String::from_utf8_lossy(&refused.stderr)
+    );
+    assert!(refused_at.elapsed() < Duration::from_secs(4));
+    let listed = internal_command(
+        &executable,
+        "tab-list",
+        &profile,
+        &data,
+        &runtime,
+        &release,
+        &[],
+    );
+    assert!(listed.contains("tabs"), "{listed}");
+    let occupying = occupying
+        .wait_with_output()
+        .expect("occupying create result");
+    assert!(
+        occupying.status.success(),
+        "{}",
+        String::from_utf8_lossy(&occupying.stderr)
+    );
+    let registry = RegistryStore::read(&credentials_root.join("registry.json"))
+        .expect("read registry")
+        .expect("registry");
+    assert_eq!(registry.tabs.len(), 1, "{registry:?}");
     cleanup.pids.extend(holder_pids(&credentials_root));
 }
 
@@ -895,7 +1122,7 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         None,
     );
     assert!(first.output_containing("fake-tab-ready", Duration::from_secs(15)));
-    first.write(b"first-tab\n");
+    first.write(b"first-tab\r");
     assert!(first.output_containing("echo:first-tab", Duration::from_secs(10)));
 
     let created = internal_command(
@@ -941,9 +1168,9 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         Some(&second_tab),
     );
     assert!(second.output_containing("fake-tab-ready", Duration::from_secs(15)));
-    second.write(b"second-tab\n");
+    second.write(b"second-tab\r");
     assert!(second.output_containing("echo:second-tab", Duration::from_secs(10)));
-    first.write(b"first-still-live\n");
+    first.write(b"first-still-live\r");
     assert!(first.output_containing("echo:first-still-live", Duration::from_secs(10)));
 
     let mut takeover = AttachFixture::spawn_view(
@@ -956,13 +1183,13 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         Some(&second_tab),
     );
     assert!(takeover.output_containing("fake-tab-ready", Duration::from_secs(10)));
-    takeover.write(b"claimed-by-first-input\n");
+    takeover.write(b"claimed-by-first-input\r");
     assert!(
         takeover.output_containing("echo:claimed-by-first-input", Duration::from_secs(10)),
         "{}",
         takeover.output_text()
     );
-    second.write(b"reclaimed-by-first-input\n");
+    second.write(b"reclaimed-by-first-input\r");
     assert!(
         second.output_containing("echo:reclaimed-by-first-input", Duration::from_secs(10)),
         "{}",
@@ -1648,6 +1875,127 @@ fn host_stop_terminates_an_unresponsive_server_and_stops_its_tabs() {
 }
 
 #[test]
+fn host_stop_releases_a_tab_whose_holder_died_awaiting_readmission() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let created = internal_command(
+        &executable,
+        "tab-create",
+        &profile,
+        &data,
+        &runtime,
+        &release,
+        &[
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            env!("CARGO_BIN_EXE_fake-tab"),
+        ],
+    );
+    let tab_id =
+        serde_json::from_str::<serde_json::Value>(&created).expect("tab-create json")["tabId"]
+            .as_str()
+            .expect("created tab id")
+            .to_owned();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let (holder, child) = loop {
+        let recorded = RegistryStore::read(&credentials_root.join("registry.json"))
+            .ok()
+            .flatten()
+            .and_then(|registry| registry.tabs.into_iter().find(|tab| tab.tab_id == tab_id))
+            .and_then(|tab| {
+                Some((
+                    terminal_host_contracts::identity::ProcessIdentity {
+                        pid: tab.holder_pid?,
+                        start: tab.holder_start_identity?,
+                    },
+                    terminal_host_contracts::identity::ProcessIdentity {
+                        pid: tab.child_pid?,
+                        start: tab.child_start_identity?,
+                    },
+                ))
+            });
+        if let Some(found) = recorded {
+            break found;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "holder and child never registered"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    cleanup.pids.extend([holder.pid, child.pid]);
+
+    // Rationale: a suspended holder neither replaces the killed server nor reconnects, so the
+    // replacement adopts it as live and waits for its readmission.
+    suspend(holder.pid);
+    let server =
+        terminal_host_contracts::identity::inspect_process(server_pids(&credentials_root)[0])
+            .expect("inspect server")
+            .expect("live server");
+    kill_now(server.pid);
+    wait_for_terminated_identity(Some(server));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    cleanup.pids.extend(server_pids(&credentials_root));
+    kill_now(holder.pid);
+    kill_now(child.pid);
+    wait_for_terminated_identity(Some(holder));
+    wait_for_terminated_identity(Some(child));
+
+    // Invariant: the stop finishes well inside the replacement's 30 s admission deadline, so only
+    // the release of the gone tab can make it accepted.
+    let stopped = tabs(
+        &executable,
+        &["host-stop"],
+        &profile,
+        &data,
+        &runtime,
+        &address,
+    );
+    assert_eq!(stopped.0, 0, "{}", stopped.1);
+    assert_eq!(stopped.1["host"], "stopped", "{}", stopped.1);
+    assert_eq!(
+        stopped.1["result"]["released"],
+        serde_json::json!([tab_id]),
+        "{}",
+        stopped.1
+    );
+    assert_eq!(
+        stopped.1["result"]["remaining"],
+        serde_json::json!([]),
+        "{}",
+        stopped.1
+    );
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while !server_pids(&credentials_root).is_empty() {
+        assert!(
+            Instant::now() < deadline,
+            "the server did not exit after the stop"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let after = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+    assert_eq!(after.1["host"], "none", "{}", after.1);
+}
+
+#[test]
 fn host_stop_killed_at_each_step_leaves_no_orphan_or_duplicate_host() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
@@ -1973,6 +2321,111 @@ fn a_bridge_status_survives_the_surfaces_of_the_holder_it_reports_under() {
     }
     drop(bridge);
     drop(attach);
+}
+
+#[test]
+fn an_unviewed_tab_keeps_its_terminal_current_and_presents_it_in_full_when_viewed() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let mut viewer = AttachFixture::spawn_view(
+        &executable,
+        &address,
+        &profile,
+        &data,
+        &release,
+        fake_tab,
+        None,
+    );
+    assert!(viewer.output_containing("fake-tab-ready", Duration::from_secs(15)));
+
+    let created = Command::new(&executable)
+        .args([
+            "internal",
+            "tab-create",
+            "--profile",
+            text(&profile),
+            "--data-dir",
+            text(&data),
+            "--runtime-dir",
+            text(&runtime),
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            fake_tab,
+        ])
+        .env("A1_TABS_ENDPOINT", &address)
+        .env("TERMINAL_HOST_FAKE_TAB_MODE", "progress")
+        .current_dir(&release)
+        .output()
+        .expect("create progress tab");
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    let hidden_tab = serde_json::from_slice::<serde_json::Value>(&created.stdout)
+        .expect("tab-create json")["tabId"]
+        .as_str()
+        .expect("created tab id")
+        .to_owned();
+
+    // Invariant: the unviewed tab's child keeps producing output with no client subscribed to it.
+    let marker = release.join("fake-tab-progress-reached");
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !marker.exists() {
+        assert!(
+            Instant::now() < deadline,
+            "the unviewed tab never advanced: {}",
+            viewer.output_text()
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    cleanup.pids.extend(holder_pids(&credentials_root));
+    // Invariant: an inactive tab's surfaces never reach a client viewing another tab.
+    assert!(
+        !viewer.output_containing("progress-reached", Duration::from_secs(1)),
+        "an unviewed tab's surface reached another tab's client"
+    );
+
+    // Invariant: viewing the tab presents what it produced while unviewed in its first complete
+    // surface; nothing has to be produced again before it shows.
+    let mut selected = AttachFixture::spawn_view(
+        &executable,
+        &address,
+        &profile,
+        &data,
+        &release,
+        fake_tab,
+        Some(&hidden_tab),
+    );
+    assert!(
+        selected.output_containing("progress-reached", Duration::from_secs(10)),
+        "{}",
+        selected.output_text()
+    );
+    assert!(selected.output_containing("tick:", Duration::from_secs(5)));
+    selected.lose_launch_tree();
+    viewer.lose_launch_tree();
+    selected.wait(Duration::from_secs(8));
+    viewer.wait(Duration::from_secs(8));
 }
 
 #[test]
@@ -2745,6 +3198,18 @@ fn terminate_launch_tree(pid: u32) {
 }
 fn terminate(pid: u32) {
     terminate_batch(&[pid]);
+}
+
+/// Kills a process at once, including one that is suspended and cannot handle a graceful signal.
+#[cfg(unix)]
+fn kill_now(pid: u32) {
+    unsafe {
+        libc::kill(pid as i32, libc::SIGKILL);
+    }
+}
+#[cfg(windows)]
+fn kill_now(pid: u32) {
+    signal_terminate(pid);
 }
 
 fn terminate_batch(pids: &[u32]) {

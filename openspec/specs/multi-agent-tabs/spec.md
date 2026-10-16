@@ -78,7 +78,7 @@ A crashed, restarting, or failed tab SHALL show its state in its own strip entry
 - **THEN** the prompt SHALL be placed in the editor, the draft SHALL be kept in editor history, and a notice SHALL say both were recovered
 
 ### Requirement: Bare A1 presents resident A1 sessions as tabs
-Bare `a1` SHALL present a v2-style one-row tab strip at the top of the terminal and the viewed tab's terminal surface in all remaining rows. Each tab SHALL be an independent resident terminal session running the complete A1 owned UI with its own Pi agent session, extensions, transcript, editor, queue, model, thinking level, notices, and cwd. Only the viewed tab SHALL receive keyboard, paste, focus, and surface mouse input. The strip SHALL be present even when a single tab exists, and SHALL remain with a `+` chip and a hint when no tab exists. The tab chip SHALL be the resident session name's visible location, and the viewed resident shell SHALL NOT repeat that name in its inner footer; direct single-agent and comparison launches without a tab strip SHALL retain their existing footer session name. Extension components using the certified text-terminal contract SHALL behave as in direct single-agent bare A1 on Windows x64, macOS arm64, and Linux x64; inline image protocols SHALL use the text fallback. `a1 solo` and `a1 pi` SHALL NOT present a tab strip.
+Bare `a1` SHALL present a v2-style one-row tab strip at the top of the terminal and the viewed tab's terminal surface in all remaining rows. Each tab SHALL be an independent resident terminal session running the complete A1 owned UI with its own Pi agent session, extensions, transcript, editor, queue, model, thinking level, notices, and cwd. Only the viewed tab SHALL receive keyboard, paste, focus, and surface mouse input. Surface mouse reports SHALL remove the one-row tab-strip offset exactly once so the viewed child receives coordinates matching its visible rows, while mouse input on the strip SHALL remain attach-owned and SHALL NOT reach the child. The strip SHALL be present even when a single tab exists, and SHALL remain with a `+` chip and a hint when no tab exists. The tab chip SHALL be the resident session name's visible location, and the viewed resident shell SHALL NOT repeat that name in its inner footer; direct single-agent and comparison launches without a tab strip SHALL retain their existing footer session name. Extension components using the certified text-terminal contract SHALL behave as in direct single-agent bare A1 on Windows x64, macOS arm64, and Linux x64; inline image protocols SHALL use the text fallback. `a1 solo` and `a1 pi` SHALL NOT present a tab strip.
 
 #### Scenario: Explicit solo launch
 - **WHEN** the user runs `a1 solo`
@@ -110,6 +110,16 @@ Bare `a1` SHALL present a v2-style one-row tab strip at the top of the terminal 
 - **THEN** keyboard, mouse, paste, selection, clipboard, hyperlinks, cursor, Unicode, and alternate-screen behavior SHALL match direct single-agent bare A1 on the same platform
 - **AND** an inline-image request SHALL use the existing text fallback
 
+#### Scenario: Hover and activate a child-surface control
+- **WHEN** the pointer enters or activates a pinned prompt, jump-to-bottom control, or other mouse target on the viewed surface beneath the tab strip
+- **THEN** the child SHALL receive the row corresponding to the visibly pointed-at cell
+- **AND** the target SHALL hover and activate at the same physical position as in direct single-agent bare A1
+
+#### Scenario: Pointer remains on the tab strip
+- **WHEN** a mouse report addresses the top-row tab strip
+- **THEN** the attach client SHALL handle or ignore it according to strip behavior
+- **AND** the viewed child SHALL receive no mouse report for that row
+
 #### Scenario: Pi comparison profile
 - **WHEN** the user runs `a1 pi`
 - **THEN** no tab strip, resident server, holder, or tab bridge SHALL be involved
@@ -130,7 +140,7 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 - **THEN** its `×` SHALL remain visible and clicking it SHALL invoke that tab's ordinary close flow
 
 ### Requirement: Tab status comes from the tab bridge, not the screen
-Each chip SHALL show structured status: progress frames while working, yellow `?` while an extension, trust, or permission request awaits the user, `✓` when a turn settled while no client viewed the tab and it has not been viewed since, `✗` when the last turn errored or the tab crashed or failed, dim progress frames while starting or restoring, and no glyph when idle. Working frames SHALL use the resolved A1 accent reported by that specific tab. Status SHALL derive from sequenced engine events through the authenticated tab bridge, never terminal output, rendered cells, titles, or timing. A missing bridge SHALL degrade to process-level states and the launch accent. Viewing a tab in any client SHALL clear its `✓` everywhere. Open tabs SHALL have no suspended state or `◌` glyph.
+Each chip SHALL show structured status: v2's ordered Braille progress frames `⠋`, `⠙`, `⠹`, `⠸`, `⠼`, `⠴`, `⠦`, `⠧`, `⠇`, and `⠏` at an 80 ms cadence while working, yellow `?` while an extension, trust, or permission request awaits the user, `✓` when a turn settled while no client viewed the tab and it has not been viewed since, `✗` when the last turn errored or the tab crashed or failed, the same progress frames in the dim lifecycle color while starting or restoring, and no glyph when idle. Working frames SHALL use the resolved A1 accent reported by that specific tab. Status SHALL derive from sequenced engine events through the authenticated tab bridge, never terminal output, rendered cells, titles, or timing. A missing bridge SHALL degrade to process-level states and the launch accent. Viewing a tab in any client SHALL clear its `✓` everywhere. Open tabs SHALL have no suspended state or `◌` glyph.
 
 #### Scenario: Background tab needs input
 - **WHEN** an extension in a background tab requests confirmation
@@ -142,7 +152,11 @@ Each chip SHALL show structured status: progress frames while working, yellow `?
 
 #### Scenario: Working tabs have independent accents
 - **WHEN** two working tabs report different resolved A1 accents
-- **THEN** each chip's progress frame SHALL use its own reported accent
+- **THEN** each chip's v2 progress frame SHALL use its own reported accent
+
+#### Scenario: Starting and restoring tabs animate dimly
+- **WHEN** a tab is starting or restoring
+- **THEN** its chip SHALL animate through the v2 progress frames at 80 ms in the dim lifecycle color rather than showing a static ellipsis or quarter-circle glyph
 
 #### Scenario: Terminal-looking output cannot fake status
 - **WHEN** a tab prints spinner characters, `✓`, or a title containing status words
@@ -187,23 +201,40 @@ A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A` or `+` and 
 - **THEN** no tab SHALL be created and the strip SHALL state the limit
 
 ### Requirement: Tabs are renamed inline and names are Pi session names
-`F2`, the chip menu, and existing `/name <name>` SHALL rename a tab. Inline rename SHALL use `Enter` to commit and `Esc` or click elsewhere to cancel. Names SHALL be trimmed, control-free, nonempty, and at most 64 characters; invalid input SHALL retain the editor with a concise reason. A committed name SHALL become the Pi session name, appear in every client, and be user-provided. Defaults SHALL be `agent` or the smallest free `agent N`. With `tabsAutoName` on by default, A1 SHALL propose a lowercase hyphenated name of at most 16 characters after the first settled turn with bounded model work and deterministic fallback, never overriding a user name. An automatic rename SHALL reproduce v2's title transition: 600 ms moving rainbow, typing at 45 ms per character, and 300 ms settle; manual renames SHALL not animate.
+`F2`, the chip menu, and existing `/name <name>` SHALL rename a tab. Inline rename SHALL use `Enter` to commit and `Esc` or click elsewhere to cancel. Names SHALL be trimmed, control-free, nonempty, and at most 64 characters; invalid input SHALL retain the editor with a concise reason. A committed name SHALL become the Pi session name, appear in every client, and be user-provided. Defaults SHALL be `agent` or the smallest free `agent N`. With `tabsAutoName` on by default, A1 SHALL start proposing a lowercase hyphenated name of at most 16 characters when the first agent run begins, without waiting for that turn to settle. Naming SHALL use bounded model work that permits reasoning models to produce the short answer, SHALL fall back deterministically, and SHALL never override a user name. An automatic rename SHALL reproduce v2's title transition: 600 ms moving per-character rainbow over the old title, the new title typed at 45 ms per character, and a 300 ms settle to foreground gray while preserving the wider endpoint width; terminals without truecolor SHALL use the plain typewriter phase. Manual renames SHALL not animate.
 
 #### Scenario: Rename inline
 - **WHEN** the user enters `auth-refactor` with `F2`
 - **THEN** every client and the Pi session SHALL use `auth-refactor`
 
+#### Scenario: Auto-name starts with the run
+- **WHEN** the first agent run begins and remains busy for an extended period
+- **THEN** automatic naming SHALL proceed without waiting for the run to settle
+
+#### Scenario: Reasoning model consumes the first budget
+- **WHEN** the naming model spends the first bounded attempt without producing title text
+- **THEN** A1 SHALL retry with a larger bounded budget before using the deterministic fallback
+
 #### Scenario: User name survives auto-name
 - **WHEN** the user renames before auto-naming completes
-- **THEN** auto-naming SHALL NOT change it
+- **THEN** auto-naming SHALL NOT change either the Pi session name or the tab name
 
 #### Scenario: Auto-name animates
-- **WHEN** an automatic name replaces a default name
-- **THEN** the visible title SHALL use the v2 rainbow, typing, and settle phases
+- **WHEN** an automatic name replaces a default name in a truecolor terminal
+- **THEN** the old title SHALL show the moving per-character rainbow before the new title is typed and settled to foreground gray
+- **AND** active frames SHALL retain the display width of the wider clipped endpoint
+
+#### Scenario: Auto-name animates without truecolor
+- **WHEN** an automatic name replaces a default name in a terminal without truecolor
+- **THEN** the new title SHALL use the plain typewriter timing without truecolor rainbow or settle escapes
+
+#### Scenario: Manual rename is immediate
+- **WHEN** a user-provided name replaces the current name
+- **THEN** the complete new title SHALL appear without an automatic-title animation
 
 #### Scenario: Auto-name fails
-- **WHEN** model naming fails twice or times out
-- **THEN** deterministic prompt-derived naming SHALL be used without affecting the turn
+- **WHEN** bounded model naming fails or times out
+- **THEN** deterministic prompt-derived naming SHALL be used without affecting the active turn
 
 ### Requirement: Closing a tab stops only that session after confirmation when busy
 `Alt+W`, `×`, and the chip menu SHALL close a tab, including a failed tab. A working tab, a tab awaiting input, or one with queued input SHALL ask `Stop "<name>"? Enter stop · Esc cancel`. Closing SHALL request graceful shutdown, terminate the verified tree after a bounded deadline, remove the tab everywhere, and leave its Pi session resumable. Closing the last tab SHALL leave `+` and a hint rather than quit. Failed/stalled UI MAY offer restart, but no restart slash command SHALL exist.
@@ -280,3 +311,37 @@ A bare or session-selected A1 launch SHALL take the resident route only when its
 #### Scenario: Interactive launch
 - **WHEN** the same package is launched from a terminal on a supported platform
 - **THEN** resident routing SHALL proceed as before
+
+### Requirement: Tab input rules and prompts follow the viewed tab
+The attach client SHALL apply a failed tab's restricted input rules only while that tab is viewed, and SHALL forward input normally to any other viewed tab. A tab prompt that captures keys, such as the busy-close confirmation, the overflow chooser, rename, or the tab context menu, SHALL be cancelled when the viewed tab changes or its tab is removed. While such a prompt is open, its notice SHALL stay visible over tab output. A failed or refused new-tab request SHALL show its reason.
+
+#### Scenario: Switch away from a failed tab
+- **WHEN** the viewed tab fails and the user switches to another tab that produces no new output
+- **THEN** keys typed in the other tab SHALL reach it
+
+#### Scenario: Close prompt under streaming output
+- **WHEN** the busy-close confirmation is open and the tab keeps streaming output
+- **THEN** the confirmation notice SHALL remain visible until the user answers or cancels it
+
+#### Scenario: Close prompt after a tab switch
+- **WHEN** the busy-close confirmation is open and the user clicks another tab in the strip
+- **THEN** the confirmation SHALL be cancelled and keys SHALL reach the newly viewed tab
+
+#### Scenario: New tab refused
+- **WHEN** a new-tab request is refused for the tab limit or fails with `tab-start-busy`
+- **THEN** the terminal SHALL show a notice naming the reason
+
+### Requirement: Resident tabs preserve prompt keyboard modifiers
+After resolving tab-owned actions, bare A1's resident attach client SHALL forward supported Ctrl, Alt, and Shift keyboard combinations with the same key identity and modifiers observed by the direct solo-agent prompt. A modified key SHALL NOT degrade into its unmodified form while crossing the resident terminal boundary.
+
+#### Scenario: Move by word in a resident prompt
+- **WHEN** the user presses Ctrl+Left or Ctrl+Right while editing a prompt in a resident tab
+- **THEN** the prompt cursor SHALL move by one word in the requested direction exactly as it does in direct solo-agent mode
+
+#### Scenario: Use other modified prompt keys
+- **WHEN** the user invokes a supported prompt action with modified arrow, navigation, Enter, Backspace, Delete, Tab, or character input in a resident tab
+- **THEN** the child prompt SHALL receive the original key identity and modifiers and invoke the same effective binding as direct solo-agent mode
+
+#### Scenario: Keep tab actions authoritative
+- **WHEN** a modified key resolves to an active tab-owned action
+- **THEN** the attach client SHALL invoke that tab action without also forwarding the key to the child prompt
