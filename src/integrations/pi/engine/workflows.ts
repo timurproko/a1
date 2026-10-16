@@ -96,6 +96,7 @@ export const PINNED_PI_SETTINGS_CALLBACKS = [
   "onEnableInstallTelemetryChange",
   "onQuietStartupChange",
   "onDefaultProjectTrustChange",
+  "onSessionShareDestinationChange",
   "onDoubleEscapeActionChange",
   "onTreeFilterModeChange",
   "onShowHardwareCursorChange",
@@ -153,6 +154,8 @@ export interface PiWorkflowHost {
   // signal and stderr. Stderr content alone does not indicate a failed command.
   runCommand(command: string, arguments_: readonly string[], options?: { readonly signal?: AbortSignal }): Promise<{ readonly stdout: string; readonly stderr: string }>;
   readChangelog(sinceVersion?: string): Promise<string>;
+  /** HTTP for uploads such as Radius `/share`; defaults to the global fetch. */
+  readonly fetch?: typeof fetch;
 }
 
 export interface PiTreeSelectorContext {

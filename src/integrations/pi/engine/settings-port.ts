@@ -151,6 +151,11 @@ export class PiEngineSettings {
           session.setThinkingLevel(level);
           this.#ports.thinkingLevelChanged(readThinkingLevel(session.thinkingLevel));
         } },
+        sessionShareDestination: { apply: value => {
+          if (value !== "auto" && value !== "gist" && value !== "radius") throw new TypeError("Session share destination is invalid");
+          // Invariant: `/share` reads the manager per run, so persisting is the whole live effect.
+          settings.setSessionShareDestination(value);
+        } },
         warnings: { apply: value => {
           if (!isRecord(value) || Object.values(value).some(flag => typeof flag !== "boolean")) throw new TypeError("Warnings setting is invalid");
           settings.setWarnings(value);
@@ -232,6 +237,7 @@ export class PiEngineSettings {
       autocompleteMaxVisible: setting(settings?.getAutocompleteMaxVisible, 5),
       quietStartup: setting(settings?.getQuietStartup, false),
       defaultProjectTrust: setting(settings?.getDefaultProjectTrust, "ask"),
+      sessionShareDestination: setting(settings?.getSessionShareDestination, "auto"),
       clearOnShrink: setting(settings?.getClearOnShrink, false),
       showTerminalProgress: setting(settings?.getShowTerminalProgress, false),
       tuiMode: setting(settings?.getTuiMode, "regular"),
@@ -283,6 +289,7 @@ export class PiEngineSettings {
         onEnableInstallTelemetryChange: snapshot.enableInstallTelemetry,
         onQuietStartupChange: snapshot.quietStartup,
         onDefaultProjectTrustChange: snapshot.defaultProjectTrust,
+        onSessionShareDestinationChange: snapshot.sessionShareDestination,
         onDoubleEscapeActionChange: snapshot.doubleEscapeAction,
         onTreeFilterModeChange: snapshot.treeFilterMode,
         onShowHardwareCursorChange: snapshot.showHardwareCursor,
@@ -336,7 +343,8 @@ function settingKeyForCallback(callback: PiPinnedSettingsCallback): string | nul
     onHideThinkingBlockChange: "hideThinkingBlock", onMermaidRenderingModeChange: "mermaidRenderingMode",
     onShowCacheMissNoticesChange: "showCacheMissNotices", onCollapseChangelogChange: "collapseChangelog",
     onEnableInstallTelemetryChange: "enableInstallTelemetry", onQuietStartupChange: "quietStartup",
-    onDefaultProjectTrustChange: "defaultProjectTrust", onDoubleEscapeActionChange: "doubleEscapeAction",
+    onDefaultProjectTrustChange: "defaultProjectTrust", onSessionShareDestinationChange: "sessionShareDestination",
+    onDoubleEscapeActionChange: "doubleEscapeAction",
     onTreeFilterModeChange: "treeFilterMode", onShowHardwareCursorChange: "showHardwareCursor",
     onEditorPaddingXChange: "editorPaddingX", onOutputPadChange: "outputPad", onAutocompleteMaxVisibleChange: "autocompleteMaxVisible",
     onClearOnShrinkChange: "clearOnShrink", onShowTerminalProgressChange: "showTerminalProgress", onTuiModeChange: "tuiMode",

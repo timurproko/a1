@@ -951,7 +951,7 @@ describe("Pi shell public component adapters", () => {
         mermaidRenderingMode: "off", showCacheMissNotices: false, collapseChangelog: true,
         enableInstallTelemetry: true, doubleEscapeAction: "tree", treeFilterMode: "default",
         showHardwareCursor: true, editorPaddingX: 0, outputPad: 1, autocompleteMaxVisible: 5,
-        quietStartup: false, defaultProjectTrust: "ask", clearOnShrink: false, showTerminalProgress: false,
+        quietStartup: false, defaultProjectTrust: "ask", sessionShareDestination: "auto", clearOnShrink: false, showTerminalProgress: false,
         tuiMode: "fullscreen", fullscreenExitOutput: "transcript", fullscreenScrollbar: "auto", fullscreenWheelScrollLines: "auto", warnings: { anthropicExtraUsage: true },
       },
       onChange: changed,

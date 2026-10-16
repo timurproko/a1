@@ -243,6 +243,7 @@
     "onEnableInstallTelemetryChange",
     "onQuietStartupChange",
     "onDefaultProjectTrustChange",
+    "onSessionShareDestinationChange",
     "onDoubleEscapeActionChange",
     "onTreeFilterModeChange",
     "onShowHardwareCursorChange",

@@ -28,8 +28,7 @@ import {
 	visibleWidth,
 	wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
-<<<<<<< a1
-import { DynamicBorder, type SessionTreeNode } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder, formatReadLineRange, type SessionTreeNode } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
@@ -54,18 +53,6 @@ function formatKeyText(key: string): string {
 function shortcutHint(keybinding: Parameters<KeybindingsManager["getKeys"]>[0], action: string): PiModalShortcutHint {
 	return { key: formatKeyText(treeKeybindings.getKeys(keybinding).join("/")), action };
 }
-||||||| pi 1.2.0
-import type { SessionTreeNode } from "../../../core/session-manager.ts";
-import { theme } from "../theme/theme.ts";
-import { DynamicBorder } from "./dynamic-border.ts";
-import { formatKeyText, keyHint } from "./keybinding-hints.ts";
-=======
-import type { SessionTreeNode } from "../../../core/session-manager.ts";
-import { formatReadLineRange } from "../../../core/tools/render-utils.ts";
-import { theme } from "../theme/theme.ts";
-import { DynamicBorder } from "./dynamic-border.ts";
-import { formatKeyText, keyHint } from "./keybinding-hints.ts";
->>>>>>> pi 1.3.0
 
 /** Gutter info: position (displayIndent where connector was) and whether to show │ */
 interface GutterInfo {
