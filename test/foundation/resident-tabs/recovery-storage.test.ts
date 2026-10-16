@@ -58,6 +58,26 @@ describe("resident prompt journal", () => {
     expect(await readFile(journal.path, "utf8")).toBe("");
   });
 
+  it("reads legacy submitted records that contain inline images without writing them again", async () => {
+    const directory = await root();
+    const journal = new PromptJournal(join(directory, "journal.jsonl"));
+    await journal.initialize();
+    await writeFile(journal.path, `${JSON.stringify({
+      type: "submitted", id: "legacy-images", sessionId: "session", sessionFile: null,
+      incarnation: 1, fileExisted: false, kind: "prompt", text: "legacy", at: "2026-01-01T00:00:00.000Z",
+      images: [{ type: "image", data: "aA==", mimeType: "image/png" }],
+    })}\n`);
+    expect(await journal.pending()).toEqual([
+      { submitted: expect.objectContaining({ id: "legacy-images", text: "legacy" }) },
+    ]);
+    const current = await journal.submit({
+      sessionId: "session", sessionFile: null, incarnation: 1, fileExisted: false, kind: "prompt", text: "current",
+    });
+    const currentLine = (await readFile(journal.path, "utf8")).trim().split("\n")
+      .map(line => JSON.parse(line)).find(record => record.id === current.id);
+    expect(currentLine).not.toHaveProperty("images");
+  });
+
   it("reconciles a lost correlation by exact text without collapsing duplicate prompts", async () => {
     const directory = await root();
     const session = join(directory, "session.jsonl");
@@ -86,6 +106,37 @@ describe("resident prompt journal", () => {
     ].join("\n"));
     const restarted = new ResidentTabRecovery(directory);
     await expect(restarted.initialize(session)).resolves.toEqual({ prompts: [], draft: null });
+  });
+
+  it("settles and compacts the current prompt after ready raced ahead of correlation", async () => {
+    const directory = await root();
+    const session = join(directory, "session.jsonl");
+    await writeFile(session, [
+      JSON.stringify({ type: "message", id: "user", parentId: null, message: { role: "user", content: "send once" } }),
+      JSON.stringify({ type: "message", id: "assistant", parentId: "user", message: { role: "assistant", content: "done" } }),
+    ].join("\n") + "\n");
+    const recovery = new ResidentTabRecovery(directory);
+    await recovery.initialize(session);
+    const submission = await recovery.admit({ sessionId: "s", sessionFile: session, incarnation: 1, kind: "prompt", text: "send once" });
+    await recovery.settled(session); // The ready observer ran before correlation became active.
+    await recovery.correlated(submission.id, "pi-shell-prompt-1");
+    await Promise.all([recovery.settled(session), recovery.settled(session)]);
+    expect(await readFile(join(directory, "journal.jsonl"), "utf8")).toBe("");
+    const restarted = new ResidentTabRecovery(directory);
+    await expect(restarted.initialize(session)).resolves.toEqual({ prompts: [], draft: null });
+  });
+
+  it("keeps a busy correlated prompt pending until a later settled transition", async () => {
+    const directory = await root();
+    const session = join(directory, "session.jsonl");
+    await writeFile(session, "{}\n");
+    const recovery = new ResidentTabRecovery(directory);
+    await recovery.initialize(session);
+    const submission = await recovery.admit({ sessionId: "s", sessionFile: session, incarnation: 1, kind: "steer", text: "continue" });
+    await recovery.correlated(submission.id, "pi-shell-steer-1");
+    expect((await new PromptJournal(join(directory, "journal.jsonl")).pending())).toHaveLength(1);
+    await recovery.settled(session);
+    expect(await readFile(join(directory, "journal.jsonl"), "utf8")).toBe("");
   });
 
   it("adopts matching reboot journals once and retires the source", async () => {
