@@ -1,4 +1,5 @@
 import { CredentialSynchronizationError, type AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
+import { writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -69,7 +70,17 @@ class WorkflowSession {
   }
   abortBash(): void { this.calls.push("abortBash"); }
   clearQueue(): unknown { return { steering: ["steer"], followUp: ["follow"] }; }
-  exportToJsonl(path?: string): string { return path ?? "session.jsonl"; }
+  readonly state = { systemPrompt: "System prompt", tools: [{ name: "read", description: "Read files", parameters: { type: "object" } }] };
+  exportToJsonl(path?: string): string {
+    if (this.exportFails) throw new Error("export exploded");
+    if (path !== undefined) {
+      writeFileSync(path, [
+        JSON.stringify({ type: "session", version: 3, id: this.sessionId, timestamp: "2026-10-16T00:00:00.000Z", cwd: "D:/work" }),
+        JSON.stringify({ type: "message", id: "entry-2", parentId: null }),
+      ].join("\n") + "\n");
+    }
+    return path ?? "session.jsonl";
+  }
   async exportToHtml(path?: string): Promise<string> {
     if (this.exportFails) throw new Error("export exploded");
     return path ?? "session.html";
@@ -110,7 +121,7 @@ class WorkflowRuntime {
     ["QuietStartup", false], ["ShowHardwareCursor", false], ["ClearOnShrink", true],
     ["ShowTerminalProgress", true], ["SteeringMode", "all"], ["FollowUpMode", "all"],
     ["Transport", "sse"], ["MermaidRenderingMode", "off"], ["DefaultProjectTrust", "ask"],
-    ["DoubleEscapeAction", "fork"], ["TreeFilterMode", "default"], ["OutputPad", 0],
+    ["SessionShareDestination", "auto"], ["DoubleEscapeAction", "fork"], ["TreeFilterMode", "default"], ["OutputPad", 0],
     ["TuiMode", "fullscreen"], ["FullscreenScrollbar", "auto"], ["HttpIdleTimeoutMs", 5000],
     ["EditorPaddingX", 0], ["AutocompleteMaxVisible", 8], ["Theme", "dark"],
     ["Warnings", { anthropicExtraUsage: true }],
@@ -134,6 +145,8 @@ class WorkflowRuntime {
   ]);
   readonly credentialTypes = new Map<string, "oauth" | "api_key">([["openai", "oauth"]]);
   allModels = [{ provider: "openai", id: "gpt-5", name: "GPT-5" }];
+  /** Radius bearer token; undefined leaves Radius unconfigured. */
+  radiusToken: string | undefined;
   readonly modelRuntime = {
     getModel: (provider: string, id: string) => provider === "openai" && id === "missing" ? undefined : this.allModels.find(model => model.provider === provider && model.id === id),
     getAvailableSnapshot: () => this.allModels.filter(model => this.providerAuthStatus.get(model.provider)?.configured === true),
@@ -141,7 +154,11 @@ class WorkflowRuntime {
     getProviderAuthStatus: (providerId: string) => this.providerAuthStatus.get(providerId) ?? { configured: false },
     isUsingOAuth: (providerId: string) => this.credentialTypes.get(providerId) === "oauth",
     listCredentials: async () => [...this.credentialTypes].map(([providerId, type]) => ({ providerId, type })),
-    getProvider: (providerId: string) => providerId === "openai" ? { id: providerId, name: "OpenAI Codex" } : undefined,
+    getProvider: (providerId: string) => providerId === "openai" ? { id: providerId, name: "OpenAI Codex" }
+      : providerId === "radius" && this.radiusToken !== undefined ? { id: providerId, name: "Radius" } : undefined,
+    getAuth: async (providerId: string) => providerId === "radius" && this.radiusToken
+      ? { auth: { headers: { Authorization: `Bearer ${this.radiusToken}` } } }
+      : undefined,
     login: async (provider: string, type: "oauth" | "api_key", interaction: { prompt(input: unknown): Promise<string>; notify(event: unknown): void }) => {
       if (this.loginError) throw this.loginError;
       if (this.loginSelect) {
@@ -1006,6 +1023,70 @@ describe("pinned Pi command and input workflows", () => {
       if (originalViewer === undefined) delete process.env.PI_SHARE_VIEWER_URL;
       else process.env.PI_SHARE_VIEWER_URL = originalViewer;
     }
+  });
+
+  it("routes share through the destination setting, Radius first under auto", async () => {
+    const uploads: Array<{ url: string; authorization: string | null; body: string }> = [];
+    const radiusFetch = (response: unknown, status = 200) => (async (input: string | URL | Request, init?: RequestInit) => {
+      uploads.push({ url: String(input), authorization: new Headers(init?.headers).get("authorization"), body: String(init?.body) });
+      return new Response(JSON.stringify(response), { status, statusText: status === 200 ? "OK" : "Forbidden" });
+    }) as typeof fetch;
+    const gistCommands: string[] = [];
+    const recordingHost = (fetchImpl: typeof fetch) => host({
+      fetch: fetchImpl,
+      runCommand: async (_command, args) => {
+        gistCommands.push(args.join(" "));
+        return args[0] === "gist" ? { stdout: "https://gist.github.com/user/abc123\n", stderr: "" } : { stdout: "logged in", stderr: "" };
+      },
+    });
+    const radius = await fixture(recordingHost(radiusFetch({ artifact: { canonical_url: "https://radius.pi.dev/a/xyz" } })), runtime => { runtime.radiusToken = "token-1"; });
+    const progress: string[] = [];
+    await expect(radius.adapter.executeWorkflow({ command: "share", argument: "", onProgress: message => progress.push(message) })).resolves.toMatchObject({
+      outcome: "completed", message: "Share URL: https://radius.pi.dev/a/xyz",
+    });
+    expect(progress).toEqual(["Uploading to Radius…"]);
+    expect(gistCommands).toEqual([]);
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0]!.url).toBe("https://radius.pi.dev/v1/artifacts?visibility=organization&title=Pi+session");
+    expect(uploads[0]!.authorization).toBe("Bearer token-1");
+    const lines = uploads[0]!.body.trim().split("\n").map(line => JSON.parse(line) as Record<string, unknown>);
+    expect(lines.at(-1)).toMatchObject({
+      type: "custom", customType: "pi.share", parentId: "entry-2", timestamp: "2026-10-16T00:00:00.000Z",
+      data: { systemPrompt: "System prompt", tools: [{ name: "read", description: "Read files", parameters: { type: "object" } }] },
+    });
+    await radius.adapter.dispose();
+
+    const rejected = await fixture(recordingHost(radiusFetch({ error: "quota exceeded" }, 403)), runtime => { runtime.radiusToken = "token-1"; });
+    await expect(rejected.adapter.executeWorkflow({ command: "share", argument: "" })).resolves.toMatchObject({
+      outcome: "failed", message: "Failed to upload Radius artifact: quota exceeded",
+    });
+    expect(gistCommands).toEqual([]);
+    await rejected.adapter.dispose();
+
+    const forcedGist = await fixture(recordingHost(radiusFetch({})), runtime => {
+      runtime.radiusToken = "token-1";
+      runtime.settingsValues.set("SessionShareDestination", "gist");
+    });
+    await expect(forcedGist.adapter.executeWorkflow({ command: "share", argument: "" })).resolves.toMatchObject({
+      outcome: "completed", detail: "https://gist.github.com/user/abc123",
+    });
+    expect(uploads).toHaveLength(2);
+    await forcedGist.adapter.dispose();
+
+    gistCommands.length = 0;
+    const autoWithoutRadius = await fixture(recordingHost(radiusFetch({})));
+    await expect(autoWithoutRadius.adapter.executeWorkflow({ command: "share", argument: "" })).resolves.toMatchObject({
+      outcome: "completed", detail: "https://gist.github.com/user/abc123",
+    });
+    expect(gistCommands[0]).toBe("auth status");
+    await autoWithoutRadius.adapter.dispose();
+
+    const forcedRadius = await fixture(recordingHost(radiusFetch({})), runtime => { runtime.settingsValues.set("SessionShareDestination", "radius"); });
+    await expect(forcedRadius.adapter.executeWorkflow({ command: "share", argument: "" })).resolves.toMatchObject({
+      outcome: "failed", message: "Radius authentication is not configured. Run '/login radius' first.",
+    });
+    expect(uploads).toHaveLength(2);
+    await forcedRadius.adapter.dispose();
   });
 
   it("uses status rather than error semantics for empty clone", async () => {

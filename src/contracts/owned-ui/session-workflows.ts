@@ -83,6 +83,8 @@ export interface OwnedUiWorkflowRequest {
   readonly cwdOverride?: string;
   /** Cancellation for an owned operation surface such as `/share`. */
   readonly signal?: AbortSignal;
+  /** Progress label for that operation surface, e.g. when `/share` picks its upload destination. */
+  readonly onProgress?: (message: string) => void;
   readonly treeSummary?: {
     readonly summarize: boolean;
     readonly customInstructions?: string;
@@ -301,6 +303,7 @@ export interface OwnedUiSessionSettingsSnapshot {
   readonly autocompleteMaxVisible: number;
   readonly quietStartup: boolean | "header";
   readonly defaultProjectTrust: "ask" | "always" | "never";
+  readonly sessionShareDestination: "auto" | "gist" | "radius";
   readonly clearOnShrink: boolean;
   readonly showTerminalProgress: boolean;
   readonly tuiMode: "regular" | "fullscreen";
@@ -321,7 +324,7 @@ export type OwnedUiSessionSettingKey =
   | "autoCompact" | "showImages" | "imageWidthCells" | "autoResizeImages" | "blockImages"
   | "enableSkillCommands" | "steeringMode" | "followUpMode" | "transport" | "httpIdleTimeoutMs" | "cacheWarmingMode"
   | "modelThinkingLevels" | "theme" | "hideThinkingBlock" | "mermaidRenderingMode" | "showCacheMissNotices"
-  | "collapseChangelog" | "enableInstallTelemetry" | "quietStartup" | "defaultProjectTrust"
+  | "collapseChangelog" | "enableInstallTelemetry" | "quietStartup" | "defaultProjectTrust" | "sessionShareDestination"
   | "doubleEscapeAction" | "treeFilterMode" | "showHardwareCursor" | "editorPaddingX" | "outputPad"
   | "autocompleteMaxVisible" | "clearOnShrink" | "showTerminalProgress" | "tuiMode"
   | "fullscreenExitOutput" | "fullscreenScrollbar" | "fullscreenCopyOnSelect" | "fullscreenWheelScrollLines" | "warnings";

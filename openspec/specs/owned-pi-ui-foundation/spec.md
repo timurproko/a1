@@ -7,7 +7,7 @@ Defines A1's independently owned Pi shell with vanilla-default regular main-scre
 ## Requirements
 
 ### Requirement: The owned shell presents the complete pinned Pi interactive UI
-The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `1.2.0` at commit `06a466935536f8c9bcacb2d5efc0fc021be1bdff`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
+The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `1.3.0` at commit `71023aec1546d6d677a65669c5665c0927ce0dd0`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
 
 #### Scenario: Start an owned Pi session
 - **WHEN** the user starts the owned UI in an equivalent terminal and session state
@@ -1089,9 +1089,16 @@ The slash-command workflows that produce these messages, their admission and can
 - **AND** A1 SHALL return its recoverable failed workflow result and keep the owning session active
 - **AND** acceptance evidence SHALL label shutdown and process-exit behavior as an explicit contextual exception rather than claim lifecycle parity
 
+#### Scenario: Share destination selects the upload route
+- **WHEN** the user invokes `/share`
+- **THEN** A1 SHALL read the pinned `sessionShareDestination` setting for that run and SHALL offer it as Pi's `Session share destination` row with `auto`, `gist`, and `radius` choices
+- **AND** `auto` SHALL upload to Radius when the model runtime has a Radius provider and credential and SHALL otherwise create a gist, `gist` SHALL always create a gist, and `radius` SHALL stop with error-colored `Error: Radius authentication is not configured. Run '/login radius' first.` when Radius is unavailable
+- **AND** a Radius upload that starts and then fails SHALL NOT fall back to a gist
+
 #### Scenario: Bare A1 starts sharing
-- **WHEN** bare A1 begins creating a gist for `/share`
+- **WHEN** bare A1 begins a `/share` upload
 - **THEN** it SHALL replace the editor with a standard modal whose full-width top rule is followed immediately by the bold accent title `Share`
+- **AND** its progress row SHALL read `Uploading to Radius…` while uploading to Radius and `Creating gist…` while creating a gist
 - **AND** the progress row and canonical close shortcut row SHALL use the modal's one-cell content inset
 - **AND** the shortcut row SHALL align with the title, distinguish `Esc` from its `close` action using the shared dialog-hint style, and sit immediately above the full-width bottom rule with no intervening blank row
 - **AND** Escape SHALL abort the active share operation while the existing Ctrl+C alias remains functional but undisclosed
@@ -1102,6 +1109,11 @@ The slash-command workflows that produce these messages, their admission and can
 - **AND** each URL value SHALL use the theme's blue web-link role and a bounded native hyperlink target while the surrounding labels retain their status presentation
 - **AND** each URL SHALL have terminal-native dashed idle decoration, normal solid underline on hover, and SHALL open its exact target through the supported terminal's Ctrl+click interaction
 - **AND** for the current pinned version the default viewer URL SHALL be `https://pi.dev/session/#<gist ID>` and a configured `PI_SHARE_VIEWER_URL` SHALL determine the base using pinned semantics
+
+#### Scenario: Share uploads to Radius
+- **WHEN** `/share` uploads to Radius
+- **THEN** A1 SHALL post the current branch as JSONL with Pi's trailing `pi.share` entry carrying the system prompt and tool schemas to the pinned Radius gateway's artifacts endpoint with organization visibility and the title `Pi session`
+- **AND** on success A1 SHALL close the share dialog and emit only `Share URL: <artifact URL>` with the same link presentation as a gist share
 
 #### Scenario: Compare pinned share presentation
 - **WHEN** `/share` is invoked through the `a1 pi` comparison profile
@@ -1121,8 +1133,8 @@ The slash-command workflows that produce these messages, their admission and can
 - **AND** A1 SHALL NOT substitute the missing-executable installation message
 
 #### Scenario: Share fails or is cancelled
-- **WHEN** session export fails, gist creation fails, or the user cancels creation
-- **THEN** A1 SHALL retain Pi's export/gist error context or `Share cancelled` status as applicable
+- **WHEN** session export fails, gist creation or Radius upload fails, or the user cancels the upload
+- **THEN** A1 SHALL retain Pi's export, gist, or `Failed to upload Radius artifact: <detail>` error context or `Share cancelled` status as applicable
 - **AND** no success link SHALL be emitted on failure or cancellation
 
 #### Scenario: Existing matching commands complete

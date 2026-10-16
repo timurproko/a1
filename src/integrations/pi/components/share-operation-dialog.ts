@@ -17,6 +17,8 @@ import {
 
 export interface PiShellOperationLoaderPort extends PiShellComponentPort {
   readonly signal: AbortSignal;
+  /** Relabels the running operation; the pinned comparison loader keeps its first label. */
+  readonly setMessage?: (message: string) => void;
 }
 
 /** Bare A1's titled share progress surface; the pinned comparison keeps its bordered loader. */
@@ -48,6 +50,7 @@ class ShareOperationDialog implements Component {
   }
 
   get signal(): AbortSignal { return this.#loader.signal; }
+  setMessage(message: string): void { this.#loader.setMessage(message); }
   invalidate(): void { this.#frame.invalidate(); }
   render(width: number): string[] { return this.#frame.render(width); }
   handleInput(data: string): void { this.#loader.handleInput(data); }
@@ -60,7 +63,7 @@ export function createPiShellShareOperationDialog(
 ): PiShellOperationLoaderPort {
   ensureTheme();
   const dialog = new ShareOperationDialog(runtime, message);
-  return { ...componentPort(dialog), signal: dialog.signal };
+  return { ...componentPort(dialog), signal: dialog.signal, setMessage: message => dialog.setMessage(message) };
 }
 
 export function createPiShellOperationLoader(

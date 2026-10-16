@@ -1,4 +1,5 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
@@ -13,8 +14,12 @@ import {
   pathArgument,
   pinnedHotkeySummary,
   pinnedSessionInfoPresentation,
+  RADIUS_AUTH_MIN_VALIDITY_MS,
+  RADIUS_SHARE_GATEWAY,
+  radiusAuthCredential,
   shareCommandFailureDetail,
   shareViewerUrl,
+  withRadiusShareTrailingEntry,
   workflowConfirmation,
   workflowResult,
 } from "./workflow-support.js";
@@ -149,6 +154,51 @@ export class PiWorkflowRunner {
     if (this.#clipboardWriter !== undefined) return this.#clipboardWriter(text);
     await this.#host.copyText(text);
     return true;
+  }
+
+  // Protocol: the pinned Radius `/share` route. Undefined means Radius has no provider or credential,
+  // so the caller may fall back to a gist; any other outcome, including an upload failure, is final.
+  async #shareViaRadius(session: PiSessionApi, runtime: PiRuntimeApi, request: PiWorkflowRequest): Promise<PiWorkflowResult | undefined> {
+    const signal = request.signal;
+    const models = runtime.services.modelRuntime;
+    if (models.getProvider?.("radius") === undefined) return undefined;
+    const token = radiusAuthCredential(await models.getAuth("radius", { minOAuthValidityMs: RADIUS_AUTH_MIN_VALIDITY_MS }));
+    if (!token) return undefined;
+    if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
+    request.onProgress?.("Uploading to Radius…");
+    const temporary = join(tmpdir(), `${PRODUCT_IDENTITY.filesystem.temporaryPrefix}pi-session-${process.pid}.jsonl`);
+    let body: string;
+    try {
+      requireCapability(session.exportToJsonl, "exportToJsonl").call(session, temporary);
+      body = withRadiusShareTrailingEntry(await readFile(temporary, "utf8"), (session as Partial<Pick<PiSessionApi, "state">>).state ?? {}, randomUUID().slice(0, 8));
+    } catch (error) {
+      return workflowResult(request.command, "failed", `Failed to export session: ${errorMessage(error, "Unknown error")}`);
+    } finally {
+      await rm(temporary, { force: true });
+    }
+    const url = new URL("/v1/artifacts", RADIUS_SHARE_GATEWAY);
+    url.searchParams.set("visibility", "organization");
+    url.searchParams.set("title", "Pi session");
+    try {
+      const response = await (this.#host.fetch ?? fetch)(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/x-ndjson" },
+        body,
+        ...(signal === undefined ? {} : { signal }),
+      });
+      const json: unknown = await response.json().catch(() => null);
+      if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
+      const artifact = isRecord(json) && isRecord(json.artifact) ? json.artifact : undefined;
+      const shareUrl = artifact === undefined ? undefined : stringProperty(artifact, "canonical_url");
+      if (!response.ok || shareUrl === undefined) {
+        const detail = (isRecord(json) ? stringProperty(json, "error") : undefined) || response.statusText || String(response.status);
+        return workflowResult(request.command, "failed", `Failed to upload Radius artifact: ${detail}`);
+      }
+      return workflowResult(request.command, "completed", `Share URL: ${shareUrl}`);
+    } catch (error) {
+      if (signal?.aborted || isAbortError(error)) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
+      return workflowResult(request.command, "failed", `Failed to upload Radius artifact: ${errorMessage(error, "Unknown error")}`);
+    }
   }
 
   abortBashWorkflow(): void {
@@ -384,6 +434,13 @@ export class PiWorkflowRunner {
       case "share": {
         const signal = request.signal;
         if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
+        const destination = runtime.services.settingsManager?.getSessionShareDestination?.() ?? "auto";
+        if (destination !== "gist") {
+          const radius = await this.#shareViaRadius(session, runtime, request);
+          if (radius !== undefined) return radius;
+          if (destination === "radius") return workflowResult(request.command, "failed", "Radius authentication is not configured. Run '/login radius' first.");
+        }
+        request.onProgress?.("Creating gist…");
         try {
           await this.#host.runCommand("gh", ["auth", "status"], signal === undefined ? undefined : { signal });
         } catch (error) {

@@ -310,6 +310,47 @@ export function shareViewerUrl(gistId: string): string {
   return `${baseUrl}#${gistId}`;
 }
 
+// Provenance: the pinned engine's modes/interactive/session-share.ts Radius route and the model
+// runtime's DEFAULT_RADIUS_GATEWAY; neither is in the public API, so each upgrade re-checks them.
+export const RADIUS_SHARE_GATEWAY = "https://radius.pi.dev";
+export const RADIUS_AUTH_MIN_VALIDITY_MS = 5 * 60_000;
+
+/** The bearer token in a model-runtime auth result: an API key or an `Authorization: Bearer` header. */
+export function radiusAuthCredential(auth: unknown): string | undefined {
+  const resolved = isRecord(auth) && isRecord(auth.auth) ? auth.auth : undefined;
+  if (resolved === undefined) return undefined;
+  if (typeof resolved.apiKey === "string" && resolved.apiKey) return resolved.apiKey;
+  const headers = isRecord(resolved.headers) ? resolved.headers : {};
+  const authorization = Object.entries(headers).find(([name]) => name.toLowerCase() === "authorization")?.[1];
+  return typeof authorization === "string" ? /^Bearer\s+(.+)$/iu.exec(authorization)?.[1] : undefined;
+}
+
+/**
+ * Append the pinned `pi.share` trailing entry (system prompt and tool schemas for the session viewer)
+ * to a branch JSONL export. It chains to the last exported entry and reuses the header timestamp.
+ */
+export function withRadiusShareTrailingEntry(
+  jsonl: string,
+  state: { readonly systemPrompt?: unknown; readonly tools?: readonly unknown[] },
+  id: string,
+): string {
+  const lines = jsonl.split("\n").filter(line => line.length > 0);
+  const header: unknown = lines[0] === undefined ? undefined : JSON.parse(lines[0]);
+  const last: unknown = lines.length > 1 ? JSON.parse(lines.at(-1)!) : undefined;
+  const entry = {
+    type: "custom",
+    customType: "pi.share",
+    id,
+    parentId: isRecord(last) && typeof last.id === "string" ? last.id : null,
+    timestamp: isRecord(header) && typeof header.timestamp === "string" ? header.timestamp : new Date().toISOString(),
+    data: {
+      systemPrompt: state.systemPrompt,
+      tools: (state.tools ?? []).filter(isRecord).map(tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters })),
+    },
+  };
+  return `${[...lines, JSON.stringify(entry)].join("\n")}\n`;
+}
+
 export function workflowOptions(value: unknown, idKey: string, labelKey: string): readonly PiWorkflowOption[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).flatMap(item => {

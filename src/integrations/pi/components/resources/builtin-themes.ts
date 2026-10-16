@@ -1,6 +1,6 @@
 /**
- * Attributed owned theme resources adapted from @earendil-works/pi-coding-agent 1.2.0 (MIT),
- * commit 06a466935536f8c9bcacb2d5efc0fc021be1bdff.
+ * Attributed owned theme resources adapted from @earendil-works/pi-coding-agent 1.3.0 (MIT),
+ * commit 71023aec1546d6d677a65669c5665c0927ce0dd0.
  * Upstream dark.json SHA-256: e1f96982f8cb7d2a48eca7db03c9cb282cb1e14a243680cd855638ecd6a251b6
  * Upstream light.json SHA-256: 2dee6a4be7f765e7fd7728166b7ebf8c29e4ce313f8ec6b38ae50699e3abc2f3
  * Modifications: removed upstream schema/export metadata; runtime color data is unchanged.

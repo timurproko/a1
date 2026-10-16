@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.2.0 (MIT), commit 06a466935536f8c9bcacb2d5efc0fc021be1bdff,
+ * Provenance: @earendil-works/pi-coding-agent 1.3.0 (MIT), commit 71023aec1546d6d677a65669c5665c0927ce0dd0,
  * packages/coding-agent/src/modes/interactive/components/thinking-selector.ts.
  * Modifications: Preserve the searchable thinking-level selector, current/default semantics,
  * selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the

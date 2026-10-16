@@ -34,6 +34,7 @@ const ID_TO_KEY = Object.freeze({
   "quiet-startup": "quietStartup",
   "install-telemetry": "enableInstallTelemetry",
   "default-project-trust": "defaultProjectTrust",
+  "share-destination": "sessionShareDestination",
   "double-escape-action": "doubleEscapeAction",
   "tree-filter-mode": "treeFilterMode",
   warnings: "warnings",
