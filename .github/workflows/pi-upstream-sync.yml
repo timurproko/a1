@@ -2,10 +2,11 @@ name: Pi upstream sync
 
 # Proposes a Pi upgrade as a draft pull request when the registry publishes a newer version than the
 # pin: the proposal script bumps, evaluates, merges the vendored copies that follow upstream,
-# regenerates derived state, runs the gates, and writes the body; this workflow only commits, pushes,
-# and opens or refreshes the draft. A proposal branch belongs to whoever committed last: when it
-# carries commits the sync did not author, the sync posts its fresh report as a comment, refreshes
-# only the marked report section of the body, and never pushes. A proposal closed with the
+# regenerates derived state, runs the gates, and writes the body and the sync report comment; this
+# workflow only commits, pushes, opens the draft, and posts the comment. The body is the ordinary
+# delivery checklist and is never edited after it opens; every later run posts another comment. A
+# proposal branch belongs to whoever committed last: when it carries commits the sync did not
+# author, the sync only comments and never pushes. A proposal closed with the
 # `pi-upgrade-skipped` label skips that version; `PI_UPGRADE_FREEZE_UNTIL` silences the schedule
 # until a date. A human resolves the review items and merges; nothing here auto-merges.
 
@@ -185,13 +186,9 @@ jobs:
           existing=$(gh pr list --head "$BRANCH" --base develop --state open --json number --jq '.[0].number // empty')
           if [ -z "$existing" ]; then
             if [ "$REPLACED" != "true" ]; then echo "No open proposal for $BRANCH and the branch was not replaced; nothing to open." >&2; exit 1; fi
-            gh pr create --draft --base develop --head "$BRANCH" --title "$title" --body-file .artifacts/pi-upgrade/body.md
+            created=$(gh pr create --draft --base develop --head "$BRANCH" --title "$title" --body-file .artifacts/pi-upgrade/body.md)
+            gh pr comment "$created" --body-file .artifacts/pi-upgrade/comment.md
             exit 0
           fi
-          # Invariant: the description is rewritten only between the report markers; the reviewer's sections survive.
-          gh pr view "$existing" --json body --jq .body > .artifacts/pi-upgrade/existing-body.md
-          node scripts/pi/refresh-pi-upgrade-body.mjs --existing .artifacts/pi-upgrade/existing-body.md --report .artifacts/pi-upgrade/report.json --output .artifacts/pi-upgrade/refreshed-body.md --comment .artifacts/pi-upgrade/comment.md
-          gh pr edit "$existing" --body-file .artifacts/pi-upgrade/refreshed-body.md
-          if [ "$REPLACED" != "true" ]; then
-            gh pr comment "$existing" --body-file .artifacts/pi-upgrade/comment.md
-          fi
+          # Invariant: the body is the reviewer's delivery checklist; a re-run reports through another comment and never edits it.
+          gh pr comment "$existing" --body-file .artifacts/pi-upgrade/comment.md

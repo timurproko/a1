@@ -5,7 +5,7 @@
  * new upstream, A1 copy) and records the upstream delta of each copy A1 keeps, regenerates the
  * source ledger and provenance headers, re-resolves the inventories, refreshes the public API and
  * feature adoption baselines, re-pins the startup graph, refreshes parity evidence, runs the
- * gates, and writes the pull-request body, the resolution report, and the OpenSpec scaffold under
+ * gates, and writes the pull-request body, the sync report comment, the resolution report, and the OpenSpec scaffold under
  * `--output`. It never resolves a conflict, drops an inventory entry, records a disposition, or
  * merges anything; a failed step is recorded and the run continues so the pull request names every
  * problem, and a gate that cannot run while conflict markers remain is recorded as blocked. With
@@ -23,7 +23,7 @@ import { readPinnedPiIdentity } from "../governance/pinned-pi-identity.mjs";
 import { compareVersions, matrixReviewItems } from "./pi-feature-adoption-matrix.mjs";
 import { collectPiPublicApi, diffPublicApi, publicApiReviewItems, summarizeCompileOutput } from "./pi-public-api.mjs";
 import { carriesProvenanceHeader, splitProvenanceHeader } from "./pinned-pi-source-header.mjs";
-import { MARKER_BLOCKED_STEPS, REFRESH_STEPS, UPGRADE_STEPS, branchName, changeId, renderUpgradeBody, renderUpgradeChange } from "./pi-upgrade-report.mjs";
+import { MARKER_BLOCKED_STEPS, REFRESH_STEPS, UPGRADE_STEPS, branchName, changeId, renderUpgradeBody, renderUpgradeChange, renderUpgradeComment } from "./pi-upgrade-report.mjs";
 
 const execute = promisify(execFile);
 const repository = fileURLToPath(new URL("../..", import.meta.url));
@@ -212,13 +212,13 @@ const specPath = join(repository, "openspec", "specs", "owned-pi-ui-foundation",
 const changeRoot = join(repository, "openspec", "changes", changeId(version));
 // Invariant: an existing scaffold belongs to the reviewer who may have edited it; only a missing one is written.
 if (commit !== null && !await exists(changeRoot)) {
-  const files = renderUpgradeChange({ previous, version, commit, foundationSpec: await readFile(specPath, "utf8"), date: new Date().toISOString().slice(0, 10) });
+  const files = renderUpgradeChange({ previous, version, commit, foundationSpec: await readFile(specPath, "utf8"), date: new Date().toISOString().slice(0, 10), report });
   for (const [path, content] of Object.entries(files)) {
     await mkdir(dirname(join(repository, path)), { recursive: true });
     await writeFile(join(repository, path), content);
   }
 }
-await finish({ changed: true, ...report, body: renderUpgradeBody(report) });
+await finish({ changed: true, ...report, body: renderUpgradeBody(report), comment: renderUpgradeComment(report, { date: new Date().toISOString().slice(0, 10) }) });
 
 async function step(name, work) {
   if (!UPGRADE_STEPS.includes(name)) throw new Error(`unknown upgrade step ${name}`);
@@ -241,6 +241,7 @@ async function step(name, work) {
 async function finish(result) {
   await writeFile(join(output, "report.json"), `${JSON.stringify(result, null, 2)}\n`);
   if (result.body) await writeFile(join(output, "body.md"), result.body);
+  if (result.comment) await writeFile(join(output, "comment.md"), result.comment);
   if (process.env.GITHUB_OUTPUT) {
     await writeFile(process.env.GITHUB_OUTPUT, `changed=${result.changed}\nversion=${result.version}\nbranch=${result.branch ?? ""}\nmode=${refresh ? "refresh" : "propose"}\nskipped=${(result.skipped ?? []).join(",")}\n`, { flag: "a" });
   }
