@@ -20,7 +20,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-16-resident-tab-input-liveness/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-16-resident-tab-input-liveness/acceptance.md",
   "finalizedDate": "2026-10-16",
-  "specBaseSha": "e61958fc995e4e680d49b5fbd0de3a3c838f0b21",
+  "specBaseSha": "cacc980f678c5869fc90d3a20644764eb63ac889",
   "acceptanceScenarios": [
     "Keystrokes and mouse events keep reaching the viewed tab while the same terminal waits for a new tab start.",
     "A new tab that finds no free start slot fails with a tab-start-busy notice and the terminal stays attached.",
