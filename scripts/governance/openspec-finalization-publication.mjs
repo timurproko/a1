@@ -4,7 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { inspectUnassociatedPull } from "./openspec-association-policy.mjs";
-import { parseImplementationAcceptanceScenarios, parseImplementationProgress } from "./openspec-acceptance-checklist.mjs";
+import {
+  assertImplementationOnlyProgress, parseImplementationAcceptanceScenarios, parseImplementationProgress,
+} from "./openspec-acceptance-checklist.mjs";
 import { prepareSinglePrDelivery, replaceImplementationMetadata } from "./openspec-delivery-finalization.mjs";
 import { readCanonicalSpecs } from "./openspec-delivery-git.mjs";
 import { archiveFailure, archivePaths, assertArchiveDiff, parseImplementation, SHA } from "./openspec-archive-policy.mjs";
@@ -98,6 +100,7 @@ async function promoteCompletedDraft({ reader, publisher, pull, implementation, 
     const progress = parseImplementationProgress(pull.body ?? "", { requireComplete: true });
     if (progress.format !== "checklist") throw archiveFailure("implementation-progress-legacy-draft");
     declaredComplete = true;
+    assertImplementationOnlyProgress(progress.items);
     parseImplementationAcceptanceScenarios(pull.body ?? "", 3);
   } catch (error) {
     const blocked = draftBlock(error, declaredComplete);
