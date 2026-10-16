@@ -2391,7 +2391,9 @@ fn handle_lifecycle(
                 }
                 return Err(error);
             }
-            if selected.is_some() {
+            // Protocol: attach start now completes after the client's first tab list, which may
+            // predate the tab it started; selecting that tab makes the client view and relist it.
+            if selected.is_some() || should_start {
                 tx.offer_control(wire::frame(
                     "tab.selected",
                     request_id,
