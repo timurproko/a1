@@ -151,6 +151,15 @@ describe("impact-aware validation workflows", () => {
     for (const name of ["Certify terminal fidelity and resident latency", "Run bounded terminal-host decoder fuzzing", "Upload terminal host contract artifacts", "Upload linked terminal library"]) {
       expect(modular.steps.find((step: any) => step.name === name).if, name).toContain("matrix.terminalHost");
     }
+    // Rationale: the role suite warmed every resident launch path before certification; one unmeasured pass
+    // now does, and the measured pass keeps its budgets and runs exactly once.
+    const certify = modular.steps.find((step: any) => step.name === "Certify terminal fidelity and resident latency").run as string;
+    const measured = 'node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json"';
+    const warmUp = 'node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-warm-up-${{ matrix.platform }}-${{ matrix.architecture }}.json" || echo';
+    expect(certify.indexOf("verify-terminal-fidelity.mjs")).toBeLessThan(certify.indexOf(warmUp));
+    expect(certify.indexOf(warmUp)).toBeLessThan(certify.indexOf(measured));
+    expect(certify.split("measure-resident-tabs.mjs")).toHaveLength(3);
+    expect(certify.endsWith(`${measured}\n`) || certify.endsWith(measured)).toBe(true);
   });
 
   it("shortens the resident chaos budget on pull requests only and leaves the script default elsewhere", async () => {
