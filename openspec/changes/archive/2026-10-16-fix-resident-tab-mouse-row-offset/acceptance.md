@@ -15,7 +15,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-16-fix-resident-tab-mouse-row-offset/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-16-fix-resident-tab-mouse-row-offset/acceptance.md",
   "finalizedDate": "2026-10-16",
-  "specBaseSha": "e61958fc995e4e680d49b5fbd0de3a3c838f0b21",
+  "specBaseSha": "cacc980f678c5869fc90d3a20644764eb63ac889",
   "acceptanceScenarios": [
     "Resident tabs highlight and activate pinned prompts and jump-to-bottom at their visible pointer positions.",
     "Mouse input on the tab strip remains attach-owned and does not reach the viewed child."
