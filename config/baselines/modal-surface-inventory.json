@@ -73,6 +73,7 @@
     "steering-mode",
     "follow-up-mode",
     "transport",
+    "share-destination",
     "http-idle-timeout",
     "cache-warming-mode",
     "hide-thinking",
