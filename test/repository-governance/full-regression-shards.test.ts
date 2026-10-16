@@ -46,16 +46,35 @@ describe("complete-regression shard partition", () => {
     expect(Object.keys(partition.shards)).toEqual([...FULL_REGRESSION_SHARDS]);
     expect(FULL_SHARDS).toEqual(FULL_REGRESSION_SHARDS);
     const owned = Object.values(partition.shards).flatMap(work => [...work.commands, ...work.preparation, ...work.invocations]);
-    expect(new Set(owned).size).toBe(owned.length);
+    // Invariant: packing and preparation are per-shard prerequisites of both installing shards; everything else is owned once.
+    const perShard = ["candidate-pack", "exact-package-preparation"];
+    expect(owned.filter(id => perShard.includes(id))).toEqual([...perShard, ...perShard]);
+    const unique = [...new Set(owned)];
+    expect(unique).toHaveLength(owned.length - perShard.length);
     const canonicalWork = [...plan.commands.map(command => command.id), plan.exactPackagePreparation!.id, ...plan.vitest!.invocations.map(invocation => invocation.id)];
-    expect([...partition.prerequisites, ...owned].sort()).toEqual([...canonicalWork].sort());
+    expect([...partition.prerequisites, ...unique].sort()).toEqual([...canonicalWork].sort());
     expect(partition.order).toEqual(canonicalWork);
     expect(partition.prerequisites).toEqual(["candidate-build"]);
     expect(partition.shards.core.invocations).toEqual(["vitest-full-without-isolated"]);
     expect(partition.shards.rendering.invocations).toEqual(["vitest-isolated-suites"]);
     expect(partition.shards.resource.invocations.every(id => id.startsWith("vitest-fast-resource-sensitive"))).toBe(true);
     expect(partition.shards.package).toMatchObject({ commands: ["candidate-pack"], preparation: ["exact-package-preparation"] });
-    expect(partition.shards.package.invocations).toEqual(expect.arrayContaining(["vitest-isolated-timing", "vitest-package-startup", "vitest-package-contracts", "vitest-update-predecessor"]));
+    expect(partition.shards.package.invocations).toEqual(expect.arrayContaining(["vitest-isolated-timing", "vitest-package-startup", "vitest-package-contracts"]));
+    expect(partition.shards.package.invocations).not.toContain("vitest-update-predecessor");
+    expect(partition.shards.predecessor).toEqual({ commands: ["candidate-pack"], preparation: ["exact-package-preparation"], invocations: ["vitest-update-predecessor"] });
+    for (const shard of ["core", "resource", "rendering"] as const) expect(partition.shards[shard], shard).toMatchObject({ commands: expect.not.arrayContaining(["candidate-pack"]), preparation: [] });
+  });
+
+  it("narrows each installing shard's preparation to the consumers it owns", async () => {
+    const { plan } = await canonical();
+    expect(plan.exactPackagePreparation).toMatchObject({ consumers: ["package-startup", "package-contracts", "update-predecessor"] });
+    expect(createFullRegressionShardPlan(plan, "package").exactPackagePreparation).toEqual({ ...plan.exactPackagePreparation!, consumers: ["package-startup", "package-contracts"] });
+    const predecessor = createFullRegressionShardPlan(plan, "predecessor");
+    expect(predecessor.exactPackagePreparation).toEqual({ ...plan.exactPackagePreparation!, consumers: ["update-predecessor"] });
+    expect(predecessor.consumesPackage).toBe(true);
+    expect(predecessor.commands.map(command => command.id)).toEqual(["candidate-build", "candidate-pack"]);
+    expect(predecessor.vitest!.invocations.map(invocation => invocation.id)).toEqual(["vitest-update-predecessor"]);
+    expect(predecessor.fullShard.planDigest).toBe(fullRegressionPlanDigest(plan));
   });
 
   it("keeps shard invocations byte-identical and their serial contracts intact", async () => {
@@ -71,7 +90,7 @@ describe("complete-regression shard partition", () => {
     const packaged = createFullRegressionShardPlan(plan, "package");
     const ids = packaged.vitest!.invocations.map(invocation => invocation.id);
     expect(ids.indexOf("vitest-package-startup")).toBeLessThan(ids.indexOf("vitest-package-contracts"));
-    expect(packaged.exactPackagePreparation).toEqual(plan.exactPackagePreparation);
+    expect(packaged.exactPackagePreparation).toEqual({ ...plan.exactPackagePreparation!, consumers: ["package-startup", "package-contracts"] });
     expect(packaged.commands.map(command => command.id)).toEqual(["candidate-build", "candidate-pack"]);
     for (const shard of ["core", "resource", "rendering"]) {
       const shardPlan = createFullRegressionShardPlan(plan, shard);
@@ -89,6 +108,9 @@ describe("complete-regression shard partition", () => {
     expect(() => partitionFullRegressionPlan({ ...plan, commands: [...plan.commands, { id: "new-gate", executable: "npm", arguments: [], owners: ["x"] }] })).toThrow(/no shard/);
     expect(() => partitionFullRegressionPlan({ ...plan, vitest: { ...plan.vitest!, invocations: [...invocations, invocations[0]!] } })).toThrow(/duplicate/);
     expect(() => partitionFullRegressionPlan({ ...plan, vitest: { ...plan.vitest!, invocations: invocations.filter(invocation => invocation.id !== "vitest-isolated-suites") } })).toThrow(/rendering/);
+    expect(() => partitionFullRegressionPlan({ ...plan, vitest: { ...plan.vitest!, invocations: invocations.filter(invocation => invocation.id !== "vitest-update-predecessor") } })).toThrow(/predecessor/);
+    // Invariant: a shard that packs must consume, and a consumer must sit in a packing shard.
+    expect(() => partitionFullRegressionPlan({ ...plan, vitest: { ...plan.vitest!, invocations: invocations.map(invocation => invocation.id === "vitest-update-predecessor" ? { ...invocation, id: "vitest-explicit-update-predecessor-1" } : invocation) } })).toThrow(/no shard/);
     const fast = await createTierPlan(["fast"]);
     expect(() => partitionFullRegressionPlan(fast)).toThrow(/canonical full-release/);
     expect(() => createFullRegressionShardPlan(plan, "linux")).toThrow(/unknown/);
@@ -109,8 +131,16 @@ describe("complete-regression shard merging", () => {
     const merged = mergeFullShards(context(), lane, partition, records(plan).reverse());
     expect(merged.outcomes.map(outcome => outcome.id)).toEqual(partition.order);
     expect(merged.outcomes.find(outcome => outcome.id === "candidate-build")?.shard).toBe("core");
-    expect(merged.outcomes.find(outcome => outcome.id === "vitest-update-predecessor")?.shard).toBe("package");
-    expect(merged.fullShards).toMatchObject({ planDigest: partition.planDigest, elapsedMs: 1300, runnerMs: 4000 });
+    expect(merged.outcomes.find(outcome => outcome.id === "candidate-pack")?.shard).toBe("package");
+    expect(merged.outcomes.find(outcome => outcome.id === "vitest-update-predecessor")?.shard).toBe("predecessor");
+    expect(merged.outcomes.find(outcome => outcome.id === "vitest-package-startup")?.shard).toBe("package");
+    expect(merged.outcomes.filter(outcome => outcome.id === "candidate-pack")).toHaveLength(1);
+    expect(merged.exactPackagePreparation).toEqual({ schema: "a1-exact-package-preparation-evidence-v1", count: 1 });
+    expect(merged.exactPackagePreparations).toEqual({
+      package: { schema: "a1-exact-package-preparation-evidence-v1", count: 1 },
+      predecessor: { schema: "a1-exact-package-preparation-evidence-v1", count: 1 },
+    });
+    expect(merged.fullShards).toMatchObject({ planDigest: partition.planDigest, elapsedMs: 1400, runnerMs: 5000 });
     expect(merged.fullShards.shards.map(shard => shard.id)).toEqual([...FULL_REGRESSION_SHARDS]);
     expect(merged.selected).toEqual(plan.selected);
     expect(bindFullLane(context(), lane, merged)).toMatchObject({ schema: "a1-full-regression-lane-v1", lane });

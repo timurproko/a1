@@ -38,7 +38,7 @@ describe("workflow prerequisite receipts", () => {
     const full = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8")).jobs;
     for (const [job, install, condition] of [
       [ci, "Install exact dependencies and build", "steps.job-selection.outputs.packs_candidate == 'true'"],
-      [full["windows-shard"], "Install dependencies and build once", "matrix.shard == 'package'"],
+      [full["windows-shard"], "Install dependencies and build once", "matrix.shard == 'package' || matrix.shard == 'predecessor'"],
       [full["full-regression"], "Install dependencies and build once", undefined],
     ] as const) {
       const build = step(job, "Build the release terminal host into the candidate");

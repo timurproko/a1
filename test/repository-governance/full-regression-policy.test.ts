@@ -39,18 +39,22 @@ describe("complete regression automation", () => {
       expect(run.env.VALIDATION_CANDIDATE_TARBALL).toBe("${{ github.workspace }}/.artifacts/validation/package/candidate.tgz");
       expect(run.run).toContain("--result .artifacts/validation/full-regression.json");
     }
-    // Invariant: only the package shard packs and prepares the exact installation for its runtime.
+    // Invariant: the package and predecessor shards each pack and prepare their own exact installation;
+    // Defender-backed startup measurement stays with the package shard alone.
     const shard = workflow.jobs["windows-shard"];
-    for (const name of ["Pack exact regression candidate once", "Prepare the exact package", "Enable Defender real-time protection for startup acceptance"]) {
-      expect(shard.steps.find((step: { name: string }) => step.name === name).if, name).toBe("matrix.shard == 'package'");
+    for (const name of ["Set up Zig for the release terminal host", "Cache release terminal host build", "Build the release terminal host into the candidate", "Pack exact regression candidate once", "Prepare the exact package"]) {
+      expect(shard.steps.find((step: { name: string }) => step.name === name).if, name).toBe("matrix.shard == 'package' || matrix.shard == 'predecessor'");
     }
+    expect(shard.steps.find((step: { name: string }) => step.name === "Enable Defender real-time protection for startup acceptance").if).toBe("matrix.shard == 'package'");
+    expect(shard.steps.find((step: { name: string }) => step.name === "Summarize first-attempt startup measurements").if).toBe("always() && matrix.shard == 'package'");
     expect(text.match(/--prepare-exact-package/g)).toHaveLength(2);
     expect(workflow.jobs["windows-lane"].steps.some((step: { run?: string }) => step.run === "npm ci")).toBe(false);
   });
 
-  it("schedules all four shards for both Windows runtimes and keeps Linux and macOS whole", async () => {
+  it("schedules all five shards for both Windows runtimes and keeps Linux and macOS whole", async () => {
     const workflow = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
     const shard = workflow.jobs["windows-shard"];
+    expect(FULL_REGRESSION_SHARDS).toEqual(["core", "resource", "rendering", "package", "predecessor"]);
     expect(shard.strategy.matrix).toEqual({ os: ["windows-2025"], node: [24, 22], shard: [...FULL_REGRESSION_SHARDS] });
     expect(shard.strategy["fail-fast"]).toBe(false);
     expect(shard["timeout-minutes"]).toBe(40);
@@ -58,7 +62,7 @@ describe("complete regression automation", () => {
     const run = shard.steps.find((step: { name: string }) => step.name === "Run complete non-physical validation shard");
     expect(run.env.FULL_SHARD).toBe("${{ matrix.shard }}");
     expect(run.run).toContain('--full-shard "$FULL_SHARD"');
-    expect(run.run).toContain('if [ "$FULL_SHARD" = package ]; then args+=(--exact-package-handoff .artifacts/validation/exact-package-handoff.json); fi');
+    expect(run.run).toContain('if [ "$FULL_SHARD" = package ] || [ "$FULL_SHARD" = predecessor ]; then args+=(--exact-package-handoff .artifacts/validation/exact-package-handoff.json); fi');
     const upload = shard.steps.find((step: { uses?: string }) => step.uses?.startsWith("actions/upload-artifact"));
     expect(upload.if).toBe("always()");
     expect(upload.with.name).toBe("full-regression-${{ inputs.source }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}-node${{ matrix.node }}-${{ matrix.shard }}");
@@ -162,6 +166,10 @@ describe("complete regression automation", () => {
     expect(guardianCache.uses).toBe("Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6");
     expect(guardianCache.with).toEqual({ workspaces: "native/process-guardian" });
     expect(release.jobs.guardians.steps.indexOf(guardianCache)).toBeLessThan(release.jobs.guardians.steps.findIndex((step: { run: string }) => step.run === "npm run build:process-guardian"));
+    for (const job of [releaseShard, fullJob]) {
+      expect(job.steps.find((step: { name: string }) => step.name === "Prepare the exact package").if).toBe("matrix.shard == 'package' || matrix.shard == 'predecessor'");
+      expect(job.steps.find((step: { name?: string }) => step.name?.startsWith("Run complete")).run).toContain('if [ "$FULL_SHARD" = package ] || [ "$FULL_SHARD" = predecessor ]; then');
+    }
     for (const [job, defenderCondition, consumerName] of [
       [sequentialJob, "runner.os == 'Windows'", "Validate the exact package"],
       [releaseShard, "matrix.shard == 'package'", "Run complete publication validation shard"],
@@ -273,12 +281,14 @@ describe("complete regression automation", () => {
     expect(plan.selected).toContain("update-predecessor");
     const fullArguments = plan.vitest!.invocations.find(invocation => invocation.id === "vitest-full-without-isolated")!.arguments;
     const exclusions = fullArguments.filter((_argument, index) => fullArguments[index - 1] === "--exclude");
-    // Rationale: the exhaustive owner runs once as its own package-shard invocation instead of in the ordinary remainder.
+    // Rationale: the exhaustive owner runs once as its own predecessor-shard invocation instead of in the ordinary remainder.
     expect(exclusions).toContain("test/foundation/release/update-predecessor.integration.test.ts");
     const predecessor = plan.vitest!.invocations.filter(invocation => invocation.id !== "vitest-full-without-isolated"
       && invocation.arguments.includes("test/foundation/release/update-predecessor.integration.test.ts"));
     expect(predecessor).toEqual([{ id: "vitest-update-predecessor", scopes: ["update-predecessor"], arguments: ["vitest", "run", "test/foundation/release/update-predecessor.integration.test.ts", "--testTimeout=30000"] }]);
-    expect(partitionFullRegressionPlan(plan).shards.package.invocations).toContain("vitest-update-predecessor");
+    const partition = partitionFullRegressionPlan(plan);
+    expect(partition.shards.predecessor.invocations).toEqual(["vitest-update-predecessor"]);
+    expect(partition.shards.package.invocations).not.toContain("vitest-update-predecessor");
     expect(source).toContain('UPDATE_PREDECESSOR_COUNT ?? "3"');
     expect(source).toContain('verifyExactPackagePreparation({ candidatePath: candidate.path, consumer: "update-predecessor" })');
     expect(source).not.toContain("fixture.install(candidate.path)");

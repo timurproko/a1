@@ -917,8 +917,9 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-  # Concurrency: complete Windows publication lanes use the same canonical four-way ownership
-  # partition as standalone full regression. No mutable workspace or package prefix crosses jobs.
+  # Concurrency: complete Windows publication lanes use the same canonical five-way ownership
+  # partition as standalone full regression. No mutable workspace or package prefix crosses jobs;
+  # the package and predecessor shards each prepare their own exact installation.
   validate_windows_shard:
     name: Validate Windows shard
     needs: [plan, package, documentation]
@@ -968,7 +969,7 @@ jobs:
           --build-receipt .artifacts/validation/receipts/build.json
           --source-identity .artifacts/release/candidate-identity.json
       - name: Prepare the exact package
-        if: matrix.shard == 'package'
+        if: matrix.shard == 'package' || matrix.shard == 'predecessor'
         shell: bash
         env:
           VALIDATION_SELECTION_JSON: '["full-release"]'
@@ -1013,7 +1014,7 @@ jobs:
           FULL_SHARD: ${{ matrix.shard }}
         run: |
           args=(--full-shard "$FULL_SHARD" --result .artifacts/validation/full-regression.json)
-          if [ "$FULL_SHARD" = package ]; then args+=(--exact-package-handoff .artifacts/validation/exact-package-handoff.json); fi
+          if [ "$FULL_SHARD" = package ] || [ "$FULL_SHARD" = predecessor ]; then args+=(--exact-package-handoff .artifacts/validation/exact-package-handoff.json); fi
           node scripts/release/run-validation-tier.mjs "${args[@]}"
       - name: Summarize first-attempt startup measurements
         if: always() && matrix.shard == 'package'
@@ -1061,7 +1062,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-  # Invariant: one familiar platform artifact exists only after all four exact-run shards merge.
+  # Invariant: one familiar platform artifact exists only after all five exact-run shards merge.
   validate_windows_lane:
     name: Reconstruct Windows lane
     needs: [plan, validate_windows_shard]

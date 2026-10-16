@@ -88,7 +88,9 @@ export function mergeFullShards(context, lane, partition, records) {
     for (const outcome of result.outcomes) {
       if (partition.prerequisites.includes(outcome.id)) {
         if (!prerequisites.has(outcome.id)) prerequisites.set(outcome.id, { ...outcome, shard });
-      } else owned.set(outcome.id, { ...outcome, shard });
+      } else if (!owned.has(outcome.id)) owned.set(outcome.id, { ...outcome, shard });
+      // Rationale: packing is owned by every shard that installs the package; the canonical order lists it
+      // once, so the first shard in canonical order represents it and the others are verified above.
     }
     shards.push({ id: shard, startedAt: result.startedAt, completedAt: result.completedAt, durationMs: result.completedAt - result.startedAt, work: assigned });
   }
@@ -97,12 +99,18 @@ export function mergeFullShards(context, lane, partition, records) {
   const startedAt = Math.min(...shards.map(shard => shard.startedAt));
   const completedAt = Math.max(...shards.map(shard => shard.completedAt));
   if (!Number.isSafeInteger(startedAt) || !Number.isSafeInteger(completedAt)) throw new Error("complete-regression shard timing is malformed");
+  // Rationale: each preparing shard keeps its own preparation evidence; the package shard's stays in the
+  // existing field for current readers and every shard's is listed beside it.
+  const exactPackagePreparations = Object.fromEntries(expected
+    .filter(shard => partition.shards[shard].preparation.length > 0)
+    .map(shard => [shard, byShard.get(shard).result.exactPackagePreparation ?? null]));
   return {
     schema: "a1-validation-outcomes-v1",
     passed: true,
     startedAt,
     completedAt,
     exactPackagePreparation: byShard.get("package")?.result.exactPackagePreparation ?? null,
+    exactPackagePreparations,
     outcomes,
     requested: ["full-release"],
     selected: partition.selected,
