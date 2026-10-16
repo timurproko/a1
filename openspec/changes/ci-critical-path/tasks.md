@@ -11,7 +11,7 @@ Each numbered section is one Implementation item of the pull request and one com
 
 ## 2. Pull-request chaos budget
 
-- [ ] 2.1 In `.github/workflows/ci.yml`, add `RESIDENT_CHAOS_SECONDS: ${{ github.event_name == 'pull_request' && '300' || '600' }}` to the `Run exact selected scopes` step env; assert the expression in `test/repository-governance/impact-aware-validation-workflows.test.ts`. Do not edit `scripts/development/run-resident-chaos.mjs`, which already reads the variable and records `seconds`.
+- [x] 2.1 In `.github/workflows/ci.yml`, add `RESIDENT_CHAOS_SECONDS: ${{ github.event_name == 'pull_request' && '300' || '600' }}` to the `Run exact selected scopes` step env; assert the expression in `test/repository-governance/impact-aware-validation-workflows.test.ts`. Do not edit `scripts/development/run-resident-chaos.mjs`, which already reads the variable and records `seconds`.
 
 ## 3. Predecessor shard
 
@@ -26,9 +26,9 @@ Each numbered section is one Implementation item of the pull request and one com
 
 ## 5. Pinned toolchain and bounded Zig cache
 
-- [ ] 5.1 Add `rust-toolchain.toml` (`channel = "1.99.1"`, `profile = "minimal"`); change `scripts/development/prepare-ci-rust.sh` to install and default that pinned version; cache the `cargo-fuzz` binary in `.github/workflows/ci.yml` keyed by its version and the nightly date; update `test/repository-governance/environment-probe.test.ts` and `docs/architecture/toolchain.md`.
-- [ ] 5.2 Add `cache-key` and `cache-size-limit: 512` to every `mlugg/setup-zig` step in `ci.yml`, `full-regression-shared.yml`, and `publish.yml`; measure the Zig share of one cold partition build with `use-cache: false` on one platform in this PR's run and set the final `use-cache` value from that measurement, recording it in `docs/architecture/toolchain.md`; assert the inputs in `test/repository-governance/release-pipeline-policy.test.ts`.
+- [x] 5.1 Add `rust-toolchain.toml` (`channel = "1.99.1"`, `profile = "minimal"`); change `scripts/development/prepare-ci-rust.sh` to read and install that pinned version; update `test/repository-governance/environment-probe.test.ts` and `docs/architecture/toolchain.md`. The fuzz toolchain was already pinned (`nightly-2026-10-01`, `cargo-fuzz 0.13.2 --locked`) and its binary is already restored within a pull request by the terminal-host rust-cache step's default `cache-bin`, so no cache step was added.
+- [ ] 5.2 Add `cache-key` and `cache-size-limit: 512` to every `mlugg/setup-zig` step in `ci.yml`, `full-regression-shared.yml`, and `publish.yml` (done, asserted in `release-pipeline-policy.test.ts` and `impact-aware-validation-workflows.test.ts`); measure the Zig share of a cold terminal-host build from the first diagnostic dispatch of this branch (its `modular` Zig cache prefix has no entry yet) against the second dispatch, and set `use-cache` from that measurement, recording it in `docs/architecture/toolchain.md`.
 
 ## 6. npm pin gating
 
-- [ ] 6.1 Add `if: matrix.node == 22` to `Use the pinned npm for packing` in `ci.yml` (modular), `full-regression-shared.yml` (`windows-shard`; remove the step from the Node-24-only `full-regression` job), and `publish.yml` (`validate_sequential`, `validate_windows_shard`); assert the gate in `test/repository-governance/release-pipeline-policy.test.ts` and `impact-aware-validation-workflows.test.ts`.
+- [x] 6.1 Add `if: matrix.node == 22` to `Use the pinned npm for packing` in `ci.yml` (modular) and `full-regression-shared.yml` (`windows-shard`; remove the step from the Node-24-only `full-regression` job); `publish.yml` has no such step, because its `package` job packs on Node 24 and the validation lanes only install. Assert the gate in `test/repository-governance/release-pipeline-policy.test.ts` and `impact-aware-validation-workflows.test.ts`.
