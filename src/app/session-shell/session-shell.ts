@@ -1476,7 +1476,11 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     }
     let result: OwnedUiWorkflowResult;
     try {
-      result = await this.backend.workflows.executeWorkflow(shareSurface === undefined ? request : { ...request, signal: shareSurface.signal });
+      result = await this.backend.workflows.executeWorkflow(shareSurface === undefined ? request : {
+        ...request,
+        signal: shareSurface.signal,
+        onProgress: message => { shareSurface.setMessage?.(message); this.#terminal.requestRender(); },
+      });
     } finally {
       if (operationSurface) {
         // Rationale: a near-instant reload would flash the box for a frame or skip it entirely; holding it

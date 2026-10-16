@@ -111,6 +111,7 @@ export function createPiShellSettingsSelector(options: PiShellSettingsSelectorOp
     onAutocompleteMaxVisibleChange: change("onAutocompleteMaxVisibleChange"),
     onQuietStartupChange: change("onQuietStartupChange"),
     onDefaultProjectTrustChange: change("onDefaultProjectTrustChange"),
+    onSessionShareDestinationChange: change("onSessionShareDestinationChange"),
     onClearOnShrinkChange: change("onClearOnShrinkChange"),
     onShowTerminalProgressChange: change("onShowTerminalProgressChange"),
     onTuiModeChange: change("onTuiModeChange"),
