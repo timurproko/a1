@@ -59,6 +59,10 @@ Publication native builds (`publish.yml`):
 - `build-terminal-host.mjs` derives `platform`, `architecture`, the output directory `dist/native/<platform>-<architecture>`, and the Cargo output directory `native/terminal-host/target/release` from the host; runs the executable with `--version` and checks the report; and calls `writeTerminalHostNotices({ triple: hostTriple() })`, which runs `cargo metadata --filter-platform <triple>`. `build-process-guardian.mjs` does the same for the guardian and checks `--version` output contains `protocol=1`. `native/terminal-host/build_target.rs` already maps `x86_64-apple-darwin` to Zig `x86_64-macos`, and `build.rs` reads Cargo's `TARGET`.
 - `test/repository-governance/release-pipeline-policy.test.ts` asserts the runner list string `os: [windows-2025, ubuntu-24.04, macos-15, macos-15-intel]` for both jobs, the setup-zig pin, `run: bash scripts/development/prepare-ci-rust.sh`, and `run: npm run build:terminal-host`; `validation-receipt-workflows.test.ts` asserts the rust-cache `shared-key: terminal-host-release`.
 
+## Out of scope
+
+The analysis also proposed six items this change does not deliver: chaos lane flakiness, reusing one release host build across pull-request jobs, moving Linux fuzzing to nightly, nightly reuse of the development publication's host builds, the registry propagation wait, and publication concurrency serialization. `proposal.md` lists each with its measurement and the reason it is deferred; none is partially applied here.
+
 ## Invariants
 
 These hold before and after every decision. A task that cannot keep one stops and reports instead of working around it.
