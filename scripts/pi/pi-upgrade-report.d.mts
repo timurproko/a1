@@ -1,8 +1,7 @@
 export const UPGRADE_STEPS: readonly string[];
 export const REFRESH_STEPS: readonly string[];
 export const MARKER_BLOCKED_STEPS: readonly string[];
-export const REPORT_START: string;
-export const REPORT_END: string;
+export const UPGRADE_IMPLEMENTATION_ITEMS: readonly string[];
 
 export type UpgradeStepStatus = "passed" | "failed" | "blocked" | "skipped";
 
@@ -34,8 +33,8 @@ export interface UpgradeReport {
 export function changeId(version: string): string;
 export function branchName(version: string): string;
 export function branchVersion(branch: string | null | undefined): string | null;
+export function upgradeAcceptance(report: Pick<UpgradeReport, "version" | "commit">): string;
 export function renderUpgradeBody(report: UpgradeReport): string;
 export function renderUpgradeReport(report: UpgradeReport): string;
-export function refreshUpgradeBody(existingBody: string | null | undefined, report: UpgradeReport): string;
 export function renderUpgradeComment(report: UpgradeReport, options: { readonly date: string }): string;
-export function renderUpgradeChange(input: { previous: UpgradeReport["previous"]; version: string; commit: string; foundationSpec: string; date: string }): Record<string, string>;
+export function renderUpgradeChange(input: { previous: UpgradeReport["previous"]; version: string; commit: string; foundationSpec: string; date: string; report?: UpgradeReport }): Record<string, string>;

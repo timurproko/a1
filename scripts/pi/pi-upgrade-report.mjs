@@ -1,10 +1,9 @@
 /**
- * The pure parts of a proposed Pi upgrade: the pull-request body that lists what the upgrade
- * script did and what a reviewer must decide, the marker-bounded report inside it that a re-run
- * refreshes without touching the reviewer's sections, the comment a re-run posts when it may not
- * push, and the OpenSpec scaffold that lets the proposal be finalized like any other change.
- * `propose-pi-upgrade.mjs` runs the steps and feeds their outcomes in; nothing here touches the
- * filesystem or the network.
+ * The pure parts of a proposed Pi upgrade: the pull-request body in the ordinary delivery layout
+ * with its generated implementation and acceptance outcomes, the sync report comment that carries
+ * every verdict and review item on the proposal and on each re-run, and the OpenSpec scaffold that
+ * lets the proposal be finalized like any other change. `propose-pi-upgrade.mjs` runs the steps
+ * and feeds their outcomes in; nothing here touches the filesystem or the network.
  */
 
 // Invariant: steps run in this order; each records passed, failed, blocked, or skipped with a bounded detail.
@@ -18,8 +17,23 @@ export const REFRESH_STEPS = Object.freeze(UPGRADE_STEPS.filter(name => !["bump"
 /** The gates that compile the tree and are therefore blocked while conflict markers remain in a copy. */
 export const MARKER_BLOCKED_STEPS = Object.freeze(["startup-graph", "parity", "typecheck", "architecture", "parity-suites"]);
 
-export const REPORT_START = "<!-- pi-upgrade-report -->";
-export const REPORT_END = "<!-- /pi-upgrade-report -->";
+/**
+ * The implementation outcomes every upgrade proposal carries. The reviewer checks each as its work
+ * completes, including one the report shows nothing for, and never rewrites them; the body is
+ * otherwise the ordinary delivery layout, so trusted readiness promotes the proposal exactly as it
+ * promotes any other all-checked draft.
+ */
+export const UPGRADE_IMPLEMENTATION_ITEMS = Object.freeze([
+  "Resolve every conflict marker in the merged vendored copies and carry any wanted upstream change from the kept copies into A1's versions.",
+  "Adopt the removed or changed Pi public API exports in A1's consuming modules so the candidate compiles.",
+  "Set an A1 disposition for every pending feature adoption row and repair or retire each orphaned or unmapped inventory entry.",
+  "Update the remaining mentions of the previous Pi pin and note user-visible Pi behavior changes for the release notes.",
+]);
+
+/** The one acceptance outcome of an upgrade; it names the pin the merged tree carries. */
+export function upgradeAcceptance({ version, commit }) {
+  return `A1 pins Pi ${version}${commit ? ` at upstream commit ${commit.slice(0, 7)}` : ""}, and its vendored copies, inventories, public API and feature baselines, and parity records match that release.`;
+}
 
 export function changeId(version) {
   return `pi-upgrade-${version.replace(/[^0-9A-Za-z]+/g, "-")}`;
@@ -35,9 +49,13 @@ export function branchVersion(branch) {
   return match === null ? null : match[1];
 }
 
-/** Render the draft pull-request body in the repository's OpenSpec layout; nothing may follow the details block. */
+/**
+ * Render the draft pull-request body in the repository's ordinary delivery layout: the proposal,
+ * the unchecked implementation outcomes, the acceptance outcome, and the automation block. Nothing
+ * may follow the details block; the verdicts and review items go to the sync report comment.
+ */
 export function renderUpgradeBody(report) {
-  const { previous, version, commit, changelog } = report;
+  const { version } = report;
   const lines = [
     "## Proposal",
     "",
@@ -45,9 +63,11 @@ export function renderUpgradeBody(report) {
     "",
     "## Implementation",
     "",
-    `- Version delta: \`@earendil-works/pi-coding-agent\` and \`@earendil-works/pi-tui\` ${previous.version} -> ${version}; upstream commit ${commit ?? "unresolved (pass --commit to the sync)"}.`,
-    ...(changelog ? ["- Upstream changelog excerpt:", "", ...changelog.split("\n").map(line => `  > ${line}`), ""] : []),
-    ...renderUpgradeReport(report).split("\n"),
+    ...UPGRADE_IMPLEMENTATION_ITEMS.map(item => `- [ ] ${item}`),
+    "",
+    "## Acceptance",
+    "",
+    `- ${upgradeAcceptance(report)}`,
     "",
     "## Automation",
     "",
@@ -63,13 +83,11 @@ export function renderUpgradeBody(report) {
   return `${lines.join("\n")}\n`;
 }
 
-/** The marker-bounded report: every derived verdict and review item, and nothing a reviewer writes by hand. */
+/** The report: every derived verdict and review item of one run. */
 export function renderUpgradeReport(report) {
-  const { steps, merge, inventories, publicApi, features, compile, reviewItems, mode, refreshedAt } = report;
+  const { steps, merge, inventories, publicApi, features, compile, reviewItems } = report;
   const kept = merge.kept ?? [];
   const lines = [
-    REPORT_START,
-    ...(mode === "refresh" ? [`- Refreshed ${refreshedAt ?? "by a re-run"} on the proposal branch head; the merge and evaluation verdicts are from the original proposal.`] : []),
     `- Vendored copies: ${merge.clean.length} merged cleanly${merge.clean.length === 0 ? "" : ` (${merge.clean.join(", ")})`}; ${merge.conflicted.length} with conflict markers to resolve${merge.conflicted.length === 0 ? "" : ` (${merge.conflicted.join(", ")})`}; ${merge.unchanged.length} unchanged upstream; ${kept.length} kept as A1's version${kept.length === 0 ? "" : ` (${kept.map(copy => `${copy.path}: upstream changed, A1 version kept, ${copy.lines} delta lines`).join("; ")})`}.`,
     `- Inventories: ${inventories.reanchored.length} anchors rewritten, ${inventories.moved.length} behavior ranges moved, ${inventories.orphaned.length} entries orphaned${inventories.orphaned.length === 0 ? "" : ` (${inventories.orphaned.join(", ")})`}, ${inventories.unmapped.length} components unmapped${inventories.unmapped.length === 0 ? "" : ` (${inventories.unmapped.join(", ")})`}.`,
     ...renderPublicApi(publicApi),
@@ -78,31 +96,27 @@ export function renderUpgradeReport(report) {
     "- Automated gates:",
     ...steps.map(step => `  - ${gateLabel(step.status)} ${step.name}${step.detail ? `: ${step.detail}` : ""}`),
     ...(reviewItems.length === 0 ? [] : ["- Review items:", ...reviewItems.map(item => `  - ${item}`)]),
-    REPORT_END,
   ];
   return lines.join("\n");
 }
 
 /**
- * Rewrite only the report between the markers of an existing body; a body without markers (one
- * written before the markers existed, or rewritten by hand) is replaced whole.
+ * The sync report comment the sync posts when it opens a proposal and on every later run against
+ * it: the version delta, the changelog excerpt, and the report. A re-run never edits the body, so
+ * the reviewer's checked outcomes are never overwritten.
  */
-export function refreshUpgradeBody(existingBody, report) {
-  const body = String(existingBody ?? "");
-  const start = body.indexOf(REPORT_START);
-  const end = body.indexOf(REPORT_END, start + REPORT_START.length);
-  if (start === -1 || end === -1) return renderUpgradeBody(report);
-  return `${body.slice(0, start)}${renderUpgradeReport(report)}${body.slice(end + REPORT_END.length)}`;
-}
-
-/** The comment a re-run posts when the branch carries commits the sync did not author. */
 export function renderUpgradeComment(report, { date }) {
-  const { version, previous } = report;
+  const { version, previous, commit, changelog, mode } = report;
+  const intro = mode === "refresh"
+    ? "A refresh re-ran the derived steps and gates on the proposal branch head; the merge and evaluation verdicts are from the original proposal."
+    : `The nightly upstream sync evaluated Pi ${version} against the pin ${previous.version}. It rebuilds this branch only while every commit on it is the sync's own; a branch someone continued is left untouched and these verdicts describe a fresh proposal.`;
   return [
     `### Pi ${version} sync report (${date})`,
     "",
-    `The nightly sync re-ran against Pi ${version} (pin ${previous.version}) and did not push: this branch carries commits the sync did not author. Fresh verdicts follow; the report in the description was refreshed between its markers.`,
+    intro,
     "",
+    `- Version delta: \`@earendil-works/pi-coding-agent\` and \`@earendil-works/pi-tui\` ${previous.version} -> ${version}; upstream commit ${commit ?? "unresolved (pass --commit to the sync)"}.`,
+    ...(changelog ? ["- Upstream changelog excerpt:", "", ...changelog.split("\n").map(line => `  > ${line}`), ""] : []),
     renderUpgradeReport(report),
     "",
   ].join("\n");
@@ -113,7 +127,7 @@ function proposalSentence(report) {
   const failed = steps.filter(step => step.status === "failed");
   const blocked = steps.filter(step => step.status === "blocked");
   const verdict = failed.length === 0 && blocked.length === 0
-    ? "Every automated gate passed; review the diff and the items below."
+    ? "Every automated gate passed; review the diff and the sync report comment."
     : `${failed.length} automated ${failed.length === 1 ? "gate" : "gates"} failed${failed.length === 0 ? "" : ` (${failed.map(step => step.name).join(", ")})`}${blocked.length === 0 ? "" : ` and ${blocked.length} ${blocked.length === 1 ? "is" : "are"} blocked by conflict markers (${blocked.map(step => step.name).join(", ")})`}; this upgrade needs design work before it can be accepted.`;
   return `Upgrade the pinned Pi packages from ${previous.version} (${previous.commit.slice(0, 7)}) to ${version} (${commit ? commit.slice(0, 7) : "commit unresolved"}), with the vendored copies, the source ledger, the inventories, the public API and feature baselines, and the parity evidence refreshed by the nightly upstream sync. ${verdict}`;
 }
@@ -161,7 +175,7 @@ function gateLabel(status) {
  * The OpenSpec change files for the upgrade. The spec delta rewrites the pinned version and commit
  * in the requirement that names them and repeats its scenarios unchanged, as the delivery rules require.
  */
-export function renderUpgradeChange({ previous, version, commit, foundationSpec, date }) {
+export function renderUpgradeChange({ previous, version, commit, foundationSpec, date, report }) {
   const requirement = "### Requirement: The owned shell presents the complete pinned Pi interactive UI";
   const start = foundationSpec.indexOf(requirement);
   if (start === -1) throw new Error("owned-pi-ui-foundation requirement naming the pin is missing");
@@ -194,7 +208,7 @@ export function renderUpgradeChange({ previous, version, commit, foundationSpec,
       "",
       "## Impact",
       "",
-      "Recorded in the pull-request body: merge conflicts, kept copies with an upstream delta, orphaned or unmapped inventory entries, public API adoption items, pending feature rows, and failed or blocked gates are the review items; user-visible Pi behavior changes go to the changelog's breaking-changes section when this merges.",
+      "Recorded in the pull request's sync report comments and this change's design: merge conflicts, kept copies with an upstream delta, orphaned or unmapped inventory entries, public API adoption items, pending feature rows, and failed or blocked gates are the review items; user-visible Pi behavior changes go to the changelog's breaking-changes section when this merges.",
       "",
     ].join("\n"),
     [`openspec/changes/${id}/design.md`]: [
@@ -202,19 +216,19 @@ export function renderUpgradeChange({ previous, version, commit, foundationSpec,
       "",
       "## Proposed by the sync, decided by a reviewer",
       "",
-      "The upgrade script bumps the pins, evaluates the candidate in isolation, three-way merges each vendored copy that follows upstream (old upstream, new upstream, A1 copy) and records the upstream delta of each copy A1 keeps, regenerates every derived artifact, and runs the gates. It never resolves a conflict, never drops an orphaned inventory entry, never records a feature disposition, and never merges; each of those is a review item in the pull-request body.",
+      "The upgrade script bumps the pins, evaluates the candidate in isolation, three-way merges each vendored copy that follows upstream (old upstream, new upstream, A1 copy) and records the upstream delta of each copy A1 keeps, regenerates every derived artifact, and runs the gates. It never resolves a conflict, never drops an orphaned inventory entry, never records a feature disposition, and never merges; each of those is a review item in the sync report comment, and the pull request's generated implementation outcomes are checked as the reviewer completes them.",
       "",
+      ...(report ? ["## Sync report at proposal", "", renderUpgradeReport(report), ""] : []),
     ].join("\n"),
     [`openspec/changes/${id}/tasks.md`]: [
       "## 1. Upgrade",
       "",
       `- [x] 1.1 Pin both Pi packages at ${version} and refresh the lockfile.`,
       "- [x] 1.2 Re-merge the vendored copies and regenerate the ledger, headers, inventories, baselines, and parity evidence.",
-      "- [ ] 1.3 Resolve every conflict marker, orphaned entry, unmapped component, public API adoption item, and pending feature row listed in the pull request.",
       "",
-      "## 2. Proof",
+      "## 2. Review Items",
       "",
-      "- [ ] 2.1 Every automated gate passes on the resolved head; record user-visible Pi behavior changes.",
+      ...UPGRADE_IMPLEMENTATION_ITEMS.map((item, index) => `- [ ] 2.${index + 1} ${item}`),
       "",
     ].join("\n"),
     [`openspec/changes/${id}/specs/owned-pi-ui-foundation/spec.md`]: `## MODIFIED Requirements\n\n${block}\n`,
