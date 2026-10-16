@@ -6,4 +6,4 @@
 
 ## 2. Proof
 
-- [ ] 2.1 Every automated gate passes on the resolved head; record user-visible Pi behavior changes.
+- [x] 2.1 Every automated gate passes on the resolved head; record user-visible Pi behavior changes.
