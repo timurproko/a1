@@ -140,7 +140,7 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 - **THEN** its `×` SHALL remain visible and clicking it SHALL invoke that tab's ordinary close flow
 
 ### Requirement: Tab status comes from the tab bridge, not the screen
-Each chip SHALL show structured status: progress frames while working, yellow `?` while an extension, trust, or permission request awaits the user, `✓` when a turn settled while no client viewed the tab and it has not been viewed since, `✗` when the last turn errored or the tab crashed or failed, dim progress frames while starting or restoring, and no glyph when idle. Working frames SHALL use the resolved A1 accent reported by that specific tab. Status SHALL derive from sequenced engine events through the authenticated tab bridge, never terminal output, rendered cells, titles, or timing. A missing bridge SHALL degrade to process-level states and the launch accent. Viewing a tab in any client SHALL clear its `✓` everywhere. Open tabs SHALL have no suspended state or `◌` glyph.
+Each chip SHALL show structured status: v2's ordered Braille progress frames `⠋`, `⠙`, `⠹`, `⠸`, `⠼`, `⠴`, `⠦`, `⠧`, `⠇`, and `⠏` at an 80 ms cadence while working, yellow `?` while an extension, trust, or permission request awaits the user, `✓` when a turn settled while no client viewed the tab and it has not been viewed since, `✗` when the last turn errored or the tab crashed or failed, the same progress frames in the dim lifecycle color while starting or restoring, and no glyph when idle. Working frames SHALL use the resolved A1 accent reported by that specific tab. Status SHALL derive from sequenced engine events through the authenticated tab bridge, never terminal output, rendered cells, titles, or timing. A missing bridge SHALL degrade to process-level states and the launch accent. Viewing a tab in any client SHALL clear its `✓` everywhere. Open tabs SHALL have no suspended state or `◌` glyph.
 
 #### Scenario: Background tab needs input
 - **WHEN** an extension in a background tab requests confirmation
@@ -152,7 +152,11 @@ Each chip SHALL show structured status: progress frames while working, yellow `?
 
 #### Scenario: Working tabs have independent accents
 - **WHEN** two working tabs report different resolved A1 accents
-- **THEN** each chip's progress frame SHALL use its own reported accent
+- **THEN** each chip's v2 progress frame SHALL use its own reported accent
+
+#### Scenario: Starting and restoring tabs animate dimly
+- **WHEN** a tab is starting or restoring
+- **THEN** its chip SHALL animate through the v2 progress frames at 80 ms in the dim lifecycle color rather than showing a static ellipsis or quarter-circle glyph
 
 #### Scenario: Terminal-looking output cannot fake status
 - **WHEN** a tab prints spinner characters, `✓`, or a title containing status words
@@ -197,23 +201,40 @@ A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A` or `+` and 
 - **THEN** no tab SHALL be created and the strip SHALL state the limit
 
 ### Requirement: Tabs are renamed inline and names are Pi session names
-`F2`, the chip menu, and existing `/name <name>` SHALL rename a tab. Inline rename SHALL use `Enter` to commit and `Esc` or click elsewhere to cancel. Names SHALL be trimmed, control-free, nonempty, and at most 64 characters; invalid input SHALL retain the editor with a concise reason. A committed name SHALL become the Pi session name, appear in every client, and be user-provided. Defaults SHALL be `agent` or the smallest free `agent N`. With `tabsAutoName` on by default, A1 SHALL propose a lowercase hyphenated name of at most 16 characters after the first settled turn with bounded model work and deterministic fallback, never overriding a user name. An automatic rename SHALL reproduce v2's title transition: 600 ms moving rainbow, typing at 45 ms per character, and 300 ms settle; manual renames SHALL not animate.
+`F2`, the chip menu, and existing `/name <name>` SHALL rename a tab. Inline rename SHALL use `Enter` to commit and `Esc` or click elsewhere to cancel. Names SHALL be trimmed, control-free, nonempty, and at most 64 characters; invalid input SHALL retain the editor with a concise reason. A committed name SHALL become the Pi session name, appear in every client, and be user-provided. Defaults SHALL be `agent` or the smallest free `agent N`. With `tabsAutoName` on by default, A1 SHALL start proposing a lowercase hyphenated name of at most 16 characters when the first agent run begins, without waiting for that turn to settle. Naming SHALL use bounded model work that permits reasoning models to produce the short answer, SHALL fall back deterministically, and SHALL never override a user name. An automatic rename SHALL reproduce v2's title transition: 600 ms moving per-character rainbow over the old title, the new title typed at 45 ms per character, and a 300 ms settle to foreground gray while preserving the wider endpoint width; terminals without truecolor SHALL use the plain typewriter phase. Manual renames SHALL not animate.
 
 #### Scenario: Rename inline
 - **WHEN** the user enters `auth-refactor` with `F2`
 - **THEN** every client and the Pi session SHALL use `auth-refactor`
 
+#### Scenario: Auto-name starts with the run
+- **WHEN** the first agent run begins and remains busy for an extended period
+- **THEN** automatic naming SHALL proceed without waiting for the run to settle
+
+#### Scenario: Reasoning model consumes the first budget
+- **WHEN** the naming model spends the first bounded attempt without producing title text
+- **THEN** A1 SHALL retry with a larger bounded budget before using the deterministic fallback
+
 #### Scenario: User name survives auto-name
 - **WHEN** the user renames before auto-naming completes
-- **THEN** auto-naming SHALL NOT change it
+- **THEN** auto-naming SHALL NOT change either the Pi session name or the tab name
 
 #### Scenario: Auto-name animates
-- **WHEN** an automatic name replaces a default name
-- **THEN** the visible title SHALL use the v2 rainbow, typing, and settle phases
+- **WHEN** an automatic name replaces a default name in a truecolor terminal
+- **THEN** the old title SHALL show the moving per-character rainbow before the new title is typed and settled to foreground gray
+- **AND** active frames SHALL retain the display width of the wider clipped endpoint
+
+#### Scenario: Auto-name animates without truecolor
+- **WHEN** an automatic name replaces a default name in a terminal without truecolor
+- **THEN** the new title SHALL use the plain typewriter timing without truecolor rainbow or settle escapes
+
+#### Scenario: Manual rename is immediate
+- **WHEN** a user-provided name replaces the current name
+- **THEN** the complete new title SHALL appear without an automatic-title animation
 
 #### Scenario: Auto-name fails
-- **WHEN** model naming fails twice or times out
-- **THEN** deterministic prompt-derived naming SHALL be used without affecting the turn
+- **WHEN** bounded model naming fails or times out
+- **THEN** deterministic prompt-derived naming SHALL be used without affecting the active turn
 
 ### Requirement: Closing a tab stops only that session after confirmation when busy
 `Alt+W`, `×`, and the chip menu SHALL close a tab, including a failed tab. A working tab, a tab awaiting input, or one with queued input SHALL ask `Stop "<name>"? Enter stop · Esc cancel`. Closing SHALL request graceful shutdown, terminate the verified tree after a bounded deadline, remove the tab everywhere, and leave its Pi session resumable. Closing the last tab SHALL leave `+` and a hint rather than quit. Failed/stalled UI MAY offer restart, but no restart slash command SHALL exist.

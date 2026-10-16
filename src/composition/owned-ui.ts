@@ -249,17 +249,12 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     backend.identity.sessionId,
   );
   if (tabBridge !== null && settings !== null && ownedSurfaces) tabBridge.accent(settings.value("accentColor"));
-  let residentTabVisible = true;
-  let applyResidentTabVisibility = () => {};
   let removeControllerBoundaryInput = () => {};
   const unsubscribeTabBridge = tabBridge === null ? () => {} : await bindResidentTabBridge(
     tabBridge,
     backend,
     tabRecovery,
-    {
-      autoName: settings?.value("tabsAutoName") ?? true,
-      onVisibility: visible => { residentTabVisible = visible; applyResidentTabVisibility(); },
-    },
+    { autoName: settings?.value("tabsAutoName") ?? true },
   );
   let releaseNotes: ReleaseNoteCatalog | null = null;
   let releaseNotesFailure: unknown;
@@ -409,7 +404,6 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     // the host and paints once attached.
     terminalHost = createdTerminalHost = new OwnedUiTerminalHost(sessionTerminalHostOptions(presenterOptions));
     if (tabBridge !== null) {
-      applyResidentTabVisibility = () => terminalHost.setPresentationVisible(residentTabVisible);
       removeControllerBoundaryInput = terminalHost.runtime.addPreInputListener(data => ({
         data: tabBridge.consumeControllerBoundaryInput(data),
       }));
@@ -455,7 +449,6 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       if (exitNoticePath) exitNotice = import("../app/session-shell/exit-notice.js")
         .then(module => module.armExitNotice(backend, exitNoticePath), () => null);
       presenter.start();
-      applyResidentTabVisibility();
       void announceNewerRelease().catch(() => undefined);
     },
     flush: () => backend.session.flushEvents(),
@@ -497,20 +490,42 @@ export async function bindResidentTabBridge(
   tabBridge: TabBridgeClient,
   backend: Pick<ComposedSessionBackend, "identity" | "session" | "workflows" | "generateResidentTabName">,
   recovery: Pick<ResidentTabRecovery, "settled"> | null = null,
-  options: { readonly autoName?: boolean; readonly onVisibility?: (visible: boolean) => void } = {},
+  options: { readonly autoName?: boolean } = {},
 ): Promise<() => void> {
   await tabBridge.start().catch(() => false);
   tabBridge.status("starting");
   const currentSessionFile = () => currentBackendSessionFile(backend);
   let pendingAutoName: string | null = null;
+  const isDefaultName = (name: string | null | undefined) => name == null || /^agent(?: \d+)?$/i.test(name);
+  const currentSessionName = () => backend.session.view().status.footer?.sessionName ?? null;
   const announceSession = () => {
-    const name = backend.session.view().status.footer?.sessionName ?? null;
-    const nameSource = name === pendingAutoName ? "auto" : name === null || /^agent(?: \d+)?$/i.test(name) ? "default" : "user";
+    const name = currentSessionName();
+    const nameSource = name === pendingAutoName ? "auto" : isDefaultName(name) ? "default" : "user";
     tabBridge.session(currentSessionFile(), name, nameSource);
   };
   let working = false;
   let lastTurnFailed = false;
   let autoNameAttempted = false;
+  let autoNameArmed = false;
+  // Invariant: naming launches once per tab during an agent run, as soon as its prompt is projected,
+  // and runs beside the turn instead of waiting for it to settle.
+  const launchAutoName = () => {
+    if (!autoNameArmed || autoNameAttempted || options.autoName !== true || !isDefaultName(currentSessionName())) return;
+    const prompt = backend.session.view().transcript.find(block => block.kind === "user")?.text.trim();
+    if (!prompt) return;
+    autoNameAttempted = true;
+    void import("../features/resident-tab/index.js").then(({ generateAutoName }) => generateAutoName(
+      prompt,
+      request => backend.generateResidentTabName(request.prompt, request.maxTokens, request.signal),
+    )).then(async name => {
+      // Invariant: a manual rename made while generation was pending owns both the session and the tab.
+      if (!isDefaultName(currentSessionName())) return;
+      pendingAutoName = name;
+      const result = await backend.workflows.executeWorkflow({ command: "name", argument: name });
+      if (result.outcome === "completed") tabBridge.session(currentSessionFile(), name, "auto");
+      else if (pendingAutoName === name) pendingAutoName = null;
+    }).catch(() => { pendingAutoName = null; });
+  };
   const reportStatus = (lifecycle?: string) => {
     const view = backend.session.view();
     const pendingRequests = view.dialog == null ? 0 : 1;
@@ -524,9 +539,9 @@ export async function bindResidentTabBridge(
   };
   announceSession();
   const unsubscribeCommands = typeof tabBridge.onCommand === "function" ? tabBridge.onCommand(command => {
-    if (command.type === "visibility") {
-      options.onVisibility?.(command.visible);
-    } else if (command.type === "rename") {
+    // Invariant: visibility stays decoded for generation-1 peers but never pauses rendering; a hidden tab
+    // keeps its resident terminal current while the holder withholds only its client surfaces.
+    if (command.type === "rename") {
       void backend.workflows.executeWorkflow({ command: "name", argument: command.name }).catch(() => {});
     } else if (command.type === "stop") {
       void backend.session.dispose().catch(() => {});
@@ -541,25 +556,16 @@ export async function bindResidentTabBridge(
       if (wasWorking && !working && recovery !== null) {
         void recovery.settled(currentSessionFile()).catch(() => tabBridge.degraded(true));
       }
-      if (wasWorking && !working && options.autoName === true && !autoNameAttempted) {
-        autoNameAttempted = true;
-        const view = backend.session.view();
-        const currentName = view.status.footer?.sessionName;
-        const prompt = view.transcript.find(block => block.kind === "user")?.text.trim();
-        if (prompt && (currentName == null || /^agent(?: \d+)?$/i.test(currentName))) {
-          void import("../features/resident-tab/index.js").then(({ generateAutoName }) => generateAutoName(
-            prompt,
-            request => backend.generateResidentTabName(request.prompt, request.maxTokens, request.signal),
-          )).then(async name => {
-            pendingAutoName = name;
-            const result = await backend.workflows.executeWorkflow({ command: "name", argument: name });
-            if (result.outcome === "completed") tabBridge.session(currentSessionFile(), name, "auto");
-            else if (pendingAutoName === name) pendingAutoName = null;
-          }).catch(() => { pendingAutoName = null; });
-        }
-      }
     }
+    if (event.type === "agent-run-started") {
+      autoNameArmed = true;
+      launchAutoName();
+    }
+    // Rationale: Pi starts the run before it projects the user message, so the prompt may arrive later.
+    if (event.type === "transcript-block" || event.type === "session-view") launchAutoName();
     if (event.type === "agent-run-settled") {
+      launchAutoName();
+      autoNameArmed = false;
       lastTurnFailed = !event.successful && !event.aborted;
       tabBridge.prompt(event.aborted);
       reportStatus();
