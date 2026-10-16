@@ -17,7 +17,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-16-fix-tab-autonaming-animation/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-16-fix-tab-autonaming-animation/acceptance.md",
   "finalizedDate": "2026-10-16",
-  "specBaseSha": "8ae9a4d20f67292a5e86de6733c5e867e95a7351",
+  "specBaseSha": "633517a1c1afc2519b6011204a07cf42fe8e7800",
   "acceptanceScenarios": [
     "A new tab is named during its first agent run, and a name the user sets meanwhile is kept.",
     "An automatic rename plays the v2 rainbow, typewriter, and settle transition on truecolor terminals.",
