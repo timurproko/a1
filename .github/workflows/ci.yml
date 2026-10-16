@@ -694,6 +694,9 @@ jobs:
           A1_DATA_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-runtime
           RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
+          # Rationale: pull requests run a shorter bounded chaos budget; nightly, Full regression, and
+          # manual dispatch keep the script's 600-second default.
+          RESIDENT_CHAOS_SECONDS: ${{ github.event_name == 'pull_request' && '300' || '600' }}
           # Shared runners measure startup reliably but time it unreliably; this owner records
           # an overrun, and nightly publication and Full regression still fail on it.
           STARTUP_BUDGET_ENFORCEMENT: record

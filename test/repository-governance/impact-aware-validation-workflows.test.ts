@@ -124,6 +124,17 @@ describe("impact-aware validation workflows", () => {
     expect(run.env).toMatchObject({ VALIDATION_HEAD: "${{ steps.job-selection.outputs.head }}", VALIDATION_SELECTION_ID: "${{ steps.job-selection.outputs.selection_id }}" });
   });
 
+  it("shortens the resident chaos budget on pull requests only and leaves the script default elsewhere", async () => {
+    const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
+    const run = workflow.jobs.modular.steps.find((step: any) => step.name === "Run exact selected scopes");
+    expect(run.env.RESIDENT_CHAOS_SECONDS).toBe("${{ github.event_name == 'pull_request' && '300' || '600' }}");
+    const chaos = await readFile("scripts/development/run-resident-chaos.mjs", "utf8");
+    expect(chaos).toContain("const DEFAULT_SECONDS = 600;");
+    expect(chaos).toContain('process.env.RESIDENT_CHAOS_SECONDS ?? String(DEFAULT_SECONDS)');
+    expect(chaos).toContain("seconds: planned === null ? seconds : null,");
+    for (const file of ["full-regression-shared.yml", "publish.yml"]) expect(await readFile(`.github/workflows/${file}`, "utf8")).not.toContain("RESIDENT_CHAOS_SECONDS");
+  });
+
   it("retains Node 22 Defender startup and all declared platform/runtime owner targets", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
     const entries = DEVELOPMENT_VALIDATION_MATRIX as any[];
