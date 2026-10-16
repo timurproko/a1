@@ -15,4 +15,4 @@ Let `host.stop` finish when a tab's holder and child are already gone (see `desi
 ## 3. Evidence
 
 - [x] 3.1 Add the role-integration test for a holder that dies while a replacement server awaits its readmission, followed by `host-stop`, per Decision 3.
-- [ ] 3.2 Record focused local checks, a green `npm run preflight`, and the terminal-host and resident-chaos CI lanes in `implementation-evidence.md`.
+- [x] 3.2 Record focused local checks, a green `npm run preflight`, and the terminal-host and resident-chaos CI lanes in `implementation-evidence.md`.
