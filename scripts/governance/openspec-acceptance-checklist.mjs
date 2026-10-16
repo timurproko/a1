@@ -23,7 +23,7 @@ const genericImplementationItems = [
   /^(?:merge|archive|finalize)(?: this| the)? (?:implementation|change|pull request|pr)?\.?$/i,
   /^(?:confirm )?(?:there are )?no (?:known )?(?:blocking |unresolved )?(?:gaps|issues)\.?$/i,
 ];
-// Validation is CI's job after readiness and the maintainer's at merge, so an item that names it can never be checked truthfully.
+// Rationale: validation is CI's job after readiness and the maintainer's at merge, so an item that names it can never be checked truthfully.
 const validationImplementationItems = [
   /^(?:manually|validate|verify|confirm|prove|run|smoke[- ]test|test)\b/i,
   /\bmanual(?:ly)? (?:test|validat|verif)/i,
@@ -132,7 +132,8 @@ export function parseImplementationProgress(body, { requireComplete = false } = 
  * body check apply this, so merged bodies written under the earlier rule stay readable.
  */
 export function assertImplementationOnlyProgress(items) {
-  if (items.some(({ text }) => validationImplementationItems.some(pattern => pattern.test(text)))) {
+  const texts = items.map(item => typeof item === "string" ? item : item.text);
+  if (texts.some(text => validationImplementationItems.some(pattern => pattern.test(text)))) {
     throw archiveFailure("implementation-progress-validation");
   }
 }
