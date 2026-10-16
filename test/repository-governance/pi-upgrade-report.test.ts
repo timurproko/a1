@@ -5,15 +5,16 @@ import {
   changeId,
   MARKER_BLOCKED_STEPS,
   REFRESH_STEPS,
-  refreshUpgradeBody,
   renderUpgradeBody,
   renderUpgradeChange,
   renderUpgradeComment,
   renderUpgradeReport,
-  REPORT_END,
-  REPORT_START,
+  UPGRADE_IMPLEMENTATION_ITEMS,
   UPGRADE_STEPS,
+  upgradeAcceptance,
 } from "../../scripts/pi/pi-upgrade-report.mjs";
+import { assertImplementationOnlyProgress, parseImplementationAcceptanceScenarios, parseImplementationProgress } from "../../scripts/governance/openspec-acceptance-checklist.mjs";
+import { parseImplementation } from "../../scripts/governance/openspec-archive-policy.mjs";
 
 const previous = { version: "0.84.2", commit: "914cf1472e715297caa30db4b9535d534a9eb718" };
 const commit = "d981de1229ef899957bbe968bc8dcda02a21f477";
@@ -54,26 +55,51 @@ describe("Pi upgrade proposal", () => {
     for (const name of [...REFRESH_STEPS, ...MARKER_BLOCKED_STEPS]) expect(UPGRADE_STEPS).toContain(name);
   });
 
-  it("renders a body in the OpenSpec layout that ends with the automation details block", () => {
+  it("renders a body in the ordinary delivery layout with generated outcomes that ends with the automation details block", () => {
     const body = renderUpgradeBody(report());
     expect(body.startsWith("## Proposal\n\nUpgrade the pinned Pi packages from 0.84.2 (914cf14) to 0.85.1 (d981de1)")).toBe(true);
-    expect(body).toContain("Every automated gate passed");
-    expect(body).toContain("## Implementation\n\n- Version delta:");
-    expect(body).toContain("  > ## [0.85.1] - 2026-09-01\n  > - Fixed a thing");
-    expect(body).toContain(`${REPORT_START}\n- Vendored copies: 1 merged cleanly (src/integrations/pi/components/upstream/theme/theme.ts); 0 with conflict markers to resolve; 1 unchanged upstream; 0 kept as A1's version.`);
-    expect(body).toContain("- Inventories: 1 anchors rewritten, 0 behavior ranges moved, 0 entries orphaned, 0 components unmapped.");
-    expect(body).toContain("- Public API: 0 exports added, 0 removed (0 consumed by A1), 0 changed (0 consumed by A1).");
-    expect(body).toContain("- New upstream features awaiting an A1 disposition: 0; rows retired upstream: 0; rows still pending: 0.");
-    expect(body).toContain("  - pass bump");
-    expect(body).toContain(`  - pass parity-suites\n${REPORT_END}\n\n## Automation`);
-    expect(body).not.toContain("## Acceptance");
-    expect(body).not.toContain("Candidate compile");
+    expect(body).toContain("Every automated gate passed; review the diff and the sync report comment.");
+    expect(body).toContain(`## Implementation\n\n${UPGRADE_IMPLEMENTATION_ITEMS.map(item => `- [ ] ${item}`).join("\n")}\n\n## Acceptance\n\n- A1 pins Pi 0.85.1 at upstream commit d981de1, and its vendored copies, inventories, public API and feature baselines, and parity records match that release.\n\n## Automation\n`);
+    expect(body).not.toContain("Version delta");
+    expect(body).not.toContain("Vendored copies");
     expect(body.trimEnd().endsWith("</details>")).toBe(true);
-    expect(body).toContain('"change": "pi-upgrade-0-85-1"');
+    expect(parseImplementation(body)).toEqual({ version: 3, change: "pi-upgrade-0-85-1" });
+  });
+
+  it("generates outcomes that parse as an incomplete checklist and as a complete candidate once checked", () => {
+    const body = renderUpgradeBody(report());
+    const progress = parseImplementationProgress(body);
+    expect(progress).toEqual({ format: "checklist", complete: false, items: UPGRADE_IMPLEMENTATION_ITEMS.map(text => ({ checked: false, text })) });
+    expect(() => assertImplementationOnlyProgress(progress.items)).not.toThrow();
+    expect(() => parseImplementationAcceptanceScenarios(body, 3)).toThrow();
+    const checked = body.replaceAll("- [ ] ", "- [x] ");
+    expect(parseImplementationProgress(checked, { requireComplete: true }).complete).toBe(true);
+    expect(parseImplementationAcceptanceScenarios(checked, 3)).toEqual([upgradeAcceptance(report())]);
+    expect(upgradeAcceptance({ version: "0.85.1", commit: null })).toBe("A1 pins Pi 0.85.1, and its vendored copies, inventories, public API and feature baselines, and parity records match that release.");
+  });
+
+  it("keeps the proposal within the layout bounds when every gate fails", () => {
+    const body = renderUpgradeBody(report({ version: "0.85.1-rc.2", steps: UPGRADE_STEPS.map(name => ({ name, status: "failed", detail: "" })) }));
+    expect(() => parseImplementationAcceptanceScenarios(body.replaceAll("- [ ] ", "- [x] "), 3)).not.toThrow();
+  });
+
+  it("puts the version delta, changelog, and every verdict in the sync report comment", () => {
+    const comment = renderUpgradeComment(report(), { date: "2026-09-19" });
+    expect(comment.startsWith("### Pi 0.85.1 sync report (2026-09-19)\n\nThe nightly upstream sync evaluated Pi 0.85.1 against the pin 0.84.2.")).toBe(true);
+    expect(comment).toContain("- Version delta: `@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` 0.84.2 -> 0.85.1; upstream commit d981de1229ef899957bbe968bc8dcda02a21f477.");
+    expect(comment).toContain("  > ## [0.85.1] - 2026-09-01\n  > - Fixed a thing");
+    expect(comment).toContain("- Vendored copies: 1 merged cleanly (src/integrations/pi/components/upstream/theme/theme.ts); 0 with conflict markers to resolve; 1 unchanged upstream; 0 kept as A1's version.");
+    expect(comment).toContain("- Inventories: 1 anchors rewritten, 0 behavior ranges moved, 0 entries orphaned, 0 components unmapped.");
+    expect(comment).toContain("- Public API: 0 exports added, 0 removed (0 consumed by A1), 0 changed (0 consumed by A1).");
+    expect(comment).toContain("- New upstream features awaiting an A1 disposition: 0; rows retired upstream: 0; rows still pending: 0.");
+    expect(comment).toContain("  - pass bump");
+    expect(comment.trimEnd().endsWith("  - pass parity-suites")).toBe(true);
+    expect(comment).not.toContain("Candidate compile");
+    expect(comment).not.toContain("## Implementation");
   });
 
   it("names failed and blocked gates, kept copies, and review items so the proposal cannot read as clean", () => {
-    const body = renderUpgradeBody(report({
+    const failing = report({
       steps: [
         { name: "bump", status: "passed", detail: "" },
         { name: "evaluator", status: "failed", detail: "compile: tsc exited with 2" },
@@ -85,21 +111,24 @@ describe("Pi upgrade proposal", () => {
       reviewItems: ["src/integrations/pi/components/upstream/theme/theme.ts: 2 conflict hunks between A1's deviations and the upstream change"],
       changelog: null,
       commit: null,
-    }));
+    });
+    const body = renderUpgradeBody(failing);
+    const comment = renderUpgradeComment(failing, { date: "2026-09-19" });
     expect(body).toContain("1 automated gate failed (evaluator) and 1 is blocked by conflict markers (typecheck); this upgrade needs design work");
-    expect(body).toContain("  - FAIL evaluator: compile: tsc exited with 2");
-    expect(body).toContain("  - BLOCKED typecheck: conflict markers remain in src/integrations/pi/components/upstream/theme/theme.ts");
-    expect(body).toContain("1 with conflict markers to resolve (src/integrations/pi/components/upstream/theme/theme.ts)");
-    expect(body).toContain("1 kept as A1's version (src/integrations/pi/components/upstream/components/owned-editor.ts: upstream changed, A1 version kept, 240 delta lines)");
-    expect(body).toContain("1 entries orphaned (auth.login), 1 components unmapped (wizard.js)");
-    expect(body).toContain("- Candidate compile: 3 errors in 1 file (complete output in the proposal artifact):\n  - src/app/session-shell/session-shell.ts: 3 errors (TS2339) Property 'ThemeBg' does not exist");
-    expect(body).toContain("- Review items:\n  - src/integrations/pi/components/upstream/theme/theme.ts: 2 conflict hunks");
     expect(body).toContain("commit unresolved");
-    expect(body).not.toContain("changelog excerpt");
+    expect(comment).toContain("  - FAIL evaluator: compile: tsc exited with 2");
+    expect(comment).toContain("  - BLOCKED typecheck: conflict markers remain in src/integrations/pi/components/upstream/theme/theme.ts");
+    expect(comment).toContain("1 with conflict markers to resolve (src/integrations/pi/components/upstream/theme/theme.ts)");
+    expect(comment).toContain("1 kept as A1's version (src/integrations/pi/components/upstream/components/owned-editor.ts: upstream changed, A1 version kept, 240 delta lines)");
+    expect(comment).toContain("1 entries orphaned (auth.login), 1 components unmapped (wizard.js)");
+    expect(comment).toContain("- Candidate compile: 3 errors in 1 file (complete output in the proposal artifact):\n  - src/app/session-shell/session-shell.ts: 3 errors (TS2339) Property 'ThemeBg' does not exist");
+    expect(comment).toContain("- Review items:\n  - src/integrations/pi/components/upstream/theme/theme.ts: 2 conflict hunks");
+    expect(comment).toContain("upstream commit unresolved (pass --commit to the sync)");
+    expect(comment).not.toContain("changelog excerpt");
   });
 
   it("lists the public API delta with consumers and the new upstream features as adoption items", () => {
-    const body = renderUpgradeBody(report({
+    const body = renderUpgradeReport(report({
       publicApi: {
         added: [{ package: "@earendil-works/pi-tui", name: "OverlayBounds", kind: "interface", consumers: [] }],
         removed: [{ package: "@earendil-works/pi-coding-agent", name: "SettingsConfig", kind: "interface", consumers: ["src/integrations/pi/engine/settings-port.ts"] }],
@@ -121,33 +150,17 @@ describe("Pi upgrade proposal", () => {
     expect(body).toContain("- New upstream features awaiting an A1 disposition: 2; rows retired upstream: 1; rows still pending: 2.\n  - command:thinking: /thinking\n  - changelog:0.85.1:gpt-6-astra: GPT-6 Astra — Available through OpenAI API keys.");
   });
 
-  it("refreshes only the report between its markers and leaves the reviewer's sections alone", () => {
-    const original = renderUpgradeBody(report());
-    const edited = original
-      .replace("## Proposal\n\nUpgrade the pinned Pi packages", "## Proposal\n\nThe reviewer rewrote this: upgrade the pinned Pi packages")
-      .replace("- Version delta:", "- Reviewer note: keep the owned editor.\n- Version delta:");
-    const refreshed = refreshUpgradeBody(edited, report({
+  it("reports a refresh as another comment that names the reviewer's head", () => {
+    const refreshed = report({
       mode: "refresh",
-      refreshedAt: "2026-09-19",
       steps: [{ name: "bump", status: "skipped", detail: "not re-run on a refresh" }, { name: "typecheck", status: "failed", detail: "error TS2339" }],
       reviewItems: ["src/x.ts: still conflicted"],
-    }));
-    expect(refreshed).toContain("The reviewer rewrote this: upgrade the pinned Pi packages");
-    expect(refreshed).toContain("- Reviewer note: keep the owned editor.\n- Version delta:");
-    expect(refreshed).toContain(`${REPORT_START}\n- Refreshed 2026-09-19 on the proposal branch head`);
-    expect(refreshed).toContain("  - skip bump: not re-run on a refresh\n  - FAIL typecheck: error TS2339\n- Review items:\n  - src/x.ts: still conflicted\n" + REPORT_END);
-    expect(refreshed).not.toContain("pass parity-suites");
-    expect(refreshed.split(REPORT_START)).toHaveLength(2);
-    expect(refreshed.split(REPORT_END)).toHaveLength(2);
-    expect(refreshed.trimEnd().endsWith("</details>")).toBe(true);
-    expect(refreshUpgradeBody("## Proposal\n\nHand-written without markers.\n", report())).toBe(renderUpgradeBody(report()));
-  });
-
-  it("posts the fresh report as a comment headed with the version and date when it may not push", () => {
-    const comment = renderUpgradeComment(report({ reviewItems: ["inventory entry auth.login: source anchor no longer exists (orphaned)"] }), { date: "2026-09-19" });
-    expect(comment.startsWith("### Pi 0.85.1 sync report (2026-09-19)\n\nThe nightly sync re-ran against Pi 0.85.1 (pin 0.84.2) and did not push")).toBe(true);
-    expect(comment).toContain(renderUpgradeReport(report({ reviewItems: ["inventory entry auth.login: source anchor no longer exists (orphaned)"] })));
-    expect(comment).toContain("  - inventory entry auth.login");
+    });
+    const comment = renderUpgradeComment(refreshed, { date: "2026-09-20" });
+    expect(comment.startsWith("### Pi 0.85.1 sync report (2026-09-20)\n\nA refresh re-ran the derived steps and gates on the proposal branch head; the merge and evaluation verdicts are from the original proposal.")).toBe(true);
+    expect(comment).toContain(renderUpgradeReport(refreshed));
+    expect(comment).toContain("  - skip bump: not re-run on a refresh\n  - FAIL typecheck: error TS2339\n- Review items:\n  - src/x.ts: still conflicted");
+    expect(comment).not.toContain("pass parity-suites");
   });
 
   it("scaffolds the OpenSpec change with the pin moved in the requirement that names it and its scenarios repeated", () => {
@@ -185,7 +198,10 @@ describe("Pi upgrade proposal", () => {
       "",
     ].join("\n"));
     expect(files["openspec/changes/pi-upgrade-0-85-1/.openspec.yaml"]).toBe("schema: spec-driven\ncreated: 2026-09-19\n");
-    expect(files["openspec/changes/pi-upgrade-0-85-1/tasks.md"]).toContain("- [ ] 1.3 Resolve every conflict marker");
+    expect(files["openspec/changes/pi-upgrade-0-85-1/tasks.md"]).toContain(`## 2. Review Items\n\n- [ ] 2.1 ${UPGRADE_IMPLEMENTATION_ITEMS[0]}`);
+    expect(files["openspec/changes/pi-upgrade-0-85-1/design.md"]).not.toContain("Sync report at proposal");
+    const withReport = renderUpgradeChange({ previous, version: "0.85.1", commit, foundationSpec, date: "2026-09-19", report: report() });
+    expect(withReport["openspec/changes/pi-upgrade-0-85-1/design.md"]).toContain(`## Sync report at proposal\n\n${renderUpgradeReport(report())}\n`);
     expect(() => renderUpgradeChange({ previous, version: "0.85.1", commit, foundationSpec: "nothing", date: "2026-09-19" })).toThrow("requirement naming the pin is missing");
   });
 });

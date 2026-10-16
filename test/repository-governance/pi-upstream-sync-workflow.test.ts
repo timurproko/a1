@@ -17,12 +17,12 @@ describe("Pi upstream sync workflow", () => {
     expect(source).toContain('if [ "$REFRESH" = "true" ]; then\n            replace=false');
   });
 
-  it("refreshes only the marked report section of the body and comments when it may not push", async () => {
+  it("posts the sync report as a comment on open and on every re-run and never edits the body", async () => {
     const source = await workflow();
-    expect(source).toContain("node scripts/pi/refresh-pi-upgrade-body.mjs --existing .artifacts/pi-upgrade/existing-body.md --report .artifacts/pi-upgrade/report.json --output .artifacts/pi-upgrade/refreshed-body.md --comment .artifacts/pi-upgrade/comment.md");
-    expect(source).toContain('gh pr edit "$existing" --body-file .artifacts/pi-upgrade/refreshed-body.md');
-    expect(source).toContain('if [ "$REPLACED" != "true" ]; then\n            gh pr comment "$existing" --body-file .artifacts/pi-upgrade/comment.md');
-    expect(source).not.toContain("--body-file .artifacts/pi-upgrade/body.md\n          fi");
+    expect(source).toContain('created=$(gh pr create --draft --base develop --head "$BRANCH" --title "$title" --body-file .artifacts/pi-upgrade/body.md)\n            gh pr comment "$created" --body-file .artifacts/pi-upgrade/comment.md');
+    expect(source).toContain('gh pr comment "$existing" --body-file .artifacts/pi-upgrade/comment.md');
+    expect(source).not.toContain("gh pr edit");
+    expect(source).not.toContain("refresh-pi-upgrade-body");
   });
 
   it("presents Pi proposals as upgrades without renaming their automation branch", async () => {
