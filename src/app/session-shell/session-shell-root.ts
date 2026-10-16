@@ -1370,7 +1370,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     // Rationale: the pinned engine links both share URLs; the workflow result carries the plain URLs.
     const message = result.command !== "share" ? result.message
       : result.detail ? `${linkShareUrl(result.message)}\nGist: ${piShellHyperlink(result.detail)}`
-      // Radius shares carry only the artifact URL.
+      // Protocol: Radius shares carry only the artifact URL.
       : linkShareUrl(result.message);
     this.appendWorkflowStatus(message);
   }

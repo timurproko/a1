@@ -156,10 +156,8 @@ export class PiWorkflowRunner {
     return true;
   }
 
-  /**
-   * The pinned Radius `/share` route. Undefined means Radius has no provider or credential, so the
-   * caller may fall back to a gist; any other outcome, including an upload failure, is final.
-   */
+  // Protocol: the pinned Radius `/share` route. Undefined means Radius has no provider or credential,
+  // so the caller may fall back to a gist; any other outcome, including an upload failure, is final.
   async #shareViaRadius(session: PiSessionApi, runtime: PiRuntimeApi, request: PiWorkflowRequest): Promise<PiWorkflowResult | undefined> {
     const signal = request.signal;
     const models = runtime.services.modelRuntime;
