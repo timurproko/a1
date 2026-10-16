@@ -111,6 +111,14 @@ describe("complete regression automation", () => {
     for (const name of Object.values(names)) expect(name).not.toMatch(/matrix\./);
   });
 
+  it("names publication callers with one word because GitHub prefixes every called job with them", async () => {
+    const callers = Object.fromEntries(await Promise.all(["develop.yml", "release-candidate.yml", "release.yml"].map(async file => {
+      const jobs = Object.values(parse(await readFile(`.github/workflows/${file}`, "utf8")).jobs as Record<string, { name?: string; uses?: string }>);
+      return [file, jobs.filter(job => job.uses?.includes("/publish.yml@")).map(job => job.name)];
+    })));
+    expect(callers).toEqual({ "develop.yml": ["Develop"], "release-candidate.yml": ["Candidate"], "release.yml": ["Release"] });
+  });
+
   it("retains both Windows runtimes outside development previews, Defender, and exact-package gates outside PR startup", async () => {
     const release = parse(await readFile(".github/workflows/publish.yml", "utf8"));
     const regression = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));

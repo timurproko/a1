@@ -379,6 +379,11 @@ During a resident bare-A1 launch, A1 SHALL expose only `tabsMax` and `tabsAutoNa
 - **WHEN** one platform exceeds a declared budget
 - **THEN** evidence SHALL record that value and miss without inference from another platform
 
+#### Scenario: Latency sample is matched to its own input
+- **WHEN** the fixture echoes a processed-input line for a token before that token's measured send, such as from a late in-band standby-promotion marker
+- **THEN** the measurement SHALL ignore that earlier line and time only a line stamped at or after the send
+- **AND** a negative or non-numeric recorded latency SHALL fail its metric instead of being dropped from the p95 sample set
+
 ### Requirement: Updates retain the active resident cohort
 Installing or activating a release SHALL NOT terminate the server, holders, or tab processes. Resident binaries and tab processes SHALL run from immutable release directories, and every release used by a live verified resident process SHALL be retained; when a recorded resident identity cannot be verified or read, its release SHALL be retained. In this version a same-generation newer client MAY attach with unsupported optional operations disabled, while the existing resident cohort remains on its release until all tabs stop. A generation mismatch SHALL report that the host must be stopped explicitly with `a1 tabs host stop`, SHALL use the direct single-agent path for that launch, and SHALL NOT kill or recycle tabs. Automatic endpoint handoff and idle release recycling require a later change.
 
@@ -461,3 +466,25 @@ The terminal-host binary and its session-writer lock SHALL ship for Windows x64,
 #### Scenario: Roll back with tabs running
 - **WHEN** the user runs `a1 solo` for a session held by a live tab
 - **THEN** A1 SHALL NOT write the held session, SHALL refuse or fork it, and the resident tabs SHALL keep running until `a1 tabs host stop`
+
+### Requirement: Resident frame composition preserves terminal intensity
+
+The resident terminal host SHALL preserve each unselected cell's bold and faint intensity when it composes retained libghostty state into an initial paint, patch, full repaint, or reattached surface. A style transition from faint content to ordinary content SHALL clear faint intensity before the ordinary cells are emitted. Host-owned selected-cell presentation MAY replace child intensity with its uniform selection style, but SHALL NOT leak that replacement or a prior faint attribute into following unselected cells.
+
+#### Scenario: Contextual suggestion is repainted through a resident tab
+
+- **WHEN** the bare-A1 editor emits an unaccepted contextual suggestion using faint ghost-text styling through a resident tab
+- **THEN** the attached terminal SHALL display the suggestion with faint intensity rather than ordinary white prompt-text intensity
+- **AND** retained repaint or reattach SHALL preserve the same faint presentation
+
+#### Scenario: Tab accepts a contextual suggestion
+
+- **WHEN** the user accepts the faint contextual suggestion with the configured Tab action and the editor repaints it as ordinary editable text
+- **THEN** resident frame composition SHALL clear faint intensity before that text
+- **AND** the accepted text SHALL use the same normal intensity as typed prompt text
+
+#### Scenario: Selection overrides a faint cell
+
+- **WHEN** the native host paints a selected region containing faint child cells
+- **THEN** the region SHALL use the host's uniform selection style
+- **AND** following unselected cells SHALL recover their own intensity without inheriting selection or stale faint state
