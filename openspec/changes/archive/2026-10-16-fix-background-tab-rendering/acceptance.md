@@ -16,14 +16,14 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-16-fix-background-tab-rendering/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-16-fix-background-tab-rendering/acceptance.md",
   "finalizedDate": "2026-10-16",
-  "specBaseSha": "633517a1c1afc2519b6011204a07cf42fe8e7800",
+  "specBaseSha": "e61958fc995e4e680d49b5fbd0de3a3c838f0b21",
   "acceptanceScenarios": [
     "A tab that keeps streaming while another tab is viewed shows its current content the moment it is selected, with no burst of delayed frames.",
     "A background tab's terminal output never appears in a client viewing another tab.",
     "Background tab status, rename, stop, and input isolation behave as before, and direct `a1 solo` / `a1 pi` sessions are unchanged."
   ],
   "archiveDigest": "bf54454fac870921393c681d52a3875a779a13d55fb79c344672e62cdfb849ef",
-  "specDigest": "31a445bea98f5cc1fe88fc15bc38610461af0f214a5979c34f952e9262652166",
+  "specDigest": "3f9c880a6ee6cbc3717a4955f01800922fbbd6d8d96da402aa5317768762826c",
   "tasksDigest": "cf3eff3f1cc2a20720c7a46d346874769fb6b34c45c52b99eebf93b9c9563a70",
   "evidenceDigest": "ebfd501fd9c0613a672b7e160701f1c4d22a3afb8cb2c18ce7ba1aa42c3e72e6",
   "knownGaps": []
