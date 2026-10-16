@@ -1,7 +1,7 @@
 export {
   AUTO_NAME_MAX_LENGTH,
-  AUTO_NAME_MAX_TOKENS,
   AUTO_NAME_TIMEOUT_MS,
+  AUTO_NAME_TOKEN_BUDGETS,
   fallbackAutoName,
   generateAutoName,
   normalizeAutoName,
