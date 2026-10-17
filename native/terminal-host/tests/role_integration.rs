@@ -133,6 +133,9 @@ setInterval(() => {}, 1000);
             first.output_text()
         );
     }
+    // Invariant: attach only reads the profile settings document; it stays the user's file.
+    let settings = std::fs::metadata(profile.join("settings.json")).expect("settings file");
+    assert!(settings.is_file(), "attach replaced the settings file");
     if cfg!(unix) {
         assert!(
             first.output_text().contains("[<1u"),
@@ -3207,6 +3210,13 @@ impl AttachFixture {
                 pixel_height: 0,
             })
             .expect("attach pty");
+        // Invariant: a real profile already holds its settings document, so every attach runs
+        // against an existing file, as every user's does.
+        let settings = profile.join("settings.json");
+        if !settings.exists() {
+            std::fs::write(&settings, br#"{"a1":{"timeFormat":"20:00"}}"#)
+                .expect("fixture settings file");
+        }
         let mut command = CommandBuilder::new(executable);
         command.env("TERMINAL_HOST_FIXTURE_SIZE", "100x24");
         for (name, value) in environment {
