@@ -20,6 +20,7 @@ use crate::protocol::{
 };
 use crate::roles::credentials::ProfileCredentials;
 use crate::roles::outer_input::{self, InputChannel, Outgoing};
+use crate::roles::presentation::{FinalCursor, Frame, Offer, TopologyAction, ViewModel};
 use crate::roles::strip::{self, StripHit, StripHover, StripTab, TimeFormat};
 use crate::roles::wire::{
     self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface, TabCreate, TabList,
@@ -30,7 +31,9 @@ pub const ENTER_OUTER_MODES: &[u8] =
     b"\x1b[?1049h\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1003h\x1b[?1006h";
 pub const RESTORE_OUTER_MODES: &[u8] =
     b"\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?1049l";
+#[cfg(test)]
 const BEGIN_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026h";
+#[cfg(test)]
 const END_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026l";
 
 /// The global tab declarations in the order that decides which action keeps a duplicated key;
@@ -330,12 +333,6 @@ pub fn tab_create_failure_notice(reason: Option<&str>) -> String {
 /// True when the failed tab's restricted input rules apply: only while that tab is viewed.
 pub fn failure_applies(failed_tab: Option<&str>, viewed: Option<&str>) -> bool {
     failed_tab.is_some() && failed_tab == viewed
-}
-
-fn adopt_initial_surface(viewed: Option<&str>, requested: &mut Option<String>, tab_id: &str) {
-    if viewed.is_none() && requested.is_none() {
-        *requested = Some(tab_id.to_owned());
-    }
 }
 
 /// Invariant: a rejection notice answers input the person typed, pasted, or clicked. Focus
@@ -903,27 +900,6 @@ fn drag_marker_column(drag: &TabDrag, tabs: &[StripTab], frame: &strip::StripFra
     })
 }
 
-fn compose_presentation(
-    strip: &strip::StripFrame,
-    surface: &[u8],
-    overlay: Option<&str>,
-    clear: bool,
-) -> Vec<u8> {
-    let mut output =
-        Vec::with_capacity(strip.bytes.len() + surface.len() + overlay.map_or(0, str::len) + 32);
-    output.extend_from_slice(BEGIN_SYNCHRONIZED_UPDATE);
-    if clear {
-        output.extend_from_slice(b"\x1b[2J\x1b[H");
-    }
-    output.extend_from_slice(strip.bytes.as_bytes());
-    output.extend_from_slice(surface);
-    if let Some(overlay) = overlay {
-        output.extend_from_slice(overlay.as_bytes());
-    }
-    output.extend_from_slice(END_SYNCHRONIZED_UPDATE);
-    output
-}
-
 /// BEL is attention data and never reaches the outer terminal. Other bytes, including OSC 8/52
 /// and cursor-shape controls, stay in the native terminal stream.
 pub fn without_bell(bytes: &[u8]) -> Vec<u8> {
@@ -1129,26 +1105,28 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         }
     });
     let mut tabs = Vec::<StripTab>::new();
-    let mut staged_tabs: Option<Vec<StripTab>> = None;
-    let mut viewed = options.view_tab.map(str::to_owned);
-    let mut requested_view: Option<String> = options.view_tab.map(str::to_owned);
-    let mut pending_surface: Option<Surface> = None;
+    let mut view = ViewModel::new(options.view_tab.map(str::to_owned));
     let mut hovered: Option<StripHover> = None;
     let mut time_format = TimeFormatWatch::new(options.settings_file);
     let mut strip_frame = strip::render_configured(
         &tabs,
-        viewed.as_deref(),
+        view.viewed.as_deref(),
         columns,
         hovered.as_ref(),
         time_format.value,
     );
     let mut latest_surface = Vec::<u8>::new();
-    terminal.write(&compose_presentation(
-        &strip_frame,
-        &latest_surface,
-        None,
-        true,
-    ))?;
+    if let Some(bytes) = (Frame {
+        strip: &strip_frame.bytes,
+        body: Some(&latest_surface),
+        overlay: None,
+        cursor: None,
+        clear: true,
+    })
+    .compose()
+    {
+        terminal.write(&bytes)?;
+    }
     let started = Instant::now();
     let mut last_strip_frame = Instant::now();
     let mut displayed_clock_minute = clock_minute();
@@ -1163,16 +1141,13 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut close_fallback: Option<CloseFallback> = None;
     let mut transient_notice: Option<String> = None;
     let mut user_input_pending = false;
-    let mut prompt_view = viewed.clone();
+    let mut prompt_view = view.viewed.clone();
     let mut registry_revision = 0u64;
     let mut drag: Option<TabDrag> = None;
     let mut pending_settings_create = false;
     let mut pending_settings_tab: Option<String> = None;
-    // Invariant: the committed body is identified by its tab and revision, so a later frame of
-    // the same tab never yields to an earlier one and a stale re-offer waits for a fresh frame.
-    let mut committed_revision: Option<u64> = None;
     let mut latest_modes: Option<TerminalModes> = None;
-    let mut stale_candidate: Option<(Surface, Instant)> = None;
+    let mut latest_cursor: Option<FinalCursor> = None;
     let mut bindings = TabBindings::load(options.profile);
     macro_rules! send_input {
         ($event:expr, $legacy:expr) => {{
@@ -1191,7 +1166,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             let rename_display = rename.as_ref().map(RenameEditor::display);
             strip_frame = strip::render_interactive(
                 &tabs,
-                viewed.as_deref(),
+                view.viewed.as_deref(),
                 columns,
                 hovered.as_ref(),
                 time_format.value,
@@ -1204,7 +1179,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 hovered = None;
                 strip_frame = strip::render_interactive(
                     &tabs,
-                    viewed.as_deref(),
+                    view.viewed.as_deref(),
                     columns,
                     None,
                     time_format.value,
@@ -1217,7 +1192,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     .map(|tab| tab.name.as_str())
             });
             let prompt = prompt_overlay_notice(pending_name);
-            let status_notice = viewed
+            let status_notice = view
+                .viewed
                 .as_ref()
                 .and_then(|id| tabs.iter().find(|tab| &tab.id == id))
                 .and_then(|tab| {
@@ -1243,12 +1219,51 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             } else {
                 None
             };
-            terminal.write(&compose_presentation(
-                &strip_frame,
-                &latest_surface,
-                overlay.as_deref(),
-                $clear,
-            ))?;
+            let frame = Frame {
+                strip: &strip_frame.bytes,
+                body: Some(&latest_surface),
+                overlay: overlay.as_deref(),
+                cursor: latest_cursor,
+                clear: $clear,
+            };
+            if let Some(bytes) = frame.compose() {
+                terminal.write(&bytes)?;
+            }
+        }};
+    }
+    // Performance: hover, clock, and title-animation damage repaints the strip alone and
+    // restores the committed child's cursor; without a known cursor or with an overlay that
+    // touches the body it falls back to the complete frame, so it never contradicts the view.
+    macro_rules! paint_strip {
+        () => {{
+            if latest_cursor.is_some()
+                && popup.is_none()
+                && drag.is_none()
+                && pending_close.is_none()
+                && transient_notice.is_none()
+            {
+                let rename_display = rename.as_ref().map(RenameEditor::display);
+                strip_frame = strip::render_interactive(
+                    &tabs,
+                    view.viewed.as_deref(),
+                    columns,
+                    hovered.as_ref(),
+                    time_format.value,
+                    rename_display.as_ref(),
+                );
+                let frame = Frame {
+                    strip: &strip_frame.bytes,
+                    body: None,
+                    overlay: None,
+                    cursor: latest_cursor,
+                    clear: false,
+                };
+                if let Some(bytes) = frame.compose() {
+                    terminal.write(&bytes)?;
+                }
+            } else {
+                paint_current!(false);
+            }
         }};
     }
     macro_rules! invoke_popup_action {
@@ -1272,7 +1287,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         if busy {
                             pending_close = Some(tab_id);
                         } else {
-                            close_fallback = close_fallback_for(&tabs, viewed.as_deref(), &tab_id);
+                            close_fallback =
+                                close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
                             wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
                         }
                     }
@@ -1281,7 +1297,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     wire::send(&mut stream, "tab.create", None, create.clone())?;
                 }
                 PopupAction::Settings => {
-                    if let Some(tab_id) = viewed.clone() {
+                    if let Some(tab_id) = view.viewed.clone() {
                         wire::send(&mut stream, "tab.open-settings", None, TabTarget { tab_id })?;
                     } else {
                         pending_settings_create = true;
@@ -1289,68 +1305,58 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     }
                 }
                 PopupAction::View(tab_id) => {
-                    requested_view = Some(tab_id.clone());
+                    view.requested = Some(tab_id.clone());
                     wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
                 }
             }
         }};
     }
-    macro_rules! commit_surface {
-        ($surface:expr) => {{
+    // Invariant: a commit the view model approved installs its staged topology, the complete
+    // child surface, the child's modes, and the final cursor together in one frame.
+    macro_rules! apply_commit {
+        ($surface:expr, $tabs:expr, $requested:expr) => {{
             let surface: Surface = $surface;
-            'commit: {
-                let requested = requested_view.as_deref() == Some(surface.tab_id.as_str());
-                if requested
-                    && staged_tabs.is_none()
-                    && !tabs.iter().any(|tab| tab.id == surface.tab_id)
-                {
-                    pending_surface = Some(surface);
-                    break 'commit;
-                }
-                if requested {
-                    if let Some(next) = staged_tabs.take() {
-                        tabs = next;
-                    }
-                    viewed = Some(surface.tab_id.clone());
-                    requested_view = None;
-                    close_fallback = None;
-                    transient_notice = None;
-                    if prompt_view != viewed {
-                        pending_close = None;
-                        rename = None;
-                        popup = None;
-                        prompt_view = viewed.clone();
-                    }
-                } else if viewed.as_deref() != Some(surface.tab_id.as_str()) {
-                    break 'commit;
-                } else if committed_revision.is_some_and(|committed| surface.revision < committed) {
-                    break 'commit;
-                }
-                committed_revision = Some(surface.revision);
-                if surface.status == "failed" {
-                    failed_tab = Some(surface.tab_id.clone());
-                } else if failed_tab.as_deref() == Some(surface.tab_id.as_str()) {
-                    failed_tab = None;
-                }
-                if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id) {
-                    tab.status = surface.status.clone();
-                    tab.accent = surface.accent.clone();
-                }
-                latest_surface = without_bell(&surface.bytes);
-                latest_modes = surface.modes.clone();
-                if pending_settings_tab.as_deref() == Some(surface.tab_id.as_str()) {
-                    pending_settings_tab = None;
-                    wire::send(
-                        &mut stream,
-                        "tab.open-settings",
-                        None,
-                        TabTarget {
-                            tab_id: surface.tab_id.clone(),
-                        },
-                    )?;
-                }
-                paint_current!(false);
+            let staged: Option<Vec<StripTab>> = $tabs;
+            if let Some(next) = staged {
+                tabs = next;
             }
+            if $requested {
+                close_fallback = None;
+                transient_notice = None;
+                if prompt_view != view.viewed {
+                    pending_close = None;
+                    rename = None;
+                    popup = None;
+                    prompt_view = view.viewed.clone();
+                }
+            }
+            if surface.status == "failed" {
+                failed_tab = Some(surface.tab_id.clone());
+            } else if failed_tab.as_deref() == Some(surface.tab_id.as_str()) {
+                failed_tab = None;
+            }
+            if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id) {
+                tab.status = surface.status.clone();
+                tab.accent = surface.accent.clone();
+            }
+            latest_surface = without_bell(&surface.bytes);
+            latest_modes = surface.modes.clone();
+            latest_cursor = surface
+                .cursor
+                .map(FinalCursor::At)
+                .or_else(|| surface.modes.as_ref().map(|_| FinalCursor::Hidden));
+            if pending_settings_tab.as_deref() == Some(surface.tab_id.as_str()) {
+                pending_settings_tab = None;
+                wire::send(
+                    &mut stream,
+                    "tab.open-settings",
+                    None,
+                    TabTarget {
+                        tab_id: surface.tab_id.clone(),
+                    },
+                )?;
+            }
+            paint_current!(false);
         }};
     }
     loop {
@@ -1363,22 +1369,15 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             match kind.message_type.as_str() {
                 "surface" => {
                     let (_, surface): (_, Surface) = wire::body(&payload)?;
-                    // Protocol: the server selects its default tab before attach.start can report
-                    // the ID. Adopt its first surface as the requested view, then stage it until
-                    // the tab list arrives so the chip and child surface commit in one frame.
-                    adopt_initial_surface(viewed.as_deref(), &mut requested_view, &surface.tab_id);
-                    let requested = requested_view.as_deref() == Some(surface.tab_id.as_str());
-                    // Protocol: a retained re-offer may commit a requested view only after the
-                    // bounded wait for the holder's fresh frame, so the old coherent frame stays
-                    // visible instead of a surface that predates the switch.
-                    if requested && surface.stale && viewed.is_some() {
-                        stale_candidate = Some((surface, Instant::now() + STALE_SURFACE_WAIT));
-                        continue;
+                    let listed = tabs.iter().any(|tab| tab.id == surface.tab_id);
+                    if let Offer::Commit {
+                        surface,
+                        tabs: next,
+                        requested,
+                    } = view.offer(surface, Instant::now(), listed)
+                    {
+                        apply_commit!(surface, next, requested);
                     }
-                    if requested {
-                        stale_candidate = None;
-                    }
-                    commit_surface!(surface);
                 }
                 // Protocol: the owned child projects the effective A1 declarations plus the
                 // user's customization and publishes one assignment per tab action; attach
@@ -1397,7 +1396,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     // Invariant: only the committed view's effects reach the outer terminal, and
                     // each one is applied exactly once without entering any visible frame.
                     if apply_effects
-                        && viewed.as_deref() == Some(effect.tab_id.as_str())
+                        && view.viewed.as_deref() == Some(effect.tab_id.as_str())
                         && protocol::validate_effect(&effect.effect).is_ok()
                     {
                         let EffectKind::ClipboardWrite { location, data, .. } = effect.effect;
@@ -1410,7 +1409,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         tab.status = status.status.clone();
                         tab.accent = status.accent.clone();
                     }
-                    if let Some(staged) = staged_tabs.as_mut()
+                    if let Some(staged) = view.staged_tabs_mut()
                         && let Some(tab) = staged.iter_mut().find(|tab| tab.id == status.tab_id)
                     {
                         tab.status = status.status.clone();
@@ -1426,7 +1425,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 "tab.list" => {
                     let (_, list): (_, TabList) = wire::body(&payload)?;
                     registry_revision = list.revision;
-                    let previous_tabs = staged_tabs.as_ref().unwrap_or(&tabs);
+                    let previous_tabs = view.staged_tabs().unwrap_or(&tabs);
                     let pending_name_confirmed =
                         pending_manual_name.as_ref().is_some_and(|(id, name)| {
                             list.tabs.iter().any(|tab| {
@@ -1467,121 +1466,76 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     if pending_name_confirmed {
                         pending_manual_name = None;
                     }
-                    let viewed_missing = viewed
-                        .as_ref()
-                        .is_some_and(|id| !next_tabs.iter().any(|tab| &tab.id == id));
-                    let requested_missing = requested_view
-                        .as_ref()
-                        .is_some_and(|id| !next_tabs.iter().any(|tab| &tab.id == id));
-                    if requested_missing {
-                        if pending_settings_tab == requested_view {
-                            pending_settings_tab = None;
-                        }
-                        requested_view = None;
-                        staged_tabs = None;
-                        pending_surface = None;
-                    }
-                    if viewed_missing && requested_view.is_none() {
-                        let target = close_fallback
+                    let outcome = view.topology(&tabs, next_tabs, |candidates| {
+                        close_fallback
                             .as_ref()
-                            .and_then(|fallback| fallback.resolve(&next_tabs))
-                            .or_else(|| next_tabs.first().map(|tab| tab.id.clone()));
-                        if let Some(tab_id) = target {
-                            requested_view = Some(tab_id.clone());
-                            wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
-                        }
-                    }
-                    let target_pending = requested_view.as_ref().is_some_and(|id| {
-                        viewed.as_ref() != Some(id) && next_tabs.iter().any(|tab| &tab.id == id)
+                            .and_then(|fallback| fallback.resolve(candidates))
                     });
-                    if target_pending {
-                        let target = requested_view.clone().expect("checked pending target");
-                        if let Some(surface) = pending_surface
-                            .take()
-                            .filter(|surface| surface.tab_id == target)
-                        {
-                            tabs = next_tabs;
-                            viewed = Some(target);
-                            requested_view = None;
-                            close_fallback = None;
-                            if prompt_view != viewed {
-                                pending_close = None;
-                                rename = None;
-                                popup = None;
-                                prompt_view = viewed.clone();
-                            }
-                            latest_surface = without_bell(&surface.bytes);
-                            latest_modes = surface.modes.clone();
-                            committed_revision = Some(surface.revision);
-                            if pending_settings_tab.as_deref() == Some(surface.tab_id.as_str()) {
-                                pending_settings_tab = None;
-                                wire::send(
-                                    &mut stream,
-                                    "tab.open-settings",
-                                    None,
-                                    TabTarget {
-                                        tab_id: surface.tab_id.clone(),
-                                    },
-                                )?;
-                            }
-                            if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id)
-                            {
-                                tab.status = surface.status;
-                                tab.accent = surface.accent;
-                            }
-                            paint_current!(false);
-                        } else {
-                            staged_tabs = Some(next_tabs);
+                    if let Some(dropped) = outcome.dropped_request.as_deref()
+                        && pending_settings_tab.as_deref() == Some(dropped)
+                    {
+                        pending_settings_tab = None;
+                    }
+                    if let Some(tab_id) = outcome.view_request {
+                        wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
+                    }
+                    match outcome.action {
+                        TopologyAction::Commit {
+                            surface,
+                            tabs: next,
+                        } => {
+                            apply_commit!(surface, Some(next), true);
                         }
-                        continue;
-                    }
-                    let changed = tabs != next_tabs;
-                    tabs = next_tabs;
-                    staged_tabs = None;
-                    let listed = |id: &String| tabs.iter().any(|tab| &tab.id == id);
-                    if !pending_close.as_ref().is_none_or(listed) {
-                        pending_close = None;
-                    }
-                    if popup
-                        .as_ref()
-                        .and_then(|menu| menu.tab_id.as_ref())
-                        .is_some_and(|id| !listed(id))
-                    {
-                        popup = None;
-                    }
-                    if rename
-                        .as_ref()
-                        .is_some_and(|editor| !listed(&editor.tab_id))
-                    {
-                        rename = None;
-                    }
-                    if pending_manual_name
-                        .as_ref()
-                        .is_some_and(|(id, _)| !listed(id))
-                    {
-                        pending_manual_name = None;
-                    }
-                    if !failed_tab.as_ref().is_none_or(listed) {
-                        failed_tab = None;
-                    }
-                    if changed
-                        && popup
-                            .as_ref()
-                            .is_some_and(|menu| menu.kind == PopupKind::Overflow)
-                    {
-                        popup = None;
-                    }
-                    if tabs.is_empty() {
-                        viewed = None;
-                        requested_view = None;
-                        latest_surface.clear();
-                        latest_modes = None;
-                        committed_revision = None;
-                        stale_candidate = None;
-                        close_fallback = None;
-                        paint_current!(true);
-                    } else if changed {
-                        paint_current!(false);
+                        TopologyAction::Staged => {}
+                        TopologyAction::Install {
+                            tabs: next,
+                            changed,
+                        } => {
+                            tabs = next;
+                            let listed = |id: &String| tabs.iter().any(|tab| &tab.id == id);
+                            if !pending_close.as_ref().is_none_or(listed) {
+                                pending_close = None;
+                            }
+                            if popup
+                                .as_ref()
+                                .and_then(|menu| menu.tab_id.as_ref())
+                                .is_some_and(|id| !listed(id))
+                            {
+                                popup = None;
+                            }
+                            if rename
+                                .as_ref()
+                                .is_some_and(|editor| !listed(&editor.tab_id))
+                            {
+                                rename = None;
+                            }
+                            if pending_manual_name
+                                .as_ref()
+                                .is_some_and(|(id, _)| !listed(id))
+                            {
+                                pending_manual_name = None;
+                            }
+                            if !failed_tab.as_ref().is_none_or(listed) {
+                                failed_tab = None;
+                            }
+                            if changed
+                                && popup
+                                    .as_ref()
+                                    .is_some_and(|menu| menu.kind == PopupKind::Overflow)
+                            {
+                                popup = None;
+                            }
+                            if tabs.is_empty() {
+                                view.clear();
+                                latest_surface.clear();
+                                latest_modes = None;
+                                latest_cursor = None;
+                                close_fallback = None;
+                                paint_current!(true);
+                            } else if changed {
+                                paint_current!(false);
+                            }
+                        }
                     }
                 }
                 "tab.created" | "tab.selected" => {
@@ -1590,7 +1544,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         pending_settings_create = false;
                         pending_settings_tab = Some(target.tab_id.clone());
                     }
-                    requested_view = Some(target.tab_id.clone());
+                    view.requested = Some(target.tab_id.clone());
                     wire::send(&mut stream, "tab.view", None, target)?;
                     wire::send(
                         &mut stream,
@@ -1604,9 +1558,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "tab.create-failed" | "tab.create-refused" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
-                    requested_view = None;
-                    staged_tabs = None;
-                    pending_surface = None;
+                    view.cancel_request();
                     pending_settings_create = false;
                     pending_settings_tab = None;
                     transient_notice = Some(tab_create_failure_notice(result.message.as_deref()));
@@ -1704,7 +1656,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     return Err("a1 is attached in another terminal".to_owned());
                 }
                 "holder.exit" => {
-                    if let Some(tab) = viewed
+                    if let Some(tab) = view
+                        .viewed
                         .as_ref()
                         .and_then(|id| tabs.iter_mut().find(|tab| &tab.id == id))
                     {
@@ -1714,7 +1667,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "failure.status" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
-                    failed_tab = viewed.clone();
+                    failed_tab = view.viewed.clone();
                     transient_notice = Some(result.message.unwrap_or_else(|| "tab failed".into()));
                     paint_current!(false);
                 }
@@ -1751,29 +1704,28 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 _ => {}
             }
         }
-        if stale_candidate
-            .as_ref()
-            .is_some_and(|(_, deadline)| Instant::now() >= *deadline)
+        if let Some(Offer::Commit {
+            surface,
+            tabs: next,
+            requested,
+        }) = view.expire(Instant::now(), |id| tabs.iter().any(|tab| tab.id == id))
         {
-            let (surface, _) = stale_candidate.take().expect("checked stale candidate");
-            if requested_view.as_deref() == Some(surface.tab_id.as_str()) {
-                commit_surface!(surface);
-            }
+            apply_commit!(surface, next, requested);
         }
         if strip::animations_active(&tabs)
             && last_strip_frame.elapsed() >= strip::animation_interval(&tabs)
         {
-            paint_current!(false);
+            paint_strip!();
             last_strip_frame = Instant::now();
         }
         if time_format.refresh() {
-            paint_current!(false);
+            paint_strip!();
         }
         let current_clock_minute = clock_minute();
         if current_clock_minute != displayed_clock_minute {
             displayed_clock_minute = current_clock_minute;
             if !tabs.is_empty() {
-                paint_current!(false);
+                paint_strip!();
             }
         }
         if last_list.elapsed() >= Duration::from_millis(500) {
@@ -1808,21 +1760,21 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             }
         };
         // Invariant: a prompt belongs to the view it was opened in; a strip click, shortcut, or
-        // tab removal that changes the viewed tab cancels it instead of letting it swallow the
+        // tab removal that changes the view.viewed tab cancels it instead of letting it swallow the
         // new tab's keys.
-        if prompt_view != viewed {
+        if prompt_view != view.viewed {
             pending_close = None;
             rename = None;
             popup = None;
-            prompt_view = viewed.clone();
+            prompt_view = view.viewed.clone();
         }
-        let failed = failure_applies(failed_tab.as_deref(), viewed.as_deref());
+        let failed = failure_applies(failed_tab.as_deref(), view.viewed.as_deref());
         match next {
             Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => {
                 transient_notice = None;
                 if let Some(tab_id) = pending_close.take() {
                     if key.code == KeyCode::Enter {
-                        close_fallback = close_fallback_for(&tabs, viewed.as_deref(), &tab_id);
+                        close_fallback = close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
                         wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
                     } else if key.code != KeyCode::Esc {
                         pending_close = Some(tab_id);
@@ -1927,7 +1879,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     match action {
                         "tabs.new" => wire::send(&mut stream, "tab.create", None, create.clone())?,
                         "tabs.close" => {
-                            if let Some(tab_id) = viewed.clone() {
+                            if let Some(tab_id) = view.viewed.clone() {
                                 let busy =
                                     tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
                                         matches!(tab.status.as_str(), "working" | "needs-input")
@@ -1936,7 +1888,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     pending_close = Some(tab_id);
                                 } else {
                                     close_fallback =
-                                        close_fallback_for(&tabs, viewed.as_deref(), &tab_id);
+                                        close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
                                     wire::send(
                                         &mut stream,
                                         "tab.close",
@@ -1947,7 +1899,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             }
                         }
                         "tabs.rename" => {
-                            if let Some(tab_id) = viewed.clone() {
+                            if let Some(tab_id) = view.viewed.clone() {
                                 let name = tabs
                                     .iter()
                                     .find(|tab| tab.id == tab_id)
@@ -1958,7 +1910,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                         "tabs.next" | "tabs.previous" => {
                             if !tabs.is_empty() {
-                                let current = viewed
+                                let current = view
+                                    .viewed
                                     .as_ref()
                                     .and_then(|id| tabs.iter().position(|tab| &tab.id == id))
                                     .unwrap_or(0);
@@ -1968,12 +1921,12 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     (current + tabs.len() - 1) % tabs.len()
                                 };
                                 let tab_id = tabs[index].id.clone();
-                                requested_view = Some(tab_id.clone());
+                                view.requested = Some(tab_id.clone());
                                 wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
                             }
                         }
                         "tabs.moveRight" | "tabs.moveLeft" => {
-                            if let Some(tab_id) = viewed.clone()
+                            if let Some(tab_id) = view.viewed.clone()
                                 && let Some(current) = tabs.iter().position(|tab| tab.id == tab_id)
                             {
                                 let target_index = if action == "tabs.moveRight" {
@@ -2000,7 +1953,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 .unwrap_or(1)
                                 .saturating_sub(1);
                             if let Some(tab) = tabs.get(index) {
-                                requested_view = Some(tab.id.clone());
+                                view.requested = Some(tab.id.clone());
                                 wire::send(
                                     &mut stream,
                                     "tab.view",
@@ -2040,7 +1993,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     print_hint(tabs.len());
                     return Ok(());
                 }
-                let viewed_status = viewed
+                let viewed_status = view
+                    .viewed
                     .as_ref()
                     .and_then(|id| tabs.iter().find(|tab| &tab.id == id))
                     .map(|tab| tab.status.as_str());
@@ -2050,7 +2004,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         (KeyCode::Char('r' | 'R'), KeyModifiers::NONE)
                     )
                 {
-                    if let Some(tab_id) = viewed.clone() {
+                    if let Some(tab_id) = view.viewed.clone() {
                         wire::send(&mut stream, "tab.restart", None, TabTarget { tab_id })?;
                     }
                     continue;
@@ -2244,7 +2198,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         };
                         if next_hover != hovered {
                             hovered = next_hover;
-                            paint_current!(false);
+                            paint_strip!();
                         }
                     } else if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Right)) {
                         if let Some(StripHit::View(tab_id)) = target {
@@ -2263,8 +2217,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     drop_index: tabs.iter().position(|tab| tab.id == tab_id),
                                     expected_revision: registry_revision,
                                 });
-                                if viewed.as_deref() != Some(tab_id.as_str()) {
-                                    requested_view = Some(tab_id.clone());
+                                if view.viewed.as_deref() != Some(tab_id.as_str()) {
+                                    view.requested = Some(tab_id.clone());
                                     wire::send(
                                         &mut stream,
                                         "tab.view",
@@ -2285,7 +2239,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     columns,
                                     &strip_frame.hidden_tabs,
                                     &tabs,
-                                    viewed.as_deref(),
+                                    view.viewed.as_deref(),
                                 ));
                                 paint_current!(false);
                             }
@@ -2316,10 +2270,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         }
     }
 }
-
-/// How long a requested view keeps its previous coherent frame while waiting for the holder's
-/// fresh surface before a retained re-offer is committed instead.
-const STALE_SURFACE_WAIT: Duration = Duration::from_millis(120);
 
 fn strip_hover_present(frame: &strip::StripFrame, hovered: &StripHover) -> bool {
     frame.hits.iter().any(|(_, _, hit)| match (hovered, hit) {
@@ -2862,20 +2812,6 @@ mod tests {
     }
 
     #[test]
-    fn initial_surface_adopts_the_servers_default_without_overwriting_a_request() {
-        let mut requested = None;
-        adopt_initial_surface(None, &mut requested, "server-default");
-        assert_eq!(requested.as_deref(), Some("server-default"));
-
-        adopt_initial_surface(None, &mut requested, "later-surface");
-        assert_eq!(requested.as_deref(), Some("server-default"));
-
-        requested = None;
-        adopt_initial_surface(Some("viewed"), &mut requested, "other");
-        assert_eq!(requested, None);
-    }
-
-    #[test]
     fn rejection_notices_answer_only_user_input() {
         let mut pending = false;
         assert_eq!(
@@ -3117,13 +3053,22 @@ mod tests {
     #[test]
     fn presentation_is_one_ordered_synchronized_write() {
         let strip = strip::render(&[], None, 20);
-        let frame = compose_presentation(&strip, b"SURFACE", Some("OVERLAY"), true);
+        let frame = Frame {
+            strip: &strip.bytes,
+            body: Some(b"SURFACE"),
+            overlay: Some("OVERLAY"),
+            cursor: Some(FinalCursor::Hidden),
+            clear: true,
+        }
+        .compose()
+        .expect("complete frame");
         assert!(frame.starts_with(BEGIN_SYNCHRONIZED_UPDATE));
         assert!(frame.ends_with(END_SYNCHRONIZED_UPDATE));
         let text = String::from_utf8(frame).unwrap();
         assert!(text.find("\x1b[2J").unwrap() < text.find(" + ").unwrap());
         assert!(text.find(" + ").unwrap() < text.find("SURFACE").unwrap());
         assert!(text.find("SURFACE").unwrap() < text.find("OVERLAY").unwrap());
+        assert!(text.find("OVERLAY").unwrap() < text.find("\x1b[?25l").unwrap());
     }
 
     #[test]

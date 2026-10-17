@@ -367,6 +367,7 @@ unsafe extern "C" {
         encoder: GhosttyKeyEncoderRaw,
         terminal: GhosttyTerminalRaw,
     );
+    fn ghostty_key_encoder_setopt(encoder: GhosttyKeyEncoderRaw, option: i32, value: *const c_void);
     fn ghostty_key_encoder_encode(
         encoder: GhosttyKeyEncoderRaw,
         event: GhosttyKeyEventRaw,
@@ -1420,6 +1421,9 @@ pub struct KeyEncoder {
     raw: GhosttyKeyEncoderRaw,
 }
 
+const KEY_ENCODER_OPT_MACOS_OPTION_AS_ALT: i32 = 6;
+const OPTION_AS_ALT_TRUE: i32 = 1;
+
 impl KeyEncoder {
     pub fn new(terminal: &GhosttyTerminal) -> Result<Self, String> {
         let mut raw = ptr::null_mut();
@@ -1427,8 +1431,22 @@ impl KeyEncoder {
             unsafe { ghostty_key_encoder_new(ptr::null(), &mut raw) },
             "create key encoder",
         )?;
-        unsafe { ghostty_key_encoder_setopt_from_terminal(raw, terminal.raw) };
+        Self::sync_options(raw, terminal);
         Ok(Self { raw })
+    }
+
+    // Platform: the outer terminal already decided that Option meant Alt when it produced an
+    // ESC-prefixed chord, and the terminal-state sync resets that encoder option to false on
+    // macOS, so it is restored after every sync to re-encode exactly what the user sent.
+    fn sync_options(raw: GhosttyKeyEncoderRaw, terminal: &GhosttyTerminal) {
+        unsafe {
+            ghostty_key_encoder_setopt_from_terminal(raw, terminal.raw);
+            ghostty_key_encoder_setopt(
+                raw,
+                KEY_ENCODER_OPT_MACOS_OPTION_AS_ALT,
+                &OPTION_AS_ALT_TRUE as *const i32 as *const c_void,
+            );
+        }
     }
 
     pub fn encode(
@@ -1439,7 +1457,7 @@ impl KeyEncoder {
         utf8: Option<&str>,
         repeat: bool,
     ) -> Result<Vec<u8>, String> {
-        unsafe { ghostty_key_encoder_setopt_from_terminal(self.raw, terminal.raw) };
+        Self::sync_options(self.raw, terminal);
         let mut event = ptr::null_mut();
         check(
             unsafe { ghostty_key_event_new(ptr::null(), &mut event) },

@@ -108,7 +108,7 @@ fn default_unresponsive_restart_seconds() -> u64 {
     120
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Surface {
     #[serde(default)]

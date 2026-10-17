@@ -2461,17 +2461,19 @@ fn highest_input_record(output: &str) -> u64 {
         .unwrap_or(0)
 }
 
-/// The newest tick a labelled progress child has shown in the given outer output.
-fn latest_tick(output: &str, label: &str) -> Option<u64> {
+/// Every `(tick, stamp)` a labelled progress child has shown in the given outer output, in the
+/// order the frames were presented; the stamp is the child's own clock in milliseconds.
+fn progress_samples(output: &str, label: &str) -> Vec<(u64, u64)> {
     let needle = format!("{label}:tick:");
     output
         .match_indices(&needle)
         .filter_map(|(index, _)| {
-            output[index + needle.len()..]
-                .get(..8)
-                .and_then(|digits| digits.parse::<u64>().ok())
+            let rest = &output[index + needle.len()..];
+            let tick = rest.get(..8)?.parse::<u64>().ok()?;
+            let stamp = rest.get(9..17)?.parse::<u64>().ok()?;
+            (rest.as_bytes().get(8) == Some(&b'@')).then_some((tick, stamp))
         })
-        .last()
+        .collect()
 }
 
 #[test]
@@ -2717,10 +2719,14 @@ fn streaming_tabs_advance_independently_while_the_view_switches_rapidly() {
     }
     cleanup.pids.extend(holder_pids(&credentials_root));
     // Invariant: every hidden child keeps streaming; the first frame after each switch shows a
-    // tick that advanced while the tab was hidden rather than the tick it was left at.
-    let mut last_seen = [0_u64; 3];
+    // tick that advanced while the tab was hidden rather than the tick it was left at, and the
+    // ticks a child gained while hidden keep pace with the ticks it gains while viewed.
+    let mut viewed_rates = Vec::<f64>::new();
+    let mut hidden_rates = Vec::<f64>::new();
+    let mut last_seen: [Option<(u64, u64)>; 3] = [None; 3];
     for round in 0..4 {
         for (index, label) in labels.iter().enumerate() {
+            let offset = viewer.retained_len();
             let jump = format!("\x1b{}", index + 2);
             viewer.write(jump.as_bytes());
             let needle = format!("{label}:tick:");
@@ -2729,27 +2735,48 @@ fn streaming_tabs_advance_independently_while_the_view_switches_rapidly() {
                 "tab {label} never presented in round {round}: {}",
                 viewer.output_text()
             );
-            viewer.settle(Duration::from_millis(250));
-            let tick = latest_tick(&viewer.output_text(), label).unwrap_or(0);
-            assert!(
-                tick > last_seen[index],
-                "tab {label} did not advance between views in round {round} ({tick} <= {}): {}",
-                last_seen[index],
-                viewer.output_text()
-            );
-            last_seen[index] = tick;
+            viewer.settle(Duration::from_millis(400));
+            let samples = progress_samples(&viewer.output_since(offset), label);
+            let (first, last) = match (samples.first(), samples.last()) {
+                (Some(first), Some(last)) => (*first, *last),
+                _ => panic!(
+                    "tab {label} showed no stamped tick in round {round}: {}",
+                    viewer.output_text()
+                ),
+            };
+            if let Some(previous) = last_seen[index] {
+                assert!(
+                    first.0 > previous.0,
+                    "tab {label} did not advance between views in round {round} ({} <= {}): {}",
+                    first.0,
+                    previous.0,
+                    viewer.output_text()
+                );
+                let hidden_ms = first.1.saturating_sub(previous.1);
+                if hidden_ms >= 300 {
+                    hidden_rates.push((first.0 - previous.0) as f64 / hidden_ms as f64);
+                }
+            }
+            let viewed_ms = last.1.saturating_sub(first.1);
+            if viewed_ms >= 100 {
+                viewed_rates.push((last.0 - first.0) as f64 / viewed_ms as f64);
+            }
+            last_seen[index] = Some(last);
         }
     }
-    // Invariant: a tab hidden for a whole round advanced by at least the ticks that round took,
-    // so no child paused while it was unviewed.
-    for (index, label) in labels.iter().enumerate() {
-        assert!(
-            last_seen[index] >= 40,
-            "tab {label} advanced too little while hidden ({}): {}",
-            last_seen[index],
-            viewer.output_text()
-        );
-    }
+    let mean = |rates: &[f64]| rates.iter().sum::<f64>() / rates.len().max(1) as f64;
+    let viewed = mean(&viewed_rates);
+    let hidden = mean(&hidden_rates);
+    assert!(
+        !hidden_rates.is_empty() && !viewed_rates.is_empty(),
+        "too few stamped samples (viewed {viewed_rates:?}, hidden {hidden_rates:?}): {}",
+        viewer.output_text()
+    );
+    assert!(
+        hidden >= viewed * 0.5,
+        "hidden tabs ticked at {hidden:.4}/ms against {viewed:.4}/ms while viewed (viewed {viewed_rates:?}, hidden {hidden_rates:?}): {}",
+        viewer.output_text()
+    );
     viewer.write(b"\x03\x03");
     viewer.wait(Duration::from_secs(8));
     cleanup.pids.extend(holder_pids(&credentials_root));
@@ -2788,8 +2815,10 @@ fn a_slow_client_never_delays_the_viewed_tabs_input_or_output() {
             ("TERMINAL_HOST_FAKE_TAB_STREAM_BYTES", "2048"),
         ],
     );
+    // Invariant: the streaming child scrolls its ready line away within milliseconds, so its
+    // payload is the sign that the tab is viewed.
     assert!(
-        viewer.output_containing("fake-tab-ready", Duration::from_secs(15)),
+        viewer.output_containing("xxxxxxxx", Duration::from_secs(15)),
         "{}",
         viewer.output_text()
     );
@@ -3248,21 +3277,32 @@ impl AttachFixture {
             .and_then(|()| writer.flush())
             .expect("attach input");
     }
+    /// True once the retained outer output contains `needle`, including output that arrived in
+    /// the same chunk as an earlier needle; waits up to `timeout` for more output otherwise.
     fn output_containing(&mut self, needle: &str, timeout: Duration) -> bool {
         let deadline = Instant::now() + timeout;
-        while Instant::now() < deadline {
+        loop {
+            if String::from_utf8_lossy(&self.retained).contains(needle) {
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
             match self.output.recv_timeout(Duration::from_millis(100)) {
-                Ok(bytes) => {
-                    self.retained.extend(bytes);
-                    if String::from_utf8_lossy(&self.retained).contains(needle) {
-                        return true;
-                    }
-                }
+                Ok(bytes) => self.retained.extend(bytes),
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
-                Err(mpsc::RecvTimeoutError::Disconnected) => return false,
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    return String::from_utf8_lossy(&self.retained).contains(needle);
+                }
             }
         }
-        false
+    }
+    /// How much outer output has been retained; later output can be inspected from here.
+    fn retained_len(&self) -> usize {
+        self.retained.len()
+    }
+    fn output_since(&self, offset: usize) -> String {
+        String::from_utf8_lossy(&self.retained[offset.min(self.retained.len())..]).into_owned()
     }
     /// Keeps draining outer output for `duration` so later assertions see the current frame.
     fn settle(&mut self, duration: Duration) {
