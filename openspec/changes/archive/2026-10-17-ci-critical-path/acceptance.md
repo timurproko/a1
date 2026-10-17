@@ -28,7 +28,7 @@ The maintainer integration decision accepts these scenarios:
     "Every validation and publication job installs the Rust version pinned in `rust-toolchain.toml`, and each Zig cache entry carries the workflow's cache key and the 512 MiB size limit.",
     "The pinned npm installation step runs only on Node 22 lanes; Node 24 lanes pack with their bundled npm 11."
   ],
-  "archiveDigest": "7e72ed79b03a907d3209511012c9033d19d328047cca5a80d25893867a634bd3",
+  "archiveDigest": "0dd54145ea6a07ec3cefc813349de2c83ff42e0bff1e913288a3c5a75b110a04",
   "specDigest": "17e8d5687068db397dafb34a67e1b37c31ee0b3411fab878703b21795d8ac1ac",
   "tasksDigest": "d5c47ff72df7443d4d32beeb125fd7e57397957c4e73cadbde259f3d81c7262d",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
