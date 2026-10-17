@@ -7,6 +7,7 @@ export interface TabAttachment { readonly clientId: string; readonly controllerR
 export type TabBridgeCommand =
   | { readonly type: "visibility"; readonly visible: boolean }
   | { readonly type: "rename"; readonly name: string; readonly nameSource: "default" | "user" | "auto" }
+  | { readonly type: "route"; readonly route: "settings" }
   | { readonly type: "stop"; readonly deadlineMs: number };
 
 interface BridgeTransport {
@@ -42,17 +43,21 @@ export class TabBridgeClient {
   #latestStatus: { readonly state: ResidentTabStatus; readonly degraded: boolean; readonly accent: string | null; readonly pendingRequests: number; readonly queuedInput: number } | null = null;
   #accent: string | null = null;
   #latestSession: { readonly file: string | null; readonly name: string | null; readonly nameSource: "default" | "user" | "auto" } | null = null;
+  #latestShortcuts: readonly (readonly [string, string | null])[] | null = null;
   #heartbeat: unknown | null = null;
   readonly #pending = new Map<number, (accepted: boolean) => void>();
   #startWaiter: ((accepted: boolean) => void) | null = null;
   readonly #commandListeners = new Set<(command: TabBridgeCommand) => void>();
+  readonly #pendingCommands: TabBridgeCommand[] = [];
   #boundaryInputRemainder = "";
 
   constructor(options: TabBridgeOptions) { this.#options = options; }
+  get tabId(): string { return this.#options.credentials.tabId; }
   get available(): boolean { return this.#available && this.#connected; }
   captureAttachment(): TabAttachment | null { return this.#attachment === null ? null : { ...this.#attachment }; }
   onCommand(listener: (command: TabBridgeCommand) => void): () => void {
     this.#commandListeners.add(listener);
+    for (const command of this.#pendingCommands.splice(0)) listener(command);
     return () => this.#commandListeners.delete(listener);
   }
 
@@ -81,7 +86,7 @@ export class TabBridgeClient {
       transport.once("connect", () => {
         this.#send("hello", {
           role: "bridge", generation: 1, build: this.#options.build ?? "a1",
-          features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "bridge-visibility", "bridge-rename", "bridge-stop", "controller-boundary", "recovery-journal"],
+          features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "bridge-visibility", "bridge-rename", "bridge-route", "bridge-stop", "bridge-shortcuts", "controller-boundary", "recovery-journal"],
           token: [...Buffer.from(this.#options.credentials.token, "base64")], tabId: this.#options.credentials.tabId,
           pid: this.#options.pid ?? process.pid, startIdentity: this.#options.startIdentity ?? `${process.pid}:node`,
         }, ++this.#request);
@@ -118,6 +123,15 @@ export class TabBridgeClient {
   prompt(interrupted: boolean): void {
     this.#send("bridge.prompt", { interrupted });
   }
+  /** Publishes the effective tab shortcut assignments so the host dispatches and labels the same keys. */
+  shortcuts(assignments: Readonly<Record<string, string | null>>): void {
+    this.#latestShortcuts = Object.entries(assignments).map(([action, key]) => [action, key] as const);
+    this.#sendShortcuts();
+  }
+  #sendShortcuts(): void {
+    if (this.#latestShortcuts === null || !this.#supports("bridge-shortcuts")) return;
+    this.#send("bridge.shortcuts", { assignments: this.#latestShortcuts.map(([action, key]) => [action, key]) });
+  }
 
   requestDetach(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
     return this.#requestAction("detach", origin, timeoutMs);
@@ -125,6 +139,10 @@ export class TabBridgeClient {
 
   requestRestart(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
     return this.#requestAction("restart", origin, timeoutMs);
+  }
+
+  requestClose(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
+    return this.#requestAction("close", origin, timeoutMs);
   }
 
   consumeControllerBoundaryInput(data: string): string {
@@ -181,6 +199,11 @@ export class TabBridgeClient {
   }
 
   #emitCommand(command: TabBridgeCommand): void {
+    if (this.#commandListeners.size === 0) {
+      if (this.#pendingCommands.length >= 16) this.#pendingCommands.shift();
+      this.#pendingCommands.push(command);
+      return;
+    }
     for (const listener of this.#commandListeners) listener(command);
   }
 
@@ -200,6 +223,7 @@ export class TabBridgeClient {
       if (this.#supports("bridge-heartbeat")) this.#startHeartbeat();
       if (this.#latestStatus !== null) this.status(this.#latestStatus.state, this.#latestStatus.degraded, this.#latestStatus.pendingRequests, this.#latestStatus.queuedInput);
       if (this.#latestSession !== null) this.#send("bridge.session", this.#latestSession);
+      this.#sendShortcuts();
       return;
     }
     if (message.type === "incompatible-generation") { this.#fail(); return; }
@@ -209,6 +233,9 @@ export class TabBridgeClient {
     if (message.type === "bridge.rename" && typeof message.body["name"] === "string") {
       const source = message.body["nameSource"];
       this.#emitCommand({ type: "rename", name: message.body["name"], nameSource: source === "auto" || source === "default" ? source : "user" }); return;
+    }
+    if (message.type === "bridge.route" && message.body["route"] === "settings") {
+      this.#emitCommand({ type: "route", route: "settings" }); return;
     }
     if (message.type === "bridge.stop" && typeof message.body["deadlineMs"] === "number") {
       this.#emitCommand({ type: "stop", deadlineMs: message.body["deadlineMs"] }); return;
@@ -224,7 +251,7 @@ export class TabBridgeClient {
     }
   }
 
-  async #requestAction(action: "detach" | "restart", origin: TabAttachment | null, timeoutMs: number): Promise<boolean> {
+  async #requestAction(action: "detach" | "restart" | "close", origin: TabAttachment | null, timeoutMs: number): Promise<boolean> {
     if (!this.available || origin === null || (action === "restart" && !this.#supports("bridge-restart"))) return false;
     const requestId = ++this.#request;
     const result = new Promise<boolean>(resolvePromise => this.#pending.set(requestId, resolvePromise));

@@ -38,6 +38,7 @@ import {
   valueMenuFrame,
   blockRowSpan,
   displayWidth,
+  formatLocalTime,
   handleLineInputKey,
   humanizeLabel,
   humanizeTitle,
@@ -1063,7 +1064,7 @@ export class SettingsApp implements UiApp {
       ? CONFIGURE
       : shown === null
         ? describeRaw(entry.rawValue)
-        : displayValue(shown);
+        : displaySettingValue(entry, shown);
     const range = rangeOf(entry);
     return {
       key,
@@ -1090,11 +1091,11 @@ export class SettingsApp implements UiApp {
     }
 
     const state = {
-      choices: menu.choices.map(choice => displayValue(choice)),
+      choices: menu.choices.map(choice => displaySettingValue(menu.entry, choice)),
       ...(menu.entry.id === "accentColor" ? {
         previews: menu.choices.map(choice => theme.accentPreview?.(String(choice), "■") ?? ""),
       } : {}),
-      current: this.#shownValue(menu.entry) === null ? null : displayValue(this.#shownValue(menu.entry)!),
+      current: this.#shownValue(menu.entry) === null ? null : displaySettingValue(menu.entry, this.#shownValue(menu.entry)!),
       index: menu.index,
     };
     const frame = valueMenuFrame(state, {
@@ -1258,8 +1259,11 @@ function rangeOf(entry: OwnedUiSettingsEntry): NumericRange {
   return { minimum: entry.minimum, maximum: entry.maximum, values: numericValues(entry.choices) };
 }
 
-/** Booleans read as yes and no; everything else prints as itself. */
-function displayValue(value: OwnedUiSettingValue): string {
+/** Booleans read as yes and no; time-format choices preview the current local time. */
+function displaySettingValue(entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): string {
+  if (entry.backend === "a1" && entry.id === "timeFormat" && (value === "20:00" || value === "8:00 PM")) {
+    return formatLocalTime(new Date(), value) ?? value;
+  }
   if (typeof value === "boolean") return value ? "yes" : "no";
   return String(value);
 }

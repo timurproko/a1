@@ -103,6 +103,14 @@ a1 session link-worktree <absolute-worktree>
 git -C .worktrees/<task-id> status
 ```
 
+Claude Code sessions have no A1 shell-tool session, so they link with Claude Code's `EnterWorktree` tool by task name. The tracked `.claude/settings.json` wires a `WorktreeCreate` hook, `scripts/governance/claude-worktree-create.mjs`, that creates `.worktrees/<task-id>` detached at fresh `origin/develop`, or returns it when it is already registered, so Claude Code anchors the session there without an approval prompt. The agent then creates the task branch inside it:
+
+```sh
+git -C .worktrees/<task-id> switch -c <type>/<short-description>
+```
+
+Passing an absolute `path` to `EnterWorktree` is reserved for a worktree created by hand, from the primary checkout, before any shell command in that session; Claude Code otherwise keeps its shell tools anchored to the primary checkout and refuses their commands. The matching `WorktreeRemove` hook declines removal, so sessions leave with `ExitWorktree` `keep` and worktrees are removed only by the cleanup tool.
+
 Inventory is read-only and advisory because another runtime may win a later race. A successful link response confirming the exact canonical worktree is required before planning, implementation, test, or delivery-documentation edits. If inventory or linking fails, reports a live/unverifiable owner, loses a race, or confirms another path, stop task edits and report the blocker; use a separate fresh worktree rather than overriding, unlinking, or recovering that owner. A session resuming an existing delivery or switching streams atomically claims and links the exact worktree before editing it.
 
 The link acquires a cooperative live-session editing claim and switches bare A1's footer repository context and pull-request discovery. It does not change process or tool cwd, create a Git worktree lock, or register, release, or authorize cleanup. Clean unlink/disposal releases live editing authority; a crashed owner becomes reusable only after exact process death is verified. Repository commands therefore keep an explicit worktree path. The primary worktree stays on `develop` for integration and must not be used for task edits. Do not edit, adopt, move, or remove another session's worktree.

@@ -1,10 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { TranscriptViewport } from "../../../src/ui/components/transcript-viewport.js";
-import { MAX_COPY_ROWS, MAX_COPY_SOURCE_UNITS, selectionCopyLineContent, selectionCopyRowText } from "../../../src/ui/components/selection-copy.js";
+import { MAX_COPY_ROWS, MAX_COPY_SOURCE_UNITS, literalSelectionCopySnapshot, selectionCopyLineContent, selectionCopyRowText } from "../../../src/ui/components/selection-copy.js";
 import { textSelectionText } from "../../../src/ui/components/text-selection.js";
 
 /** Literal frame snapshots remain immutable across delayed delivery and reflow. */
 describe("selected visible-frame snapshots", () => {
+  it("builds exact bounded editor snapshots without admitting whitespace-only text", () => {
+    expect(literalSelectionCopySnapshot("  exact text  ", 7)).toMatchObject({
+      literal: true,
+      revision: 7,
+      rows: [{ text: "  exact text  " }],
+      sourceUnits: 14,
+    });
+    expect(literalSelectionCopySnapshot(" \t\n ")).toBeNull();
+    expect(literalSelectionCopySnapshot("x".repeat(MAX_COPY_SOURCE_UNITS + 1))).toMatchObject({
+      literal: true,
+      rows: [],
+      sourceUnits: 0,
+      rejected: "size",
+    });
+  });
+
   it.each([false, true])("keeps exact multiline content after clear, new frames and reset (reverse=%s)", reverse => {
     const viewport = new TranscriptViewport();
     const rows = ["\u001b[31mhello 界\u001b[0m", "  e\u0301 👩‍💻 next", "Working..."];

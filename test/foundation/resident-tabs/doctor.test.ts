@@ -77,7 +77,7 @@ describe("a1 tabs doctor bundle", () => {
         stateDir: state,
         hostStatus: { schema: "a1-tabs-maintenance-v1", command: "host-status", host: "running", exitCode: 0, result: { pid: 10, detachmentMode: "setsid", logs: [join(state, "diagnostics", "terminal-host-server.log")] } },
         releaseRoots: [join(root, "release")],
-        settings: { tabsMax: 10, tabsAutoName: true },
+        settings: { tabsAutoName: true },
         home: root,
       });
       const archive = await readFile(bundle.path);
@@ -94,7 +94,7 @@ describe("a1 tabs doctor bundle", () => {
       ]);
       const registry = JSON.parse(entries.get("registry.json")!) as { tabs: Record<string, unknown>[] };
       expect(registry.tabs[0]).toMatchObject({ tabId: "tab-1", cwd: "~/work", sessionDirectory: "~/sessions", release: "~/release" });
-      expect(JSON.parse(entries.get("settings.json")!)).toEqual({ tabsMax: 10, tabsAutoName: true });
+      expect(JSON.parse(entries.get("settings.json")!)).toEqual({ tabsAutoName: true });
       expect(bundle.path.startsWith(join(state, "doctor"))).toBe(true);
     } finally {
       delete process.env.DOCTOR_CANARY_ENVIRONMENT;
@@ -107,7 +107,7 @@ describe("a1 tabs doctor bundle", () => {
       stateDir: state,
       hostStatus: { schema: "a1-tabs-maintenance-v1", command: "host-status", host: "none", exitCode: 0 },
       releaseRoots: [],
-      settings: { tabsMax: 10, tabsAutoName: true },
+      settings: { tabsAutoName: true },
       maxBytes: 64 * 1024 + 4096,
     });
     expect(bundle.dropped).toEqual(["terminal-host-server.log.1"]);

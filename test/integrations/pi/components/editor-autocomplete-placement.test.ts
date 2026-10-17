@@ -273,8 +273,10 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
       const selected = parts(editor, 80);
       expect(selected.body[1]).toContain("\u001b[44m");
       expect(selected.menu.join("\n")).not.toContain("\u001b[44m");
+      expect(editor.selectedText?.()).toBe("abc");
       editor.handleInput?.("\u0003");
       expect(copied).toEqual(["abc"]);
+      expect(editor.selectedText?.()).toBeUndefined();
       editor.setText(""); editor.addAutocompleteProvider(() => provider);
       editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 80).menu.length).toBeGreaterThan(0);

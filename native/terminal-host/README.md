@@ -8,7 +8,7 @@ One binary exposes three product roles:
 
 - `server --detach --profile <root> --data-dir <dir> --runtime-dir <dir>` starts or joins the owner-scoped resident server and reports its verified endpoint.
 - `holder --tab <id> --incarnation <n>` is a fixed role reserved for the server. It is never a general child-process launcher.
-- `attach --endpoint <endpoint> --cwd <cwd> --clear-exit-ms <ms>` is the launch-instance root and owns the outer terminal.
+- `attach --endpoint <endpoint> --cwd <cwd> --clear-exit-ms <ms> --settings-file <path>` is the launch-instance root and owns the outer terminal.
 - `probe --profile <root> --data-dir <dir> --runtime-dir <dir>` performs resident discovery without starting a host.
 
 The former interactive `--run`, `--probe-2x2`, and `--topology-2x2` proof entries are not product paths. The retained non-interactive `--probe`, `--probe-scroll`, `--probe-selection`, and `--probe-input` modes certify the terminal model and encoders without opening an alternate screen.

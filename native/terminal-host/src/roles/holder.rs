@@ -15,28 +15,73 @@ use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 
 use crate::endpoint;
 use crate::ghostty::GhosttyTerminal;
-use crate::protocol::{self, MAX_INPUT_BYTES, Welcome};
+use crate::protocol::{
+    self, ClipboardLocation, EffectKind, MAX_INPUT_BYTES, SemanticInput, SurfaceCursor,
+    TerminalEffect, TerminalModes, Welcome,
+};
 use crate::roles::child_containment::ChildContainment;
+use crate::roles::child_input::{self, SemanticEncoder};
 use crate::roles::wire::{
     self, HolderExit, HolderLaunchConfig, HolderRespawn, Input, PasteStart, Resize, RoleHello,
     Surface, SurfaceSubscription,
 };
 
 pub const HOLDER_INPUT_CAPACITY: usize = 1024 * 1024;
-const BRACKETED_PASTE_START: &[u8] = b"\x1b[200~";
-const BRACKETED_PASTE_END: &[u8] = b"\x1b[201~";
 
-fn bracketed_paste(content: &[u8]) -> Vec<u8> {
-    let mut complete =
-        Vec::with_capacity(BRACKETED_PASTE_START.len() + content.len() + BRACKETED_PASTE_END.len());
-    complete.extend_from_slice(BRACKETED_PASTE_START);
-    complete.extend_from_slice(content);
-    complete.extend_from_slice(BRACKETED_PASTE_END);
-    complete
+/// Features this holder offers the server; `semantic-input` means it encodes `input.event`
+/// frames itself and `terminal-effects` means it forwards typed child terminal effects.
+pub const HOLDER_FEATURES: [&str; 3] = ["retained-surface", "semantic-input", "terminal-effects"];
+
+/// Surface revisions start above every earlier incarnation's so a viewer can order surfaces of
+/// one tab across restarts without knowing which holder produced them.
+pub fn initial_revision(incarnation: u64) -> u64 {
+    incarnation.saturating_mul(1 << 32)
+}
+
+/// Encodes one complete retained surface together with the child's current modes and cursor.
+fn surface_message(
+    terminal: &mut GhosttyTerminal,
+    tab_id: &str,
+    revision: u64,
+    status: &str,
+) -> Result<Vec<u8>, String> {
+    terminal.mark_dirty()?;
+    let frame = terminal.frame_at(0, 1, true)?.into_bytes();
+    let modes = terminal.mode_snapshot().ok().map(|snapshot| TerminalModes {
+        cursor_visible: snapshot.cursor_visible,
+        cursor_style: snapshot.cursor_style.to_owned(),
+        cursor_blink: snapshot.cursor_blink,
+        mouse_tracking: snapshot.mouse_tracking,
+        focus_events: snapshot.focus_events,
+        bracketed_paste: snapshot.bracketed_paste,
+        kitty_keyboard_flags: snapshot.kitty_keyboard_flags,
+        alternate_screen: snapshot.alternate_screen,
+        synchronized_output: snapshot.synchronized_output,
+    });
+    let cursor = terminal
+        .cursor_cell()
+        .ok()
+        .flatten()
+        .map(|(column, row)| SurfaceCursor { column, row });
+    wire::frame(
+        "surface",
+        None,
+        Surface {
+            tab_id: tab_id.to_owned(),
+            revision,
+            bytes: frame,
+            status: status.into(),
+            accent: None,
+            stale: false,
+            modes,
+            cursor,
+        },
+    )
 }
 
 enum HolderCommand {
     Input(Input),
+    Semantic(SemanticInput),
     PasteStart { bytes: usize, epoch: u64 },
     Resize(Resize),
     SurfaceSubscription(bool),
@@ -403,9 +448,10 @@ fn run_holder(
         .map_err(|error| format!("write holder readiness: {error}"))?;
     crate::fault_injection::freeze_role("holder");
     let mut terminal = GhosttyTerminal::new(config.columns, config.rows)?;
+    let mut encoder = SemanticEncoder::new(&terminal, config.columns, config.rows)?;
     let mut recovery_output = VecDeque::<u8>::new();
     terminal.mark_dirty()?;
-    let mut revision = 0_u64;
+    let mut revision = initial_revision(config.incarnation);
     let mut input =
         crate::core::holder::State::new(config.tab_id.clone(), config.incarnation, highest_epoch);
     let ready_effects = crate::core::holder::step(
@@ -456,18 +502,11 @@ fn run_holder(
                 spawn_command_reader(replacement_reader, command_tx.clone(), wake_tx.clone());
                 if subscribed {
                     revision = revision.saturating_add(1);
-                    terminal.mark_dirty()?;
-                    let frame = terminal.frame_at(0, 1, true)?.into_bytes();
-                    server.offer_surface(wire::frame(
-                        "surface",
-                        None,
-                        Surface {
-                            tab_id: config.tab_id.clone(),
-                            revision,
-                            bytes: frame,
-                            status: "idle".into(),
-                            accent: None,
-                        },
+                    server.offer_surface(surface_message(
+                        &mut terminal,
+                        &config.tab_id,
+                        revision,
+                        "idle",
                     )?);
                 }
             } else if let HolderCommand::Respawn(respawn) = command {
@@ -491,18 +530,11 @@ fn run_holder(
                 subscribed = enabled;
                 if subscribed {
                     revision = revision.saturating_add(1);
-                    terminal.mark_dirty()?;
-                    let frame = terminal.frame_at(0, 1, true)?.into_bytes();
-                    server.offer_surface(wire::frame(
-                        "surface",
-                        None,
-                        Surface {
-                            tab_id: config.tab_id.clone(),
-                            revision,
-                            bytes: frame,
-                            status: "idle".into(),
-                            accent: None,
-                        },
+                    server.offer_surface(surface_message(
+                        &mut terminal,
+                        &config.tab_id,
+                        revision,
+                        "idle",
                     )?);
                 }
             } else if matches!(&command, HolderCommand::Promote) {
@@ -541,6 +573,7 @@ fn run_holder(
                     })
                     .map_err(|error| format!("resize resident PTY: {error}"))?;
                 terminal.resize(resize.columns, resize.rows)?;
+                encoder.resize(resize.columns, resize.rows);
                 terminal.mark_dirty()?;
             } else if let HolderCommand::PasteStart { bytes, epoch } = command {
                 if epoch < highest_epoch {
@@ -550,8 +583,7 @@ fn run_holder(
                 pending_paste = if bytes == 0 {
                     None
                 } else if bytes
-                    <= HOLDER_INPUT_CAPACITY
-                        .saturating_sub(BRACKETED_PASTE_START.len() + BRACKETED_PASTE_END.len())
+                    <= HOLDER_INPUT_CAPACITY.saturating_sub(child_input::PASTE_FRAMING_BYTES)
                 {
                     Some(PendingPaste::Collect {
                         expected: bytes,
@@ -580,6 +612,53 @@ fn run_holder(
                         0,
                     ))
                     .map_err(|_| "resident PTY writer stopped".to_owned())?;
+            } else if let HolderCommand::Semantic(message) = command {
+                if message.epoch < highest_epoch {
+                    continue;
+                }
+                highest_epoch = message.epoch;
+                if child_exited {
+                    if let Some(action) = child_input::recovery_action(&message.event) {
+                        server.offer_control(wire::frame(
+                            "holder.recovery-action",
+                            None,
+                            wire::ResultBody {
+                                accepted: true,
+                                message: Some(action.into()),
+                            },
+                        )?)?;
+                    }
+                    continue;
+                }
+                // Invariant: the holder encodes against the child's modes at admission time, so
+                // the bytes written are the ones the child's current protocol expects.
+                let bytes = match encoder.encode(&terminal, &message.event) {
+                    Ok(bytes) => bytes,
+                    Err(reason) => {
+                        let _ = server.offer_control(wire::frame(
+                            "input.rejected",
+                            None,
+                            wire::ResultBody {
+                                accepted: false,
+                                message: Some(reason),
+                            },
+                        )?);
+                        continue;
+                    }
+                };
+                if bytes.is_empty() {
+                    continue;
+                }
+                let effects = crate::core::holder::step(
+                    &mut input,
+                    crate::core::holder::Event::Input {
+                        epoch: message.epoch,
+                        bytes,
+                        paste: false,
+                    },
+                    Duration::ZERO,
+                );
+                apply_holder_effects(effects, &write_tx, &server)?;
             } else if let HolderCommand::Input(message) = command {
                 if child_exited {
                     let action = match message.bytes.as_slice() {
@@ -613,7 +692,7 @@ fn run_holder(
                             if bytes.len() == *expected {
                                 let content = std::mem::take(bytes);
                                 pending_paste = None;
-                                bracketed_paste(&content)
+                                child_input::encode_paste(&terminal, &content)
                             } else if bytes.len() > *expected {
                                 pending_paste = None;
                                 let _ = server.offer_control(wire::frame(
@@ -671,22 +750,44 @@ fn run_holder(
             }
             changed = true;
         }
+        // Invariant: a clipboard write belongs to the outer terminal only while this tab is
+        // viewed; a hidden tab's write updates nothing outside the retained model and is dropped
+        // rather than replayed later against a different view.
+        for write in terminal.take_clipboard_writes() {
+            if !subscribed {
+                continue;
+            }
+            let effect = EffectKind::ClipboardWrite {
+                location: match write.location {
+                    1 => ClipboardLocation::Selection,
+                    2 => ClipboardLocation::Primary,
+                    _ => ClipboardLocation::Standard,
+                },
+                mime: write.mime,
+                data: write.data,
+            };
+            if protocol::validate_effect(&effect).is_err() {
+                continue;
+            }
+            let _ = server.offer_control(wire::frame(
+                "terminal.effect",
+                None,
+                TerminalEffect {
+                    tab_id: config.tab_id.clone(),
+                    revision,
+                    effect,
+                },
+            )?);
+        }
         // Performance: each pass drains all queued PTY output before rendering, so floods coalesce
         // into one surface per pass without delaying an isolated echo behind a pacing timer.
         if changed && subscribed {
             revision = revision.saturating_add(1);
-            terminal.mark_dirty()?;
-            let frame = terminal.frame_at(0, 1, true)?.into_bytes();
-            server.offer_surface(wire::frame(
-                "surface",
-                None,
-                Surface {
-                    tab_id: config.tab_id.clone(),
-                    revision,
-                    bytes: frame,
-                    status: "idle".into(),
-                    accent: None,
-                },
+            server.offer_surface(surface_message(
+                &mut terminal,
+                &config.tab_id,
+                revision,
+                "idle",
             )?);
         }
         if stop_deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
@@ -713,8 +814,6 @@ fn run_holder(
                 .map_err(|error| format!("inspect resident child: {error}"))?
         {
             child_exited = true;
-            terminal.mark_dirty()?;
-            let frame = terminal.frame_at(0, 1, true)?.into_bytes();
             let recovery_root = tab_data_dir.join("recovery");
             let _ = crate::roles::recovery_artifacts::write_last_screen(
                 &recovery_root,
@@ -732,16 +831,11 @@ fn run_holder(
             );
             if subscribed {
                 revision = revision.saturating_add(1);
-                server.offer_surface(wire::frame(
-                    "surface",
-                    None,
-                    Surface {
-                        tab_id: config.tab_id.clone(),
-                        revision,
-                        bytes: frame,
-                        status: "crashed".into(),
-                        accent: None,
-                    },
+                server.offer_surface(surface_message(
+                    &mut terminal,
+                    &config.tab_id,
+                    revision,
+                    "crashed",
                 )?);
             }
             server.offer_control(wire::frame(
@@ -805,11 +899,69 @@ fn input_rejected_message(error: InputAdmissionError) -> &'static str {
     }
 }
 
+/// Longest one replacement request may take before the holder abandons it and retries.
+const SERVER_REPLACEMENT_DEADLINE: Duration = Duration::from_secs(15);
+
+/// Waits for a replacement request with a deadline and returns its exit and the outcome it
+/// printed. Its stdout is read on a thread and not to end-of-file, because a detached server
+/// that inherited the pipe would hold it open for its whole life.
+fn wait_for_replacement(
+    mut child: std::process::Child,
+    deadline: Duration,
+) -> Result<(std::process::ExitStatus, String), String> {
+    let printed = Arc::new(Mutex::new(Vec::<u8>::new()));
+    if let Some(mut stdout) = child.stdout.take() {
+        let printed = printed.clone();
+        thread::spawn(move || {
+            let mut buffer = [0_u8; 1024];
+            while let Ok(count) = stdout.read(&mut buffer) {
+                if count == 0 {
+                    break;
+                }
+                if let Ok(mut printed) = printed.lock() {
+                    printed.extend_from_slice(&buffer[..count]);
+                    if printed.len() > 64 * 1024 {
+                        break;
+                    }
+                }
+            }
+        });
+    }
+    let started = std::time::Instant::now();
+    let status = loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|error| format!("wait for server replacement: {error}"))?
+        {
+            break status;
+        }
+        if started.elapsed() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("server replacement request timed out".to_owned());
+        }
+        thread::sleep(Duration::from_millis(20));
+    };
+    // Concurrency: the outcome line is written before the request exits; allow the reader a
+    // moment to collect it without waiting on a pipe a detached server may still hold.
+    let collected = std::time::Instant::now();
+    loop {
+        let text = printed
+            .lock()
+            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+            .unwrap_or_default();
+        if text.contains("\"outcome\"") || collected.elapsed() >= Duration::from_millis(500) {
+            return Ok((status, text));
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
 /// Asks for a replacement server. Ok(false) means the registry no longer wants any tab to run.
 fn request_server_replacement(config: &HolderLaunchConfig) -> Result<bool, String> {
     let executable = std::env::current_exe()
         .map_err(|error| format!("resolve terminal host executable: {error}"))?;
-    let output = std::process::Command::new(executable)
+    let child = std::process::Command::new(executable)
         .args([
             "server",
             "--detach",
@@ -827,13 +979,17 @@ fn request_server_replacement(config: &HolderLaunchConfig) -> Result<bool, Strin
         ])
         .env("A1_TABS_ENDPOINT", &config.server.endpoint)
         .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
-        .output()
+        .spawn()
         .map_err(|error| format!("request server replacement: {error}"))?;
-    if output.status.success() {
-        Ok(!String::from_utf8_lossy(&output.stdout).contains("\"not-needed\""))
+    // Invariant: a replacement request that never finishes must not strand the holder; it is
+    // abandoned at its deadline and the holder's reconnect loop asks again.
+    let (status, printed) = wait_for_replacement(child, SERVER_REPLACEMENT_DEADLINE)?;
+    if status.success() {
+        Ok(!printed.contains("\"not-needed\""))
     } else {
-        Err(format!("server replacement stopped with {}", output.status))
+        Err(format!("server replacement stopped with {status}"))
     }
 }
 
@@ -922,7 +1078,10 @@ fn connect_holder(
             role: "holder".into(),
             generation: protocol::GENERATION,
             build: "a1-terminal-host".into(),
-            features: vec!["retained-surface".into()],
+            features: HOLDER_FEATURES
+                .iter()
+                .map(|feature| (*feature).into())
+                .collect(),
             token: config.token.clone(),
             tab_id: Some(config.tab_id.clone()),
             pid: Some(std::process::id()),
@@ -962,6 +1121,13 @@ fn spawn_command_reader(
                 "input" => {
                     if let Ok((_, input)) = wire::body::<Input>(&payload) {
                         let _ = command_tx.send(HolderCommand::Input(input));
+                    }
+                }
+                "input.event" => {
+                    if let Ok((_, input)) = wire::body::<SemanticInput>(&payload)
+                        && protocol::validate_input_event(&input.event).is_ok()
+                    {
+                        let _ = command_tx.send(HolderCommand::Semantic(input));
                     }
                 }
                 "controller-boundary" => {
@@ -1032,6 +1198,61 @@ fn connect_retry(address: &str, retry_forever: bool) -> Result<endpoint::Endpoin
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn shell(script: &str) -> std::process::Child {
+        let mut command = if cfg!(windows) {
+            let mut command = std::process::Command::new("cmd");
+            command.args(["/C", script]);
+            command
+        } else {
+            let mut command = std::process::Command::new("sh");
+            command.args(["-c", script]);
+            command
+        };
+        command
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn shell")
+    }
+
+    #[test]
+    fn replacement_requests_are_bounded_and_read_their_outcome() {
+        let (status, printed) = wait_for_replacement(
+            shell("echo {\"outcome\":\"not-needed\"}"),
+            Duration::from_secs(10),
+        )
+        .expect("finished request");
+        assert!(status.success());
+        assert!(printed.contains("not-needed"), "{printed}");
+
+        let started = std::time::Instant::now();
+        let hung = if cfg!(windows) {
+            shell("ping -n 30 127.0.0.1 >NUL")
+        } else {
+            shell("sleep 30")
+        };
+        assert_eq!(
+            wait_for_replacement(hung, Duration::from_millis(300)).unwrap_err(),
+            "server replacement request timed out"
+        );
+        assert!(started.elapsed() < Duration::from_secs(5));
+
+        // Invariant: a detached child that inherited stdout keeps the pipe open after the request
+        // exits; the outcome is still returned instead of waiting for end-of-file.
+        if cfg!(unix) {
+            let started = std::time::Instant::now();
+            let (status, printed) = wait_for_replacement(
+                shell("echo '{\"outcome\":\"started\"}'; (sleep 30 &)"),
+                Duration::from_secs(10),
+            )
+            .expect("request with a lingering child");
+            assert!(status.success());
+            assert!(printed.contains("\"started\""), "{printed}");
+            assert!(started.elapsed() < Duration::from_secs(5));
+        }
+    }
+
     #[test]
     fn over_capacity_paste_delivers_no_prefix() {
         let mut queue = BoundedInputQueue::new(4);
@@ -1072,7 +1293,7 @@ mod tests {
     #[test]
     fn restores_bracketed_paste_protocol_after_outer_terminal_decoding() {
         assert_eq!(
-            bracketed_paste("wide 开发 e\u{301}".as_bytes()),
+            child_input::bracketed_paste("wide 开发 e\u{301}".as_bytes()),
             b"\x1b[200~wide \xe5\xbc\x80\xe5\x8f\x91 e\xcc\x81\x1b[201~"
         );
     }

@@ -353,37 +353,50 @@ Each A1 tab process SHALL receive a derived per-tab/per-incarnation credential a
 - **THEN** it SHALL contain no prompt text, transcript text, terminal bytes, or credentials
 
 ### Requirement: Resident resources are bounded and observable
-During a resident bare-A1 launch, A1 SHALL expose only `tabsMax` and `tabsAutoName` as tab controls in Settings > Tabs. `tabsMax` SHALL appear with default 10 and range 1–50, and `tabsAutoName` SHALL appear defaulted on. A1 SHALL expose no `residentTabs` or enable/disable toggle. During `a1 solo`, the complete Tabs settings section SHALL be absent. Out-of-range `tabsMax` SHALL clamp with one notice. Unresponsive restart and stall-notice timing SHALL not be user-facing controls and SHALL use internal values of 120 and 300 seconds respectively. Concurrent starts SHALL use internal default 2 and hard cap 8; prewarm SHALL use internal count and hard cap 1. One hidden prewarmed standby MAY load Pi, settings, and extensions but SHALL own no session or writer lease before exact cwd/environment-matched promotion and SHALL start only when no visible start is pending. Every open tab SHALL retain its process until explicit close; A1 SHALL provide no idle-suspension setting, timer, lifecycle, or glyph. The server SHALL exit only after ten minutes with no running tabs, clients, holders, or standby. Logs SHALL rotate and exclude terminal content, prompt text, and credentials. Cold launch, warm creation, reattach paint/input, input-to-process, and output-to-present SHALL be measured separately on Windows x64, macOS arm64, and Linux x64 against declared budgets, recording every miss.
+During a resident bare-A1 launch, A1 SHALL expose only `tabsAutoName` as an Agent-tab control in Settings > Tabs; it SHALL NOT expose or enforce `tabsMax`, a resident enable/disable toggle, or another user tab-count quota. During `a1 solo`, the complete Tabs settings section SHALL be absent. A legacy stored `tabsMax` property SHALL be ignored while remaining preserved by forward-compatible settings writes. Completed tab count SHALL be constrained only by successfully acquired process, persistence, containment, protocol, memory, and operating-system resources. Concurrent starts SHALL remain independently bounded by internal default 2 and hard cap 8, and prewarm SHALL use internal count and hard cap 1. One hidden prewarmed Agent MAY load Pi, settings, and extensions but SHALL own no session or writer lease before exact cwd/environment-matched promotion and SHALL start only when no visible start is pending. Every open Agent and the singleton Settings utility SHALL retain its process until explicit close; A1 SHALL provide no idle-suspension setting, timer, lifecycle, or glyph. The server SHALL exit only after ten minutes with no running tabs, clients, holders, or standby. Logs SHALL rotate and exclude terminal content, prompt text, and credentials. Cold launch, warm creation, Settings creation, reattach paint/input, input-to-process, and output-to-present SHALL be measured separately on Windows x64, macOS arm64, and Linux x64 against declared budgets, recording every miss.
 
 #### Scenario: Bare A1 uses tabs
 - **WHEN** bare `a1` launches on a supported platform
 - **THEN** A1 SHALL use the resident host and present the tab strip
+
+#### Scenario: Resident Settings omits a tab quota
+- **WHEN** the user opens the resident Settings utility
+- **THEN** Settings > Tabs SHALL expose automatic naming without a maximum-tabs entry
+- **AND** no stored legacy value SHALL limit creation
+
+#### Scenario: Stored tab limit above cap
+- **WHEN** a profile retains a legacy `tabsMax` value such as 80
+- **THEN** A1 SHALL ignore it for creation and preserve it as unknown compatibility data
+- **AND** no clamp or tab-limit notice SHALL appear
 
 #### Scenario: Solo mode omits tab settings
 - **WHEN** the user runs `a1 solo` and opens Settings
 - **THEN** A1 SHALL use the direct path without a tab strip
 - **AND** Settings SHALL contain no Tabs section
 
-#### Scenario: Stored tab limit above cap
-- **WHEN** stored `tabsMax` is 80
-- **THEN** A1 SHALL apply 50 and report the clamp once
+#### Scenario: Many completed tabs remain open
+- **WHEN** sequential tab starts continue to acquire all real required resources
+- **THEN** the resident server SHALL retain every explicitly open tab without applying a configured or hard count refusal
+
+#### Scenario: Concurrent starts remain bounded
+- **WHEN** many creation requests arrive together
+- **THEN** start work SHALL remain within the internal concurrent-start cap while completed tabs remain free of a count quota
 
 #### Scenario: Prewarmed tab is promoted
-- **WHEN** a standby exactly matches cwd and environment
+- **WHEN** a standby exactly matches an Agent request's cwd and environment
 - **THEN** it SHALL reserve and commit a new session identity before accepting input and then become visible
 
 #### Scenario: Open tab remains resident
-- **WHEN** an open idle tab remains unviewed for any duration
-- **THEN** its holder and A1 process SHALL remain running until explicit close
+- **WHEN** an open idle Agent or Settings tab remains unviewed for any duration
+- **THEN** its holder and child process SHALL remain running until explicit close
 
 #### Scenario: Performance budget missed
 - **WHEN** one platform exceeds a declared budget
 - **THEN** evidence SHALL record that value and miss without inference from another platform
 
 #### Scenario: Latency sample is matched to its own input
-- **WHEN** the fixture echoes a processed-input line for a token before that token's measured send, such as from a late in-band standby-promotion marker
-- **THEN** the measurement SHALL ignore that earlier line and time only a line stamped at or after the send
-- **AND** a negative or non-numeric recorded latency SHALL fail its metric instead of being dropped from the p95 sample set
+- **WHEN** a fixture echo predates its measured token send or a latency is negative or non-numeric
+- **THEN** the earlier echo SHALL be ignored and the invalid metric SHALL fail rather than entering the p95 sample
 
 ### Requirement: Updates retain the active resident cohort
 Installing or activating a release SHALL NOT terminate the server, holders, or tab processes. Resident binaries and tab processes SHALL run from immutable release directories, and every release used by a live verified resident process SHALL be retained; when a recorded resident identity cannot be verified or read, its release SHALL be retained. In this version a same-generation newer client MAY attach with unsupported optional operations disabled, while the existing resident cohort remains on its release until all tabs stop. A generation mismatch SHALL report that the host must be stopped explicitly with `a1 tabs host stop`, SHALL use the direct single-agent path for that launch, and SHALL NOT kill or recycle tabs. Automatic endpoint handoff and idle release recycling require a later change.
@@ -530,3 +543,114 @@ Recovery SHALL rehydrate image chips only from validated attachment sidecars ava
 - **THEN** the editor SHALL preserve the remaining recoverable text and attachments
 - **AND** it SHALL remove every unresolved image token instead of presenting it as an attached screenshot
 - **AND** A1 SHALL wait for an explicit user submission
+
+### Requirement: Resident terminal transport preserves semantic input events
+The attach, server, and holder path SHALL preserve the key identity, modifiers, text, paste boundary, focus, mouse gesture, and resize represented by each accepted outer-terminal event until the viewed child consumes it. Transport and controller handoff SHALL deliver accepted events exactly once in order or reject them visibly before any partial delivery.
+
+#### Scenario: Forward supported modified input
+- **WHEN** the outer terminal reports a supported Ctrl, Alt, Shift, navigation, function, text/IME, focus, mouse, or resize event not owned by the tab shell
+- **THEN** the child SHALL observe the same effective event that direct A1 observes on that platform
+
+#### Scenario: Preserve one paste transaction
+- **WHEN** the outer terminal reports a bounded paste whose payload spans transport frames
+- **THEN** the holder SHALL admit and expose one complete child paste in order or reject the whole payload before delivering a prefix
+
+#### Scenario: Transfer control during input
+- **WHEN** a view change or focus claim occurs while prior and new input are in flight
+- **THEN** no accepted event SHALL be duplicated, reordered, attributed to the wrong tab, or silently dropped
+
+### Requirement: Resident terminal transport preserves child controls and modes
+The resident path SHALL reproduce every supported child terminal side effect needed for direct A1 parity, including clipboard writes, hyperlinks, cursor visibility and shape, focus and mouse modes, alternate-screen state, synchronized presentation, styling, and Unicode cells. A control consumed by retained terminal parsing SHALL still reach the outer terminal when its direct effect belongs there.
+
+#### Scenario: Child writes the terminal clipboard
+- **WHEN** viewed A1 emits a supported clipboard control for selected or copied content
+- **THEN** the outer terminal SHALL receive one bounded equivalent control for the user's clipboard without exposing it as visible cells or diagnostic content
+
+#### Scenario: Child changes terminal interaction modes
+- **WHEN** viewed A1 changes a supported cursor, focus, mouse, keyboard, hyperlink, alternate-screen, or presentation mode
+- **THEN** the attach client SHALL apply an equivalent outer effect and later restore every attach-owned mode on detach or failure
+
+#### Scenario: Hidden child emits terminal controls
+- **WHEN** an unviewed child emits a control whose effect is meaningful only while presented
+- **THEN** the holder SHALL retain the child's current semantic state without applying that hidden tab's effect to the outer terminal
+
+### Requirement: Resident presentation commits coherent current state
+The attach client SHALL present one coherent state derived from a committed tab topology, viewed identity, complete current child surface, strip, host overlay, terminal modes, and cursor. A create, close, switch, resize, status change, recovery, or overlay transition SHALL NOT expose a new strip state over stale child content, a blank intermediate frame, or a superseded later repaint.
+
+#### Scenario: Create and select a tab
+- **WHEN** a new tab becomes the requested view
+- **THEN** the prior coherent frame SHALL remain until the new topology and complete target surface can be committed together without flashing the old child under the new chip
+
+#### Scenario: Close the viewed tab
+- **WHEN** the active tab closes and a survivor becomes viewed
+- **THEN** the removal, successor selection, complete successor surface, host overlays, and final cursor SHALL become visible coherently
+
+#### Scenario: Update strip and child together
+- **WHEN** status, title, hover, clock, child output, or an attach-owned prompt changes during another presentation update
+- **THEN** equivalent updates SHALL coalesce to current state and no separately visible clear, strip-only, notice-only, or stale-cursor frame SHALL appear
+
+#### Scenario: Terminal ignores synchronized output
+- **WHEN** the outer terminal does not implement synchronized-update controls
+- **THEN** each emitted presentation SHALL still be ordered and complete enough to avoid an attach-induced blank or contradictory intermediate frame
+
+### Requirement: Resident hot paths remain independent and bounded
+Input routing, holder PTY draining, child render progress, and viewed-surface delivery SHALL use independent bounded work paths that do not wait on tab lifecycle operations or another tab's rendering. Coalescing MAY replace unpublished presentation states but SHALL preserve the latest complete state and SHALL NOT delay an isolated input or output behind a pacing poll.
+
+#### Scenario: All tabs produce high-rate output
+- **WHEN** multiple children concurrently emit high-rate streamed output
+- **THEN** every holder SHALL continue draining its own PTY and updating retained state within bounded resources while the viewed tab remains responsive
+
+#### Scenario: Lifecycle operation stalls
+- **WHEN** process spawn, termination, registry persistence, or another lifecycle operation reaches its deadline
+- **THEN** unrelated input, PTY draining, tab switching, and presentation SHALL continue and the lifecycle failure SHALL remain isolated
+
+#### Scenario: Rapidly switch among working tabs
+- **WHEN** the user rapidly changes the requested view while several tabs stream
+- **THEN** obsolete requested surfaces MAY be skipped, but the eventually committed view SHALL promptly receive one complete newest surface and subsequent live updates
+
+### Requirement: Interaction parity is certified across the complete resident boundary
+Resident fidelity SHALL be demonstrated by driving equivalent sanitized interaction scripts through exact built direct and resident candidates on every supported platform and comparing semantic child outcomes, terminal presentation, clipboard/control effects, and responsiveness. Isolated encoder, parser, model, or final-snapshot probes SHALL NOT alone establish parity.
+
+#### Scenario: Compare the parity matrix
+- **WHEN** certification exercises prompt editing, effective shortcuts, completion, history, selection, copy, paste, mouse, dialogs, extension text UI, attachments, focus, resize, streaming, and detach
+- **THEN** each interaction SHALL match direct A1 except for the explicitly declared resident-only differences
+
+#### Scenario: Compare concurrent resident behavior
+- **WHEN** certification runs several independently streaming tabs with rapid switching, lifecycle operations, paste, selection, resize, and slow-client pressure
+- **THEN** it SHALL detect delayed background rendering, input stalls, stale surfaces, duplicate or missing events, and cross-tab interference rather than relying only on settled snapshots
+
+#### Scenario: Record a platform-specific divergence
+- **WHEN** exact-artifact evidence finds a resident/direct mismatch on one supported platform
+- **THEN** that platform's parity verdict SHALL fail with the interaction and boundary named and SHALL NOT be inferred from another platform's result
+
+### Requirement: Resident attach only reads the profile settings document
+The attach client SHALL treat the profile settings document it is given as a file it only reads. It SHALL start whether or not that document exists and SHALL NOT create, replace, or change it.
+
+#### Scenario: Start with an existing settings document
+- **WHEN** bare `a1` starts the attach client for a profile whose settings document exists
+- **THEN** the attach client SHALL start, read the time format from that document, and leave it a regular file
+
+#### Scenario: Start without a settings document
+- **WHEN** bare `a1` starts the attach client for a profile with no settings document
+- **THEN** the attach client SHALL start with the default time format and SHALL NOT create anything at the settings path
+
+### Requirement: The holder retains complete current terminal surfaces
+Each holder SHALL drain its child PTY and update retained terminal state independently of view. A complete `Surface` SHALL contain all current rows, modes, and final cursor, never only dirty rows. Hidden tabs MAY suppress client delivery, but selection and other commit boundaries SHALL request the newest complete surface. Viewed output MAY coalesce superseded frames but SHALL continue presenting complete partial-reply states before settlement.
+
+#### Scenario: Select a hidden streaming Agent
+- **WHEN** an Agent streamed while hidden and is selected before its turn settles
+- **THEN** its holder SHALL immediately emit a complete current surface containing the newest partial reply
+- **AND** subsequent streamed output SHALL continue to update the viewed body
+
+#### Scenario: Repaint after a status-only change
+- **WHEN** attach must repaint an overlay or strip after the latest child output changed only some rows
+- **THEN** its cached body SHALL still contain every current child row rather than only the last dirty rows
+
+#### Scenario: Several holders drain together
+- **WHEN** several Agents produce high-rate output concurrently
+- **THEN** each holder SHALL drain and retain its own PTY without sharing another holder's revision, wake, render slot, or backpressure
+
+#### Scenario: Slow client replaces frames
+- **WHEN** a client cannot consume every complete frame
+- **THEN** only that client's single pending frame SHALL be replaced with the newest complete state
+- **AND** no holder or other client SHALL block or replay every skipped state

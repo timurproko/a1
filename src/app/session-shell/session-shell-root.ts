@@ -145,6 +145,7 @@ export interface OwnedUiShellEngineOptions {
   /** Resident tab quit routes detach the outer client without stopping this engine session. */
   readonly residentTab?: {
     requestDetach(): Promise<boolean>;
+    closeOwnedRoute?(route: string): void;
     reportStatus?(status: "working" | "idle" | "stalled"): void;
     readonly stallNoticeSeconds?: number;
     admit?(input: {
@@ -377,6 +378,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly requestHyperlinkCleanup?: (rows?: readonly number[]) => void;
       readonly enableDockInputReuse?: boolean;
       readonly persistentHistory?: boolean;
+      readonly hideSettingsCommand?: boolean;
       readonly historyEditor?: import("../../integrations/pi/components/index.js").HistoryEditorConstructor;
       readonly onSubmit: (text: string) => void;
       readonly onPasteRejected?: (error: unknown) => void;
@@ -423,9 +425,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ...(handlers.promptImageLimit === undefined ? {} : { imageLimit: handlers.promptImageLimit }) });
     this.#submittedPromptComposer = this.#customViewport
       ? {
-          layout: submittedPromptLayout,
-          compose: (rows, width, source, style) => composeSubmittedPromptRows(rows, width, source, { ...style, prefix: text => promptArrow(text, piTheme()) })
-            .map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor)),
+          layout: (width, source) => submittedPromptLayout(width, source, this.#viewportController.config.timeFormat ?? "8:00 PM"),
+          compose: (rows, width, source, style) => composeSubmittedPromptRows(
+            rows,
+            width,
+            source,
+            { ...style, prefix: text => promptArrow(text, piTheme()) },
+            this.#viewportController.config.timeFormat ?? "8:00 PM",
+          ).map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor)),
         }
       : undefined;
     this.#cwd = cwd;
@@ -813,6 +820,23 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const selectableDocumentRowCount = document.rows.length;
     const dockStartRow = height - dockRows.length + 1;
     const editorOffset = dock.editorOffset;
+    // Rationale: rendered chip tags are lossy presentation (truncated labels), so a frame drag over
+    // a draft holding chips stays visual-only; editor-owned word/line selection still copies the
+    // expanded chip text through its semantic route.
+    const draft = this.usesDefaultInputSurface() ? this.editor.getText() : "";
+    const promptCopyRows = draft.length > 0
+      && !draft.split("\n").some(line => this.#promptChips.atomicRanges(line).length > 0)
+      ? Math.max(0, dock.inputRows - 2)
+      : 0;
+    const copyableDockRows: NonNullable<TranscriptViewportFrameInput["copyableDockRows"]> = [
+      ...Array.from({ length: promptCopyRows }, (_value, index) => ({
+        row: editorOffset + index + 1,
+        prompt: index === 0 ? "first" as const : "continuation" as const,
+      })),
+      ...Array.from({ length: dock.footerRows }, (_value, index) => ({
+        row: dockRows.length - dock.footerRows + index,
+      })),
+    ];
     this.#viewportController.setInputSurfaceFrame(this.usesDefaultInputSurface() ? undefined : {
       component: this.#inputSurface,
       columnStart: 1,
@@ -841,7 +865,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       && snapshot.inputSurface === inputSurface
       && snapshot.viewportRevision === viewportRevision
       && snapshot.selectionRevision === selectionRevision
-      ? this.#viewportController.composeDockOnly(dockRows, width, height, dock.footerRows)
+      ? this.#viewportController.composeDockOnly(dockRows, width, height, copyableDockRows)
       : null;
     if (frame === null) {
       frame = this.#viewportController.compose({
@@ -857,7 +881,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         ...(document.liveTailStartRow === undefined ? {} : { liveTailStartRow: document.liveTailStartRow }),
         bottomAlignedTailRowCount: steeringRows.length + statusRows.length,
         dockRows,
-        explicitCopyDockRows: dock.footerRows,
+        copyableDockRows,
         promptAnchors: document.promptAnchors,
         width,
         height,
@@ -927,7 +951,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   setViewportConfig(config: OwnedUiViewportSettings): void {
-    if (this.#viewportController.setConfig(config)) this.#documentLayouts.clear();
+    if (this.#viewportController.setConfig(config)) {
+      this.#renderedRows.clear();
+      this.#documentLayouts.clear();
+      this.#visibleViewportSnapshot = undefined;
+    }
   }
 
   setFullscreenCopyOnSelect(enabled: boolean): void {
@@ -1154,11 +1182,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       }
       rows.push(...blockRows);
       if (promptLike && blockRows[0] !== undefined) {
+        const source = pinnedPromptSource(block, blockRows[0], blockWidth, this.#viewportController.config.timeFormat);
         promptAnchors.push({
           id: block.id,
           firstRow,
           lastRow: Math.max(firstRow, rows.length - 1),
-          sourceRow: pinnedPromptSourceRow(block, blockRows[0], blockWidth),
+          sourceRow: source.row,
+          copySuffixWidth: source.copySuffixWidth,
           prominentSourceRow: blockRows[0],
         });
       }
@@ -1746,25 +1776,26 @@ function withoutTerminalBackground(text: string): string {
 }
 
 /** Preserve the stable metadata-grey foreground for every pinned timestamp state. */
-function pinnedPromptSourceRow(
+function pinnedPromptSource(
   block: OwnedUiSessionViewModel["transcript"][number],
   sourceRow: string,
   width: number,
-): string {
-  if (typeof block.payload !== "object" || block.payload === null) return sourceRow;
+  timeFormat: OwnedUiViewportSettings["timeFormat"],
+): { readonly row: string; readonly copySuffixWidth: number } {
+  const unchanged = { row: sourceRow, copySuffixWidth: 0 };
+  if (typeof block.payload !== "object" || block.payload === null) return unchanged;
   const value = (block.payload as Record<string, unknown>).timestamp;
-  if (typeof value !== "number" || !Number.isFinite(value)) return sourceRow;
-  const timestamp = formatSubmittedPromptTime(value);
-  if (timestamp === null || submittedPromptLayout(width, value).timestamp === null) return sourceRow;
+  if (typeof value !== "number" || !Number.isFinite(value)) return unchanged;
+  const format = timeFormat ?? "8:00 PM";
+  const timestamp = formatSubmittedPromptTime(value, format);
+  if (timestamp === null || submittedPromptLayout(width, value, format).timestamp === null) return unchanged;
   const rowWidth = displayWidth(sourceRow);
   const timestampWidth = displayWidth(timestamp);
-  if (rowWidth < timestampWidth) return sourceRow;
-  return overlaySpan(
-    sourceRow,
-    rowWidth - timestampWidth,
-    rowWidth,
-    paintPiSubmittedPromptTimestamp(timestamp),
-  );
+  if (rowWidth < timestampWidth) return unchanged;
+  return {
+    row: overlaySpan(sourceRow, rowWidth - timestampWidth, rowWidth, paintPiSubmittedPromptTimestamp(timestamp)),
+    copySuffixWidth: timestampWidth,
+  };
 }
 
 export type PinnedLayoutPart = "document" | "queued" | "aboveWidgets" | "status" | "editor" | "belowWidgets" | "footer";

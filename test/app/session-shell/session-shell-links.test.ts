@@ -67,14 +67,14 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
     const initial = shell.root.render(60);
     expect(initial).toHaveLength(12);
     const plainInitial = initial.map(row => stripTerminalSequences(row));
-    expect(plainInitial.some(row => /^❯ Question \d+\s+\d{2}:\d{2}\s*$/.test(row))).toBe(true);
+    expect(plainInitial.some(row => /^❯ Question \d+\s+\d{1,2}:\d{2} [AP]M\s*$/.test(row))).toBe(true);
     expect(terminal.writes.some(write => write.includes("[?1003h"))).toBe(true);
 
     terminal.input("\u001b[<64;30;3M");
     const detachedRaw = shell.root.render(60);
     const detached = detachedRaw.map(row => stripTerminalSequences(row));
     expect(detached).toHaveLength(12);
-    expect(detachedRaw[0]).toContain(piTheme().fg("dim", "11:57"));
+    expect(detachedRaw[0]).toContain(piTheme().fg("dim", "11:57 AM"));
     expect(detached.some(row => row.includes("Jump to bottom (Ctrl+End) ↓"))).toBe(true);
     expect(detached[0]).not.toContain("│");
     expect(detached.slice(1, -4).some(row => row.includes("│"))).toBe(true);
@@ -394,7 +394,17 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
     const promptIndex = frame.findIndex(row => row.includes("analyze code base"));
     expect(promptIndex).toBe(1);
     expect(frame[0]?.trim()).toBe("");
-    expect(frame[promptIndex]).toMatch(/14:48 $/);
+    expect(frame[promptIndex]).toMatch(/2:48 PM $/);
+
+    shell.root.setViewportConfig({
+      timeFormat: "20:00",
+      scrollbarAppearance: "auto",
+      scrollbarStyle: "thin",
+      scrollbarSpeed: "normal",
+    });
+    const updated = shell.root.render(60).map(row => stripTerminalSequences(row));
+    expect(updated.find(row => row.includes("analyze code base"))).toMatch(/14:48 $/);
+    await shell.dispose();
   });
 
   it("uses terminal-native inactive and hover styling for submitted URL links", async () => {

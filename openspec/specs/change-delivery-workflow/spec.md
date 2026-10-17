@@ -729,7 +729,7 @@ A live-session editing claim SHALL be identified by the owning runtime and the a
 
 ### Requirement: Implementation progress is visible without changing acceptance semantics
 
-Every newly authored version-3 implementation-bound pull request SHALL present its approved scope under `Implementation` as two to ten distinct Markdown task-list items. Each item SHALL describe a delivered implementation outcome at a useful review granularity and SHALL remain separate from the detailed OpenSpec task ledger. Generic CI, review, approval, acceptance, merge, or archive steps SHALL NOT be represented as implementation-progress items, and no item SHALL name running, verifying, validating, recording evidence for, or manually testing work.
+Every newly authored version-3 implementation-bound pull request SHALL present its approved scope under `Implementation` as one or more distinct Markdown task-list items, with no fixed maximum item count. Each item SHALL describe a delivered implementation outcome at a useful review granularity and SHALL remain separate from the detailed OpenSpec task ledger. Generic CI, review, approval, acceptance, merge, or archive steps SHALL NOT be represented as implementation-progress items, and no item SHALL name running, verifying, validating, recording evidence for, or manually testing work.
 
 The agent SHALL leave each item unchecked during planning and SHALL change only its checkbox marker to checked after the associated code and its tests are written and detailed task bookkeeping is complete. Executing tests SHALL belong to CI after readiness, and manual validation SHALL NOT gate a checkbox. Adding, removing, reordering, or changing item wording after approval SHALL be an implementation-scope refinement requiring explicit maintainer approval and coherent planning-artifact reconciliation; affected scope SHALL remain unchecked until complete.
 
@@ -738,8 +738,21 @@ A pull request using Implementation task-list syntax SHALL NOT become ready or f
 #### Scenario: Draft exposes approved implementation scope
 
 - **WHEN** an agent creates a new version-3 draft delivery PR
-- **THEN** its `Implementation` section SHALL contain two to ten unchecked implementation-specific task items derived from the proposed scope
+- **THEN** its `Implementation` section SHALL contain at least one unchecked implementation-specific task item derived from the proposed scope
+- **AND** it SHALL permit additional distinct outcome-sized items without a fixed item-count maximum
 - **AND** GitHub's native task progress SHALL expose the completed and total implementation item counts
+
+#### Scenario: Focused change has one implementation outcome
+
+- **WHEN** the approved scope contains one independently understandable delivered code outcome
+- **THEN** the draft SHALL represent that scope with one Implementation item
+- **AND** it SHALL NOT invent or split scope merely to meet a minimum count above one
+
+#### Scenario: Large change has more than ten implementation outcomes
+
+- **WHEN** the approved scope contains more than ten independently completable delivered code outcomes
+- **THEN** the draft SHALL permit each outcome to remain a separate Implementation item
+- **AND** it SHALL NOT combine unrelated outcomes merely to meet a maximum item count
 
 #### Scenario: Agent completes one scope item
 
@@ -911,3 +924,36 @@ Before pushing implementation commits to the draft pull request, agents SHALL ru
 - **WHEN** CI has reported a specific failure and the agent needs to investigate it
 - **THEN** the agent MAY run the matching broader local command for that failure
 - **AND** that run SHALL NOT become a precondition for later pushes
+
+### Requirement: Claude Code sessions link the task worktree by name through the repository hook
+The repository SHALL provide Claude Code `WorktreeCreate` and `WorktreeRemove` command hooks under `scripts/governance/`, wired in the tracked `.claude/settings.json` through the session root variable, so that a fresh clone carries them. The create hook SHALL resolve the primary checkout from the hook input, SHALL accept only names made of letters, digits, dots, underscores, and dashes, SHALL create `.worktrees/<name>` detached at freshly fetched `origin/develop` when that path is not yet registered, SHALL print the registered path when it already exists, and SHALL fail for an unregistered directory at that path. The remove hook SHALL decline every removal and name `local-worktree-cleanup.mjs`. A Claude Code session SHALL link its task worktree with `EnterWorktree` by name, then create the `<type>/<short-description>` branch inside it, and SHALL use `EnterWorktree` by path only for a worktree created by hand, from the primary checkout, before any shell command in that session.
+
+#### Scenario: Session enters a new task worktree by name
+- **WHEN** a Claude Code session calls `EnterWorktree` with a task name that has no worktree yet
+- **THEN** the hook SHALL create `{working-dir}/.worktrees/<name>` detached at fresh `origin/develop` and Claude Code SHALL anchor the session there without an approval prompt
+- **AND** the agent SHALL create the task branch inside that worktree before editing
+
+#### Scenario: Session resumes an existing task worktree by name
+- **WHEN** `.worktrees/<name>` is already a registered worktree of the repository
+- **THEN** the hook SHALL print that path so the session re-enters the same worktree, branch, and history
+
+#### Scenario: Hook receives an unsafe name or an unregistered directory
+- **WHEN** the requested name contains a path separator or parent reference, or `.worktrees/<name>` exists without being registered
+- **THEN** the hook SHALL fail and Claude Code SHALL NOT enter any worktree
+
+#### Scenario: Claude Code asks to remove a worktree
+- **WHEN** `ExitWorktree(remove)` or the exit prompt requests removal
+- **THEN** the remove hook SHALL decline and the worktree SHALL remain until `local-worktree-cleanup.mjs` removes it with verified evidence
+
+### Requirement: Trusted automation re-promotes a complete finalized draft
+When a finalized version-3 pull request is returned to draft with every Implementation item still checked, trusted finalization SHALL run on that conversion and SHALL mark it ready again once its body fence names the exact head as finalized and the tree holds exactly that archived form with no active change. It SHALL keep every other promotion check and SHALL NOT write the branch while promoting.
+
+#### Scenario: Finalized pull request returned to draft
+- **WHEN** a maintainer or agent converts a finalized, fully checked pull request to draft
+- **THEN** trusted automation SHALL mark it ready again
+- **AND** the following reconciliation SHALL find it already finalized and change nothing
+
+#### Scenario: Fence no longer matches the tree
+- **WHEN** the body fence names the head as finalized but the tree lacks that archive or holds the active change again
+- **THEN** trusted automation SHALL leave the pull request draft
+- **AND** the finalization run SHALL fail with the stable reason `draft-finalization-redraft-form`

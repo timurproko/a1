@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct TabRecord {
     pub tab_id: String,
+    #[serde(default = "default_tab_kind")]
     pub kind: String,
     pub created_at: String,
     pub display_name: String,
@@ -50,6 +51,10 @@ pub struct RegistryDocument {
     pub tabs: Vec<TabRecord>,
 }
 
+fn default_tab_kind() -> String {
+    "agent".into()
+}
+
 pub trait RegistryAuthority: Send + Sync {
     fn is_current(&self, epoch: u64) -> bool;
 }
@@ -85,8 +90,13 @@ impl RegistryStore {
 
     /// Decodes and validates registry bytes without touching the filesystem.
     pub fn parse(bytes: &[u8]) -> Result<RegistryDocument, String> {
-        let document: RegistryDocument = serde_json::from_slice(bytes)
+        let mut document: RegistryDocument = serde_json::from_slice(bytes)
             .map_err(|error| format!("registry unreadable: {error}"))?;
+        for tab in &mut document.tabs {
+            if tab.kind.is_empty() || tab.kind == "a1" {
+                tab.kind = "agent".into();
+            }
+        }
         validate(&document)?;
         Ok(document)
     }
@@ -350,7 +360,10 @@ fn validate(document: &RegistryDocument) -> Result<(), String> {
     }
     let mut ids = std::collections::HashSet::new();
     for tab in &document.tabs {
-        if tab.tab_id.is_empty() || tab.kind != "a1" || !ids.insert(&tab.tab_id) {
+        if tab.tab_id.is_empty()
+            || !matches!(tab.kind.as_str(), "agent" | "settings")
+            || !ids.insert(&tab.tab_id)
+        {
             return Err("registry tab identity is invalid".to_owned());
         }
         if !matches!(tab.desired.as_str(), "running" | "stopped") {
@@ -398,7 +411,7 @@ mod tests {
             os_session_id: "session".into(),
             tabs: vec![TabRecord {
                 tab_id: "tab-1".into(),
-                kind: "a1".into(),
+                kind: "agent".into(),
                 created_at: "now".into(),
                 display_name: "agent".into(),
                 name_source: "default".into(),
@@ -422,6 +435,22 @@ mod tests {
                 seen_seq: 0,
             }],
         }
+    }
+
+    #[test]
+    fn normalizes_historical_kinds_and_accepts_settings() {
+        let mut legacy = serde_json::to_value(document(7)).unwrap();
+        legacy["tabs"][0].as_object_mut().unwrap().remove("kind");
+        let parsed = RegistryStore::parse(&serde_json::to_vec(&legacy).unwrap()).unwrap();
+        assert_eq!(parsed.tabs[0].kind, "agent");
+
+        let mut settings = document(7);
+        settings.tabs[0].kind = "settings".into();
+        settings.tabs[0].tab_id = "settings-1".into();
+        assert_eq!(
+            RegistryStore::parse(&serde_json::to_vec(&settings).unwrap()).unwrap(),
+            settings
+        );
     }
 
     #[test]

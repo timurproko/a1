@@ -174,7 +174,8 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     tui.requestRender();
   };
   let autocompleteProvider: AutocompleteProvider;
-  const builtInCatalog = options.keybindingProfile === "a1" ? OWNED_BUILTIN_SLASH_COMMANDS : PINNED_PI_BUILTIN_SLASH_COMMANDS;
+  const builtInCatalog = (options.keybindingProfile === "a1" ? OWNED_BUILTIN_SLASH_COMMANDS : PINNED_PI_BUILTIN_SLASH_COMMANDS)
+    .filter(command => !options.hideSettingsCommand || command.name !== "settings");
   const setAutocompleteCommands = (installed: readonly PiShellAutocompleteCommand[]) => {
     // Invariant: collapse is a bare-A1 presentation; the comparison profile installs the pinned list.
     const collapsed: PiShellCollapsedSkillCommands = options.keybindingProfile === "a1" && options.skillsPresentation?.() === "collapse"
@@ -354,6 +355,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       return editor.canPresentPromptSuggestion() ? null : "prompt-mode";
     },
     hasSelection: () => editorUx?.hasSelection() ?? false,
+    selectedText: () => editorUx?.selectedText(),
     ownsPointer: () => editorUx?.ownsPointer() ?? false,
     handlePointer: event => editorUx?.handlePointer(event) ?? false,
     pasteClipboard: () => editorUx?.pasteClipboard() ?? false,
