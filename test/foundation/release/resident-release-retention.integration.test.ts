@@ -63,9 +63,9 @@ describe("resident release retention with real processes", () => {
       ? `\\\\.\\pipe\\a1-tabs-retention-${process.pid}-${Date.now().toString(16)}`
       : resolve(runtime, "resident.sock");
     const common = ["--profile", profile, "--data-dir", fixture.dataDir, "--runtime-dir", runtime];
-    const run = (arguments_: readonly string[]) => spawnSync(process.execPath, [hostEntry, ...arguments_], {
+    const run = (arguments_: readonly string[]) => spawnSync(process.execPath, [releaseHost.entry, ...arguments_], {
       encoding: "utf8",
-      env: hostEnvironment(releaseHost, endpoint),
+      env: hostEnvironment(releaseHost.addon, endpoint),
       cwd: heldByTab!.releaseRoot,
       timeout: 120_000,
       windowsHide: true,
@@ -89,9 +89,9 @@ describe("resident release retention with real processes", () => {
       // by loading that exact addon; the inspection itself is the production command.
       verify: async () => undefined,
       run: async (_command, arguments_, timeoutMs) => runBoundedHostCommand(
-        { executable: process.execPath, entry: hostEntry },
+        { executable: process.execPath, entry: releaseHost.entry },
         arguments_,
-        { environment: hostEnvironment(releaseHost, endpoint), maxStdoutBytes: 1024 * 1024, timeoutMs, label: "fixture release-hold inspection" },
+        { environment: hostEnvironment(releaseHost.addon, endpoint), maxStdoutBytes: 1024 * 1024, timeoutMs, label: "fixture release-hold inspection" },
       ),
     });
     await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
@@ -112,6 +112,7 @@ describe("resident release retention with real processes", () => {
     // Rationale: the cohort runs from a retained release; a mutable-install cohort would make the
     // update end its owner, which in this fixture is the test process itself.
     const { environment, release } = await liveCohort("retained");
+    const releaseHost = await installHost(release.releaseRoot);
     const profile = resolve(environment.A1_DATA_DIR, "profile");
     await mkdir(profile, { recursive: true });
     const runtime = process.platform === "win32" ? resolve(environment.A1_DATA_DIR, "resident-runtime") : await mkdtemp("/tmp/a1rt-");
@@ -122,9 +123,9 @@ describe("resident release retention with real processes", () => {
       ? `\\\\.\\pipe\\a1-tabs-update-${process.pid}-${Date.now().toString(16)}`
       : resolve(runtime, "resident.sock");
     const common = ["--profile", profile, "--data-dir", environment.A1_DATA_DIR, "--runtime-dir", runtime];
-    const run = (arguments_: readonly string[], extra: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [hostEntry, ...arguments_], {
+    const run = (arguments_: readonly string[], extra: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [releaseHost.entry, ...arguments_], {
       encoding: "utf8",
-      env: hostEnvironment(hostAddon, endpoint, extra),
+      env: hostEnvironment(releaseHost.addon, endpoint, extra),
       cwd: release.releaseRoot,
       timeout: 120_000,
       windowsHide: true,
@@ -165,14 +166,22 @@ describe("resident release retention with real processes", () => {
   }, 180_000);
 });
 
-async function installHost(releaseRoot: string): Promise<string> {
-  const directory = resolve(releaseRoot, "dist", "native", `${process.platform}-${process.arch}`);
-  // Rationale: materialized releases may be read-only; the fixture adds its host before use.
+async function installHost(releaseRoot: string): Promise<{ readonly addon: string; readonly entry: string }> {
+  const nativeDirectory = resolve(releaseRoot, "dist", "native", `${process.platform}-${process.arch}`);
+  const entryDirectory = resolve(releaseRoot, "dist", "foundation", "resident-tabs");
+  // Rationale: materialized releases may be read-only; the fixture adds a complete release-shaped
+  // role host before use so detached descendants resolve the same addon without development overrides.
   for (const path of [releaseRoot, resolve(releaseRoot, "dist")]) await chmod(path, 0o755).catch(() => undefined);
-  await mkdir(directory, { recursive: true });
-  const installed = resolve(directory, "terminal-host.node");
-  await copyFile(hostAddon, installed);
-  return installed;
+  await Promise.all([mkdir(nativeDirectory, { recursive: true }), mkdir(entryDirectory, { recursive: true })]);
+  const addon = resolve(nativeDirectory, "terminal-host.node");
+  const entry = resolve(entryDirectory, "host-entry.js");
+  await Promise.all([
+    copyFile(hostAddon, addon),
+    copyFile(hostEntry, entry),
+    copyFile(resolve("dist/product-identity.js"), resolve(releaseRoot, "dist/product-identity.js")),
+    copyFile(resolve("dist/product-identity.json"), resolve(releaseRoot, "dist/product-identity.json")),
+  ]);
+  return { addon, entry };
 }
 
 async function until(condition: () => Promise<boolean>, timeoutMs = 30_000): Promise<void> {

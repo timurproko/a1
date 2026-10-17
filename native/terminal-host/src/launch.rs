@@ -37,9 +37,13 @@ pub struct HostCommand {
 
 static HOST_COMMAND: OnceLock<HostCommand> = OnceLock::new();
 
-/// Records the trusted process command that hosts this addon. Repeated identical registration is
-/// accepted because one Node process can invoke more than one bounded role in tests.
-pub fn set_host_command<I, S>(executable: impl AsRef<Path>, arguments: I) -> Result<(), LaunchError>
+/// Records the trusted process command and loaded addon artifact. Repeated identical registration
+/// is accepted because one Node process can invoke more than one bounded role in tests.
+pub fn set_host_command<I, S>(
+    executable: impl AsRef<Path>,
+    arguments: I,
+    artifact: impl AsRef<Path>,
+) -> Result<(), LaunchError>
 where
     I: IntoIterator<Item = S>,
     S: Into<OsString>,
@@ -47,10 +51,7 @@ where
     let executable = std::fs::canonicalize(executable.as_ref())
         .map_err(|error| LaunchError(format!("verify terminal-host role executable: {error}")))?;
     let arguments = arguments.into_iter().map(Into::into).collect::<Vec<_>>();
-    let artifact = std::env::var_os("A1_TERMINAL_HOST_PATH")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| executable.clone());
-    let artifact = std::fs::canonicalize(&artifact)
+    let artifact = std::fs::canonicalize(artifact.as_ref())
         .map_err(|error| LaunchError(format!("verify terminal-host artifact: {error}")))?;
     let command = HostCommand {
         executable,

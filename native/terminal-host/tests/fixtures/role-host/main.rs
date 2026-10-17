@@ -9,8 +9,9 @@ fn main() -> ExitCode {
         }
     };
     if let Err(error) = terminal_host_contracts::launch::set_host_command(
-        executable,
+        &executable,
         std::iter::empty::<std::ffi::OsString>(),
+        &executable,
     ) {
         eprintln!("a1-terminal-host: {error}");
         return ExitCode::from(2);

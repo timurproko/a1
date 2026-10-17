@@ -55,6 +55,16 @@ describe("native host and launch executable boundaries", () => {
     expect(runner).not.toContain("encoding:");
   });
 
+  it("records the loaded terminal addon explicitly for resident release identity", async () => {
+    const entry = await readFile("src/foundation/resident-tabs/host-entry.ts", "utf8");
+    const addon = await readFile("native/terminal-host/src/node_addon.rs", "utf8");
+    const launch = await readFile("native/terminal-host/src/launch.rs", "utf8");
+    expect(entry).toContain("artifact: addonPath");
+    expect(addon).toContain("host.artifact");
+    expect(launch).toContain("canonicalize(artifact.as_ref())");
+    expect(launch).not.toContain('var_os("A1_TERMINAL_HOST_PATH")');
+  });
+
 });
 
 async function sourceFiles(root: string): Promise<readonly [string, string][]> {

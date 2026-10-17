@@ -132,9 +132,18 @@ pub(super) fn spawn(options: SpawnContainedOptions) -> Result<Runtime, String> {
     let executable = wide_null(&options.executable);
     let cwd = wide_null(&options.cwd);
     let mut environment = environment_block(&options.environment);
+    let input = duplicate_standard_handle(STD_INPUT_HANDLE)?;
+    let output = duplicate_standard_handle(STD_OUTPUT_HANDLE)?;
+    let error = duplicate_standard_handle(STD_ERROR_HANDLE)?;
     let mut startup: STARTUPINFOEXW = unsafe { zeroed() };
     startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
     startup.lpAttributeList = attributes.0;
+    if let (Some(input), Some(output), Some(error)) = (&input, &output, &error) {
+        startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+        startup.StartupInfo.hStdInput = input.raw();
+        startup.StartupInfo.hStdOutput = output.raw();
+        startup.StartupInfo.hStdError = error.raw();
+    }
     let mut process_info: PROCESS_INFORMATION = unsafe { zeroed() };
 
     let created = unsafe {
@@ -339,7 +348,7 @@ fn duplicate_standard_handle(kind: u32) -> Result<Option<OwnedHandle>, String> {
         )
     } == 0
     {
-        return Err(last_error("cannot duplicate inherited watcher stdio"));
+        return Err(last_error("cannot duplicate inherited standard handle"));
     }
     OwnedHandle::new(duplicate).map(Some)
 }

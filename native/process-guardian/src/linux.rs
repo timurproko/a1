@@ -70,7 +70,9 @@ pub(super) fn spawn(options: SpawnContainedOptions) -> Result<Runtime, String> {
     // duplication clears that flag and preserves byte-for-byte terminal or pipe inheritance.
     for descriptor in [libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO] {
         posix_result(
-            unsafe { libc::posix_spawn_file_actions_adddup2(&mut actions.value, descriptor, descriptor) },
+            unsafe {
+                libc::posix_spawn_file_actions_adddup2(&mut actions.value, descriptor, descriptor)
+            },
             "cannot inherit a contained standard stream",
         )?;
     }

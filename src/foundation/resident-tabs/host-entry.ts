@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 interface TerminalHostAddon {
-  runRole(arguments_: string[], host: { executable: string; entry: string }): number;
+  runRole(arguments_: string[], host: { executable: string; entry: string; artifact: string }): number;
 }
 
 const filename = fileURLToPath(import.meta.url);
@@ -21,7 +21,7 @@ const ignoreSignal = (): void => undefined;
 for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.on(signal, ignoreSignal);
 process.env[PRODUCT_IDENTITY.environment.terminalHostPath] = addonPath;
 try {
-  process.exitCode = addon.runRole(process.argv.slice(2), { executable: process.execPath, entry: filename });
+  process.exitCode = addon.runRole(process.argv.slice(2), { executable: process.execPath, entry: filename, artifact: addonPath });
 } finally {
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.off(signal, ignoreSignal);
 }

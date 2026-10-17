@@ -11,8 +11,16 @@ describe("process containment source boundary", () => {
   it("leaves Darwin N-API symbols for the hosting Node runtime", async () => {
     const build = await readFile("native/process-guardian/build.rs", "utf8");
     expect(build).toContain('target.contains("apple")');
-    expect(build).toContain("cargo:rustc-cdylib-link-arg=-Wl,dynamic_lookup");
-    expect(build).toContain("cargo:rustc-link-arg-tests=-Wl,dynamic_lookup");
+    expect(build).toContain("cargo:rustc-link-arg=-Wl,dynamic_lookup");
+    expect(build).not.toContain("cargo:rustc-link-arg-tests");
+  });
+
+  it("explicitly inherits Windows standard handles through CreateProcess", async () => {
+    const source = await readFile("native/process-guardian/src/windows.rs", "utf8");
+    expect(source).toContain("duplicate_standard_handle(STD_INPUT_HANDLE)");
+    expect(source).toContain("duplicate_standard_handle(STD_OUTPUT_HANDLE)");
+    expect(source).toContain("duplicate_standard_handle(STD_ERROR_HANDLE)");
+    expect(source).toContain("startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES");
   });
 
   it("explicitly inherits Unix standard streams through posix_spawn", async () => {

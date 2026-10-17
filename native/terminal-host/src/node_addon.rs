@@ -7,6 +7,7 @@ use crate::session_lock::SessionLock;
 pub struct RoleHost {
     pub executable: String,
     pub entry: String,
+    pub artifact: String,
 }
 
 #[napi(object)]
@@ -55,7 +56,8 @@ pub fn version() -> NodeVersionReport {
 
 #[napi]
 pub fn run_role(arguments: Vec<String>, host: RoleHost) -> Result<u32> {
-    crate::launch::set_host_command(host.executable, [host.entry]).map_err(node_error)?;
+    crate::launch::set_host_command(host.executable, [host.entry], host.artifact)
+        .map_err(node_error)?;
     // Platform: the native role blocks this thread and owns the process. A 1 ms Windows timer
     // period keeps the synchronous readiness polls from adding a full default timer tick per hop.
     #[cfg(windows)]
