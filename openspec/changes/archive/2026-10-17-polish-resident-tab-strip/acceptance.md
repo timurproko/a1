@@ -19,7 +19,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-17-polish-resident-tab-strip/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-17-polish-resident-tab-strip/acceptance.md",
   "finalizedDate": "2026-10-17",
-  "specBaseSha": "ee097cfd95775697ffe0955e565d0a95cc4fe24b",
+  "specBaseSha": "f370434b0ac015bf46d2d927a9d7b064048ea5c0",
   "acceptanceScenarios": [
     "The Generic time-format preference updates resident clocks and submitted-prompt timestamps live in 12- or 24-hour form.",
     "Resident tabs remain close-glyph-free, preserve hover and clock alignment, and reduce to a plus-only empty strip.",
