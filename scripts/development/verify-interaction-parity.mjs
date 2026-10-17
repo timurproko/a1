@@ -20,8 +20,11 @@ export const PARITY_REPORT_SCHEMA = "a1-interaction-parity-v1";
 const CASE_TIMEOUT_MS = 20_000;
 const RECORD_PATTERN = /in#(\d+):([0-9a-f]*);/gu;
 
-/** The bytes a direct terminal sends for one matrix step; `null` for steps the key child cannot see. */
-export function stepBytes(step) {
+/**
+ * The bytes a direct terminal sends for one matrix step; `null` for steps the key child cannot see.
+ * `rowOffset` moves pointer rows below the resident strip so both children see the same cell.
+ */
+export function stepBytes(step, rowOffset = 0) {
   switch (step.kind) {
     case "text": return Buffer.from(step.text, "utf8");
     case "paste": return Buffer.from(`\u001b[200~${step.text}\u001b[201~`, "utf8");
@@ -29,7 +32,7 @@ export function stepBytes(step) {
     case "mouse": {
       const code = step.action === "scroll-up" ? 64 : step.action === "scroll-down" ? 65 : step.action === "motion" ? 32 + ((step.button ?? 1) - 1) : (step.button ?? 1) - 1;
       const suffix = step.action === "release" ? "m" : "M";
-      return Buffer.from(`\u001b[<${code};${step.column + 1};${step.row + 1}${suffix}`, "utf8");
+      return Buffer.from(`\u001b[<${code};${step.column + 1};${step.row + 1 + rowOffset}${suffix}`, "utf8");
     }
     case "key": return keyBytes(step);
     default: return null;
@@ -101,7 +104,8 @@ export function buildObservations(caseId, candidate, platform, records, sentAt, 
 
 /** The report written for CI: a per-platform verdict plus sanitized evidence. */
 export function parityReport(platform, observations, cases, faults, failures = []) {
-  const verdict = compareCandidates(observations, cases, platform);
+  // Rationale: input latency is certified by measure-resident-tabs; this report judges bytes.
+  const verdict = compareCandidates(observations, cases, platform, { latency: false });
   return {
     schema: PARITY_REPORT_SCHEMA,
     platform,
@@ -147,33 +151,58 @@ function terminalRecorder(terminal) {
       await new Promise(resolvePromise => {
         const wake = () => { waiters.delete(wake); resolvePromise(); };
         waiters.add(wake);
-        setTimeout(wake, 25).unref();
+        setTimeout(wake, 25);
       });
     }
   };
   return { waitFor, output: () => output };
 }
 
-async function driveCandidate(candidate, terminal, cases, platform, expectedRecords) {
+/**
+ * The bytes a case delivered to the child as one stream. A terminal may split or merge reads
+ * differently on each path, so the comparison is over the concatenated bytes, not per read.
+ */
+export function caseStream(records) {
+  return { seq: 1, hex: records.map(record => record.hex).join("") };
+}
+
+const QUIET_MS = 300;
+const CASE_DEADLINE_MS = 5_000;
+const STEP_GAP_MS = 30;
+
+async function driveCandidate(candidate, terminal, cases, platform) {
+  const rowOffset = candidate === "resident" ? 1 : 0;
   const observations = [];
   const failures = [];
   const recorder = terminalRecorder(terminal);
-  await recorder.waitFor(output => output.includes("fake-tab-ready"), `${candidate} child readiness`);
+  try {
+    await recorder.waitFor(output => output.includes("fake-tab-ready"), `${candidate} child readiness`);
+  } catch (error) {
+    failures.push({ caseId: "readiness", candidate, reason: String(error.message) });
+    return { observations, failures };
+  }
   let seen = recordsFromOutput(recorder.output()).length;
   for (const entry of cases) {
-    const chunks = entry.steps.map(stepBytes).filter(Boolean);
-    const expected = expectedRecords(entry);
     const sentAt = performance.now();
-    for (const chunk of chunks) terminal.write(chunk.toString("latin1"));
-    try {
-      await recorder.waitFor(output => recordsFromOutput(output).length >= seen + expected, `${candidate} ${entry.id} records`);
-    } catch (error) {
-      failures.push({ caseId: entry.id, candidate, reason: String(error.message) });
+    for (const chunk of entry.steps.map(step => stepBytes(step, rowOffset)).filter(Boolean)) {
+      terminal.write(chunk.toString("latin1"));
+      await new Promise(resolvePromise => setTimeout(resolvePromise, STEP_GAP_MS));
+    }
+    // Invariant: a case is complete once its child has gone quiet; a key no child can observe
+    // on this platform yields an empty stream on both paths, which still compares.
+    const deadline = Date.now() + CASE_DEADLINE_MS;
+    let count = recordsFromOutput(recorder.output()).length;
+    let changedAt = Date.now();
+    while (Date.now() < deadline) {
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
+      const next = recordsFromOutput(recorder.output()).length;
+      if (next !== count) { count = next; changedAt = Date.now(); }
+      if (Date.now() - changedAt >= QUIET_MS && (count > seen || Date.now() - sentAt >= 1_500)) break;
     }
     const records = recordsFromOutput(recorder.output());
     const produced = records.slice(seen);
     seen = records.length;
-    observations.push(...buildObservations(entry.id, candidate, platform, produced, sentAt, performance.now()));
+    observations.push(...buildObservations(entry.id, candidate, platform, [caseStream(produced)], sentAt, performance.now()));
   }
   return { observations, failures };
 }
@@ -191,7 +220,6 @@ async function main() {
   const cases = process.platform === "win32"
     ? KEY_TRANSPORT_CASES.filter(entry => entry.steps.every(step => step.kind === "key" || step.kind === "text"))
     : KEY_TRANSPORT_CASES;
-  const expectedRecords = entry => entry.steps.filter(step => stepBytes(step) !== null).length;
   await prepareNodePty();
   const { spawn } = await import("node-pty");
   const root = await mkdtemp(join(tmpdir(), "a1-interaction-parity-"));
@@ -206,7 +234,7 @@ async function main() {
   try {
     const direct = spawn(fakeTab, [], { cols: 100, rows: 23, cwd: root, env: environment });
     terminals.push(direct);
-    const directRun = await driveCandidate("direct", direct, cases, platform, expectedRecords);
+    const directRun = await driveCandidate("direct", direct, cases, platform);
     observations.push(...directRun.observations); failures.push(...directRun.failures);
 
     run(host, ["server", "--detach", "--profile", context.profile, "--data-dir", context.data, "--runtime-dir", context.runtime], { cwd: root, env: environment });
@@ -216,7 +244,7 @@ async function main() {
       "--release-root", context.release, "--node-executable", fakeTab,
     ], { cols: 100, rows: 24, cwd: root, env: environment });
     terminals.push(attach);
-    const residentRun = await driveCandidate("resident", attach, cases, platform, expectedRecords);
+    const residentRun = await driveCandidate("resident", attach, cases, platform);
     observations.push(...residentRun.observations); failures.push(...residentRun.failures);
     attach.write("\u0003\u0003");
   } finally {
@@ -224,7 +252,8 @@ async function main() {
     try { run(host, ["tabs", "host-stop", "--profile", context.profile, "--data-dir", context.data, "--runtime-dir", context.runtime], { env: environment }); } catch { /* Invariant: a host that already stopped leaves nothing to stop. */ }
     await rm(root, { recursive: true, force: true }).catch(() => {});
   }
-  const faults = validateObservations(observations, cases);
+  // Invariant: this harness observes the bytes each child received, one stream per case.
+  const faults = validateObservations(observations, cases.map(entry => ({ ...entry, expects: ["key"] })));
   const report = parityReport(platform, observations, cases, faults, failures);
   const json = `${JSON.stringify(report, null, 2)}\n`;
   if (out) await writeFile(out, json);

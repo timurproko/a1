@@ -2522,12 +2522,18 @@ fn semantic_input_double_ctrl_c_and_effects_match_the_direct_child_contract() {
 
     // Invariant: plain, control, cursor, and Alt keys arrive as the bytes a terminal would
     // produce for the child's modes, each exactly once.
-    let keys: &[(&[u8], &str)] = &[
-        (b"a", ":61;"),
-        (b"\x01", ":01;"),
-        (b"\x1b[D", ":1b5b44;"),
-        (b"\x1bx", ":1b78;"),
-    ];
+    // Platform: a raw-mode child under ConPTY reads cursor and Alt chords as console records,
+    // not bytes, so Windows checks the plain and control keys a byte-reading child can observe.
+    let keys: &[(&[u8], &str)] = if cfg!(windows) {
+        &[(b"a", ":61;"), (b"\x01", ":01;")]
+    } else {
+        &[
+            (b"a", ":61;"),
+            (b"\x01", ":01;"),
+            (b"\x1b[D", ":1b5b44;"),
+            (b"\x1bx", ":1b78;"),
+        ]
+    };
     for (bytes, record) in keys {
         attach.write(bytes);
         assert!(
@@ -2609,8 +2615,10 @@ fn semantic_input_double_ctrl_c_and_effects_match_the_direct_child_contract() {
     let records_before_chord = highest_input_record(&attach.output_text());
     attach.write(b"\x03\x03");
     assert!(attach.wait(Duration::from_secs(8)).success());
+    // Invariant: the restore bytes may still be queued behind the exit, so they are drained
+    // before the check.
     assert!(
-        attach.output_text().contains("\x1b[0 q"),
+        attach.output_containing("\x1b[0 q", Duration::from_secs(5)),
         "detach did not restore the outer cursor shape: {}",
         attach.output_text()
     );
@@ -2725,7 +2733,6 @@ fn streaming_tabs_advance_independently_while_the_view_switches_rapidly() {
             let offset = viewer.retained_len();
             let jump = format!("\x1b{}", index + 2);
             viewer.write(jump.as_bytes());
-            let needle = format!("{label}:tick:");
             let deadline = Instant::now() + Duration::from_secs(15);
             while progress_samples(&viewer.output_since(offset), label).is_empty() {
                 assert!(
@@ -2733,7 +2740,9 @@ fn streaming_tabs_advance_independently_while_the_view_switches_rapidly() {
                     "tab {label} never presented in round {round}: {}",
                     viewer.output_text()
                 );
-                viewer.output_containing(&needle, Duration::from_millis(200));
+                // Invariant: earlier rounds already retained this label, so only output that
+                // arrives after the switch can prove the tab presented.
+                viewer.settle(Duration::from_millis(200));
             }
             viewer.settle(Duration::from_millis(250));
             for sample in progress_samples(&viewer.output_since(offset), label) {

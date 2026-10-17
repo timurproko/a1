@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { interactionCase, KEY_TRANSPORT_CASES } from "../../../scripts/development/interaction-parity/matrix.mjs";
-import { buildObservations, PARITY_REPORT_SCHEMA, parityReport, recordsFromOutput, stepBytes } from "../../../scripts/development/verify-interaction-parity.mjs";
+import { buildObservations, caseStream, PARITY_REPORT_SCHEMA, parityReport, recordsFromOutput, stepBytes } from "../../../scripts/development/verify-interaction-parity.mjs";
 
 describe("interaction parity harness", () => {
   it("encodes matrix steps as the bytes a direct terminal sends", () => {
@@ -20,6 +20,14 @@ describe("interaction parity harness", () => {
     for (const entry of KEY_TRANSPORT_CASES) {
       expect(entry.steps.some(step => stepBytes(step) !== null), entry.id).toBe(true);
     }
+  });
+
+  it("compares one byte stream per case however each path split its reads", () => {
+    const direct = caseStream(recordsFromOutput("in#1:68656c6c6f;"));
+    const resident = caseStream(recordsFromOutput("in#1:68; in#2:65; in#3:6c6c; in#4:6f;"));
+    expect(direct).toEqual(resident);
+    expect(caseStream([])).toEqual({ seq: 1, hex: "" });
+    expect(stepBytes({ kind: "mouse", action: "press", button: 1, column: 4, row: 2 }, 1)).toEqual(Buffer.from("\u001b[<0;5;4M"));
   });
 
   it("reads child records once each in order and digests them without keeping bytes", () => {

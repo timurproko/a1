@@ -76,9 +76,11 @@ export function validateObservations(observations, cases) {
 /**
  * Compares direct and resident observations by case, kind, and sequence. Digest, length, and
  * every detail field must match after normalization, each kind's latency must fit its budget,
- * and only a case's declared difference may excuse a mismatch.
+ * and only a case's declared difference may excuse a mismatch. `latency: false` compares content
+ * only, for evidence whose timing is certified elsewhere.
  */
-export function compareCandidates(observations, cases, platform) {
+export function compareCandidates(observations, cases, platform, options = {}) {
+  const checkLatency = options.latency !== false;
   const divergences = [];
   const declared = [];
   let compared = 0;
@@ -110,7 +112,7 @@ export function compareCandidates(observations, cases, platform) {
         if (l !== r) note(left.kind, left.seq, field, l, r);
       }
       const latency = right.observedAt - right.sentAt;
-      if (latency > LATENCY_BUDGETS_MS[right.kind]) note(right.kind, right.seq, "latency", left.observedAt - left.sentAt, latency);
+      if (checkLatency && latency > LATENCY_BUDGETS_MS[right.kind]) note(right.kind, right.seq, "latency", left.observedAt - left.sentAt, latency);
     }
     for (const key of resident.keys()) {
       if (key.startsWith(`${entry.id}\u0000`) && !direct.has(key)) {

@@ -58,6 +58,14 @@ impl SemanticEncoder {
             } => {
                 let code = semantic_keys::key_code(key)
                     .ok_or_else(|| "input rejected; unknown key identity".to_owned())?;
+                // Compatibility: without the kitty keyboard protocol a modified Enter, Tab,
+                // Backspace, or Escape reaches direct A1 as the bytes its terminal sends, such as
+                // the LF ConPTY reports for Ctrl+Enter; only an enhanced child gets libghostty's form.
+                if terminal.kitty_keyboard_flags().unwrap_or(0) == 0
+                    && let Some(bytes) = modified_control_fallback(key, *mods)
+                {
+                    return Ok(bytes);
+                }
                 let encoded = self.keys.encode(
                     terminal,
                     code,

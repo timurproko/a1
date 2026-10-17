@@ -45,4 +45,4 @@ export interface ParityVerdict {
 export function digestContent(content: string | Uint8Array): string;
 export function normalizeResident(observation: Observation): Observation | null;
 export function validateObservations(observations: readonly Observation[], cases: readonly InteractionCase[]): ObservationFault[];
-export function compareCandidates(observations: readonly Observation[], cases: readonly InteractionCase[], platform: string): ParityVerdict;
+export function compareCandidates(observations: readonly Observation[], cases: readonly InteractionCase[], platform: string, options?: { readonly latency?: boolean }): ParityVerdict;

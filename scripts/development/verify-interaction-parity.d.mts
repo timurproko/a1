@@ -2,8 +2,9 @@ import type { InteractionCase, InteractionStep } from "./interaction-parity/matr
 import type { Candidate, Divergence, Observation, ObservationFault, ResidentDifference } from "./interaction-parity/observations.mjs";
 
 export const PARITY_REPORT_SCHEMA: "a1-interaction-parity-v1";
-export function stepBytes(step: InteractionStep): Buffer | null;
+export function stepBytes(step: InteractionStep, rowOffset?: number): Buffer | null;
 export function recordsFromOutput(output: string): { seq: number; hex: string }[];
+export function caseStream(records: readonly { seq: number; hex: string }[]): { seq: number; hex: string };
 export function buildObservations(caseId: string, candidate: Candidate, platform: string, records: readonly { seq: number; hex: string }[], sentAt: number, observedAt: number): Observation[];
 export function parityReport(
   platform: string,
