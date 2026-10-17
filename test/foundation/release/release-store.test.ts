@@ -2,7 +2,7 @@ import { chmod, mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } from 
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { certifyMaterializedRelease, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, RELEASE_MANIFEST_FILENAME, resolveReleaseEntryPoint, verifyMaterializedRelease, type ReleaseContentOperationEvent } from "../../../src/foundation/release/index.js";
+import { assertCertifiedFilesPresent, certifyMaterializedRelease, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, RELEASE_MANIFEST_FILENAME, repairMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type ReleaseContentOperationEvent } from "../../../src/foundation/release/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -58,6 +58,48 @@ describe("immutable release materialization", () => {
     ]);
     expect(second.releaseRoot).toBe(first.releaseRoot);
     expect((await readdir(resolve(dataDir, "releases"))).filter(path => path.startsWith(".candidate-"))).toEqual([]);
+  });
+
+  it("repairs a missing file when materialization converges on an existing release", async () => {
+    const { packageRoot, dataDir } = await fixture();
+    const first = await materializeRelease(packageRoot, dataDir);
+    const payload = resolve(first.releaseRoot, "dist/app.js");
+    await rm(payload);
+    await expect(assertCertifiedFilesPresent(first.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const repaired = await materializeRelease(packageRoot, dataDir);
+    expect(repaired.releaseId).toBe(first.releaseId);
+    await expect(readFile(payload, "utf8")).resolves.toBe("payload");
+    await expect(verifyMaterializedRelease(first.releaseRoot)).resolves.toMatchObject({ releaseId: first.releaseId });
+  });
+
+  it("rewrites altered files from matching package bytes and restores immutable mode", async () => {
+    const { packageRoot, dataDir } = await fixture();
+    const release = await materializeRelease(packageRoot, dataDir);
+    const payload = resolve(release.releaseRoot, "dist/app.js");
+    await chmod(payload, 0o600);
+    await writeFile(payload, "altered");
+    // Presence is deliberately cheaper than digest verification for the certified bootstrap path.
+    await expect(assertCertifiedFilesPresent(release.releaseRoot)).resolves.toBeUndefined();
+
+    await expect(repairMaterializedRelease(packageRoot, release.releaseRoot)).resolves.toMatchObject({ releaseId: release.releaseId });
+    await expect(readFile(payload, "utf8")).resolves.toBe("payload");
+    await expect(verifyMaterializedRelease(release.releaseRoot)).resolves.toMatchObject({ releaseId: release.releaseId });
+  });
+
+  it("refuses repair when the installed version or source bytes cannot reproduce the release", async () => {
+    const first = await fixture();
+    const release = await materializeRelease(first.packageRoot, first.dataDir);
+    await rm(resolve(release.releaseRoot, "dist/app.js"));
+    await writeFile(resolve(first.packageRoot, "dist/app.js"), "different bytes");
+    await expect(repairMaterializedRelease(first.packageRoot, release.releaseRoot)).rejects.toMatchObject({ code: "RELEASE_REPAIR_UNAVAILABLE" });
+
+    const second = await fixture();
+    const other = await materializeRelease(second.packageRoot, second.dataDir);
+    await rm(resolve(other.releaseRoot, "dist/app.js"));
+    const packageManifest = JSON.parse(await readFile(resolve(second.packageRoot, "package.json"), "utf8")) as Record<string, unknown>;
+    await writeFile(resolve(second.packageRoot, "package.json"), JSON.stringify({ ...packageManifest, version: "2.0.1" }));
+    await expect(repairMaterializedRelease(second.packageRoot, other.releaseRoot)).rejects.toMatchObject({ code: "RELEASE_REPAIR_UNAVAILABLE" });
   });
 
   it("uses metadata-only loading only for an already authenticated live release", async () => {

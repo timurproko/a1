@@ -64,16 +64,20 @@ describe("mutable bootstrap boundary", () => {
 
   it("validates durable restart authority before starting a replacement supervisor", async () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
+    const presenceCheck = bootstrap.indexOf("await assertCertifiedFilesPresent(active.releaseRoot)");
     const validationStart = bootstrap.indexOf('"durable-validation-start"');
     const restartRead = bootstrap.indexOf("await readRestartCertifiedRelease");
     const completeFallback = bootstrap.indexOf("await readMaterializedRelease(active.releaseRoot");
+    const repair = bootstrap.indexOf("await repairApprovedRelease(options.packageRoot, active, paths.dataDir)", completeFallback);
     const supervisorStart = bootstrap.indexOf('"replacement-supervisor-start"');
     const start = bootstrap.indexOf("await ensureSupervisor(retained", supervisorStart);
 
-    expect(validationStart).toBeGreaterThan(0);
+    expect(presenceCheck).toBeGreaterThan(0);
+    expect(validationStart).toBeGreaterThan(presenceCheck);
     expect(restartRead).toBeGreaterThan(validationStart);
     expect(completeFallback).toBeGreaterThan(restartRead);
-    expect(supervisorStart).toBeGreaterThan(completeFallback);
+    expect(repair).toBeGreaterThan(completeFallback);
+    expect(supervisorStart).toBeGreaterThan(repair);
     expect(start).toBeGreaterThan(supervisorStart);
   });
 

@@ -37,7 +37,7 @@ Each numbered section is one Implementation item of the pull request and one com
 
 ## 8. Release self-repair
 
-- [ ] 8.1 In `src/foundation/release/release-store.ts` add `assertCertifiedFilesPresent` and `repairMaterializedRelease` as design Decision 8 specifies and call repair from `materializeRelease` when the existing release fails verification; in `src/foundation/release/bootstrap.ts` check file presence before the certified fast path and repair before `readMaterializedRelease`; update `test/foundation/release/{release-store,bootstrap}.test.ts`.
+- [x] 8.1 In `src/foundation/release/release-store.ts` add `assertCertifiedFilesPresent` and `repairMaterializedRelease` as design Decision 8 specifies and call repair from `materializeRelease` when the existing release fails verification; in `src/foundation/release/bootstrap.ts` check file presence before the certified fast path and repair before `readMaterializedRelease`; update `test/foundation/release/{release-store,bootstrap}.test.ts`.
 
 ## 9. Documentation
 

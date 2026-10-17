@@ -83,11 +83,14 @@ export { collectRelease, prepareReleaseCleanup, runBoundedReleaseCleanup, runRel
 export type { ReleaseCleanupLimits, ReleaseCleanupOperations, ReleaseCleanupOptions, ReleaseCleanupResult, ReleaseCleanupWorkerOptions } from "./release-gc.js";
 export {
   RELEASE_MANIFEST_FILENAME,
+  ReleaseRepairUnavailableError,
+  assertCertifiedFilesPresent,
   assertImmutableExecutionRoot,
   consumeMaterializationProof,
   materializeRelease,
   readCertifiedReleaseManifest,
   readMaterializedRelease,
+  repairMaterializedRelease,
   resolveReleaseEntryPoint,
   verifyMaterializedRelease,
 } from "./release-store.js";

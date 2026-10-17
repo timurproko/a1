@@ -63,6 +63,14 @@ export interface CertifiedReleaseRecord {
   readonly launchContract?: string;
 }
 
+export class ReleaseRepairUnavailableError extends Error {
+  readonly code = "RELEASE_REPAIR_UNAVAILABLE" as const;
+  constructor(message: string, options: ErrorOptions = {}) {
+    super(message, options);
+    this.name = "ReleaseRepairUnavailableError";
+  }
+}
+
 /** Process-authority compatibility controls for metadata-only release loading. */
 export type ReadCertifiedReleaseManifestOptions = ReadCertifiedDependencyLayerOptions;
 
@@ -125,7 +133,7 @@ export async function materializeRelease(packageRoot: string, dataDir: string, o
     const releaseRoot = resolveWithin(storeRoot, identity.releaseId);
     if (await lstat(releaseRoot).catch(() => null)) {
       await rm(candidate, { recursive: true, force: true });
-      return certificationReadyRelease(await verifyMaterializedRelease(releaseRoot, identity));
+      return certificationReadyRelease(await verifyOrRepairMaterializedRelease(payload.packageRoot, releaseRoot, identity));
     }
 
     await writeFile(resolve(candidate, RELEASE_MANIFEST_FILENAME), JSON.stringify(identity, null, 2), { mode: 0o400, flag: "wx" });
@@ -134,7 +142,7 @@ export async function materializeRelease(packageRoot: string, dataDir: string, o
     } catch (error) {
       if (!await lstat(releaseRoot).catch(() => null)) throw error;
       await rm(candidate, { recursive: true, force: true });
-      return certificationReadyRelease(await verifyMaterializedRelease(releaseRoot, identity));
+      return certificationReadyRelease(await verifyOrRepairMaterializedRelease(payload.packageRoot, releaseRoot, identity));
     }
     return certificationReadyRelease({ ...identity, releaseRoot: await realpath(releaseRoot) });
   } catch (error) {
@@ -154,6 +162,56 @@ export async function readMaterializedRelease(releaseRoot: string, selectedStore
   const canonical = await realpath(releaseRoot);
   const manifest = JSON.parse(await readFile(resolve(canonical, RELEASE_MANIFEST_FILENAME), "utf8")) as ReleaseIdentity;
   return certificationReadyRelease(await verifyMaterializedRelease(canonical, manifest, selectedStoreRoot));
+}
+
+/** Fast presence check before trusted certification permits a release to skip full verification. */
+export async function assertCertifiedFilesPresent(releaseRoot: string): Promise<void> {
+  const canonical = await realpath(releaseRoot);
+  const manifest = await readReleaseManifest(canonical);
+  await mapWithConcurrency(manifest.files, RELEASE_FILE_IO_CONCURRENCY, async file => {
+    const metadata = await lstat(resolveWithin(canonical, file.path));
+    if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error(`certified release file is missing: ${file.path}`);
+  });
+}
+
+/**
+ * Restore changed or missing product payload files from the installed package without replacing the
+ * immutable release directory. Dependency layers retain their own verification and repair policy.
+ */
+export async function repairMaterializedRelease(packageRoot: string, releaseRoot: string): Promise<MaterializedRelease> {
+  const canonical = await realpath(releaseRoot);
+  let manifest: ReleaseIdentity;
+  let payload: Awaited<ReturnType<typeof discoverReleasePayload>>;
+  try {
+    manifest = await readReleaseManifest(canonical);
+    payload = await discoverReleasePayload(packageRoot);
+    assertCurrentLaunchContract(payload);
+  } catch (error) {
+    throw repairUnavailable("release repair metadata is unavailable", error);
+  }
+  if (payload.packageVersion !== manifest.packageVersion) {
+    throw repairUnavailable(`installed package version ${payload.packageVersion} does not match release ${manifest.packageVersion}`);
+  }
+  const payloadPaths = new Set(payload.paths.filter(path => !path.startsWith("node_modules/")));
+  try {
+    await mapWithConcurrency(manifest.files, RELEASE_FILE_IO_CONCURRENCY, async file => {
+      const destination = resolveWithin(canonical, file.path);
+      if (!await certifiedFileDiffers(destination, file)) return;
+      if (!payloadPaths.has(file.path)) throw repairUnavailable(`installed package does not carry ${file.path}`);
+      const source = resolveWithin(payload.packageRoot, file.path);
+      const sourceMetadata = await lstat(source);
+      if (!sourceMetadata.isFile() || sourceMetadata.isSymbolicLink()) throw repairUnavailable(`installed package file is not regular: ${file.path}`);
+      const bytes = payload.cachedFiles.get(file.path) ?? await readFile(source);
+      if (bytes.length !== file.bytes || createHash("sha256").update(bytes).digest("hex") !== file.sha256) {
+        throw repairUnavailable(`installed package bytes do not match release file ${file.path}`);
+      }
+      await replaceReleaseFile(destination, bytes, file);
+    });
+    return await verifyMaterializedRelease(canonical, manifest);
+  } catch (error) {
+    if (error instanceof ReleaseRepairUnavailableError) throw error;
+    throw repairUnavailable("release repair could not restore the certified payload", error);
+  }
 }
 
 /**
@@ -259,6 +317,65 @@ async function verifyFile(root: string, file: ReleaseFileIdentity, options: Veri
   options.onOperation?.({ operation: "verification-read", path: file.path, bytes: bytes.length });
   const digest = createHash("sha256").update(bytes).digest("hex");
   if (digest !== file.sha256) throw new Error(`release file digest mismatch: ${file.path}`);
+}
+
+async function verifyOrRepairMaterializedRelease(
+  packageRoot: string,
+  releaseRoot: string,
+  expected: ReleaseIdentity,
+): Promise<MaterializedRelease> {
+  try {
+    return await verifyMaterializedRelease(releaseRoot, expected);
+  } catch {
+    await repairMaterializedRelease(packageRoot, releaseRoot);
+    return await verifyMaterializedRelease(releaseRoot, expected);
+  }
+}
+
+async function readReleaseManifest(releaseRoot: string): Promise<ReleaseIdentity> {
+  const manifest = JSON.parse(await readFile(resolveWithin(releaseRoot, RELEASE_MANIFEST_FILENAME), "utf8")) as ReleaseIdentity;
+  validateManifest(manifest);
+  if (releaseRoot.split(sep).at(-1) !== manifest.releaseId) throw new Error(`release directory does not match identity ${manifest.releaseId}`);
+  return manifest;
+}
+
+async function certifiedFileDiffers(path: string, file: ReleaseFileIdentity): Promise<boolean> {
+  const metadata = await lstat(path).catch((error: unknown) => {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return null;
+    throw error;
+  });
+  if (metadata === null || !metadata.isFile() || metadata.isSymbolicLink() || metadata.size !== file.bytes) return true;
+  if ((metadata.mode & 0o222) !== 0 || ((metadata.mode & 0o111) !== 0) !== file.executable) return true;
+  return createHash("sha256").update(await readFile(path)).digest("hex") !== file.sha256;
+}
+
+async function replaceReleaseFile(path: string, bytes: Uint8Array, file: ReleaseFileIdentity): Promise<void> {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = resolve(dirname(path), `.a1-repair-${randomUUID()}`);
+  const mode = file.executable ? 0o500 : 0o400;
+  let existing: Awaited<ReturnType<typeof lstat>> | null = null;
+  try {
+    await writeFile(temporary, bytes, { flag: "wx", mode: 0o600 });
+    existing = await lstat(path).catch((error: unknown) => {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") return null;
+      throw error;
+    });
+    if (existing !== null) {
+      if (!existing.isFile() || existing.isSymbolicLink()) throw repairUnavailable(`release file cannot be safely replaced: ${file.path}`);
+      // Platform: Windows refuses rename-over for a read-only destination.
+      await chmod(path, 0o600);
+    }
+    await rename(temporary, path);
+    await chmod(path, mode);
+  } catch (error) {
+    await rm(temporary, { force: true }).catch(() => {});
+    if (existing !== null) await chmod(path, mode).catch(() => {});
+    throw error;
+  }
+}
+
+function repairUnavailable(message: string, cause?: unknown): ReleaseRepairUnavailableError {
+  return new ReleaseRepairUnavailableError(message, cause === undefined ? {} : { cause });
 }
 
 function certificationReadyRelease(release: MaterializedRelease): MaterializedRelease {
