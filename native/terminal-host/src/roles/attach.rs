@@ -1227,14 +1227,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             match kind.message_type.as_str() {
                 "surface" => {
                     let (_, surface): (_, Surface) = wire::body(&payload)?;
-                    // The server selects its default tab before attach.start can report that ID.
-                    // Adopt its first surface as the requested view, then stage it until the tab
-                    // list arrives so the chip and child surface still commit in one frame.
-                    adopt_initial_surface(
-                        viewed.as_deref(),
-                        &mut requested_view,
-                        &surface.tab_id,
-                    );
+                    // Protocol: the server selects its default tab before attach.start can report
+                    // the ID. Adopt its first surface as the requested view, then stage it until
+                    // the tab list arrives so the chip and child surface commit in one frame.
+                    adopt_initial_surface(viewed.as_deref(), &mut requested_view, &surface.tab_id);
                     let requested = requested_view.as_deref() == Some(surface.tab_id.as_str());
                     if requested
                         && staged_tabs.is_none()
