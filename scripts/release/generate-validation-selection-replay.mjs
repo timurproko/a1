@@ -11,7 +11,7 @@ const fixtures = [
   ["launch-startup", "src/features/launch/runtime-selection.ts"],
   ["release-package-update", "src/foundation/release/bootstrap.ts"],
   ["pi", "src/integrations/pi/engine/agent-engine.ts"],
-  ["native-containment", "native/process-guardian/src/main.rs"],
+  ["native-containment", "native/process-guardian/src/lib.rs"],
   ["image-history", "src/features/prompt-history/service.ts"],
   ["shared-support", "test/support/shared-fixture.ts"],
   ["validation-authority", "config/validation-ownership.json"],

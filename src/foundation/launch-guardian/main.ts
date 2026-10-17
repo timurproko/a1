@@ -1,22 +1,26 @@
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { PRODUCT_TEXT } from "../../product-identity.js";
 import { readLaunchContext } from "../launch-context/index.js";
 import { resolve } from "node:path";
 import type { LaunchInstanceOutcome, LaunchInstanceStopIntent, LaunchInstanceStopReason, LaunchProfileId, NativeProcessIdentity, SupervisorCommand } from "../lifecycle/index.js";
 import { assertLaunchProfileId, resolveCohortEndpoint, resolveProductPaths, sessionSelectionArguments, type SessionSelection } from "../lifecycle/index.js";
 import {
+  AddonContainment,
+  AddonProcessInspector,
   closeVerifiedContainment,
-  DarwinNativeProcessInspector,
   LinuxNativeProcessInspector,
-  NativeGuardianContainment,
+  loadProcessGuardianAddon,
   resolveProcessGuardianPath,
   verifyProcessGuardianArtifact,
-  WindowsNativeProcessInspector,
   type NativeProcessInspector,
   type ProcessContainment,
+  type ProcessGuardianAddon,
 } from "../process-containment/index.js";
 import { SupervisorClient } from "../protocol/index.js";
 import { markStartupPhase } from "../startup/index.js";
+import { exitWatcherArguments } from "./exit-watcher.js";
 
 interface GuardianControl {
   connect(endpoint: string, timeoutMs?: number): Promise<unknown>;
@@ -45,6 +49,7 @@ export interface LaunchGuardianOptions {
   readonly inspector?: NativeProcessInspector;
   readonly control?: GuardianControl;
   readonly containment?: ProcessContainment;
+  readonly addon?: ProcessGuardianAddon;
   readonly ensureHelper?: (path: string) => Promise<void>;
 }
 
@@ -56,8 +61,11 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
   const paths = resolveProductPaths(environment);
   const instanceId = randomUUID();
   const helperPath = options.helperPath ?? resolveProcessGuardianPath(options.releaseRoot, environment);
-  const inspector = options.inspector ?? platformInspector(helperPath);
   await (options.ensureHelper ?? verifyProcessGuardianArtifact)(helperPath);
+  // Rationale: tests that inject both process boundaries need no native module; every production
+  // path loads the exact artifact only after its manifest and digest have been verified.
+  const addon = options.addon ?? (options.containment && options.inspector ? null : loadProcessGuardianAddon(helperPath));
+  const inspector = options.inspector ?? platformInspector(requireAddon(addon));
   const guardianIdentity = await inspector.observe(process.pid);
   if (!guardianIdentity) throw diagnosticError("launch guardian cannot verify its own native process identity", "PROCESS_IDENTITY_UNAVAILABLE");
 
@@ -71,11 +79,12 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
     : paths.endpoint;
   await client.connect(endpoint);
   await markStartupPhase(environment, "guardian-connected");
-  const containment = options.containment ?? new NativeGuardianContainment(
+  const exitNoticePath = resolve(paths.runtimeDir, "launch-instances", `${instanceId}.exit-notice`);
+  const containment = options.containment ?? new AddonContainment(
     instanceId,
     helperPath,
-    resolve(paths.runtimeDir, "launch-instances", `${instanceId}.ready.json`),
-    resolve(paths.runtimeDir, "launch-instances", `${instanceId}.exit-notice`),
+    exitNoticePath,
+    requireAddon(addon),
   );
   const stop = stopRequests(client, instanceId);
   let rootIdentity: NativeProcessIdentity | null = null;
@@ -90,14 +99,26 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
     });
 
     let handle;
+    let encodedModes: string | null = null;
     try {
       const rootCommand = options.rootCommand ?? { executable: process.execPath, arguments: [options.uiEntry, ...sessionArgs] };
+      encodedModes = addon?.captureTerminalModes() ?? null;
       handle = await containment.spawn(rootCommand.executable, [...rootCommand.arguments], {
         cwd: options.cwd ?? process.cwd(),
         environment: environmentEntries(environment),
         ...(environment.TERM ? { terminalType: environment.TERM } : {}),
       });
       rootIdentity = handle.identity;
+      if (addon && encodedModes !== null) {
+        await startExitWatcher(addon, {
+          addonPath: helperPath,
+          noticePath: exitNoticePath,
+          encodedModes,
+          runtimePid: handle.identity.pid,
+          processGroup: handle.processGroup ?? null,
+          foregroundGroup: handle.foregroundGroup ?? null,
+        });
+      }
       await requireAccepted(client, {
         type: "activate-launch-instance",
         requestId: randomUUID(),
@@ -136,6 +157,9 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
       }),
     ]);
 
+    // Invariant: the root removes a clean notice. If it left the notice armed, the guardian claims,
+    // restores, and prints it before closing the native containment handle.
+    if (addon && encodedModes !== null) addon.deliverExitNotice(exitNoticePath, encodedModes);
     await containment.close();
     if (outcome.kind !== "interrupted" || outcome.reason !== "supervisor-disconnect") {
       await completeBestEffort(
@@ -155,11 +179,51 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
   }
 }
 
-function platformInspector(helperPath: string): NativeProcessInspector {
-  if (process.platform === "win32") return new WindowsNativeProcessInspector(helperPath);
+async function startExitWatcher(
+  addon: ProcessGuardianAddon,
+  options: {
+    readonly addonPath: string;
+    readonly noticePath: string;
+    readonly encodedModes: string;
+    readonly runtimePid: number;
+    readonly processGroup: number | null;
+    readonly foregroundGroup: number | null;
+  },
+): Promise<void> {
+  const entry = fileURLToPath(new URL("./exit-watcher.js", import.meta.url));
+  const arguments_ = [entry, ...exitWatcherArguments({
+    guardianPid: process.pid,
+    ...options,
+  })];
+  if (process.platform === "win32") {
+    addon.spawnWatcher({ executable: process.execPath, arguments: arguments_ });
+    return;
+  }
+  await new Promise<void>((resolvePromise, rejectPromise) => {
+    const watcher = spawn(process.execPath, arguments_, {
+      stdio: "inherit",
+      detached: false,
+      windowsHide: false,
+    });
+    watcher.once("error", rejectPromise);
+    watcher.once("spawn", () => {
+      watcher.off("error", rejectPromise);
+      watcher.unref();
+      resolvePromise();
+    });
+  });
+}
+
+function platformInspector(addon: ProcessGuardianAddon): NativeProcessInspector {
+  if (process.platform === "win32") return new AddonProcessInspector(addon, "windows-filetime:");
   if (process.platform === "linux") return new LinuxNativeProcessInspector();
-  if (process.platform === "darwin") return new DarwinNativeProcessInspector(helperPath);
+  if (process.platform === "darwin") return new AddonProcessInspector(addon, "darwin-proc-start:");
   throw diagnosticError(`launch-instance process containment is unsupported on ${process.platform}`, "CONTAINMENT_UNSUPPORTED");
+}
+
+function requireAddon(addon: ProcessGuardianAddon | null): ProcessGuardianAddon {
+  if (!addon) throw diagnosticError("process guardian addon is unavailable", "CONTAINMENT_ARTIFACT_MISSING");
+  return addon;
 }
 
 function stopRequests(client: GuardianControl, instanceId: string) {

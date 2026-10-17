@@ -299,7 +299,9 @@ async function stopPackagedSupervisor(
   dataDir: string,
   releaseVerifiedIdleOwner: typeof import("../../../src/foundation/release/index.js")["releaseVerifiedIdleOwner"],
 ): Promise<void> {
-  const deadline = Date.now() + 5_000;
+  // Rationale: a force-stopped guardian is reconciled on the supervisor liveness cadence, which can
+  // consume almost five seconds on a loaded Defender runner before the verified idle check succeeds.
+  const deadline = Date.now() + 10_000;
   let owner: Parameters<typeof releaseVerifiedIdleOwner>[0] | null = null;
   while (Date.now() < deadline) {
     owner = JSON.parse(await readFile(endpointMetadataPath, "utf8")) as Parameters<typeof releaseVerifiedIdleOwner>[0];

@@ -3,9 +3,9 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertIntegrationSelection } from "./integration-selection.mjs";
 
-const WINDOWS = { os: "windows-2025", platform: "win32", architecture: "x64", binary: "process-guardian.exe" };
-const LINUX = { os: "ubuntu-24.04", platform: "linux", architecture: "x64", binary: "process-guardian" };
-const DARWIN = { os: "macos-15", platform: "darwin", architecture: "arm64", binary: "process-guardian" };
+const WINDOWS = { os: "windows-2025", platform: "win32", architecture: "x64", addon: "process-guardian.node" };
+const LINUX = { os: "ubuntu-24.04", platform: "linux", architecture: "x64", addon: "process-guardian.node" };
+const DARWIN = { os: "macos-15", platform: "darwin", architecture: "arm64", addon: "process-guardian.node" };
 
 /**
  * Partitions of the serialized terminal-host role-fixture suite, each on its own runner. The suite ran
@@ -33,17 +33,17 @@ export const DEVELOPMENT_VALIDATION_MATRIX = Object.freeze([
   { group: "package", label: "Exact-package contracts", ...WINDOWS, node: 22, build: true, guardian: false, defender: false },
   { group: "startup", label: "First-attempt startup budget", ...WINDOWS, node: 22, build: true, guardian: false, defender: true },
   { group: "compatibility", label: "Image and history compatibility", ...WINDOWS, node: 22, build: true, guardian: false, defender: false },
-  { group: "containment", label: "Unix integration (Linux)", os: "ubuntu-24.04", platform: "linux", architecture: "x64", node: 24, build: true, guardian: true, defender: false, binary: "process-guardian" },
-  { group: "containment", label: "Unix integration (macOS)", os: "macos-15", platform: "darwin", architecture: "arm64", node: 24, build: true, guardian: true, defender: false, binary: "process-guardian" },
-  { group: "terminal-host", label: "Native terminal host (Windows x64)", ...WINDOWS, node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostBinary: "terminal-host.exe" },
-  { group: "terminal-host", label: "Native terminal host (Linux x64)", os: "ubuntu-24.04", platform: "linux", architecture: "x64", node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostBinary: "terminal-host" },
-  { group: "terminal-host", label: "Native terminal host (macOS arm64)", os: "macos-15", platform: "darwin", architecture: "arm64", node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostBinary: "terminal-host" },
+  { group: "containment", label: "Unix integration (Linux)", ...LINUX, node: 24, build: true, guardian: true, defender: false },
+  { group: "containment", label: "Unix integration (macOS)", ...DARWIN, node: 24, build: true, guardian: true, defender: false },
+  { group: "terminal-host", label: "Native terminal host (Windows x64)", ...WINDOWS, node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostAddon: "terminal-host.node" },
+  { group: "terminal-host", label: "Native terminal host (Linux x64)", ...LINUX, node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostAddon: "terminal-host.node" },
+  { group: "terminal-host", label: "Native terminal host (macOS arm64)", ...DARWIN, node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostAddon: "terminal-host.node" },
   ...terminalHostPartitions(WINDOWS, "Windows x64"),
   ...terminalHostPartitions(LINUX, "Linux x64"),
   ...terminalHostPartitions(DARWIN, "macOS arm64"),
   { group: "resident-chaos", label: "Resident tabs chaos (Windows x64)", ...WINDOWS, node: 24, build: true, guardian: false, defender: false, chaos: true },
-  { group: "resident-chaos", label: "Resident tabs chaos (Linux x64)", os: "ubuntu-24.04", platform: "linux", architecture: "x64", node: 24, build: true, guardian: false, defender: false, chaos: true },
-  { group: "resident-chaos", label: "Resident tabs chaos (macOS arm64)", os: "macos-15", platform: "darwin", architecture: "arm64", node: 24, build: true, guardian: false, defender: false, chaos: true },
+  { group: "resident-chaos", label: "Resident tabs chaos (Linux x64)", ...LINUX, node: 24, build: true, guardian: false, defender: false, chaos: true },
+  { group: "resident-chaos", label: "Resident tabs chaos (macOS arm64)", ...DARWIN, node: 24, build: true, guardian: false, defender: false, chaos: true },
 ].map(entry => Object.freeze(entry)));
 
 /** Map an integration owner to the modular job that executes it on a platform. */

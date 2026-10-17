@@ -2,7 +2,7 @@ import { constants } from "node:fs";
 import { access } from "node:fs/promises";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { runBoundedHostCommand } from "./bounded-host-command.js";
-import { resolveTerminalHostPath } from "./ensure-terminal-host.js";
+import { resolveTerminalHostEntryPath, resolveTerminalHostPath, type TerminalHostCommand } from "./ensure-terminal-host.js";
 import { verifyTerminalHostArtifact } from "./terminal-host-artifact.js";
 
 export type MaintenanceAction = "list" | "stop" | "stop-all" | "host-status" | "host-stop";
@@ -36,29 +36,29 @@ export interface MaintenanceOptions {
   readonly platform?: NodeJS.Platform;
   readonly architecture?: string;
   readonly timeoutMs?: number;
-  readonly verify?: (executable: string, platform: NodeJS.Platform, architecture: string) => Promise<unknown>;
-  readonly run?: (executable: string, arguments_: readonly string[], timeoutMs: number) => Promise<{ readonly code: number; readonly stdout: string }>;
+  readonly verify?: (addon: string, platform: NodeJS.Platform, architecture: string) => Promise<unknown>;
+  readonly run?: (command: TerminalHostCommand, arguments_: readonly string[], timeoutMs: number) => Promise<{ readonly code: number; readonly stdout: string }>;
 }
 
 const INCOMPATIBLE_EXIT = 4;
 
 /**
  * Runs one maintenance form through a verified terminal host. When the running host speaks
- * another protocol generation, it retries once with the binary from the release that host
- * recorded, after verifying that release's manifest; it never runs an unverified binary.
+ * another protocol generation, it retries once with the addon from the release that host
+ * recorded, after verifying that release's manifest; it never loads an unverified addon.
  */
 export async function runTerminalHostMaintenance(options: MaintenanceOptions): Promise<MaintenanceReport> {
   const platform = options.platform ?? process.platform;
   const architecture = options.architecture ?? process.arch;
-  const executable = await firstVerifiedHost(options, options.releaseRoots, platform, architecture);
-  if (executable === undefined) return unavailable(options.action, "no verified terminal host is installed");
-  const report = await invoke(options, executable);
+  const command = await firstVerifiedHost(options, options.releaseRoots, platform, architecture);
+  if (command === undefined) return unavailable(options.action, "no verified terminal host is installed");
+  const report = await invoke(options, command);
   if (report.exitCode !== INCOMPATIBLE_EXIT || typeof report.releaseRoot !== "string") return report;
   const cohort = await firstVerifiedHost({ ...options, environment: {} }, [report.releaseRoot], platform, architecture);
-  if (cohort === undefined || cohort === executable) {
+  if (cohort === undefined || cohort.entry === command.entry) {
     return { ...report, message: "the running tabs use another version whose terminal host cannot be verified" };
   }
-  return await invoke(options, cohort);
+  return await invoke({ ...options, environment: installedEnvironment(options.environment) }, cohort);
 }
 
 function arguments_(options: MaintenanceOptions): string[] {
@@ -66,10 +66,12 @@ function arguments_(options: MaintenanceOptions): string[] {
   return ["tabs", ...command, "--profile", options.profileRoot, "--data-dir", options.dataDir, "--runtime-dir", options.runtimeDir];
 }
 
-async function invoke(options: MaintenanceOptions, executable: string): Promise<MaintenanceReport> {
+async function invoke(options: MaintenanceOptions, command: TerminalHostCommand): Promise<MaintenanceReport> {
   const timeoutMs = options.timeoutMs ?? 120_000;
   try {
-    const result = await (options.run ?? runHost)(executable, arguments_(options), timeoutMs);
+    const run = options.run ?? ((host: TerminalHostCommand, argumentsValue: readonly string[], limit: number) =>
+      runHost(host, argumentsValue, limit, options.environment));
+    const result = await run(command, arguments_(options), timeoutMs);
     const line = result.stdout.trim().split(/\r?\n/u).at(-1) ?? "";
     const parsed = JSON.parse(line) as Record<string, unknown>;
     if (parsed.schema !== "a1-tabs-maintenance-v1" || typeof parsed.host !== "string") throw new Error("malformed maintenance report");
@@ -84,28 +86,37 @@ async function firstVerifiedHost(
   roots: readonly string[],
   platform: NodeJS.Platform,
   architecture: string,
-): Promise<string | undefined> {
+): Promise<TerminalHostCommand | undefined> {
   const override = options.environment[PRODUCT_IDENTITY.environment.developmentInstanceId]
     ? options.environment[PRODUCT_IDENTITY.environment.terminalHostPath]?.trim()
     : undefined;
   if (override) {
+    const entry = roots[0] === undefined ? undefined : resolveTerminalHostEntryPath(roots[0]);
+    if (entry === undefined) return undefined;
     try {
-      await access(override, constants.R_OK | (platform === "win32" ? 0 : constants.X_OK));
-      return override;
+      await Promise.all([access(override, constants.R_OK), access(entry, constants.R_OK)]);
+      return { executable: process.execPath, entry };
     } catch {
       return undefined;
     }
   }
   for (const root of roots) {
-    const candidate = resolveTerminalHostPath(root, {}, platform, architecture);
+    const addon = resolveTerminalHostPath(root, {}, platform, architecture);
     try {
-      await (options.verify ?? verifyTerminalHostArtifact)(candidate, platform, architecture);
-      return candidate;
+      await (options.verify ?? verifyTerminalHostArtifact)(addon, platform, architecture);
+      return { executable: process.execPath, entry: resolveTerminalHostEntryPath(root) };
     } catch {
       // Rationale: an older retained release may predate the packaged host; try the next one.
     }
   }
   return undefined;
+}
+
+function installedEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const sanitized = { ...environment };
+  delete sanitized[PRODUCT_IDENTITY.environment.developmentInstanceId];
+  delete sanitized[PRODUCT_IDENTITY.environment.terminalHostPath];
+  return sanitized;
 }
 
 function unavailable(action: MaintenanceAction, message: string): MaintenanceReport {
@@ -115,6 +126,11 @@ function unavailable(action: MaintenanceAction, message: string): MaintenanceRep
 /** The largest maintenance report accepted from the terminal host. */
 export const MAX_MAINTENANCE_REPORT_BYTES = 4 * 1024 * 1024;
 
-async function runHost(executable: string, arguments_: readonly string[], timeoutMs: number): Promise<{ code: number; stdout: string }> {
-  return await runBoundedHostCommand(executable, arguments_, { maxStdoutBytes: MAX_MAINTENANCE_REPORT_BYTES, timeoutMs, label: "terminal host maintenance" });
+async function runHost(command: TerminalHostCommand, arguments_: readonly string[], timeoutMs: number, environment: NodeJS.ProcessEnv): Promise<{ code: number; stdout: string }> {
+  return await runBoundedHostCommand(command, arguments_, {
+    environment,
+    maxStdoutBytes: MAX_MAINTENANCE_REPORT_BYTES,
+    timeoutMs,
+    label: "terminal host maintenance",
+  });
 }

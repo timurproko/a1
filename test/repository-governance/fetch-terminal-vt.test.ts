@@ -21,7 +21,7 @@ describe("terminal library fetch", () => {
     const lanes = matrix.split("\n").filter(line => line.includes("terminalHost: true"));
     expect(lanes).toHaveLength(TERMINAL_VT_PLATFORMS.length);
     expect(lanes.some(line => line.includes("...WINDOWS"))).toBe(true);
-    expect(lanes.some(line => line.includes('platform: "linux", architecture: "x64"'))).toBe(true);
-    expect(lanes.some(line => line.includes('platform: "darwin", architecture: "arm64"'))).toBe(true);
+    expect(lanes.some(line => line.includes("...LINUX"))).toBe(true);
+    expect(lanes.some(line => line.includes("...DARWIN"))).toBe(true);
   });
 });

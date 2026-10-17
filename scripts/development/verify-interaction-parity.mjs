@@ -19,6 +19,7 @@ import { compareCandidates, digestContent, validateObservations } from "./intera
 export const PARITY_REPORT_SCHEMA = "a1-interaction-parity-v1";
 const CASE_TIMEOUT_MS = 20_000;
 const RECORD_PATTERN = /in#(\d+):([0-9a-f]*);/gu;
+const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
 
 /**
  * The bytes a direct terminal sends for one matrix step; `null` for steps the key child cannot see.
@@ -120,10 +121,14 @@ export function parityReport(platform, observations, cases, faults, failures = [
   };
 }
 
-function run(file, arguments_, options = {}) {
-  const result = spawnSync(file, arguments_, { encoding: "utf8", ...options });
+function run(host, arguments_, options = {}) {
+  const result = spawnSync(process.execPath, [hostEntry, ...arguments_], {
+    encoding: "utf8",
+    ...options,
+    env: { ...(options.env ?? process.env), A1_DEV_INSTANCE_ID: options.env?.A1_DEV_INSTANCE_ID ?? process.env.A1_DEV_INSTANCE_ID ?? "terminal-host-validation", A1_TERMINAL_HOST_PATH: resolve(host) },
+  });
   if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`${basename(file)} ${arguments_.slice(0, 2).join(" ")} failed (${result.status}): ${result.stderr || result.stdout}`);
+  if (result.status !== 0) throw new Error(`${basename(host)} ${arguments_.slice(0, 2).join(" ")} failed (${result.status}): ${result.stderr || result.stdout}`);
   return result.stdout.trim();
 }
 
@@ -213,7 +218,7 @@ async function main() {
   const hostOption = option("--host") ?? process.env.A1_TERMINAL_HOST_PATH;
   const fakeTabOption = option("--fake-tab");
   const out = option("--out");
-  if (!hostOption || !fakeTabOption) throw new Error("usage: verify-interaction-parity.mjs --host <terminal-host> --fake-tab <fake-tab> [--out <report.json>]");
+  if (!hostOption || !fakeTabOption) throw new Error("usage: verify-interaction-parity.mjs --host <terminal-host.node> --fake-tab <fake-tab> [--out <report.json>]");
   // Invariant: both candidates run from a temporary directory, so executables resolve first.
   const host = resolve(hostOption);
   const fakeTab = resolve(fakeTabOption);
@@ -230,7 +235,7 @@ async function main() {
   for (const directory of Object.values(context)) { await mkdir(directory, { recursive: true }); if (process.platform !== "win32") await chmod(directory, 0o700); }
   await mkdir(join(context.release, "bin"), { recursive: true });
   const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\a1-interaction-parity-${process.pid}-${Date.now()}` : join(root, "resident.sock");
-  const environment = { ...process.env, TERM: "xterm-256color", A1_TABS_ENDPOINT: endpoint, TERMINAL_HOST_FAKE_TAB_MODE: "parity", TERMINAL_HOST_FIXTURE_SIZE: "100x24" };
+  const environment = { ...process.env, TERM: "xterm-256color", A1_TABS_ENDPOINT: endpoint, A1_DEV_INSTANCE_ID: process.env.A1_DEV_INSTANCE_ID ?? "terminal-host-validation", A1_TERMINAL_HOST_PATH: host, TERMINAL_HOST_FAKE_TAB_MODE: "parity", TERMINAL_HOST_FIXTURE_SIZE: "100x24" };
   const terminals = [];
   const observations = [];
   const failures = [];
@@ -241,8 +246,8 @@ async function main() {
     observations.push(...directRun.observations); failures.push(...directRun.failures);
 
     run(host, ["server", "--detach", "--profile", context.profile, "--data-dir", context.data, "--runtime-dir", context.runtime], { cwd: root, env: environment });
-    const attach = spawn(host, [
-      "attach", "--endpoint", endpoint, "--cwd", root, "--clear-exit-ms", "500", "--profile", context.profile,
+    const attach = spawn(process.execPath, [
+      hostEntry, "attach", "--endpoint", endpoint, "--cwd", root, "--clear-exit-ms", "500", "--profile", context.profile,
       "--settings-file", join(context.profile, "settings.json"), "--data-dir", context.data, "--runtime-dir", context.runtime,
       "--release-root", context.release, "--node-executable", fakeTab,
     ], { cols: 100, rows: 24, cwd: root, env: environment });

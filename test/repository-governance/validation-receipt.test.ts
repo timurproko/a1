@@ -21,16 +21,16 @@ async function buildFixture() {
     ["package.json", '{"packageManager":"npm@11","devDependencies":{"typescript":"5.9.2"}}'], ["package-lock.json", "lock"],
     ["tsconfig.json", "{}"], ["tsconfig.build.json", "{}"], ["src/index.ts", "export {};"], ["bin/cli.js", "export {};"],
     ["native/process-guardian/Cargo.toml", '[package]\nversion="1.0.0"'], ["native/process-guardian/Cargo.lock", "lock"],
-    ["native/process-guardian/src/main.rs", "fn main() {}"], ["scripts/clean.mjs", "export {};"],
+    ["native/process-guardian/src/lib.rs", "pub fn version() {}"], ["scripts/clean.mjs", "export {};"],
     ["scripts/development/build-process-guardian.mjs", "export {};"], ["scripts/release/generate-runtime-payload-inventory.mjs", "export {};"],
     ["dist/index.js", "export {};"],
   ] as const) await put(root, path, source);
-  const executable = platform() === "win32" ? "guardian.exe" : "guardian";
+  const addon = "process-guardian.node";
   const bytes = Buffer.from("native fixture");
-  await put(root, `dist/native/${platform()}-${arch()}/${executable}`, bytes);
+  await put(root, `dist/native/${platform()}-${arch()}/${addon}`, bytes);
   await put(root, `dist/native/${platform()}-${arch()}/manifest.json`, JSON.stringify({
-    schema: "a1-process-guardian-artifact-v1", protocolVersion: 1, crateVersion: "1.0.0", platform: platform(), architecture: arch(),
-    artifact: { filename: executable, sha256: createHash("sha256").update(bytes).digest("hex"), size: bytes.length },
+    schema: "a1-process-guardian-artifact-v2", kind: "node-addon", nodeApi: 9, protocolVersion: 2, crateVersion: "1.0.0", platform: platform(), architecture: arch(),
+    artifact: { filename: addon, sha256: createHash("sha256").update(bytes).digest("hex"), size: bytes.length },
   }));
   return root;
 }
@@ -41,7 +41,7 @@ describe("validation prerequisite receipts", () => {
     const output = join(root, ".artifacts/build.json");
     const receipt = await recordBuildReceipt({ repository: root, output, head, toolchain });
     expect(receipt).toMatchObject({ schema: "a1-validation-build-receipt-v1", head, toolchain, receiptId: expect.stringMatching(/^[0-9a-f]{64}$/) });
-    expect((receipt as any).inputs.entries.map((entry: any) => entry.path)).toEqual(expect.arrayContaining(["src/index.ts", "package-lock.json", "native/process-guardian/src/main.rs"]));
+    expect((receipt as any).inputs.entries.map((entry: any) => entry.path)).toEqual(expect.arrayContaining(["src/index.ts", "package-lock.json", "native/process-guardian/src/lib.rs"]));
     expect((receipt as any).artifacts.entries.map((entry: any) => entry.path)).toEqual(expect.arrayContaining(["dist/index.js", `dist/native/${platform()}-${arch()}/manifest.json`]));
     await expect(verifyBuildReceipt(output, { repository: root, head, toolchain })).resolves.toEqual(receipt);
   });
@@ -66,8 +66,7 @@ describe("validation prerequisite receipts", () => {
     await expect(verifyBuildReceipt(output, { repository: root, head, toolchain })).rejects.toThrow("identity is invalid");
     await rm(output); await expect(verifyBuildReceipt(output, { repository: root, head, toolchain })).rejects.toThrow();
     await recordBuildReceipt({ repository: root, output, head, toolchain });
-    const executable = platform() === "win32" ? "guardian.exe" : "guardian";
-    await put(root, `dist/native/${platform()}-${arch()}/${executable}`, "tampered native");
+    await put(root, `dist/native/${platform()}-${arch()}/process-guardian.node`, "tampered native");
     await expect(verifyBuildReceipt(output, { repository: root, head, toolchain })).rejects.toThrow("native artifact differs");
   });
 

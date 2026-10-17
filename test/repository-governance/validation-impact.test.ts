@@ -235,9 +235,9 @@ describe("development validation impact", () => {
       const integration = selectIntegrationImpact({ baseId: "a".repeat(40), headId: "b".repeat(40), changes, owners, coreSelection: prCore });
       return integration.selection.owners.find(owner => owner.owner === "terminal-host")!;
     };
-    const selected = select([{ status: "M", path: "native/terminal-host/src/main.rs" }]);
+    const selected = select([{ status: "M", path: "native/terminal-host/src/roles/entry.rs" }]);
     expect(selected.selected).toBe(true);
-    expect(selected.reasons).toContainEqual({ code: "shared-support", paths: ["native/terminal-host/src/main.rs"] });
+    expect(selected.reasons).toContainEqual({ code: "shared-support", paths: ["native/terminal-host/src/roles/entry.rs"] });
     expect(select([{ status: "M", path: "scripts/development/run-terminal-host-probe.mjs" }]).selected).toBe(true);
     expect(select([{ status: "M", path: "native/process-guardian/src/windows.rs" }]).selected).toBe(false);
   });

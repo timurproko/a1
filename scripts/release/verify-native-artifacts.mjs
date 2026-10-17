@@ -11,15 +11,11 @@ export const RELEASE_NATIVE_TARGETS = Object.freeze([
 ]);
 
 const MANIFESTS = Object.freeze([
-  Object.freeze({ filename: "manifest.json", schema: "a1-process-guardian-artifact-v1", files: ["artifact"] }),
-  Object.freeze({ filename: "terminal-host.manifest.json", schema: "a1-terminal-host-artifact-v1", files: ["artifact", "sessionLock", "notices"] }),
+  Object.freeze({ filename: "manifest.json", schema: "a1-process-guardian-artifact-v2", files: ["artifact"] }),
+  Object.freeze({ filename: "terminal-host.manifest.json", schema: "a1-terminal-host-artifact-v2", files: ["artifact", "notices"], entry: true }),
 ]);
 
-/**
- * Lists every reason the assembled `dist/native` tree is not a complete release: each supported
- * platform needs its process guardian and terminal host, and every recorded file must exist with
- * the recorded size and SHA-256.
- */
+/** Lists every reason the assembled `dist/native` tree is not a complete addon release. */
 export async function nativeArtifactProblems(nativeRoot, targets = RELEASE_NATIVE_TARGETS) {
   const problems = [];
   for (const { platform, architecture } of targets) {
@@ -34,23 +30,16 @@ export async function nativeArtifactProblems(nativeRoot, targets = RELEASE_NATIV
         continue;
       }
       if (manifest.schema !== expected.schema) problems.push(`${label} has schema ${manifest.schema}, expected ${expected.schema}`);
+      if (manifest.kind !== "node-addon" || manifest.nodeApi !== 9) problems.push(`${label} is not a Node-API 9 addon manifest`);
       if (manifest.platform !== platform || manifest.architecture !== architecture) problems.push(`${label} records ${manifest.platform}-${manifest.architecture}`);
       if (manifest.capability !== "supported") problems.push(`${label} is not marked supported`);
-      for (const field of expected.files) {
-        const record = manifest[field];
-        if (typeof record?.filename !== "string" || basename(record.filename) !== record.filename) {
-          problems.push(`${label} has no valid ${field} file record`);
-          continue;
-        }
-        const path = resolve(directory, record.filename);
-        const bytes = await readFile(path).catch(() => undefined);
-        if (bytes === undefined) {
-          problems.push(`${platform}-${architecture}/${record.filename} is missing`);
-          continue;
-        }
-        const size = (await stat(path)).size;
-        if (size !== record.size || createHash("sha256").update(bytes).digest("hex") !== record.sha256) {
-          problems.push(`${platform}-${architecture}/${record.filename} does not match ${expected.filename}`);
+      for (const field of expected.files) await verifyRecord({ problems, directory, label, field, record: manifest[field] });
+      if (expected.entry) {
+        const entry = manifest.entry;
+        if (entry?.filename !== "dist/foundation/resident-tabs/host-entry.js") {
+          problems.push(`${label} has no valid entry file record`);
+        } else {
+          await verifyRecord({ problems, directory: resolve(nativeRoot, "../.."), label, field: "entry", record: entry, allowPath: true });
         }
       }
     }
@@ -58,8 +47,26 @@ export async function nativeArtifactProblems(nativeRoot, targets = RELEASE_NATIV
   return problems;
 }
 
+async function verifyRecord({ problems, directory, label, field, record, allowPath = false }) {
+  if (typeof record?.filename !== "string"
+    || (!allowPath && basename(record.filename) !== record.filename)
+    || (allowPath && (record.filename.startsWith("/") || record.filename.includes("..") || record.filename.includes("\\")))) {
+    problems.push(`${label} has no valid ${field} file record`);
+    return;
+  }
+  const path = resolve(directory, record.filename);
+  const bytes = await readFile(path).catch(() => undefined);
+  if (bytes === undefined) {
+    problems.push(`${allowPath ? record.filename : `${label.slice(0, label.indexOf("/"))}/${record.filename}`} is missing`);
+    return;
+  }
+  const size = (await stat(path)).size;
+  if (size !== record.size || createHash("sha256").update(bytes).digest("hex") !== record.sha256) {
+    problems.push(`${allowPath ? record.filename : `${label.slice(0, label.indexOf("/"))}/${record.filename}`} does not match ${label.slice(label.indexOf("/") + 1)}`);
+  }
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  // Rationale: a validation lane builds only its own platform, so `--local` checks just that one.
   const targets = process.argv.includes("--local")
     ? RELEASE_NATIVE_TARGETS.filter(target => target.platform === process.platform && target.architecture === process.arch)
     : RELEASE_NATIVE_TARGETS;

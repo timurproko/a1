@@ -77,7 +77,7 @@
       "role": "exitNoticePath",
       "key": "A1_EXIT_NOTICE_PATH",
       "exposure": "review",
-      "owner": "src/foundation/process-containment/native-guardian-containment.ts",
+      "owner": "src/foundation/process-containment/addon-containment.ts",
       "evidence": "test/foundation/process-containment/windows-job.integration.test.ts",
       "semantics": "Guardian-to-runtime handoff of the unclean-exit notice path, removed from the runtime environment on read; retain pending exposure review"
     },
@@ -85,9 +85,9 @@
       "role": "processGuardianPath",
       "key": "A1_PROCESS_GUARDIAN_PATH",
       "exposure": "review",
-      "owner": "src/foundation/process-containment/native-guardian-containment.ts",
+      "owner": "src/foundation/process-containment/addon-containment.ts",
       "evidence": "test/foundation/process-containment/windows-job.integration.test.ts",
-      "semantics": "Explicit helper executable override; retain pending caller exposure review"
+      "semantics": "Explicit process-guardian addon override; retain pending caller exposure review"
     },
     {
       "role": "skipVersionCheck",
@@ -125,7 +125,7 @@
       "role": "probeTrace",
       "key": "A1_PROBE_TRACE",
       "exposure": "review",
-      "owner": "native/terminal-host/src/main.rs",
+      "owner": "native/terminal-host/src/roles/entry.rs",
       "evidence": "native/terminal-host/src/ghostty.rs",
       "semantics": "Opt-in developer diagnostics; retain pending exposure review"
     },
@@ -190,7 +190,7 @@
       "key": "A1_TABS_ENDPOINT",
       "exposure": "integration",
       "owner": "src/foundation/resident-tabs/ensure-terminal-host.ts",
-      "evidence": "native/terminal-host/src/main.rs",
+      "evidence": "native/terminal-host/src/roles/entry.rs",
       "semantics": "Hermetic resident endpoint override for native integration tests"
     },
     {
@@ -200,14 +200,6 @@
       "owner": "src/foundation/resident-tabs/ensure-terminal-host.ts",
       "evidence": "test/foundation/resident-tabs/resident-tabs.test.ts",
       "semantics": "Hermetic resident host artifact override for integration tests"
-    },
-    {
-      "role": "sessionLockPath",
-      "key": "A1_SESSION_LOCK_PATH",
-      "exposure": "integration",
-      "owner": "src/foundation/session-writer-lock/index.ts",
-      "evidence": "test/foundation/session-writer-lock/session-writer-lock.integration.test.ts",
-      "semantics": "Native session-writer lock addon override used by integration tests"
     },
     {
       "role": "tabsFaultHangPty",
@@ -493,16 +485,16 @@
       "role": "fixtureInput",
       "key": "TERMINAL_FIXTURE_INPUT",
       "exposure": "test",
-      "owner": "native/terminal-host/src/main.rs",
-      "evidence": "native/terminal-host/src/main.rs",
+      "owner": "native/terminal-host/src/roles/entry.rs",
+      "evidence": "native/terminal-host/src/roles/entry.rs",
       "semantics": "Native terminal probe expected input"
     },
     {
       "role": "fixtureToken",
       "key": "TERMINAL_FIXTURE_TOKEN",
       "exposure": "test",
-      "owner": "native/terminal-host/src/main.rs",
-      "evidence": "native/terminal-host/src/main.rs",
+      "owner": "native/terminal-host/src/roles/entry.rs",
+      "evidence": "native/terminal-host/src/roles/entry.rs",
       "semantics": "Native terminal probe token"
     },
     {

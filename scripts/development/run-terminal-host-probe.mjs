@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { copyFile, mkdir } from "node:fs/promises";
 import { homedir, platform } from "node:os";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -76,7 +77,19 @@ async function main() {
   } else {
     run(cargo, ["test", "--manifest-path", manifest, "--features", ROLE_TEST_FEATURES], environment);
   }
+  // Platform: `cargo test --bins` does not place a normal `.exe` at the path used by the Windows
+  // parity probe, so build the child fixture explicitly on every platform.
+  run(cargo, ["build", "--manifest-path", manifest, "--bin", "fake-tab", "--features", "resident-fixtures"], environment);
   assertNoFixtureProcesses(environment);
+  // Invariant: the real-process Vitest fixture must see the addon before test collection; otherwise
+  // its native assertions would skip while the old executable target no longer exists.
+  run(cargo, ["build", "--manifest-path", manifest, "--lib", "--features", "node-addon,resident-fixtures,fault-injection"], environment);
+  const builtAddon = resolve("native/terminal-host/target/debug", platform() === "win32" ? "terminal_host_contracts.dll" : platform() === "darwin" ? "libterminal_host_contracts.dylib" : "libterminal_host_contracts.so");
+  const debugAddon = resolve(".artifacts/terminal-host/terminal-host.node");
+  await mkdir(resolve(".artifacts/terminal-host"), { recursive: true });
+  await copyFile(builtAddon, debugAddon);
+  run(process.execPath, ["-e", "const report=require(process.argv[1]).version(); if(report.schema!=='a1-terminal-host-version-v1') process.exit(2);", debugAddon], environment, PROBE_TIMEOUT_MS);
+  run(process.execPath, [resolve("scripts/development/test-session-lock-addon.mjs")], environment, PROBE_TIMEOUT_MS);
   run(process.execPath, [
     resolve("node_modules/vitest/vitest.mjs"), "run",
     "test/foundation/release/resident-release-retention.integration.test.ts",
@@ -88,29 +101,20 @@ async function main() {
     "test/ui/settings/declarations.test.ts",
     "test/ui/settings/sections.test.ts",
   ], environment, PROBE_TIMEOUT_MS);
-  run(cargo, ["build", "--release", "--manifest-path", manifest, "--features", "resident-fixtures"], environment);
-  const releaseExecutable = resolve("native/terminal-host/target/release", platform() === "win32" ? "terminal-host.exe" : "terminal-host");
-  runRefusal(releaseExecutable, ["--probe"], { ...environment, A1_TABS_FAULT_CRASH_POINT: "after-bind" });
-  run(cargo, ["build", "--manifest-path", manifest, "--features", "resident-fixtures"], environment);
-  run(cargo, ["build", "--manifest-path", manifest, "--lib", "--features", "node-addon"], environment);
-  run(process.execPath, [resolve("scripts/development/test-session-lock-addon.mjs")], environment, PROBE_TIMEOUT_MS);
-  const executable = resolve("native/terminal-host/target/debug", platform() === "win32" ? "terminal-host.exe" : "terminal-host");
-  run(executable, ["--probe"], environment, PROBE_TIMEOUT_MS);
-  run(executable, ["--probe-contracts"], environment, PROBE_TIMEOUT_MS);
-  run(executable, ["--probe-durable"], environment, PROBE_TIMEOUT_MS);
-  run(executable, ["--probe-controller-boundary"], environment, PROBE_TIMEOUT_MS);
-  run(executable, ["--probe-resident-launch"], environment, PROBE_TIMEOUT_MS);
-  run(executable, ["--probe-selection"], environment, PROBE_TIMEOUT_MS);
-  run(executable, ["--probe-input"], environment, PROBE_TIMEOUT_MS);
   // Rationale: the release artifact is otherwise built only by publication; building it here proves
-  // the release profile, manifest, notices, and feature-free identity on every pull-request lane.
+  // the release profile, manifest, notices, feature-free identity, and fault-injection refusal.
   run(process.execPath, [resolve("scripts/development/build-terminal-host.mjs")], { ...environment, CARGO: cargo }, RELEASE_BUILD_TIMEOUT_MS);
+  const releaseAddon = resolve("dist/native", `${platform()}-${process.arch}`, "terminal-host.node");
+  runRoleRefusal(releaseAddon, ["--probe"], { ...environment, A1_TABS_FAULT_CRASH_POINT: "after-bind" });
+  for (const flag of ["--probe", "--probe-contracts", "--probe-durable", "--probe-controller-boundary", "--probe-resident-launch", "--probe-selection", "--probe-input"]) {
+    runRole(debugAddon, [flag], environment, PROBE_TIMEOUT_MS);
+  }
   run(process.execPath, [resolve("scripts/release/verify-native-artifacts.mjs"), "--local"], environment, PROBE_TIMEOUT_MS);
-  console.log(`Terminal host binary/addon, contracts/durability/controller boundary, fixed-role launch, retained model, native input/selection probes, and release artifact OK${partition?.skip ? " (role tests ran in their partitions)" : ""}`);
+  console.log(`Terminal host addon, contracts/durability/controller boundary, fixed-role launch, retained model, native input/selection probes, and release artifact OK${partition?.skip ? " (role tests ran in their partitions)" : ""}`);
 }
 
 function assertNoFixtureProcesses(env) {
-  const executable = resolve("native/terminal-host/target/debug", platform() === "win32" ? "terminal-host.exe" : "terminal-host");
+  const executable = resolve("native/terminal-host/target/debug", platform() === "win32" ? "role-host.exe" : "role-host");
   let listing;
   if (platform() === "win32") {
     const command = [
@@ -138,8 +142,18 @@ function assertNoFixtureProcesses(env) {
   }
 }
 
-function runRefusal(executable, args, env) {
-  const result = spawnSync(executable, args, { stdio: "inherit", env, windowsHide: true, timeout: PROBE_TIMEOUT_MS });
+function runRole(addon, args, env, timeout) {
+  run(process.execPath, [resolve("dist/foundation/resident-tabs/host-entry.js"), ...args], {
+    ...env, A1_DEV_INSTANCE_ID: env.A1_DEV_INSTANCE_ID ?? "terminal-host-validation", A1_TERMINAL_HOST_PATH: addon,
+  }, timeout);
+}
+
+function runRoleRefusal(addon, args, env) {
+  const result = spawnSync(process.execPath, [resolve("dist/foundation/resident-tabs/host-entry.js"), ...args], {
+    stdio: "inherit", env: {
+      ...env, A1_DEV_INSTANCE_ID: env.A1_DEV_INSTANCE_ID ?? "terminal-host-validation", A1_TERMINAL_HOST_PATH: addon,
+    }, windowsHide: true, timeout: PROBE_TIMEOUT_MS,
+  });
   if (result.error) throw result.error;
   if (result.status === 0) throw new Error("release-profile terminal host accepted fault injection");
 }

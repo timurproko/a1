@@ -39,5 +39,5 @@ export function verifyCandidateEvidence(evidence: CandidateEvidence, options: {
 }): Promise<{ packageName: string; version: string; integrity: string; shasum: string; bin: Record<string, string> }>;
 export function readPackedManifest(tarball: Buffer): { name: string; version: string; bin: Record<string, string>; dependencies?: Record<string, string>; repository?: { type: string; url: string } };
 export function readPackedEntries(tarball: Buffer): Array<{ path: string; content: Buffer; type: string; mode: number }>;
-export function guardianBinaryReference(manifestPath: string, content: Buffer | string): { binaryPath: string; sha256: string; size: number } | null;
-export function terminalHostBinaryReference(manifestPath: string, content: Buffer | string): { binaryPath: string; sha256: string; size: number } | null;
+export function guardianAddonReference(manifestPath: string, content: Buffer | string): { addonPath: string; sha256: string; size: number } | null;
+export function terminalHostAddonReference(manifestPath: string, content: Buffer | string): { addonPath: string; sha256: string; size: number } | null;

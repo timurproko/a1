@@ -22,11 +22,12 @@ describe("terminal-host maintenance runner", () => {
       ...base,
       action: "stop",
       tabId: "tab-1",
-      run: async (executable, arguments_) => { calls.push([executable, ...arguments_]); return { code: 0, stdout: report({ host: "running", result: { accepted: true } }) }; },
+      run: async (command, arguments_) => { calls.push([command.executable, command.entry, ...arguments_]); return { code: 0, stdout: report({ host: "running", result: { accepted: true } }) }; },
     });
     expect(result).toMatchObject({ host: "running", exitCode: 0 });
-    expect(calls[0]?.slice(1)).toEqual(["tabs", "stop", "tab-1", "--profile", "/profile", "--data-dir", "/data", "--runtime-dir", "/runtime"]);
-    expect(calls[0]?.[0]).toMatch(/active[\\/]dist[\\/]native[\\/]linux-x64[\\/]terminal-host$/u);
+    expect(calls[0]?.slice(2)).toEqual(["tabs", "stop", "tab-1", "--profile", "/profile", "--data-dir", "/data", "--runtime-dir", "/runtime"]);
+    expect(calls[0]?.[0]).toBe(process.execPath);
+    expect(calls[0]?.[1]).toMatch(/active[\\/]dist[\\/]foundation[\\/]resident-tabs[\\/]host-entry\.js$/u);
   });
 
   it("retries once with the recorded cohort's own verified host after a generation mismatch", async () => {
@@ -34,9 +35,9 @@ describe("terminal-host maintenance runner", () => {
     const result = await runTerminalHostMaintenance({
       ...base,
       action: "host-stop",
-      run: async executable => {
-        calls.push(executable);
-        return executable.includes("cohort")
+      run: async command => {
+        calls.push(command.entry);
+        return command.entry.includes("cohort")
           ? { code: 0, stdout: report({ command: "host-stop", host: "stopped" }) }
           : { code: 4, stdout: report({ command: "host-stop", host: "incompatible", releaseRoot: "/cohort" }) };
       },

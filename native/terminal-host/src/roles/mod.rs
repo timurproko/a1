@@ -4,6 +4,7 @@ pub mod child_input;
 pub mod counters;
 pub mod credentials;
 pub mod diagnostics;
+pub mod entry;
 pub mod holder;
 pub mod maintain;
 pub mod outer_input;

@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -14,6 +14,13 @@ afterEach(async () => { while (cleanups.length) await cleanups.pop()!(); });
 async function temporaryDirectory(prefix: string) {
   const path = await mkdtemp(join(tmpdir(), prefix));
   return { path, cleanup: () => rm(path, { recursive: true, force: true }) };
+}
+async function developmentHost(root: string) {
+  const addon = join(root, "terminal-host.node");
+  const entry = join(root, "dist", "foundation", "resident-tabs", "host-entry.js");
+  await mkdir(join(entry, ".."), { recursive: true });
+  await Promise.all([writeFile(addon, "fixture"), writeFile(entry, "// fixture")]);
+  return { addon, entry };
 }
 
 describe("resident tab launch contracts", () => {
@@ -60,7 +67,7 @@ describe("resident tab launch contracts", () => {
   });
 
   it("routes bare A1 through the resident host while solo and comparison stay direct", async () => {
-    const ensureHost = vi.fn(async () => ({ status: "ready" as const, executable: "host", endpoint: "endpoint" }));
+    const ensureHost = vi.fn(async () => ({ status: "ready" as const, executable: { executable: process.execPath, entry: "host-entry.js" }, endpoint: "endpoint" }));
     for (const selection of [
       { profileId: "pi" as const, solo: true, currentLaunchContract: true },
       { profileId: "a1" as const, solo: true, currentLaunchContract: true },
@@ -77,7 +84,7 @@ describe("resident tab launch contracts", () => {
   });
 
   it("runs a piped or redirected bare A1 direct without probing the resident host", async () => {
-    const ensureHost = vi.fn(async () => ({ status: "ready" as const, executable: "host", endpoint: "endpoint" }));
+    const ensureHost = vi.fn(async () => ({ status: "ready" as const, executable: { executable: process.execPath, entry: "host-entry.js" }, endpoint: "endpoint" }));
     await expect(selectResidentHost({
       profileId: "a1", solo: false, currentLaunchContract: true, interactive: false, ensureHost,
     })).resolves.toEqual({ status: "fallback", reason: "no interactive terminal" });
@@ -232,8 +239,7 @@ describe("resident tab launch contracts", () => {
 
   it("returns an existing verified generation-1 host without starting another", async () => {
     const root = await temporaryDirectory("resident-existing-"); cleanups.push(root.cleanup);
-    const executable = join(root.path, process.platform === "win32" ? "host.exe" : "host");
-    await writeFile(executable, "fixture"); await chmod(executable, 0o700);
+    const { addon: executable, entry } = await developmentHost(root.path);
     const observed: string[][] = [];
     const result = await ensureTerminalHost({
       releaseRoot: root.path, profileRoot: root.path, dataDir: root.path, runtimeDir: root.path,
@@ -243,25 +249,24 @@ describe("resident tab launch contracts", () => {
         return { code: 0, stdout: '{"outcome":"ready","generation":1,"endpoint":"/existing"}', stderr: "" };
       },
     });
-    expect(result).toEqual({ status: "ready", executable, endpoint: "/existing" });
-    expect(observed.map(arguments_ => arguments_[0])).toEqual(["probe"]);
+    expect(result).toEqual({ status: "ready", executable: { executable: process.execPath, entry }, endpoint: "/existing" });
+    expect(observed.map(arguments_ => arguments_.slice(0, 2))).toEqual([[entry, "probe"]]);
   });
 
   it("starts a missing host and waits for a verified generation-1 probe", async () => {
     const root = await temporaryDirectory("resident-host-"); cleanups.push(root.cleanup);
-    const executable = join(root.path, process.platform === "win32" ? "host.exe" : "host");
-    await writeFile(executable, "fixture"); await chmod(executable, 0o700);
+    const { addon: executable, entry } = await developmentHost(root.path);
     let probe = 0;
     const result = await ensureTerminalHost({
       releaseRoot: root.path, profileRoot: root.path, dataDir: root.path, runtimeDir: root.path,
       environment: { A1_TERMINAL_HOST_PATH: executable, A1_DEV_INSTANCE_ID: "fixture" }, platform: "linux", architecture: "x64", timeoutMs: 100,
-      run: async (_file, arguments_) => arguments_[0] === "server"
+      run: async (_file, arguments_) => arguments_[1] === "server"
         ? { code: 0, stdout: '{"verified":true,"endpoint":"/host"}', stderr: "" }
         : ++probe === 1
           ? { code: 2, stdout: '{"outcome":"not-running"}', stderr: "" }
           : { code: 0, stdout: '{"outcome":"ready","generation":1,"endpoint":"/host"}', stderr: "" },
     });
-    expect(result).toEqual({ status: "ready", executable, endpoint: "/host" });
+    expect(result).toEqual({ status: "ready", executable: { executable: process.execPath, entry }, endpoint: "/host" });
   });
 
   it.each([
@@ -269,12 +274,11 @@ describe("resident tab launch contracts", () => {
     ["blocked", "recovery blocked"],
   ] as const)("preserves the typed %s startup failure", async (reason, expected) => {
     const root = await temporaryDirectory("resident-failure-"); cleanups.push(root.cleanup);
-    const executable = join(root.path, process.platform === "win32" ? "host.exe" : "host");
-    await writeFile(executable, "fixture"); await chmod(executable, 0o700);
+    const { addon: executable } = await developmentHost(root.path);
     const result = await ensureTerminalHost({
       releaseRoot: root.path, profileRoot: root.path, dataDir: root.path, runtimeDir: root.path,
       environment: { A1_TERMINAL_HOST_PATH: executable, A1_DEV_INSTANCE_ID: "fixture" }, platform: "linux", architecture: "x64",
-      run: async (_file, arguments_) => arguments_[0] === "probe"
+      run: async (_file, arguments_) => arguments_[1] === "probe"
         ? { code: 2, stdout: '{"outcome":"not-running"}', stderr: "" }
         : { code: 2, stdout: JSON.stringify({ outcome: "blocked", verified: false, reason }), stderr: "" },
     });
@@ -283,7 +287,7 @@ describe("resident tab launch contracts", () => {
 
   it("falls back for unsupported, missing, incompatible, unverified, failed, and timed-out hosts", async () => {
     const root = await temporaryDirectory("resident-outcomes-"); cleanups.push(root.cleanup);
-    const executable = join(root.path, process.platform === "win32" ? "host.exe" : "host");
+    const executable = join(root.path, "terminal-host.node");
     const registry = join(root.path, "registry.json");
     await writeFile(registry, "existing-holder-sentinel");
     const base = {
@@ -294,7 +298,7 @@ describe("resident tab launch contracts", () => {
       .resolves.toEqual({ status: "fallback", reason: "unsupported platform" });
     await expect(ensureTerminalHost({ ...base, platform: "linux", architecture: "x64" }))
       .resolves.toEqual({ status: "fallback", reason: "terminal host not installed" });
-    await writeFile(executable, "fixture"); await chmod(executable, 0o700);
+    await developmentHost(root.path);
     await expect(ensureTerminalHost({ ...base, platform: "linux", architecture: "x64", run: async () => ({
       code: 2, stdout: '{"outcome":"incompatible-generation"}', stderr: "",
     }) })).resolves.toEqual({ status: "fallback", reason: "incompatible generation" });
@@ -305,7 +309,7 @@ describe("resident tab launch contracts", () => {
     let calls = 0;
     await expect(ensureTerminalHost({ ...base, platform: "linux", architecture: "x64", run: async (_file, arguments_) => {
       calls++;
-      return arguments_[0] === "probe"
+      return arguments_[1] === "probe"
         ? { code: 2, stdout: '{"outcome":"not-running"}', stderr: "" }
         : { code: 0, stdout: '{"outcome":"started","verified":false}', stderr: "" };
     } })).resolves.toEqual({ status: "fallback", reason: "launch not verified" });
@@ -322,7 +326,7 @@ describe("resident tab launch contracts", () => {
     await expect(ensureTerminalHost({
       ...base, platform: "linux", architecture: "x64", timeoutMs: 5,
       run: async (_file, arguments_) => {
-        if (arguments_[0] === "server") return { code: 0, stdout: '{"verified":true,"endpoint":"/host"}', stderr: "" };
+        if (arguments_[1] === "server") return { code: 0, stdout: '{"verified":true,"endpoint":"/host"}', stderr: "" };
         phase++;
         return { code: 2, stdout: '{"outcome":"not-running"}', stderr: "" };
       },

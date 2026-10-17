@@ -8,9 +8,9 @@ import process from "node:process";
 // matching platform lane uploaded and runs the same fidelity and latency proofs against this
 // checkout's fixtures, turning a CI round-trip into a local loop.
 const PLATFORM_ARTIFACTS = Object.freeze({
-  "win32-x64": { artifact: "terminal-host-win32-x64", binary: "terminal-host.exe" },
-  "linux-x64": { artifact: "terminal-host-linux-x64", binary: "terminal-host" },
-  "darwin-arm64": { artifact: "terminal-host-darwin-arm64", binary: "terminal-host" },
+  "win32-x64": { artifact: "terminal-host-win32-x64", addon: "terminal-host.node" },
+  "linux-x64": { artifact: "terminal-host-linux-x64", addon: "terminal-host.node" },
+  "darwin-arm64": { artifact: "terminal-host-darwin-arm64", addon: "terminal-host.node" },
 });
 
 function argument(name) {
@@ -51,7 +51,7 @@ function main() {
     ? findRun(branch, target.artifact)
     : { runId: requested, headSha: null, artifact: null };
   const directory = resolve(".artifacts", "ci-terminal-host", selected.runId);
-  const host = join(directory, "native", "terminal-host", "target", "debug", target.binary);
+  const host = join(directory, ".artifacts", "terminal-host", target.addon);
   if (!existsSync(host)) {
     const artifact = selected.artifact ?? JSON.parse(capture("gh", [
       "api", `repos/{owner}/{repo}/actions/runs/${selected.runId}/artifacts`, "--jq", ".artifacts",
@@ -94,21 +94,20 @@ function main() {
     console.log(`measurement ${attempt}/${repeat}: ${measurement.status === 0 ? "pass" : "FAIL"} ${summary}`);
     if (measurement.status !== 0) failures.push(`measurement ${attempt}: ${summary}`);
   }
-  stopDownloadedHosts(host);
+  stopDownloadedHosts();
   if (failures.length > 0) process.exitCode = 1;
 }
 
-// Rationale: each measurement leaves its detached resident server running; only processes started
-// from the downloaded binary are stopped, so an installed A1 host is never touched.
-function stopDownloadedHosts(host) {
+// Rationale: each measurement leaves a detached Node-hosted resident server running. Match the
+// entry and measurement profile in its command line so installed A1 hosts and runner tooling stay alive.
+function stopDownloadedHosts() {
   if (process.platform === "win32") {
-    const pattern = host.replaceAll("/", "\\").replaceAll("'", "''");
     spawnSync("powershell.exe", [
-      "-NoProfile", "-Command",
-      `Get-CimInstance Win32_Process -Filter "Name='terminal-host.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains('${pattern}') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
+      "-NoProfile", "-NonInteractive", "-Command",
+      "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -and $_.CommandLine.Contains('host-entry.js') -and $_.CommandLine.Contains('a1-resident-measure-') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
     ], { stdio: "ignore", windowsHide: true });
   } else {
-    spawnSync("pkill", ["-f", host], { stdio: "ignore" });
+    spawnSync("pkill", ["-f", "a1-resident-measure-"], { stdio: "ignore" });
   }
 }
 
