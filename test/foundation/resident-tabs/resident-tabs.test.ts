@@ -21,7 +21,6 @@ describe("resident tab launch contracts", () => {
     const root = await temporaryDirectory("resident-setting-"); cleanups.push(root.cleanup);
     const namespace = "product";
     const defaults = {
-      tabsMax: 10,
       tabsAutoName: true,
       maxConcurrentStarts: 2,
       prewarmCount: 1,
@@ -32,7 +31,7 @@ describe("resident tab launch contracts", () => {
     expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual(defaults);
 
     await writeFile(join(root.path, "settings.json"), `/${JSON.stringify({ theme: "dark", [namespace]: { tabsMax: 12 } })}`);
-    expect((await readResidentTabLaunchSettings(root.path, namespace)).tabsMax).toBe(12);
+    expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual(defaults);
     expect(JSON.parse(await readFile(join(root.path, "settings.json"), "utf8"))).toEqual({
       theme: "dark",
       [namespace]: { tabsMax: 12 },
@@ -48,17 +47,16 @@ describe("resident tab launch contracts", () => {
         tabsStallNoticeSeconds: 1800,
       },
     }));
-    expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual({ ...defaults, tabsMax: 24, tabsAutoName: false });
+    expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual({ ...defaults, tabsAutoName: false });
     await writeFile(join(root.path, "settings.json"), JSON.stringify({ [namespace]: { tabsMax: 80 } }));
-    expect((await readResidentTabLaunchSettings(root.path, namespace)).tabsMax).toBe(50);
-    await writeFile(join(root.path, "settings.json"), JSON.stringify({ [namespace]: { tabsMax: -2 } }));
-    expect((await readResidentTabLaunchSettings(root.path, namespace)).tabsMax).toBe(1);
+    expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual(defaults);
+    expect(JSON.parse(await readFile(join(root.path, "settings.json"), "utf8"))[namespace].tabsMax).toBe(80);
 
     const legacy = await temporaryDirectory("resident-legacy-"); cleanups.push(legacy.cleanup);
     await writeFile(join(root.path, "settings.json"), JSON.stringify({ theme: "dark" }));
     await mkdir(join(legacy.path, "settings"), { recursive: true });
     await writeFile(join(legacy.path, "settings", "a1.json"), JSON.stringify({ version: 15, values: { residentTabs: false, tabsMax: 12 } }));
-    expect((await readResidentTabLaunchSettings(root.path, namespace, legacy.path, "a1")).tabsMax).toBe(12);
+    expect(await readResidentTabLaunchSettings(root.path, namespace, legacy.path, "a1")).toEqual(defaults);
   });
 
   it("routes bare A1 through the resident host while solo and comparison stay direct", async () => {
@@ -125,6 +123,27 @@ describe("resident tab launch contracts", () => {
     bridge.close();
   });
 
+  it("replays a route command that arrives before composition subscribes", async () => {
+    class Transport extends EventEmitter {
+      write(_bytes: Uint8Array) { return true; }
+      destroy() { this.emit("close"); }
+    }
+    const transport = new Transport();
+    const bridge = new TabBridgeClient({
+      credentials: { tabId: "settings-1", token: Buffer.alloc(32, 3).toString("base64"), endpoint: "fixture" },
+      connect: () => transport,
+    });
+    const start = bridge.start(); transport.emit("connect");
+    transport.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, features: ["bridge-route"] } }));
+    await start;
+    transport.emit("data", encodeResidentFrame({ type: "bridge.route", body: { route: "settings" } }));
+    const commands: unknown[] = [];
+    bridge.onCommand(command => commands.push(command));
+    expect(commands).toEqual([{ type: "route", route: "settings" }]);
+    expect(bridge.tabId).toBe("settings-1");
+    bridge.close();
+  });
+
   it("emits event-loop heartbeats and sends an authenticated restart request", async () => {
     class Transport extends EventEmitter {
       readonly sent: ResidentEnvelope[] = [];
@@ -166,6 +185,12 @@ describe("resident tab launch contracts", () => {
     if (request.requestId === undefined) throw new Error("restart request id missing");
     transport.emit("data", encodeResidentFrame({ type: "bridge.result", requestId: request.requestId, body: { accepted: true } }));
     await expect(restarting).resolves.toBe(true);
+    const closing = bridge.requestClose();
+    const closeRequest = transport.sent.at(-1)!;
+    expect(closeRequest).toMatchObject({ type: "bridge.request", body: { action: "close", clientId: "client", controllerRevision: 7 } });
+    if (closeRequest.requestId === undefined) throw new Error("close request id missing");
+    transport.emit("data", encodeResidentFrame({ type: "bridge.result", requestId: closeRequest.requestId, body: { accepted: true } }));
+    await expect(closing).resolves.toBe(true);
     const marker = "\x1bP+a1;controller=8;07070707070707070707070707070707\x1b\\";
     expect(bridge.consumeControllerBoundaryInput(`before${marker.slice(0, 12)}`)).toBe("before");
     expect(bridge.consumeControllerBoundaryInput(`${marker.slice(12)}after`)).toBe("after");

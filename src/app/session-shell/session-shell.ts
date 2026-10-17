@@ -281,6 +281,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         }),
         enableDockInputReuse: inputPresentation?.viewportReuse !== false,
         footerSessionName: this.#residentTabOptions === undefined,
+        hideSettingsCommand: this.#residentTabOptions !== undefined,
         persistentHistory: this.#customViewport && promptHistory !== undefined,
         ...(promptHistory === undefined ? {} : { historyEditor: promptHistory.editor }),
         onSubmit: text => { void this.submit(text).catch(() => this.#reportSubmissionError()); },
@@ -1430,6 +1431,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "settings" && request.selection === undefined && request.confirmed === undefined) {
+      if (this.#residentTabOptions !== undefined) return rejected("Settings is available from the global Settings tab.");
       this.showSettingsSelector();
       return { outcome: "completed", diagnostic: null };
     }
@@ -1784,6 +1786,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         }
         if (rendered) {
           try { void onClosed?.()?.catch(() => undefined); } catch { /* Rationale: a failed acknowledgement stays pending. */ }
+          this.#residentTabOptions?.closeOwnedRoute?.(route);
         }
       },
     });
@@ -1830,6 +1833,10 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#dialogId = dialog.id;
   }
 
+  openOwnedRoute(route: string): void {
+    this.#openOwnedRoute(route);
+  }
+
   hotkeysPresentation(): PiShellHotkeysPresentation {
     const presentation = this.root.hotkeysPresentation();
     return this.#residentTabOptions === undefined ? presentation : { ...presentation, residentTabs: true };
@@ -1840,6 +1847,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const separator = body.search(/\s/);
     const name = separator < 0 ? body : body.slice(0, separator);
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
+    if (name === "settings" && this.#residentTabOptions !== undefined) {
+      return rejected("Settings is available from the global Settings tab.");
+    }
     if (this.#routeHost?.claims(name)) return this.#openOwnedRoute(name);
     if (this.#isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     if (this.#skillsCollapsed()) {

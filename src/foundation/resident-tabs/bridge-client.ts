@@ -48,13 +48,16 @@ export class TabBridgeClient {
   readonly #pending = new Map<number, (accepted: boolean) => void>();
   #startWaiter: ((accepted: boolean) => void) | null = null;
   readonly #commandListeners = new Set<(command: TabBridgeCommand) => void>();
+  readonly #pendingCommands: TabBridgeCommand[] = [];
   #boundaryInputRemainder = "";
 
   constructor(options: TabBridgeOptions) { this.#options = options; }
+  get tabId(): string { return this.#options.credentials.tabId; }
   get available(): boolean { return this.#available && this.#connected; }
   captureAttachment(): TabAttachment | null { return this.#attachment === null ? null : { ...this.#attachment }; }
   onCommand(listener: (command: TabBridgeCommand) => void): () => void {
     this.#commandListeners.add(listener);
+    for (const command of this.#pendingCommands.splice(0)) listener(command);
     return () => this.#commandListeners.delete(listener);
   }
 
@@ -138,6 +141,10 @@ export class TabBridgeClient {
     return this.#requestAction("restart", origin, timeoutMs);
   }
 
+  requestClose(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
+    return this.#requestAction("close", origin, timeoutMs);
+  }
+
   consumeControllerBoundaryInput(data: string): string {
     const prefix = "\x1bP+a1;controller=";
     const suffix = "\x1b\\";
@@ -192,6 +199,11 @@ export class TabBridgeClient {
   }
 
   #emitCommand(command: TabBridgeCommand): void {
+    if (this.#commandListeners.size === 0) {
+      if (this.#pendingCommands.length >= 16) this.#pendingCommands.shift();
+      this.#pendingCommands.push(command);
+      return;
+    }
     for (const listener of this.#commandListeners) listener(command);
   }
 
@@ -239,7 +251,7 @@ export class TabBridgeClient {
     }
   }
 
-  async #requestAction(action: "detach" | "restart", origin: TabAttachment | null, timeoutMs: number): Promise<boolean> {
+  async #requestAction(action: "detach" | "restart" | "close", origin: TabAttachment | null, timeoutMs: number): Promise<boolean> {
     if (!this.available || origin === null || (action === "restart" && !this.#supports("bridge-restart"))) return false;
     const requestId = ++this.#request;
     const result = new Promise<boolean>(resolvePromise => this.#pending.set(requestId, resolvePromise));

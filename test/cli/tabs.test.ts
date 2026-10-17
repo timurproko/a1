@@ -89,7 +89,7 @@ describe("a1 tabs", () => {
     const code = await runTabsCommand({ action: "doctor", json: false }, { environment: await environment(), stdout: value => stdout.push(value), stderr: () => {}, maintenance, doctor });
     expect(code).toBe(0);
     expect(maintenance).toHaveBeenCalledWith(expect.objectContaining({ action: "host-status" }));
-    expect(doctor).toHaveBeenCalledWith(expect.objectContaining({ stateDir: "/state", settings: { tabsMax: 10, tabsAutoName: true } }));
+    expect(doctor).toHaveBeenCalledWith(expect.objectContaining({ stateDir: "/state", settings: { tabsAutoName: true } }));
     expect(stdout.join("")).toBe("Wrote /state/doctor/a1-tabs-doctor.zip\n");
   });
 });

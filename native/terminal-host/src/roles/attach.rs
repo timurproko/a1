@@ -38,10 +38,11 @@ const END_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026l";
 
 /// The global tab declarations in the order that decides which action keeps a duplicated key;
 /// it mirrors the owned feature's declaration list, which the child projects and publishes.
-pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 17] = [
+pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 18] = [
     ("tabs.new", Some("alt+a")),
     ("tabs.close", Some("alt+w")),
     ("tabs.rename", Some("f2")),
+    ("tabs.settings", Some("alt+.")),
     ("tabs.jump1", Some("alt+1")),
     ("tabs.jump2", Some("alt+2")),
     ("tabs.jump3", Some("alt+3")),
@@ -314,14 +315,9 @@ pub fn is_ctrl_c_console(character: char, control: bool, key_down: bool) -> bool
     key_down && control && matches!(character, 'c' | 'C' | '\u{3}')
 }
 
-fn prompt_overlay_notice(pending_close_name: Option<&str>) -> Option<String> {
-    pending_close_name.map(|name| format!("Stop \"{name}\"? Enter stop · Esc cancel"))
-}
-
 /// The notice for a refused or failed new-tab request.
 pub fn tab_create_failure_notice(reason: Option<&str>) -> String {
     let reason = match reason {
-        Some("tab-limit") => "the tab limit is reached",
         Some("tab-start-busy") => "tab starts are busy, try again shortly",
         Some("busy") => "a tab change is still running, try again shortly",
         Some(reason) if !reason.trim().is_empty() => reason,
@@ -560,16 +556,19 @@ struct PopupMenu {
 
 impl PopupMenu {
     fn context(tab_id: String, column: u16, columns: u16, bindings: &TabBindings) -> Self {
-        Self::new(
-            PopupKind::Context,
-            Some(tab_id),
-            column,
-            columns,
-            vec![
-                PopupItem::action("Close", bindings.label("tabs.close"), PopupAction::Close),
-                PopupItem::action("Rename", bindings.label("tabs.rename"), PopupAction::Rename),
-            ],
-        )
+        let mut items = vec![PopupItem::action(
+            "Close",
+            bindings.label("tabs.close"),
+            PopupAction::Close,
+        )];
+        if !tab_id.starts_with("settings-") {
+            items.push(PopupItem::action(
+                "Rename",
+                bindings.label("tabs.rename"),
+                PopupAction::Rename,
+            ));
+        }
+        Self::new(PopupKind::Context, Some(tab_id), column, columns, items)
     }
 
     fn add(column: u16, columns: u16, bindings: &TabBindings) -> Self {
@@ -581,7 +580,11 @@ impl PopupMenu {
             vec![
                 PopupItem::action("+ Agent", bindings.label("tabs.new"), PopupAction::NewAgent),
                 PopupItem::separator(),
-                PopupItem::action("  Settings", String::new(), PopupAction::Settings),
+                PopupItem::action(
+                    "Settings",
+                    bindings.label("tabs.settings"),
+                    PopupAction::Settings,
+                ),
             ],
         )
     }
@@ -727,11 +730,12 @@ impl PopupMenu {
                 }
                 output.push_str(" \x1b[0m");
             } else {
-                let style = if self.hovered == Some(index) && item.action.is_some() {
-                    "\x1b[0m\x1b[7m"
+                let background = if self.hovered == Some(index) && item.action.is_some() {
+                    236
                 } else {
-                    "\x1b[0m\x1b[7;2m"
+                    235
                 };
+                let foreground = if item.action.is_some() { 15 } else { 245 };
                 let label = if item.separator {
                     "─".repeat(inner)
                 } else {
@@ -740,7 +744,9 @@ impl PopupMenu {
                     label.push_str(&shortcut);
                     label
                 };
-                output.push_str(&format!("{style} {label} \x1b[22;27m"));
+                output.push_str(&format!(
+                    "\x1b[0;48;5;{background};38;5;{foreground}m {label} \x1b[0m"
+                ));
             }
         }
         output.push_str("\x1b[u");
@@ -847,6 +853,30 @@ impl RenameEditor {
     fn move_cursor(&mut self, cursor: usize) {
         self.cursor = cursor.min(self.len());
         self.selection_anchor = None;
+    }
+
+    fn move_word_left(&mut self) {
+        let graphemes = self.text.graphemes(true).collect::<Vec<_>>();
+        let mut cursor = self.cursor.min(graphemes.len());
+        while cursor > 0 && graphemes[cursor - 1].chars().all(char::is_whitespace) {
+            cursor -= 1;
+        }
+        while cursor > 0 && !graphemes[cursor - 1].chars().all(char::is_whitespace) {
+            cursor -= 1;
+        }
+        self.move_cursor(cursor);
+    }
+
+    fn move_word_right(&mut self) {
+        let graphemes = self.text.graphemes(true).collect::<Vec<_>>();
+        let mut cursor = self.cursor.min(graphemes.len());
+        while cursor < graphemes.len() && !graphemes[cursor].chars().all(char::is_whitespace) {
+            cursor += 1;
+        }
+        while cursor < graphemes.len() && graphemes[cursor].chars().all(char::is_whitespace) {
+            cursor += 1;
+        }
+        self.move_cursor(cursor);
     }
 
     fn select_all(&mut self) {
@@ -1076,7 +1106,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         None,
         AttachStart {
             client_id: String::new(),
-            tabs_max: options.tabs_max.clamp(1, 50),
+            tabs_max: options.tabs_max,
             cwd: options.cwd.into(),
             columns,
             rows,
@@ -1174,7 +1204,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut rename: Option<RenameEditor> = None;
     let mut pending_manual_name: Option<(String, String)> = None;
     let mut popup: Option<PopupMenu> = None;
-    let mut pending_close: Option<String> = None;
     let mut close_fallback: Option<CloseFallback> = None;
     let mut transient_notice: Option<String> = None;
     let mut user_input_pending = false;
@@ -1182,8 +1211,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut prompt_view = view.viewed.clone();
     let mut registry_revision = 0u64;
     let mut drag: Option<TabDrag> = None;
-    let mut pending_settings_create = false;
-    let mut pending_settings_tab: Option<String> = None;
     let mut latest_modes: Option<TerminalModes> = None;
     let mut latest_cursor: Option<FinalCursor> = None;
     let mut bindings = TabBindings::load(options.profile);
@@ -1224,12 +1251,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     rename_display.as_ref(),
                 );
             }
-            let pending_name = pending_close.as_ref().and_then(|id| {
-                tabs.iter()
-                    .find(|tab| &tab.id == id)
-                    .map(|tab| tab.name.as_str())
-            });
-            let prompt = prompt_overlay_notice(pending_name);
             let status_notice = view
                 .viewed
                 .as_ref()
@@ -1250,8 +1271,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 .and_then(|drag| drag_marker_column(drag, &tabs, &strip_frame))
             {
                 Some(render_drag_marker(column, columns))
-            } else if let Some(prompt) = prompt {
-                Some(render_notice(&prompt, columns))
             } else if let Some(notice) = transient_notice.as_deref().or(status_notice.as_deref()) {
                 Some(render_notice(notice, columns))
             } else {
@@ -1277,7 +1296,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             if latest_cursor.is_some()
                 && popup.is_none()
                 && drag.is_none()
-                && pending_close.is_none()
                 && transient_notice.is_none()
             {
                 let rename_display = rename.as_ref().map(RenameEditor::display);
@@ -1319,28 +1337,15 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 PopupAction::Close => {
                     if let Some(tab_id) = $menu.tab_id.clone() {
-                        let busy = tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
-                            matches!(tab.status.as_str(), "working" | "needs-input")
-                        });
-                        if busy {
-                            pending_close = Some(tab_id);
-                        } else {
-                            close_fallback =
-                                close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
-                            wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
-                        }
+                        close_fallback = close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
+                        wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
                     }
                 }
                 PopupAction::NewAgent => {
                     wire::send(&mut stream, "tab.create", None, create.clone())?;
                 }
                 PopupAction::Settings => {
-                    if let Some(tab_id) = view.viewed.clone() {
-                        wire::send(&mut stream, "tab.open-settings", None, TabTarget { tab_id })?;
-                    } else {
-                        pending_settings_create = true;
-                        wire::send(&mut stream, "tab.create", None, create.clone())?;
-                    }
+                    wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
                 }
                 PopupAction::View(tab_id) => {
                     view.requested = Some(tab_id.clone());
@@ -1362,7 +1367,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 close_fallback = None;
                 transient_notice = None;
                 if prompt_view != view.viewed {
-                    pending_close = None;
                     rename = None;
                     popup = None;
                     prompt_view = view.viewed.clone();
@@ -1383,17 +1387,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 .cursor
                 .map(FinalCursor::At)
                 .or_else(|| surface.modes.as_ref().map(|_| FinalCursor::Hidden));
-            if pending_settings_tab.as_deref() == Some(surface.tab_id.as_str()) {
-                pending_settings_tab = None;
-                wire::send(
-                    &mut stream,
-                    "tab.open-settings",
-                    None,
-                    TabTarget {
-                        tab_id: surface.tab_id.clone(),
-                    },
-                )?;
-            }
             paint_current!(false);
         }};
     }
@@ -1509,11 +1502,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             .as_ref()
                             .and_then(|fallback| fallback.resolve(candidates))
                     });
-                    if let Some(dropped) = outcome.dropped_request.as_deref()
-                        && pending_settings_tab.as_deref() == Some(dropped)
-                    {
-                        pending_settings_tab = None;
-                    }
                     if let Some(tab_id) = outcome.view_request {
                         wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
                     }
@@ -1531,9 +1519,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         } => {
                             tabs = next;
                             let listed = |id: &String| tabs.iter().any(|tab| &tab.id == id);
-                            if !pending_close.as_ref().is_none_or(listed) {
-                                pending_close = None;
-                            }
                             if popup
                                 .as_ref()
                                 .and_then(|menu| menu.tab_id.as_ref())
@@ -1578,10 +1563,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "tab.created" | "tab.selected" => {
                     let (_, target): (_, TabTarget) = wire::body(&payload)?;
-                    if pending_settings_create && kind.message_type == "tab.created" {
-                        pending_settings_create = false;
-                        pending_settings_tab = Some(target.tab_id.clone());
-                    }
                     view.requested = Some(target.tab_id.clone());
                     wire::send(&mut stream, "tab.view", None, target)?;
                     wire::send(
@@ -1597,8 +1578,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 "tab.create-failed" | "tab.create-refused" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
                     view.cancel_request();
-                    pending_settings_create = false;
-                    pending_settings_tab = None;
                     transient_notice = Some(tab_create_failure_notice(result.message.as_deref()));
                     paint_current!(false);
                 }
@@ -1721,7 +1700,13 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         continue;
                     }
                     let message = if kind.message_type == "input.rejected" {
-                        rejection_notice(&mut user_input_pending, result.message)
+                        let message = match result.message.as_deref() {
+                            Some(crate::roles::server::INPUT_REJECTED_READ_ONLY) => {
+                                Some("Input was not sent; try again.".into())
+                            }
+                            _ => result.message,
+                        };
+                        rejection_notice(&mut user_input_pending, message)
                     } else {
                         result.message
                     };
@@ -1802,7 +1787,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         // tab removal that changes the view.viewed tab cancels it instead of letting it swallow the
         // new tab's keys.
         if prompt_view != view.viewed {
-            pending_close = None;
             rename = None;
             popup = None;
             prompt_view = view.viewed.clone();
@@ -1811,16 +1795,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         match next {
             Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => {
                 transient_notice = None;
-                if let Some(tab_id) = pending_close.take() {
-                    if key.code == KeyCode::Enter {
-                        close_fallback = close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
-                        wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
-                    } else if key.code != KeyCode::Esc {
-                        pending_close = Some(tab_id);
-                    }
-                    paint_current!(false);
-                    continue;
-                }
                 if rename.is_some() {
                     let mut submit: Option<(String, String)> = None;
                     let mut consume = true;
@@ -1839,6 +1813,12 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             }
                             KeyCode::Backspace => editor.backspace(),
                             KeyCode::Delete => editor.delete(),
+                            KeyCode::Left if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                editor.move_word_left()
+                            }
+                            KeyCode::Right if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                editor.move_word_right()
+                            }
                             KeyCode::Left => editor.move_cursor(editor.cursor.saturating_sub(1)),
                             KeyCode::Right => {
                                 editor.move_cursor((editor.cursor + 1).min(editor.len()))
@@ -1917,28 +1897,22 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 if let Some(action) = bindings.action(&key) {
                     match action {
                         "tabs.new" => wire::send(&mut stream, "tab.create", None, create.clone())?,
+                        "tabs.settings" => {
+                            wire::send(&mut stream, "tab.open-settings", None, create.clone())?
+                        }
                         "tabs.close" => {
                             if let Some(tab_id) = view.viewed.clone() {
-                                let busy =
-                                    tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
-                                        matches!(tab.status.as_str(), "working" | "needs-input")
-                                    });
-                                if busy {
-                                    pending_close = Some(tab_id);
-                                } else {
-                                    close_fallback =
-                                        close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
-                                    wire::send(
-                                        &mut stream,
-                                        "tab.close",
-                                        None,
-                                        TabTarget { tab_id },
-                                    )?;
-                                }
+                                close_fallback =
+                                    close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
+                                wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
                             }
                         }
                         "tabs.rename" => {
-                            if let Some(tab_id) = view.viewed.clone() {
+                            if let Some(tab_id) = view
+                                .viewed
+                                .clone()
+                                .filter(|id| !id.starts_with("settings-"))
+                            {
                                 let name = tabs
                                     .iter()
                                     .find(|tab| tab.id == tab_id)
@@ -2075,7 +2049,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     paint_current!(false);
                     continue;
                 }
-                if failed || pending_close.is_some() || popup.is_some() {
+                if failed || popup.is_some() {
                     continue;
                 }
                 chord.reset();
@@ -2163,6 +2137,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         if changed {
                             paint_current!(false);
                         }
+                        continue;
+                    }
+                    if matches!(mouse.kind, MouseEventKind::Up(_)) {
+                        popup = Some(menu);
                         continue;
                     }
                     if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
@@ -3018,11 +2996,6 @@ mod tests {
 
     #[test]
     fn modeled_overlays_match_v2_menu_style_and_actions() {
-        assert_eq!(prompt_overlay_notice(None), None);
-        assert_eq!(
-            prompt_overlay_notice(Some("agent")).as_deref(),
-            Some("Stop \"agent\"? Enter stop · Esc cancel")
-        );
         let profile = tempfile::tempdir().unwrap();
         let bindings = TabBindings::load(profile.path());
         let mut menu = PopupMenu::context("tab-1".into(), 79, 80, &bindings);
@@ -3040,6 +3013,9 @@ mod tests {
         assert_eq!(menu.action_at(menu.column.saturating_sub(1), 1), None);
         menu.hovered = Some(0);
         assert!(menu.render_with_color(true).contains("\x1b[48;2;48;48;48m"));
+        let palette = menu.render_with_color(false);
+        assert!(palette.contains("48;5;236"));
+        assert!(!palette.contains("\x1b[7m"));
         menu.resize(8);
         assert_eq!(menu.column + menu.width, 8);
         menu.resize(80);
@@ -3056,7 +3032,14 @@ mod tests {
         let add_rendered = add.render();
         assert!(add_rendered.contains("+ Agent"));
         assert!(add_rendered.contains("Settings"));
+        assert!(add_rendered.contains("Alt+."));
         assert!(add_rendered.contains('─'));
+        let settings = PopupMenu::context("settings-1".into(), 0, 80, &bindings);
+        assert_eq!(settings.items.len(), 1);
+        assert_eq!(
+            settings.action_at(settings.column, 1),
+            Some(PopupAction::Close)
+        );
 
         std::fs::write(
             profile.path().join("keybindings.json"),
@@ -3067,10 +3050,6 @@ mod tests {
         let rebound_rendered = rebound.render();
         assert!(rebound_rendered.contains("Ctrl+X"));
         assert!(rebound_rendered.contains("Alt+R"));
-        assert!(
-            render_notice("Stop \"agent\"? Enter stop · Esc cancel", 80)
-                .contains("Stop \"agent\"?")
-        );
         let marker = render_drag_marker_configured(79, 80, true);
         assert!(marker.contains("│"));
         assert!(marker.contains("48;2;38;38;38"));
@@ -3094,6 +3073,18 @@ mod tests {
         editor.backspace();
         assert_eq!(editor.text, "oc");
         assert_eq!(editor.display().cursor, 2);
+
+        let mut words = RenameEditor::new("tab-1".into(), "alpha  beta 🚀".into());
+        words.move_word_left();
+        assert_eq!(words.cursor, 12);
+        words.move_word_left();
+        assert_eq!(words.cursor, 7);
+        words.move_word_left();
+        assert_eq!(words.cursor, 0);
+        words.move_word_right();
+        assert_eq!(words.cursor, 7);
+        words.move_word_right();
+        assert_eq!(words.cursor, 12);
     }
 
     #[test]
@@ -3185,10 +3176,6 @@ mod tests {
 
     #[test]
     fn new_tab_failures_name_their_reason() {
-        assert_eq!(
-            tab_create_failure_notice(Some("tab-limit")),
-            "Could not open a tab: the tab limit is reached"
-        );
         assert_eq!(
             tab_create_failure_notice(Some("tab-start-busy")),
             "Could not open a tab: tab starts are busy, try again shortly"
