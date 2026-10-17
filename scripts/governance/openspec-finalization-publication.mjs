@@ -136,9 +136,17 @@ async function promoteCompletedDraft({ reader, publisher, pull, implementation, 
     if ((await git(["merge-base", "--is-ancestor", target, pull.head.sha], { allowFailure: true })) === null) {
       throw archiveFailure("delivery-target-stale");
     }
-    const targetSpecs = await readCanonicalSpecs({ cwd: checkout, sha: target, env, gitImpl });
-    await prepareSinglePrDelivery({ root: checkout, change: implementation.change, repository: reader.repository, sourcePr: number,
-      body: pull.body ?? "", specBaseSha: target, date, targetSpecs, write: false, toolRoot });
+    // Invariant: a draft whose exact head finalization already produced holds its archived form, not an active
+    // change, so it is promoted on that tree; the ready reconciliation then re-validates it as usual.
+    if (implementation.finalizedHead === pull.head.sha) {
+      const archive = await archivedForm(checkout, implementation.change);
+      const activePresent = (await readdir(join(checkout, `openspec/changes/${implementation.change}/`)).catch(() => null)) !== null;
+      if (!archive || activePresent || archive !== implementation.archive) throw archiveFailure("finalization-redraft-form");
+    } else {
+      const targetSpecs = await readCanonicalSpecs({ cwd: checkout, sha: target, env, gitImpl });
+      await prepareSinglePrDelivery({ root: checkout, change: implementation.change, repository: reader.repository, sourcePr: number,
+        body: pull.body ?? "", specBaseSha: target, date, targetSpecs, write: false, toolRoot });
+    }
   } catch (error) {
     const blocked = draftBlock(error, true);
     if (blocked) return { ...blocked, head: pull.head.sha };
