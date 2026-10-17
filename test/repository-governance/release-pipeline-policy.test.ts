@@ -138,6 +138,8 @@ describe("deliberate publication pipeline", () => {
       if (step.uses?.startsWith("mlugg/setup-zig@")) expect(step.with).toEqual({ version: "0.15.2", "cache-key": "full-regression", "cache-size-limit": 512 });
     }
     expect(hosts).toContain("run: bash scripts/development/prepare-ci-rust.sh");
+    expect(hosts).toContain("run: node node_modules/typescript/bin/tsc -p tsconfig.build.json");
+    expect(hosts.indexOf("run: node node_modules/typescript/bin/tsc -p tsconfig.build.json")).toBeLessThan(hosts.indexOf("run: npm run build:terminal-host"));
     expect(hosts).toContain("run: npm run build:terminal-host");
     // Invariant: the larger simulation budget runs nightly on one platform, never on stable publication.
     expect(hosts).toContain("if: needs.plan.outputs.mode == 'nightly' && runner.os == 'Linux'");

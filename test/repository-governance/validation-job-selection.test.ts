@@ -56,6 +56,8 @@ describe("Development validation job resolution", () => {
     expect(matrix.include).toEqual([...DEVELOPMENT_VALIDATION_MATRIX]);
     expect(matrix.inactive).toEqual([]);
     expect(DEVELOPMENT_VALIDATION_MATRIX).toHaveLength(24);
+    expect(DEVELOPMENT_VALIDATION_MATRIX.every(entry => entry.addon === "process-guardian.node")).toBe(true);
+    expect(DEVELOPMENT_VALIDATION_MATRIX.filter(entry => entry.terminalHost).every(entry => entry.terminalHostAddon === "terminal-host.node")).toBe(true);
     for (const owner of owners) for (const target of owner.targets) {
       expect(DEVELOPMENT_VALIDATION_MATRIX.some(entry => entry.group === validationJobGroup(owner.id, target.platform)
         && entry.platform === target.platform && entry.architecture === target.architecture && entry.node === target.node), `${owner.id} ${target.platform}`).toBe(true);

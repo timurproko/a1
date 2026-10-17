@@ -8,9 +8,9 @@ export interface DevelopmentValidationMatrixEntry {
   build: boolean;
   guardian: boolean;
   defender: boolean;
-  binary: "process-guardian.exe" | "process-guardian";
+  addon: "process-guardian.node";
   terminalHost?: boolean;
-  terminalHostBinary?: string;
+  terminalHostAddon?: "terminal-host.node";
   chaos?: boolean;
   /** `<index>/<count>` of the terminal-host role-fixture suite this entry runs; absent for every other job. */
   partition?: string;

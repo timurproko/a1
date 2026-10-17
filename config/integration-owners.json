@@ -185,11 +185,10 @@
       "entries": [
         "test/foundation/process-containment/artifact.test.ts",
         "test/foundation/process-containment/contracts.test.ts",
-        "test/foundation/process-containment/darwin-process-inspector.test.ts",
+        "test/foundation/process-containment/addon-process-inspector.test.ts",
         "test/foundation/process-containment/source-boundary.test.ts",
         "test/foundation/process-containment/unix-process-group.integration.test.ts",
         "test/foundation/process-containment/windows-job.integration.test.ts",
-        "test/foundation/process-containment/windows-process-inspector.test.ts",
         "test/app/session-shell/image-preparation.test.ts",
         "test/app/session-shell/image-worker-package.test.ts",
         "test/features/prompt-history/concurrency.integration.test.ts",
@@ -209,11 +208,10 @@
       "tests": [
         "test/foundation/process-containment/artifact.test.ts",
         "test/foundation/process-containment/contracts.test.ts",
-        "test/foundation/process-containment/darwin-process-inspector.test.ts",
+        "test/foundation/process-containment/addon-process-inspector.test.ts",
         "test/foundation/process-containment/source-boundary.test.ts",
         "test/foundation/process-containment/unix-process-group.integration.test.ts",
-        "test/foundation/process-containment/windows-job.integration.test.ts",
-        "test/foundation/process-containment/windows-process-inspector.test.ts"
+        "test/foundation/process-containment/windows-job.integration.test.ts"
       ],
       "support": [
         "test/foundation/process-containment/"
