@@ -8,7 +8,6 @@ import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import {
   acquireExisting,
   nativeCandidates,
-  SESSION_LOCK_OVERRIDE_ENVIRONMENT,
   reserveNew,
   SessionWriterConflict,
   setSessionWriterLockBackendForTest,
@@ -71,20 +70,20 @@ describe("session-writer lock addon resolution", () => {
   const release = resolve("/release");
   const moduleUrl = pathToFileURL(join(release, "dist", "foundation", "session-writer-lock", "index.js")).href;
   const target = `${process.platform}-${process.arch}`;
-  const releaseLock = join(release, "dist", "native", target, "a1_session_lock.node");
-  const development = { [PRODUCT_IDENTITY.environment.developmentInstanceId]: "dev", [SESSION_LOCK_OVERRIDE_ENVIRONMENT]: "/override.node" };
+  const releaseAddon = join(release, "dist", "native", target, "terminal-host.node");
+  const development = { [PRODUCT_IDENTITY.environment.developmentInstanceId]: "dev", [PRODUCT_IDENTITY.environment.terminalHostPath]: "/override.node" };
 
-  it("loads only the release's own lock when the release carries one", () => {
-    const candidates = nativeCandidates(moduleUrl, { [SESSION_LOCK_OVERRIDE_ENVIRONMENT]: "/override.node" }, resolve("/elsewhere"), path => path === releaseLock);
-    expect(candidates).toEqual([releaseLock]);
+  it("loads only the release's own terminal-host addon when the release carries one", () => {
+    const candidates = nativeCandidates(moduleUrl, { [PRODUCT_IDENTITY.environment.terminalHostPath]: "/override.node" }, resolve("/elsewhere"), path => path === releaseAddon);
+    expect(candidates).toEqual([releaseAddon]);
   });
 
   it("honors the override and working-directory addons only as development aids", () => {
-    expect(nativeCandidates(moduleUrl, development, resolve("/elsewhere"), path => path === releaseLock)).toEqual(["/override.node", releaseLock]);
+    expect(nativeCandidates(moduleUrl, development, resolve("/elsewhere"), path => path === releaseAddon)).toEqual(["/override.node", releaseAddon]);
     const checkout = nativeCandidates(moduleUrl, {}, resolve("/checkout"), () => false);
     expect(checkout).toEqual([
-      join(resolve("/checkout"), "dist", "native", target, "a1_session_lock.node"),
-      join(resolve("/checkout"), ".artifacts", "terminal-host", "a1_session_lock.node"),
+      join(resolve("/checkout"), "dist", "native", target, "terminal-host.node"),
+      join(resolve("/checkout"), ".artifacts", "terminal-host", "terminal-host.node"),
     ]);
   });
 });

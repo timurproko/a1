@@ -11,7 +11,7 @@ const filename = fileURLToPath(import.meta.url);
 const target = `${process.platform}-${process.arch}`;
 const development = process.env[PRODUCT_IDENTITY.environment.developmentInstanceId]?.trim();
 const override = development ? process.env[PRODUCT_IDENTITY.environment.terminalHostPath]?.trim() : undefined;
-const addonPath = resolve(override || resolve(dirname(filename), "../../native", target, "terminal-host.node"));
+const addonPath = resolve(override || resolve(dirname(filename), "../../native", target, `${PRODUCT_IDENTITY.artifacts.terminalHostAddon}.node`));
 const addon = createRequire(import.meta.url)(addonPath) as Partial<TerminalHostAddon>;
 if (typeof addon.runRole !== "function") throw new Error("terminal host addon exports are incompatible");
 

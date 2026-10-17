@@ -202,14 +202,6 @@
       "semantics": "Hermetic resident host artifact override for integration tests"
     },
     {
-      "role": "sessionLockPath",
-      "key": "A1_SESSION_LOCK_PATH",
-      "exposure": "integration",
-      "owner": "src/foundation/session-writer-lock/index.ts",
-      "evidence": "test/foundation/session-writer-lock/session-writer-lock.integration.test.ts",
-      "semantics": "Native session-writer lock addon override used by integration tests"
-    },
-    {
       "role": "tabsFaultHangPty",
       "key": "A1_TABS_FAULT_HANG_PTY",
       "exposure": "integration",

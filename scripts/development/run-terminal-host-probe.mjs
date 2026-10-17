@@ -78,6 +78,15 @@ async function main() {
     run(cargo, ["test", "--manifest-path", manifest, "--features", ROLE_TEST_FEATURES], environment);
   }
   assertNoFixtureProcesses(environment);
+  // Invariant: the real-process Vitest fixture must see the addon before test collection; otherwise
+  // its native assertions would skip while the old executable target no longer exists.
+  run(cargo, ["build", "--manifest-path", manifest, "--lib", "--features", "node-addon,resident-fixtures,fault-injection"], environment);
+  const builtAddon = resolve("native/terminal-host/target/debug", platform() === "win32" ? "terminal_host_contracts.dll" : platform() === "darwin" ? "libterminal_host_contracts.dylib" : "libterminal_host_contracts.so");
+  const debugAddon = resolve(".artifacts/terminal-host/terminal-host.node");
+  await mkdir(resolve(".artifacts/terminal-host"), { recursive: true });
+  await copyFile(builtAddon, debugAddon);
+  run(process.execPath, ["-e", "const report=require(process.argv[1]).version(); if(report.schema!=='a1-terminal-host-version-v1') process.exit(2);", debugAddon], environment, PROBE_TIMEOUT_MS);
+  run(process.execPath, [resolve("scripts/development/test-session-lock-addon.mjs")], environment, PROBE_TIMEOUT_MS);
   run(process.execPath, [
     resolve("node_modules/vitest/vitest.mjs"), "run",
     "test/foundation/release/resident-release-retention.integration.test.ts",
@@ -94,14 +103,6 @@ async function main() {
   run(process.execPath, [resolve("scripts/development/build-terminal-host.mjs")], { ...environment, CARGO: cargo }, RELEASE_BUILD_TIMEOUT_MS);
   const releaseAddon = resolve("dist/native", `${platform()}-${process.arch}`, "terminal-host.node");
   runRoleRefusal(releaseAddon, ["--probe"], { ...environment, A1_TABS_FAULT_CRASH_POINT: "after-bind" });
-
-  run(cargo, ["build", "--manifest-path", manifest, "--lib", "--features", "node-addon,resident-fixtures,fault-injection"], environment);
-  const builtAddon = resolve("native/terminal-host/target/debug", platform() === "win32" ? "terminal_host_contracts.dll" : platform() === "darwin" ? "libterminal_host_contracts.dylib" : "libterminal_host_contracts.so");
-  const debugAddon = resolve(".artifacts/terminal-host/terminal-host.node");
-  await mkdir(resolve(".artifacts/terminal-host"), { recursive: true });
-  await copyFile(builtAddon, debugAddon);
-  run(process.execPath, ["-e", "const report=require(process.argv[1]).version(); if(report.schema!=='a1-terminal-host-version-v1') process.exit(2);", debugAddon], environment, PROBE_TIMEOUT_MS);
-  run(process.execPath, [resolve("scripts/development/test-session-lock-addon.mjs")], environment, PROBE_TIMEOUT_MS);
   for (const flag of ["--probe", "--probe-contracts", "--probe-durable", "--probe-controller-boundary", "--probe-resident-launch", "--probe-selection", "--probe-input"]) {
     runRole(debugAddon, [flag], environment, PROBE_TIMEOUT_MS);
   }

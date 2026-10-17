@@ -88,8 +88,9 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
     });
     if (resident !== null) {
       residentContext = resident.status === "ready" ? {
-        residentRootExecutable: resident.executable,
+        residentRootExecutable: resident.executable.executable,
         residentRootArguments: JSON.stringify([
+          resident.executable.entry,
           "attach", "--endpoint", resident.endpoint, "--cwd", process.cwd(), "--clear-exit-ms", String(CLEAR_EXIT_INTERVAL_MS),
           "--profile", environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
           "--settings-file", resolve(agentProfileDir, "settings.json"),

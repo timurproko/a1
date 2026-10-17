@@ -18,9 +18,16 @@ import { readResidentReleaseHolds } from "../../../src/foundation/resident-tabs/
 // Rationale: the native terminal-host lane builds these fixture binaries before it runs this file;
 // other lanes have no native build, so the real-process test runs only where the binaries exist.
 const executable = process.platform === "win32" ? ".exe" : "";
-const host = resolve("native/terminal-host/target/debug", `terminal-host${executable}`);
+const hostAddon = resolve(".artifacts/terminal-host/terminal-host.node");
+const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
 const fakeTab = resolve("native/terminal-host/target/debug", `fake-tab${executable}`);
-const nativeIt = existsSync(host) && existsSync(fakeTab) ? it : it.skip;
+const nativeIt = existsSync(hostAddon) && existsSync(hostEntry) && existsSync(fakeTab) ? it : it.skip;
+const hostEnvironment = (addon: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
+  ...process.env,
+  A1_DEV_INSTANCE_ID: "resident-release-retention",
+  A1_TERMINAL_HOST_PATH: addon,
+  ...extra,
+});
 
 const roots: string[] = [];
 const stops: (() => void)[] = [];
@@ -52,9 +59,9 @@ describe("resident release retention with real processes", () => {
       ? `\\\\.\\pipe\\a1-tabs-retention-${process.pid}-${Date.now().toString(16)}`
       : resolve(runtime, "resident.sock");
     const common = ["--profile", profile, "--data-dir", fixture.dataDir, "--runtime-dir", runtime];
-    const run = (arguments_: readonly string[]) => spawnSync(releaseHost, [...arguments_], {
+    const run = (arguments_: readonly string[]) => spawnSync(process.execPath, [hostEntry, ...arguments_], {
       encoding: "utf8",
-      env: { ...process.env, A1_TABS_ENDPOINT: endpoint },
+      env: hostEnvironment(releaseHost, { A1_TABS_ENDPOINT: endpoint }),
       cwd: heldByTab!.releaseRoot,
       timeout: 120_000,
       windowsHide: true,
@@ -75,9 +82,13 @@ describe("resident release retention with real processes", () => {
       dataDir,
       releaseRoots,
       // Rationale: the fixture host is a debug build, so release artifact verification is replaced
-      // by running that exact binary; the inspection itself is the production command.
+      // by loading that exact addon; the inspection itself is the production command.
       verify: async () => undefined,
-      run: async (_executable, arguments_, timeoutMs) => runBoundedHostCommand(releaseHost, arguments_, { maxStdoutBytes: 1024 * 1024, timeoutMs, label: "fixture release-hold inspection" }),
+      run: async (_command, arguments_, timeoutMs) => runBoundedHostCommand(
+        { executable: process.execPath, entry: hostEntry },
+        arguments_,
+        { environment: hostEnvironment(releaseHost, { A1_TABS_ENDPOINT: endpoint }), maxStdoutBytes: 1024 * 1024, timeoutMs, label: "fixture release-hold inspection" },
+      ),
     });
     await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
     const retained = await fixture.store.read();
@@ -107,9 +118,9 @@ describe("resident release retention with real processes", () => {
       ? `\\\\.\\pipe\\a1-tabs-update-${process.pid}-${Date.now().toString(16)}`
       : resolve(runtime, "resident.sock");
     const common = ["--profile", profile, "--data-dir", environment.A1_DATA_DIR, "--runtime-dir", runtime];
-    const run = (arguments_: readonly string[], extra: NodeJS.ProcessEnv = {}) => spawnSync(host, [...arguments_], {
+    const run = (arguments_: readonly string[], extra: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [hostEntry, ...arguments_], {
       encoding: "utf8",
-      env: { ...process.env, A1_TABS_ENDPOINT: endpoint, ...extra },
+      env: hostEnvironment(hostAddon, { A1_TABS_ENDPOINT: endpoint, ...extra }),
       cwd: release.releaseRoot,
       timeout: 120_000,
       windowsHide: true,
@@ -155,9 +166,8 @@ async function installHost(releaseRoot: string): Promise<string> {
   // Rationale: materialized releases may be read-only; the fixture adds its host before use.
   for (const path of [releaseRoot, resolve(releaseRoot, "dist")]) await chmod(path, 0o755).catch(() => undefined);
   await mkdir(directory, { recursive: true });
-  const installed = resolve(directory, `terminal-host${executable}`);
-  await copyFile(host, installed);
-  await chmod(installed, 0o755);
+  const installed = resolve(directory, "terminal-host.node");
+  await copyFile(hostAddon, installed);
   return installed;
 }
 

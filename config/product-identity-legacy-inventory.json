@@ -817,10 +817,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.test.ts:50:32",
+      "id": "test/foundation/release/package-surface.test.ts:53:32",
       "path": "test/foundation/release/package-surface.test.ts",
       "locationKind": "content",
-      "line": 50,
+      "line": 53,
       "column": 32,
       "value": "addone",
       "context": "expect(paths.some(path => /addone/i.test(path))).toBe(false);",
@@ -964,10 +964,10 @@
       ]
     },
     {
-      "id": "test/product-identity/product-identity.test.ts:67:65",
+      "id": "test/product-identity/product-identity.test.ts:71:65",
       "path": "test/product-identity/product-identity.test.ts",
       "locationKind": "content",
-      "line": 67,
+      "line": 71,
       "column": 65,
       "value": "ADDONE",
       "context": "[\"legacy environment prefix\", withEnvironment(\"configDir\", \"ADDONE_CONFIG_DIR\"), /must use A1_/],",
@@ -1266,5 +1266,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-10-14T11:10:40.376Z"
+  "generatedAt": "2026-10-17T16:11:46.318Z"
 }

@@ -46,6 +46,8 @@ describe("mutable bootstrap boundary", () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
     expect(bootstrap).toContain("options.launchIntent?.profileId");
     expect(bootstrap).toContain("withLaunchContext(options.environment ?? process.env");
+    expect(bootstrap).toContain("residentRootExecutable: resident.executable.executable");
+    expect(bootstrap).toContain("resident.executable.entry");
     expect(bootstrap).toContain('"--settings-file", resolve(agentProfileDir, "settings.json")');
     expect(bootstrap).not.toMatch(/foundation\/transparent-terminal/);
   });

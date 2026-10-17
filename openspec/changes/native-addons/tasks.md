@@ -24,7 +24,7 @@ Each numbered section is one Implementation item of the pull request and one com
 
 ## 5. Resident-tab code uses the addon
 
-- [ ] 5.1 Update `src/foundation/resident-tabs/{ensure-terminal-host,terminal-host-artifact,bounded-host-command,maintenance}.ts` to resolve `terminal-host.node`, verify the v2 manifest with the entry digest, and run every role as `process.execPath [host-entry.js, ...]`; update `selectResidentHost` in `src/foundation/release/bootstrap.ts` to pass the attach root command; update `src/foundation/session-writer-lock/index.ts` to load `terminal-host.node` with the `A1_TERMINAL_HOST_PATH` development override; update `test/foundation/resident-tabs/*` and `test/foundation/session-writer-lock/*`.
+- [x] 5.1 Update `src/foundation/resident-tabs/{ensure-terminal-host,terminal-host-artifact,bounded-host-command,maintenance}.ts` to resolve `terminal-host.node`, verify the v2 manifest with the entry digest, and run every role as `process.execPath [host-entry.js, ...]`; update `selectResidentHost` in `src/foundation/release/bootstrap.ts` to pass the attach root command; update `src/foundation/session-writer-lock/index.ts` to load `terminal-host.node` with the `A1_TERMINAL_HOST_PATH` development override; update `test/foundation/resident-tabs/*` and `test/foundation/session-writer-lock/*`.
 
 ## 6. Addon release surface
 

@@ -179,11 +179,11 @@ async function redactedMarker(path: string, redact: (value: string) => string): 
 async function artifactFacts(roots: readonly string[], platform: NodeJS.Platform, architecture: string, redact: (value: string) => string): Promise<unknown> {
   const facts = [];
   for (const root of roots) {
-    const executable = resolveTerminalHostPath(root, {}, platform, architecture);
-    const manifest = await readFile(resolve(dirname(executable), TERMINAL_HOST_MANIFEST_FILENAME), "utf8")
+    const addon = resolveTerminalHostPath(root, {}, platform, architecture);
+    const manifest = await readFile(resolve(dirname(addon), TERMINAL_HOST_MANIFEST_FILENAME), "utf8")
       .then(text => JSON.parse(text) as unknown)
       .catch(() => null);
-    const verification = await verifyTerminalHostArtifact(executable, platform, architecture)
+    const verification = await verifyTerminalHostArtifact(addon, platform, architecture)
       .then(() => "verified")
       .catch((error: unknown) => error instanceof Error && "code" in error ? String(error.code) : "failed");
     facts.push({ releaseRoot: redact(root), verification, manifest });
