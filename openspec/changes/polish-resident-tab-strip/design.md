@@ -23,6 +23,7 @@ The existing shared profile document is atomically replaced, namespaced under `a
 - Changing server/holder registry authority or allowing multiple simultaneous attachments.
 - Adding tab slash commands, close buttons, new notification channels, or a general-purpose native settings framework.
 - Changing `a1 pi`, `a1 solo`, or terminal-owned regular-mode rendering.
+- Recreating v2's general-purpose utility-tab host; the grouped Settings launcher opens the owned route in a resident Agent tab.
 
 ## Decisions
 
@@ -72,9 +73,19 @@ Before issuing close for the active tab, the client records the immediate left n
 
 **Alternatives considered:** selecting list index zero is surprising; asking the server to own a per-client predecessor would move client-local view policy into shared registry state.
 
-### 7. Test state and terminal output at their ownership boundaries
+### 7. Reuse v2 interaction models at the native boundary
 
-TypeScript tests will cover declaration/default/migration, current-example labels, formatter boundaries, prompt width/layout in both formats, and live settings propagation. Rust unit tests will cover close-free chip geometry, all hover targets, clock right inset/formats, context-menu geometry/actions, zero-tab output, predecessor selection, equivalent-list suppression, and composed-write ordering/cursor restoration. Focused role integration will exercise create/switch/close staging where existing harness seams make the complete-surface boundary observable.
+One popup-menu model will render context, overflow, and add menus with v2's `38,38,38` normal background, `48,48,48` hover background, white labels, muted shortcuts, one-cell horizontal padding, and palette fallback. The add menu will contain `+ Agent`, a disabled horizontal separator, and `Settings`. Agent uses the existing create path. Settings sends a backwards-compatible route command through the server and tab bridge to the owned workflow host; when no tab exists, attach creates an Agent and dispatches the route after its first complete surface.
+
+A drag state will retain the pressed tab, start column/time, visible insertion destination, and registry revision. It becomes visible after 250 ms or one column of motion, calculates insertion boundaries from complete chip hit regions, previews only real moves with v2's `│` marker, and sends one expected-revision reorder on release. Release away from the strip cancels.
+
+Rename will use an attach-owned line editor rendered inside the target chip. It supports cursor movement, Home/End, Backspace/Delete, and Ctrl+A replacement; Enter trims and commits optimistically while the authoritative registry/bridge update follows, and Escape or unrelated pointer activation restores the current title. Manual and restored names never start title animation. An automatic `nameSource=auto` change alone runs v2's 600 ms moving rainbow, 45 ms-per-grapheme reveal, and 300 ms settle while retaining stable chip geometry.
+
+**Alternatives considered:** injecting `/settings` bytes can appear in the editor and depends on child focus, while a separate utility-tab runtime would duplicate v2 architecture that the native resident host intentionally replaced. Reordering on the raw pointer column produces misleading markers and incorrect insertion indices; appending rename characters without a cursor is not a usable inline editor.
+
+### 8. Test state and terminal output at their ownership boundaries
+
+TypeScript tests will cover declaration/default/migration, current-example labels, formatter boundaries, prompt width/layout in both formats, live settings propagation, and the Settings route bridge command. Rust unit tests will cover close-free chip geometry, all hover targets, clock right inset/formats, v2 popup geometry/style/actions, inline rename frames and editing, drag thresholds/destinations/markers, automatic-name transitions, zero-tab output, predecessor selection, equivalent-list suppression, and composed-write ordering/cursor restoration. Focused role integration will exercise create/switch/close staging and native route dispatch where existing harness seams make those boundaries observable.
 
 ## Risks / Trade-offs
 
@@ -84,6 +95,8 @@ TypeScript tests will cover declaration/default/migration, current-example label
 - **[One write cannot force every terminal to paint atomically]** → Also use synchronized-update markers where supported and avoid clear-only/component-only writes so unsupported terminals receive the smallest coherent byte sequence.
 - **[Overlay composition can disturb the child cursor]** → Save/restore cursor around every host overlay and verify final terminal cells/cursor in deterministic tests.
 - **[Concurrent close/reorder can invalidate the preferred predecessor]** → Resolve against the confirmed staged registry and choose the nearest deterministic survivor.
+- **[Settings is not a standalone native utility tab]** → Preserve the v2 grouped launcher affordance while opening the already-owned Settings route in the current resident child; create a child first only when the strip is empty.
+- **[A drag threshold can fire without another mouse report]** → Evaluate the retained deadline in the attach loop's bounded wake cycle and repaint only when the preview first becomes visible.
 
 ## Migration Plan
 

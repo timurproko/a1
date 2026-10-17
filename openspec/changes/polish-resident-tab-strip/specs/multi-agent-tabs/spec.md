@@ -35,6 +35,26 @@ The attach client SHALL present strip topology, active selection, current child 
 - **WHEN** the outer terminal ignores synchronized-update control sequences
 - **THEN** each logical resident frame SHALL still be emitted as one bounded output write with no separately exposed clear-only or strip-only transition
 
+### Requirement: Inline tab rename matches v2
+F2 and the Rename context action SHALL edit the targeted name directly inside its tab chip using settled chip geometry. The editor SHALL support cursor movement, Home, End, Backspace, Delete, Ctrl+A replacement, Enter commit, and Escape cancel. A valid manual name SHALL appear immediately, persist through the registry and child session, and SHALL NOT trigger automatic-name animation.
+
+#### Scenario: Edit a tab name inline
+- **WHEN** the user invokes Rename, selects the existing name with Ctrl+A, types a replacement, and presses Enter
+- **THEN** the replacement SHALL appear in the same chip immediately and persist as a user name
+- **AND** no rename instruction line or automatic-name animation SHALL appear
+
+#### Scenario: Cancel inline rename
+- **WHEN** the user presses Escape or activates another pointer target during rename
+- **THEN** the original current title SHALL be restored without forwarding the cancelling input to the child
+
+### Requirement: Automatic tab names use the v2 transition
+An automatic `nameSource=auto` change SHALL use a 600 ms moving rainbow over the old title, a 45 ms-per-grapheme rainbow typewriter reveal, and a 300 ms settle on truecolor terminals; palette terminals SHALL use only the reveal. The animation SHALL preserve chip and hit geometry and continue across unrelated registry, status, clock, surface, menu, and hover updates.
+
+#### Scenario: Animate only an automatic name
+- **WHEN** a default-named tab receives a different title from the automatic naming flow
+- **THEN** the v2 rainbow, typewriter, and settle phases SHALL render in order with stable geometry
+- **AND** a manual rename, restored title, or unchanged refresh SHALL not start or restart that transition
+
 ## MODIFIED Requirements
 
 ### Requirement: Bare A1 presents resident A1 sessions as tabs
@@ -116,7 +136,7 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 - **AND** one blank cell SHALL remain between the clock's final digit and the terminal's right edge
 
 ### Requirement: Tabs are managed from the strip, mouse, and assignable actions
-A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A` or `+` and view it in that client. `Alt+1` through `Alt+9` SHALL view those tabs and `Alt+0` the tenth. Actions for next, previous, move-right, and move-left SHALL exist for assignment but have no default keys. Left click on a tab SHALL view it. Right click on a visible tab SHALL open a stable two-row context menu anchored beneath and clamped to the terminal, with `Close` first and `Rename` second; each row SHALL show its active shortcut right-aligned, producing `Close  Alt+W` and `Rename  F2` under default bindings. The pointed menu row SHALL highlight and left click SHALL invoke it for the originally targeted tab. Escape, a click elsewhere, a tab switch, or target removal SHALL dismiss it without action. Dragging a chip after 250 ms or one column of movement SHALL reorder with a `│` marker and expected revision. No `/new-tab`, `/close`, `/tabs`, `/quit-all`, or `/restart-tab` command SHALL be exposed. At `tabsMax`, creation SHALL do nothing and state the limit. A matching prewarmed standby SHALL be used when available. Each client SHALL keep its own viewed tab.
+A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A`; clicking `+` SHALL instead open a v2-style launcher containing `+ Agent`, a disabled separator, and `Settings`. Agent SHALL use the same creation flow. Settings SHALL open the owned Settings route in the viewed resident tab without injecting command text, or first create and view an Agent tab when the strip is empty. `Alt+1` through `Alt+9` SHALL view those tabs and `Alt+0` the tenth. Actions for next, previous, move-right, and move-left SHALL exist for assignment but have no default keys. Left click on a tab SHALL view it. Right click on a visible tab SHALL open a stable two-row context menu anchored beneath the pointer and clamped to the terminal, with `Close` first and `Rename` second; each row SHALL show its active shortcut right-aligned, producing `Close  Alt+W` and `Rename  F2` under default bindings. Popup menus SHALL use v2's neutral normal background `38,38,38`, hover background `48,48,48`, white labels, muted shortcuts, one-cell horizontal padding, and palette fallback. The pointed enabled row SHALL highlight and left click SHALL invoke it for the originally targeted tab; disabled separators SHALL never highlight or activate. Escape, a click elsewhere, a tab switch, or target removal SHALL dismiss a menu without action. Dragging a chip after 250 ms or one column of movement SHALL calculate insertion from chip midpoints, preview only a real move with a v2 `│` marker, and issue one reorder with the captured expected revision on release; release away from the strip SHALL cancel. No `/new-tab`, `/close`, `/tabs`, `/quit-all`, or `/restart-tab` command SHALL be exposed. At `tabsMax`, creation SHALL do nothing and state the limit. A matching prewarmed standby SHALL be used when available. Each client SHALL keep its own viewed tab.
 
 #### Scenario: Create from keyboard
 - **WHEN** the user presses `Alt+A`
@@ -124,7 +144,17 @@ A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A` or `+` and 
 
 #### Scenario: Create from strip
 - **WHEN** the user clicks `+`
-- **THEN** the same creation flow SHALL run
+- **THEN** a popup SHALL show `+ Agent`, a separator line, and `Settings` in that order
+- **AND** Agent and Settings SHALL be visually separated and independently selectable
+
+#### Scenario: Create from the grouped launcher
+- **WHEN** the user selects `+ Agent`
+- **THEN** the same creation flow as `Alt+A` SHALL run
+
+#### Scenario: Open Settings from the grouped launcher
+- **WHEN** the user selects `Settings` while a tab is viewed
+- **THEN** that tab SHALL open the owned Settings route without visible `/settings` input
+- **AND** selecting Settings on an empty strip SHALL first create an Agent tab and open the route after its first complete surface
 
 #### Scenario: Hover strip controls
 - **WHEN** the pointer rests over a non-viewed tab chip, the overflow chip, or the `+` control
@@ -146,6 +176,11 @@ A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A` or `+` and 
 #### Scenario: Jump beyond count
 - **WHEN** the user presses `Alt+7` with three tabs
 - **THEN** view SHALL not change and the key SHALL not reach the tab
+
+#### Scenario: Preview and commit a drag reorder
+- **WHEN** the user holds a pressed tab for 250 ms or moves it at least one column across another chip midpoint
+- **THEN** a `│` insertion marker SHALL appear only at a destination that changes order
+- **AND** release on the strip SHALL send one reorder while release away from the strip SHALL send none
 
 #### Scenario: Concurrent reorder
 - **WHEN** two clients reorder from the same registry revision
