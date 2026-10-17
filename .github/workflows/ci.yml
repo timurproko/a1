@@ -726,6 +726,9 @@ jobs:
           mkdir -p .artifacts/terminal-host
           host="native/terminal-host/target/debug/${{ matrix.terminalHostBinary }}"
           node scripts/development/verify-terminal-fidelity.mjs --host "$host" > ".artifacts/terminal-host/fidelity-${{ matrix.platform }}-${{ matrix.architecture }}.json"
+          # Invariant: the same built host and certified parity child are driven directly and through
+          # server, holder, and attach; the child-observed bytes must match case by case on this platform.
+          node scripts/development/verify-interaction-parity.mjs --host "$host" --fake-tab "native/terminal-host/target/debug/fake-tab${{ matrix.platform == 'win32' && '.exe' || '' }}" --out ".artifacts/terminal-host/interaction-parity-${{ matrix.platform }}-${{ matrix.architecture }}.json" > /dev/null
           # Rationale: the role-fixture suite used to run in this job before certification and warmed every
           # resident launch path; its partitions now run on other runners, so one unmeasured pass restores
           # that state before the measured pass, whose single-sample budgets are unchanged.
@@ -765,6 +768,7 @@ jobs:
             native/terminal-host/protocol/fixtures.json
             .artifacts/terminal-host/fidelity-${{ matrix.platform }}-${{ matrix.architecture }}.json
             .artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json
+            .artifacts/terminal-host/interaction-parity-${{ matrix.platform }}-${{ matrix.architecture }}.json
           if-no-files-found: error
           retention-days: 1
       - name: Upload linked terminal library

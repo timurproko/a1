@@ -14,8 +14,13 @@ use crossterm::event::{
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 use crate::endpoint;
-use crate::protocol::{self, BridgeAttachment, MAX_INPUT_BYTES, Welcome};
+use crate::protocol::{
+    self, BridgeAttachment, EffectKind, InputEvent, MAX_INPUT_BYTES, TerminalEffect, TerminalModes,
+    Welcome,
+};
 use crate::roles::credentials::ProfileCredentials;
+use crate::roles::outer_input::{self, InputChannel, Outgoing};
+use crate::roles::presentation::{FinalCursor, Frame, Offer, TopologyAction, ViewModel};
 use crate::roles::strip::{self, StripHit, StripHover, StripTab, TimeFormat};
 use crate::roles::wire::{
     self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface, TabCreate, TabList,
@@ -26,8 +31,106 @@ pub const ENTER_OUTER_MODES: &[u8] =
     b"\x1b[?1049h\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1003h\x1b[?1006h";
 pub const RESTORE_OUTER_MODES: &[u8] =
     b"\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?1049l";
+#[cfg(test)]
 const BEGIN_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026h";
+#[cfg(test)]
 const END_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026l";
+
+/// The global tab declarations in the order that decides which action keeps a duplicated key;
+/// it mirrors the owned feature's declaration list, which the child projects and publishes.
+pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 17] = [
+    ("tabs.new", Some("alt+a")),
+    ("tabs.close", Some("alt+w")),
+    ("tabs.rename", Some("f2")),
+    ("tabs.jump1", Some("alt+1")),
+    ("tabs.jump2", Some("alt+2")),
+    ("tabs.jump3", Some("alt+3")),
+    ("tabs.jump4", Some("alt+4")),
+    ("tabs.jump5", Some("alt+5")),
+    ("tabs.jump6", Some("alt+6")),
+    ("tabs.jump7", Some("alt+7")),
+    ("tabs.jump8", Some("alt+8")),
+    ("tabs.jump9", Some("alt+9")),
+    ("tabs.jump10", Some("alt+0")),
+    ("tabs.next", None),
+    ("tabs.previous", None),
+    ("tabs.moveRight", None),
+    ("tabs.moveLeft", None),
+];
+
+/// Shortcut bindings as `keybindings.json` expresses them: a key, a list of keys, or `null`.
+pub type ShortcutBindings = HashMap<String, Option<Vec<String>>>;
+
+fn binding_keys(value: &serde_json::Value) -> Option<Option<Vec<String>>> {
+    match value {
+        serde_json::Value::String(key) => Some(Some(vec![key.trim().to_lowercase()])),
+        serde_json::Value::Array(values) => Some(Some(
+            values
+                .iter()
+                .filter_map(|value| value.as_str().map(|key| key.trim().to_lowercase()))
+                .collect(),
+        )),
+        serde_json::Value::Null => Some(None),
+        _ => None,
+    }
+}
+
+/// Reads shortcut bindings from a `keybindings.json` document, ignoring malformed entries.
+pub fn shortcut_bindings(document: &serde_json::Value) -> ShortcutBindings {
+    document
+        .as_object()
+        .map(|object| {
+            object
+                .iter()
+                .filter(|(action, _)| action.as_str() != "$schema")
+                .filter_map(|(action, value)| {
+                    binding_keys(value).map(|keys| (action.clone(), keys))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Projects declarations, the user's customization, and the keys A1 actions hold into one
+/// assignment per tab action: a key an A1 action holds never becomes a tab shortcut, and the
+/// earlier declaration keeps a key two tab actions share. The owned child runs the same rule.
+pub fn project_tab_shortcuts(
+    configured: &ShortcutBindings,
+    reserved: &ShortcutBindings,
+) -> Vec<(String, Option<String>)> {
+    let mut held_by_owned_actions: HashMap<&str, Vec<String>> = reserved
+        .iter()
+        .filter(|(action, _)| !action.starts_with("tabs."))
+        .map(|(action, keys)| (action.as_str(), keys.clone().unwrap_or_default()))
+        .collect();
+    for (action, keys) in configured {
+        if !action.starts_with("tabs.") {
+            held_by_owned_actions.insert(action.as_str(), keys.clone().unwrap_or_default());
+        }
+    }
+    let reserved_keys = held_by_owned_actions
+        .values()
+        .flatten()
+        .cloned()
+        .collect::<std::collections::HashSet<_>>();
+    let mut claimed = std::collections::HashSet::new();
+    TAB_SHORTCUT_DECLARATIONS
+        .iter()
+        .map(|(action, default)| {
+            let candidates = match configured.get(*action) {
+                Some(Some(keys)) => keys.clone(),
+                Some(None) => Vec::new(),
+                None => default.map(str::to_owned).into_iter().collect(),
+            };
+            let assigned = candidates.into_iter().find(|candidate| {
+                !candidate.is_empty()
+                    && !reserved_keys.contains(candidate)
+                    && claimed.insert(candidate.clone())
+            });
+            ((*action).to_owned(), assigned)
+        })
+        .collect()
+}
 
 #[derive(Debug, Default)]
 struct TabBindings {
@@ -36,102 +139,37 @@ struct TabBindings {
 }
 
 impl TabBindings {
+    /// The resolver used until a child publishes the effective projection: declarations plus
+    /// the user's file, without the A1 keys only the owned keybinding manager knows.
     fn load(profile: &Path) -> Self {
-        let defaults = [
-            ("tabs.new", "alt+a"),
-            ("tabs.close", "alt+w"),
-            ("tabs.rename", "f2"),
-            ("tabs.jump1", "alt+1"),
-            ("tabs.jump2", "alt+2"),
-            ("tabs.jump3", "alt+3"),
-            ("tabs.jump4", "alt+4"),
-            ("tabs.jump5", "alt+5"),
-            ("tabs.jump6", "alt+6"),
-            ("tabs.jump7", "alt+7"),
-            ("tabs.jump8", "alt+8"),
-            ("tabs.jump9", "alt+9"),
-            ("tabs.jump10", "alt+0"),
-        ];
-        let mut actions = defaults
-            .into_iter()
-            .map(|(action, key)| (action.to_owned(), vec![key.to_owned()]))
-            .collect::<HashMap<_, _>>();
-        let mut foreign_keys = std::collections::HashSet::new();
-        if let Ok(bytes) = std::fs::read(profile.join("keybindings.json"))
-            && let Ok(document) = serde_json::from_slice::<serde_json::Value>(&bytes)
-            && let Some(object) = document.as_object()
-        {
-            for (action, value) in object {
-                if action.starts_with("tabs.") {
-                    continue;
-                }
-                match value {
-                    serde_json::Value::String(key) => {
-                        foreign_keys.insert(key.to_lowercase());
-                    }
-                    serde_json::Value::Array(values) => {
-                        foreign_keys.extend(
-                            values
-                                .iter()
-                                .filter_map(|value| value.as_str().map(str::to_lowercase)),
-                        );
-                    }
-                    _ => {}
-                }
-            }
-            for action in [
-                "tabs.new",
-                "tabs.close",
-                "tabs.rename",
-                "tabs.jump1",
-                "tabs.jump2",
-                "tabs.jump3",
-                "tabs.jump4",
-                "tabs.jump5",
-                "tabs.jump6",
-                "tabs.jump7",
-                "tabs.jump8",
-                "tabs.jump9",
-                "tabs.jump10",
-                "tabs.next",
-                "tabs.previous",
-                "tabs.moveRight",
-                "tabs.moveLeft",
-            ] {
-                if let Some(value) = object.get(action) {
-                    let keys = match value {
-                        serde_json::Value::String(key) => vec![key.to_lowercase()],
-                        serde_json::Value::Array(values) => values
-                            .iter()
-                            .filter_map(|value| value.as_str().map(str::to_lowercase))
-                            .collect(),
-                        serde_json::Value::Null => Vec::new(),
-                        _ => continue,
-                    };
-                    actions.insert(action.to_owned(), keys);
-                }
-            }
-        }
+        let configured = std::fs::read(profile.join("keybindings.json"))
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+            .map(|document| shortcut_bindings(&document))
+            .unwrap_or_default();
+        Self::from_assignments(&project_tab_shortcuts(
+            &configured,
+            &ShortcutBindings::new(),
+        ))
+    }
+
+    /// Bindings from one assignment per action; unknown actions and empty keys are ignored.
+    fn from_assignments(assignments: &[(String, Option<String>)]) -> Self {
         let mut by_key = HashMap::new();
-        let mut conflicts = std::collections::HashSet::new();
-        for (action, keys) in actions {
-            for key in keys {
-                if by_key.insert(key.clone(), action.clone()).is_some() {
-                    conflicts.insert(key);
-                }
-            }
-        }
-        conflicts.extend(foreign_keys);
-        for key in conflicts {
-            by_key.remove(&key);
-        }
-        let mut effective = by_key.iter().collect::<Vec<_>>();
-        effective.sort_by(|left, right| left.0.cmp(right.0));
         let mut by_action = HashMap::new();
-        for (key, action) in effective {
-            by_action
-                .entry(action.clone())
-                .or_insert_with(|| key.clone());
+        for (action, key) in assignments {
+            if !TAB_SHORTCUT_DECLARATIONS
+                .iter()
+                .any(|(declared, _)| declared == action)
+            {
+                continue;
+            }
+            if let Some(key) = key.as_deref().filter(|key| !key.is_empty())
+                && !by_key.contains_key(key)
+            {
+                by_key.insert(key.to_owned(), action.clone());
+                by_action.insert(action.clone(), key.to_owned());
+            }
         }
         Self { by_key, by_action }
     }
@@ -231,6 +269,7 @@ pub enum CtrlCDisposition {
 }
 #[derive(Debug)]
 pub struct DoubleCtrlC {
+    // Invariant: only a forwarded Ctrl+C arms the chord; any other completed input disarms it.
     interval_ms: u64,
     last_forwarded_ms: Option<u64>,
 }
@@ -240,6 +279,11 @@ impl DoubleCtrlC {
             interval_ms,
             last_forwarded_ms: None,
         }
+    }
+    /// A paste or pointer activation completed another input sequence, so a later Ctrl+C
+    /// starts a fresh chord.
+    pub fn reset(&mut self) {
+        self.last_forwarded_ms = None;
     }
     pub fn admit(&mut self, now_ms: u64, ctrl_c: bool) -> CtrlCDisposition {
         if !ctrl_c {
@@ -286,15 +330,46 @@ pub fn tab_create_failure_notice(reason: Option<&str>) -> String {
     format!("Could not open a tab: {reason}")
 }
 
+/// Most characters remembered as pressed; a stuck set is cleared rather than grown.
+const MAX_PRESSED_CHARS: usize = 64;
+
+/// Platform: on Windows, a character the keyboard layout cannot produce, such as a lone combining
+/// accent, arrives as console Alt-code input that crossterm reports only as a key release. A
+/// non-ASCII character released without a matching press is that input and is admitted as a
+/// press; every other release stays ignored, as on other platforms.
+fn admit_alt_code_input(
+    windows: bool,
+    pressed: &mut std::collections::HashSet<char>,
+    event: Event,
+) -> Event {
+    let Event::Key(mut key) = event else {
+        return event;
+    };
+    if !windows {
+        return Event::Key(key);
+    }
+    if let KeyCode::Char(character) = key.code {
+        let folded = character.to_lowercase().next().unwrap_or(character);
+        match key.kind {
+            KeyEventKind::Press | KeyEventKind::Repeat => {
+                if pressed.len() >= MAX_PRESSED_CHARS {
+                    pressed.clear();
+                }
+                pressed.insert(folded);
+            }
+            KeyEventKind::Release => {
+                if !pressed.remove(&folded) && !character.is_ascii() && !character.is_control() {
+                    key.kind = KeyEventKind::Press;
+                }
+            }
+        }
+    }
+    Event::Key(key)
+}
+
 /// True when the failed tab's restricted input rules apply: only while that tab is viewed.
 pub fn failure_applies(failed_tab: Option<&str>, viewed: Option<&str>) -> bool {
     failed_tab.is_some() && failed_tab == viewed
-}
-
-fn adopt_initial_surface(viewed: Option<&str>, requested: &mut Option<String>, tab_id: &str) {
-    if viewed.is_none() && requested.is_none() {
-        *requested = Some(tab_id.to_owned());
-    }
 }
 
 /// Invariant: a rejection notice answers input the person typed, pasted, or clicked. Focus
@@ -862,27 +937,6 @@ fn drag_marker_column(drag: &TabDrag, tabs: &[StripTab], frame: &strip::StripFra
     })
 }
 
-fn compose_presentation(
-    strip: &strip::StripFrame,
-    surface: &[u8],
-    overlay: Option<&str>,
-    clear: bool,
-) -> Vec<u8> {
-    let mut output =
-        Vec::with_capacity(strip.bytes.len() + surface.len() + overlay.map_or(0, str::len) + 32);
-    output.extend_from_slice(BEGIN_SYNCHRONIZED_UPDATE);
-    if clear {
-        output.extend_from_slice(b"\x1b[2J\x1b[H");
-    }
-    output.extend_from_slice(strip.bytes.as_bytes());
-    output.extend_from_slice(surface);
-    if let Some(overlay) = overlay {
-        output.extend_from_slice(overlay.as_bytes());
-    }
-    output.extend_from_slice(END_SYNCHRONIZED_UPDATE);
-    output
-}
-
 /// BEL is attention data and never reaches the outer terminal. Other bytes, including OSC 8/52
 /// and cursor-shape controls, stay in the native terminal stream.
 pub fn without_bell(bytes: &[u8]) -> Vec<u8> {
@@ -968,7 +1022,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             role: "attach".into(),
             generation: protocol::GENERATION,
             build: "a1-terminal-host".into(),
-            features: vec!["double-ctrl-c".into()],
+            features: vec![
+                "double-ctrl-c".into(),
+                protocol::FEATURE_SEMANTIC_INPUT.into(),
+                protocol::FEATURE_TERMINAL_EFFECTS.into(),
+            ],
             token: credentials.client_token.to_vec(),
             tab_id: options.view_tab.map(str::to_owned),
             pid: Some(std::process::id()),
@@ -984,7 +1042,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     if wire::kind(&payload)?.message_type != "welcome" {
         return Err("resident server refused attach".to_owned());
     }
-    let _: (Option<u64>, Welcome) = wire::body(&payload)?;
+    let (_, welcome): (Option<u64>, Welcome) = wire::body(&payload)?;
+    // Compatibility: semantic input and typed effects are generation-1 features; a server that
+    // lacks them keeps the byte path and applies no child terminal effects.
+    let mut channel = InputChannel::new(protocol::negotiated(
+        &welcome.features,
+        protocol::FEATURE_SEMANTIC_INPUT,
+    ));
+    let apply_effects = protocol::negotiated(&welcome.features, protocol::FEATURE_TERMINAL_EFFECTS);
     let attachment = wire::read_payload(&mut stream)?
         .ok_or_else(|| "server closed before attach admission".to_owned())?;
     match wire::kind(&attachment)?.message_type.as_str() {
@@ -1077,26 +1142,28 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         }
     });
     let mut tabs = Vec::<StripTab>::new();
-    let mut staged_tabs: Option<Vec<StripTab>> = None;
-    let mut viewed = options.view_tab.map(str::to_owned);
-    let mut requested_view: Option<String> = options.view_tab.map(str::to_owned);
-    let mut pending_surface: Option<Surface> = None;
+    let mut view = ViewModel::new(options.view_tab.map(str::to_owned));
     let mut hovered: Option<StripHover> = None;
     let mut time_format = TimeFormatWatch::new(options.settings_file);
     let mut strip_frame = strip::render_configured(
         &tabs,
-        viewed.as_deref(),
+        view.viewed.as_deref(),
         columns,
         hovered.as_ref(),
         time_format.value,
     );
     let mut latest_surface = Vec::<u8>::new();
-    terminal.write(&compose_presentation(
-        &strip_frame,
-        &latest_surface,
-        None,
-        true,
-    ))?;
+    if let Some(bytes) = (Frame {
+        strip: &strip_frame.bytes,
+        body: Some(&latest_surface),
+        overlay: None,
+        cursor: None,
+        clear: true,
+    })
+    .compose()
+    {
+        terminal.write(&bytes)?;
+    }
     let started = Instant::now();
     let mut last_strip_frame = Instant::now();
     let mut displayed_clock_minute = clock_minute();
@@ -1111,18 +1178,33 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut close_fallback: Option<CloseFallback> = None;
     let mut transient_notice: Option<String> = None;
     let mut user_input_pending = false;
-    let mut prompt_view = viewed.clone();
+    let mut pressed_chars = std::collections::HashSet::<char>::new();
+    let mut prompt_view = view.viewed.clone();
     let mut registry_revision = 0u64;
     let mut drag: Option<TabDrag> = None;
     let mut pending_settings_create = false;
     let mut pending_settings_tab: Option<String> = None;
-    let bindings = TabBindings::load(options.profile);
+    let mut latest_modes: Option<TerminalModes> = None;
+    let mut latest_cursor: Option<FinalCursor> = None;
+    let mut bindings = TabBindings::load(options.profile);
+    macro_rules! send_input {
+        ($event:expr, $legacy:expr) => {{
+            match channel.outgoing($event, $legacy) {
+                Some(Outgoing::Semantic(input)) => {
+                    wire::send(&mut stream, "input.event", None, input)?;
+                }
+                Some(Outgoing::Legacy(input)) => wire::send(&mut stream, "input", None, input)?,
+                None => {}
+            }
+        }};
+    }
     macro_rules! paint_current {
         ($clear:expr) => {{
+            terminal.apply_cursor_style(latest_modes.as_ref())?;
             let rename_display = rename.as_ref().map(RenameEditor::display);
             strip_frame = strip::render_interactive(
                 &tabs,
-                viewed.as_deref(),
+                view.viewed.as_deref(),
                 columns,
                 hovered.as_ref(),
                 time_format.value,
@@ -1135,7 +1217,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 hovered = None;
                 strip_frame = strip::render_interactive(
                     &tabs,
-                    viewed.as_deref(),
+                    view.viewed.as_deref(),
                     columns,
                     None,
                     time_format.value,
@@ -1148,7 +1230,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     .map(|tab| tab.name.as_str())
             });
             let prompt = prompt_overlay_notice(pending_name);
-            let status_notice = viewed
+            let status_notice = view
+                .viewed
                 .as_ref()
                 .and_then(|id| tabs.iter().find(|tab| &tab.id == id))
                 .and_then(|tab| {
@@ -1174,12 +1257,51 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             } else {
                 None
             };
-            terminal.write(&compose_presentation(
-                &strip_frame,
-                &latest_surface,
-                overlay.as_deref(),
-                $clear,
-            ))?;
+            let frame = Frame {
+                strip: &strip_frame.bytes,
+                body: Some(&latest_surface),
+                overlay: overlay.as_deref(),
+                cursor: latest_cursor,
+                clear: $clear,
+            };
+            if let Some(bytes) = frame.compose() {
+                terminal.write(&bytes)?;
+            }
+        }};
+    }
+    // Performance: hover, clock, and title-animation damage repaints the strip alone and
+    // restores the committed child's cursor; without a known cursor or with an overlay that
+    // touches the body it falls back to the complete frame, so it never contradicts the view.
+    macro_rules! paint_strip {
+        () => {{
+            if latest_cursor.is_some()
+                && popup.is_none()
+                && drag.is_none()
+                && pending_close.is_none()
+                && transient_notice.is_none()
+            {
+                let rename_display = rename.as_ref().map(RenameEditor::display);
+                strip_frame = strip::render_interactive(
+                    &tabs,
+                    view.viewed.as_deref(),
+                    columns,
+                    hovered.as_ref(),
+                    time_format.value,
+                    rename_display.as_ref(),
+                );
+                let frame = Frame {
+                    strip: &strip_frame.bytes,
+                    body: None,
+                    overlay: None,
+                    cursor: latest_cursor,
+                    clear: false,
+                };
+                if let Some(bytes) = frame.compose() {
+                    terminal.write(&bytes)?;
+                }
+            } else {
+                paint_current!(false);
+            }
         }};
     }
     macro_rules! invoke_popup_action {
@@ -1203,7 +1325,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         if busy {
                             pending_close = Some(tab_id);
                         } else {
-                            close_fallback = close_fallback_for(&tabs, viewed.as_deref(), &tab_id);
+                            close_fallback =
+                                close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
                             wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
                         }
                     }
@@ -1212,7 +1335,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     wire::send(&mut stream, "tab.create", None, create.clone())?;
                 }
                 PopupAction::Settings => {
-                    if let Some(tab_id) = viewed.clone() {
+                    if let Some(tab_id) = view.viewed.clone() {
                         wire::send(&mut stream, "tab.open-settings", None, TabTarget { tab_id })?;
                     } else {
                         pending_settings_create = true;
@@ -1220,10 +1343,58 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     }
                 }
                 PopupAction::View(tab_id) => {
-                    requested_view = Some(tab_id.clone());
+                    view.requested = Some(tab_id.clone());
                     wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
                 }
             }
+        }};
+    }
+    // Invariant: a commit the view model approved installs its staged topology, the complete
+    // child surface, the child's modes, and the final cursor together in one frame.
+    macro_rules! apply_commit {
+        ($surface:expr, $tabs:expr, $requested:expr) => {{
+            let surface: Surface = $surface;
+            let staged: Option<Vec<StripTab>> = $tabs;
+            if let Some(next) = staged {
+                tabs = next;
+            }
+            if $requested {
+                close_fallback = None;
+                transient_notice = None;
+                if prompt_view != view.viewed {
+                    pending_close = None;
+                    rename = None;
+                    popup = None;
+                    prompt_view = view.viewed.clone();
+                }
+            }
+            if surface.status == "failed" {
+                failed_tab = Some(surface.tab_id.clone());
+            } else if failed_tab.as_deref() == Some(surface.tab_id.as_str()) {
+                failed_tab = None;
+            }
+            if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id) {
+                tab.status = surface.status.clone();
+                tab.accent = surface.accent.clone();
+            }
+            latest_surface = without_bell(&surface.bytes);
+            latest_modes = surface.modes.clone();
+            latest_cursor = surface
+                .cursor
+                .map(FinalCursor::At)
+                .or_else(|| surface.modes.as_ref().map(|_| FinalCursor::Hidden));
+            if pending_settings_tab.as_deref() == Some(surface.tab_id.as_str()) {
+                pending_settings_tab = None;
+                wire::send(
+                    &mut stream,
+                    "tab.open-settings",
+                    None,
+                    TabTarget {
+                        tab_id: surface.tab_id.clone(),
+                    },
+                )?;
+            }
+            paint_current!(false);
         }};
     }
     loop {
@@ -1236,57 +1407,39 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             match kind.message_type.as_str() {
                 "surface" => {
                     let (_, surface): (_, Surface) = wire::body(&payload)?;
-                    // Protocol: the server selects its default tab before attach.start can report
-                    // the ID. Adopt its first surface as the requested view, then stage it until
-                    // the tab list arrives so the chip and child surface commit in one frame.
-                    adopt_initial_surface(viewed.as_deref(), &mut requested_view, &surface.tab_id);
-                    let requested = requested_view.as_deref() == Some(surface.tab_id.as_str());
-                    if requested
-                        && staged_tabs.is_none()
-                        && !tabs.iter().any(|tab| tab.id == surface.tab_id)
+                    let listed = tabs.iter().any(|tab| tab.id == surface.tab_id);
+                    if let Offer::Commit {
+                        surface,
+                        tabs: next,
+                        requested,
+                    } = view.offer(surface, Instant::now(), listed)
                     {
-                        pending_surface = Some(surface);
-                        continue;
+                        apply_commit!(surface, next, requested);
                     }
-                    if requested {
-                        if let Some(next) = staged_tabs.take() {
-                            tabs = next;
+                }
+                // Protocol: the owned child projects the effective A1 declarations plus the
+                // user's customization and publishes one assignment per tab action; attach
+                // dispatches and labels exactly that projection.
+                "tabs.shortcuts" => {
+                    let (_, shortcuts): (_, protocol::TabShortcuts) = wire::body(&payload)?;
+                    if protocol::validate_shortcuts(&shortcuts).is_ok() {
+                        bindings = TabBindings::from_assignments(&shortcuts.assignments);
+                        if popup.is_some() {
+                            paint_current!(false);
                         }
-                        viewed = Some(surface.tab_id.clone());
-                        requested_view = None;
-                        close_fallback = None;
-                        transient_notice = None;
-                        if prompt_view != viewed {
-                            pending_close = None;
-                            rename = None;
-                            popup = None;
-                            prompt_view = viewed.clone();
-                        }
-                    } else if viewed.as_deref() != Some(surface.tab_id.as_str()) {
-                        continue;
                     }
-                    if surface.status == "failed" {
-                        failed_tab = Some(surface.tab_id.clone());
-                    } else if failed_tab.as_deref() == Some(surface.tab_id.as_str()) {
-                        failed_tab = None;
+                }
+                "terminal.effect" => {
+                    let (_, effect): (_, TerminalEffect) = wire::body(&payload)?;
+                    // Invariant: only the committed view's effects reach the outer terminal, and
+                    // each one is applied exactly once without entering any visible frame.
+                    if apply_effects
+                        && view.viewed.as_deref() == Some(effect.tab_id.as_str())
+                        && protocol::validate_effect(&effect.effect).is_ok()
+                    {
+                        let EffectKind::ClipboardWrite { location, data, .. } = effect.effect;
+                        terminal.write(&outer_input::osc52(location, &data))?;
                     }
-                    if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id) {
-                        tab.status = surface.status.clone();
-                        tab.accent = surface.accent.clone();
-                    }
-                    latest_surface = without_bell(&surface.bytes);
-                    if pending_settings_tab.as_deref() == Some(surface.tab_id.as_str()) {
-                        pending_settings_tab = None;
-                        wire::send(
-                            &mut stream,
-                            "tab.open-settings",
-                            None,
-                            TabTarget {
-                                tab_id: surface.tab_id.clone(),
-                            },
-                        )?;
-                    }
-                    paint_current!(false);
                 }
                 "tab.status" => {
                     let (_, status): (_, TabStatus) = wire::body(&payload)?;
@@ -1294,7 +1447,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         tab.status = status.status.clone();
                         tab.accent = status.accent.clone();
                     }
-                    if let Some(staged) = staged_tabs.as_mut()
+                    if let Some(staged) = view.staged_tabs_mut()
                         && let Some(tab) = staged.iter_mut().find(|tab| tab.id == status.tab_id)
                     {
                         tab.status = status.status.clone();
@@ -1310,7 +1463,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 "tab.list" => {
                     let (_, list): (_, TabList) = wire::body(&payload)?;
                     registry_revision = list.revision;
-                    let previous_tabs = staged_tabs.as_ref().unwrap_or(&tabs);
+                    let previous_tabs = view.staged_tabs().unwrap_or(&tabs);
                     let pending_name_confirmed =
                         pending_manual_name.as_ref().is_some_and(|(id, name)| {
                             list.tabs.iter().any(|tab| {
@@ -1351,116 +1504,76 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     if pending_name_confirmed {
                         pending_manual_name = None;
                     }
-                    let viewed_missing = viewed
-                        .as_ref()
-                        .is_some_and(|id| !next_tabs.iter().any(|tab| &tab.id == id));
-                    let requested_missing = requested_view
-                        .as_ref()
-                        .is_some_and(|id| !next_tabs.iter().any(|tab| &tab.id == id));
-                    if requested_missing {
-                        if pending_settings_tab == requested_view {
-                            pending_settings_tab = None;
-                        }
-                        requested_view = None;
-                        staged_tabs = None;
-                        pending_surface = None;
-                    }
-                    if viewed_missing && requested_view.is_none() {
-                        let target = close_fallback
+                    let outcome = view.topology(&tabs, next_tabs, |candidates| {
+                        close_fallback
                             .as_ref()
-                            .and_then(|fallback| fallback.resolve(&next_tabs))
-                            .or_else(|| next_tabs.first().map(|tab| tab.id.clone()));
-                        if let Some(tab_id) = target {
-                            requested_view = Some(tab_id.clone());
-                            wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
-                        }
-                    }
-                    let target_pending = requested_view.as_ref().is_some_and(|id| {
-                        viewed.as_ref() != Some(id) && next_tabs.iter().any(|tab| &tab.id == id)
+                            .and_then(|fallback| fallback.resolve(candidates))
                     });
-                    if target_pending {
-                        let target = requested_view.clone().expect("checked pending target");
-                        if let Some(surface) = pending_surface
-                            .take()
-                            .filter(|surface| surface.tab_id == target)
-                        {
-                            tabs = next_tabs;
-                            viewed = Some(target);
-                            requested_view = None;
-                            close_fallback = None;
-                            if prompt_view != viewed {
-                                pending_close = None;
-                                rename = None;
-                                popup = None;
-                                prompt_view = viewed.clone();
-                            }
-                            latest_surface = without_bell(&surface.bytes);
-                            if pending_settings_tab.as_deref() == Some(surface.tab_id.as_str()) {
-                                pending_settings_tab = None;
-                                wire::send(
-                                    &mut stream,
-                                    "tab.open-settings",
-                                    None,
-                                    TabTarget {
-                                        tab_id: surface.tab_id.clone(),
-                                    },
-                                )?;
-                            }
-                            if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id)
-                            {
-                                tab.status = surface.status;
-                                tab.accent = surface.accent;
-                            }
-                            paint_current!(false);
-                        } else {
-                            staged_tabs = Some(next_tabs);
+                    if let Some(dropped) = outcome.dropped_request.as_deref()
+                        && pending_settings_tab.as_deref() == Some(dropped)
+                    {
+                        pending_settings_tab = None;
+                    }
+                    if let Some(tab_id) = outcome.view_request {
+                        wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
+                    }
+                    match outcome.action {
+                        TopologyAction::Commit {
+                            surface,
+                            tabs: next,
+                        } => {
+                            apply_commit!(surface, Some(next), true);
                         }
-                        continue;
-                    }
-                    let changed = tabs != next_tabs;
-                    tabs = next_tabs;
-                    staged_tabs = None;
-                    let listed = |id: &String| tabs.iter().any(|tab| &tab.id == id);
-                    if !pending_close.as_ref().is_none_or(listed) {
-                        pending_close = None;
-                    }
-                    if popup
-                        .as_ref()
-                        .and_then(|menu| menu.tab_id.as_ref())
-                        .is_some_and(|id| !listed(id))
-                    {
-                        popup = None;
-                    }
-                    if rename
-                        .as_ref()
-                        .is_some_and(|editor| !listed(&editor.tab_id))
-                    {
-                        rename = None;
-                    }
-                    if pending_manual_name
-                        .as_ref()
-                        .is_some_and(|(id, _)| !listed(id))
-                    {
-                        pending_manual_name = None;
-                    }
-                    if !failed_tab.as_ref().is_none_or(listed) {
-                        failed_tab = None;
-                    }
-                    if changed
-                        && popup
-                            .as_ref()
-                            .is_some_and(|menu| menu.kind == PopupKind::Overflow)
-                    {
-                        popup = None;
-                    }
-                    if tabs.is_empty() {
-                        viewed = None;
-                        requested_view = None;
-                        latest_surface.clear();
-                        close_fallback = None;
-                        paint_current!(true);
-                    } else if changed {
-                        paint_current!(false);
+                        TopologyAction::Staged => {}
+                        TopologyAction::Install {
+                            tabs: next,
+                            changed,
+                        } => {
+                            tabs = next;
+                            let listed = |id: &String| tabs.iter().any(|tab| &tab.id == id);
+                            if !pending_close.as_ref().is_none_or(listed) {
+                                pending_close = None;
+                            }
+                            if popup
+                                .as_ref()
+                                .and_then(|menu| menu.tab_id.as_ref())
+                                .is_some_and(|id| !listed(id))
+                            {
+                                popup = None;
+                            }
+                            if rename
+                                .as_ref()
+                                .is_some_and(|editor| !listed(&editor.tab_id))
+                            {
+                                rename = None;
+                            }
+                            if pending_manual_name
+                                .as_ref()
+                                .is_some_and(|(id, _)| !listed(id))
+                            {
+                                pending_manual_name = None;
+                            }
+                            if !failed_tab.as_ref().is_none_or(listed) {
+                                failed_tab = None;
+                            }
+                            if changed
+                                && popup
+                                    .as_ref()
+                                    .is_some_and(|menu| menu.kind == PopupKind::Overflow)
+                            {
+                                popup = None;
+                            }
+                            if tabs.is_empty() {
+                                view.clear();
+                                latest_surface.clear();
+                                latest_modes = None;
+                                latest_cursor = None;
+                                close_fallback = None;
+                                paint_current!(true);
+                            } else if changed {
+                                paint_current!(false);
+                            }
+                        }
                     }
                 }
                 "tab.created" | "tab.selected" => {
@@ -1469,7 +1582,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         pending_settings_create = false;
                         pending_settings_tab = Some(target.tab_id.clone());
                     }
-                    requested_view = Some(target.tab_id.clone());
+                    view.requested = Some(target.tab_id.clone());
                     wire::send(&mut stream, "tab.view", None, target)?;
                     wire::send(
                         &mut stream,
@@ -1483,9 +1596,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "tab.create-failed" | "tab.create-refused" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
-                    requested_view = None;
-                    staged_tabs = None;
-                    pending_surface = None;
+                    view.cancel_request();
                     pending_settings_create = false;
                     pending_settings_tab = None;
                     transient_notice = Some(tab_create_failure_notice(result.message.as_deref()));
@@ -1583,7 +1694,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     return Err("a1 is attached in another terminal".to_owned());
                 }
                 "holder.exit" => {
-                    if let Some(tab) = viewed
+                    if let Some(tab) = view
+                        .viewed
                         .as_ref()
                         .and_then(|id| tabs.iter_mut().find(|tab| &tab.id == id))
                     {
@@ -1593,12 +1705,21 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "failure.status" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
-                    failed_tab = viewed.clone();
+                    failed_tab = view.viewed.clone();
                     transient_notice = Some(result.message.unwrap_or_else(|| "tab failed".into()));
                     paint_current!(false);
                 }
                 "viewer.status" | "input.rejected" | "input.uncertain" | "recovery.notice" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    if kind.message_type == "input.rejected"
+                        && result.message.as_deref()
+                            == Some(crate::roles::server::INPUT_REJECTED_LEGACY_HOLDER)
+                    {
+                        if let Some(replay) = channel.fall_back() {
+                            wire::send(&mut stream, "input", None, replay)?;
+                        }
+                        continue;
+                    }
                     let message = if kind.message_type == "input.rejected" {
                         rejection_notice(&mut user_input_pending, result.message)
                     } else {
@@ -1621,20 +1742,28 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 _ => {}
             }
         }
+        if let Some(Offer::Commit {
+            surface,
+            tabs: next,
+            requested,
+        }) = view.expire(Instant::now(), |id| tabs.iter().any(|tab| tab.id == id))
+        {
+            apply_commit!(surface, next, requested);
+        }
         if strip::animations_active(&tabs)
             && last_strip_frame.elapsed() >= strip::animation_interval(&tabs)
         {
-            paint_current!(false);
+            paint_strip!();
             last_strip_frame = Instant::now();
         }
         if time_format.refresh() {
-            paint_current!(false);
+            paint_strip!();
         }
         let current_clock_minute = clock_minute();
         if current_clock_minute != displayed_clock_minute {
             displayed_clock_minute = current_clock_minute;
             if !tabs.is_empty() {
-                paint_current!(false);
+                paint_strip!();
             }
         }
         if last_list.elapsed() >= Duration::from_millis(500) {
@@ -1668,22 +1797,23 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 return Err("outer terminal input stopped".to_owned());
             }
         };
+        let next = admit_alt_code_input(cfg!(windows), &mut pressed_chars, next);
         // Invariant: a prompt belongs to the view it was opened in; a strip click, shortcut, or
-        // tab removal that changes the viewed tab cancels it instead of letting it swallow the
+        // tab removal that changes the view.viewed tab cancels it instead of letting it swallow the
         // new tab's keys.
-        if prompt_view != viewed {
+        if prompt_view != view.viewed {
             pending_close = None;
             rename = None;
             popup = None;
-            prompt_view = viewed.clone();
+            prompt_view = view.viewed.clone();
         }
-        let failed = failure_applies(failed_tab.as_deref(), viewed.as_deref());
+        let failed = failure_applies(failed_tab.as_deref(), view.viewed.as_deref());
         match next {
             Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => {
                 transient_notice = None;
                 if let Some(tab_id) = pending_close.take() {
                     if key.code == KeyCode::Enter {
-                        close_fallback = close_fallback_for(&tabs, viewed.as_deref(), &tab_id);
+                        close_fallback = close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
                         wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
                     } else if key.code != KeyCode::Esc {
                         pending_close = Some(tab_id);
@@ -1788,7 +1918,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     match action {
                         "tabs.new" => wire::send(&mut stream, "tab.create", None, create.clone())?,
                         "tabs.close" => {
-                            if let Some(tab_id) = viewed.clone() {
+                            if let Some(tab_id) = view.viewed.clone() {
                                 let busy =
                                     tabs.iter().find(|tab| tab.id == tab_id).is_some_and(|tab| {
                                         matches!(tab.status.as_str(), "working" | "needs-input")
@@ -1797,7 +1927,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     pending_close = Some(tab_id);
                                 } else {
                                     close_fallback =
-                                        close_fallback_for(&tabs, viewed.as_deref(), &tab_id);
+                                        close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
                                     wire::send(
                                         &mut stream,
                                         "tab.close",
@@ -1808,7 +1938,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             }
                         }
                         "tabs.rename" => {
-                            if let Some(tab_id) = viewed.clone() {
+                            if let Some(tab_id) = view.viewed.clone() {
                                 let name = tabs
                                     .iter()
                                     .find(|tab| tab.id == tab_id)
@@ -1819,7 +1949,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                         "tabs.next" | "tabs.previous" => {
                             if !tabs.is_empty() {
-                                let current = viewed
+                                let current = view
+                                    .viewed
                                     .as_ref()
                                     .and_then(|id| tabs.iter().position(|tab| &tab.id == id))
                                     .unwrap_or(0);
@@ -1829,12 +1960,12 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     (current + tabs.len() - 1) % tabs.len()
                                 };
                                 let tab_id = tabs[index].id.clone();
-                                requested_view = Some(tab_id.clone());
+                                view.requested = Some(tab_id.clone());
                                 wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
                             }
                         }
                         "tabs.moveRight" | "tabs.moveLeft" => {
-                            if let Some(tab_id) = viewed.clone()
+                            if let Some(tab_id) = view.viewed.clone()
                                 && let Some(current) = tabs.iter().position(|tab| tab.id == tab_id)
                             {
                                 let target_index = if action == "tabs.moveRight" {
@@ -1861,7 +1992,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 .unwrap_or(1)
                                 .saturating_sub(1);
                             if let Some(tab) = tabs.get(index) {
-                                requested_view = Some(tab.id.clone());
+                                view.requested = Some(tab.id.clone());
                                 wire::send(
                                     &mut stream,
                                     "tab.view",
@@ -1877,12 +2008,17 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     paint_current!(false);
                     continue;
                 }
+                let event = outer_input::normalize_key(&key);
                 let bytes = encode_key(key.code, key.modifiers);
-                if bytes.is_empty() {
+                if bytes.is_empty() && (event.is_none() || !channel.semantic) {
                     continue;
                 }
                 let now = started.elapsed().as_millis() as u64;
-                if chord.admit(now, is_ctrl_c_bytes(&bytes)) == CtrlCDisposition::Detach {
+                // Invariant: the chord is judged on the key's identity, not on the bytes a
+                // particular terminal protocol produced for it.
+                let ctrl_c = event.as_ref().is_some_and(outer_input::is_ctrl_c_event)
+                    || (event.is_none() && is_ctrl_c_bytes(&bytes));
+                if chord.admit(now, ctrl_c) == CtrlCDisposition::Detach {
                     wire::send(
                         &mut stream,
                         "detach",
@@ -1896,7 +2032,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     print_hint(tabs.len());
                     return Ok(());
                 }
-                let viewed_status = viewed
+                let viewed_status = view
+                    .viewed
                     .as_ref()
                     .and_then(|id| tabs.iter().find(|tab| &tab.id == id))
                     .map(|tab| tab.status.as_str());
@@ -1906,37 +2043,29 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         (KeyCode::Char('r' | 'R'), KeyModifiers::NONE)
                     )
                 {
-                    if let Some(tab_id) = viewed.clone() {
+                    if let Some(tab_id) = view.viewed.clone() {
                         wire::send(&mut stream, "tab.restart", None, TabTarget { tab_id })?;
                     }
                     continue;
                 }
-                let bytes = if failed {
+                let (event, bytes) = if failed {
                     match (key.code, key.modifiers) {
                         (KeyCode::Char(value @ ('r' | 'R' | 'f' | 'F')), KeyModifiers::NONE) => {
-                            vec![value as u8]
+                            let name = value.to_ascii_lowercase().to_string();
+                            (Some(outer_input::plain_key(&name)), vec![value as u8])
                         }
                         (KeyCode::Char('w' | 'W'), modifiers)
                             if modifiers.contains(KeyModifiers::ALT) =>
                         {
-                            b"x".to_vec()
+                            (Some(outer_input::plain_key("x")), b"x".to_vec())
                         }
                         _ => continue,
                     }
                 } else {
-                    bytes
+                    (event, bytes)
                 };
                 user_input_pending = true;
-                wire::send(
-                    &mut stream,
-                    "input",
-                    None,
-                    Input {
-                        bytes,
-                        paste: false,
-                        epoch: 0,
-                    },
-                )?;
+                send_input!(event, bytes);
             }
             Event::Paste(text) => {
                 if let Some(editor) = rename.as_mut() {
@@ -1949,6 +2078,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 if failed || pending_close.is_some() || popup.is_some() {
                     continue;
                 }
+                chord.reset();
                 let bytes = text.into_bytes();
                 user_input_pending = true;
                 wire::send(
@@ -2003,27 +2133,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         message: None,
                     },
                 )?;
-                wire::send(
-                    &mut stream,
-                    "input",
-                    None,
-                    Input {
-                        bytes: b"\x1b[I".to_vec(),
-                        paste: false,
-                        epoch: 0,
-                    },
-                )?;
+                send_input!(Some(InputEvent::Focus { gained: true }), b"\x1b[I".to_vec());
             }
-            Event::FocusLost if !failed => wire::send(
-                &mut stream,
-                "input",
-                None,
-                Input {
-                    bytes: b"\x1b[O".to_vec(),
-                    paste: false,
-                    epoch: 0,
-                },
-            )?,
+            Event::FocusLost if !failed => {
+                send_input!(
+                    Some(InputEvent::Focus { gained: false }),
+                    b"\x1b[O".to_vec()
+                );
+            }
             Event::Mouse(mouse) => {
                 transient_notice = None;
                 let pointer_activation = matches!(
@@ -2120,7 +2237,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         };
                         if next_hover != hovered {
                             hovered = next_hover;
-                            paint_current!(false);
+                            paint_strip!();
                         }
                     } else if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Right)) {
                         if let Some(StripHit::View(tab_id)) = target {
@@ -2139,8 +2256,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     drop_index: tabs.iter().position(|tab| tab.id == tab_id),
                                     expected_revision: registry_revision,
                                 });
-                                if viewed.as_deref() != Some(tab_id.as_str()) {
-                                    requested_view = Some(tab_id.clone());
+                                if view.viewed.as_deref() != Some(tab_id.as_str()) {
+                                    view.requested = Some(tab_id.clone());
                                     wire::send(
                                         &mut stream,
                                         "tab.view",
@@ -2161,7 +2278,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     columns,
                                     &strip_frame.hidden_tabs,
                                     &tabs,
-                                    viewed.as_deref(),
+                                    view.viewed.as_deref(),
                                 ));
                                 paint_current!(false);
                             }
@@ -2173,18 +2290,19 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 if hovered.take().is_some() {
                     paint_current!(false);
                 }
-                if let Some(bytes) = encode_mouse(mouse.kind, mouse.column, mouse.row) {
+                let event = outer_input::normalize_mouse(
+                    mouse.kind,
+                    mouse.column,
+                    mouse.row,
+                    mouse.modifiers,
+                );
+                if event.as_ref().is_some_and(outer_input::resets_chord) {
+                    chord.reset();
+                }
+                let bytes = encode_mouse(mouse.kind, mouse.column, mouse.row).unwrap_or_default();
+                if event.is_some() || !bytes.is_empty() {
                     user_input_pending = true;
-                    wire::send(
-                        &mut stream,
-                        "input",
-                        None,
-                        Input {
-                            bytes,
-                            paste: false,
-                            epoch: 0,
-                        },
-                    )?;
+                    send_input!(event, bytes);
                 }
             }
             _ => {}
@@ -2322,6 +2440,8 @@ fn kitty_query_answered(bytes: &[u8]) -> bool {
 struct OuterTerminal {
     restored: bool,
     kitty_keyboard: bool,
+    /// The child cursor style and blink currently mirrored on the outer terminal.
+    cursor_style: Option<(String, bool)>,
 }
 impl OuterTerminal {
     fn enter() -> Result<Self, String> {
@@ -2330,6 +2450,7 @@ impl OuterTerminal {
         let mut value = Self {
             restored: false,
             kitty_keyboard,
+            cursor_style: None,
         };
         value.write(ENTER_OUTER_MODES)?;
         if kitty_keyboard {
@@ -2343,14 +2464,44 @@ impl OuterTerminal {
             .and_then(|()| out.flush())
             .map_err(|error| format!("write outer terminal: {error}"))
     }
+    /// Mirrors the viewed child's cursor shape; `None` returns the outer default once.
+    ///
+    /// Invariant: a block cursor is the terminal model's default, so it is left to the outer
+    /// terminal's own default exactly as direct A1 leaves it; only a shape the child chose is
+    /// mirrored and later reset.
+    fn apply_cursor_style(&mut self, modes: Option<&TerminalModes>) -> Result<(), String> {
+        let next = modes
+            .filter(|modes| modes.cursor_style != "block")
+            .map(|modes| (modes.cursor_style.clone(), modes.cursor_blink));
+        if next == self.cursor_style {
+            return Ok(());
+        }
+        match next.as_ref() {
+            Some((style, blink)) => {
+                self.write(outer_input::cursor_style_sequence(style, *blink))?;
+            }
+            None => self.write(outer_input::RESET_CURSOR_STYLE)?,
+        }
+        self.cursor_style = next;
+        Ok(())
+    }
+    fn restore_sequence(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        if self.cursor_style.is_some() {
+            bytes.extend_from_slice(outer_input::RESET_CURSOR_STYLE);
+        }
+        if self.kitty_keyboard {
+            bytes.extend_from_slice(KITTY_RESTORE);
+        }
+        bytes.extend_from_slice(RESTORE_OUTER_MODES);
+        bytes
+    }
     fn restore(&mut self) -> Result<(), String> {
         if self.restored {
             return Ok(());
         }
-        if self.kitty_keyboard {
-            self.write(KITTY_RESTORE)?;
-        }
-        self.write(RESTORE_OUTER_MODES)?;
+        let sequence = self.restore_sequence();
+        self.write(&sequence)?;
         disable_raw_mode().map_err(|error| format!("restore cooked input: {error}"))?;
         self.restored = true;
         Ok(())
@@ -2359,10 +2510,8 @@ impl OuterTerminal {
 impl Drop for OuterTerminal {
     fn drop(&mut self) {
         if !self.restored {
-            if self.kitty_keyboard {
-                let _ = self.write(KITTY_RESTORE);
-            }
-            let _ = self.write(RESTORE_OUTER_MODES);
+            let sequence = self.restore_sequence();
+            let _ = self.write(&sequence);
             let _ = disable_raw_mode();
             self.restored = true;
         }
@@ -2553,6 +2702,69 @@ mod tests {
             )),
             None
         );
+        assert_eq!(bindings.label("tabs.close"), "");
+        assert_eq!(bindings.label("tabs.new"), "Alt+A");
+    }
+
+    // Invariant: the owned child's projection replays these same cases, so dispatch, labels, and
+    // help agree on one contract.
+    #[test]
+    fn shortcut_projection_matches_the_shared_cases_and_published_assignments() {
+        let cases: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../test/fixtures/resident-tab-shortcuts/projection-cases.json"
+        ))
+        .expect("projection cases");
+        assert_eq!(
+            cases["schema"],
+            "a1-resident-tab-shortcut-projection-cases-v1"
+        );
+        let entries = cases["cases"].as_array().expect("cases");
+        assert!(entries.len() >= 6);
+        for entry in entries {
+            let name = entry["name"].as_str().unwrap_or("case");
+            let projected = project_tab_shortcuts(
+                &shortcut_bindings(&entry["configured"]),
+                &shortcut_bindings(&entry["reserved"]),
+            );
+            let expected = entry["assignments"].as_object().expect("assignments");
+            assert_eq!(projected.len(), expected.len(), "{name}");
+            for (action, key) in &projected {
+                assert_eq!(
+                    key.as_deref(),
+                    expected[action].as_str(),
+                    "{name}: {action}"
+                );
+            }
+        }
+        let published = TabBindings::from_assignments(&[
+            ("tabs.next".into(), Some("alt+]".into())),
+            ("tabs.new".into(), None),
+            ("tabs.close".into(), Some("alt+]".into())),
+            ("tabs.unknown".into(), Some("alt+u".into())),
+        ]);
+        assert_eq!(
+            published.action(&crossterm::event::KeyEvent::new(
+                KeyCode::Char(']'),
+                KeyModifiers::ALT,
+            )),
+            Some("tabs.next")
+        );
+        assert_eq!(
+            published.action(&crossterm::event::KeyEvent::new(
+                KeyCode::Char('a'),
+                KeyModifiers::ALT,
+            )),
+            None
+        );
+        assert_eq!(published.label("tabs.new"), "");
+        assert_eq!(published.label("tabs.close"), "");
+        assert_eq!(
+            published.action(&crossterm::event::KeyEvent::new(
+                KeyCode::Char('u'),
+                KeyModifiers::ALT,
+            )),
+            None
+        );
     }
 
     const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -2645,17 +2857,70 @@ mod tests {
     }
 
     #[test]
-    fn initial_surface_adopts_the_servers_default_without_overwriting_a_request() {
-        let mut requested = None;
-        adopt_initial_surface(None, &mut requested, "server-default");
-        assert_eq!(requested.as_deref(), Some("server-default"));
-
-        adopt_initial_surface(None, &mut requested, "later-surface");
-        assert_eq!(requested.as_deref(), Some("server-default"));
-
-        requested = None;
-        adopt_initial_surface(Some("viewed"), &mut requested, "other");
-        assert_eq!(requested, None);
+    fn windows_alt_code_characters_are_admitted_once_from_their_release() {
+        let key = |code, kind| {
+            Event::Key(crossterm::event::KeyEvent::new_with_kind(
+                code,
+                KeyModifiers::NONE,
+                kind,
+            ))
+        };
+        let kind = |event: Event| match event {
+            Event::Key(key) => key.kind,
+            _ => panic!("key event expected"),
+        };
+        let mut pressed = std::collections::HashSet::new();
+        let accent = KeyCode::Char('\u{301}');
+        assert_eq!(
+            kind(admit_alt_code_input(
+                true,
+                &mut pressed,
+                key(accent, KeyEventKind::Release)
+            )),
+            KeyEventKind::Press
+        );
+        let typed = KeyCode::Char('é');
+        admit_alt_code_input(true, &mut pressed, key(typed, KeyEventKind::Press));
+        assert_eq!(
+            kind(admit_alt_code_input(
+                true,
+                &mut pressed,
+                key(typed, KeyEventKind::Release)
+            )),
+            KeyEventKind::Release,
+            "a layout key's own release is not input"
+        );
+        admit_alt_code_input(
+            true,
+            &mut pressed,
+            key(KeyCode::Char('É'), KeyEventKind::Press),
+        );
+        assert_eq!(
+            kind(admit_alt_code_input(
+                true,
+                &mut pressed,
+                key(typed, KeyEventKind::Release)
+            )),
+            KeyEventKind::Release,
+            "a release after Shift lifted still matches its press"
+        );
+        assert_eq!(
+            kind(admit_alt_code_input(
+                true,
+                &mut pressed,
+                key(KeyCode::Char('a'), KeyEventKind::Release)
+            )),
+            KeyEventKind::Release
+        );
+        assert_eq!(
+            kind(admit_alt_code_input(
+                false,
+                &mut pressed,
+                key(accent, KeyEventKind::Release)
+            )),
+            KeyEventKind::Release,
+            "other platforms keep ignoring releases"
+        );
     }
 
     #[test]
@@ -2900,13 +3165,22 @@ mod tests {
     #[test]
     fn presentation_is_one_ordered_synchronized_write() {
         let strip = strip::render(&[], None, 20);
-        let frame = compose_presentation(&strip, b"SURFACE", Some("OVERLAY"), true);
+        let frame = Frame {
+            strip: &strip.bytes,
+            body: Some(b"SURFACE"),
+            overlay: Some("OVERLAY"),
+            cursor: Some(FinalCursor::Hidden),
+            clear: true,
+        }
+        .compose()
+        .expect("complete frame");
         assert!(frame.starts_with(BEGIN_SYNCHRONIZED_UPDATE));
         assert!(frame.ends_with(END_SYNCHRONIZED_UPDATE));
         let text = String::from_utf8(frame).unwrap();
         assert!(text.find("\x1b[2J").unwrap() < text.find(" + ").unwrap());
         assert!(text.find(" + ").unwrap() < text.find("SURFACE").unwrap());
         assert!(text.find("SURFACE").unwrap() < text.find("OVERLAY").unwrap());
+        assert!(text.find("OVERLAY").unwrap() < text.find("\x1b[?25l").unwrap());
     }
 
     #[test]

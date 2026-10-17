@@ -226,6 +226,9 @@ struct HolderSession {
     peer: Peer,
     identity: ProcessIdentity,
     incarnation: u64,
+    /// Whether this holder encodes `input.event` frames itself; an older same-generation holder
+    /// receives only pre-encoded bytes.
+    semantic_input: bool,
 }
 
 #[derive(Clone)]
@@ -234,6 +237,8 @@ struct ClientSession {
     viewed_tab: String,
     controller: bool,
     controller_revision: u64,
+    /// Whether this client applies typed `terminal.effect` frames for its viewed tab.
+    terminal_effects: bool,
 }
 
 struct BridgePeer {
@@ -263,6 +268,11 @@ struct PendingControllerTransfer {
 // Platform: the causal boundary travels through the PTY, which Windows ConPTY may filter; an
 // unacknowledged boundary releases held input after this bound instead of holding it forever.
 const CONTROLLER_BOUNDARY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// Rejection reasons a client can act on; `legacy-holder` tells it to fall back to byte input.
+pub const INPUT_REJECTED_READ_ONLY: &str = "read-only-viewer";
+pub const INPUT_REJECTED_LEGACY_HOLDER: &str = "legacy-holder";
+pub const INPUT_REJECTED_MALFORMED: &str = "malformed-input";
 
 struct RuntimeState {
     endpoint: String,
@@ -300,6 +310,8 @@ struct RuntimeState {
     core: crate::core::server::State,
     workers: crate::shell::workers::WorkerPool<Result<(), String>>,
     startup_notice: Option<String>,
+    /// The newest effective tab shortcut projection a child published; relayed to every client.
+    shortcuts: Option<protocol::TabShortcuts>,
     diagnostics_root: std::path::PathBuf,
     shutdown_requested: bool,
 }
@@ -723,6 +735,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         core,
         workers: crate::shell::workers::WorkerPool::new(8),
         startup_notice,
+        shortcuts: None,
         diagnostics_root: diagnostics_root.clone(),
         shutdown_requested: false,
     }));
@@ -1379,7 +1392,17 @@ fn serve_peer(
     match hello.role.as_str() {
         "attach" | "internal" => {
             let allow_control = hello.role == "attach";
-            serve_attach(stream, peer, state, profile, hello.tab_id, allow_control)
+            let terminal_effects =
+                protocol::negotiated(&hello.features, protocol::FEATURE_TERMINAL_EFFECTS);
+            serve_attach(
+                stream,
+                peer,
+                state,
+                profile,
+                hello.tab_id,
+                allow_control,
+                terminal_effects,
+            )
         }
         "holder" => {
             let pid = hello
@@ -1400,6 +1423,7 @@ fn serve_peer(
                 identity,
                 child_identity,
                 hello.incarnation,
+                protocol::negotiated(&hello.features, protocol::FEATURE_SEMANTIC_INPUT),
             )
         }
         "bridge" => {
@@ -1442,6 +1466,9 @@ fn welcome(epoch: u64) -> Welcome {
             "bridge-stop".into(),
             "standby-promotion".into(),
             "recovery-status".into(),
+            protocol::FEATURE_SEMANTIC_INPUT.into(),
+            protocol::FEATURE_TERMINAL_EFFECTS.into(),
+            "bridge-shortcuts".into(),
         ],
         frame_limit: protocol::MAX_FRAME_BYTES as u32,
         input_limit: protocol::MAX_INPUT_BYTES as u32,
@@ -2795,6 +2822,7 @@ fn serve_attach(
     profile: std::path::PathBuf,
     requested_tab: Option<String>,
     allow_control: bool,
+    terminal_effects: bool,
 ) -> Result<(), String> {
     let client_id = format!("client-{:016x}", rand::random::<u64>());
     let (_controller, startup_notice) = {
@@ -2840,6 +2868,7 @@ fn serve_attach(
                 viewed_tab: viewed_tab.clone(),
                 controller,
                 controller_revision: revision,
+                terminal_effects,
             },
         );
         if let Some(holder) = locked.holders.get(&viewed_tab) {
@@ -2856,7 +2885,11 @@ fn serve_attach(
                 serde_json::json!({ "visible": true }),
             )?);
         }
-        if let Some(surface) = locked.surfaces.get(&viewed_tab).cloned() {
+        if let Some(shortcuts) = locked.shortcuts.clone() {
+            let _ = tx.offer_control(wire::frame("tabs.shortcuts", None, shortcuts)?);
+        }
+        if let Some(mut surface) = locked.surfaces.get(&viewed_tab).cloned() {
+            surface.stale = true;
             tx.offer_surface(wire::frame("surface", None, surface)?);
         }
         if controller && let Some(bridge) = locked.bridges.get(&viewed_tab) {
@@ -3106,7 +3139,11 @@ fn serve_attach(
                         serde_json::json!({ "visible": true }),
                     )?);
                 }
-                if let Some(surface) = locked.surfaces.get(&target.tab_id).cloned() {
+                // Protocol: the retained surface is offered at once so a view can commit even
+                // when the holder is slow, but it is marked stale so the client prefers the
+                // fresh frame the new subscription produces.
+                if let Some(mut surface) = locked.surfaces.get(&target.tab_id).cloned() {
+                    surface.stale = true;
                     tx.offer_surface(wire::frame("surface", None, surface)?);
                 }
                 if let Some(controller_revision) = next_revision
@@ -3146,8 +3183,29 @@ fn serve_attach(
                 )?)
                 .map_err(str::to_owned)?;
             }
-            "paste.start" | "input" | "resize" => {
-                let accepted = {
+            "paste.start" | "input" | "input.event" | "resize" => {
+                // Protocol: a semantic event is validated before it is attributed so a malformed
+                // frame never reaches a holder or claims control.
+                let semantic = kind.message_type == "input.event";
+                let semantic_body = if semantic {
+                    let (_, body): (_, protocol::SemanticInput) = wire::body(&payload)?;
+                    if protocol::validate_input_event(&body.event).is_err() {
+                        tx.offer_control(wire::frame(
+                            "input.rejected",
+                            kind.request_id,
+                            wire::ResultBody {
+                                accepted: false,
+                                message: Some(INPUT_REJECTED_MALFORMED.into()),
+                            },
+                        )?)
+                        .map_err(str::to_owned)?;
+                        continue;
+                    }
+                    Some(body)
+                } else {
+                    None
+                };
+                let rejection = {
                     let mut locked = state
                         .lock()
                         .map_err(|_| "resident state poisoned".to_owned())?;
@@ -3178,6 +3236,11 @@ fn serve_attach(
                             body.epoch = epoch;
                             wire::frame("input", kind.request_id, body)?
                         }
+                        "input.event" => {
+                            let mut body = semantic_body.expect("validated semantic body");
+                            body.epoch = epoch;
+                            wire::frame("input.event", kind.request_id, body)?
+                        }
                         _ => {
                             let (_, mut body): (_, Resize) = wire::body(&payload)?;
                             body.epoch = epoch;
@@ -3185,7 +3248,7 @@ fn serve_attach(
                         }
                     };
                     if claim.pending {
-                        viewed_tab
+                        let held = viewed_tab
                             .as_ref()
                             .and_then(|tab_id| locked.pending_controller_transfers.get_mut(tab_id))
                             .filter(|pending| pending.client_id == client_id)
@@ -3200,27 +3263,38 @@ fn serve_attach(
                                 pending.held_bytes = total;
                                 pending.held_frames.push(frame);
                                 true
-                            })
+                            });
+                        (!held).then_some(INPUT_REJECTED_READ_ONLY)
                     } else {
-                        viewed_tab
-                            .as_ref()
-                            .and_then(|tab_id| {
-                                locked
-                                    .clients
-                                    .get(&client_id)
-                                    .filter(|client| client.controller)
-                                    .and_then(|_| locked.holders.get(tab_id))
-                            })
-                            .is_some_and(|holder| holder.peer.offer_control(frame).is_ok())
+                        let holder = viewed_tab.as_ref().and_then(|tab_id| {
+                            locked
+                                .clients
+                                .get(&client_id)
+                                .filter(|client| client.controller)
+                                .and_then(|_| locked.holders.get(tab_id))
+                        });
+                        match holder {
+                            None => Some(INPUT_REJECTED_READ_ONLY),
+                            // Compatibility: an older same-generation holder cannot encode
+                            // semantic events; the client re-sends the event as bytes.
+                            Some(holder) if semantic && !holder.semantic_input => {
+                                Some(INPUT_REJECTED_LEGACY_HOLDER)
+                            }
+                            Some(holder) => holder
+                                .peer
+                                .offer_control(frame)
+                                .err()
+                                .map(|_| INPUT_REJECTED_READ_ONLY),
+                        }
                     }
                 };
-                if !accepted {
+                if let Some(message) = rejection {
                     tx.offer_control(wire::frame(
                         "input.rejected",
                         kind.request_id,
                         wire::ResultBody {
                             accepted: false,
-                            message: Some("read-only-viewer".into()),
+                            message: Some(message.into()),
                         },
                     )?)
                     .map_err(str::to_owned)?;
@@ -3889,6 +3963,7 @@ fn serve_holder(
     identity: ProcessIdentity,
     child_identity: Option<ProcessIdentity>,
     connection_incarnation: u64,
+    semantic_input: bool,
 ) -> Result<(), String> {
     {
         let mut locked = state
@@ -3939,6 +4014,7 @@ fn serve_holder(
                 peer: tx,
                 identity,
                 incarnation: connection_incarnation,
+                semantic_input,
             },
         );
         let mut recovering = false;
@@ -4063,6 +4139,29 @@ fn serve_holder(
                             &kind.message_type,
                             kind.request_id,
                             result.clone(),
+                        )?);
+                    }
+                }
+                // Invariant: a typed effect reaches only clients viewing this tab that apply
+                // effects; the server never applies, logs, or retains its payload.
+                "terminal.effect" => {
+                    let (_, mut effect): (_, protocol::TerminalEffect) = wire::body(&payload)?;
+                    if protocol::validate_effect(&effect.effect).is_err() {
+                        continue;
+                    }
+                    effect.tab_id = tab_id.clone();
+                    let locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    for client in locked
+                        .clients
+                        .values()
+                        .filter(|client| client.viewed_tab == tab_id && client.terminal_effects)
+                    {
+                        let _ = client.peer.offer_control(wire::frame(
+                            "terminal.effect",
+                            None,
+                            effect.clone(),
                         )?);
                     }
                 }
@@ -4932,6 +5031,24 @@ fn serve_bridge(
                     },
                     now,
                 );
+            }
+        } else if kind.message_type == "bridge.shortcuts" {
+            // Protocol: the newest projection any child publishes is the effective one; it is
+            // validated, retained for later clients, and relayed to every attached client.
+            let (_, shortcuts): (_, protocol::TabShortcuts) = wire::body(&payload)?;
+            if protocol::validate_shortcuts(&shortcuts).is_err() {
+                continue;
+            }
+            let mut locked = state
+                .lock()
+                .map_err(|_| "resident state poisoned".to_owned())?;
+            if locked.shortcuts.as_ref() == Some(&shortcuts) {
+                continue;
+            }
+            let frame = wire::frame("tabs.shortcuts", None, shortcuts.clone())?;
+            locked.shortcuts = Some(shortcuts);
+            for client in locked.clients.values() {
+                let _ = client.peer.offer_control(frame.clone());
             }
         } else if kind.message_type == "bridge.status" {
             let (_, status): (_, BridgeStatus) = wire::body(&payload)?;

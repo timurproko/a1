@@ -2406,6 +2406,12 @@ fn an_unviewed_tab_keeps_its_terminal_current_and_presents_it_in_full_when_viewe
         !viewer.output_containing("progress-reached", Duration::from_secs(1)),
         "an unviewed tab's surface reached another tab's client"
     );
+    // Invariant: a hidden tab's clipboard write updates nothing outside its retained model.
+    assert!(
+        !viewer.output_text().contains(PROGRESS_CLIPBOARD_BASE64),
+        "a hidden tab's clipboard write reached the outer terminal: {}",
+        viewer.output_text()
+    );
 
     // Invariant: viewing the tab presents what it produced while unviewed in its first complete
     // surface; nothing has to be produced again before it shows.
@@ -2424,10 +2430,504 @@ fn an_unviewed_tab_keeps_its_terminal_current_and_presents_it_in_full_when_viewe
         selected.output_text()
     );
     assert!(selected.output_containing("tick:", Duration::from_secs(5)));
+    // Invariant: an effect that fired while hidden is dropped, never replayed into a later view.
+    assert!(
+        !selected.output_text().contains(PROGRESS_CLIPBOARD_BASE64),
+        "a clipboard write from before the view was replayed: {}",
+        selected.output_text()
+    );
     selected.lose_launch_tree();
     viewer.lose_launch_tree();
     selected.wait(Duration::from_secs(8));
     viewer.wait(Duration::from_secs(8));
+}
+
+/// Base64 of `hidden-clipboard`, the clipboard write a progress fake tab emits once at tick 50.
+const PROGRESS_CLIPBOARD_BASE64: &str = "aGlkZGVuLWNsaXBib2FyZA==";
+/// Base64 of `fixture`, the clipboard write a parity fake tab emits as it starts.
+const PARITY_CLIPBOARD_BASE64: &str = "Zml4dHVyZQ==";
+
+/// The highest `in#<n>` record a parity child has printed into the given outer output.
+fn highest_input_record(output: &str) -> u64 {
+    output
+        .match_indices("in#")
+        .filter_map(|(index, _)| {
+            output[index + 3..]
+                .split(':')
+                .next()
+                .and_then(|number| number.parse::<u64>().ok())
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+/// Every `(tick, stamp, blocked)` a labelled progress child has shown in the given outer output, in the
+/// order the frames were presented; the stamp is the child's own clock in milliseconds.
+fn progress_samples(output: &str, label: &str) -> Vec<(u64, u64, u64)> {
+    let needle = format!("{label}:tick:");
+    output
+        .match_indices(&needle)
+        .filter_map(|(index, _)| {
+            let rest = &output[index + needle.len()..];
+            let tick = rest.get(..8)?.parse::<u64>().ok()?;
+            let stamp = rest.get(9..17)?.parse::<u64>().ok()?;
+            let blocked = rest.get(18..26)?.parse::<u64>().ok()?;
+            (rest.as_bytes().get(8) == Some(&b'@') && rest.as_bytes().get(17) == Some(&b'~'))
+                .then_some((tick, stamp, blocked))
+        })
+        .collect()
+}
+
+#[test]
+fn semantic_input_double_ctrl_c_and_effects_match_the_direct_child_contract() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let mut attach = AttachFixture::spawn_configured(
+        &executable,
+        &address,
+        &profile,
+        &data,
+        &release,
+        fake_tab,
+        None,
+        &[("TERMINAL_HOST_FAKE_TAB_MODE", "parity")],
+    );
+    assert!(
+        attach.output_containing("fake-tab-ready", Duration::from_secs(15)),
+        "{}",
+        attach.output_text()
+    );
+    cleanup.pids.extend(holder_pids(&credentials_root));
+    // Invariant: the viewed child's cursor shape is mirrored on the outer terminal, which no
+    // retained cell frame can carry.
+    assert!(
+        attach.output_containing("\x1b[5 q", Duration::from_secs(10)),
+        "{}",
+        attach.output_text()
+    );
+
+    // Invariant: plain, control, cursor, and Alt keys arrive as the bytes a terminal would
+    // produce for the child's modes, each exactly once.
+    // Platform: a raw-mode child under ConPTY reads cursor and Alt chords as console records,
+    // not bytes, so Windows checks the plain and control keys a byte-reading child can observe.
+    let keys: &[(&[u8], &str)] = if cfg!(windows) {
+        &[(b"a", ":61;"), (b"\x01", ":01;")]
+    } else {
+        &[
+            (b"a", ":61;"),
+            (b"\x01", ":01;"),
+            (b"\x1b[D", ":1b5b44;"),
+            (b"\x1bx", ":1b78;"),
+        ]
+    };
+    for (bytes, record) in keys {
+        attach.write(bytes);
+        assert!(
+            attach.output_containing(record, Duration::from_secs(10)),
+            "missing {record}: {}",
+            attach.output_text()
+        );
+    }
+    // Invariant: the viewed child's clipboard write reaches the outer terminal exactly once.
+    let clipboard = format!("\x1b]52;c;{PARITY_CLIPBOARD_BASE64}\x07");
+    assert!(
+        attach.output_containing(&clipboard, Duration::from_secs(10)),
+        "{}",
+        attach.output_text()
+    );
+    // Platform: ConPTY translates pointer, focus, and paste controls before they reach the
+    // attach client as events, so only Unix pseudoterminals carry them end to end.
+    if cfg!(unix) {
+        attach.write(b"\x1b[<0;5;3M");
+        assert!(
+            attach.output_containing(":1b5b3c303b353b324d;", Duration::from_secs(10)),
+            "mouse press was not re-encoded against the child rows: {}",
+            attach.output_text()
+        );
+        attach.write(b"\x1b[<0;5;3m");
+        assert!(
+            attach.output_containing(":1b5b3c303b353b326d;", Duration::from_secs(10)),
+            "mouse release was not re-encoded against the child rows: {}",
+            attach.output_text()
+        );
+        attach.write(b"\x1b[200~ab\x1b[201~");
+        assert!(
+            attach.output_containing("3230307e61621b5b3230317e", Duration::from_secs(10)),
+            "paste did not arrive as one bracketed transaction: {}",
+            attach.output_text()
+        );
+    }
+    assert_eq!(
+        attach.output_text().matches(&clipboard).count(),
+        1,
+        "the clipboard effect was applied more than once: {}",
+        attach.output_text()
+    );
+
+    // Invariant: the first input sent right after a switch reaches the newly viewed child
+    // exactly once, without a takeover gesture.
+    attach.write(b"\x1ba");
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while holder_pids(&credentials_root).len() < 2 {
+        assert!(
+            Instant::now() < deadline,
+            "the second parity tab never started: {}",
+            attach.output_text()
+        );
+        attach.settle(Duration::from_millis(100));
+    }
+    cleanup.pids.extend(holder_pids(&credentials_root));
+    attach.settle(Duration::from_millis(1_500));
+    attach.write(b"\x1b1");
+    attach.settle(Duration::from_millis(400));
+    attach.write(b"\x1b2q");
+    assert!(
+        attach.output_containing("in#1:71;", Duration::from_secs(10)),
+        "the first key after switching did not reach the new child once: {}",
+        attach.output_text()
+    );
+    attach.write(b"\x1b1");
+    attach.settle(Duration::from_millis(400));
+
+    // Invariant: one Ctrl+C reaches the child; a second press inside the clear/exit interval
+    // detaches without reaching it, and presses apart from each other both reach it.
+    attach.write(b"\x03");
+    assert!(
+        attach.output_containing(":03;", Duration::from_secs(10)),
+        "{}",
+        attach.output_text()
+    );
+    attach.settle(Duration::from_millis(700));
+    let records_before_chord = highest_input_record(&attach.output_text());
+    attach.write(b"\x03\x03");
+    assert!(attach.wait(Duration::from_secs(8)).success());
+    // Invariant: the restore bytes may still be queued behind the exit, so they are drained
+    // before the check.
+    assert!(
+        attach.output_containing("\x1b[0 q", Duration::from_secs(5)),
+        "detach did not restore the outer cursor shape: {}",
+        attach.output_text()
+    );
+    drop(attach);
+
+    let mut again = AttachFixture::spawn_configured(
+        &executable,
+        &address,
+        &profile,
+        &data,
+        &release,
+        fake_tab,
+        None,
+        &[("TERMINAL_HOST_FAKE_TAB_MODE", "parity")],
+    );
+    let expected = format!("in#{}:03;", records_before_chord + 1);
+    assert!(
+        again.output_containing(&expected, Duration::from_secs(15)),
+        "the first chord press did not reach the child exactly once: {}",
+        again.output_text()
+    );
+    // Platform: a fresh attach may make ConPTY synthesize a focus event, so only another Ctrl+C
+    // record proves the detaching press leaked.
+    assert!(
+        !again
+            .output_text()
+            .contains(&format!("in#{}:03;", records_before_chord + 2)),
+        "the detaching press reached the child: {}",
+        again.output_text()
+    );
+    assert_eq!(
+        again.output_text().matches(&clipboard).count(),
+        0,
+        "a clipboard effect from before the attach was replayed: {}",
+        again.output_text()
+    );
+    again.write(b"\x03\x03");
+    again.wait(Duration::from_secs(8));
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
+fn streaming_tabs_advance_independently_while_the_view_switches_rapidly() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let mut viewer = AttachFixture::spawn_view(
+        &executable,
+        &address,
+        &profile,
+        &data,
+        &release,
+        fake_tab,
+        None,
+    );
+    assert!(
+        viewer.output_containing("fake-tab-ready", Duration::from_secs(15)),
+        "{}",
+        viewer.output_text()
+    );
+    let labels = ["one", "two", "three"];
+    for label in labels {
+        let created = Command::new(&executable)
+            .args([
+                "internal",
+                "tab-create",
+                "--profile",
+                text(&profile),
+                "--data-dir",
+                text(&data),
+                "--runtime-dir",
+                text(&runtime),
+                "--cwd",
+                text(&release),
+                "--release-root",
+                text(&release),
+                "--node-executable",
+                fake_tab,
+            ])
+            .env("A1_TABS_ENDPOINT", &address)
+            .env("TERMINAL_HOST_FAKE_TAB_MODE", "progress")
+            .env("TERMINAL_HOST_FAKE_TAB_LABEL", label)
+            .current_dir(&release)
+            .output()
+            .expect("create progress tab");
+        assert!(
+            created.status.success(),
+            "{}",
+            String::from_utf8_lossy(&created.stderr)
+        );
+    }
+    cleanup.pids.extend(holder_pids(&credentials_root));
+    // Invariant: every tab presents when switched to, each round, while all three stream.
+    let mut newest: [Option<(u64, u64, u64)>; 3] = [None; 3];
+    for round in 0..4 {
+        for (index, label) in labels.iter().enumerate() {
+            let offset = viewer.retained_len();
+            let jump = format!("\x1b{}", index + 2);
+            viewer.write(jump.as_bytes());
+            let deadline = Instant::now() + Duration::from_secs(15);
+            while progress_samples(&viewer.output_since(offset), label).is_empty() {
+                assert!(
+                    Instant::now() < deadline,
+                    "tab {label} never presented in round {round}: {}",
+                    viewer.output_text()
+                );
+                // Invariant: earlier rounds already retained this label, so only output that
+                // arrives after the switch can prove the tab presented.
+                viewer.settle(Duration::from_millis(200));
+            }
+            viewer.settle(Duration::from_millis(250));
+            for sample in progress_samples(&viewer.output_since(offset), label) {
+                if newest[index].is_none_or(|current| sample.1 > current.1) {
+                    newest[index] = Some(sample);
+                }
+            }
+        }
+    }
+    // Invariant: a child whose output stopped being drained while hidden blocks inside its writes,
+    // so the time it reports blocked on output grows; a small share of blocked time proves the
+    // holder drained every child continuously whether or not it was viewed. A busy runner slows
+    // the child's sleep, not its writes, and a stale frame cannot fake the child's own count.
+    for (index, label) in labels.iter().enumerate() {
+        let (tick, stamp, blocked) = newest[index].unwrap_or_else(|| {
+            panic!(
+                "tab {label} showed no stamped tick: {}",
+                viewer.output_text()
+            )
+        });
+        assert!(
+            stamp >= 2_000 && tick >= 20,
+            "tab {label} ran only {tick} ticks in {stamp} ms: {}",
+            viewer.output_text()
+        );
+        assert!(
+            blocked.saturating_mul(4) <= stamp,
+            "tab {label} spent {blocked} of {stamp} ms blocked on undrained output: {}",
+            viewer.output_text()
+        );
+    }
+    viewer.write(b"\x03\x03");
+    viewer.wait(Duration::from_secs(8));
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
+fn a_slow_client_never_delays_the_viewed_tabs_input_or_output() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let mut viewer = AttachFixture::spawn_view(
+        &executable,
+        &address,
+        &profile,
+        &data,
+        &release,
+        fake_tab,
+        None,
+    );
+    assert!(
+        viewer.output_containing("fake-tab-ready", Duration::from_secs(15)),
+        "{}",
+        viewer.output_text()
+    );
+    // Concurrency: a second tab streams at a high rate and is viewed only by a client that never
+    // reads, so that client's socket fills while its holder keeps producing surfaces.
+    let created = Command::new(&executable)
+        .args([
+            "internal",
+            "tab-create",
+            "--profile",
+            text(&profile),
+            "--data-dir",
+            text(&data),
+            "--runtime-dir",
+            text(&runtime),
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            fake_tab,
+        ])
+        .env("A1_TABS_ENDPOINT", &address)
+        .env("TERMINAL_HOST_FAKE_TAB_MODE", "stream")
+        .env("TERMINAL_HOST_FAKE_TAB_STREAM_BYTES", "8192")
+        .current_dir(&release)
+        .output()
+        .expect("create streaming tab");
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    let streaming_tab = serde_json::from_slice::<serde_json::Value>(&created.stdout)
+        .expect("tab-create json")["tabId"]
+        .as_str()
+        .expect("created tab id")
+        .to_owned();
+    cleanup.pids.extend(holder_pids(&credentials_root));
+    let credentials =
+        terminal_host_contracts::roles::credentials::ProfileCredentials::load_or_create(
+            &credentials_root,
+        )
+        .expect("fixture credentials");
+    let mut slow = endpoint::connect(&address).expect("slow client connect");
+    terminal_host_contracts::roles::wire::send(
+        &mut slow,
+        "hello",
+        Some(1),
+        terminal_host_contracts::roles::wire::RoleHello {
+            role: "attach".into(),
+            generation: terminal_host_contracts::protocol::GENERATION,
+            build: "fixture".into(),
+            features: Vec::new(),
+            token: credentials.client_token.to_vec(),
+            tab_id: Some(streaming_tab.clone()),
+            pid: Some(std::process::id()),
+            start_identity: None,
+            incarnation: 0,
+            child_pid: None,
+            child_start_identity: None,
+            highest_epoch: 0,
+        },
+    )
+    .expect("slow hello");
+    let welcome = terminal_host_contracts::roles::wire::read_payload(&mut slow)
+        .expect("slow welcome")
+        .expect("slow welcome frame");
+    assert_eq!(
+        terminal_host_contracts::roles::wire::kind(&welcome)
+            .expect("welcome kind")
+            .message_type,
+        "welcome"
+    );
+    let admitted = terminal_host_contracts::roles::wire::read_payload(&mut slow)
+        .expect("slow admission")
+        .expect("slow admission frame");
+    assert_eq!(
+        terminal_host_contracts::roles::wire::kind(&admitted)
+            .expect("admission kind")
+            .message_type,
+        "attached"
+    );
+    // Invariant: while the slow client's lanes fill behind the streaming tab, the controlling
+    // client's own tab still echoes each line within the interactive budget.
+    std::thread::sleep(Duration::from_secs(4));
+    for round in 0..3 {
+        let probe = format!("slow-probe-{round}");
+        let sent = Instant::now();
+        viewer.write(format!("{probe}\r").as_bytes());
+        assert!(
+            viewer.output_containing(&format!("echo:{probe}"), Duration::from_secs(4)),
+            "input stalled behind a slow client in round {round}: {}",
+            viewer.output_text()
+        );
+        assert!(
+            sent.elapsed() < Duration::from_secs(4),
+            "echo took {:?} behind a slow client",
+            sent.elapsed()
+        );
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    // Invariant: the streaming holder kept draining its child the whole time, so both holders are
+    // still alive and the server still answers maintenance promptly.
+    assert_eq!(holder_pids(&credentials_root).len(), 2);
+    let probe_started = Instant::now();
+    let (code, _) = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+    assert_eq!(code, 0);
+    assert!(
+        probe_started.elapsed() < Duration::from_secs(4),
+        "maintenance waited behind a slow client"
+    );
+    drop(slow);
+    viewer.write(b"\x03\x03");
+    viewer.wait(Duration::from_secs(8));
+    cleanup.pids.extend(holder_pids(&credentials_root));
 }
 
 #[test]
@@ -2673,6 +3173,30 @@ impl AttachFixture {
         child_executable: &str,
         view_tab: Option<&str>,
     ) -> Self {
+        Self::spawn_configured(
+            executable,
+            address,
+            profile,
+            data,
+            release,
+            child_executable,
+            view_tab,
+            &[],
+        )
+    }
+    /// Spawns attach with extra environment that its created tabs inherit, such as a fake-tab
+    /// mode.
+    #[allow(clippy::too_many_arguments)]
+    fn spawn_configured(
+        executable: &Path,
+        address: &str,
+        profile: &Path,
+        data: &Path,
+        release: &Path,
+        child_executable: &str,
+        view_tab: Option<&str>,
+        environment: &[(&str, &str)],
+    ) -> Self {
         let pair = NativePtySystem::default()
             .openpty(PtySize {
                 rows: 24,
@@ -2683,6 +3207,9 @@ impl AttachFixture {
             .expect("attach pty");
         let mut command = CommandBuilder::new(executable);
         command.env("TERMINAL_HOST_FIXTURE_SIZE", "100x24");
+        for (name, value) in environment {
+            command.env(name, value);
+        }
         command.args([
             "attach",
             "--endpoint",
@@ -2761,21 +3288,43 @@ impl AttachFixture {
             .and_then(|()| writer.flush())
             .expect("attach input");
     }
+    /// True once the retained outer output contains `needle`, including output that arrived in
+    /// the same chunk as an earlier needle; waits up to `timeout` for more output otherwise.
     fn output_containing(&mut self, needle: &str, timeout: Duration) -> bool {
         let deadline = Instant::now() + timeout;
-        while Instant::now() < deadline {
+        loop {
+            if String::from_utf8_lossy(&self.retained).contains(needle) {
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
             match self.output.recv_timeout(Duration::from_millis(100)) {
-                Ok(bytes) => {
-                    self.retained.extend(bytes);
-                    if String::from_utf8_lossy(&self.retained).contains(needle) {
-                        return true;
-                    }
-                }
+                Ok(bytes) => self.retained.extend(bytes),
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
-                Err(mpsc::RecvTimeoutError::Disconnected) => return false,
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    return String::from_utf8_lossy(&self.retained).contains(needle);
+                }
             }
         }
-        false
+    }
+    /// How much outer output has been retained; later output can be inspected from here.
+    fn retained_len(&self) -> usize {
+        self.retained.len()
+    }
+    fn output_since(&self, offset: usize) -> String {
+        String::from_utf8_lossy(&self.retained[offset.min(self.retained.len())..]).into_owned()
+    }
+    /// Keeps draining outer output for `duration` so later assertions see the current frame.
+    fn settle(&mut self, duration: Duration) {
+        let deadline = Instant::now() + duration;
+        while Instant::now() < deadline {
+            match self.output.recv_timeout(Duration::from_millis(25)) {
+                Ok(bytes) => self.retained.extend(bytes),
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => return,
+            }
+        }
     }
     fn lose_launch_tree(&mut self) {
         let pid = self.child.process_id().expect("attach pid");
