@@ -19,7 +19,7 @@ Each numbered section is one Implementation item of the pull request and one com
 
 ## 4. Terminal-host roles in the addon
 
-- [ ] 4.1 Move `run_from_args` and the role commands from `native/terminal-host/src/main.rs` into `src/roles/entry.rs`, delete `src/main.rs`, export `runRole` and `version` from `src/node_addon.rs`, replace process exits with returned codes, and record the host command in `src/launch.rs` so the detached spawn and `spawn_via_wmi` run `<node> <entry> --resident-role-child ...`; update `native/terminal-host/tests/role_integration.rs`, the fixture roles, `README.md`, and `scripts/development/run-terminal-host-probe.mjs`.
+- [ ] 4.1 Move `run_from_args` and the role commands from `native/terminal-host/src/main.rs` into `src/roles/entry.rs`, delete `src/main.rs`, export `runRole` and `version` from `src/node_addon.rs`, replace process exits with returned codes, and record the host command in `src/launch.rs` so the detached spawn and `spawn_via_wmi` run `<node> <entry> --resident-role-child ...`; add the `role-host` fixture binary under `tests/fixtures/role-host/` gated by `resident-fixtures`; update `native/terminal-host/tests/role_integration.rs`, the fixture roles, `README.md`, and `scripts/development/run-terminal-host-probe.mjs`.
 - [ ] 4.2 Add `src/foundation/resident-tabs/host-entry.ts` that loads the addon beside itself or from `A1_TERMINAL_HOST_PATH` under the development instance id and runs `runRole` with `process.execPath` and its own path.
 
 ## 5. Resident-tab code uses the addon
