@@ -11,6 +11,72 @@ pub const MAX_NESTING: usize = 64;
 pub const MAX_COLLECTION_ITEMS: usize = 65_536;
 pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(4);
 
+/// Generation-1 feature advertised by a peer that produces or consumes normalized input events
+/// (`input.event`) instead of pre-encoded child bytes.
+pub const FEATURE_SEMANTIC_INPUT: &str = "semantic-input";
+/// Generation-1 feature advertised by a peer that forwards or applies typed child terminal
+/// effects (`terminal.effect`) and presentation modes on surfaces.
+pub const FEATURE_TERMINAL_EFFECTS: &str = "terminal-effects";
+/// Largest clipboard payload one typed effect may carry across the resident boundary.
+pub const MAX_CLIPBOARD_BYTES: usize = 256 * 1024;
+/// Longest key name or key text one normalized key event may carry.
+pub const MAX_KEY_TEXT_BYTES: usize = 64;
+/// Longest MIME type one clipboard effect may name.
+pub const MAX_MIME_BYTES: usize = 64;
+
+pub const MOD_SHIFT: u8 = 1 << 0;
+pub const MOD_CTRL: u8 = 1 << 1;
+pub const MOD_ALT: u8 = 1 << 2;
+pub const MOD_SUPER: u8 = 1 << 3;
+const MOD_MASK: u8 = MOD_SHIFT | MOD_CTRL | MOD_ALT | MOD_SUPER;
+
+/// True when a negotiated feature list names `feature`.
+pub fn negotiated(features: &[String], feature: &str) -> bool {
+    features.iter().any(|candidate| candidate == feature)
+}
+
+/// Serde adapter that writes `Vec<u8>` as a MessagePack `bin` value and reads either `bin` or an
+/// integer array, so byte payloads longer than the collection item bound still cross the wire.
+pub mod bytes {
+    use serde::de::{Error as _, SeqAccess, Visitor};
+    use serde::{Deserializer, Serializer};
+    use std::fmt;
+
+    pub fn serialize<S: Serializer>(value: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(value)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
+        struct BytesVisitor;
+        impl<'de> Visitor<'de> for BytesVisitor {
+            type Value = Vec<u8>;
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("bytes or a byte array")
+            }
+            fn visit_bytes<E: serde::de::Error>(self, value: &[u8]) -> Result<Vec<u8>, E> {
+                Ok(value.to_vec())
+            }
+            fn visit_byte_buf<E: serde::de::Error>(self, value: Vec<u8>) -> Result<Vec<u8>, E> {
+                Ok(value)
+            }
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Vec<u8>, E> {
+                Ok(value.as_bytes().to_vec())
+            }
+            fn visit_seq<A: SeqAccess<'de>>(self, mut sequence: A) -> Result<Vec<u8>, A::Error> {
+                let mut output = Vec::with_capacity(sequence.size_hint().unwrap_or(0).min(1 << 16));
+                while let Some(byte) = sequence.next_element::<u8>()? {
+                    if output.len() >= super::MAX_FRAME_BYTES {
+                        return Err(A::Error::custom("byte array exceeds the frame limit"));
+                    }
+                    output.push(byte);
+                }
+                Ok(output)
+            }
+        }
+        deserializer.deserialize_byte_buf(BytesVisitor)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProtocolError {
     FrameTooLarge(usize),
@@ -197,6 +263,202 @@ pub struct HolderSnapshot {
     pub tab_id: String,
     pub incarnation: u64,
     pub status: String,
+}
+
+/// One outer-terminal event normalized by the attach client and encoded by the holder against
+/// the viewed child's terminal modes. The `seq` is per client and strictly increasing so the
+/// holder can report exact-once delivery; `epoch` is stamped by the server.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SemanticInput {
+    #[serde(default)]
+    pub epoch: u64,
+    #[serde(default)]
+    pub seq: u64,
+    pub event: InputEvent,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum InputEvent {
+    /// A key press or repeat. `key` is a physical key name from the libghostty key table
+    /// (`a`, `digit-1`, `enter`, `arrow-left`, `f3`, ... or `unidentified`); `text` carries the
+    /// produced text when the key produces any; `mods` is a `MOD_*` mask.
+    #[serde(rename_all = "camelCase")]
+    Key {
+        key: String,
+        #[serde(default)]
+        mods: u8,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        text: Option<String>,
+        #[serde(default)]
+        repeat: bool,
+    },
+    /// Outer terminal focus change.
+    Focus { gained: bool },
+    /// A pointer event already translated to child coordinates (zero-based cells).
+    #[serde(rename_all = "camelCase")]
+    Mouse {
+        action: MouseEventAction,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        button: Option<u8>,
+        #[serde(default)]
+        mods: u8,
+        column: u16,
+        row: u16,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MouseEventAction {
+    Press,
+    Release,
+    Motion,
+    ScrollUp,
+    ScrollDown,
+}
+
+/// Rejects an input event that violates the bounded wire contract before it reaches a child.
+pub fn validate_input_event(event: &InputEvent) -> Result<(), String> {
+    match event {
+        InputEvent::Key {
+            key, mods, text, ..
+        } => {
+            if key.is_empty() || key.len() > MAX_KEY_TEXT_BYTES {
+                return Err("key name length is out of bounds".into());
+            }
+            if !key
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+            {
+                return Err("key name contains unsupported characters".into());
+            }
+            if mods & !MOD_MASK != 0 {
+                return Err("key modifiers use unsupported bits".into());
+            }
+            if let Some(text) = text {
+                if text.is_empty() || text.len() > MAX_KEY_TEXT_BYTES {
+                    return Err("key text length is out of bounds".into());
+                }
+                if text.chars().any(|value| value.is_control()) {
+                    return Err("key text contains control characters".into());
+                }
+            }
+            Ok(())
+        }
+        InputEvent::Focus { .. } => Ok(()),
+        InputEvent::Mouse { button, mods, .. } => {
+            if button.is_some_and(|button| !(1..=5).contains(&button)) {
+                return Err("mouse button is out of bounds".into());
+            }
+            if mods & !MOD_MASK != 0 {
+                return Err("mouse modifiers use unsupported bits".into());
+            }
+            Ok(())
+        }
+    }
+}
+
+/// Cursor and interaction modes of a child terminal model, published with each surface so the
+/// attach client can apply the viewed tab's outer effects and restore its own on exit.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalModes {
+    #[serde(default)]
+    pub cursor_visible: bool,
+    /// `block`, `underline`, `bar`, or `block-hollow`; blink is carried separately.
+    #[serde(default)]
+    pub cursor_style: String,
+    #[serde(default)]
+    pub cursor_blink: bool,
+    #[serde(default)]
+    pub mouse_tracking: bool,
+    #[serde(default)]
+    pub focus_events: bool,
+    #[serde(default)]
+    pub bracketed_paste: bool,
+    #[serde(default)]
+    pub kitty_keyboard_flags: u8,
+    #[serde(default)]
+    pub alternate_screen: bool,
+    #[serde(default)]
+    pub synchronized_output: bool,
+}
+
+/// The child cursor cell in zero-based child coordinates; absent when the cursor is hidden or
+/// scrolled out of the viewport.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceCursor {
+    pub column: u16,
+    pub row: u16,
+}
+
+/// A typed terminal side effect consumed by retained parsing whose direct effect belongs to the
+/// outer terminal. Only the holder of the committed viewed tab may produce one that is applied.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalEffect {
+    #[serde(default)]
+    pub tab_id: String,
+    #[serde(default)]
+    pub revision: u64,
+    pub effect: EffectKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum EffectKind {
+    /// A normalized OSC 52 / iTerm2 clipboard write. `location` is `standard`, `selection`, or
+    /// `primary`; `data` is the decoded representation and is never logged.
+    #[serde(rename_all = "camelCase")]
+    ClipboardWrite {
+        location: ClipboardLocation,
+        mime: String,
+        #[serde(with = "bytes")]
+        data: Vec<u8>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ClipboardLocation {
+    Standard,
+    Selection,
+    Primary,
+}
+
+impl ClipboardLocation {
+    /// The OSC 52 selection parameter for this location.
+    pub fn osc52_selector(self) -> char {
+        match self {
+            Self::Standard => 'c',
+            Self::Selection => 's',
+            Self::Primary => 'p',
+        }
+    }
+}
+
+/// Rejects a clipboard effect whose payload, MIME, or location exceeds the bounded contract.
+pub fn validate_effect(effect: &EffectKind) -> Result<(), String> {
+    match effect {
+        EffectKind::ClipboardWrite { mime, data, .. } => {
+            if mime.is_empty() || mime.len() > MAX_MIME_BYTES {
+                return Err("clipboard MIME length is out of bounds".into());
+            }
+            if !mime
+                .bytes()
+                .all(|byte| byte.is_ascii_graphic() && byte != b';' && byte != 0x1b)
+            {
+                return Err("clipboard MIME contains unsupported characters".into());
+            }
+            if data.len() > MAX_CLIPBOARD_BYTES {
+                return Err("clipboard payload exceeds the resident limit".into());
+            }
+            Ok(())
+        }
+    }
 }
 
 pub fn encode_frame<T: Serialize>(value: &T) -> Result<Vec<u8>, ProtocolError> {
@@ -518,6 +780,104 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
                 },
             })?,
         ),
+        (
+            "input-event-key.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "input.event".to_owned(),
+                request_id: None,
+                body: SemanticInput {
+                    epoch: 3,
+                    seq: 41,
+                    event: InputEvent::Key {
+                        key: "c".to_owned(),
+                        mods: MOD_CTRL,
+                        text: None,
+                        repeat: false,
+                    },
+                },
+            })?,
+        ),
+        (
+            "input-event-text.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "input.event".to_owned(),
+                request_id: None,
+                body: SemanticInput {
+                    epoch: 3,
+                    seq: 42,
+                    event: InputEvent::Key {
+                        key: "unidentified".to_owned(),
+                        mods: 0,
+                        text: Some("é".to_owned()),
+                        repeat: true,
+                    },
+                },
+            })?,
+        ),
+        (
+            "input-event-focus.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "input.event".to_owned(),
+                request_id: None,
+                body: SemanticInput {
+                    epoch: 3,
+                    seq: 43,
+                    event: InputEvent::Focus { gained: true },
+                },
+            })?,
+        ),
+        (
+            "input-event-mouse.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "input.event".to_owned(),
+                request_id: None,
+                body: SemanticInput {
+                    epoch: 3,
+                    seq: 44,
+                    event: InputEvent::Mouse {
+                        action: MouseEventAction::Press,
+                        button: Some(1),
+                        mods: MOD_SHIFT,
+                        column: 4,
+                        row: 7,
+                    },
+                },
+            })?,
+        ),
+        (
+            "terminal-effect-clipboard.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "terminal.effect".to_owned(),
+                request_id: None,
+                body: TerminalEffect {
+                    tab_id: "tab-1".to_owned(),
+                    revision: 9,
+                    effect: EffectKind::ClipboardWrite {
+                        location: ClipboardLocation::Standard,
+                        mime: "text/plain".to_owned(),
+                        data: b"fixture".to_vec(),
+                    },
+                },
+            })?,
+        ),
+        (
+            "terminal-modes.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "terminal.modes".to_owned(),
+                request_id: None,
+                body: TerminalModes {
+                    cursor_visible: true,
+                    cursor_style: "bar".to_owned(),
+                    cursor_blink: false,
+                    mouse_tracking: true,
+                    focus_events: true,
+                    bracketed_paste: true,
+                    kitty_keyboard_flags: 1,
+                    alternate_screen: false,
+                    synchronized_output: false,
+                },
+            })?,
+        ),
     ];
     Ok(fixtures)
 }
@@ -677,12 +1037,16 @@ fn collection_bound(len: usize) -> Result<(), ProtocolError> {
     }
 }
 
+// Invariant: a `bin` or `str` payload is bounded by the frame it arrives in, so its length is
+// checked against the frame limit rather than the item bound that protects arrays and maps.
 fn skip_collection_bytes(
     bytes: &[u8],
     cursor: &mut usize,
     len: usize,
 ) -> Result<(), ProtocolError> {
-    collection_bound(len)?;
+    if len > MAX_FRAME_BYTES {
+        return Err(ProtocolError::CollectionLimit(len));
+    }
     skip(bytes, cursor, len)
 }
 
@@ -768,6 +1132,135 @@ mod tests {
                 .map(|index| ((index * 131 + length) & 0xff) as u8)
                 .collect::<Vec<_>>();
             let _ = validate_messagepack_shape(&bytes);
+        }
+    }
+
+    #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+    struct Payload {
+        #[serde(with = "bytes")]
+        data: Vec<u8>,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+    struct ArrayPayload {
+        data: Vec<u8>,
+    }
+
+    #[test]
+    fn byte_payloads_larger_than_the_item_bound_round_trip_as_bin() {
+        let data = (0..(MAX_COLLECTION_ITEMS + 10))
+            .map(|index| (index & 0xff) as u8)
+            .collect::<Vec<_>>();
+        let frame = encode_frame(&Payload { data: data.clone() }).expect("encode");
+        let decoded: Payload = decode_frame(&frame).expect("decode bin payload");
+        assert_eq!(decoded.data, data);
+        let as_array = encode_frame(&ArrayPayload {
+            data: vec![1, 2, 3],
+        })
+        .expect("encode array");
+        let decoded: Payload = decode_frame(&as_array).expect("decode array payload");
+        assert_eq!(decoded.data, vec![1, 2, 3]);
+        let oversized = encode_frame(&ArrayPayload { data: data.clone() }).expect("encode");
+        assert!(matches!(
+            decode_frame::<Payload>(&oversized),
+            Err(ProtocolError::CollectionLimit(_))
+        ));
+    }
+
+    #[test]
+    fn semantic_input_and_effects_round_trip_with_additive_defaults() {
+        for (name, bytes) in fixture_set().expect("fixtures") {
+            if name.starts_with("input-event") {
+                let decoded: Envelope<SemanticInput> = decode_frame(&bytes).expect(&name);
+                assert_eq!(decoded.message_type, "input.event");
+                validate_input_event(&decoded.body.event).expect(&name);
+            } else if name.starts_with("terminal-effect") {
+                let decoded: Envelope<TerminalEffect> = decode_frame(&bytes).expect(&name);
+                validate_effect(&decoded.body.effect).expect(&name);
+            } else if name.starts_with("terminal-modes") {
+                let decoded: Envelope<TerminalModes> = decode_frame(&bytes).expect(&name);
+                assert_eq!(decoded.body.kitty_keyboard_flags, 1);
+            }
+        }
+        let minimal = rmp_serde::to_vec_named(&serde_json::json!({
+            "type": "input.event",
+            "body": { "event": { "kind": "focus", "gained": false } }
+        }))
+        .expect("encode minimal");
+        let decoded: Envelope<SemanticInput> = decode_payload(&minimal).expect("decode minimal");
+        assert_eq!(decoded.body.epoch, 0);
+        assert_eq!(decoded.body.event, InputEvent::Focus { gained: false });
+        let unknown_kind = rmp_serde::to_vec_named(&serde_json::json!({
+            "type": "input.event",
+            "body": { "event": { "kind": "gesture" } }
+        }))
+        .expect("encode unknown");
+        assert!(decode_payload::<Envelope<SemanticInput>>(&unknown_kind).is_err());
+        assert_eq!(ClipboardLocation::Primary.osc52_selector(), 'p');
+        assert!(negotiated(
+            &["a".into(), FEATURE_SEMANTIC_INPUT.into()],
+            FEATURE_SEMANTIC_INPUT
+        ));
+        assert!(!negotiated(&[], FEATURE_TERMINAL_EFFECTS));
+    }
+
+    #[test]
+    fn input_and_effect_validation_rejects_unbounded_or_malformed_values() {
+        let key = |key: &str, mods: u8, text: Option<&str>| InputEvent::Key {
+            key: key.into(),
+            mods,
+            text: text.map(str::to_owned),
+            repeat: false,
+        };
+        assert!(validate_input_event(&key("arrow-left", MOD_CTRL | MOD_ALT, None)).is_ok());
+        assert!(validate_input_event(&key("", 0, None)).is_err());
+        assert!(validate_input_event(&key("Arrow", 0, None)).is_err());
+        assert!(validate_input_event(&key(&"k".repeat(MAX_KEY_TEXT_BYTES + 1), 0, None)).is_err());
+        assert!(validate_input_event(&key("a", 0x80, None)).is_err());
+        assert!(validate_input_event(&key("a", 0, Some(""))).is_err());
+        assert!(validate_input_event(&key("a", 0, Some("\u{1b}"))).is_err());
+        assert!(validate_input_event(&key("unidentified", 0, Some("日本"))).is_ok());
+        assert!(
+            validate_input_event(&InputEvent::Mouse {
+                action: MouseEventAction::Release,
+                button: Some(9),
+                mods: 0,
+                column: 0,
+                row: 0,
+            })
+            .is_err()
+        );
+        let clipboard = |mime: &str, len: usize| EffectKind::ClipboardWrite {
+            location: ClipboardLocation::Selection,
+            mime: mime.into(),
+            data: vec![b'x'; len],
+        };
+        assert!(validate_effect(&clipboard("text/plain", MAX_CLIPBOARD_BYTES)).is_ok());
+        assert!(validate_effect(&clipboard("text/plain", MAX_CLIPBOARD_BYTES + 1)).is_err());
+        assert!(validate_effect(&clipboard("", 1)).is_err());
+        assert!(validate_effect(&clipboard("text;plain", 1)).is_err());
+        assert!(validate_effect(&clipboard("text/pl\u{1b}ain", 1)).is_err());
+    }
+
+    #[test]
+    fn mutated_semantic_fixtures_never_panic_and_only_decode_when_well_formed() {
+        for (name, frame) in fixture_set().expect("fixtures") {
+            if !name.starts_with("input-event") && !name.starts_with("terminal-") {
+                continue;
+            }
+            for position in 0..frame.len() {
+                for delta in [1u8, 0x7f, 0xff] {
+                    let mut mutated = frame.clone();
+                    mutated[position] = mutated[position].wrapping_add(delta);
+                    let _ = decode_frame::<Envelope<SemanticInput>>(&mutated);
+                    let _ = decode_frame::<Envelope<TerminalEffect>>(&mutated);
+                    let _ = decode_frame::<Envelope<TerminalModes>>(&mutated);
+                    let mut decoder = FrameDecoder::default();
+                    let _ = decoder.push(&mutated);
+                }
+                let truncated = &frame[..position];
+                assert!(decode_frame::<Envelope<SemanticInput>>(truncated).is_err());
+            }
         }
     }
 }

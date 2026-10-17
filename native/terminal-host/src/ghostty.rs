@@ -11,11 +11,15 @@ const GHOSTTY_NO_VALUE: i32 = -4;
 
 const RENDER_DATA_DIRTY: i32 = 3;
 const RENDER_DATA_ROW_ITERATOR: i32 = 4;
+const RENDER_DATA_CURSOR_VISUAL_STYLE: i32 = 10;
 const RENDER_DATA_CURSOR_VISIBLE: i32 = 11;
+const RENDER_DATA_CURSOR_BLINKING: i32 = 12;
 const RENDER_DATA_CURSOR_HAS_POSITION: i32 = 14;
 const RENDER_DATA_CURSOR_X: i32 = 15;
 const RENDER_DATA_CURSOR_Y: i32 = 16;
 const RENDER_OPTION_DIRTY: i32 = 0;
+const TERMINAL_DATA_ACTIVE_SCREEN: i32 = 6;
+const TERMINAL_DATA_KITTY_KEYBOARD_FLAGS: i32 = 8;
 const TERMINAL_DATA_SCROLLBAR: i32 = 9;
 const TERMINAL_DATA_MOUSE_TRACKING: i32 = 11;
 const TERMINAL_DATA_SCROLLBACK_ROWS: i32 = 15;
@@ -32,6 +36,19 @@ const CELL_WIDE_SPACER_TAIL: i32 = 2;
 const TERMINAL_OPT_USERDATA: i32 = 0;
 const TERMINAL_OPT_WRITE_PTY: i32 = 1;
 const TERMINAL_OPT_SELECTION: i32 = 21;
+const TERMINAL_OPT_CLIPBOARD_WRITE: i32 = 26;
+const CLIPBOARD_WRITE_RESULT_SUCCESS: i32 = 0;
+const CLIPBOARD_WRITE_RESULT_UNSUPPORTED: i32 = 2;
+/// DEC private modes the holder reads from the child's terminal model; a `GhosttyMode` packs the
+/// mode number in bits 0-14 and the ANSI flag in bit 15, so DEC modes are their plain number.
+pub const MODE_CURSOR_BLINKING: u16 = 12;
+pub const MODE_CURSOR_VISIBLE: u16 = 25;
+pub const MODE_FOCUS_EVENT: u16 = 1004;
+pub const MODE_BRACKETED_PASTE: u16 = 2004;
+pub const MODE_SYNC_OUTPUT: u16 = 2026;
+/// Most clipboard writes retained between two holder loop passes; later ones are refused so a
+/// child looping on OSC 52 cannot grow memory while nobody views it.
+pub const MAX_PENDING_CLIPBOARD_WRITES: usize = 8;
 
 pub const KEY_UNIDENTIFIED: i32 = 0;
 pub const KEY_A: i32 = 20;
@@ -267,6 +284,11 @@ unsafe extern "C" {
         data: i32,
         out: *mut c_void,
     ) -> GhosttyResult;
+    fn ghostty_terminal_mode_get(
+        terminal: GhosttyTerminalRaw,
+        mode: u16,
+        out_value: *mut bool,
+    ) -> GhosttyResult;
     fn ghostty_terminal_set(
         terminal: GhosttyTerminalRaw,
         option: i32,
@@ -440,12 +462,64 @@ struct ActiveStyle {
     underline: bool,
 }
 
+#[repr(C)]
+struct GhosttyString {
+    ptr: *const u8,
+    len: usize,
+}
+
+#[repr(C)]
+struct GhosttyClipboardContent {
+    mime: GhosttyString,
+    data: GhosttyString,
+}
+
+#[repr(C)]
+struct GhosttyClipboardWrite {
+    size: usize,
+    location: i32,
+    contents: *const GhosttyClipboardContent,
+    contents_len: usize,
+}
+
+/// One normalized clipboard write the child emitted through OSC 52 or iTerm2 OSC 1337; the
+/// payload is already decoded and never logged.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClipboardWrite {
+    /// `0` standard, `1` selection, `2` primary, as libghostty numbers them.
+    pub location: i32,
+    pub mime: String,
+    pub data: Vec<u8>,
+}
+
+/// The cursor and interaction modes of a child terminal model at one point in time.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TerminalModeSnapshot {
+    pub cursor_visible: bool,
+    /// `block`, `underline`, `bar`, or `block-hollow`.
+    pub cursor_style: &'static str,
+    pub cursor_blink: bool,
+    pub mouse_tracking: bool,
+    pub focus_events: bool,
+    pub bracketed_paste: bool,
+    pub kitty_keyboard_flags: u8,
+    pub alternate_screen: bool,
+    pub synchronized_output: bool,
+}
+
+/// Everything libghostty hands back through callbacks while parsing child output.
+#[derive(Default)]
+struct TerminalCallbacks {
+    responses: Vec<u8>,
+    clipboard: Vec<ClipboardWrite>,
+}
+
 pub struct GhosttyTerminal {
     raw: GhosttyTerminalRaw,
     render: GhosttyRenderStateRaw,
     // Invariant: boxed so the userdata address given to libghostty stays fixed when the
     // terminal moves; it is freed only after the terminal in Drop.
-    responses: Box<Vec<u8>>,
+    callbacks: Box<TerminalCallbacks>,
 }
 
 // Protocol: libghostty calls this synchronously inside ghostty_terminal_vt_write with query
@@ -459,8 +533,69 @@ unsafe extern "C" fn collect_pty_response(
     if userdata.is_null() || data.is_null() || len == 0 {
         return;
     }
-    let responses = unsafe { &mut *userdata.cast::<Vec<u8>>() };
-    responses.extend_from_slice(unsafe { std::slice::from_raw_parts(data, len) });
+    let callbacks = unsafe { &mut *userdata.cast::<TerminalCallbacks>() };
+    callbacks
+        .responses
+        .extend_from_slice(unsafe { std::slice::from_raw_parts(data, len) });
+}
+
+// Protocol: libghostty normalizes OSC 52 selectors, base64, chunking, and OSC 1337 before this
+// call, so one call is one complete logical clipboard write for the child's outer terminal.
+unsafe extern "C" fn collect_clipboard_write(
+    _terminal: GhosttyTerminalRaw,
+    userdata: *mut c_void,
+    write: *const GhosttyClipboardWrite,
+) -> i32 {
+    if userdata.is_null() || write.is_null() {
+        return CLIPBOARD_WRITE_RESULT_UNSUPPORTED;
+    }
+    let callbacks = unsafe { &mut *userdata.cast::<TerminalCallbacks>() };
+    let write = unsafe { &*write };
+    if write.size < size_of::<GhosttyClipboardWrite>()
+        || callbacks.clipboard.len() >= MAX_PENDING_CLIPBOARD_WRITES
+    {
+        return CLIPBOARD_WRITE_RESULT_UNSUPPORTED;
+    }
+    let contents = if write.contents.is_null() || write.contents_len == 0 {
+        &[][..]
+    } else {
+        unsafe { std::slice::from_raw_parts(write.contents, write.contents_len) }
+    };
+    let text = contents.iter().find(|content| {
+        borrowed_bytes(&content.mime)
+            .is_some_and(|mime| mime.starts_with(b"text/") || mime.is_empty())
+    });
+    let (mime, data) = match text.or_else(|| contents.first()) {
+        Some(content) => (
+            borrowed_bytes(&content.mime).unwrap_or_default(),
+            borrowed_bytes(&content.data).unwrap_or_default(),
+        ),
+        // Invariant: an empty write clears the destination; it travels as an empty payload.
+        None => (&b"text/plain"[..], &[][..]),
+    };
+    if data.len() > crate::protocol::MAX_CLIPBOARD_BYTES
+        || mime.len() > crate::protocol::MAX_MIME_BYTES
+    {
+        return CLIPBOARD_WRITE_RESULT_UNSUPPORTED;
+    }
+    let mime = if mime.is_empty() {
+        "text/plain".to_owned()
+    } else {
+        String::from_utf8_lossy(mime).into_owned()
+    };
+    callbacks.clipboard.push(ClipboardWrite {
+        location: write.location,
+        mime,
+        data: data.to_vec(),
+    });
+    CLIPBOARD_WRITE_RESULT_SUCCESS
+}
+
+fn borrowed_bytes(value: &GhosttyString) -> Option<&[u8]> {
+    if value.ptr.is_null() {
+        return None;
+    }
+    Some(unsafe { std::slice::from_raw_parts(value.ptr, value.len) })
 }
 
 impl GhosttyTerminal {
@@ -487,9 +622,10 @@ impl GhosttyTerminal {
         let mut terminal = Self {
             raw,
             render,
-            responses: Box::new(Vec::new()),
+            callbacks: Box::default(),
         };
-        let userdata = ptr::from_mut::<Vec<u8>>(terminal.responses.as_mut()).cast::<c_void>();
+        let userdata =
+            ptr::from_mut::<TerminalCallbacks>(terminal.callbacks.as_mut()).cast::<c_void>();
         check(
             unsafe { ghostty_terminal_set(raw, TERMINAL_OPT_USERDATA, userdata) },
             "set terminal userdata",
@@ -500,6 +636,21 @@ impl GhosttyTerminal {
             unsafe { ghostty_terminal_set(raw, TERMINAL_OPT_WRITE_PTY, callback as *const c_void) },
             "set terminal pty responses",
         )?;
+        let clipboard: unsafe extern "C" fn(
+            GhosttyTerminalRaw,
+            *mut c_void,
+            *const GhosttyClipboardWrite,
+        ) -> i32 = collect_clipboard_write;
+        check(
+            unsafe {
+                ghostty_terminal_set(
+                    raw,
+                    TERMINAL_OPT_CLIPBOARD_WRITE,
+                    clipboard as *const c_void,
+                )
+            },
+            "set terminal clipboard writes",
+        )?;
         Ok(terminal)
     }
 
@@ -509,7 +660,148 @@ impl GhosttyTerminal {
 
     /// Returns and clears query responses the terminal produced for its child PTY.
     pub fn take_responses(&mut self) -> Vec<u8> {
-        std::mem::take(self.responses.as_mut())
+        std::mem::take(&mut self.callbacks.responses)
+    }
+
+    /// Returns and clears the clipboard writes the child emitted since the previous call.
+    pub fn take_clipboard_writes(&mut self) -> Vec<ClipboardWrite> {
+        std::mem::take(&mut self.callbacks.clipboard)
+    }
+
+    /// Whether the child has set a DEC private mode such as bracketed paste or focus events.
+    pub fn mode(&self, mode: u16) -> Result<bool, String> {
+        let mut value = false;
+        check(
+            unsafe { ghostty_terminal_mode_get(self.raw, mode, &mut value) },
+            "read terminal mode",
+        )?;
+        Ok(value)
+    }
+
+    pub fn kitty_keyboard_flags(&self) -> Result<u8, String> {
+        let mut flags = 0u8;
+        check(
+            unsafe {
+                ghostty_terminal_get(
+                    self.raw,
+                    TERMINAL_DATA_KITTY_KEYBOARD_FLAGS,
+                    &mut flags as *mut u8 as *mut c_void,
+                )
+            },
+            "read kitty keyboard flags",
+        )?;
+        Ok(flags)
+    }
+
+    pub fn alternate_screen(&self) -> Result<bool, String> {
+        let mut screen = 0i32;
+        check(
+            unsafe {
+                ghostty_terminal_get(
+                    self.raw,
+                    TERMINAL_DATA_ACTIVE_SCREEN,
+                    &mut screen as *mut i32 as *mut c_void,
+                )
+            },
+            "read active screen",
+        )?;
+        Ok(screen == 1)
+    }
+
+    /// The modes a viewer needs to mirror this child; read after `frame_at` so the render state
+    /// cursor fields are current.
+    pub fn mode_snapshot(&self) -> Result<TerminalModeSnapshot, String> {
+        let mut style = 1i32;
+        check(
+            unsafe {
+                ghostty_render_state_get(
+                    self.render,
+                    RENDER_DATA_CURSOR_VISUAL_STYLE,
+                    &mut style as *mut i32 as *mut c_void,
+                )
+            },
+            "read cursor style",
+        )?;
+        let mut blink = false;
+        check(
+            unsafe {
+                ghostty_render_state_get(
+                    self.render,
+                    RENDER_DATA_CURSOR_BLINKING,
+                    &mut blink as *mut bool as *mut c_void,
+                )
+            },
+            "read cursor blink",
+        )?;
+        Ok(TerminalModeSnapshot {
+            cursor_visible: self.mode(MODE_CURSOR_VISIBLE)?,
+            cursor_style: match style {
+                0 => "bar",
+                2 => "underline",
+                3 => "block-hollow",
+                _ => "block",
+            },
+            cursor_blink: blink,
+            mouse_tracking: self.mouse_tracking()?,
+            focus_events: self.mode(MODE_FOCUS_EVENT)?,
+            bracketed_paste: self.mode(MODE_BRACKETED_PASTE)?,
+            kitty_keyboard_flags: self.kitty_keyboard_flags()?,
+            alternate_screen: self.alternate_screen()?,
+            synchronized_output: self.mode(MODE_SYNC_OUTPUT)?,
+        })
+    }
+
+    /// The viewport cursor cell, zero-based, or `None` when hidden or scrolled out of view; read
+    /// after `frame_at` so the render state is current.
+    pub fn cursor_cell(&self) -> Result<Option<(u16, u16)>, String> {
+        let mut visible = false;
+        check(
+            unsafe {
+                ghostty_render_state_get(
+                    self.render,
+                    RENDER_DATA_CURSOR_VISIBLE,
+                    &mut visible as *mut bool as *mut c_void,
+                )
+            },
+            "read cursor visibility",
+        )?;
+        let mut has_position = false;
+        check(
+            unsafe {
+                ghostty_render_state_get(
+                    self.render,
+                    RENDER_DATA_CURSOR_HAS_POSITION,
+                    &mut has_position as *mut bool as *mut c_void,
+                )
+            },
+            "read cursor position presence",
+        )?;
+        if !visible || !has_position {
+            return Ok(None);
+        }
+        let mut x = 0u16;
+        let mut y = 0u16;
+        check(
+            unsafe {
+                ghostty_render_state_get(
+                    self.render,
+                    RENDER_DATA_CURSOR_X,
+                    &mut x as *mut u16 as *mut c_void,
+                )
+            },
+            "read cursor x",
+        )?;
+        check(
+            unsafe {
+                ghostty_render_state_get(
+                    self.render,
+                    RENDER_DATA_CURSOR_Y,
+                    &mut y as *mut u16 as *mut c_void,
+                )
+            },
+            "read cursor y",
+        )?;
+        Ok(Some((x, y)))
     }
 
     pub fn resize(&mut self, cols: u16, rows: u16) -> Result<(), String> {
@@ -855,53 +1147,9 @@ impl GhosttyTerminal {
     }
 
     pub fn cursor_frame_at(&self, origin_column: u16, origin_row: u16) -> Result<String, String> {
-        let mut cursor_visible = false;
-        check(
-            unsafe {
-                ghostty_render_state_get(
-                    self.render,
-                    RENDER_DATA_CURSOR_VISIBLE,
-                    &mut cursor_visible as *mut bool as *mut c_void,
-                )
-            },
-            "read cursor visibility",
-        )?;
-        let mut cursor_has_position = false;
-        check(
-            unsafe {
-                ghostty_render_state_get(
-                    self.render,
-                    RENDER_DATA_CURSOR_HAS_POSITION,
-                    &mut cursor_has_position as *mut bool as *mut c_void,
-                )
-            },
-            "read cursor position presence",
-        )?;
-        if !cursor_visible || !cursor_has_position {
+        let Some((x, y)) = self.cursor_cell()? else {
             return Ok("\u{1b}[?25l".to_owned());
-        }
-        let mut x = 0u16;
-        let mut y = 0u16;
-        check(
-            unsafe {
-                ghostty_render_state_get(
-                    self.render,
-                    RENDER_DATA_CURSOR_X,
-                    &mut x as *mut u16 as *mut c_void,
-                )
-            },
-            "read cursor x",
-        )?;
-        check(
-            unsafe {
-                ghostty_render_state_get(
-                    self.render,
-                    RENDER_DATA_CURSOR_Y,
-                    &mut y as *mut u16 as *mut c_void,
-                )
-            },
-            "read cursor y",
-        )?;
+        };
         Ok(format!(
             "\u{1b}[{};{}H\u{1b}[?25h",
             origin_row + y + 1,

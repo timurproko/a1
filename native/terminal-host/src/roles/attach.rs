@@ -14,8 +14,12 @@ use crossterm::event::{
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 use crate::endpoint;
-use crate::protocol::{self, BridgeAttachment, MAX_INPUT_BYTES, Welcome};
+use crate::protocol::{
+    self, BridgeAttachment, EffectKind, InputEvent, MAX_INPUT_BYTES, TerminalEffect, TerminalModes,
+    Welcome,
+};
 use crate::roles::credentials::ProfileCredentials;
+use crate::roles::outer_input::{self, InputChannel, Outgoing};
 use crate::roles::strip::{self, StripHit, StripHover, StripTab, TimeFormat};
 use crate::roles::wire::{
     self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface, TabCreate, TabList,
@@ -231,6 +235,7 @@ pub enum CtrlCDisposition {
 }
 #[derive(Debug)]
 pub struct DoubleCtrlC {
+    // Invariant: only a forwarded Ctrl+C arms the chord; any other completed input disarms it.
     interval_ms: u64,
     last_forwarded_ms: Option<u64>,
 }
@@ -240,6 +245,11 @@ impl DoubleCtrlC {
             interval_ms,
             last_forwarded_ms: None,
         }
+    }
+    /// A paste or pointer activation completed another input sequence, so a later Ctrl+C
+    /// starts a fresh chord.
+    pub fn reset(&mut self) {
+        self.last_forwarded_ms = None;
     }
     pub fn admit(&mut self, now_ms: u64, ctrl_c: bool) -> CtrlCDisposition {
         if !ctrl_c {
@@ -968,7 +978,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             role: "attach".into(),
             generation: protocol::GENERATION,
             build: "a1-terminal-host".into(),
-            features: vec!["double-ctrl-c".into()],
+            features: vec![
+                "double-ctrl-c".into(),
+                protocol::FEATURE_SEMANTIC_INPUT.into(),
+                protocol::FEATURE_TERMINAL_EFFECTS.into(),
+            ],
             token: credentials.client_token.to_vec(),
             tab_id: options.view_tab.map(str::to_owned),
             pid: Some(std::process::id()),
@@ -984,7 +998,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     if wire::kind(&payload)?.message_type != "welcome" {
         return Err("resident server refused attach".to_owned());
     }
-    let _: (Option<u64>, Welcome) = wire::body(&payload)?;
+    let (_, welcome): (Option<u64>, Welcome) = wire::body(&payload)?;
+    // Compatibility: semantic input and typed effects are generation-1 features; a server that
+    // lacks them keeps the byte path and applies no child terminal effects.
+    let mut channel = InputChannel::new(protocol::negotiated(
+        &welcome.features,
+        protocol::FEATURE_SEMANTIC_INPUT,
+    ));
+    let apply_effects = protocol::negotiated(&welcome.features, protocol::FEATURE_TERMINAL_EFFECTS);
     let attachment = wire::read_payload(&mut stream)?
         .ok_or_else(|| "server closed before attach admission".to_owned())?;
     match wire::kind(&attachment)?.message_type.as_str() {
@@ -1116,9 +1137,26 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut drag: Option<TabDrag> = None;
     let mut pending_settings_create = false;
     let mut pending_settings_tab: Option<String> = None;
+    // Invariant: the committed body is identified by its tab and revision, so a later frame of
+    // the same tab never yields to an earlier one and a stale re-offer waits for a fresh frame.
+    let mut committed_revision: Option<u64> = None;
+    let mut latest_modes: Option<TerminalModes> = None;
+    let mut stale_candidate: Option<(Surface, Instant)> = None;
     let bindings = TabBindings::load(options.profile);
+    macro_rules! send_input {
+        ($event:expr, $legacy:expr) => {{
+            match channel.outgoing($event, $legacy) {
+                Some(Outgoing::Semantic(input)) => {
+                    wire::send(&mut stream, "input.event", None, input)?;
+                }
+                Some(Outgoing::Legacy(input)) => wire::send(&mut stream, "input", None, input)?,
+                None => {}
+            }
+        }};
+    }
     macro_rules! paint_current {
         ($clear:expr) => {{
+            terminal.apply_cursor_style(latest_modes.as_ref())?;
             let rename_display = rename.as_ref().map(RenameEditor::display);
             strip_frame = strip::render_interactive(
                 &tabs,
@@ -1226,6 +1264,64 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             }
         }};
     }
+    macro_rules! commit_surface {
+        ($surface:expr) => {{
+            let surface: Surface = $surface;
+            'commit: {
+                let requested = requested_view.as_deref() == Some(surface.tab_id.as_str());
+                if requested
+                    && staged_tabs.is_none()
+                    && !tabs.iter().any(|tab| tab.id == surface.tab_id)
+                {
+                    pending_surface = Some(surface);
+                    break 'commit;
+                }
+                if requested {
+                    if let Some(next) = staged_tabs.take() {
+                        tabs = next;
+                    }
+                    viewed = Some(surface.tab_id.clone());
+                    requested_view = None;
+                    close_fallback = None;
+                    transient_notice = None;
+                    if prompt_view != viewed {
+                        pending_close = None;
+                        rename = None;
+                        popup = None;
+                        prompt_view = viewed.clone();
+                    }
+                } else if viewed.as_deref() != Some(surface.tab_id.as_str()) {
+                    break 'commit;
+                } else if committed_revision.is_some_and(|committed| surface.revision < committed) {
+                    break 'commit;
+                }
+                committed_revision = Some(surface.revision);
+                if surface.status == "failed" {
+                    failed_tab = Some(surface.tab_id.clone());
+                } else if failed_tab.as_deref() == Some(surface.tab_id.as_str()) {
+                    failed_tab = None;
+                }
+                if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id) {
+                    tab.status = surface.status.clone();
+                    tab.accent = surface.accent.clone();
+                }
+                latest_surface = without_bell(&surface.bytes);
+                latest_modes = surface.modes.clone();
+                if pending_settings_tab.as_deref() == Some(surface.tab_id.as_str()) {
+                    pending_settings_tab = None;
+                    wire::send(
+                        &mut stream,
+                        "tab.open-settings",
+                        None,
+                        TabTarget {
+                            tab_id: surface.tab_id.clone(),
+                        },
+                    )?;
+                }
+                paint_current!(false);
+            }
+        }};
+    }
     loop {
         watchdog.bump();
         while let Ok(payload) = message_rx.try_recv() {
@@ -1241,52 +1337,29 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     // the tab list arrives so the chip and child surface commit in one frame.
                     adopt_initial_surface(viewed.as_deref(), &mut requested_view, &surface.tab_id);
                     let requested = requested_view.as_deref() == Some(surface.tab_id.as_str());
-                    if requested
-                        && staged_tabs.is_none()
-                        && !tabs.iter().any(|tab| tab.id == surface.tab_id)
-                    {
-                        pending_surface = Some(surface);
+                    // Protocol: a retained re-offer may commit a requested view only after the
+                    // bounded wait for the holder's fresh frame, so the old coherent frame stays
+                    // visible instead of a surface that predates the switch.
+                    if requested && surface.stale && viewed.is_some() {
+                        stale_candidate = Some((surface, Instant::now() + STALE_SURFACE_WAIT));
                         continue;
                     }
                     if requested {
-                        if let Some(next) = staged_tabs.take() {
-                            tabs = next;
-                        }
-                        viewed = Some(surface.tab_id.clone());
-                        requested_view = None;
-                        close_fallback = None;
-                        transient_notice = None;
-                        if prompt_view != viewed {
-                            pending_close = None;
-                            rename = None;
-                            popup = None;
-                            prompt_view = viewed.clone();
-                        }
-                    } else if viewed.as_deref() != Some(surface.tab_id.as_str()) {
-                        continue;
+                        stale_candidate = None;
                     }
-                    if surface.status == "failed" {
-                        failed_tab = Some(surface.tab_id.clone());
-                    } else if failed_tab.as_deref() == Some(surface.tab_id.as_str()) {
-                        failed_tab = None;
+                    commit_surface!(surface);
+                }
+                "terminal.effect" => {
+                    let (_, effect): (_, TerminalEffect) = wire::body(&payload)?;
+                    // Invariant: only the committed view's effects reach the outer terminal, and
+                    // each one is applied exactly once without entering any visible frame.
+                    if apply_effects
+                        && viewed.as_deref() == Some(effect.tab_id.as_str())
+                        && protocol::validate_effect(&effect.effect).is_ok()
+                    {
+                        let EffectKind::ClipboardWrite { location, data, .. } = effect.effect;
+                        terminal.write(&outer_input::osc52(location, &data))?;
                     }
-                    if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id) {
-                        tab.status = surface.status.clone();
-                        tab.accent = surface.accent.clone();
-                    }
-                    latest_surface = without_bell(&surface.bytes);
-                    if pending_settings_tab.as_deref() == Some(surface.tab_id.as_str()) {
-                        pending_settings_tab = None;
-                        wire::send(
-                            &mut stream,
-                            "tab.open-settings",
-                            None,
-                            TabTarget {
-                                tab_id: surface.tab_id.clone(),
-                            },
-                        )?;
-                    }
-                    paint_current!(false);
                 }
                 "tab.status" => {
                     let (_, status): (_, TabStatus) = wire::body(&payload)?;
@@ -1395,6 +1468,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 prompt_view = viewed.clone();
                             }
                             latest_surface = without_bell(&surface.bytes);
+                            latest_modes = surface.modes.clone();
+                            committed_revision = Some(surface.revision);
                             if pending_settings_tab.as_deref() == Some(surface.tab_id.as_str()) {
                                 pending_settings_tab = None;
                                 wire::send(
@@ -1457,6 +1532,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         viewed = None;
                         requested_view = None;
                         latest_surface.clear();
+                        latest_modes = None;
+                        committed_revision = None;
+                        stale_candidate = None;
                         close_fallback = None;
                         paint_current!(true);
                     } else if changed {
@@ -1599,6 +1677,15 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "viewer.status" | "input.rejected" | "input.uncertain" | "recovery.notice" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    if kind.message_type == "input.rejected"
+                        && result.message.as_deref()
+                            == Some(crate::roles::server::INPUT_REJECTED_LEGACY_HOLDER)
+                    {
+                        if let Some(replay) = channel.fall_back() {
+                            wire::send(&mut stream, "input", None, replay)?;
+                        }
+                        continue;
+                    }
                     let message = if kind.message_type == "input.rejected" {
                         rejection_notice(&mut user_input_pending, result.message)
                     } else {
@@ -1619,6 +1706,15 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     let _: (Option<u64>, BridgeAttachment) = wire::body(&payload)?;
                 }
                 _ => {}
+            }
+        }
+        if stale_candidate
+            .as_ref()
+            .is_some_and(|(_, deadline)| Instant::now() >= *deadline)
+        {
+            let (surface, _) = stale_candidate.take().expect("checked stale candidate");
+            if requested_view.as_deref() == Some(surface.tab_id.as_str()) {
+                commit_surface!(surface);
             }
         }
         if strip::animations_active(&tabs)
@@ -1877,12 +1973,17 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     paint_current!(false);
                     continue;
                 }
+                let event = outer_input::normalize_key(&key);
                 let bytes = encode_key(key.code, key.modifiers);
-                if bytes.is_empty() {
+                if bytes.is_empty() && (event.is_none() || !channel.semantic) {
                     continue;
                 }
                 let now = started.elapsed().as_millis() as u64;
-                if chord.admit(now, is_ctrl_c_bytes(&bytes)) == CtrlCDisposition::Detach {
+                // Invariant: the chord is judged on the key's identity, not on the bytes a
+                // particular terminal protocol produced for it.
+                let ctrl_c = event.as_ref().is_some_and(outer_input::is_ctrl_c_event)
+                    || (event.is_none() && is_ctrl_c_bytes(&bytes));
+                if chord.admit(now, ctrl_c) == CtrlCDisposition::Detach {
                     wire::send(
                         &mut stream,
                         "detach",
@@ -1911,32 +2012,24 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     }
                     continue;
                 }
-                let bytes = if failed {
+                let (event, bytes) = if failed {
                     match (key.code, key.modifiers) {
                         (KeyCode::Char(value @ ('r' | 'R' | 'f' | 'F')), KeyModifiers::NONE) => {
-                            vec![value as u8]
+                            let name = value.to_ascii_lowercase().to_string();
+                            (Some(outer_input::plain_key(&name)), vec![value as u8])
                         }
                         (KeyCode::Char('w' | 'W'), modifiers)
                             if modifiers.contains(KeyModifiers::ALT) =>
                         {
-                            b"x".to_vec()
+                            (Some(outer_input::plain_key("x")), b"x".to_vec())
                         }
                         _ => continue,
                     }
                 } else {
-                    bytes
+                    (event, bytes)
                 };
                 user_input_pending = true;
-                wire::send(
-                    &mut stream,
-                    "input",
-                    None,
-                    Input {
-                        bytes,
-                        paste: false,
-                        epoch: 0,
-                    },
-                )?;
+                send_input!(event, bytes);
             }
             Event::Paste(text) => {
                 if let Some(editor) = rename.as_mut() {
@@ -1949,6 +2042,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 if failed || pending_close.is_some() || popup.is_some() {
                     continue;
                 }
+                chord.reset();
                 let bytes = text.into_bytes();
                 user_input_pending = true;
                 wire::send(
@@ -2003,27 +2097,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         message: None,
                     },
                 )?;
-                wire::send(
-                    &mut stream,
-                    "input",
-                    None,
-                    Input {
-                        bytes: b"\x1b[I".to_vec(),
-                        paste: false,
-                        epoch: 0,
-                    },
-                )?;
+                send_input!(Some(InputEvent::Focus { gained: true }), b"\x1b[I".to_vec());
             }
-            Event::FocusLost if !failed => wire::send(
-                &mut stream,
-                "input",
-                None,
-                Input {
-                    bytes: b"\x1b[O".to_vec(),
-                    paste: false,
-                    epoch: 0,
-                },
-            )?,
+            Event::FocusLost if !failed => {
+                send_input!(
+                    Some(InputEvent::Focus { gained: false }),
+                    b"\x1b[O".to_vec()
+                );
+            }
             Event::Mouse(mouse) => {
                 transient_notice = None;
                 let pointer_activation = matches!(
@@ -2173,24 +2254,29 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 if hovered.take().is_some() {
                     paint_current!(false);
                 }
-                if let Some(bytes) = encode_mouse(mouse.kind, mouse.column, mouse.row) {
+                let event = outer_input::normalize_mouse(
+                    mouse.kind,
+                    mouse.column,
+                    mouse.row,
+                    mouse.modifiers,
+                );
+                if event.as_ref().is_some_and(outer_input::resets_chord) {
+                    chord.reset();
+                }
+                let bytes = encode_mouse(mouse.kind, mouse.column, mouse.row).unwrap_or_default();
+                if event.is_some() || !bytes.is_empty() {
                     user_input_pending = true;
-                    wire::send(
-                        &mut stream,
-                        "input",
-                        None,
-                        Input {
-                            bytes,
-                            paste: false,
-                            epoch: 0,
-                        },
-                    )?;
+                    send_input!(event, bytes);
                 }
             }
             _ => {}
         }
     }
 }
+
+/// How long a requested view keeps its previous coherent frame while waiting for the holder's
+/// fresh surface before a retained re-offer is committed instead.
+const STALE_SURFACE_WAIT: Duration = Duration::from_millis(120);
 
 fn strip_hover_present(frame: &strip::StripFrame, hovered: &StripHover) -> bool {
     frame.hits.iter().any(|(_, _, hit)| match (hovered, hit) {
@@ -2322,6 +2408,8 @@ fn kitty_query_answered(bytes: &[u8]) -> bool {
 struct OuterTerminal {
     restored: bool,
     kitty_keyboard: bool,
+    /// The child cursor style and blink currently mirrored on the outer terminal.
+    cursor_style: Option<(String, bool)>,
 }
 impl OuterTerminal {
     fn enter() -> Result<Self, String> {
@@ -2330,6 +2418,7 @@ impl OuterTerminal {
         let mut value = Self {
             restored: false,
             kitty_keyboard,
+            cursor_style: None,
         };
         value.write(ENTER_OUTER_MODES)?;
         if kitty_keyboard {
@@ -2343,14 +2432,38 @@ impl OuterTerminal {
             .and_then(|()| out.flush())
             .map_err(|error| format!("write outer terminal: {error}"))
     }
+    /// Mirrors the viewed child's cursor shape; `None` returns the outer default once.
+    fn apply_cursor_style(&mut self, modes: Option<&TerminalModes>) -> Result<(), String> {
+        let next = modes.map(|modes| (modes.cursor_style.clone(), modes.cursor_blink));
+        if next == self.cursor_style {
+            return Ok(());
+        }
+        match next.as_ref() {
+            Some((style, blink)) => {
+                self.write(outer_input::cursor_style_sequence(style, *blink))?;
+            }
+            None => self.write(outer_input::RESET_CURSOR_STYLE)?,
+        }
+        self.cursor_style = next;
+        Ok(())
+    }
+    fn restore_sequence(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        if self.cursor_style.is_some() {
+            bytes.extend_from_slice(outer_input::RESET_CURSOR_STYLE);
+        }
+        if self.kitty_keyboard {
+            bytes.extend_from_slice(KITTY_RESTORE);
+        }
+        bytes.extend_from_slice(RESTORE_OUTER_MODES);
+        bytes
+    }
     fn restore(&mut self) -> Result<(), String> {
         if self.restored {
             return Ok(());
         }
-        if self.kitty_keyboard {
-            self.write(KITTY_RESTORE)?;
-        }
-        self.write(RESTORE_OUTER_MODES)?;
+        let sequence = self.restore_sequence();
+        self.write(&sequence)?;
         disable_raw_mode().map_err(|error| format!("restore cooked input: {error}"))?;
         self.restored = true;
         Ok(())
@@ -2359,10 +2472,8 @@ impl OuterTerminal {
 impl Drop for OuterTerminal {
     fn drop(&mut self) {
         if !self.restored {
-            if self.kitty_keyboard {
-                let _ = self.write(KITTY_RESTORE);
-            }
-            let _ = self.write(RESTORE_OUTER_MODES);
+            let sequence = self.restore_sequence();
+            let _ = self.write(&sequence);
             let _ = disable_raw_mode();
             self.restored = true;
         }

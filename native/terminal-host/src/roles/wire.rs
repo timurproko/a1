@@ -114,10 +114,19 @@ pub struct Surface {
     #[serde(default)]
     pub tab_id: String,
     pub revision: u64,
+    #[serde(with = "protocol::bytes")]
     pub bytes: Vec<u8>,
     pub status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub accent: Option<String>,
+    /// True when the server re-offers a retained surface that the holder produced earlier; a
+    /// view switch commits a stale surface only after its bounded fresh-frame wait expires.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub stale: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modes: Option<protocol::TerminalModes>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<protocol::SurfaceCursor>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,14 +199,18 @@ pub struct PasteStart {
     pub epoch: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Input {
+    #[serde(with = "protocol::bytes")]
     pub bytes: Vec<u8>,
     #[serde(default)]
     pub paste: bool,
     #[serde(default)]
     pub epoch: u64,
 }
+
+pub type SemanticInput = protocol::SemanticInput;
+pub type TerminalEffect = protocol::TerminalEffect;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Resize {
