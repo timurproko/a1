@@ -19,7 +19,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-17-stabilize-resident-multiagent-ux/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-17-stabilize-resident-multiagent-ux/acceptance.md",
   "finalizedDate": "2026-10-17",
-  "specBaseSha": "488a97fcd8da77067afd57ee5442dd79c5f88dea",
+  "specBaseSha": "321b8341a8e9fd436543ec691ae4b45a291b3834",
   "acceptanceScenarios": [
     "Empty resident mode presents only the hoverable add control; create and close transitions expose no provisional host state.",
     "The grouped launcher and `Alt+Period` create or activate one global Settings tab, while resident Agents omit `/settings`.",
