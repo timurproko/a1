@@ -22,8 +22,8 @@ The maintainer integration decision accepts these scenarios:
     "With Copy on select disabled, prompt and footer/status selections do not write on release and copy through Ctrl+C.",
     "Autocomplete, prompt chrome, transient rows, widgets, replacement inputs, comparison mode, and regular terminal selection retain their established behavior."
   ],
-  "archiveDigest": "d77325f61509b51036fe70bd5238bc07642f9d7849622f4e7a5267f55dacec0a",
-  "specDigest": "640216b3b4f62cfa32a1037af20c00ac8559fdaa7b63df31a1423cc3eec431da",
+  "archiveDigest": "5cd3260dbfb0bbe1d55b3cc8a95005a56232601078bfbe164e37661c09b750a0",
+  "specDigest": "0655dca3a3caac1d50b25e2a042c0dec12c9cf7960720aabc55964f546f217d0",
   "tasksDigest": "86b72aec291a9b5da4e3399e0ef5f6bc24f20d3840ca6fca627c558fee2da068",
   "evidenceDigest": "3c292d1f1945bc1ff2526b1c6931fa77d1047026b576f20c6614b56f393d80cb",
   "knownGaps": []
