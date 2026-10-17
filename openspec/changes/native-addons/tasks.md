@@ -41,4 +41,4 @@ Each numbered section is one Implementation item of the pull request and one com
 
 ## 9. Documentation
 
-- [ ] 9.1 Update `docs/architecture/{process-guardian-provenance,terminal-host-provenance,resident-tabs,toolchain,boundaries}.md` and `docs/validation.md` for the addon-hosted native layer, the watcher gap, and the measured holder cost.
+- [x] 9.1 Update `docs/architecture/{process-guardian-provenance,terminal-host-provenance,resident-tabs,toolchain,boundaries}.md` and `docs/validation.md` for the addon-hosted native layer, the watcher gap, and the measured holder cost.

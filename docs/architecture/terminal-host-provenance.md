@@ -1,6 +1,6 @@
 # Terminal-host provenance
 
-The composed-terminal proof uses a small console-hosted stack. It runs inside the user's existing terminal and does not create a separate desktop window.
+The resident terminal host uses a small console-hosted stack. Its native implementation ships as the Node-API 9 addon `terminal-host.node`; the release's fixed `dist/foundation/resident-tabs/host-entry.js` loads that addon and dispatches the server, holder, attach, probe, maintenance, and internal roles inside the hosting Node runtime. It runs inside the user's existing terminal and does not create a separate desktop window. No terminal-host executable is built or shipped, and the same addon exports the in-process session-writer lock.
 
 ## Selected source components
 
@@ -14,7 +14,7 @@ The composed-terminal proof uses a small console-hosted stack. It runs inside th
 
 ## Release notices
 
-`scripts/release/generate-terminal-host-notices.mjs` writes `terminal-host-THIRD-PARTY-NOTICES.txt` beside each release artifact. It walks the locked Cargo graph for the build target (normal dependencies, including the `node-addon` session lock; proc-macro crates and their subtrees never reach the binary), adds the Zig-linked components, and fails on a license expression outside MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, Unicode-3.0, or Zlib (the `LLVM-exception` addendum is accepted), on a crate without license text, or on a pinned text whose digest changed.
+`scripts/release/generate-terminal-host-notices.mjs` writes `terminal-host-THIRD-PARTY-NOTICES.txt` beside each release addon. It walks the locked Cargo graph for the build target (normal dependencies, including the Node-API glue; proc-macro crates and their subtrees never reach the addon), adds the Zig-linked components, and fails on a license expression outside MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, Unicode-3.0, or Zlib (the `LLVM-exception` addendum is accepted), on a crate without license text, or on a pinned text whose digest changed.
 
 A buffered A1-owned frame composer is the initial presentation layer. Ratatui is an optional evaluation candidate only if the narrow composer increases rendering risk; it is not selected by default.
 
@@ -76,4 +76,6 @@ Unverified, mismatched, or unsigned/unattested artifacts are not eligible for co
 
 ## Release artifact
 
-`npm run build:terminal-host` (`scripts/development/build-terminal-host.mjs`) runs only on the release runners. It builds the `terminal-host` executable and the `node-addon` session-writer lock (`a1_session_lock.node`) with `cargo build --release --locked`, checks the executable's `--version` report (protocol, generation, crate version, pinned `libghostty-vt` commit, and that neither `fault-injection` nor `resident-fixtures` is compiled in), writes the notices, and records `terminal-host.manifest.json` (schema `a1-terminal-host-artifact-v1`) with the SHA-256 and size of all three files plus the target triple, Rust and Zig versions, and `Cargo.lock` digest. The publication `package` job refuses to pack unless every platform's guardian and terminal host are present and match their manifests, and A1 verifies the manifest before every execution.
+`npm run build:terminal-host` (`scripts/development/build-terminal-host.mjs`) runs only on release and native validation runners. It builds the library once with `cargo build --release --locked --lib --features node-addon`, copies the cdylib as `terminal-host.node`, loads the addon in Node, and checks its `version()` report: protocol, generation, crate version, pinned `libghostty-vt` commit, and the absence of `fault-injection` and `resident-fixtures`. The macOS x64 cross build may use the recorded Mach-O architecture check when the arm64 runner cannot load the addon.
+
+The generated `terminal-host.manifest.json` uses schema `a1-terminal-host-artifact-v2` and records `kind: "node-addon"`, Node-API 9, the addon's SHA-256 and size, the release-relative role-entry digest, the notices digest, target triple, Rust and Zig versions, and `Cargo.lock` digest. The role entry passes only the fixed role grammar and records `{ executable: process.execPath, entry }` once in the addon; detached and WMI resident starts use that command and never resolve an A1-built executable. The publication `package` job refuses to pack unless every platform's process-guardian and terminal-host addons match their manifests, and A1 verifies the addon, entry, and notices before loading the host.
