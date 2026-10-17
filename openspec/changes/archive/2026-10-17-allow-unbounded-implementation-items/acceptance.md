@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-17-allow-unbounded-implementation-items/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-17-allow-unbounded-implementation-items/acceptance.md",
   "finalizedDate": "2026-10-17",
-  "specBaseSha": "321b8341a8e9fd436543ec691ae4b45a291b3834",
+  "specBaseSha": "d132acfc3b486b690e37c14bebac7971a4acddc6",
   "acceptanceScenarios": [
     "A delivery with one implementation outcome passes body validation without artificial scope splitting.",
     "A delivery with more than ten distinct implementation outcomes passes body validation without combining unrelated scope.",
