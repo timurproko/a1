@@ -730,6 +730,10 @@ jobs:
           # resident launch path; its partitions now run on other runners, so one unmeasured pass restores
           # that state before the measured pass, whose single-sample budgets are unchanged.
           node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-warm-up-${{ matrix.platform }}-${{ matrix.architecture }}.json" || echo "::notice::the unmeasured warm-up pass exceeded a budget; the measured pass follows"
+          # Invariant: the measured pass starts on a quiet machine, as it did after the role suite's cleanup; the
+          # warm-up's detached server, holders, and fixtures are stopped and given a moment to exit first.
+          if [ "${{ matrix.platform }}" = win32 ]; then taskkill //F //T //IM "${{ matrix.terminalHostBinary }}" > /dev/null 2>&1 || true; else pkill -f "a1-resident-measure-" > /dev/null 2>&1 || true; fi
+          sleep 5
           node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json"
       - name: Run bounded terminal-host decoder fuzzing
         if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost && matrix.platform == 'linux'

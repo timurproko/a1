@@ -159,6 +159,11 @@ describe("impact-aware validation workflows", () => {
     expect(certify.indexOf("verify-terminal-fidelity.mjs")).toBeLessThan(certify.indexOf(warmUp));
     expect(certify.indexOf(warmUp)).toBeLessThan(certify.indexOf(measured));
     expect(certify.split("measure-resident-tabs.mjs")).toHaveLength(3);
+    // Invariant: the warm-up's leftover host processes are stopped before the measured pass starts.
+    const cleanup = certify.indexOf('taskkill //F //T //IM "${{ matrix.terminalHostBinary }}"');
+    expect(cleanup).toBeGreaterThan(certify.indexOf(warmUp));
+    expect(cleanup).toBeLessThan(certify.indexOf(measured));
+    expect(certify).toContain('pkill -f "a1-resident-measure-"');
     expect(certify.endsWith(`${measured}\n`) || certify.endsWith(measured)).toBe(true);
   });
 
