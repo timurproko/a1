@@ -371,7 +371,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
           stallNoticeSeconds: 300,
           admit: input => tabRecovery.admit({ ...input, incarnation: options.tab!.incarnation }),
           dispatched: () => tabRecovery.dispatched(),
-          correlated: (submissionId, entryId) => tabRecovery.correlated(submissionId, entryId),
+          correlated: (submissionId, entryId) => correlateResidentTabSubmission(tabRecovery, backend, submissionId, entryId),
           checkpoint: text => tabRecovery.checkpoint(text),
           gracefulStop: sessionFile => tabRecovery.gracefulStop(sessionFile),
           ...(recoveredTabInput === undefined ? {} : { recovered: recoveredTabInput }),
@@ -581,6 +581,19 @@ export async function bindResidentTabBridge(
     unsubscribeCommands();
     unsubscribeEvents();
   };
+}
+
+export async function correlateResidentTabSubmission(
+  recovery: Pick<ResidentTabRecovery, "correlated" | "settled">,
+  backend: Pick<ComposedSessionBackend, "identity" | "session">,
+  submissionId: string,
+  entryId: string,
+): Promise<void> {
+  await recovery.correlated(submissionId, entryId);
+  // Concurrency: a normal prompt command can resolve after the ready transition already fired.
+  // Re-read lifecycle only after correlation is active; a concurrent ready observer and this path
+  // safely race because recovery consumes the active entry once and retirement is idempotent.
+  if (backend.session.view().lifecycle !== "busy") await recovery.settled(currentBackendSessionFile(backend));
 }
 
 function currentBackendSessionFile(backend: Pick<ComposedSessionBackend, "identity">): string | null {

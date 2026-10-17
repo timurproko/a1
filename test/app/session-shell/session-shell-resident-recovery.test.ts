@@ -24,6 +24,30 @@ describe("resident session recovery admission", () => {
     await shell.dispose();
   });
 
+  it("keeps a legal multi-image payload out of bounded journal admission and sends every image", async () => {
+    const admit = vi.fn(async (_input: unknown) => ({ id: "submission-images" }));
+    const images = Array.from({ length: 8 }, () => Object.freeze({
+      type: "image" as const,
+      data: "AAAA".repeat(80 * 1024),
+      mimeType: "image/png",
+    }));
+    expect(Buffer.byteLength(JSON.stringify(images))).toBeGreaterThan(2 * 1024 * 1024);
+    const { engine, shell } = await residentFixture({ requestDetach: async () => true, admit });
+    const preparation = vi.spyOn(shell.root, "preparePromptSubmission").mockReturnValue({
+      text: "inspect screenshots",
+      images,
+    });
+    try {
+      await expect(shell.submit("inspect screenshots")).resolves.toMatchObject({ outcome: "completed" });
+      expect(admit).toHaveBeenCalledWith(expect.objectContaining({ text: "inspect screenshots", kind: "prompt" }));
+      expect(admit.mock.calls[0]![0]).not.toHaveProperty("images");
+      expect(engine.session.promptOptions).toEqual([{ images }]);
+    } finally {
+      preparation.mockRestore();
+      await shell.dispose();
+    }
+  });
+
   it("does not expose a /restart-tab management command", async () => {
     const { engine, shell } = await residentFixture({ requestDetach: async () => true });
     await expect(shell.submit("/restart-tab")).resolves.toMatchObject({ outcome: "completed" });
@@ -67,5 +91,46 @@ describe("resident session recovery admission", () => {
     expect(shell.root.editor.getText()).toBe("unsent draft");
     expect(checkpoint).toHaveBeenCalled();
     await shell.dispose();
+  });
+
+  it("rehydrates verified recovered images and removes unresolved image tokens", async () => {
+    const validTag = "[📷 screenshot-aabbccdd]";
+    const missingTag = "[📷 screenshot-deadbeef]";
+    const attachment = Object.freeze({ type: "image" as const, data: "aA==", mimeType: "image/png" });
+    const sidecar = {
+      write: vi.fn(),
+      readAttachment: vi.fn((id: string) => id === "aabbccdd" ? attachment : null),
+    };
+    const store = {
+      start() {}, refresh() {}, close: async () => {},
+      onSnapshot: () => () => {}, onFailure: () => () => {},
+      record: async () => "skipped" as const,
+    };
+    const { shell } = await residentFixture({
+      requestDetach: async () => true,
+      recovered: { prompts: [{ id: "submission-images", text: `before ${validTag} middle ${missingTag} after` }], draft: null },
+    }, { store, limit: 100, imageSidecar: sidecar });
+    try {
+      const text = shell.root.editor.getText();
+      expect(text).toContain(validTag);
+      expect(text).not.toContain(missingTag);
+      expect(shell.root.preparePromptSubmission(text).images).toEqual([attachment]);
+      expect(sidecar.readAttachment).toHaveBeenCalledWith("aabbccdd");
+      expect(sidecar.readAttachment).toHaveBeenCalledWith("deadbeef");
+    } finally { await shell.dispose(); }
+  });
+
+  it("removes recovered image tokens when persistent history is disabled", async () => {
+    const tag = "[📷 screenshot-deadbeef]";
+    const { shell } = await residentFixture({
+      requestDetach: async () => true,
+      recovered: { prompts: [{ id: "submission-images", text: `before ${tag} after` }], draft: null },
+    });
+    try {
+      expect(shell.root.editor.getText()).not.toContain(tag);
+      expect(shell.root.editor.getText()).toContain("before");
+      expect(shell.root.editor.getText()).toContain("after");
+      expect(shell.root.preparePromptSubmission(shell.root.editor.getText()).images).toEqual([]);
+    } finally { await shell.dispose(); }
   });
 });
