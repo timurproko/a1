@@ -73,6 +73,7 @@ export class AddonContainment implements ProcessContainment {
       identity: this.#rootIdentity,
       outcome,
       ...(runtime.processGroup === null ? {} : { processGroup: runtime.processGroup }),
+      ...(runtime.foregroundGroup === null ? {} : { foregroundGroup: runtime.foregroundGroup }),
     };
   }
 
@@ -135,7 +136,8 @@ function assertRuntime(runtime: ProcessGuardianRuntime): void {
     || typeof runtime.startIdentity !== "string" || runtime.startIdentity.length === 0
     || typeof runtime.containmentProvider !== "string" || runtime.containmentProvider.length === 0
     || typeof runtime.containmentToken !== "string" || runtime.containmentToken.length === 0
-    || (runtime.processGroup !== null && (!Number.isSafeInteger(runtime.processGroup) || runtime.processGroup <= 0))) {
+    || (runtime.processGroup !== null && (!Number.isSafeInteger(runtime.processGroup) || runtime.processGroup <= 0))
+    || (runtime.foregroundGroup !== null && (!Number.isSafeInteger(runtime.foregroundGroup) || runtime.foregroundGroup <= 0))) {
     runtime.close();
     throw Object.assign(new Error("process guardian addon returned invalid containment identity"), { code: "CONTAINMENT_ARTIFACT_INCOMPATIBLE" });
   }

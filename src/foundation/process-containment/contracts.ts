@@ -10,6 +10,7 @@ export interface ContainedProcessHandle {
   readonly identity: NativeProcessIdentity;
   readonly outcome: Promise<LaunchInstanceOutcome>;
   readonly processGroup?: number;
+  readonly foregroundGroup?: number;
 }
 
 export interface NativeProcessInspector {

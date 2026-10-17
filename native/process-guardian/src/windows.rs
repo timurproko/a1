@@ -5,18 +5,23 @@ use std::ptr::{null, null_mut};
 use std::sync::Mutex;
 
 use windows_sys::Win32::Foundation::{
-    CloseHandle, GetLastError, FILETIME, HANDLE, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
+    CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, FILETIME, GetLastError, HANDLE,
+    INVALID_HANDLE_VALUE, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
-use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
+use windows_sys::Win32::System::Console::{
+    GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, SetConsoleCtrlHandler,
+};
 use windows_sys::Win32::System::JobObjects::{
-    CreateJobObjectW, JobObjectExtendedLimitInformation, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, SetInformationJobObject, TerminateJobObject,
+    CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JobObjectExtendedLimitInformation, SetInformationJobObject, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
-    CreateProcessW, DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT,
-    GetExitCodeProcess, GetProcessTimes, InitializeProcThreadAttributeList, OpenProcess,
-    PROCESS_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROC_THREAD_ATTRIBUTE_JOB_LIST, STARTUPINFOEXW, TerminateProcess, UpdateProcThreadAttribute,
-    WaitForSingleObject, CREATE_UNICODE_ENVIRONMENT, INFINITE,
+    CREATE_BREAKAWAY_FROM_JOB, CREATE_UNICODE_ENVIRONMENT, CreateProcessW,
+    DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess,
+    GetExitCodeProcess, GetProcessTimes, INFINITE, InitializeProcThreadAttributeList, OpenProcess,
+    PROC_THREAD_ATTRIBUTE_JOB_LIST, PROCESS_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION,
+    STARTF_USESTDHANDLES, STARTUPINFOEXW, TerminateProcess, UpdateProcThreadAttribute,
+    WaitForSingleObject,
 };
 
 use crate::SpawnContainedOptions;
@@ -98,10 +103,11 @@ pub(super) fn spawn(options: SpawnContainedOptions) -> Result<Runtime, String> {
     }
     let mut attribute_storage = vec![0u8; attribute_bytes];
     let attribute_list = attribute_storage.as_mut_ptr().cast();
-    if unsafe { InitializeProcThreadAttributeList(attribute_list, 1, 0, &mut attribute_bytes) }
-        == 0
+    if unsafe { InitializeProcThreadAttributeList(attribute_list, 1, 0, &mut attribute_bytes) } == 0
     {
-        return Err(last_error("cannot initialize process thread attribute list"));
+        return Err(last_error(
+            "cannot initialize process thread attribute list",
+        ));
     }
     let attributes = AttributeList(attribute_list);
     let job_handle = job.raw();
@@ -117,7 +123,9 @@ pub(super) fn spawn(options: SpawnContainedOptions) -> Result<Runtime, String> {
         )
     } == 0
     {
-        return Err(last_error("cannot assign the Job Object at process creation"));
+        return Err(last_error(
+            "cannot assign the Job Object at process creation",
+        ));
     }
 
     let mut command_line = wide_null(&build_command_line(&options.executable, &options.arguments));
@@ -192,8 +200,16 @@ impl Runtime {
         None
     }
 
+    pub(super) fn foreground_group(&self) -> Option<i32> {
+        None
+    }
+
     pub(super) fn wait(&self) -> Result<u32, String> {
-        if let Some(result) = *self.wait_result.lock().map_err(|_| "runtime wait state is poisoned")? {
+        if let Some(result) = *self
+            .wait_result
+            .lock()
+            .map_err(|_| "runtime wait state is poisoned")?
+        {
             return Ok(result);
         }
         let wait = unsafe { WaitForSingleObject(self.process.raw(), INFINITE) };
@@ -205,7 +221,10 @@ impl Runtime {
             return Err(last_error("cannot read contained runtime exit code"));
         }
         let exit_code = exit_code.min(255);
-        *self.wait_result.lock().map_err(|_| "runtime wait state is poisoned")? = Some(exit_code);
+        *self
+            .wait_result
+            .lock()
+            .map_err(|_| "runtime wait state is poisoned")? = Some(exit_code);
         if let Ok(job) = self.job.lock()
             && let Some(job) = job.as_ref()
         {
@@ -216,7 +235,10 @@ impl Runtime {
     }
 
     pub(super) fn terminate(&self, code: u32) -> Result<(), String> {
-        let job = self.job.lock().map_err(|_| "runtime job state is poisoned")?;
+        let job = self
+            .job
+            .lock()
+            .map_err(|_| "runtime job state is poisoned")?;
         if let Some(job) = job.as_ref()
             && unsafe { TerminateJobObject(job.raw(), code) } == 0
         {
@@ -239,7 +261,10 @@ impl Runtime {
     }
 
     pub(super) fn close(&self) -> Result<(), String> {
-        let mut job = self.job.lock().map_err(|_| "runtime job state is poisoned")?;
+        let mut job = self
+            .job
+            .lock()
+            .map_err(|_| "runtime job state is poisoned")?;
         if let Some(job) = job.as_ref() {
             unsafe { TerminateJobObject(job.raw(), 143) };
         }
@@ -261,8 +286,17 @@ impl Drop for Runtime {
 pub(super) fn spawn_watcher(executable: &str, arguments: &[String]) -> Result<u32, String> {
     let mut command_line = wide_null(&build_command_line(executable, arguments));
     let executable = wide_null(executable);
+    let input = duplicate_standard_handle(STD_INPUT_HANDLE)?;
+    let output = duplicate_standard_handle(STD_OUTPUT_HANDLE)?;
+    let error = duplicate_standard_handle(STD_ERROR_HANDLE)?;
     let mut startup: windows_sys::Win32::System::Threading::STARTUPINFOW = unsafe { zeroed() };
     startup.cb = size_of::<windows_sys::Win32::System::Threading::STARTUPINFOW>() as u32;
+    if let (Some(input), Some(output), Some(error)) = (&input, &output, &error) {
+        startup.dwFlags = STARTF_USESTDHANDLES;
+        startup.hStdInput = input.raw();
+        startup.hStdOutput = output.raw();
+        startup.hStdError = error.raw();
+    }
     let mut process_info: PROCESS_INFORMATION = unsafe { zeroed() };
     if unsafe {
         CreateProcessW(
@@ -271,7 +305,7 @@ pub(super) fn spawn_watcher(executable: &str, arguments: &[String]) -> Result<u3
             null(),
             null(),
             1,
-            CREATE_UNICODE_ENVIRONMENT,
+            CREATE_BREAKAWAY_FROM_JOB | CREATE_UNICODE_ENVIRONMENT,
             null(),
             null(),
             &startup,
@@ -284,6 +318,30 @@ pub(super) fn spawn_watcher(executable: &str, arguments: &[String]) -> Result<u3
     let _process = OwnedHandle::new(process_info.hProcess)?;
     let _thread = OwnedHandle::new(process_info.hThread)?;
     Ok(process_info.dwProcessId)
+}
+
+fn duplicate_standard_handle(kind: u32) -> Result<Option<OwnedHandle>, String> {
+    let source = unsafe { GetStdHandle(kind) };
+    if source.is_null() || source == INVALID_HANDLE_VALUE {
+        return Ok(None);
+    }
+    let current = unsafe { GetCurrentProcess() };
+    let mut duplicate = null_mut();
+    if unsafe {
+        DuplicateHandle(
+            current,
+            source,
+            current,
+            &mut duplicate,
+            0,
+            1,
+            DUPLICATE_SAME_ACCESS,
+        )
+    } == 0
+    {
+        return Err(last_error("cannot duplicate inherited watcher stdio"));
+    }
+    OwnedHandle::new(duplicate).map(Some)
 }
 
 pub(super) fn wait_for_process_exit(pid: u32) -> Result<(), String> {

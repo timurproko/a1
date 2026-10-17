@@ -4,7 +4,7 @@ import pty
 import signal
 import sys
 
-helper, marker_path, result_path, status_path, mode = sys.argv[1:]
+addon, node_executable, owner_entry, watcher_entry, marker_path, result_path, state_path, mode = sys.argv[1:]
 child_program = r'''
 import json, os, signal, sys, time
 marker, mode = sys.argv[1:]
@@ -16,30 +16,29 @@ time.sleep(0.2)
 '''
 
 initial_path = result_path + ".initial"
-guardian_pid, master = pty.fork()
-if guardian_pid == 0:
+owner_pid, master = pty.fork()
+if owner_pid == 0:
     with open(initial_path, "w", encoding="utf-8") as stream:
-        json.dump({"guardianPid": os.getpid(), "initialForeground": os.tcgetpgrp(0)}, stream)
-    selected_status = status_path if mode != "status-failure" else os.path.join(status_path, "missing", "status.json")
+        json.dump({"ownerPid": os.getpid(), "initialForeground": os.tcgetpgrp(0)}, stream)
     arguments = [
-        helper,
-        "--parent-pid", str(os.getppid()),
-        "--instance", "darwin-pty-fixture",
-        "--status-file", selected_status,
+        node_executable, owner_entry,
+        "--addon", addon,
+        "--watcher", watcher_entry,
+        "--state", state_path,
         "--", sys.executable, "-c", child_program, marker_path, mode,
     ]
-    os.execv(helper, arguments)
+    os.execv(node_executable, arguments)
 
-_, wait_status = os.waitpid(guardian_pid, 0)
+_, wait_status = os.waitpid(owner_pid, 0)
 with open(initial_path, "r", encoding="utf-8") as stream:
     initial = json.load(stream)
 try:
     restored_foreground = os.tcgetpgrp(master)
 except OSError:
-    restored_foreground = guardian_pid
+    restored_foreground = owner_pid
 with open(result_path, "w", encoding="utf-8") as stream:
     json.dump({
-        "guardianPid": guardian_pid,
+        "ownerPid": owner_pid,
         "initialForeground": initial["initialForeground"],
         "restoredForeground": restored_foreground,
         "exitCode": os.waitstatus_to_exitcode(wait_status),

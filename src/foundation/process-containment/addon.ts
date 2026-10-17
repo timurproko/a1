@@ -13,6 +13,7 @@ export interface ProcessGuardianRuntime {
   readonly containmentProvider: string;
   readonly containmentToken: string;
   readonly processGroup: number | null;
+  readonly foregroundGroup: number | null;
   wait(): Promise<number>;
   terminate(code: number): void;
   stop(): void;

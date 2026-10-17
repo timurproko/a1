@@ -1,7 +1,7 @@
 use std::ffi::CString;
 use std::ptr::{null, null_mut};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -53,7 +53,12 @@ pub(super) fn spawn(options: SpawnContainedOptions) -> Result<Runtime, String> {
 
     let mut attributes = SpawnAttributes::new()?;
     posix_result(
-        unsafe { libc::posix_spawnattr_setflags(&mut attributes.value, libc::POSIX_SPAWN_SETPGROUP as i16) },
+        unsafe {
+            libc::posix_spawnattr_setflags(
+                &mut attributes.value,
+                libc::POSIX_SPAWN_SETPGROUP as i16,
+            )
+        },
         "cannot configure the contained process group",
     )?;
     posix_result(
@@ -125,8 +130,16 @@ impl Runtime {
         Some(self.process_group)
     }
 
+    pub(super) fn foreground_group(&self) -> Option<i32> {
+        self.original_foreground_group
+    }
+
     pub(super) fn wait(&self) -> Result<u32, String> {
-        if let Some(result) = *self.wait_result.lock().map_err(|_| "runtime wait state is poisoned")? {
+        if let Some(result) = *self
+            .wait_result
+            .lock()
+            .map_err(|_| "runtime wait state is poisoned")?
+        {
             return Ok(result);
         }
         let mut status = 0;
@@ -149,7 +162,10 @@ impl Runtime {
         stop_group(self.process_group);
         let _ = restore_foreground(self.original_foreground_group);
         self.closed.store(true, Ordering::Release);
-        *self.wait_result.lock().map_err(|_| "runtime wait state is poisoned")? = Some(code);
+        *self
+            .wait_result
+            .lock()
+            .map_err(|_| "runtime wait state is poisoned")? = Some(code);
         Ok(code)
     }
 
@@ -188,11 +204,16 @@ pub(super) fn inspect_process_start(pid: u32) -> Result<Option<String>, String> 
     let command_end = stat
         .rfind(')')
         .ok_or_else(|| "contained process stat has no command boundary".to_owned())?;
-    let fields = stat[command_end + 1..].split_whitespace().collect::<Vec<_>>();
+    let fields = stat[command_end + 1..]
+        .split_whitespace()
+        .collect::<Vec<_>>();
     let start_ticks = fields
         .get(19)
         .ok_or_else(|| "contained process stat has no start-time field".to_owned())?;
-    if !start_ticks.chars().all(|character| character.is_ascii_digit()) {
+    if !start_ticks
+        .chars()
+        .all(|character| character.is_ascii_digit())
+    {
         return Err("contained process start-time field is invalid".to_owned());
     }
     Ok(Some(format!("linux-proc-start:{start_ticks}")))

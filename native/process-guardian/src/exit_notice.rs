@@ -190,9 +190,8 @@ pub(crate) mod terminal {
         }
 
         pub(crate) fn encode(&self) -> String {
-            let part = |mode: Option<u32>| {
-                mode.map_or_else(|| "-".to_owned(), |mode| mode.to_string())
-            };
+            let part =
+                |mode: Option<u32>| mode.map_or_else(|| "-".to_owned(), |mode| mode.to_string());
             format!("{}:{}", part(self.input), part(self.output))
         }
 
@@ -251,7 +250,8 @@ mod tests {
 
     #[test]
     fn strips_control_characters_and_bounds_lines() {
-        let lines = sanitize("first\x1b[31m line\r\n\n\x07second\u{9b}2J\nthird\n4\n5\n6\n7\n8\n9\n");
+        let lines =
+            sanitize("first\x1b[31m line\r\n\n\x07second\u{9b}2J\nthird\n4\n5\n6\n7\n8\n9\n");
         assert_eq!(lines[0], "first[31m line");
         assert_eq!(lines[1], "second2J");
         assert_eq!(lines.len(), 8);

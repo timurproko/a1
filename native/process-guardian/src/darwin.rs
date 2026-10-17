@@ -1,7 +1,7 @@
 use std::ffi::CString;
 use std::ptr::{null, null_mut};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -53,7 +53,12 @@ pub(super) fn spawn(options: SpawnContainedOptions) -> Result<Runtime, String> {
 
     let mut attributes = SpawnAttributes::new()?;
     posix_result(
-        unsafe { libc::posix_spawnattr_setflags(&mut attributes.value, libc::POSIX_SPAWN_SETPGROUP as i16) },
+        unsafe {
+            libc::posix_spawnattr_setflags(
+                &mut attributes.value,
+                libc::POSIX_SPAWN_SETPGROUP as i16,
+            )
+        },
         "cannot configure the contained process group",
     )?;
     posix_result(
@@ -125,8 +130,16 @@ impl Runtime {
         Some(self.process_group)
     }
 
+    pub(super) fn foreground_group(&self) -> Option<i32> {
+        self.original_foreground_group
+    }
+
     pub(super) fn wait(&self) -> Result<u32, String> {
-        if let Some(result) = *self.wait_result.lock().map_err(|_| "runtime wait state is poisoned")? {
+        if let Some(result) = *self
+            .wait_result
+            .lock()
+            .map_err(|_| "runtime wait state is poisoned")?
+        {
             return Ok(result);
         }
         let mut status = 0;
@@ -149,7 +162,10 @@ impl Runtime {
         stop_group(self.process_group);
         let _ = restore_foreground(self.original_foreground_group);
         self.closed.store(true, Ordering::Release);
-        *self.wait_result.lock().map_err(|_| "runtime wait state is poisoned")? = Some(code);
+        *self
+            .wait_result
+            .lock()
+            .map_err(|_| "runtime wait state is poisoned")? = Some(code);
         Ok(code)
     }
 

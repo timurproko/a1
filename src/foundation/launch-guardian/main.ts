@@ -1,4 +1,6 @@
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { PRODUCT_TEXT } from "../../product-identity.js";
 import { readLaunchContext } from "../launch-context/index.js";
 import { resolve } from "node:path";
@@ -18,6 +20,7 @@ import {
 } from "../process-containment/index.js";
 import { SupervisorClient } from "../protocol/index.js";
 import { markStartupPhase } from "../startup/index.js";
+import { exitWatcherArguments } from "./exit-watcher.js";
 
 interface GuardianControl {
   connect(endpoint: string, timeoutMs?: number): Promise<unknown>;
@@ -106,6 +109,16 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
         ...(environment.TERM ? { terminalType: environment.TERM } : {}),
       });
       rootIdentity = handle.identity;
+      if (addon && encodedModes !== null) {
+        await startExitWatcher(addon, {
+          addonPath: helperPath,
+          noticePath: exitNoticePath,
+          encodedModes,
+          runtimePid: handle.identity.pid,
+          processGroup: handle.processGroup ?? null,
+          foregroundGroup: handle.foregroundGroup ?? null,
+        });
+      }
       await requireAccepted(client, {
         type: "activate-launch-instance",
         requestId: randomUUID(),
@@ -164,6 +177,41 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
     stop.dispose();
     client.close();
   }
+}
+
+async function startExitWatcher(
+  addon: ProcessGuardianAddon,
+  options: {
+    readonly addonPath: string;
+    readonly noticePath: string;
+    readonly encodedModes: string;
+    readonly runtimePid: number;
+    readonly processGroup: number | null;
+    readonly foregroundGroup: number | null;
+  },
+): Promise<void> {
+  const entry = fileURLToPath(new URL("./exit-watcher.js", import.meta.url));
+  const arguments_ = [entry, ...exitWatcherArguments({
+    guardianPid: process.pid,
+    ...options,
+  })];
+  if (process.platform === "win32") {
+    addon.spawnWatcher({ executable: process.execPath, arguments: arguments_ });
+    return;
+  }
+  await new Promise<void>((resolvePromise, rejectPromise) => {
+    const watcher = spawn(process.execPath, arguments_, {
+      stdio: "inherit",
+      detached: false,
+      windowsHide: false,
+    });
+    watcher.once("error", rejectPromise);
+    watcher.once("spawn", () => {
+      watcher.off("error", rejectPromise);
+      watcher.unref();
+      resolvePromise();
+    });
+  });
 }
 
 function platformInspector(addon: ProcessGuardianAddon): NativeProcessInspector {

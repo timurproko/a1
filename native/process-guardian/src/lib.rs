@@ -34,7 +34,10 @@ pub fn version() -> VersionReport {
 #[napi]
 pub fn inspect_process_start(pid: u32) -> Result<Option<String>> {
     if pid == 0 {
-        return Err(Error::new(Status::InvalidArg, "inspected PID must be positive"));
+        return Err(Error::new(
+            Status::InvalidArg,
+            "inspected PID must be positive",
+        ));
     }
     platform_inspect_process_start(pid).map_err(node_error)
 }
@@ -128,6 +131,11 @@ impl ContainedRuntime {
         self.inner.process_group()
     }
 
+    #[napi(getter)]
+    pub fn foreground_group(&self) -> Option<i32> {
+        self.inner.foreground_group()
+    }
+
     #[napi]
     pub fn wait(&self) -> AsyncTask<RuntimeWaitTask> {
         AsyncTask::new(RuntimeWaitTask {
@@ -171,16 +179,25 @@ impl Task for RuntimeWaitTask {
 #[napi]
 pub fn spawn_contained(options: SpawnContainedOptions) -> Result<ContainedRuntime> {
     if options.executable.is_empty() || options.executable.contains('\0') {
-        return Err(Error::new(Status::InvalidArg, "contained executable is invalid"));
+        return Err(Error::new(
+            Status::InvalidArg,
+            "contained executable is invalid",
+        ));
     }
     if options.cwd.is_empty() || options.cwd.contains('\0') {
-        return Err(Error::new(Status::InvalidArg, "contained working directory is invalid"));
+        return Err(Error::new(
+            Status::InvalidArg,
+            "contained working directory is invalid",
+        ));
     }
     if options.instance_id.is_empty()
         || options.instance_id.len() > 512
         || options.instance_id.contains('\0')
     {
-        return Err(Error::new(Status::InvalidArg, "instance identity is invalid"));
+        return Err(Error::new(
+            Status::InvalidArg,
+            "instance identity is invalid",
+        ));
     }
     if options.arguments.iter().any(|value| value.contains('\0'))
         || options
@@ -249,7 +266,10 @@ impl Task for ProcessWaitTask {
 #[napi]
 pub fn wait_for_process_exit(pid: u32) -> Result<AsyncTask<ProcessWaitTask>> {
     if pid == 0 {
-        return Err(Error::new(Status::InvalidArg, "watched PID must be positive"));
+        return Err(Error::new(
+            Status::InvalidArg,
+            "watched PID must be positive",
+        ));
     }
     Ok(AsyncTask::new(ProcessWaitTask { pid }))
 }
@@ -268,7 +288,10 @@ fn platform_wait_for_process_exit(pid: u32) -> std::result::Result<(), String> {
         return darwin::wait_for_process_exit(pid);
     }
     #[allow(unreachable_code)]
-    Err(format!("cannot wait for a process on {}", std::env::consts::OS))
+    Err(format!(
+        "cannot wait for a process on {}",
+        std::env::consts::OS
+    ))
 }
 
 #[napi]

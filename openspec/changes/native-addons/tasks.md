@@ -10,12 +10,12 @@ Each numbered section is one Implementation item of the pull request and one com
 ## 2. In-process launch-instance containment
 
 - [x] 2.1 Add `src/foundation/process-containment/addon.ts` (typed loader) and `addon-containment.ts` (`AddonContainment`), replace `windows-process-inspector.ts` and `darwin-process-inspector.ts` with `addon-process-inspector.ts`, update `artifact.ts` to the v2 manifest, `native-process-inspector.ts`, and `index.ts`; delete `native-guardian-containment.ts`; update `src/product-identity.json` and `src/product-identity.ts` artifact keys and the governance checks that enumerate them.
-- [ ] 2.2 In `src/foundation/launch-guardian/main.ts` capture terminal modes, start the watcher, spawn through `AddonContainment`, and deliver the notice after the outcome; update `test/foundation/process-containment/{artifact,addon-process-inspector,native-process-inspector,source-boundary}.test.ts` and `test/foundation/launch-guardian/{launch-guardian,source-boundary,concurrency.integration}.test.ts`.
+- [x] 2.2 In `src/foundation/launch-guardian/main.ts` capture terminal modes, start the watcher, spawn through `AddonContainment`, and deliver the notice after the outcome; update `test/foundation/process-containment/{artifact,addon-process-inspector,native-process-inspector,source-boundary}.test.ts` and `test/foundation/launch-guardian/{launch-guardian,source-boundary,concurrency.integration}.test.ts`.
 
 ## 3. Node-hosted exit watcher
 
-- [ ] 3.1 Add `src/foundation/launch-guardian/exit-watcher.ts` with the argument grammar, wait, Unix group cleanup, and notice delivery from design Decision 3, list it in `scripts/release/generate-runtime-payload-inventory.mjs`, and start it from `main.ts` (Windows `spawnWatcher`, Unix `child_process.spawn`).
-- [ ] 3.2 Rewrite `test/foundation/process-containment/windows-job.integration.test.ts` and `unix-process-group.integration.test.ts` around `test/fixtures/process-containment/owner.mjs`, keeping every existing scenario and assertion; update `test/fixtures/process-containment/darwin-pty.py`.
+- [x] 3.1 Add `src/foundation/launch-guardian/exit-watcher.ts` with the argument grammar, wait, Unix group cleanup, and notice delivery from design Decision 3, list it in `scripts/release/generate-runtime-payload-inventory.mjs`, and start it from `main.ts` (Windows `spawnWatcher`, Unix `child_process.spawn`).
+- [x] 3.2 Rewrite `test/foundation/process-containment/windows-job.integration.test.ts` and `unix-process-group.integration.test.ts` around `test/fixtures/process-containment/owner.mjs`, keeping every existing scenario and assertion; update `test/fixtures/process-containment/darwin-pty.py`.
 
 ## 4. Terminal-host roles in the addon
 
