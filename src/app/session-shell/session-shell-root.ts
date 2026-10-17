@@ -152,7 +152,6 @@ export interface OwnedUiShellEngineOptions {
       readonly sessionFile: string | null;
       readonly kind: "prompt" | "steer" | "follow-up";
       readonly text: string;
-      readonly images?: readonly unknown[];
     }): Promise<{ readonly id: string }>;
     dispatched?(): void;
     correlated?(submissionId: string, entryId: string): Promise<void>;

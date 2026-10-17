@@ -351,10 +351,13 @@ export async function fixture(
   return { engine, adapter, terminal, shell };
 }
 
-export function residentFixture(residentTab: NonNullable<OwnedUiSessionShellOptions["engine"]["residentTab"]>) {
+export function residentFixture(
+  residentTab: NonNullable<OwnedUiSessionShellOptions["engine"]["residentTab"]>,
+  promptHistory?: Omit<OwnedUiShellHistoryOptions, "editor">,
+) {
   return fixture(
     [], [], true,
-    undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, promptHistory, undefined,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined,
     undefined, undefined, undefined, residentTab,
   );

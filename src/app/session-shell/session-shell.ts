@@ -2,7 +2,7 @@ import { ResponseCopyCoordinator } from "./response-copy-coordinator.js";
 import { createResponseCopyExecutor, hasAsyncClipboardOutput, responseCopyDestination, type OwnedResponseCopyExecutor } from "./response-copy-transport.js";
 import { MAX_COPY_CONTROL_BYTES, type CopyResult } from "./response-copy-protocol.js";
 import { PromptHistoryController } from "./prompt-history-controller.js";
-import type { PromptHistoryKind } from "../../contracts/owned-ui/index.js";
+import type { PromptHistoryImageSidecarPort, PromptHistoryKind } from "../../contracts/owned-ui/index.js";
 import { PRODUCT_TEXT } from "../../product-identity.js";
 import { CLEAR_EXIT_INTERVAL_MS, boundedCleanup } from "../../foundation/terminal-cleanup/terminal-reset.js";
 import { assertOwnedUiCommand, OWNED_UI_HIDDEN_COMMAND_NAMES } from "../../contracts/owned-ui/index.js";
@@ -359,7 +359,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       // Invariant: the presenter owns its root (theme subscription and helper clients) and disposes it once the
       // terminal no longer renders it.
       constructed.push(() => this.root.dispose());
-      this.#restoreResidentInput();
+      this.#restoreResidentInput(options.history?.imageSidecar);
       const initialPiSettings = this.backend.settings.snapshot();
       this.#programStatus = new ProgramStatusReporter(
         status => this.#terminal.setProgramStatus(status),
@@ -878,7 +878,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         sessionFile: this.#currentSessionFile(),
         kind: type,
         text: input,
-        ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
       });
     } catch {
       if (this.root.editor.getText().length === 0) this.root.editor.setText(displayInput);
@@ -1309,10 +1308,12 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     }
   }
 
-  #restoreResidentInput(): void {
+  #restoreResidentInput(imageSidecar?: PromptHistoryImageSidecarPort): void {
     const recovered = this.#residentTabOptions?.recovered;
     if (recovered === undefined) return;
-    const prompts = recovered.prompts.map(prompt => prompt.text).filter(Boolean);
+    const prompts = recovered.prompts
+      .map(prompt => this.root.rehydrateHistoryText(prompt.text, id => imageSidecar?.readAttachment(id) ?? null))
+      .filter(Boolean);
     if (prompts.length > 0) {
       this.root.editor.setText(prompts[0]!);
       if (recovered.draft) this.root.editor.addToHistory(recovered.draft);
