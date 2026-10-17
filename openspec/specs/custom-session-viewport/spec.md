@@ -167,15 +167,20 @@ A pointer report that changes the visible control's pointed-at state SHALL make 
 - **AND** no label or arrow SHALL wrap, exceed terminal width, or reserve an extra row
 
 ### Requirement: Submitted prompts carry their source timestamp
-A submitted user prompt SHALL render its source timestamp as local 24-hour `HH:mm` time, right-aligned on the prompt's first row when the row has enough width for the prompt prefix, useful prompt content, a separating margin, and the timestamp. Continuation rows SHALL align beneath the prompt text rather than beneath the prompt prefix. The timestamp is transcript metadata; the live input surface SHALL NOT gain a clock or timestamp from this milestone.
+A submitted user prompt SHALL render its source timestamp as local time in the active owned `timeFormat`: zero-padded 24-hour `HH:mm` for `20:00`, or 12-hour `h:mm AM`/`h:mm PM` with uppercase suffix for `8:00 PM`. It SHALL be right-aligned on the prompt's first row when the row has enough width for the prompt prefix, useful prompt content, a separating margin, and the timestamp. Continuation rows SHALL align beneath the prompt text rather than beneath the prompt prefix. The timestamp is transcript metadata; the live input surface SHALL NOT gain a clock or timestamp from this milestone.
 
 Whenever it is rendered, the timestamp SHALL use the grey metadata foreground at normal intensity. Its foreground and intensity SHALL remain unchanged when the source prompt is normal, hovered, quiet/dimmed, text-selected, or otherwise repainted; selection MAY still change the timestamp background together with the selected range. Prompt-body styling SHALL remain independent of this timestamp rule.
 
 #### Scenario: Render a submitted prompt
 - **WHEN** a user transcript block has a valid source timestamp and sufficient width
-- **THEN** its first row SHALL show that timestamp right-aligned as `HH:mm`
+- **THEN** its first row SHALL show that timestamp right-aligned in the active owned time format
 - **AND** the timestamp SHALL use the grey metadata foreground at normal intensity
 - **AND** the prompt text SHALL remain complete across its wrapped rows
+
+#### Scenario: Change the format while the prompt is visible
+- **WHEN** the user changes `Time format` while a submitted prompt timestamp is visible
+- **THEN** the prompt timestamp SHALL repaint in the accepted format without restarting the session
+- **AND** its source instant, metadata style, alignment, and prompt content SHALL remain unchanged
 
 #### Scenario: Select a submitted-prompt timestamp
 - **WHEN** transcript text selection includes some or all timestamp cells
