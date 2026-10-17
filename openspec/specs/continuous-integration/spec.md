@@ -698,30 +698,6 @@ Pull-request and exact-package validation for changes affecting supervision, con
 - **WHEN** `npm run develop` selects a new authoritative candidate after this correction merges
 - **THEN** Windows Node 22/24, Linux Node 24, and macOS Node 24 exact-package lanes, the npm publisher, the aggregate result, and registry `next` verification SHALL all succeed for the same package bytes
 
-### Requirement: Exact packages carry a spawn-capable native process guardian
-The exact packed package SHALL record each bundled platform's native process guardian with an executable file mode, regardless of which operating system packed it, so that posix installation and immutable release materialization preserve a spawn-eligible helper. Packing SHALL derive each guardian entry's executability from the per-platform guardian build manifest packed beside the binary, not from the pack host's filesystem permissions. Exact package surface validation SHALL assert every packed native guardian entry is executable on every lane that runs it, including lanes whose host cannot represent posix permissions. Executable mode SHALL NOT override the manifest's independent supported/unsupported capability decision.
-
-#### Scenario: Packed on a host without posix permissions
-- **WHEN** the exact package is packed on a host whose filesystem cannot record posix executable permission
-- **THEN** the packed native process guardian entries for every bundled platform SHALL still carry an executable mode
-
-#### Scenario: Executability is bound to certified build bytes
-- **WHEN** packing records a native process guardian entry as executable
-- **THEN** the entry bytes SHALL match the digest declared by that platform's guardian build manifest packed beside the binary
-
-#### Scenario: Surface validation proves executability on any host
-- **WHEN** exact package surface validation runs on any platform lane, including Windows
-- **THEN** it SHALL fail unless every packed native process guardian entry is recorded executable
-
-#### Scenario: Posix materialization preserves guardian executability
-- **WHEN** the exact package is installed and materialized on Linux or Darwin
-- **THEN** every bundled native guardian file SHALL remain executable
-- **AND** a guardian whose manifest declares supported capability SHALL be spawn-eligible for the packaged public launch chain
-
-#### Scenario: Executable artifact remains unsupported
-- **WHEN** a bundled guardian has executable mode but its certified manifest declares the current platform unsupported
-- **THEN** launch SHALL continue to reject that containment provider until a separate platform-capability change certifies it
-
 ### Requirement: Patch releases preserve prerelease-aware version semantics
 Invoking `npm run release -- patch` SHALL promote a valid current prerelease version to its stable core without incrementing that core, and SHALL increment the patch number when the current version is already stable. The command SHALL report the source version, selected stable target, and prospective next development version before mutations.
 
@@ -1683,14 +1659,14 @@ Development validation SHALL defer an implementation candidate whose finalized-h
 - **AND** SHALL NOT replace the PR-associated delivery, acceptance, selection, visibility, or aggregate evidence required for integration
 
 ### Requirement: Validation candidates carry the lane's release terminal host
-Every pull-request validation lane whose selected scopes consume a packed candidate, and every Full regression job that packs one, SHALL build the release terminal host for its own platform into `dist/native` after installation and before recording the build receipt. On CI, validation packing SHALL fail before `npm pack` when the candidate lacks the platform's verified process guardian or terminal host, naming each problem.
+Every pull-request validation lane whose selected scopes consume a packed candidate, and every Full regression job that packs one, SHALL build the release terminal-host addon for its own platform into `dist/native` after installation and before recording the build receipt. On CI, validation packing SHALL fail before `npm pack` when the candidate lacks the platform's verified process-guardian addon or terminal-host addon, naming each problem.
 
 #### Scenario: A pull request changes resident launch routing
 - **WHEN** pull-request validation runs packaged suites for the change
-- **THEN** the packed candidate SHALL carry the release terminal host, and packaged launches SHALL take the route a published package takes
+- **THEN** the packed candidate SHALL carry the release terminal-host addon and its role entry, and packaged launches SHALL take the route a published package takes
 
 #### Scenario: A lane packs without the host
-- **WHEN** a CI lane reaches validation packing without this platform's terminal host
+- **WHEN** a CI lane reaches validation packing without this platform's terminal-host addon
 - **THEN** packing SHALL fail before `npm pack` and SHALL name the missing artifact
 
 ### Requirement: Pull-request chaos runs use a shorter bounded budget
@@ -1716,13 +1692,28 @@ The Rust toolchain used by every validation and publication job SHALL be pinned 
 - **THEN** that platform SHALL hold one Zig cache per workflow, bounded by the declared size limit
 
 ### Requirement: macOS x64 release artifacts are cross-compiled
-The publication build for the macOS x64 release terminal host and process guardian SHALL run on the macOS arm64 runner by compiling for the `x86_64-apple-darwin` target, placing the artifacts under the `darwin-x64` platform directory with a manifest, notices, and Zig target derived from the requested target rather than the host. The built executable's identity SHALL be verified on the producing runner by executing it (through Rosetta 2), or by its Mach-O architecture when the runner cannot execute it, and the manifest SHALL record which check was performed. Packing SHALL continue to require every supported platform's artifact and manifest. The published-pair smoke matrix is unchanged; it has no macOS x64 lane, so a macOS x64 artifact is executed in CI only through that identity check, as it was only through the Intel runner's identity check before.
+The publication build for the macOS x64 release terminal-host addon and process-guardian addon SHALL run on the macOS arm64 runner by compiling for the `x86_64-apple-darwin` target, placing the artifacts under the `darwin-x64` platform directory with a manifest, notices, and Zig target derived from the requested target rather than the host. The built addon's identity SHALL be verified on the producing runner by loading it into a Node runtime of that architecture (through Rosetta 2), or by its Mach-O architecture when the runner cannot load it, and the manifest SHALL record which check was performed. Packing SHALL continue to require every supported platform's artifact and manifest. The published-pair smoke matrix is unchanged; it has no macOS x64 lane, so a macOS x64 artifact is loaded in CI only through that identity check.
 
 #### Scenario: Publication builds native artifacts
 - **WHEN** a nightly, candidate, or development publication builds its terminal hosts and guardians
-- **THEN** the macOS arm64 job SHALL produce both the `darwin-arm64` and `darwin-x64` artifacts, each with a manifest naming its own target
+- **THEN** the macOS arm64 job SHALL produce both the `darwin-arm64` and `darwin-x64` addons, each with a manifest naming its own target
 - **AND** no Intel macOS build job SHALL be scheduled
 
 #### Scenario: Cross-compiled identity cannot be executed
-- **WHEN** the producing runner cannot execute the `x86_64` artifact
+- **WHEN** the producing runner cannot load the `x86_64` addon
 - **THEN** the build SHALL verify the artifact's Mach-O architecture and SHALL NOT report a native identity it did not observe
+
+### Requirement: Exact packages carry loadable native addons
+The exact packed package SHALL record, for every bundled platform, the process-guardian addon and the terminal-host addon with their manifests, and SHALL carry no executable built from A1 sources. Each manifest SHALL bind the addon bytes by digest and size, name the Node-API version, and declare supported or unsupported capability independently. Exact package surface validation SHALL verify every bundled manifest and SHALL load the lane's own platform addon and observe its version identity on every lane that runs it. Posix installation and immutable release materialization SHALL preserve the addon bytes without depending on executable permission.
+
+#### Scenario: Surface validation loads the lane's addon
+- **WHEN** exact package surface validation runs on any platform lane, including Windows
+- **THEN** it SHALL load that platform's packed process-guardian and terminal-host addons and SHALL fail unless each reports its recorded identity
+
+#### Scenario: Package carries an executable
+- **WHEN** a packed candidate contains an executable under `dist/native`
+- **THEN** native artifact verification SHALL fail before `npm pack`
+
+#### Scenario: Addon artifact remains unsupported
+- **WHEN** a bundled addon loads but its certified manifest declares the current platform unsupported
+- **THEN** launch SHALL continue to reject that containment provider until a separate platform-capability change certifies it
