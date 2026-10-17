@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acceptanceChecklistDigest, acceptancePullBody, assertImplementationOnlyProgress, MAX_ACCEPTANCE_CHECKS, MAX_IMPLEMENTATION_PROGRESS_ITEMS,
+import { acceptanceChecklistDigest, acceptancePullBody, assertImplementationOnlyProgress, MAX_ACCEPTANCE_CHECKS,
   parseImplementationAcceptanceChecks, parseImplementationAcceptanceScenarios, parseImplementationProgress,
   verifyAcceptancePullBody } from "../../scripts/governance/openspec-acceptance-checklist.mjs";
 import type { AcceptanceRecord } from "../../scripts/governance/openspec-acceptance-policy.mjs";
@@ -52,14 +52,22 @@ describe("implementation-specific acceptance checklist", () => {
     expect(parseImplementationProgress(version3Body())).toMatchObject({ format: "legacy", complete: true });
   });
 
+  it("accepts one or more Implementation items without a fixed maximum", () => {
+    expect(parseImplementationProgress(progressBody(["x"], [progressItems[0]]))).toMatchObject({
+      format: "checklist", complete: true, items: [{ checked: true, text: progressItems[0] }],
+    });
+    const manyItems = Array.from({ length: 12 }, (_value, index) => `Implement distinct viewport progress outcome number ${index}.`);
+    expect(parseImplementationProgress(progressBody(Array(manyItems.length).fill("x"), manyItems))).toMatchObject({
+      format: "checklist", complete: true,
+    });
+  });
+
   it.each([
     ["mixed plain/task syntax", () => progressBody().replace(`- [x] ${progressItems[1]}`, `- ${progressItems[1]}`), "implementation-progress-item"],
     ["uppercase marker", () => progressBody(["x", "X"]), "implementation-progress-item"],
     ["duplicate item", () => progressBody(["x", "x"], [progressItems[0], progressItems[0]]), "implementation-progress-duplicate"],
     ["generic CI item", () => progressBody(["x", "x"], [progressItems[0], "Run the required CI checks."]), "implementation-progress-generic"],
-    ["one item", () => progressBody(["x"], [progressItems[0]]), "implementation-progress-count"],
-    ["too many items", () => progressBody(Array(MAX_IMPLEMENTATION_PROGRESS_ITEMS + 1).fill("x"),
-      Array.from({ length: MAX_IMPLEMENTATION_PROGRESS_ITEMS + 1 }, (_value, index) => `Implement distinct viewport progress outcome number ${index}.`)), "implementation-progress-count"],
+    ["empty item", () => progressBody(["x"], [""]), "implementation-progress-item"],
   ])("rejects %s in an Implementation checklist", (_name, body, code) => {
     expect(() => parseImplementationProgress(body())).toThrow(code);
   });

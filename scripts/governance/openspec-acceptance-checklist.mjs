@@ -3,8 +3,7 @@ import { archiveFailure } from "./openspec-archive-policy.mjs";
 
 export const MIN_ACCEPTANCE_CHECKS = 1;
 export const MAX_ACCEPTANCE_CHECKS = 10;
-export const MIN_IMPLEMENTATION_PROGRESS_ITEMS = 2;
-export const MAX_IMPLEMENTATION_PROGRESS_ITEMS = 10;
+export const MIN_IMPLEMENTATION_PROGRESS_ITEMS = 1;
 export const PHASE_FREE_VERSION3_BODY_POLICY = true;
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_CHECK_BYTES = 300;
@@ -105,7 +104,7 @@ export function parseImplementationProgress(body, { requireComplete = false } = 
   const content = lines.slice(start, end).filter(line => line.trim());
   const taskSyntax = content.some(line => /^\s*[-*+]\s+\[/.test(line));
   if (!taskSyntax) return { format: "legacy", complete: true, items: content };
-  if (content.length < MIN_IMPLEMENTATION_PROGRESS_ITEMS || content.length > MAX_IMPLEMENTATION_PROGRESS_ITEMS) {
+  if (content.length < MIN_IMPLEMENTATION_PROGRESS_ITEMS) {
     throw archiveFailure("implementation-progress-count");
   }
   const identities = new Set();
