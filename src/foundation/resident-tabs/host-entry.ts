@@ -15,13 +15,8 @@ const addonPath = resolve(override || resolve(dirname(filename), "../../native",
 const addon = createRequire(import.meta.url)(addonPath) as Partial<TerminalHostAddon>;
 if (typeof addon.runRole !== "function") throw new Error("terminal host addon exports are incompatible");
 
-// Invariant: the fixed role owns its terminal and shutdown protocol. Node's default signal exit
-// must not pre-empt the native cleanup while runRole blocks this process's main thread.
-const ignoreSignal = (): void => undefined;
-for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.on(signal, ignoreSignal);
+// Invariant: runRole blocks Node's main thread, so this entry must not register JavaScript signal
+// listeners whose callbacks cannot run until the native role has already returned. Default process
+// signal handling keeps attach clients and identity-verified resident roles externally stoppable.
 process.env[PRODUCT_IDENTITY.environment.terminalHostPath] = addonPath;
-try {
-  process.exitCode = addon.runRole(process.argv.slice(2), { executable: process.execPath, entry: filename, artifact: addonPath });
-} finally {
-  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.off(signal, ignoreSignal);
-}
+process.exitCode = addon.runRole(process.argv.slice(2), { executable: process.execPath, entry: filename, artifact: addonPath });

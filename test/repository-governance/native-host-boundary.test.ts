@@ -60,6 +60,7 @@ describe("native host and launch executable boundaries", () => {
     const addon = await readFile("native/terminal-host/src/node_addon.rs", "utf8");
     const launch = await readFile("native/terminal-host/src/launch.rs", "utf8");
     expect(entry).toContain("artifact: addonPath");
+    expect(entry).not.toMatch(/process\.(?:on|once)\(["']SIG/u);
     expect(addon).toContain("host.artifact");
     expect(launch).toContain("canonicalize(artifact.as_ref())");
     expect(launch).not.toContain('var_os("A1_TERMINAL_HOST_PATH")');

@@ -27,6 +27,9 @@ describe("process containment source boundary", () => {
     for (const path of ["native/process-guardian/src/linux.rs", "native/process-guardian/src/darwin.rs"]) {
       const source = await readFile(path, "utf8");
       expect(source).toContain("posix_spawn_file_actions_adddup2");
+      expect(source).toContain("libc::F_DUPFD_CLOEXEC");
+      expect(source).toContain("adddup2(&mut actions.value, source, destination)");
+      expect(source).not.toContain("descriptor, descriptor");
       expect(source).toContain("libc::STDIN_FILENO");
       expect(source).toContain("libc::STDOUT_FILENO");
       expect(source).toContain("libc::STDERR_FILENO");

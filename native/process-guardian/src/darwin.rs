@@ -20,6 +20,49 @@ pub(super) struct Runtime {
     closed: AtomicBool,
 }
 
+struct DuplicatedStandardStreams {
+    descriptors: Vec<(libc::c_int, libc::c_int)>,
+}
+
+impl DuplicatedStandardStreams {
+    fn new() -> Result<Self, String> {
+        let mut streams = Self {
+            descriptors: Vec::with_capacity(3),
+        };
+        for destination in [libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO] {
+            let source = unsafe { libc::fcntl(destination, libc::F_DUPFD_CLOEXEC, 3) };
+            if source < 0 {
+                return Err(format!(
+                    "cannot duplicate a contained standard stream: {}",
+                    std::io::Error::last_os_error()
+                ));
+            }
+            streams.descriptors.push((source, destination));
+        }
+        Ok(streams)
+    }
+
+    fn add_spawn_actions(&self, actions: &mut SpawnFileActions) -> Result<(), String> {
+        for &(source, destination) in &self.descriptors {
+            posix_result(
+                unsafe {
+                    libc::posix_spawn_file_actions_adddup2(&mut actions.value, source, destination)
+                },
+                "cannot inherit a contained standard stream",
+            )?;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for DuplicatedStandardStreams {
+    fn drop(&mut self) {
+        for &(source, _) in &self.descriptors {
+            unsafe { libc::close(source) };
+        }
+    }
+}
+
 pub(super) fn spawn(options: SpawnContainedOptions) -> Result<Runtime, String> {
     let original_foreground_group = foreground_group();
     unsafe {
@@ -65,17 +108,12 @@ pub(super) fn spawn(options: SpawnContainedOptions) -> Result<Runtime, String> {
         unsafe { libc::posix_spawnattr_setpgroup(&mut attributes.value, 0) },
         "cannot configure the contained process-group leader",
     )?;
+    // Invariant: launchers may mark even descriptors 0–2 close-on-exec. Duplicate them above
+    // the standard range first because same-descriptor duplication does not portably clear that
+    // flag; the spawn actions then preserve byte-for-byte terminal or pipe inheritance.
+    let inherited_streams = DuplicatedStandardStreams::new()?;
     let mut actions = SpawnFileActions::new()?;
-    // Invariant: launchers may mark even descriptors 0–2 close-on-exec. Same-descriptor spawn
-    // duplication clears that flag and preserves byte-for-byte terminal or pipe inheritance.
-    for descriptor in [libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO] {
-        posix_result(
-            unsafe {
-                libc::posix_spawn_file_actions_adddup2(&mut actions.value, descriptor, descriptor)
-            },
-            "cannot inherit a contained standard stream",
-        )?;
-    }
+    inherited_streams.add_spawn_actions(&mut actions)?;
     posix_result(
         unsafe { addchdir(&mut actions.value, cwd.as_ptr()) },
         "cannot configure the contained working directory",
