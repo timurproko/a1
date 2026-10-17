@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-17-copy-input-and-status-on-selection/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-17-copy-input-and-status-on-selection/acceptance.md",
   "finalizedDate": "2026-10-17",
-  "specBaseSha": "0b6ef5e8357016f3d17b90af2092b14465ff3a53",
+  "specBaseSha": "ee097cfd95775697ffe0955e565d0a95cc4fe24b",
   "acceptanceScenarios": [
     "Prompt and footer/status pointer selections copy automatically on release when Copy on select is enabled and retain their visible highlight.",
     "With Copy on select disabled, prompt and footer/status selections do not write on release and copy through Ctrl+C.",
