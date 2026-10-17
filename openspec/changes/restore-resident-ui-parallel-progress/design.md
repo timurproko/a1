@@ -22,7 +22,7 @@ Read-only inspection of `E:/Backups/pi/v2` found committed-frame publication in 
 
 **Goals:**
 
-- Correct the first-responder-only failure before declaring visual polish complete.
+- Treat independent parallel progress and solo-like interaction behavior as equally critical functional outcomes. Correct the first-responder-only failure without deferring responsive input, flicker prevention, coherent frames, or live animation as visual polish; neither outcome alone completes this repair.
 - Preserve one terminal-state authority per tab and process isolation while making the final viewed experience equivalent to solo within the declared text-terminal scope.
 - Distinguish provider/engine progress, child UI progress, retained terminal progress, and client presentation; no layer may pass by borrowing another layer's progress.
 - Prefer complete coherent states and small final damage over exhaustive delivery of every intermediate render.
@@ -36,7 +36,9 @@ Read-only inspection of `E:/Backups/pi/v2` found committed-frame publication in 
 
 ## Decisions
 
-### 1. Diagnose and repair parallel progress first
+### 1. Diagnose parallel progress and interaction behavior together
+
+Use the same workload to expose execution stalls, input latency, flicker, stale frames, and frozen animations from the start. The numbered decisions and task groups express dependencies, not a priority ranking or a later cosmetic phase.
 
 Build an isolated scenario with three real owned A1 children and a deterministic streaming provider that keeps all turns in progress simultaneously. Rotate which tab receives the first token and which tab is initially viewed. Keep generating independent sequence-stamped content while switching, typing, scrolling, and opening overlays. Repeat with no viewer and with a deliberately slow viewer.
 
@@ -110,8 +112,8 @@ The test matrix runs on Windows x64, Linux x64, and macOS arm64 using their exac
 
 ## Migration Plan
 
-1. Planning-only draft records the approved direction and newly prioritized parallel-progress outcome; await explicit implementation request.
-2. Establish real-A1 three-agent reproduction and causal observations before changing presentation. No live user session or clipboard is driven by automation.
+1. Planning-only draft records the approved equal priority of parallel progress and solo-like interaction behavior; await explicit implementation request.
+2. Establish real-A1 three-agent reproduction and causal observations for both execution and interaction behavior before repairs. No live user session or clipboard is driven by automation.
 3. Repair parallel progress/fairness, frame publication, damage-aware composition, and identity/geometry in dependency order; retain focused regressions for each defect.
 4. Add complete attribute fidelity and exact-artifact temporal comparison, reconciling other integrated branches as needed.
 5. Preserve stored sessions/settings/registry authority; negotiate presentation compatibility without automatic resident replacement. Keep solo available unchanged.

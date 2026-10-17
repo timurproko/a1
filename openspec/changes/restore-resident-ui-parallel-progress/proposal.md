@@ -1,6 +1,6 @@
 ## Why
 
-Resident multiagent A1 feels markedly less responsive than direct `a1 solo`, and the maintainer reports that only the first responding Agent advances while other working tabs remain stuck even when selected. Parallel engine progress, current partial content, and live animations are the highest-priority outcomes; smooth presentation cannot be claimed from independent processes, final snapshots, or small counter fixtures alone.
+Resident multiagent A1 feels markedly less responsive than direct `a1 solo`, and the maintainer reports that only the first responding Agent advances while other working tabs remain stuck even when selected. Independent parallel progress and solo-like interaction behavior are equal highest-priority functional outcomes: responsive input, flicker-free coherent presentation, current partial content, and live animations are not cosmetic polish. Neither concurrency nor interaction fidelity is sufficient without the other, and neither can be claimed from independent processes, final snapshots, or small counter fixtures alone.
 
 ## What Changes
 
@@ -34,4 +34,4 @@ Resident multiagent A1 feels markedly less responsive than direct `a1 solo`, and
 
 ## Approval boundary
 
-The maintainer generally approved the proposed fidelity/responsiveness direction and added parallel content generation and animations as highest priority. This delivery starts with planning artifacts only; an explicit implementation request is still required before code or test changes. The reported live stall has not yet been reproduced or attributed to one layer.
+The maintainer generally approved the proposed fidelity/responsiveness direction and clarified that parallel content generation and animation continuity have the same highest priority as visual behavior, responsive input, flicker prevention, and native-feeling interaction. Task order expresses implementation dependencies, not permission to defer either outcome as polish. This delivery starts with planning artifacts only; an explicit implementation request is still required before code or test changes. The reported live stall has not yet been reproduced or attributed to one layer.

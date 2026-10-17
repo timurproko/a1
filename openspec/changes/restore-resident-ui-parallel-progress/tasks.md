@@ -1,6 +1,8 @@
-## 1. Independent real-Agent progress (Implementation item 1; highest priority)
+Parallel progress and solo-like interaction behavior are equal highest-priority functional requirements. Responsive input, flicker prevention, coherent presentation, and live animations are not a later polish phase. Group order expresses dependencies; completion requires both categories together.
 
-- [ ] 1.1 Add a bounded deterministic provider/tool fixture driving three real owned A1 children with overlapping unfinished turns; cover every first-responder and initial-view order and identify pre-fix engine/render/presentation progress separately.
+## 1. Independent real-Agent progress (Implementation item 1)
+
+- [ ] 1.1 Add a bounded deterministic provider/tool fixture driving three real owned A1 children with overlapping unfinished turns; cover every first-responder and initial-view order and identify pre-fix engine/render/presentation progress, input latency, flicker, stale frames, and frozen animation separately.
 - [ ] 1.2 Add content-free per-tab causal counters/timestamps at engine event, child render, PTY ingestion, retained commit, and outer paint; demonstrate that the fixture distinguishes a stalled engine, a stalled child renderer, and a stale viewer without logging user content.
 - [ ] 1.3 Repair demonstrated visibility, admission, event-delivery, or shared-resource coupling so all children generate content and advance animation state while hidden or detached; add focused regressions showing successive pre-settlement checkpoints in each Agent.
 - [ ] 1.4 Keep retained state current without mandatory hidden full-screen serialization, with a fresh complete snapshot and continued live updates on subscription; cover hidden animation phase and a switch while every turn is unfinished.
