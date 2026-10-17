@@ -88,6 +88,8 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   canPresentPromptSuggestion(): boolean;
   promptSuggestionBlockReason?(): SuggestionDecision;
   hasSelection(): boolean;
+  /** Exact expanded semantic editor selection without mutating or collapsing it. */
+  selectedText?(): string | undefined;
   ownsPointer(): boolean;
   handlePointer(event: PiShellEditorPointerEvent): boolean;
   pasteClipboard(): boolean;

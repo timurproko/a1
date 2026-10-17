@@ -25,6 +25,7 @@ export interface OwnedEditorUxInterceptor {
   reset(): void;
   handlePointer?(event: OwnedEditorPointerEvent): boolean;
   hasSelection?(): boolean;
+  selectedText?(): string | undefined;
   ownsPointer?(): boolean;
   pasteClipboard?(): boolean;
   cancelPendingPastes?(): void;
@@ -82,6 +83,14 @@ export class OwnedEditorUxInterception {
 
   hasSelection(): boolean {
     return this.interceptors.some(interceptor => interceptor.hasSelection?.() === true);
+  }
+
+  selectedText(): string | undefined {
+    for (const interceptor of this.interceptors) {
+      const selected = interceptor.selectedText?.();
+      if (selected !== undefined) return selected;
+    }
+    return undefined;
   }
 
   ownsPointer(): boolean {
@@ -411,6 +420,12 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 
   hasSelection(): boolean {
     return this.#activeRange() !== undefined;
+  }
+
+  selectedText(): string | undefined {
+    return this.#activeRange() === undefined
+      ? undefined
+      : this.options.expandCopiedText(this.#selectedText());
   }
 
   pasteClipboard(): boolean {

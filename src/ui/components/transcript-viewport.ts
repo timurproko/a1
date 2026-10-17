@@ -64,7 +64,11 @@ export interface TranscriptViewportFrameInput {
   /** Final transient rows to bottom-align with unused viewport space while content fits. */
   readonly bottomAlignedTailRowCount?: number;
   readonly dockRows: readonly string[];
-  readonly explicitCopyDockRows?: number;
+  /** Zero-based dock rows admitted to frame copying, classified before dock composition. */
+  readonly copyableDockRows?: readonly {
+    readonly row: number;
+    readonly prompt?: "first" | "continuation";
+  }[];
   readonly promptAnchors: readonly TranscriptPromptAnchor[];
   readonly width: number;
   readonly height: number;
@@ -169,7 +173,9 @@ type SelectionRowAnchor =
   | { readonly kind: "transient"; readonly fromBottom: number }
   | { readonly kind: "dock"; readonly fromBottom: number }
   | { readonly kind: "screen"; readonly row: number; readonly source: string };
-type SelectionCopyIntent = "automatic" | "explicit";
+interface CopyableDockRow {
+  readonly prompt?: "first" | "continuation";
+}
 
 function documentSelectionAnchor(row: number, source: string, liveFromBottom?: number): DocumentSelectionRowAnchor {
   return { kind: "document", row, source, identity: stripAnsi(source).trimEnd(), liveFromBottom };
@@ -239,7 +245,7 @@ export class TranscriptViewport {
   #contentWidth = 0;
   #selectionWidth = 0;
   #viewportHeight = 0;
-  #explicitCopyDockRows = 0;
+  #copyableDockRows = new Map<number, CopyableDockRow>();
   #firstSelectableRow = 0;
   #selectionRowAnchors: readonly (SelectionRowAnchor | undefined)[] = [];
   #frameId = 0;
@@ -363,7 +369,7 @@ export class TranscriptViewport {
     return true;
   }
 
-  selectedText(intent: SelectionCopyIntent = "automatic"): string | null {
+  selectedText(): string | null {
     const selection = this.#visibleSelection();
     if (selection === undefined) return null;
     const copiedLines = Array.from(
@@ -372,7 +378,7 @@ export class TranscriptViewport {
     ).filter(line => {
       const anchor = this.#selectionRowAnchors[line];
       return anchor?.kind === "document" && anchor.row < this.#selectableDocumentRowCount
-        || intent === "explicit" && anchor?.kind === "dock" && anchor.fromBottom < this.#explicitCopyDockRows;
+        || anchor?.kind === "dock" && this.#copyableDockRows.has(anchor.fromBottom);
     });
     if (copiedLines.length === 0) return null;
     const transcriptLines = copiedLines.filter(line => this.#selectionRowAnchors[line]?.kind === "document");
@@ -387,6 +393,7 @@ export class TranscriptViewport {
       line => {
         const row = this.#selectionRows[line] ?? "";
         const anchor = this.#selectionRowAnchors[line];
+        const dock = anchor?.kind === "dock" ? this.#copyableDockRows.get(anchor.fromBottom) : undefined;
         if (prompt !== undefined && anchor?.kind === "document") {
           const first = anchor.row === prompt.firstRow;
           const copyRow = first && (prompt.copySuffixWidth ?? 0) > 0
@@ -394,7 +401,7 @@ export class TranscriptViewport {
             : row;
           return selectionCopyLineContent(copyRow, first ? "first" : "continuation");
         }
-        return usefulTextLineContent(row);
+        return dock?.prompt !== undefined ? selectionCopyLineContent(row, dock.prompt) : usefulTextLineContent(row);
       },
       line => included.has(line),
     );
@@ -402,10 +409,10 @@ export class TranscriptViewport {
   }
 
   /** Captures visible selected text, not off-screen history. */
-  captureSelectedText(intent: SelectionCopyIntent = "automatic"): SelectionCopySnapshot | null {
-    if (intent === "automatic" && !this.#copyableSelection) return null;
+  captureSelectedText(): SelectionCopySnapshot | null {
+    if (!this.#copyableSelection) return null;
     const started = performance.now();
-    let text = this.selectedText(intent);
+    let text = this.selectedText();
     if (text === null) return null;
     text = text.trim();
     if (text.length === 0) return null;
@@ -505,7 +512,7 @@ export class TranscriptViewport {
     this.#contentWidth = 0;
     this.#selectionWidth = 0;
     this.#viewportHeight = 0;
-    this.#explicitCopyDockRows = 0;
+    this.#copyableDockRows.clear();
     this.clearTransient();
     this.#frame = null;
   }
@@ -523,7 +530,7 @@ export class TranscriptViewport {
     const theme = input.theme ?? PLAIN_THEME;
     const previousDescriptor = this.#frame?.descriptor ?? null;
     const dock = input.dockRows.length > height ? input.dockRows.slice(-height) : [...input.dockRows];
-    this.#explicitCopyDockRows = clamp(input.explicitCopyDockRows ?? 0, 0, dock.length);
+    this.#copyableDockRows = copyableDockRowsBySuffix(input.dockRows, input.copyableDockRows);
     const viewportHeight = Math.max(0, height - dock.length);
     const bottomAlignedTailRowCount = clamp(
       input.bottomAlignedTailRowCount ?? 0,
@@ -867,7 +874,12 @@ export class TranscriptViewport {
   }
 
   /** Reuses an established transcript frame when only same-height dock rows changed. */
-  composeDockOnly(dockRows: readonly string[], width: number, height: number, explicitCopyDockRows = 0): TranscriptViewportFrame | null {
+  composeDockOnly(
+    dockRows: readonly string[],
+    width: number,
+    height: number,
+    copyableDockRows: TranscriptViewportFrameInput["copyableDockRows"] = [],
+  ): TranscriptViewportFrame | null {
     const previous = this.#frame;
     const boundedWidth = Math.max(1, width);
     const boundedHeight = Math.max(0, height);
@@ -902,7 +914,7 @@ export class TranscriptViewport {
     };
     assertTranscriptViewportFrameDescriptor(descriptor);
     this.#selectionRows = [...this.#selectionRows.slice(0, viewportHeight), ...dock].slice(0, boundedHeight);
-    this.#explicitCopyDockRows = clamp(explicitCopyDockRows, 0, dock.length);
+    this.#copyableDockRows = copyableDockRowsBySuffix(dockRows, copyableDockRows);
     const frame: TranscriptViewportFrame = {
       rows: [...previous.rows.slice(0, viewportHeight), ...dock].slice(0, boundedHeight),
       contentWidth: previous.contentWidth,
@@ -1254,6 +1266,18 @@ function sameRectangle(
   right: TranscriptViewportFrameDescriptor["transcript"],
 ): boolean {
   return left === null ? right === null : right !== null && left.rowStart === right.rowStart && left.rowEnd === right.rowEnd;
+}
+
+function copyableDockRowsBySuffix(
+  dockRows: readonly string[],
+  declarations: TranscriptViewportFrameInput["copyableDockRows"],
+): Map<number, CopyableDockRow> {
+  const result = new Map<number, CopyableDockRow>();
+  for (const declaration of declarations ?? []) {
+    if (!Number.isSafeInteger(declaration.row) || declaration.row < 0 || declaration.row >= dockRows.length) continue;
+    result.set(dockRows.length - declaration.row - 1, declaration.prompt === undefined ? {} : { prompt: declaration.prompt });
+  }
+  return result;
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {
