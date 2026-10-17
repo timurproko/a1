@@ -89,7 +89,7 @@
     "uiEntry": "bin/ui.js",
     "nativeExecutable": "terminal-host",
     "nativeCrate": "terminal-host",
-    "processGuardianExecutable": "process-guardian",
+    "processGuardianAddon": "process-guardian",
     "releaseTarballStem": "timurproko-a1",
     "diagnosticStem": "a1"
   }

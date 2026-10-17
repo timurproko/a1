@@ -9,7 +9,7 @@ Each numbered section is one Implementation item of the pull request and one com
 
 ## 2. In-process launch-instance containment
 
-- [ ] 2.1 Add `src/foundation/process-containment/addon.ts` (typed loader) and `addon-containment.ts` (`AddonContainment`), replace `windows-process-inspector.ts` and `darwin-process-inspector.ts` with `addon-process-inspector.ts`, update `artifact.ts` to the v2 manifest, `native-process-inspector.ts`, and `index.ts`; delete `native-guardian-containment.ts`; update `src/product-identity.json` and `src/product-identity.ts` artifact keys and the governance checks that enumerate them.
+- [x] 2.1 Add `src/foundation/process-containment/addon.ts` (typed loader) and `addon-containment.ts` (`AddonContainment`), replace `windows-process-inspector.ts` and `darwin-process-inspector.ts` with `addon-process-inspector.ts`, update `artifact.ts` to the v2 manifest, `native-process-inspector.ts`, and `index.ts`; delete `native-guardian-containment.ts`; update `src/product-identity.json` and `src/product-identity.ts` artifact keys and the governance checks that enumerate them.
 - [ ] 2.2 In `src/foundation/launch-guardian/main.ts` capture terminal modes, start the watcher, spawn through `AddonContainment`, and deliver the notice after the outcome; update `test/foundation/process-containment/{artifact,addon-process-inspector,native-process-inspector,source-boundary}.test.ts` and `test/foundation/launch-guardian/{launch-guardian,source-boundary,concurrency.integration}.test.ts`.
 
 ## 3. Node-hosted exit watcher
