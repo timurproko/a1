@@ -83,7 +83,7 @@ describe("native release targets", () => {
     const input = {
       platform: "darwin", architecture: "x64", triple: "x86_64-apple-darwin", crateVersion: "0.1.0-dev",
       report: { schema: "a1-terminal-host-version-v1", protocolVersion: 1, generation: 1, crateVersion: "0.1.0-dev", features: { faultInjection: false, residentFixtures: false }, libghosttyVtCommit: "c".repeat(40), libghosttyTarget: "x86_64-macos", libghosttyCpu: "baseline" },
-      executable: file("terminal-host"), sessionLock: file("a1_session_lock.node"), notices: file("terminal-host-THIRD-PARTY-NOTICES.txt"),
+      artifact: file("terminal-host.node"), entry: file("dist/foundation/resident-tabs/host-entry.js"), notices: file("terminal-host-THIRD-PARTY-NOTICES.txt"),
       cargoLockSha256: "b".repeat(64), rustVersion: "rustc 1.99.1", zigVersion: "0.15.2", builtAt: "2026-10-16T00:00:00.000Z",
     };
     expect(buildManifest(input).provenance).toMatchObject({ identityCheck: "executed", zigTarget: "x86_64-macos", zigCpu: "baseline" });

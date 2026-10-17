@@ -28,7 +28,7 @@ Each numbered section is one Implementation item of the pull request and one com
 
 ## 6. Addon release surface
 
-- [ ] 6.1 In `scripts/development/build-terminal-host.mjs` build only the addon, load it for identity, and write manifest schema `a1-terminal-host-artifact-v2` with `artifact`, `entry`, and `notices`; in `scripts/release/verify-native-artifacts.mjs`, `generate-runtime-payload-inventory.mjs`, `prepare-validation-package.mjs`, and `scripts/governance/candidate-evidence.mjs` describe addon artifacts without executable modes; delete `scripts/release/repair-native-executable-modes.mjs` and `test/repository-governance/repair-native-executable-modes.test.ts`; update `test/foundation/release/package-surface.test.ts` and `test/repository-governance/{package-surface,terminal-host-release-artifact,verify-native-artifacts}.test.ts`.
+- [x] 6.1 In `scripts/development/build-terminal-host.mjs` build only the addon, load it for identity, and write manifest schema `a1-terminal-host-artifact-v2` with `artifact`, `entry`, and `notices`; in `scripts/release/verify-native-artifacts.mjs`, `generate-runtime-payload-inventory.mjs`, `prepare-validation-package.mjs`, and `scripts/governance/candidate-evidence.mjs` describe addon artifacts without executable modes; delete `scripts/release/repair-native-executable-modes.mjs` and `test/repository-governance/repair-native-executable-modes.test.ts`; update `test/foundation/release/package-surface.test.ts` and `test/repository-governance/{package-surface,terminal-host-release-artifact,verify-native-artifacts}.test.ts`.
 
 ## 7. Validation and publication
 

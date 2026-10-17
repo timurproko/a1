@@ -4,7 +4,7 @@ import { chmod, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { readPackedManifest } from "../governance/candidate-evidence.mjs";
 import { assertPackingNpm, normalizeNpmPackMetadata, parseNpmPackOutput } from "./npm-pack-metadata.mjs";
-import { repairPackedExecutableModes } from "./repair-native-executable-modes.mjs";
+import { repairPackedExecutableModes } from "./repair-packed-executable-modes.mjs";
 
 const sourceDirectory = resolve("packages", "a1-install");
 const stageDirectory = resolve(".artifacts", "validation", "installer-stage");
