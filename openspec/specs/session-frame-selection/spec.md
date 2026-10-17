@@ -59,13 +59,13 @@ Double-click SHALL select the visible word at the pointed cell and triple-click 
 
 ### Requirement: Copy output matches selected visible text
 
-When automatic fullscreen copy is enabled, completing a frame drag with eligible non-whitespace transcript text SHALL capture and submit that text for clipboard delivery without requiring a second keypress. Automatic copy SHALL NOT include footer/status-bar text. When automatic fullscreen copy is disabled, release SHALL retain the visual selection without submitting clipboard work, and the existing explicit selection-copy action SHALL remain available. Before delivery, complete-frame copy SHALL trim Unicode whitespace from the beginning and end of the complete plain-text payload. It SHALL preserve whitespace between the first and last non-whitespace characters, including multiline indentation and internal blank lines, and SHALL NOT trim each visual row independently.
+When automatic fullscreen copy is enabled, completing a pointer selection with eligible non-whitespace persistent transcript, ordinary prompt-input, or footer/status-bar text SHALL capture and submit that text for clipboard delivery without requiring a second keypress. This SHALL include complete-frame drags and editor-owned prompt word or line multi-click selection. When automatic fullscreen copy is disabled, release SHALL retain the visual selection without submitting clipboard work, and the existing explicit selection-copy action SHALL remain available. Before delivery, complete-frame copy SHALL trim Unicode whitespace from the beginning and end of the complete plain-text payload. It SHALL preserve whitespace between the first and last non-whitespace characters, including multiline indentation and internal blank lines, and SHALL NOT trim each visual row independently.
 
-The visual selected range MAY span every exposed base-frame row. Automatic frame-copy output SHALL admit only selected persistent transcript rows. Explicit `Ctrl+C` frame-copy output SHALL admit selected persistent transcript rows and selected footer/status-bar rows in frame order. Both routes SHALL exclude transient steering and progress-status rows, flexible alignment rows, prompt-editor and autocomplete rows, notices and widgets in the dock, and other dock chrome. A range containing only footer/status-bar text SHALL remain visibly selected on release without automatic clipboard submission, then SHALL be copied when the reader presses `Ctrl+C`. A range containing only other excluded rows or whitespace SHALL remain visibly selected but SHALL NOT submit or replace clipboard content through automatic copy or `Ctrl+C`; `Ctrl+C` SHALL clear such a retained visual-only selection without forwarding an interrupt.
+The visual selected range MAY span every exposed base-frame row. Automatic and explicit `Ctrl+C` frame-copy output SHALL admit selected persistent transcript rows, selected ordinary prompt-input body rows, and selected footer/status-bar rows in frame order. Both routes SHALL exclude transient steering and progress-status rows, flexible alignment rows, autocomplete rows, notices and widgets in the dock, input borders and presentation-only prompt chrome, prompt-input rows while the draft contains chip tags, and other dock chrome. A range containing only eligible prompt-input or footer/status-bar text SHALL copy automatically on release when enabled, or remain visibly selected and copy through `Ctrl+C` when automatic copying is disabled. A range containing only excluded rows or whitespace SHALL remain visibly selected but SHALL NOT submit or replace clipboard content through automatic copy or `Ctrl+C`; `Ctrl+C` SHALL clear such a retained visual-only selection without forwarding an interrupt.
 
-When one submitted prompt is the only eligible transcript source in the range, clipboard text SHALL contain only its semantic prompt text, excluding the `❯` prefix, prompt padding, and timestamp. When a submitted prompt participates in a larger eligible transcript range, copy SHALL preserve its currently selected visible prefix, alignment, and timestamp together with the surrounding selected transcript text. Copy output SHALL otherwise preserve selected visual row boundaries while excluding ANSI and OSC controls, unselected right padding, cursor markers, scrollbar glyphs, and content covered by modal or overlay presentation.
+When one submitted prompt is the only eligible transcript source in the range, clipboard text SHALL contain only its semantic prompt text, excluding the `❯` prefix, prompt padding, and timestamp. When a submitted prompt participates in a larger eligible transcript range, copy SHALL preserve its currently selected visible prefix, alignment, and timestamp together with the surrounding selected transcript text. Selected ordinary prompt-input text SHALL preserve the selected semantic draft characters while excluding the `❯` prefix, padding, cursor markers, borders, counters, and autocomplete presentation. Copy output SHALL otherwise preserve selected visible row boundaries while excluding ANSI and OSC controls, unselected right padding, scrollbar glyphs, and content covered by modal or overlay presentation.
 
-The visual selected range SHALL continue to represent the exact selected cells; clipboard filtering and outer-whitespace normalization SHALL affect only the payload. The selected background SHALL remain visible after release. Successful automatic or explicit frame-selection delivery SHALL produce exactly one transient acknowledgement reading `copied N chars to clipboard`, where `N` is the character count of the normalized payload. The acknowledgement SHALL be right-aligned immediately above the editor in the active theme's accent foreground. If it overlaps selected cells, it SHALL retain the selected row background rather than painting a dark reset block. It SHALL not allocate a row, move transcript or dock content, or change pointer hit regions. A newer acknowledgement SHALL replace the prior acknowledgement and restart its lifetime. Failed or timed-out delivery SHALL use the existing recoverable copy-failure presentation. Clipboard preparation and delivery SHALL remain bounded and asynchronous and SHALL NOT block input, streaming, scrolling, animation, rendering, or shutdown.
+The visual selected range SHALL continue to represent the exact selected cells; clipboard filtering and outer-whitespace normalization SHALL affect only the payload. The selected background SHALL remain visible after release. Successful automatic or explicit selection delivery SHALL produce exactly one transient acknowledgement reading `copied N chars to clipboard`, where `N` is the character count of the normalized payload. The acknowledgement SHALL be right-aligned immediately above the editor in the active theme's accent foreground. If it overlaps selected cells, it SHALL retain the selected row background rather than painting a dark reset block. It SHALL not allocate a row, move transcript or dock content, or change pointer hit regions. A newer acknowledgement SHALL replace the prior acknowledgement and restart its lifetime. Failed or timed-out delivery SHALL use the existing recoverable copy-failure presentation. Clipboard preparation and delivery SHALL remain bounded and asynchronous and SHALL NOT block input, streaming, scrolling, animation, rendering, or shutdown.
 
 #### Scenario: Copy an indented command
 - **WHEN** eligible transcript selection has plain text `   npm run develop   `
@@ -73,22 +73,27 @@ The visual selected range SHALL continue to represent the exact selected cells; 
 - **AND** the selected cells and retained highlight SHALL remain unchanged
 
 #### Scenario: Preserve interior multiline whitespace
-- **WHEN** eligible transcript selection contains outer blank space and multiple nonempty lines with indentation or blank lines between its first and last non-whitespace characters
+- **WHEN** eligible selection contains outer blank space and multiple nonempty lines with indentation or blank lines between its first and last non-whitespace characters
 - **THEN** clipboard normalization SHALL remove only the complete payload's leading and trailing whitespace
 - **AND** indentation, spacing, newlines, and blank lines inside those boundaries SHALL remain unchanged
 
 #### Scenario: Select only frame chrome or whitespace
-- **WHEN** a completed visual range contains only transient status, alignment, autocomplete, input, non-status dock chrome, or whitespace
+- **WHEN** a completed visual range contains only transient status, alignment, autocomplete, prompt chrome, non-status dock chrome, or whitespace
 - **THEN** the complete selected range SHALL remain painted
 - **AND** automatic copy and `Ctrl+C` SHALL NOT submit or replace clipboard content
 
+#### Scenario: Select ordinary prompt text with automatic copy enabled
+- **WHEN** the reader completes a frame drag or editor-owned word or line selection over non-whitespace ordinary prompt-input text while automatic fullscreen copy is enabled
+- **THEN** A1 SHALL submit the exact selected semantic draft text once without its prefix, padding, cursor, borders, counters, or autocomplete presentation
+- **AND** the prompt selection SHALL remain visibly selected after release
+
 #### Scenario: Select only the status bar
 - **WHEN** a completed visual range contains selected footer/status-bar text and automatic fullscreen copy is enabled
-- **THEN** release SHALL retain the complete selected range without submitting or replacing clipboard content
-- **AND** a subsequent `Ctrl+C` SHALL submit the normalized selected status-bar text and clear the retained selection
+- **THEN** release SHALL submit the normalized selected status-bar text once
+- **AND** the complete selected range SHALL remain visible
 
 #### Scenario: Copy only whitespace
-- **WHEN** the visual frame selection contains only spaces, tabs, newlines, or other Unicode whitespace
+- **WHEN** the visual selection contains only spaces, tabs, newlines, or other Unicode whitespace
 - **THEN** no clipboard submission or success acknowledgement SHALL occur
 - **AND** the visual range SHALL remain selected until its ordinary clearing action
 
@@ -103,14 +108,14 @@ The visual selected range SHALL continue to represent the exact selected cells; 
 - **AND** the submitted prompt's selected visible prefix, alignment, and timestamp SHALL remain included
 
 #### Scenario: Release a cross-frame selection
-- **WHEN** automatic fullscreen copy is enabled and the reader releases a range spanning eligible transcript text plus transient, input, or footer/status-bar rows
-- **THEN** clipboard submission SHALL begin from one immutable snapshot of only the eligible transcript text at that input boundary
+- **WHEN** automatic fullscreen copy is enabled and the reader releases a range spanning eligible transcript, ordinary prompt-input, or footer/status-bar text plus excluded frame rows
+- **THEN** clipboard submission SHALL begin from one immutable snapshot of all eligible selected text in visible frame order at that input boundary
 - **AND** the complete cross-frame highlight SHALL remain visible while delivery proceeds
 
 #### Scenario: Release a selection with automatic copy disabled
-- **WHEN** automatic fullscreen copy is disabled and the reader releases a frame selection
+- **WHEN** automatic fullscreen copy is disabled and the reader releases a pointer selection over ordinary prompt-input, footer/status-bar, or transcript text
 - **THEN** A1 SHALL retain the selected highlight without submitting clipboard work or showing a copied acknowledgement
-- **AND** the reader SHALL remain able to invoke the established explicit selection-copy action
+- **AND** a subsequent `Ctrl+C` SHALL submit the eligible selected text once and clear the retained selection through its established route
 
 #### Scenario: Copy styled and linked text
 - **WHEN** eligible selected content contains ANSI styling, an OSC 8 link, a wide grapheme, or a combining sequence
@@ -118,12 +123,12 @@ The visual selected range SHALL continue to represent the exact selected cells; 
 - **AND** selection painting SHALL preserve the original visible foreground and attributes beneath its background
 
 #### Scenario: Acknowledge copied text beside the editor
-- **WHEN** a normalized frame-selection payload is delivered while the acknowledgement row is selected
+- **WHEN** a normalized selection payload is delivered while the acknowledgement row is selected
 - **THEN** one right-aligned accent message SHALL read `copied N chars to clipboard` using the payload's exact character count
 - **AND** the message SHALL retain the selected row background without a reverse-video or dark reset box
 
 #### Scenario: Replace rapid copy acknowledgements
-- **WHEN** another frame-selection copy succeeds before the current acknowledgement expires
+- **WHEN** another selection copy succeeds before the current acknowledgement expires
 - **THEN** the newest count SHALL replace the prior message in the same frame location and restart its lifetime
 - **AND** acknowledgements SHALL NOT stack, allocate rows, or change geometry
 
@@ -138,14 +143,14 @@ The visual selected range SHALL continue to represent the exact selected cells; 
 - **AND** later frame changes SHALL NOT alter the captured payload
 
 #### Scenario: Re-copy with Ctrl+C
-- **WHEN** a released frame selection with eligible transcript or footer/status-bar text is still visible and the reader presses `Ctrl+C`
-- **THEN** A1 SHALL submit the normalized semantic transcript and selected status-bar payload through the bounded clipboard path regardless of the automatic-copy setting
+- **WHEN** a released frame selection with eligible transcript, ordinary prompt-input, or footer/status-bar text is still visible and the reader presses `Ctrl+C`
+- **THEN** A1 SHALL submit the normalized eligible payload through the bounded clipboard path regardless of the automatic-copy setting
 - **AND** clear the retained frame selection through the established copy-clearing behavior
 
 #### Scenario: Preserve semantic copy routes
-- **WHEN** the reader invokes `/copy` or copies/cuts a keyboard-selected prompt range
+- **WHEN** the reader invokes `/copy` or copies or cuts a keyboard-selected prompt range
 - **THEN** those routes SHALL retain their existing semantic last-message or exact-editor-text behavior
-- **AND** complete-frame visual filtering SHALL NOT add status, input, suggestion, footer, notice, or other screen chrome to those payloads
+- **AND** complete-frame filtering SHALL admit only declared ordinary prompt-input and footer/status rows among dock content
 
 ### Requirement: Gesture ownership preserves interactive surfaces
 

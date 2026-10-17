@@ -53,7 +53,7 @@ The console proof requires:
 - Rust/Cargo for the A1 terminal host;
 - Zig `0.15.x` with patch `>= 0.15.2` to build `libghostty-vt`;
 - the platform C/C++ build toolchain required by Rust and the PTY/input crates (Visual Studio 2022 Build Tools/MSVC on Windows, the runner image's Xcode Clang on macOS, GCC on Linux);
-- release builds on `windows-2025`, `ubuntu-24.04`, `macos-15` (arm64), and `macos-15-intel` (x64);
+- release builds on `windows-2025`, `ubuntu-24.04`, and `macos-15` (arm64, which also cross-compiles the x64 artifact with `--target x86_64-apple-darwin`);
 - an existing terminal emulator for manual validation;
 - an isolated disposable worker for automated physical validation.
 

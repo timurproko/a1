@@ -5,7 +5,7 @@ import { TranscriptViewport, type TranscriptViewportFrame, type TranscriptViewpo
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
 import { routeMouseInput } from "../../ui/components/mouse.js";
 import { scrollForTrackPage, scrollForThumbRow, scrollbarSelectionRows, scrollbarWheelRows } from "../../ui/components/scrollbar.js";
-import type { SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
+import { literalSelectionCopySnapshot, type SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
 import type { PiShellEditorPort } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { PasteEvent } from "./paste-protocol.js";
 
@@ -55,6 +55,7 @@ export class SessionViewportController {
   #pasteDiagnosticRequest = 0;
   readonly #viewport = new TranscriptViewport();
   #config: OwnedUiViewportSettings = {
+    timeFormat: "8:00 PM",
     scrollbarAppearance: "auto",
     scrollbarStyle: "thin",
     scrollbarSpeed: "normal",
@@ -216,17 +217,24 @@ export class SessionViewportController {
     return frame;
   }
 
-  composeDockOnly(dockRows: readonly string[], width: number, height: number, explicitCopyDockRows = 0): TranscriptViewportFrame | null {
-    return this.#viewport.composeDockOnly(dockRows, width, height, explicitCopyDockRows);
+  composeDockOnly(
+    dockRows: readonly string[],
+    width: number,
+    height: number,
+    copyableDockRows: TranscriptViewportFrameInput["copyableDockRows"] = [],
+  ): TranscriptViewportFrame | null {
+    return this.#viewport.composeDockOnly(dockRows, width, height, copyableDockRows);
   }
 
   /** Returns true when document wrapping may have changed. */
   setConfig(config: OwnedUiViewportSettings): boolean {
-    const appearanceChanged = config.scrollbarAppearance !== this.#config.scrollbarAppearance;
-    this.#config = config;
-    this.#viewport.setConfig(config);
+    const normalized = { ...config, timeFormat: config.timeFormat ?? "8:00 PM" as const };
+    const layoutChanged = normalized.scrollbarAppearance !== this.#config.scrollbarAppearance
+      || normalized.timeFormat !== this.#config.timeFormat;
+    this.#config = normalized;
+    this.#viewport.setConfig(normalized);
     this.#requestRender();
-    return appearanceChanged;
+    return layoutChanged;
   }
 
   resumeFollowing(): void {
@@ -346,16 +354,19 @@ export class SessionViewportController {
       });
     }
     if (data === "\u0003") {
-      if (editorActive && this.#editor.hasSelection()) {
-        if (this.#viewport.clearSelection()) this.#requestRender();
-      } else if (this.#viewport.hasSelection) {
-        const copySelection = this.#viewport.captureSelectedText("explicit");
+      // Invariant: the newest complete-frame gesture owns explicit copy even if an
+      // older editor word/line selection remains painted beneath it.
+      if (this.#viewport.hasSelection) {
+        const copySelection = this.#viewport.captureSelectedText();
         this.#viewport.clearSelection();
         this.#stopSelectionAutoScroll();
         this.#requestRender();
         return copySelection === null
           ? { data: "", consumed: true }
           : { data: "", consumed: true, copySelection };
+      }
+      if (editorActive && this.#editor.hasSelection()) {
+        if (this.#viewport.clearSelection()) this.#requestRender();
       }
     }
     const previousPrompt = SHIFT_UP_INPUTS.has(data) || this.#editor.matchesTerminalKey(data, "alt+home");
@@ -570,6 +581,12 @@ export class SessionViewportController {
             const editorRow = pendingEditorClick.row - this.#editorPointerFrame.rowStart + 1;
             this.#editor.handlePointer({ kind: "press", button: 0, column: pendingEditorClick.column, row: editorRow });
             this.#editor.handlePointer({ kind: "release", button: 0, column: pendingEditorClick.column, row: editorRow });
+            if (this.#copyOnSelect) {
+              const selected = this.#editor.selectedText?.();
+              if (selected !== undefined) {
+                completedCopy = literalSelectionCopySnapshot(selected, this.#viewport.selectionRevision) ?? undefined;
+              }
+            }
           }
           forceRepaint = true;
           repaint = true;

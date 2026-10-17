@@ -9,7 +9,15 @@ export interface DevelopmentValidationMatrixEntry {
   guardian: boolean;
   defender: boolean;
   binary: "process-guardian.exe" | "process-guardian";
+  terminalHost?: boolean;
+  terminalHostBinary?: string;
+  chaos?: boolean;
+  /** `<index>/<count>` of the terminal-host role-fixture suite this entry runs; absent for every other job. */
+  partition?: string;
+  partitionSlug?: string;
 }
+
+export const TERMINAL_HOST_TEST_PARTITIONS: number;
 
 export interface ValidationJobSelection {
   schema: "a1-validation-job-selection-v3";

@@ -371,7 +371,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
           stallNoticeSeconds: 300,
           admit: input => tabRecovery.admit({ ...input, incarnation: options.tab!.incarnation }),
           dispatched: () => tabRecovery.dispatched(),
-          correlated: (submissionId, entryId) => tabRecovery.correlated(submissionId, entryId),
+          correlated: (submissionId, entryId) => correlateResidentTabSubmission(tabRecovery, backend, submissionId, entryId),
           checkpoint: text => tabRecovery.checkpoint(text),
           gracefulStop: sessionFile => tabRecovery.gracefulStop(sessionFile),
           ...(recoveredTabInput === undefined ? {} : { recovered: recoveredTabInput }),
@@ -543,6 +543,8 @@ export async function bindResidentTabBridge(
     // keeps its resident terminal current while the holder withholds only its client surfaces.
     if (command.type === "rename") {
       void backend.workflows.executeWorkflow({ command: "name", argument: command.name }).catch(() => {});
+    } else if (command.type === "route") {
+      void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
     } else if (command.type === "stop") {
       void backend.session.dispose().catch(() => {});
     }
@@ -581,6 +583,19 @@ export async function bindResidentTabBridge(
   };
 }
 
+export async function correlateResidentTabSubmission(
+  recovery: Pick<ResidentTabRecovery, "correlated" | "settled">,
+  backend: Pick<ComposedSessionBackend, "identity" | "session">,
+  submissionId: string,
+  entryId: string,
+): Promise<void> {
+  await recovery.correlated(submissionId, entryId);
+  // Concurrency: a normal prompt command can resolve after the ready transition already fired.
+  // Re-read lifecycle only after correlation is active; a concurrent ready observer and this path
+  // safely race because recovery consumes the active entry once and retirement is idempotent.
+  if (backend.session.view().lifecycle !== "busy") await recovery.settled(currentBackendSessionFile(backend));
+}
+
 function currentBackendSessionFile(backend: Pick<ComposedSessionBackend, "identity">): string | null {
   const direct = backend.identity.currentSessionFile?.();
   if (direct !== undefined && direct !== null) return direct;
@@ -603,6 +618,7 @@ function quitOutroSettingsSnapshot(settings: OwnedSettingsManager): OwnedUiQuitO
 
 function viewportSettingsSnapshot(settings: OwnedSettingsManager): OwnedUiViewportSettings {
   return {
+    timeFormat: settings.value("timeFormat"),
     scrollbarAppearance: settings.value("scrollbarAppearance"),
     scrollbarStyle: settings.value("scrollbarStyle"),
     scrollbarSpeed: settings.value("scrollbarSpeed"),

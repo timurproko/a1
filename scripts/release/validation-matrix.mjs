@@ -4,6 +4,25 @@ import { fileURLToPath } from "node:url";
 import { assertIntegrationSelection } from "./integration-selection.mjs";
 
 const WINDOWS = { os: "windows-2025", platform: "win32", architecture: "x64", binary: "process-guardian.exe" };
+const LINUX = { os: "ubuntu-24.04", platform: "linux", architecture: "x64", binary: "process-guardian" };
+const DARWIN = { os: "macos-15", platform: "darwin", architecture: "arm64", binary: "process-guardian" };
+
+/**
+ * Partitions of the serialized terminal-host role-fixture suite, each on its own runner. The suite ran
+ * 706 to 775 seconds on every platform as one job; three partitions keep every test and cut the lane's
+ * critical path to about a third of that.
+ */
+export const TERMINAL_HOST_TEST_PARTITIONS = 3;
+
+function terminalHostPartitions(target, platformLabel) {
+  return Array.from({ length: TERMINAL_HOST_TEST_PARTITIONS }, (_value, offset) => {
+    const index = offset + 1;
+    return {
+      group: "terminal-host", label: `Native terminal host tests (${platformLabel}, ${index}/${TERMINAL_HOST_TEST_PARTITIONS})`, ...target, node: 24,
+      build: false, guardian: false, defender: false, partition: `${index}/${TERMINAL_HOST_TEST_PARTITIONS}`, partitionSlug: `${index}of${TERMINAL_HOST_TEST_PARTITIONS}`,
+    };
+  });
+}
 
 /** Every Development modular job GitHub may schedule; the workflow takes its matrix from the active subset. */
 export const DEVELOPMENT_VALIDATION_MATRIX = Object.freeze([
@@ -19,6 +38,9 @@ export const DEVELOPMENT_VALIDATION_MATRIX = Object.freeze([
   { group: "terminal-host", label: "Native terminal host (Windows x64)", ...WINDOWS, node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostBinary: "terminal-host.exe" },
   { group: "terminal-host", label: "Native terminal host (Linux x64)", os: "ubuntu-24.04", platform: "linux", architecture: "x64", node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostBinary: "terminal-host" },
   { group: "terminal-host", label: "Native terminal host (macOS arm64)", os: "macos-15", platform: "darwin", architecture: "arm64", node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostBinary: "terminal-host" },
+  ...terminalHostPartitions(WINDOWS, "Windows x64"),
+  ...terminalHostPartitions(LINUX, "Linux x64"),
+  ...terminalHostPartitions(DARWIN, "macOS arm64"),
   { group: "resident-chaos", label: "Resident tabs chaos (Windows x64)", ...WINDOWS, node: 24, build: true, guardian: false, defender: false, chaos: true },
   { group: "resident-chaos", label: "Resident tabs chaos (Linux x64)", os: "ubuntu-24.04", platform: "linux", architecture: "x64", node: 24, build: true, guardian: false, defender: false, chaos: true },
   { group: "resident-chaos", label: "Resident tabs chaos (macOS arm64)", os: "macos-15", platform: "darwin", architecture: "arm64", node: 24, build: true, guardian: false, defender: false, chaos: true },

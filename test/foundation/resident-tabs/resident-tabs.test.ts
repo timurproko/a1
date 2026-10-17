@@ -107,7 +107,10 @@ describe("resident tab launch contracts", () => {
     });
     const firstStart = bridge.start();
     transports[0]!.emit("connect");
-    expect(transports[0]!.sent[0]).toMatchObject({ type: "hello", body: { role: "bridge", tabId: "tab-1" } });
+    expect(transports[0]!.sent[0]).toMatchObject({
+      type: "hello",
+      body: { role: "bridge", tabId: "tab-1", features: expect.arrayContaining(["bridge-route"]) },
+    });
     transports[0]!.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, build: "host", features: [] } }));
     await expect(firstStart).resolves.toBe(true);
     bridge.accent("orange"); bridge.status("working"); bridge.session("session.jsonl", "agent");
@@ -147,10 +150,13 @@ describe("resident tab launch contracts", () => {
     expect(transport.sent.find(message => message.type === "bridge.prompt")?.body).toEqual({ interrupted: true });
     transport.emit("data", encodeResidentFrame({ type: "bridge.visibility", body: { visible: false } }));
     transport.emit("data", encodeResidentFrame({ type: "bridge.rename", body: { name: "fixed-name", nameSource: "user" } }));
+    transport.emit("data", encodeResidentFrame({ type: "bridge.route", body: { route: "unknown" } }));
+    transport.emit("data", encodeResidentFrame({ type: "bridge.route", body: { route: "settings" } }));
     transport.emit("data", encodeResidentFrame({ type: "bridge.stop", body: { deadlineMs: 5000 } }));
     expect(commands).toEqual([
       { type: "visibility", visible: false },
       { type: "rename", name: "fixed-name", nameSource: "user" },
+      { type: "route", route: "settings" },
       { type: "stop", deadlineMs: 5000 },
     ]);
     transport.emit("data", encodeResidentFrame({ type: "attachment", body: { clientId: "client", controllerRevision: 7 } }));

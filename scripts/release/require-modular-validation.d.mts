@@ -1,6 +1,8 @@
 import type { IntegrationOwner } from "./integration-selection.mjs";
 export function selectModularEvidenceFiles(entries: { name: string; isFile(): boolean; isDirectory(): boolean }[]): { outcomes: string[]; envelopes: string[] };
 export function selectModularOutcomeFiles(entries: { name: string; isFile(): boolean; isDirectory(): boolean }[]): string[];
+/** The jobs one selected owner target expands to: its job plus, for the terminal host, every test partition. */
+export function ownerTargetJobs(owner: string, platform: string): { job: string; partition?: string }[];
 export function requireModularValidation(options: {
   impact: any;
   owners: (IntegrationOwner & { entries: string[]; tests: string[]; support: string[] })[];

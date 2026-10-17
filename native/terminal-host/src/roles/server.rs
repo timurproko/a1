@@ -1438,6 +1438,7 @@ fn welcome(epoch: u64) -> Welcome {
             "controller-boundary".into(),
             "bridge-visibility".into(),
             "bridge-rename".into(),
+            "bridge-route".into(),
             "bridge-stop".into(),
             "standby-promotion".into(),
             "recovery-status".into(),
@@ -2957,6 +2958,47 @@ fn serve_attach(
                     "tab.list",
                     kind.request_id,
                     TabList { revision, tabs },
+                )?)
+                .map_err(str::to_owned)?;
+            }
+            "tab.open-settings" => {
+                let (_, target): (_, TabTarget) = wire::body(&payload)?;
+                let bridge = {
+                    let locked = state
+                        .lock()
+                        .map_err(|_| "resident state poisoned".to_owned())?;
+                    let viewed = locked
+                        .clients
+                        .get(&client_id)
+                        .is_some_and(|client| client.viewed_tab == target.tab_id);
+                    viewed
+                        .then(|| {
+                            locked
+                                .bridges
+                                .get(&target.tab_id)
+                                .map(|bridge| bridge.peer.clone())
+                        })
+                        .flatten()
+                };
+                let accepted = if let Some(bridge) = bridge {
+                    bridge
+                        .offer_control(wire::frame(
+                            "bridge.route",
+                            None,
+                            serde_json::json!({ "route": "settings" }),
+                        )?)
+                        .is_ok()
+                } else {
+                    false
+                };
+                tx.offer_control(wire::frame(
+                    "tab.route-opened",
+                    kind.request_id,
+                    wire::ResultBody {
+                        accepted,
+                        message: (!accepted)
+                            .then(|| "Settings is unavailable for this tab.".into()),
+                    },
                 )?)
                 .map_err(str::to_owned)?;
             }
@@ -5239,6 +5281,17 @@ pub fn encoded_bridge_token(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn welcome_advertises_the_owned_route_bridge() {
+        let welcome = welcome(7);
+        assert!(
+            welcome
+                .features
+                .iter()
+                .any(|feature| feature == "bridge-route")
+        );
+    }
 
     #[test]
     fn a_replaced_surface_counts_a_lane_replacement_and_marks_a_resync() {

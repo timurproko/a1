@@ -15,7 +15,7 @@ Physical acceptance against a published candidate package is pending; the operat
 
 ## Automated evidence
 
-- Publication `terminal_hosts` and `guardians` jobs on `macos-15-intel`: the release terminal host and process guardian are built for Intel macOS, the host's `--version` identity is checked, and packing refuses a missing or altered artifact.
+- Publication `terminal_hosts` and `guardians` jobs on `macos-15` (arm64): the release terminal host and process guardian are cross-compiled for Intel macOS with `--target x86_64-apple-darwin`, the host's `--version` identity is checked through Rosetta 2 when the runner can execute it (otherwise the manifest records a Mach-O architecture check), and packing refuses a missing or altered artifact. Before 2026-10-16 the same builds ran natively on `macos-15-intel`.
 - Known gap: the pull-request `terminal-host` and `resident-chaos` suites run on macOS arm64 only, because modular validation outcomes are keyed by platform without architecture. Intel macOS has build and identity evidence but no automated behavior suite of its own.
 
 ## Physical verdicts

@@ -70,14 +70,14 @@ describe("owned UI settings sections", () => {
   it("places owned agent controls once after engine entries in a single Agent group", () => {
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
-      document: { version: 16, values: { promptSuggestions: false } },
+      document: { version: 17, values: { promptSuggestions: false } },
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: AGENT });
     expect(sections.map(section => [section.id, section.title])).toEqual([
       ["generic", "Generic"], ["appearance", "Appearance"], ["scroll", "Scroll"], ["history", "History"], ["tabs", "Tabs"], ["agent", "Agent"],
     ]);
     const entries = (id: string) => sections.find(section => section.id === id)?.entries.map(entry => entry.id);
-    expect(entries("generic")).toEqual(["updateCheck"]);
+    expect(entries("generic")).toEqual(["updateCheck", "timeFormat"]);
     expect(entries("appearance")).toEqual(["accentColor", "backgroundStyle", "quitAnimation"]);
     expect(entries("scroll")).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
     expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryMaxItems"]);
@@ -123,10 +123,10 @@ describe("owned UI settings sections", () => {
   it("shows only the approved resident tab controls", () => {
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
-      document: { version: 16, values: { residentTabs: false } },
+      document: { version: 17, values: { residentTabs: false } },
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: null });
-    expect(sections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual(["updateCheck"]);
+    expect(sections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual(["updateCheck", "timeFormat"]);
     expect(sections.find(section => section.id === "tabs")?.entries.map(entry => entry.id)).toEqual([
       "tabsMax", "tabsAutoName",
     ]);

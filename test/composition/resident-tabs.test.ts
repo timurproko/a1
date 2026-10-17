@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { bindResidentTabBridge, residentStartupPresentation } from "../../src/composition/owned-ui.js";
+import { bindResidentTabBridge, correlateResidentTabSubmission, residentStartupPresentation } from "../../src/composition/owned-ui.js";
 import { formatResidentFallbackNotice } from "../../bin/tab-launch-context.js";
 
 function fixture(start: () => Promise<boolean> = async () => true) {
   let listener: ((event: { type: string; lifecycle?: string }) => void) | null = null;
-  let commandListener: ((command: { type: string; visible?: boolean }) => void) | null = null;
+  let commandListener: ((command: { type: string; visible?: boolean; route?: "settings" }) => void) | null = null;
   let sessionName: string | undefined = "initial";
   let resume: { sessionDir: string; sessionId: string } | null = { sessionDir: "D:/sessions", sessionId: "one.jsonl" };
   let queuedSubmissions: string[] = [];
+  let lifecycle = "ready";
   let transcript: { kind: string; text: string }[] = [{ kind: "user", text: "Fix login please" }];
   const unsubscribe = vi.fn();
   const bridge = {
@@ -21,6 +22,7 @@ function fixture(start: () => Promise<boolean> = async () => true) {
     identity: { currentSessionResumeMetadata: () => resume },
     session: {
       view: () => ({
+        lifecycle,
         status: { footer: { sessionName } },
         editor: { queuedSubmissions },
         transcript,
@@ -34,8 +36,12 @@ function fixture(start: () => Promise<boolean> = async () => true) {
     bridge,
     backend,
     unsubscribe,
-    event: (event: { type: string; lifecycle?: string; successful?: boolean; aborted?: boolean }) => listener?.(event),
-    command: (command: { type: string; visible?: boolean }) => commandListener?.(command),
+    event: (event: { type: string; lifecycle?: string; successful?: boolean; aborted?: boolean }) => {
+      if (event.type === "session-lifecycle" && event.lifecycle !== undefined) lifecycle = event.lifecycle;
+      listener?.(event);
+    },
+    command: (command: { type: string; visible?: boolean; route?: "settings" }) => commandListener?.(command),
+    setLifecycle(value: string) { lifecycle = value; },
     queue(...values: string[]) { queuedSubmissions = values; },
     changeSession(next: typeof resume, name?: string) { resume = next; sessionName = name; },
     rename(name: string | undefined) { sessionName = name; },
@@ -92,6 +98,22 @@ describe("resident tab composition bridge", () => {
     expect(JSON.stringify(value.bridge.status.mock.calls)).not.toContain("queued prompt");
   });
 
+  it("settles post-ready correlation immediately but leaves busy correlation active", async () => {
+    const ready = fixture();
+    const readyRecovery = { correlated: vi.fn(async () => {}), settled: vi.fn(async () => {}) };
+    await correlateResidentTabSubmission(readyRecovery, ready.backend as never, "submission-ready", "entry-ready");
+    expect(readyRecovery.correlated).toHaveBeenCalledWith("submission-ready", "entry-ready");
+    expect(readyRecovery.settled).toHaveBeenCalledWith("D:/sessions/one.jsonl");
+    expect(readyRecovery.correlated.mock.invocationCallOrder[0]).toBeLessThan(readyRecovery.settled.mock.invocationCallOrder[0]!);
+
+    const busy = fixture();
+    busy.setLifecycle("busy");
+    const busyRecovery = { correlated: vi.fn(async () => {}), settled: vi.fn(async () => {}) };
+    await correlateResidentTabSubmission(busyRecovery, busy.backend as never, "submission-busy", "entry-busy");
+    expect(busyRecovery.correlated).toHaveBeenCalledWith("submission-busy", "entry-busy");
+    expect(busyRecovery.settled).not.toHaveBeenCalled();
+  });
+
   it("accepts host visibility without pausing the tab or interrupting status reporting", async () => {
     const value = fixture();
     await bindResidentTabBridge(value.bridge as never, value.backend as never);
@@ -103,6 +125,16 @@ describe("resident tab composition bridge", () => {
     expect(value.bridge.status).toHaveBeenLastCalledWith("idle", false, 0, 0);
     // Invariant: visibility is a no-op for the child; it neither renames nor stops the session.
     expect(value.backend.workflows.executeWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("opens the owned settings route from a host command without editor input", async () => {
+    const value = fixture();
+    await bindResidentTabBridge(value.bridge as never, value.backend as never);
+    value.command({ type: "route", route: "settings" });
+    await vi.waitFor(() => expect(value.backend.workflows.executeWorkflow).toHaveBeenCalledWith({
+      command: "settings",
+      argument: "",
+    }));
   });
 
   it("names the tab while the first agent run is still working", async () => {

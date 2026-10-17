@@ -36,6 +36,19 @@ export function selectionCopyLineContent(text: string, prompt: SelectionCopyProm
   return usefulTextLineContent(plain, from);
 }
 
+/** Builds an immutable exact-text snapshot without changing editor-owned selection state. */
+export function literalSelectionCopySnapshot(text: string, revision = 0): SelectionCopySnapshot | null {
+  if (text.trim().length === 0) return null;
+  const selection = {
+    start: { line: 0, column: 0 },
+    end: { line: 0, column: Number.MAX_SAFE_INTEGER },
+  };
+  if (text.length > MAX_COPY_SOURCE_UNITS) {
+    return { literal: true, selection, revision, rows: [], sourceUnits: 0, rejected: "size" };
+  }
+  return { literal: true, selection, revision, rows: [{ text }], sourceUnits: text.length };
+}
+
 /** Extracts one snapshot row with the existing grapheme/newline policy; run expensive rows off-thread. */
 export function selectionCopyRowText(snapshot: Pick<SelectionCopySnapshot, "selection" | "literal">, row: SelectionCopyRow, index: number): string {
   if (snapshot.literal) return row.text;
