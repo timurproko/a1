@@ -729,7 +729,7 @@ A live-session editing claim SHALL be identified by the owning runtime and the a
 
 ### Requirement: Implementation progress is visible without changing acceptance semantics
 
-Every newly authored version-3 implementation-bound pull request SHALL present its approved scope under `Implementation` as two to ten distinct Markdown task-list items. Each item SHALL describe a delivered implementation outcome at a useful review granularity and SHALL remain separate from the detailed OpenSpec task ledger. Generic CI, review, approval, acceptance, merge, or archive steps SHALL NOT be represented as implementation-progress items, and no item SHALL name running, verifying, validating, recording evidence for, or manually testing work.
+Every newly authored version-3 implementation-bound pull request SHALL present its approved scope under `Implementation` as one or more distinct Markdown task-list items, with no fixed maximum item count. Each item SHALL describe a delivered implementation outcome at a useful review granularity and SHALL remain separate from the detailed OpenSpec task ledger. Generic CI, review, approval, acceptance, merge, or archive steps SHALL NOT be represented as implementation-progress items, and no item SHALL name running, verifying, validating, recording evidence for, or manually testing work.
 
 The agent SHALL leave each item unchecked during planning and SHALL change only its checkbox marker to checked after the associated code and its tests are written and detailed task bookkeeping is complete. Executing tests SHALL belong to CI after readiness, and manual validation SHALL NOT gate a checkbox. Adding, removing, reordering, or changing item wording after approval SHALL be an implementation-scope refinement requiring explicit maintainer approval and coherent planning-artifact reconciliation; affected scope SHALL remain unchecked until complete.
 
@@ -738,8 +738,21 @@ A pull request using Implementation task-list syntax SHALL NOT become ready or f
 #### Scenario: Draft exposes approved implementation scope
 
 - **WHEN** an agent creates a new version-3 draft delivery PR
-- **THEN** its `Implementation` section SHALL contain two to ten unchecked implementation-specific task items derived from the proposed scope
+- **THEN** its `Implementation` section SHALL contain at least one unchecked implementation-specific task item derived from the proposed scope
+- **AND** it SHALL permit additional distinct outcome-sized items without a fixed item-count maximum
 - **AND** GitHub's native task progress SHALL expose the completed and total implementation item counts
+
+#### Scenario: Focused change has one implementation outcome
+
+- **WHEN** the approved scope contains one independently understandable delivered code outcome
+- **THEN** the draft SHALL represent that scope with one Implementation item
+- **AND** it SHALL NOT invent or split scope merely to meet a minimum count above one
+
+#### Scenario: Large change has more than ten implementation outcomes
+
+- **WHEN** the approved scope contains more than ten independently completable delivered code outcomes
+- **THEN** the draft SHALL permit each outcome to remain a separate Implementation item
+- **AND** it SHALL NOT combine unrelated outcomes merely to meet a maximum item count
 
 #### Scenario: Agent completes one scope item
 
