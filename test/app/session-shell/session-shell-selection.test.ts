@@ -251,7 +251,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       } finally { await shell.dispose(); }
     });
 
-  it.each([false, true])("selects autocomplete input without copying it and restores extension editors (history=%s)", async persistent => {
+  it.each([false, true])("copies prompt text beneath autocomplete and restores extension editors (history=%s)", async persistent => {
     const history = memoryHistory();
     const copied: string[] = [];
     const readText = vi.fn(async () => "clipboard text");
@@ -273,9 +273,9 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input(`\u001b[<32;6;${row}M`);
       terminal.input(`\u001b[<0;6;${row}m`);
       expect(shell.root.hasActiveSelection()).toBe(true);
+      await vi.waitFor(() => expect(copied).toEqual(["/mo"]));
       terminal.input("\u0003");
-      await nextImmediate();
-      expect(copied).toEqual([]);
+      await vi.waitFor(() => expect(copied).toEqual(["/mo", "/mo"]));
       expect(shell.root.hasActiveSelection()).toBe(false);
       const ui = (engine.session.extensionBindings as { uiContext: ExtensionUIContext }).uiContext;
       ui.setEditorComponent(tui => new Editor(tui, {
@@ -371,6 +371,41 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       expect(shell.root.editor.getText()).toBe("");
       expect(shell.root.render(60).map(stripTerminalSequences).join("\n"))
         .not.toContain("copied 3 chars to clipboard");
+    } finally { await shell.dispose(); }
+  });
+
+  it("auto-copies editor-owned prompt word selection without collapsing it", async () => {
+    const copied: string[] = [];
+    const { shell, terminal } = await fixture([], [], true, undefined, {
+      readText: async () => null,
+      writeText: async value => { copied.push(value); },
+    });
+    try {
+      terminal.resize(60, 12);
+      shell.root.editor.setText("copy this line");
+      shell.runtime.renderNow();
+      const rows = shell.root.render(60).map(stripTerminalSequences);
+      const inputRow = rows.findIndex(row => row.startsWith("❯ copy this line")) + 1;
+      const column = rows[inputRow - 1]!.indexOf("copy") + 2;
+      const click = () => terminal.input(`\u001b[<0;${column};${inputRow}M\u001b[<0;${column};${inputRow}m`);
+
+      click();
+      await nextImmediate();
+      expect(copied).toEqual([]);
+      click();
+      await vi.waitFor(() => expect(copied).toEqual(["copy"]));
+      expect(shell.root.editor.selectedText?.()).toBe("copy");
+      await vi.waitFor(() => expect(shell.root.render(60).map(stripTerminalSequences).join("\n"))
+        .toContain("copied 4 chars to clipboard"));
+
+      shell.root.setFullscreenCopyOnSelect(false);
+      click();
+      await nextImmediate();
+      expect(copied).toEqual(["copy"]);
+      expect(shell.root.editor.selectedText?.()).toBe("copy this line");
+      terminal.input("\u0003");
+      await vi.waitFor(() => expect(copied).toEqual(["copy", "copy this line"]));
+      expect(shell.root.editor.selectedText?.()).toBeUndefined();
     } finally { await shell.dispose(); }
   });
 
@@ -569,7 +604,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       .toContain(`copied ${"Selectable assistant words".length} chars to clipboard`));
   });
 
-  it("copies prompts semantically and status text only through explicit Ctrl+C", async () => {
+  it("copies prompt and status selections according to the live auto-copy setting", async () => {
     const copied: string[] = [];
     const messages = [
       { role: "user", content: [{ type: "text", text: "ask me" }], timestamp: Date.now() - 1_000 },
@@ -581,13 +616,15 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     });
     try {
       terminal.resize(60, 14);
+      shell.root.editor.setText("draft input");
       shell.root.setFullscreenCopyOnSelect(false);
       shell.runtime.renderNow();
       const rows = shell.root.render(60).map(stripTerminalSequences);
       const promptRow = rows.findIndex(row => row.startsWith("❯ ask me")) + 1;
       const answerRow = rows.findIndex(row => row.includes("answer body")) + 1;
       const dock = shell.root.viewportFrameDescriptor()!.dock!;
-      const inputRow = rows.findIndex((row, index) => index + 1 >= dock.rowStart && row.startsWith("❯ ")) + 1;
+      const inputRow = rows.findIndex((row, index) => index + 1 >= dock.rowStart && row.startsWith("❯ draft input")) + 1;
+      const inputColumn = rows[inputRow - 1]!.indexOf("draft") + 1;
       expect(promptRow).toBeGreaterThan(0);
       expect(answerRow).toBeGreaterThan(promptRow);
       expect(inputRow).toBeGreaterThanOrEqual(dock.rowStart);
@@ -601,12 +638,13 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       await vi.waitFor(() => expect(copied).toHaveLength(2));
       expect(copied[1]).toMatch(/^❯ ask me\s+\d{2}:\d{2}\n\n answer body$/u);
 
-      terminal.input(`\u001b[<0;2;${inputRow}M\u001b[<32;20;${inputRow}M\u001b[<0;20;${inputRow}m`);
+      terminal.input(`\u001b[<0;${inputColumn};${inputRow}M\u001b[<32;${inputColumn + 4};${inputRow}M\u001b[<0;${inputColumn + 4};${inputRow}m`);
       shell.runtime.renderNow();
       expect(shell.root.render(60)[inputRow - 1]).toContain("\u001b[48;2;38;79;120m");
-      terminal.input("\u0003");
       await nextImmediate();
       expect(copied).toHaveLength(2);
+      terminal.input("\u0003");
+      await vi.waitFor(() => expect(copied.at(-1)).toBe("draft"));
 
       shell.root.setFullscreenCopyOnSelect(true);
       const footerFrame = shell.root.render(60).map(stripTerminalSequences);
@@ -614,13 +652,16 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const statusColumn = footerFrame[statusRow - 1]!.indexOf("D:/work") + 1;
       expect(statusRow).toBeGreaterThanOrEqual(dock.rowStart);
       terminal.input(`\u001b[<0;${statusColumn};${statusRow}M\u001b[<32;${statusColumn + 6};${statusRow}M\u001b[<0;${statusColumn + 6};${statusRow}m`);
-      await nextImmediate();
-      expect(copied).toHaveLength(2);
+      await vi.waitFor(() => expect(copied.at(-1)).toBe("D:/work"));
       expect(shell.root.hasActiveSelection()).toBe(true);
-      terminal.input("\u0003");
-      await vi.waitFor(() => expect(copied).toEqual(["ask me", expect.stringMatching(/^❯ ask me/u), "D:/work"]));
       await vi.waitFor(() => expect(shell.root.render(60).map(stripTerminalSequences).join("\n"))
         .toContain(`copied ${"D:/work".length} chars to clipboard`));
+
+      terminal.input(`\u001b[<0;2;${answerRow}M\u001b[<32;${statusColumn + 6};${statusRow}M\u001b[<0;${statusColumn + 6};${statusRow}m`);
+      await vi.waitFor(() => expect(copied).toHaveLength(5));
+      expect(copied[4]).toContain("answer body");
+      expect(copied[4]).toContain("draft input");
+      expect(copied[4]).toContain("D:/work");
     } finally { await shell.dispose(); }
   });
 

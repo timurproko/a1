@@ -813,6 +813,23 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const selectableDocumentRowCount = document.rows.length;
     const dockStartRow = height - dockRows.length + 1;
     const editorOffset = dock.editorOffset;
+    // Rationale: rendered chip tags are lossy presentation (truncated labels), so a frame drag over
+    // a draft holding chips stays visual-only; editor-owned word/line selection still copies the
+    // expanded chip text through its semantic route.
+    const draft = this.usesDefaultInputSurface() ? this.editor.getText() : "";
+    const promptCopyRows = draft.length > 0
+      && !draft.split("\n").some(line => this.#promptChips.atomicRanges(line).length > 0)
+      ? Math.max(0, dock.inputRows - 2)
+      : 0;
+    const copyableDockRows: NonNullable<TranscriptViewportFrameInput["copyableDockRows"]> = [
+      ...Array.from({ length: promptCopyRows }, (_value, index) => ({
+        row: editorOffset + index + 1,
+        prompt: index === 0 ? "first" as const : "continuation" as const,
+      })),
+      ...Array.from({ length: dock.footerRows }, (_value, index) => ({
+        row: dockRows.length - dock.footerRows + index,
+      })),
+    ];
     this.#viewportController.setInputSurfaceFrame(this.usesDefaultInputSurface() ? undefined : {
       component: this.#inputSurface,
       columnStart: 1,
@@ -841,7 +858,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       && snapshot.inputSurface === inputSurface
       && snapshot.viewportRevision === viewportRevision
       && snapshot.selectionRevision === selectionRevision
-      ? this.#viewportController.composeDockOnly(dockRows, width, height, dock.footerRows)
+      ? this.#viewportController.composeDockOnly(dockRows, width, height, copyableDockRows)
       : null;
     if (frame === null) {
       frame = this.#viewportController.compose({
@@ -857,7 +874,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         ...(document.liveTailStartRow === undefined ? {} : { liveTailStartRow: document.liveTailStartRow }),
         bottomAlignedTailRowCount: steeringRows.length + statusRows.length,
         dockRows,
-        explicitCopyDockRows: dock.footerRows,
+        copyableDockRows,
         promptAnchors: document.promptAnchors,
         width,
         height,

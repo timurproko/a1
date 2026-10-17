@@ -354,6 +354,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       return editor.canPresentPromptSuggestion() ? null : "prompt-mode";
     },
     hasSelection: () => editorUx?.hasSelection() ?? false,
+    selectedText: () => editorUx?.selectedText(),
     ownsPointer: () => editorUx?.ownsPointer() ?? false,
     handlePointer: event => editorUx?.handlePointer(event) ?? false,
     pasteClipboard: () => editorUx?.pasteClipboard() ?? false,
