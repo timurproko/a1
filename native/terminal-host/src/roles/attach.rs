@@ -330,6 +330,43 @@ pub fn tab_create_failure_notice(reason: Option<&str>) -> String {
     format!("Could not open a tab: {reason}")
 }
 
+/// Most characters remembered as pressed; a stuck set is cleared rather than grown.
+const MAX_PRESSED_CHARS: usize = 64;
+
+/// Platform: on Windows, a character the keyboard layout cannot produce, such as a lone combining
+/// accent, arrives as console Alt-code input that crossterm reports only as a key release. A
+/// non-ASCII character released without a matching press is that input and is admitted as a
+/// press; every other release stays ignored, as on other platforms.
+fn admit_alt_code_input(
+    windows: bool,
+    pressed: &mut std::collections::HashSet<char>,
+    event: Event,
+) -> Event {
+    let Event::Key(mut key) = event else {
+        return event;
+    };
+    if !windows {
+        return Event::Key(key);
+    }
+    if let KeyCode::Char(character) = key.code {
+        let folded = character.to_lowercase().next().unwrap_or(character);
+        match key.kind {
+            KeyEventKind::Press | KeyEventKind::Repeat => {
+                if pressed.len() >= MAX_PRESSED_CHARS {
+                    pressed.clear();
+                }
+                pressed.insert(folded);
+            }
+            KeyEventKind::Release => {
+                if !pressed.remove(&folded) && !character.is_ascii() && !character.is_control() {
+                    key.kind = KeyEventKind::Press;
+                }
+            }
+        }
+    }
+    Event::Key(key)
+}
+
 /// True when the failed tab's restricted input rules apply: only while that tab is viewed.
 pub fn failure_applies(failed_tab: Option<&str>, viewed: Option<&str>) -> bool {
     failed_tab.is_some() && failed_tab == viewed
@@ -1141,6 +1178,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut close_fallback: Option<CloseFallback> = None;
     let mut transient_notice: Option<String> = None;
     let mut user_input_pending = false;
+    let mut pressed_chars = std::collections::HashSet::<char>::new();
     let mut prompt_view = view.viewed.clone();
     let mut registry_revision = 0u64;
     let mut drag: Option<TabDrag> = None;
@@ -1759,6 +1797,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 return Err("outer terminal input stopped".to_owned());
             }
         };
+        let next = admit_alt_code_input(cfg!(windows), &mut pressed_chars, next);
         // Invariant: a prompt belongs to the view it was opened in; a strip click, shortcut, or
         // tab removal that changes the view.viewed tab cancels it instead of letting it swallow the
         // new tab's keys.
@@ -2815,6 +2854,73 @@ mod tests {
         assert!(!failure_applies(Some("tab-a"), Some("tab-b")));
         assert!(!failure_applies(None, Some("tab-a")));
         assert!(!failure_applies(None, None));
+    }
+
+    #[test]
+    fn windows_alt_code_characters_are_admitted_once_from_their_release() {
+        let key = |code, kind| {
+            Event::Key(crossterm::event::KeyEvent::new_with_kind(
+                code,
+                KeyModifiers::NONE,
+                kind,
+            ))
+        };
+        let kind = |event: Event| match event {
+            Event::Key(key) => key.kind,
+            _ => panic!("key event expected"),
+        };
+        let mut pressed = std::collections::HashSet::new();
+        let accent = KeyCode::Char('\u{301}');
+        assert_eq!(
+            kind(admit_alt_code_input(
+                true,
+                &mut pressed,
+                key(accent, KeyEventKind::Release)
+            )),
+            KeyEventKind::Press
+        );
+        let typed = KeyCode::Char('é');
+        admit_alt_code_input(true, &mut pressed, key(typed, KeyEventKind::Press));
+        assert_eq!(
+            kind(admit_alt_code_input(
+                true,
+                &mut pressed,
+                key(typed, KeyEventKind::Release)
+            )),
+            KeyEventKind::Release,
+            "a layout key's own release is not input"
+        );
+        admit_alt_code_input(
+            true,
+            &mut pressed,
+            key(KeyCode::Char('É'), KeyEventKind::Press),
+        );
+        assert_eq!(
+            kind(admit_alt_code_input(
+                true,
+                &mut pressed,
+                key(typed, KeyEventKind::Release)
+            )),
+            KeyEventKind::Release,
+            "a release after Shift lifted still matches its press"
+        );
+        assert_eq!(
+            kind(admit_alt_code_input(
+                true,
+                &mut pressed,
+                key(KeyCode::Char('a'), KeyEventKind::Release)
+            )),
+            KeyEventKind::Release
+        );
+        assert_eq!(
+            kind(admit_alt_code_input(
+                false,
+                &mut pressed,
+                key(accent, KeyEventKind::Release)
+            )),
+            KeyEventKind::Release,
+            "other platforms keep ignoring releases"
+        );
     }
 
     #[test]
