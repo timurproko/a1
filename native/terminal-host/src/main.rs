@@ -706,7 +706,7 @@ fn resident_attach_command(arguments: &[String]) -> Result<(), String> {
         .parse::<u64>()
         .map_err(|_| "attach clear-exit interval is invalid".to_owned())?;
     let profile = required_role_path(arguments, "--profile")?;
-    let settings_file = required_role_path(arguments, "--settings-file")?;
+    let settings_file = required_role_file(arguments, "--settings-file")?;
     let data = required_role_path(arguments, "--data-dir")?;
     let runtime = required_role_path(arguments, "--runtime-dir")?;
     let release_root = required_role_value(arguments, "--release-root")?;
@@ -888,6 +888,26 @@ fn required_role_value<'a>(arguments: &'a [String], flag: &str) -> Result<&'a st
         .find(|pair| pair[0] == flag)
         .map(|pair| pair[1].as_str())
         .ok_or_else(|| format!("resident role requires {flag}"))
+}
+
+/// A file the role only reads, such as the profile settings document. It is never created and
+/// may be absent; its readers already fall back to defaults, so only its location is resolved.
+fn required_role_file(arguments: &[String], flag: &str) -> Result<std::path::PathBuf, String> {
+    role_file_path(required_role_value(arguments, flag)?)
+        .ok_or_else(|| format!("resident role requires a file path for {flag}"))
+}
+
+fn role_file_path(value: &str) -> Option<std::path::PathBuf> {
+    if value.is_empty() {
+        return None;
+    }
+    let path = std::path::PathBuf::from(value);
+    if path.is_absolute() {
+        return Some(path);
+    }
+    std::env::current_dir()
+        .ok()
+        .map(|directory| directory.join(path))
 }
 
 fn required_role_path(arguments: &[String], flag: &str) -> Result<std::path::PathBuf, String> {
