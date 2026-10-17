@@ -210,10 +210,13 @@ async function driveCandidate(candidate, terminal, cases, platform) {
 async function main() {
   const arguments_ = process.argv.slice(2);
   const option = name => { const index = arguments_.indexOf(name); return index === -1 ? null : arguments_[index + 1]; };
-  const host = option("--host") ?? process.env.A1_TERMINAL_HOST_PATH;
-  const fakeTab = option("--fake-tab");
+  const hostOption = option("--host") ?? process.env.A1_TERMINAL_HOST_PATH;
+  const fakeTabOption = option("--fake-tab");
   const out = option("--out");
-  if (!host || !fakeTab) throw new Error("usage: verify-interaction-parity.mjs --host <terminal-host> --fake-tab <fake-tab> [--out <report.json>]");
+  if (!hostOption || !fakeTabOption) throw new Error("usage: verify-interaction-parity.mjs --host <terminal-host> --fake-tab <fake-tab> [--out <report.json>]");
+  // Invariant: both candidates run from a temporary directory, so executables resolve first.
+  const host = resolve(hostOption);
+  const fakeTab = resolve(fakeTabOption);
   const platform = `${process.platform}-${process.arch}`;
   // Platform: ConPTY translates pointer, focus, and paste controls before they reach either
   // candidate as the same events, so Windows compares the key-only subset.

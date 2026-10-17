@@ -157,6 +157,11 @@ describe("impact-aware validation workflows", () => {
     const measured = 'node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json"';
     const warmUp = 'node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-warm-up-${{ matrix.platform }}-${{ matrix.architecture }}.json" || echo';
     expect(certify.indexOf("verify-terminal-fidelity.mjs")).toBeLessThan(certify.indexOf(warmUp));
+    // Invariant: interaction parity runs on the same built host before the latency passes, so the
+    // warm-up's process cleanup and the measured pass stay last.
+    const parity = certify.indexOf("verify-interaction-parity.mjs");
+    expect(parity).toBeGreaterThan(certify.indexOf("verify-terminal-fidelity.mjs"));
+    expect(parity).toBeLessThan(certify.indexOf(warmUp));
     expect(certify.indexOf(warmUp)).toBeLessThan(certify.indexOf(measured));
     expect(certify.split("measure-resident-tabs.mjs")).toHaveLength(3);
     // Invariant: the warm-up's leftover host processes are stopped before the measured pass starts.

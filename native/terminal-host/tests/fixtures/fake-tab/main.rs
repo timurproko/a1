@@ -59,8 +59,9 @@ fn run_echo(ignore_shutdown: bool) {
 /// Advances a counter in place and, once far enough along, prints a line and drops a marker file in
 /// its working directory, so a test can tell when the tab has produced output nobody has seen yet.
 /// `TERMINAL_HOST_FAKE_TAB_LABEL` prefixes every tick, each tick carries the child's own elapsed
-/// milliseconds so hidden and viewed progress can be compared, and the marker tick also writes the
-/// clipboard so a hidden tab's effect can be shown to stay hidden.
+/// milliseconds and the milliseconds it has spent blocked writing output, which only an undrained
+/// PTY inflates, and the marker tick also writes the clipboard so a hidden tab's effect can be
+/// shown to stay hidden.
 fn run_progress() {
     let label = std::env::var("TERMINAL_HOST_FAKE_TAB_LABEL").unwrap_or_default();
     let prefix = if label.is_empty() {
@@ -69,9 +70,11 @@ fn run_progress() {
         format!("{label}:")
     };
     let started = std::time::Instant::now();
+    let mut blocked = Duration::ZERO;
     let mut stdout = std::io::stdout().lock();
     writeln!(stdout, "fake-tab-ready\r").expect("ready");
     for tick in 1_u64.. {
+        let writing = std::time::Instant::now();
         if tick == 50 {
             write!(stdout, "\x1b]52;c;{PROGRESS_CLIPBOARD_BASE64}\x07").expect("clipboard");
             writeln!(stdout, "\r\nprogress-reached\r").expect("progress line");
@@ -79,8 +82,10 @@ fn run_progress() {
             std::fs::write("fake-tab-progress-reached", b"reached\n").expect("progress marker");
         }
         let elapsed = started.elapsed().as_millis().min(99_999_999) as u64;
-        write!(stdout, "\r{prefix}tick:{tick:08}@{elapsed:08}").expect("tick");
+        let waited = blocked.as_millis().min(99_999_999) as u64;
+        write!(stdout, "\r{prefix}tick:{tick:08}@{elapsed:08}~{waited:08}").expect("tick");
         stdout.flush().expect("flush tick");
+        blocked += writing.elapsed();
         thread::sleep(Duration::from_millis(20));
     }
 }

@@ -2461,9 +2461,9 @@ fn highest_input_record(output: &str) -> u64 {
         .unwrap_or(0)
 }
 
-/// Every `(tick, stamp)` a labelled progress child has shown in the given outer output, in the
+/// Every `(tick, stamp, blocked)` a labelled progress child has shown in the given outer output, in the
 /// order the frames were presented; the stamp is the child's own clock in milliseconds.
-fn progress_samples(output: &str, label: &str) -> Vec<(u64, u64)> {
+fn progress_samples(output: &str, label: &str) -> Vec<(u64, u64, u64)> {
     let needle = format!("{label}:tick:");
     output
         .match_indices(&needle)
@@ -2471,7 +2471,9 @@ fn progress_samples(output: &str, label: &str) -> Vec<(u64, u64)> {
             let rest = &output[index + needle.len()..];
             let tick = rest.get(..8)?.parse::<u64>().ok()?;
             let stamp = rest.get(9..17)?.parse::<u64>().ok()?;
-            (rest.as_bytes().get(8) == Some(&b'@')).then_some((tick, stamp))
+            let blocked = rest.get(18..26)?.parse::<u64>().ok()?;
+            (rest.as_bytes().get(8) == Some(&b'@') && rest.as_bytes().get(17) == Some(&b'~'))
+                .then_some((tick, stamp, blocked))
         })
         .collect()
 }
@@ -2727,7 +2729,7 @@ fn streaming_tabs_advance_independently_while_the_view_switches_rapidly() {
     }
     cleanup.pids.extend(holder_pids(&credentials_root));
     // Invariant: every tab presents when switched to, each round, while all three stream.
-    let mut newest: [Option<(u64, u64)>; 3] = [None; 3];
+    let mut newest: [Option<(u64, u64, u64)>; 3] = [None; 3];
     for round in 0..4 {
         for (index, label) in labels.iter().enumerate() {
             let offset = viewer.retained_len();
@@ -2752,25 +2754,25 @@ fn streaming_tabs_advance_independently_while_the_view_switches_rapidly() {
             }
         }
     }
-    // Invariant: a child whose output stopped being drained while hidden blocks on its PTY, so its
-    // tick count falls behind its own clock; every child keeping pace with its clock proves the
-    // holder drained it continuously whether or not it was viewed. A stale frame cannot fake this,
-    // because the tick and the stamp are written together by the child.
+    // Invariant: a child whose output stopped being drained while hidden blocks inside its writes,
+    // so the time it reports blocked on output grows; a small share of blocked time proves the
+    // holder drained every child continuously whether or not it was viewed. A busy runner slows
+    // the child's sleep, not its writes, and a stale frame cannot fake the child's own count.
     for (index, label) in labels.iter().enumerate() {
-        let (tick, stamp) = newest[index].unwrap_or_else(|| {
+        let (tick, stamp, blocked) = newest[index].unwrap_or_else(|| {
             panic!(
                 "tab {label} showed no stamped tick: {}",
                 viewer.output_text()
             )
         });
         assert!(
-            stamp >= 2_000,
-            "tab {label} ran only {stamp} ms: {}",
+            stamp >= 2_000 && tick >= 20,
+            "tab {label} ran only {tick} ticks in {stamp} ms: {}",
             viewer.output_text()
         );
         assert!(
-            tick.saturating_mul(40) >= stamp,
-            "tab {label} fell behind its clock while hidden ({tick} ticks in {stamp} ms): {}",
+            blocked.saturating_mul(4) <= stamp,
+            "tab {label} spent {blocked} of {stamp} ms blocked on undrained output: {}",
             viewer.output_text()
         );
     }
