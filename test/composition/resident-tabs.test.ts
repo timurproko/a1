@@ -4,7 +4,7 @@ import { formatResidentFallbackNotice } from "../../bin/tab-launch-context.js";
 
 function fixture(start: () => Promise<boolean> = async () => true) {
   let listener: ((event: { type: string; lifecycle?: string }) => void) | null = null;
-  let commandListener: ((command: { type: string; visible?: boolean }) => void) | null = null;
+  let commandListener: ((command: { type: string; visible?: boolean; route?: "settings" }) => void) | null = null;
   let sessionName: string | undefined = "initial";
   let resume: { sessionDir: string; sessionId: string } | null = { sessionDir: "D:/sessions", sessionId: "one.jsonl" };
   let queuedSubmissions: string[] = [];
@@ -35,7 +35,7 @@ function fixture(start: () => Promise<boolean> = async () => true) {
     backend,
     unsubscribe,
     event: (event: { type: string; lifecycle?: string; successful?: boolean; aborted?: boolean }) => listener?.(event),
-    command: (command: { type: string; visible?: boolean }) => commandListener?.(command),
+    command: (command: { type: string; visible?: boolean; route?: "settings" }) => commandListener?.(command),
     queue(...values: string[]) { queuedSubmissions = values; },
     changeSession(next: typeof resume, name?: string) { resume = next; sessionName = name; },
     rename(name: string | undefined) { sessionName = name; },
@@ -103,6 +103,16 @@ describe("resident tab composition bridge", () => {
     expect(value.bridge.status).toHaveBeenLastCalledWith("idle", false, 0, 0);
     // Invariant: visibility is a no-op for the child; it neither renames nor stops the session.
     expect(value.backend.workflows.executeWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("opens the owned settings route from a host command without editor input", async () => {
+    const value = fixture();
+    await bindResidentTabBridge(value.bridge as never, value.backend as never);
+    value.command({ type: "route", route: "settings" });
+    await vi.waitFor(() => expect(value.backend.workflows.executeWorkflow).toHaveBeenCalledWith({
+      command: "settings",
+      argument: "",
+    }));
   });
 
   it("names the tab while the first agent run is still working", async () => {

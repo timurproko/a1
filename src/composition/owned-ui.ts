@@ -543,6 +543,8 @@ export async function bindResidentTabBridge(
     // keeps its resident terminal current while the holder withholds only its client surfaces.
     if (command.type === "rename") {
       void backend.workflows.executeWorkflow({ command: "name", argument: command.name }).catch(() => {});
+    } else if (command.type === "route") {
+      void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
     } else if (command.type === "stop") {
       void backend.session.dispose().catch(() => {});
     }

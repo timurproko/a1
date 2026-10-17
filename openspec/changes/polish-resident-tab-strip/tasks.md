@@ -31,12 +31,12 @@
 
 ## 6. v2 Interaction Fidelity
 
-- [ ] 6.1 Replace ad hoc context/overflow overlays with a reusable v2-styled popup model and add the grouped `+ Agent` / separator / `Settings` launcher; verify colors, padding, muted shortcuts, clamping, disabled-row navigation, hover, click-away, and stationary-pointer persistence.
-- [ ] 6.2 Route the Settings launcher through a backwards-compatible server/bridge command into the owned Settings workflow, including create-then-open from an empty strip; verify no command text reaches the editor and unavailable targets fail safely.
-- [ ] 6.3 Model drag thresholds, midpoint destinations, no-op suppression, exact insertion-marker style, captured registry revision, release/cancel behavior, and authoritative convergence; verify hold, motion, off-strip release, overflow, stale revision, and actual reorder fixtures.
-- [ ] 6.4 Render rename as an inline chip editor with cursor, Home/End, Backspace/Delete, Ctrl+A, commit/cancel, optimistic manual-name settlement, and no automatic animation; verify F2 and menu parity plus pointer cancellation.
-- [ ] 6.5 Align normal, hovered, active, plus, and popup styling and lock automatic-name animation to v2's rainbow/typewriter/settle timing and stable geometry; verify truecolor/palette phase boundaries and unrelated-update continuity.
+- [x] 6.1 Replace ad hoc context/overflow overlays with a reusable v2-styled popup model and add the grouped `+ Agent` / separator / `Settings` launcher; verify colors, padding, muted shortcuts, clamping, disabled-row navigation, hover, click-away, and stationary-pointer persistence.
+- [x] 6.2 Route the Settings launcher through a backwards-compatible server/bridge command into the owned Settings workflow, including create-then-open from an empty strip; verify no command text reaches the editor and unavailable targets fail safely.
+- [x] 6.3 Model drag thresholds, midpoint destinations, no-op suppression, exact insertion-marker style, captured registry revision, release/cancel behavior, and authoritative convergence; verify hold, motion, off-strip release, overflow, stale revision, and actual reorder fixtures.
+- [x] 6.4 Render rename as an inline chip editor with cursor, Home/End, Backspace/Delete, Ctrl+A, commit/cancel, optimistic manual-name settlement, and no automatic animation; verify F2 and menu parity plus pointer cancellation.
+- [x] 6.5 Align normal, hovered, active, plus, and popup styling and lock automatic-name animation to v2's rainbow/typewriter/settle timing and stable geometry; verify truecolor/palette phase boundaries and unrelated-update continuity.
 
 ## 7. Refinement Checks
 
-- [ ] 7.1 Run the changed TypeScript bridge/composition tests, native strip/attach/server tests, TypeScript typecheck, full JavaScript suite, architecture check, Rust formatting, contracts-only native library tests, and strict OpenSpec validation.
+- [x] 7.1 Run the changed TypeScript bridge/composition tests, native strip/attach/server tests, TypeScript typecheck, full JavaScript suite, architecture check, Rust formatting, contracts-only native library tests, and strict OpenSpec validation.
