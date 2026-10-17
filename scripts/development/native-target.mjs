@@ -1,8 +1,9 @@
-// Shared target handling for the native release builds. A build normally produces the host's
-// platform and architecture; `--target <triple>` cross-compiles for another architecture of the same
-// operating system, which publication uses to build macOS x64 on the macOS arm64 runner.
-
-/** Cargo triples a release may contain, with the `dist/native/<platform>-<architecture>` identity each maps to. */
+/**
+ * Cargo triples a release may contain, with the `dist/native/<platform>-<architecture>` identity each
+ * maps to. A native build normally produces the host's platform and architecture; `--target <triple>`
+ * cross-compiles another architecture of the same operating system, which publication uses to build
+ * macOS x64 on the macOS arm64 runner.
+ */
 export const RELEASE_TARGETS = Object.freeze({
   "x86_64-pc-windows-msvc": Object.freeze({ platform: "win32", architecture: "x64", zigTarget: "x86_64-windows-msvc" }),
   "x86_64-unknown-linux-gnu": Object.freeze({ platform: "linux", architecture: "x64", zigTarget: "x86_64-linux-gnu" }),
