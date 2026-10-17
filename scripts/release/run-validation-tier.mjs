@@ -9,13 +9,14 @@ const additionalTests = testsFromEnvironment();
 const canonicalPlan = await createTierPlan(requested, process.cwd(), { additionalTests });
 const shard = valueAfter("--full-shard");
 // Invariant: a shard runs only its partition of the canonical full plan; shared exact-package preparation
-// still prepares the canonical consumers so the package shard's handoff matches the unsharded plan.
+// prepares exactly the consumers the plan it serves owns, so a shard's handoff names that shard's consumers
+// and an unsharded lane's handoff names the canonical ones.
 const plan = shard === undefined ? canonicalPlan : createFullRegressionShardPlan(canonicalPlan, shard);
 
 if (process.argv.includes("--prepare-exact-package")) {
   const handoffPath = valueAfter("--handoff");
   if (!handoffPath) throw new Error("usage: node scripts/release/run-validation-tier.mjs --prepare-exact-package --handoff <path>");
-  const handoff = await prepareSharedExactPackage(canonicalPlan);
+  const handoff = await prepareSharedExactPackage(plan);
   await mkdir(dirname(resolve(handoffPath)), { recursive: true });
   await writeFile(resolve(handoffPath), `${JSON.stringify(handoff, null, 2)}\n`, { mode: 0o600 });
   process.stdout.write(`${JSON.stringify({ prepared: 1, consumers: handoff.consumers, durationMs: handoff.durationMs, phases: handoff.receipt.preparation.phases }, null, 2)}\n`);

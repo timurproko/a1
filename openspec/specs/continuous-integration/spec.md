@@ -1338,7 +1338,7 @@ Manual Development dispatch, scheduled/manual Full regression, release validatio
 - **AND** the protected aggregate SHALL remain unavailable rather than trusting stale event metadata
 
 ### Requirement: The native terminal host is validated in CI rather than on workstations
-Development validation SHALL own `native/terminal-host/**`, its run scripts, Node-addon harness, protocol fixtures and fuzz corpus, and provenance check through one deterministic pull-request-cadence validation owner. When impact classification selects that owner, CI SHALL schedule exactly Windows x64, Linux x64, and macOS arm64 targets with pinned Rust and Zig toolchains. Every target SHALL build the terminal-host binary and Node-API 9 lock artifact, run unit tests, platform-primitive tests, addon lifecycle/alias tests, fixture roles, and non-interactive probes, and upload the debug artifacts under platform-neutral names. Each native dependency included in an uploaded artifact SHALL be compiled for the exact declared operating-system and architecture target with a baseline CPU model rather than the producing runner's native CPU features; an unsupported Cargo-to-native target mapping SHALL fail before compilation. The Linux x64 target SHALL additionally build and run the decoder fuzz target for a pinned bounded duration against its checked-in corpus. Every selected target SHALL participate in the protected development check. Changes touching none of the owned paths SHALL NOT schedule the owner. Until milestone 6 adds complete packaged lanes, terminal-host scope SHALL remain excluded from `full-release`, so nightly Full regression and release gates SHALL NOT infer terminal-host coverage.
+Development validation SHALL own `native/terminal-host/**`, its run scripts, Node-addon harness, protocol fixtures and fuzz corpus, and provenance check through one deterministic pull-request-cadence validation owner. When impact classification selects that owner, CI SHALL schedule exactly Windows x64, Linux x64, and macOS arm64 targets with pinned Rust and Zig toolchains. Every target SHALL build the terminal-host binary and Node-API 9 lock artifact, run unit tests, platform-primitive tests, addon lifecycle/alias tests, fixture roles, and non-interactive probes, and upload the debug artifacts under platform-neutral names. The fixture-role integration test binary MAY execute as a fixed number of deterministic partition jobs per target, each on its own runner, provided every test belongs to exactly one partition, each partition records its identity in its outcome, and the protected development check requires every partition of every selected target. Each native dependency included in an uploaded artifact SHALL be compiled for the exact declared operating-system and architecture target with a baseline CPU model rather than the producing runner's native CPU features; an unsupported Cargo-to-native target mapping SHALL fail before compilation. The Linux x64 target SHALL additionally build and run the decoder fuzz target for a pinned bounded duration against its checked-in corpus. Every selected target SHALL participate in the protected development check. Changes touching none of the owned paths SHALL NOT schedule the owner. Until milestone 6 adds complete packaged lanes, terminal-host scope SHALL remain excluded from `full-release`, so nightly Full regression and release gates SHALL NOT infer terminal-host coverage.
 
 The crate's build script SHALL refuse to build on a Windows host outside CI unless the explicit `TERMINAL_HOST_LOCAL_BUILD=1` override is set. It SHALL fail before invoking Zig or fetching Zig packages, with a concise message naming the CI job and the override. The same guard SHALL cover binary and addon builds.
 
@@ -1349,6 +1349,12 @@ The crate's build script SHALL refuse to build on a Windows host outside CI unle
 - **AND** Linux x64 SHALL run the bounded decoder fuzz target
 - **AND** each platform's debug artifacts SHALL be available under unambiguous platform-neutral artifact names
 - **AND** a missing, skipped, failed, or stale selected target SHALL fail the protected development check
+
+#### Scenario: Fixture-role tests run as partitions
+- **WHEN** the terminal-host owner is selected and its fixture-role integration tests are partitioned
+- **THEN** each partition job SHALL run its fixed subset of the unchanged test binary on its own runner and record its partition identity
+- **AND** the union of the partitions SHALL execute every test exactly once per target
+- **AND** a missing, skipped, failed, or stale partition SHALL fail the protected development check
 
 #### Scenario: Downloaded artifact runs on another supported CPU
 - **WHEN** a terminal-host artifact is downloaded from its producing runner to another machine satisfying the artifact's declared operating-system and architecture baseline
@@ -1619,15 +1625,15 @@ Trusted regression triage SHALL title a new proposal `chore(regression): ...` be
 
 ### Requirement: Publication Windows full validation is sharded and reconstructed
 
-Nightly and stable-candidate publication validation SHALL execute each supported Windows runtime's canonical `full-release` plan through the reviewed `core`, `resource`, `rendering`, and `package` hosted-runner shards. Every canonical command and test invocation SHALL belong to exactly one shard. Each shard SHALL bind the one exact package artifact selected by the publication plan to the exact source, version, runtime, run, attempt, canonical-plan digest, assigned work, and local verified build prerequisite.
+Nightly and stable-candidate publication validation SHALL execute each supported Windows runtime's canonical `full-release` plan through the reviewed `core`, `resource`, `rendering`, `package`, and `predecessor` hosted-runner shards. Every canonical test invocation and every command other than the build and pack prerequisites SHALL belong to exactly one shard; the build prerequisite runs in every shard, and the pack prerequisite runs in each shard that installs the exact package. Each shard SHALL bind the one exact package artifact selected by the publication plan to the exact source, version, runtime, run, attempt, canonical-plan digest, assigned work, and local verified build prerequisite.
 
-Only the package shard SHALL prepare the exact package installation, enable Defender for measured startup, and execute package startup, contracts, and published-predecessor owners. A Windows publication lane SHALL be successful only after all four current-run shard results reconstruct one complete `a1-validation-outcomes-v1` result in canonical order. Missing, duplicate, stale, malformed, failed, cancelled, wrong-plan, cross-runtime, or incomplete shard evidence SHALL prevent both the lane and publication validation aggregate from succeeding. No shard result alone SHALL authorize candidate success or publication.
+Only the package shard SHALL enable Defender for measured startup and execute package startup, contracts, smoke, and update-timing owners. Only the predecessor shard SHALL execute the published-predecessor owner. Each of those two shards SHALL prepare its own exact package installation for its own consumers and SHALL NOT share installed state with any other shard. A Windows publication lane SHALL be successful only after all five current-run shard results reconstruct one complete `a1-validation-outcomes-v1` result in canonical order. Missing, duplicate, stale, malformed, failed, cancelled, wrong-plan, cross-runtime, or incomplete shard evidence SHALL prevent both the lane and publication validation aggregate from succeeding. No shard result alone SHALL authorize candidate success or publication.
 
-Linux and macOS publication full validation MAY remain sequential. Bounded development publication SHALL retain its reviewed non-full lane plan rather than scheduling four Windows shards. Final stable publication SHALL continue adopting the exact successful candidate-validation package pair without rebuilding or rerunning candidate validation. Post-publication smoke SHALL retain the complete platform/runtime matrix independently of the validation execution shape.
+Linux and macOS publication full validation MAY remain sequential. Bounded development publication SHALL retain its reviewed non-full lane plan rather than scheduling Windows shards. Final stable publication SHALL continue adopting the exact successful candidate-validation package pair without rebuilding or rerunning candidate validation. Post-publication smoke SHALL retain the complete platform/runtime matrix independently of the validation execution shape.
 
 #### Scenario: Stable candidate validates Windows
 - **WHEN** candidate validation selects `full-release` for Windows Node 22 and Node 24
-- **THEN** each runtime SHALL schedule `core`, `resource`, `rendering`, and `package` shards from one canonical plan
+- **THEN** each runtime SHALL schedule `core`, `resource`, `rendering`, `package`, and `predecessor` shards from one canonical plan
 - **AND** the candidate result SHALL require both reconstructed Windows lanes alongside the unchanged Linux and macOS results
 
 #### Scenario: A publication shard is incomplete
@@ -1637,7 +1643,7 @@ Linux and macOS publication full validation MAY remain sequential. Bounded devel
 
 #### Scenario: Development preview validation runs
 - **WHEN** development mode selects package smoke and installation rather than `full-release`
-- **THEN** it SHALL retain the reviewed sequential Node 24 platform lanes without scheduling the four-shard Windows plan
+- **THEN** it SHALL retain the reviewed sequential Node 24 platform lanes without scheduling the Windows shard plan
 - **AND** complete Windows Node 22/24 coverage SHALL remain in nightly, candidate, and Full regression cadence
 
 #### Scenario: Stable publication adopts its candidate
@@ -1686,3 +1692,37 @@ Every pull-request validation lane whose selected scopes consume a packed candid
 #### Scenario: A lane packs without the host
 - **WHEN** a CI lane reaches validation packing without this platform's terminal host
 - **THEN** packing SHALL fail before `npm pack` and SHALL name the missing artifact
+
+### Requirement: Pull-request chaos runs use a shorter bounded budget
+The resident chaos validation owner SHALL run with a 300-second action budget on pull-request validation lanes and with its 600-second default budget on nightly publication, Full regression, and manual dispatch. The budget SHALL be recorded in the chaos report beside the seed and action schedule. The shorter budget SHALL NOT change the action set, invariants, replay contract, failure semantics, or the release build the run exercises.
+
+#### Scenario: A pull request selects resident chaos
+- **WHEN** impact classification selects the resident-chaos owner for a pull request
+- **THEN** each platform's chaos lane SHALL run a 300-second budget and record that budget in its report
+
+#### Scenario: Exhaustive cadence runs resident chaos
+- **WHEN** nightly publication, Full regression, or a manual dispatch runs the resident-chaos owner
+- **THEN** the run SHALL use the 600-second budget and record it in its report
+
+### Requirement: Native toolchains and caches are pinned and stable
+The Rust toolchain used by every validation and publication job SHALL be pinned by a repository `rust-toolchain.toml`, and the Linux fuzz toolchain and `cargo-fuzz` version SHALL be pinned and cached, so a new upstream release changes no job until the pin changes. The Zig cache SHALL use one stable key per workflow and platform with a declared size limit, so successive runs restore and replace the same cache rather than adding one cache per run. A warm cache for the terminal host test profile SHALL be saved from the default branch so pull requests can restore it. A cache miss SHALL change only duration, never the build inputs or outputs.
+
+#### Scenario: Upstream stable Rust releases
+- **WHEN** a newer stable Rust is published and the repository pin is unchanged
+- **THEN** every job SHALL continue to install the pinned version and SHALL restore its existing caches
+
+#### Scenario: Zig caches accumulate
+- **WHEN** many runs complete on one platform
+- **THEN** that platform SHALL hold one Zig cache per workflow, bounded by the declared size limit
+
+### Requirement: macOS x64 release artifacts are cross-compiled
+The publication build for the macOS x64 release terminal host and process guardian SHALL run on the macOS arm64 runner by compiling for the `x86_64-apple-darwin` target, placing the artifacts under the `darwin-x64` platform directory with a manifest, notices, and Zig target derived from the requested target rather than the host. The built executable's identity SHALL be verified on the producing runner by executing it (through Rosetta 2), or by its Mach-O architecture when the runner cannot execute it, and the manifest SHALL record which check was performed. Packing SHALL continue to require every supported platform's artifact and manifest. The published-pair smoke matrix is unchanged; it has no macOS x64 lane, so a macOS x64 artifact is executed in CI only through that identity check, as it was only through the Intel runner's identity check before.
+
+#### Scenario: Publication builds native artifacts
+- **WHEN** a nightly, candidate, or development publication builds its terminal hosts and guardians
+- **THEN** the macOS arm64 job SHALL produce both the `darwin-arm64` and `darwin-x64` artifacts, each with a manifest naming its own target
+- **AND** no Intel macOS build job SHALL be scheduled
+
+#### Scenario: Cross-compiled identity cannot be executed
+- **WHEN** the producing runner cannot execute the `x86_64` artifact
+- **THEN** the build SHALL verify the artifact's Mach-O architecture and SHALL NOT report a native identity it did not observe

@@ -76,6 +76,19 @@ describe("build prerequisite executable probes", () => {
 });
 
 describe("CI Rust preparation", () => {
+  it("refuses to provision when the toolchain pin is missing", () => {
+    const script = `
+      cd "$(mktemp -d)"
+      printf '[toolchain]\\nprofile = "minimal"\\n' > rust-toolchain.toml
+      rustup() { echo "rustup must not run: $*"; exit 2; }
+      source "${resolve("scripts/development/prepare-ci-rust.sh").replaceAll("\\", "/")}"
+    `;
+    const result = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 10000 });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("does not pin a toolchain channel");
+    expect(result.stdout).not.toContain("rustup must not run");
+  });
+
   it.each([0, 1, 2, 3, 4])("stops at a failed provisioning/version command (failure index %i)", failure => {
     // Security: hermetic shell functions exercise the real script, never the machine's Rust installation.
     const script = `
@@ -89,7 +102,10 @@ describe("CI Rust preparation", () => {
     const result = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 10000 });
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(failure === 0 ? 0 : 1);
-    const commands = ["rustup toolchain install stable --profile minimal --no-self-update", "rustup default stable", "cargo --version", "rustc --version"];
+    // Invariant: the script installs exactly the version rust-toolchain.toml pins, never a floating channel.
+    const channel = readFileSync("rust-toolchain.toml", "utf8").match(/^channel = "(\d+\.\d+\.\d+)"$/mu)?.[1];
+    expect(channel).toBeDefined();
+    const commands = [`rustup toolchain install ${channel} --profile minimal --no-self-update`, `rustup default ${channel}`, "cargo --version", "rustc --version"];
     expect(result.stdout.trim().split(/\r?\n/u)).toEqual(commands.slice(0, failure || commands.length));
   });
 

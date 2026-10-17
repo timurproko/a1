@@ -55,7 +55,7 @@ describe("Development validation job resolution", () => {
     const matrix = selectDevelopmentValidationMatrix({ impact, registry });
     expect(matrix.include).toEqual([...DEVELOPMENT_VALIDATION_MATRIX]);
     expect(matrix.inactive).toEqual([]);
-    expect(DEVELOPMENT_VALIDATION_MATRIX).toHaveLength(15);
+    expect(DEVELOPMENT_VALIDATION_MATRIX).toHaveLength(24);
     for (const owner of owners) for (const target of owner.targets) {
       expect(DEVELOPMENT_VALIDATION_MATRIX.some(entry => entry.group === validationJobGroup(owner.id, target.platform)
         && entry.platform === target.platform && entry.architecture === target.architecture && entry.node === target.node), `${owner.id} ${target.platform}`).toBe(true);
@@ -71,7 +71,16 @@ describe("Development validation job resolution", () => {
       const matrix = selectDevelopmentValidationMatrix({ impact: { base, head, selectionId, prCore: { tests: [], resourceTests: [] }, integration }, registry: { owners } });
       const groups = matrix.include.map(entry => `${entry.group}:${entry.platform}`);
       expect(groups, path).toEqual(expect.arrayContaining(["resident-chaos:win32", "resident-chaos:linux", "resident-chaos:darwin"]));
-      if (path.startsWith("native/")) expect(groups).toEqual(expect.arrayContaining(["terminal-host:win32", "terminal-host:linux", "terminal-host:darwin"]));
+      if (path.startsWith("native/")) {
+        expect(groups).toEqual(expect.arrayContaining(["terminal-host:win32", "terminal-host:linux", "terminal-host:darwin"]));
+        // Invariant: the partitions are scheduled exactly when their platform's build-and-probe job is.
+        for (const platform of ["win32", "linux", "darwin"]) {
+          expect(matrix.include.filter(entry => entry.group === "terminal-host" && entry.platform === platform && entry.partition).map(entry => entry.partition)).toEqual(["1/3", "2/3", "3/3"]);
+          expect(matrix.include.filter(entry => entry.group === "terminal-host" && entry.platform === platform && !entry.partition)).toHaveLength(1);
+        }
+      } else {
+        expect(matrix.include.some(entry => entry.group === "terminal-host")).toBe(false);
+      }
     }
   });
 
@@ -84,7 +93,7 @@ describe("Development validation job resolution", () => {
     const impact = { base, head, selectionId, prCore: { tests: [], resourceTests: [] }, integration };
     const matrix = selectDevelopmentValidationMatrix({ impact, registry });
     expect(matrix.include.map(entry => entry.group)).toEqual(["core"]);
-    expect(matrix.inactive.map(entry => entry.group)).toEqual(["resource", "pi", "promoted", "package", "startup", "compatibility", "containment", "containment", "terminal-host", "terminal-host", "terminal-host", "resident-chaos", "resident-chaos", "resident-chaos"]);
+    expect(matrix.inactive.map(entry => entry.group)).toEqual(["resource", "pi", "promoted", "package", "startup", "compatibility", "containment", "containment", ...Array(12).fill("terminal-host"), "resident-chaos", "resident-chaos", "resident-chaos"]);
     const withResource = selectDevelopmentValidationMatrix({ impact: { ...impact, prCore: { tests: [], resourceTests: ["test/resource.test.ts"] } }, registry });
     expect(withResource.include.map(entry => entry.group)).toEqual(["core", "resource"]);
     const exempt = selectDevelopmentValidationMatrix({ impact: { ...impact, integration: exemptIntegrationImpact({ base, head, owners, exemption: "docs-only" }) }, registry });

@@ -48,4 +48,6 @@ export function buildManifest(input: {
   rustVersion: string;
   zigVersion: string;
   builtAt: string;
+  /** How the built executable's identity was observed; a cross build without Rosetta 2 records only its Mach-O header. */
+  identityCheck?: "executed" | "mach-o-header";
 }): TerminalHostArtifactManifest;

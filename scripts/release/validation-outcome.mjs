@@ -1,6 +1,8 @@
 const COMMIT = /^[0-9a-f]{40}$/u;
 const DIGEST = /^[0-9a-f]{64}$/u;
 const ID = /^[a-z][a-z0-9-]{0,79}$/u;
+/** `<index>/<count>` of a job that runs one partition of an owner's serialized suite on its own runner. */
+export const PARTITION = /^[1-9]\d*\/[1-9]\d*$/u;
 
 /** Bind one scope outcome to immutable workflow and selection authority. */
 export function validationOutcomeAuthority(environment, requested, selected) {
@@ -9,10 +11,13 @@ export function validationOutcomeAuthority(environment, requested, selected) {
   const present = names.filter(name => environment[name] !== undefined);
   if (present.length === 0) return null;
   if (present.length !== names.length) throw new Error("validation outcome authority is incomplete");
+  // Rationale: an empty VALIDATION_PARTITION is the workflow's way of saying "not a partition job".
+  const partition = environment.VALIDATION_PARTITION ? { partition: environment.VALIDATION_PARTITION } : {};
   const value = {
     schema: "a1-validation-outcome-authority-v1", head: environment.VALIDATION_HEAD, runId: environment.VALIDATION_RUN_ID,
     runAttempt: Number(environment.VALIDATION_RUN_ATTEMPT), selectionId: environment.VALIDATION_SELECTION_ID,
     job: environment.VALIDATION_JOB_ID, platform: environment.VALIDATION_TARGET_PLATFORM, architecture: environment.VALIDATION_TARGET_ARCHITECTURE, node: Number(environment.VALIDATION_TARGET_NODE),
+    ...partition,
     owners: JSON.parse(environment.VALIDATION_OWNERS_JSON), requested, selected,
     jobStartedAt: Number(environment.VALIDATION_JOB_STARTED_MS), cacheState: environment.VALIDATION_CACHE_STATE ?? "unmeasured",
   };
@@ -23,6 +28,7 @@ export function assertValidationOutcomeAuthority(value) {
   if (!value || value.schema !== "a1-validation-outcome-authority-v1" || !COMMIT.test(value.head ?? "") || !DIGEST.test(value.selectionId ?? "")
     || !/^\d{1,24}$/u.test(value.runId ?? "") || !Number.isSafeInteger(value.runAttempt) || value.runAttempt < 1 || !ID.test(value.job ?? "")
     || !["win32", "linux", "darwin"].includes(value.platform) || !["x64", "arm64"].includes(value.architecture) || ![22, 24].includes(value.node)
+    || (value.partition !== undefined && (typeof value.partition !== "string" || !PARTITION.test(value.partition)))
     || !Number.isSafeInteger(value.jobStartedAt) || value.jobStartedAt < 0 || typeof value.cacheState !== "string" || value.cacheState.length > 80) {
     throw new TypeError("validation outcome authority identity is invalid");
   }

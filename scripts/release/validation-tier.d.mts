@@ -127,7 +127,7 @@ export function runTierPlan(plan: ValidationPlan, options?: {
   exactPackagePreparation: Record<string, unknown> | null;
   outcomes: ValidationExecutionOutcome[];
 }>;
-export type FullRegressionShard = "core" | "resource" | "rendering" | "package";
+export type FullRegressionShard = "core" | "resource" | "rendering" | "package" | "predecessor";
 /** Stable Windows complete-regression shard identities, in canonical merge order. */
 export const FULL_REGRESSION_SHARDS: readonly FullRegressionShard[];
 export const FULL_REGRESSION_SHARD_SCHEMA: "a1-full-regression-shard-v1";
