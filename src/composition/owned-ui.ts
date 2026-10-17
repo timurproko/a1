@@ -16,7 +16,9 @@ import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/pr
 import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-selection.js";
 import { ClipboardDiagnosticCapture } from "../app/session-shell/clipboard-diagnostics.js";
 import { createOwnedUiClipboardServices } from "../app/session-shell/clipboard-services.js";
-import { createPiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
+import { createPiKeybindingsHost, type PiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
+import { projectResidentTabShortcuts } from "../features/resident-tab/shortcut-projection.js";
+import { readShortcutBindingsFile } from "../features/resident-tab/shortcut-bindings-file.js";
 import {
   OwnedUiSessionPresenter,
   OwnedUiTerminalHost,
@@ -341,7 +343,18 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ? new ClipboardDiagnosticCapture(clipboardDestination) : null;
   // Invariant: process-wide services are created once here and borrowed by every session shell. The
   // keybinding registry is applied before any presenter is built, so none of them reads Pi's defaults.
-  const keybindings = createPiKeybindingsHost({ profile: ownedSurfaces ? "a1" : "pi", agentDir: backend.identity.agentDir });
+  const keybindingsHost = createPiKeybindingsHost({ profile: ownedSurfaces ? "a1" : "pi", agentDir: backend.identity.agentDir });
+  // Invariant: the resident host dispatches and labels the tab shortcuts this child projects
+  // from its effective declarations, so a customization reload republishes the projection.
+  const publishTabShortcuts = () => tabBridge?.shortcuts(projectResidentTabShortcuts({
+    configured: readShortcutBindingsFile(backend.identity.agentDir),
+    reserved: keybindingsHost.manager.getEffectiveConfig(),
+  }).assignments);
+  const keybindings: PiKeybindingsHost = tabBridge === null ? keybindingsHost : {
+    ...keybindingsHost,
+    reload: () => { keybindingsHost.reload(); publishTabShortcuts(); },
+  };
+  publishTabShortcuts();
   const clipboardServices = ownedSurfaces ? createOwnedUiClipboardServices() : null;
   let createdTerminalHost: OwnedUiTerminalHost | undefined;
   let terminalHost: OwnedUiTerminalHost;

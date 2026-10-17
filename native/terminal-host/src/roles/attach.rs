@@ -33,6 +33,102 @@ pub const RESTORE_OUTER_MODES: &[u8] =
 const BEGIN_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026h";
 const END_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026l";
 
+/// The global tab declarations in the order that decides which action keeps a duplicated key;
+/// it mirrors the owned feature's declaration list, which the child projects and publishes.
+pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 17] = [
+    ("tabs.new", Some("alt+a")),
+    ("tabs.close", Some("alt+w")),
+    ("tabs.rename", Some("f2")),
+    ("tabs.jump1", Some("alt+1")),
+    ("tabs.jump2", Some("alt+2")),
+    ("tabs.jump3", Some("alt+3")),
+    ("tabs.jump4", Some("alt+4")),
+    ("tabs.jump5", Some("alt+5")),
+    ("tabs.jump6", Some("alt+6")),
+    ("tabs.jump7", Some("alt+7")),
+    ("tabs.jump8", Some("alt+8")),
+    ("tabs.jump9", Some("alt+9")),
+    ("tabs.jump10", Some("alt+0")),
+    ("tabs.next", None),
+    ("tabs.previous", None),
+    ("tabs.moveRight", None),
+    ("tabs.moveLeft", None),
+];
+
+/// Shortcut bindings as `keybindings.json` expresses them: a key, a list of keys, or `null`.
+pub type ShortcutBindings = HashMap<String, Option<Vec<String>>>;
+
+fn binding_keys(value: &serde_json::Value) -> Option<Option<Vec<String>>> {
+    match value {
+        serde_json::Value::String(key) => Some(Some(vec![key.trim().to_lowercase()])),
+        serde_json::Value::Array(values) => Some(Some(
+            values
+                .iter()
+                .filter_map(|value| value.as_str().map(|key| key.trim().to_lowercase()))
+                .collect(),
+        )),
+        serde_json::Value::Null => Some(None),
+        _ => None,
+    }
+}
+
+/// Reads shortcut bindings from a `keybindings.json` document, ignoring malformed entries.
+pub fn shortcut_bindings(document: &serde_json::Value) -> ShortcutBindings {
+    document
+        .as_object()
+        .map(|object| {
+            object
+                .iter()
+                .filter(|(action, _)| action.as_str() != "$schema")
+                .filter_map(|(action, value)| {
+                    binding_keys(value).map(|keys| (action.clone(), keys))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Projects declarations, the user's customization, and the keys A1 actions hold into one
+/// assignment per tab action: a key an A1 action holds never becomes a tab shortcut, and the
+/// earlier declaration keeps a key two tab actions share. The owned child runs the same rule.
+pub fn project_tab_shortcuts(
+    configured: &ShortcutBindings,
+    reserved: &ShortcutBindings,
+) -> Vec<(String, Option<String>)> {
+    let mut held_by_a1: HashMap<&str, Vec<String>> = reserved
+        .iter()
+        .filter(|(action, _)| !action.starts_with("tabs."))
+        .map(|(action, keys)| (action.as_str(), keys.clone().unwrap_or_default()))
+        .collect();
+    for (action, keys) in configured {
+        if !action.starts_with("tabs.") {
+            held_by_a1.insert(action.as_str(), keys.clone().unwrap_or_default());
+        }
+    }
+    let reserved_keys = held_by_a1
+        .values()
+        .flatten()
+        .cloned()
+        .collect::<std::collections::HashSet<_>>();
+    let mut claimed = std::collections::HashSet::new();
+    TAB_SHORTCUT_DECLARATIONS
+        .iter()
+        .map(|(action, default)| {
+            let candidates = match configured.get(*action) {
+                Some(Some(keys)) => keys.clone(),
+                Some(None) => Vec::new(),
+                None => default.map(str::to_owned).into_iter().collect(),
+            };
+            let assigned = candidates.into_iter().find(|candidate| {
+                !candidate.is_empty()
+                    && !reserved_keys.contains(candidate)
+                    && claimed.insert(candidate.clone())
+            });
+            ((*action).to_owned(), assigned)
+        })
+        .collect()
+}
+
 #[derive(Debug, Default)]
 struct TabBindings {
     by_key: HashMap<String, String>,
@@ -40,102 +136,37 @@ struct TabBindings {
 }
 
 impl TabBindings {
+    /// The resolver used until a child publishes the effective projection: declarations plus
+    /// the user's file, without the A1 keys only the owned keybinding manager knows.
     fn load(profile: &Path) -> Self {
-        let defaults = [
-            ("tabs.new", "alt+a"),
-            ("tabs.close", "alt+w"),
-            ("tabs.rename", "f2"),
-            ("tabs.jump1", "alt+1"),
-            ("tabs.jump2", "alt+2"),
-            ("tabs.jump3", "alt+3"),
-            ("tabs.jump4", "alt+4"),
-            ("tabs.jump5", "alt+5"),
-            ("tabs.jump6", "alt+6"),
-            ("tabs.jump7", "alt+7"),
-            ("tabs.jump8", "alt+8"),
-            ("tabs.jump9", "alt+9"),
-            ("tabs.jump10", "alt+0"),
-        ];
-        let mut actions = defaults
-            .into_iter()
-            .map(|(action, key)| (action.to_owned(), vec![key.to_owned()]))
-            .collect::<HashMap<_, _>>();
-        let mut foreign_keys = std::collections::HashSet::new();
-        if let Ok(bytes) = std::fs::read(profile.join("keybindings.json"))
-            && let Ok(document) = serde_json::from_slice::<serde_json::Value>(&bytes)
-            && let Some(object) = document.as_object()
-        {
-            for (action, value) in object {
-                if action.starts_with("tabs.") {
-                    continue;
-                }
-                match value {
-                    serde_json::Value::String(key) => {
-                        foreign_keys.insert(key.to_lowercase());
-                    }
-                    serde_json::Value::Array(values) => {
-                        foreign_keys.extend(
-                            values
-                                .iter()
-                                .filter_map(|value| value.as_str().map(str::to_lowercase)),
-                        );
-                    }
-                    _ => {}
-                }
-            }
-            for action in [
-                "tabs.new",
-                "tabs.close",
-                "tabs.rename",
-                "tabs.jump1",
-                "tabs.jump2",
-                "tabs.jump3",
-                "tabs.jump4",
-                "tabs.jump5",
-                "tabs.jump6",
-                "tabs.jump7",
-                "tabs.jump8",
-                "tabs.jump9",
-                "tabs.jump10",
-                "tabs.next",
-                "tabs.previous",
-                "tabs.moveRight",
-                "tabs.moveLeft",
-            ] {
-                if let Some(value) = object.get(action) {
-                    let keys = match value {
-                        serde_json::Value::String(key) => vec![key.to_lowercase()],
-                        serde_json::Value::Array(values) => values
-                            .iter()
-                            .filter_map(|value| value.as_str().map(str::to_lowercase))
-                            .collect(),
-                        serde_json::Value::Null => Vec::new(),
-                        _ => continue,
-                    };
-                    actions.insert(action.to_owned(), keys);
-                }
-            }
-        }
+        let configured = std::fs::read(profile.join("keybindings.json"))
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+            .map(|document| shortcut_bindings(&document))
+            .unwrap_or_default();
+        Self::from_assignments(&project_tab_shortcuts(
+            &configured,
+            &ShortcutBindings::new(),
+        ))
+    }
+
+    /// Bindings from one assignment per action; unknown actions and empty keys are ignored.
+    fn from_assignments(assignments: &[(String, Option<String>)]) -> Self {
         let mut by_key = HashMap::new();
-        let mut conflicts = std::collections::HashSet::new();
-        for (action, keys) in actions {
-            for key in keys {
-                if by_key.insert(key.clone(), action.clone()).is_some() {
-                    conflicts.insert(key);
-                }
-            }
-        }
-        conflicts.extend(foreign_keys);
-        for key in conflicts {
-            by_key.remove(&key);
-        }
-        let mut effective = by_key.iter().collect::<Vec<_>>();
-        effective.sort_by(|left, right| left.0.cmp(right.0));
         let mut by_action = HashMap::new();
-        for (key, action) in effective {
-            by_action
-                .entry(action.clone())
-                .or_insert_with(|| key.clone());
+        for (action, key) in assignments {
+            if !TAB_SHORTCUT_DECLARATIONS
+                .iter()
+                .any(|(declared, _)| declared == action)
+            {
+                continue;
+            }
+            if let Some(key) = key.as_deref().filter(|key| !key.is_empty())
+                && !by_key.contains_key(key)
+            {
+                by_key.insert(key.to_owned(), action.clone());
+                by_action.insert(action.clone(), key.to_owned());
+            }
         }
         Self { by_key, by_action }
     }
@@ -1142,7 +1173,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut committed_revision: Option<u64> = None;
     let mut latest_modes: Option<TerminalModes> = None;
     let mut stale_candidate: Option<(Surface, Instant)> = None;
-    let bindings = TabBindings::load(options.profile);
+    let mut bindings = TabBindings::load(options.profile);
     macro_rules! send_input {
         ($event:expr, $legacy:expr) => {{
             match channel.outgoing($event, $legacy) {
@@ -1348,6 +1379,18 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         stale_candidate = None;
                     }
                     commit_surface!(surface);
+                }
+                // Protocol: the owned child projects the effective A1 declarations plus the
+                // user's customization and publishes one assignment per tab action; attach
+                // dispatches and labels exactly that projection.
+                "tabs.shortcuts" => {
+                    let (_, shortcuts): (_, protocol::TabShortcuts) = wire::body(&payload)?;
+                    if protocol::validate_shortcuts(&shortcuts).is_ok() {
+                        bindings = TabBindings::from_assignments(&shortcuts.assignments);
+                        if popup.is_some() {
+                            paint_current!(false);
+                        }
+                    }
                 }
                 "terminal.effect" => {
                     let (_, effect): (_, TerminalEffect) = wire::body(&payload)?;
@@ -2661,6 +2704,69 @@ mod tests {
             bindings.action(&crossterm::event::KeyEvent::new(
                 KeyCode::Char('x'),
                 KeyModifiers::CONTROL,
+            )),
+            None
+        );
+        assert_eq!(bindings.label("tabs.close"), "");
+        assert_eq!(bindings.label("tabs.new"), "Alt+A");
+    }
+
+    // Invariant: the owned child's projection replays these same cases, so dispatch, labels, and
+    // help agree on one contract.
+    #[test]
+    fn shortcut_projection_matches_the_shared_cases_and_published_assignments() {
+        let cases: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../test/fixtures/resident-tab-shortcuts/projection-cases.json"
+        ))
+        .expect("projection cases");
+        assert_eq!(
+            cases["schema"],
+            "a1-resident-tab-shortcut-projection-cases-v1"
+        );
+        let entries = cases["cases"].as_array().expect("cases");
+        assert!(entries.len() >= 6);
+        for entry in entries {
+            let name = entry["name"].as_str().unwrap_or("case");
+            let projected = project_tab_shortcuts(
+                &shortcut_bindings(&entry["configured"]),
+                &shortcut_bindings(&entry["reserved"]),
+            );
+            let expected = entry["assignments"].as_object().expect("assignments");
+            assert_eq!(projected.len(), expected.len(), "{name}");
+            for (action, key) in &projected {
+                assert_eq!(
+                    key.as_deref(),
+                    expected[action].as_str(),
+                    "{name}: {action}"
+                );
+            }
+        }
+        let published = TabBindings::from_assignments(&[
+            ("tabs.next".into(), Some("alt+]".into())),
+            ("tabs.new".into(), None),
+            ("tabs.close".into(), Some("alt+]".into())),
+            ("tabs.unknown".into(), Some("alt+u".into())),
+        ]);
+        assert_eq!(
+            published.action(&crossterm::event::KeyEvent::new(
+                KeyCode::Char(']'),
+                KeyModifiers::ALT,
+            )),
+            Some("tabs.next")
+        );
+        assert_eq!(
+            published.action(&crossterm::event::KeyEvent::new(
+                KeyCode::Char('a'),
+                KeyModifiers::ALT,
+            )),
+            None
+        );
+        assert_eq!(published.label("tabs.new"), "");
+        assert_eq!(published.label("tabs.close"), "");
+        assert_eq!(
+            published.action(&crossterm::event::KeyEvent::new(
+                KeyCode::Char('u'),
+                KeyModifiers::ALT,
             )),
             None
         );

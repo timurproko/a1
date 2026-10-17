@@ -440,6 +440,46 @@ impl ClipboardLocation {
     }
 }
 
+/// Most tab actions one shortcut projection may name.
+pub const MAX_SHORTCUT_ASSIGNMENTS: usize = 32;
+/// Longest key token one shortcut assignment may carry.
+pub const MAX_SHORTCUT_KEY_BYTES: usize = 64;
+
+/// The effective tab shortcut assignments the owned child publishes (`bridge.shortcuts`) and the
+/// server relays to clients (`tabs.shortcuts`): one lowercase key token or `None` per action.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TabShortcuts {
+    #[serde(default)]
+    pub assignments: Vec<(String, Option<String>)>,
+}
+
+/// Rejects a shortcut projection that names too many actions, non-tab actions, or key tokens
+/// outside the bounded printable contract.
+pub fn validate_shortcuts(shortcuts: &TabShortcuts) -> Result<(), String> {
+    if shortcuts.assignments.len() > MAX_SHORTCUT_ASSIGNMENTS {
+        return Err("too many shortcut assignments".into());
+    }
+    for (action, key) in &shortcuts.assignments {
+        if !action.starts_with("tabs.")
+            || action.len() > MAX_SHORTCUT_KEY_BYTES
+            || !action
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'.')
+        {
+            return Err("shortcut action is not a tab action".into());
+        }
+        if let Some(key) = key
+            && (key.is_empty()
+                || key.len() > MAX_SHORTCUT_KEY_BYTES
+                || !key.bytes().all(|byte| byte.is_ascii_graphic()))
+        {
+            return Err("shortcut key token is out of bounds".into());
+        }
+    }
+    Ok(())
+}
+
 /// Rejects a clipboard effect whose payload, MIME, or location exceeds the bounded contract.
 pub fn validate_effect(effect: &EffectKind) -> Result<(), String> {
     match effect {
@@ -861,6 +901,19 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
             })?,
         ),
         (
+            "bridge-shortcuts.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.shortcuts".to_owned(),
+                request_id: None,
+                body: TabShortcuts {
+                    assignments: vec![
+                        ("tabs.new".to_owned(), Some("alt+a".to_owned())),
+                        ("tabs.next".to_owned(), None),
+                    ],
+                },
+            })?,
+        ),
+        (
             "terminal-modes.msgpack".to_owned(),
             encode_frame(&Envelope {
                 message_type: "terminal.modes".to_owned(),
@@ -1202,6 +1255,46 @@ mod tests {
             FEATURE_SEMANTIC_INPUT
         ));
         assert!(!negotiated(&[], FEATURE_TERMINAL_EFFECTS));
+    }
+
+    #[test]
+    fn shortcut_projections_are_bounded_to_tab_actions_and_printable_keys() {
+        let valid = TabShortcuts {
+            assignments: vec![
+                ("tabs.new".into(), Some("alt+a".into())),
+                ("tabs.moveLeft".into(), None),
+            ],
+        };
+        assert_eq!(validate_shortcuts(&valid), Ok(()));
+        let frame = encode_frame(&Envelope {
+            message_type: "bridge.shortcuts".to_owned(),
+            request_id: None,
+            body: valid.clone(),
+        })
+        .expect("encode");
+        let decoded: Envelope<TabShortcuts> = decode_frame(&frame).expect("decode");
+        assert_eq!(decoded.body, valid);
+        let too_many = TabShortcuts {
+            assignments: (0..=MAX_SHORTCUT_ASSIGNMENTS)
+                .map(|index| (format!("tabs.jump{index}"), None))
+                .collect(),
+        };
+        assert!(validate_shortcuts(&too_many).is_err());
+        for assignments in [
+            vec![("app.clear".to_owned(), Some("ctrl+c".to_owned()))],
+            vec![("tabs.new".to_owned(), Some(String::new()))],
+            vec![("tabs.new".to_owned(), Some("alt+\u{1b}".to_owned()))],
+            vec![(
+                "tabs.new".to_owned(),
+                Some("a".repeat(MAX_SHORTCUT_KEY_BYTES + 1)),
+            )],
+            vec![("tabs.new line".to_owned(), None)],
+        ] {
+            assert!(
+                validate_shortcuts(&TabShortcuts { assignments }).is_err(),
+                "malformed projection accepted"
+            );
+        }
     }
 
     #[test]

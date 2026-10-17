@@ -9,11 +9,11 @@
 
 ## 2. Semantic input and shortcut routing
 
-- [ ] 2.1 Add bounded generation-1 normalized key/text, paste, focus, mouse, and resize protocol shapes plus capability negotiation and legacy-byte fallback; verify focused protocol round-trip, malformed-frame, feature-negotiation, allocation-bound, and fuzz-corpus tests.
-- [ ] 2.2 Normalize supported outer terminal events in attach before byte encoding, resolve tab actions first, and detect double `Ctrl+C` from semantic key identity; verify focused attach tests drive real supported event representations and prove one first-child delivery, qualifying second-press detach, timeout/reset behavior, and complete terminal restoration.
-- [ ] 2.3 Route normalized events through server controller/view fencing without conversion, duplication, or cross-tab attribution; verify focused role tests cover concurrent view change, controller takeover, disconnect, stale epoch, and in-flight ordering.
-- [ ] 2.4 Encode normalized events at each holder against that child's current terminal modes and make admitted paste atomic across transport frames; verify focused Ghostty/holder tests cover default and enhanced key modes, Unicode, Alt/Ctrl/Shift combinations, focus, mouse, resize, multiline paste, rejection, and exact-once PTY writes.
-- [ ] 2.5 Project effective A1 and customized `keybindings.json` declarations into resident tab resolution and shortcut presentation, with child and Tabs ownership kept separate; verify focused TypeScript/native tests cover defaults, remaps, conflicts, disabled tab actions, `/hotkeys`, help, dialogs, footer hints, and unmatched forwarding.
+- [x] 2.1 Add bounded generation-1 normalized key/text, paste, focus, mouse, and resize protocol shapes plus capability negotiation and legacy-byte fallback; verify focused protocol round-trip, malformed-frame, feature-negotiation, allocation-bound, and fuzz-corpus tests.
+- [x] 2.2 Normalize supported outer terminal events in attach before byte encoding, resolve tab actions first, and detect double `Ctrl+C` from semantic key identity; verify focused attach tests drive real supported event representations and prove one first-child delivery, qualifying second-press detach, timeout/reset behavior, and complete terminal restoration.
+- [x] 2.3 Route normalized events through server controller/view fencing without conversion, duplication, or cross-tab attribution; verify focused role tests cover concurrent view change, controller takeover, disconnect, stale epoch, and in-flight ordering.
+- [x] 2.4 Encode normalized events at each holder against that child's current terminal modes and make admitted paste atomic across transport frames; verify focused Ghostty/holder tests cover default and enhanced key modes, Unicode, Alt/Ctrl/Shift combinations, focus, mouse, resize, multiline paste, rejection, and exact-once PTY writes.
+- [x] 2.5 Project effective A1 and customized `keybindings.json` declarations into resident tab resolution and shortcut presentation, with child and Tabs ownership kept separate; verify focused TypeScript/native tests cover defaults, remaps, conflicts, disabled tab actions, `/hotkeys`, help, dialogs, footer hints, and unmatched forwarding.
 
 ## 3. Selection, clipboard, and terminal effects
 

@@ -43,6 +43,7 @@ export class TabBridgeClient {
   #latestStatus: { readonly state: ResidentTabStatus; readonly degraded: boolean; readonly accent: string | null; readonly pendingRequests: number; readonly queuedInput: number } | null = null;
   #accent: string | null = null;
   #latestSession: { readonly file: string | null; readonly name: string | null; readonly nameSource: "default" | "user" | "auto" } | null = null;
+  #latestShortcuts: readonly (readonly [string, string | null])[] | null = null;
   #heartbeat: unknown | null = null;
   readonly #pending = new Map<number, (accepted: boolean) => void>();
   #startWaiter: ((accepted: boolean) => void) | null = null;
@@ -82,7 +83,7 @@ export class TabBridgeClient {
       transport.once("connect", () => {
         this.#send("hello", {
           role: "bridge", generation: 1, build: this.#options.build ?? "a1",
-          features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "bridge-visibility", "bridge-rename", "bridge-route", "bridge-stop", "controller-boundary", "recovery-journal"],
+          features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "bridge-visibility", "bridge-rename", "bridge-route", "bridge-stop", "bridge-shortcuts", "controller-boundary", "recovery-journal"],
           token: [...Buffer.from(this.#options.credentials.token, "base64")], tabId: this.#options.credentials.tabId,
           pid: this.#options.pid ?? process.pid, startIdentity: this.#options.startIdentity ?? `${process.pid}:node`,
         }, ++this.#request);
@@ -118,6 +119,15 @@ export class TabBridgeClient {
   }
   prompt(interrupted: boolean): void {
     this.#send("bridge.prompt", { interrupted });
+  }
+  /** Publishes the effective tab shortcut assignments so the host dispatches and labels the same keys. */
+  shortcuts(assignments: Readonly<Record<string, string | null>>): void {
+    this.#latestShortcuts = Object.entries(assignments).map(([action, key]) => [action, key] as const);
+    this.#sendShortcuts();
+  }
+  #sendShortcuts(): void {
+    if (this.#latestShortcuts === null || !this.#supports("bridge-shortcuts")) return;
+    this.#send("bridge.shortcuts", { assignments: this.#latestShortcuts.map(([action, key]) => [action, key]) });
   }
 
   requestDetach(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
@@ -201,6 +211,7 @@ export class TabBridgeClient {
       if (this.#supports("bridge-heartbeat")) this.#startHeartbeat();
       if (this.#latestStatus !== null) this.status(this.#latestStatus.state, this.#latestStatus.degraded, this.#latestStatus.pendingRequests, this.#latestStatus.queuedInput);
       if (this.#latestSession !== null) this.#send("bridge.session", this.#latestSession);
+      this.#sendShortcuts();
       return;
     }
     if (message.type === "incompatible-generation") { this.#fail(); return; }

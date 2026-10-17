@@ -310,6 +310,8 @@ struct RuntimeState {
     core: crate::core::server::State,
     workers: crate::shell::workers::WorkerPool<Result<(), String>>,
     startup_notice: Option<String>,
+    /// The newest effective tab shortcut projection a child published; relayed to every client.
+    shortcuts: Option<protocol::TabShortcuts>,
     diagnostics_root: std::path::PathBuf,
     shutdown_requested: bool,
 }
@@ -733,6 +735,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         core,
         workers: crate::shell::workers::WorkerPool::new(8),
         startup_notice,
+        shortcuts: None,
         diagnostics_root: diagnostics_root.clone(),
         shutdown_requested: false,
     }));
@@ -1465,6 +1468,7 @@ fn welcome(epoch: u64) -> Welcome {
             "recovery-status".into(),
             protocol::FEATURE_SEMANTIC_INPUT.into(),
             protocol::FEATURE_TERMINAL_EFFECTS.into(),
+            "bridge-shortcuts".into(),
         ],
         frame_limit: protocol::MAX_FRAME_BYTES as u32,
         input_limit: protocol::MAX_INPUT_BYTES as u32,
@@ -2880,6 +2884,9 @@ fn serve_attach(
                 None,
                 serde_json::json!({ "visible": true }),
             )?);
+        }
+        if let Some(shortcuts) = locked.shortcuts.clone() {
+            let _ = tx.offer_control(wire::frame("tabs.shortcuts", None, shortcuts)?);
         }
         if let Some(mut surface) = locked.surfaces.get(&viewed_tab).cloned() {
             surface.stale = true;
@@ -5024,6 +5031,24 @@ fn serve_bridge(
                     },
                     now,
                 );
+            }
+        } else if kind.message_type == "bridge.shortcuts" {
+            // Protocol: the newest projection any child publishes is the effective one; it is
+            // validated, retained for later clients, and relayed to every attached client.
+            let (_, shortcuts): (_, protocol::TabShortcuts) = wire::body(&payload)?;
+            if protocol::validate_shortcuts(&shortcuts).is_err() {
+                continue;
+            }
+            let mut locked = state
+                .lock()
+                .map_err(|_| "resident state poisoned".to_owned())?;
+            if locked.shortcuts.as_ref() == Some(&shortcuts) {
+                continue;
+            }
+            let frame = wire::frame("tabs.shortcuts", None, shortcuts.clone())?;
+            locked.shortcuts = Some(shortcuts);
+            for client in locked.clients.values() {
+                let _ = client.peer.offer_control(frame.clone());
             }
         } else if kind.message_type == "bridge.status" {
             let (_, status): (_, BridgeStatus) = wire::body(&payload)?;

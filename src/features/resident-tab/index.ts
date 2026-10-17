@@ -7,12 +7,22 @@ export {
   normalizeAutoName,
   type AutoNameCompletion,
 } from "./auto-name.js";
+// Performance: the registry builder lives in `shortcuts.ts`, outside this barrel, so startup
+// presentation can read the declarations without loading the component registry.
 export {
   RESIDENT_TAB_SHORTCUTS,
-  residentTabShortcutRegistry,
   type ResidentTabAction,
   type ResidentTabShortcut,
-} from "./shortcuts.js";
+} from "./shortcut-declarations.js";
+export {
+  projectResidentTabShortcuts,
+  RESIDENT_TAB_GLOBAL_SHORTCUTS,
+  type ResidentTabGlobalAction,
+  type ResidentTabShortcutConflict,
+  type ResidentTabShortcutProjection,
+  type ShortcutBindings,
+} from "./shortcut-projection.js";
+export { readShortcutBindingsFile } from "./shortcut-bindings-file.js";
 export {
   deriveResidentTabStatus,
   type ResidentTabDerivedStatus,

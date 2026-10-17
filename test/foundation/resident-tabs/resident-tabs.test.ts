@@ -306,3 +306,39 @@ describe("resident tab launch contracts", () => {
     await expect(readFile(registry, "utf8")).resolves.toBe("existing-holder-sentinel");
   });
 });
+
+describe("resident tab shortcut publication", () => {
+  class Transport extends EventEmitter {
+    readonly sent: ResidentEnvelope[] = [];
+    write(bytes: Uint8Array) { this.sent.push(...new ResidentFrameDecoder().push(bytes)); return true; }
+    destroy() { this.emit("close"); }
+  }
+
+  it("publishes the effective projection once the host supports it and replays it after reconnect", async () => {
+    const transports: Transport[] = [];
+    const bridge = new TabBridgeClient({
+      credentials: { tabId: "tab-1", token: Buffer.alloc(32, 9).toString("base64"), endpoint: "fixture" },
+      connect: () => { const transport = new Transport(); transports.push(transport); return transport; },
+    });
+    const first = bridge.start();
+    transports[0]!.emit("connect");
+    expect(transports[0]!.sent[0]?.body["features"]).toContain("bridge-shortcuts");
+    transports[0]!.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, build: "host", features: [] } }));
+    await expect(first).resolves.toBe(true);
+    bridge.shortcuts({ "tabs.new": "alt+a", "tabs.next": null });
+    expect(transports[0]!.sent.map(message => message.type)).not.toContain("bridge.shortcuts");
+    transports[0]!.emit("close");
+    const second = bridge.start();
+    transports[1]!.emit("connect");
+    transports[1]!.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, build: "host", features: ["bridge-shortcuts"] } }));
+    await expect(second).resolves.toBe(true);
+    expect(transports[1]!.sent.find(message => message.type === "bridge.shortcuts")?.body).toEqual({
+      assignments: [["tabs.new", "alt+a"], ["tabs.next", null]],
+    });
+    bridge.shortcuts({ "tabs.new": null });
+    expect(transports[1]!.sent.filter(message => message.type === "bridge.shortcuts").at(-1)?.body).toEqual({
+      assignments: [["tabs.new", null]],
+    });
+    bridge.close();
+  });
+});

@@ -112,8 +112,8 @@ fn run_parity() {
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
         let mut stdout = std::io::stdout().lock();
-        // The clipboard write answers the first input, by which time the tab is viewed, so a test
-        // can tell a viewed effect from one a hidden tab emitted.
+        // Invariant: the clipboard write answers the first input, by which time the tab is
+        // viewed, so a test can tell a viewed effect from one a hidden tab emitted.
         if count == 1 {
             write!(stdout, "\x1b]52;c;{PARITY_CLIPBOARD_BASE64}\x07").expect("clipboard");
         }
