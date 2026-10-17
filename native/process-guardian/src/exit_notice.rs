@@ -1,13 +1,8 @@
 //! Last words for a contained runtime that died without restoring the terminal.
 //!
 //! The runtime arms a notice file while it owns the terminal and removes it after a clean
-//! shutdown. The guardian is native, so it outlives kills aimed at the runtime (`taskkill /IM
-//! node.exe`, `pkill node`); when the notice is still present after the runtime ended, the
-//! guardian restores the terminal it captured at launch and prints the notice text.
-//!
-//! On Windows the guardian itself is a member of its Node owner's kill-on-close Job Object, so a
-//! kill of the owner takes the guardian too. A watcher process outside that job delivers the
-//! notice in that case; whichever side claims the notice first is the only one to print it.
+//! shutdown. The Node-hosted guardian and its detached watcher race to claim that notice after
+//! the runtime or guardian exits; the rename ensures only one of them restores and prints it.
 
 use std::fs;
 use std::io::{Read, Write};
@@ -24,28 +19,28 @@ pub(crate) struct ExitNotice {
 }
 
 impl ExitNotice {
-    /// Captures the terminal modes before the runtime changes them; a no-op without a notice path.
+    #[cfg(test)]
     pub(crate) fn capture(path: Option<String>) -> Self {
-        let terminal = if path.is_some() { terminal::Snapshot::capture() } else { terminal::Snapshot::default() };
+        let terminal = if path.is_some() {
+            terminal::Snapshot::capture()
+        } else {
+            terminal::Snapshot::default()
+        };
         Self { path, terminal }
     }
 
-    /// Rebuilds the guardian's notice inside the watcher from the modes the guardian captured.
-    #[cfg(windows)]
+    /// Rebuilds a notice owner from modes captured before the runtime changed the terminal.
     pub(crate) fn for_watcher(path: String, modes: &str) -> Self {
-        Self { path: Some(path), terminal: terminal::Snapshot::decode(modes) }
-    }
-
-    /// The captured terminal modes in the form `for_watcher` accepts.
-    #[cfg(windows)]
-    pub(crate) fn encoded_modes(&self) -> String {
-        self.terminal.encode()
+        Self {
+            path: Some(path),
+            terminal: terminal::Snapshot::decode(modes),
+        }
     }
 
     /// Restores the terminal and prints the notice when the runtime left it armed.
     pub(crate) fn deliver(self) {
         let Some(path) = self.path else { return };
-        // Invariant: the rename is the claim; it fails for whichever of guardian and watcher comes second.
+        // Invariant: the rename is the claim; it fails for whichever owner comes second.
         let claimed = format!("{path}.delivering");
         if fs::rename(&path, &claimed).is_err() {
             return;
@@ -69,7 +64,7 @@ impl ExitNotice {
             output.push_str("\r\n");
         }
         // Platform: ConPTY forwards mouse-mode resets to the outer terminal only while the console
-        // still has the runtime's VT input mode, so the reset is written before the modes are restored.
+        // still has the runtime's VT input mode, so the reset is written before modes are restored.
         if interactive {
             terminal::write_terminal(output.as_bytes());
         } else {
@@ -81,7 +76,11 @@ impl ExitNotice {
 
 fn sanitize(text: &str) -> Vec<String> {
     text.lines()
-        .map(|line| line.chars().filter(|character| !character.is_control()).collect::<String>())
+        .map(|line| {
+            line.chars()
+                .filter(|character| !character.is_control())
+                .collect::<String>()
+        })
         .map(|line| line.trim_end().to_owned())
         .filter(|line| !line.is_empty())
         .take(NOTICE_LINE_LIMIT)
@@ -89,15 +88,15 @@ fn sanitize(text: &str) -> Vec<String> {
 }
 
 #[cfg(unix)]
-mod terminal {
+pub(crate) mod terminal {
     use std::io::Write;
-    use std::mem::zeroed;
+    use std::mem::{size_of, zeroed};
 
     #[derive(Default)]
-    pub(super) struct Snapshot(Option<libc::termios>);
+    pub(crate) struct Snapshot(Option<libc::termios>);
 
     impl Snapshot {
-        pub(super) fn capture() -> Self {
+        pub(crate) fn capture() -> Self {
             if unsafe { libc::isatty(libc::STDIN_FILENO) } != 1 {
                 return Self(None);
             }
@@ -108,19 +107,58 @@ mod terminal {
             Self(Some(modes))
         }
 
-        pub(super) fn restore(&self) {
+        pub(crate) fn encode(&self) -> String {
+            let Some(modes) = &self.0 else {
+                return "-".to_owned();
+            };
+            let bytes = unsafe {
+                std::slice::from_raw_parts(
+                    (modes as *const libc::termios).cast::<u8>(),
+                    size_of::<libc::termios>(),
+                )
+            };
+            let mut encoded = String::with_capacity(bytes.len() * 2);
+            for byte in bytes {
+                use std::fmt::Write as _;
+                let _ = write!(encoded, "{byte:02x}");
+            }
+            encoded
+        }
+
+        pub(crate) fn decode(value: &str) -> Self {
+            let byte_len = size_of::<libc::termios>();
+            if value.len() != byte_len * 2 || !value.is_ascii() {
+                return Self(None);
+            }
+            let mut modes: libc::termios = unsafe { zeroed() };
+            let target = unsafe {
+                std::slice::from_raw_parts_mut(
+                    (&mut modes as *mut libc::termios).cast::<u8>(),
+                    byte_len,
+                )
+            };
+            for (index, slot) in target.iter_mut().enumerate() {
+                let start = index * 2;
+                let Ok(byte) = u8::from_str_radix(&value[start..start + 2], 16) else {
+                    return Self(None);
+                };
+                *slot = byte;
+            }
+            Self(Some(modes))
+        }
+
+        pub(crate) fn restore(&self) {
             if let Some(modes) = &self.0 {
                 unsafe { libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, modes) };
             }
         }
     }
 
-    /// Whether stdout is a terminal that should receive the reset sequence.
-    pub(super) fn is_terminal() -> bool {
+    pub(crate) fn is_terminal() -> bool {
         unsafe { libc::isatty(libc::STDOUT_FILENO) == 1 }
     }
 
-    pub(super) fn write_terminal(bytes: &[u8]) {
+    pub(crate) fn write_terminal(bytes: &[u8]) {
         let mut stdout = std::io::stdout();
         let _ = stdout.write_all(bytes);
         let _ = stdout.flush();
@@ -128,7 +166,7 @@ mod terminal {
 }
 
 #[cfg(windows)]
-mod terminal {
+pub(crate) mod terminal {
     use std::io::Write;
 
     use windows_sys::Win32::Foundation::{HANDLE, INVALID_HANDLE_VALUE};
@@ -138,27 +176,35 @@ mod terminal {
     };
 
     #[derive(Default)]
-    pub(super) struct Snapshot {
+    pub(crate) struct Snapshot {
         input: Option<u32>,
         output: Option<u32>,
     }
 
     impl Snapshot {
-        pub(super) fn capture() -> Self {
-            Self { input: console_mode(STD_INPUT_HANDLE), output: console_mode(STD_OUTPUT_HANDLE) }
+        pub(crate) fn capture() -> Self {
+            Self {
+                input: console_mode(STD_INPUT_HANDLE),
+                output: console_mode(STD_OUTPUT_HANDLE),
+            }
         }
 
-        pub(super) fn encode(&self) -> String {
-            let part = |mode: Option<u32>| mode.map_or_else(|| "-".to_owned(), |mode| mode.to_string());
+        pub(crate) fn encode(&self) -> String {
+            let part = |mode: Option<u32>| {
+                mode.map_or_else(|| "-".to_owned(), |mode| mode.to_string())
+            };
             format!("{}:{}", part(self.input), part(self.output))
         }
 
-        pub(super) fn decode(value: &str) -> Self {
+        pub(crate) fn decode(value: &str) -> Self {
             let mut parts = value.splitn(2, ':').map(|part| part.parse::<u32>().ok());
-            Self { input: parts.next().flatten(), output: parts.next().flatten() }
+            Self {
+                input: parts.next().flatten(),
+                output: parts.next().flatten(),
+            }
         }
 
-        pub(super) fn restore(&self) {
+        pub(crate) fn restore(&self) {
             if let (Some(mode), Some(handle)) = (self.input, standard_handle(STD_INPUT_HANDLE)) {
                 unsafe { SetConsoleMode(handle, mode) };
             }
@@ -168,14 +214,11 @@ mod terminal {
         }
     }
 
-    /// Whether stdout is a console that should receive the reset sequence.
-    pub(super) fn is_terminal() -> bool {
+    pub(crate) fn is_terminal() -> bool {
         console_mode(STD_OUTPUT_HANDLE).is_some()
     }
 
-    pub(super) fn write_terminal(bytes: &[u8]) {
-        // Protocol: the reset is a VT sequence, so processing is enabled only for this write and
-        // the shell's own output mode is put back afterwards.
+    pub(crate) fn write_terminal(bytes: &[u8]) {
         let handle = standard_handle(STD_OUTPUT_HANDLE);
         let original = console_mode(STD_OUTPUT_HANDLE);
         if let (Some(handle), Some(mode)) = (handle, original) {
@@ -222,5 +265,11 @@ mod tests {
         assert!(!path.exists());
         ExitNotice::capture(Some(path.to_string_lossy().into_owned())).deliver();
         ExitNotice::capture(None).deliver();
+    }
+
+    #[test]
+    fn terminal_modes_round_trip_through_the_watcher_encoding() {
+        let encoded = super::terminal::Snapshot::capture().encode();
+        super::terminal::Snapshot::decode(&encoded).restore();
     }
 }

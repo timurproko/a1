@@ -15,6 +15,15 @@ export const RELEASE_TARGETS = Object.freeze({
 // build script links against, and the JavaScript side only names the same target in manifests.
 export const ZIG_BASELINE_CPU = "baseline";
 
+/** Cargo's platform-specific filename for a cdylib before it is copied to a `.node` artifact. */
+export function addonLibraryName(crateName, platform) {
+  if (!crateName || !/^[a-z0-9_]+$/u.test(crateName)) throw new Error(`invalid addon crate name ${JSON.stringify(crateName)}`);
+  if (platform === "win32") return `${crateName}.dll`;
+  if (platform === "linux") return `lib${crateName}.so`;
+  if (platform === "darwin") return `lib${crateName}.dylib`;
+  throw new Error(`unsupported addon platform ${platform}`);
+}
+
 /** Read `--target <triple>` from the script arguments; absent means the host target. */
 export function parseTargetArgument(argv) {
   const index = argv.indexOf("--target");
@@ -65,19 +74,26 @@ export function machoArchitecture(bytes) {
 }
 
 /**
- * Verify a built executable's identity by running it. When a same-OS cross build cannot execute
- * (no Rosetta 2 on the producing macOS runner), fall back to the Mach-O architecture so the
- * manifest records what was actually observed instead of an identity nobody saw.
+ * Verify a native artifact through a command that can load or execute it. When a same-OS cross build
+ * cannot run (no Rosetta 2 on the producing macOS runner), fall back to the artifact's Mach-O header.
  */
-export function observeExecutableIdentity({ executable, arguments_, target, execute, readBytes }) {
-  const result = execute(executable, arguments_);
+export function observeNativeIdentity({ artifact, command, arguments_, target, execute, readBytes }) {
+  const result = execute(command, arguments_);
   if (result.status === 0) return { check: "executed", stdout: result.stdout ?? "" };
   if (!target.cross || target.platform !== "darwin") {
-    throw new Error(`${executable} ${arguments_.join(" ")} failed with ${result.status ?? result.error?.code ?? "no status"}`);
+    throw new Error(`${command} ${arguments_.join(" ")} failed with ${result.status ?? result.error?.code ?? "no status"}`);
   }
-  const architecture = machoArchitecture(readBytes(executable));
+  const architecture = machoArchitecture(readBytes(artifact));
   if (architecture !== target.architecture) {
-    throw new Error(`${executable} is a ${architecture ?? "non-Mach-O"} binary; expected ${target.architecture} for ${target.triple}`);
+    throw new Error(`${artifact} is a ${architecture ?? "non-Mach-O"} binary; expected ${target.architecture} for ${target.triple}`);
   }
   return { check: "mach-o-header", stdout: null };
+}
+
+export function observeExecutableIdentity({ executable, arguments_, target, execute, readBytes }) {
+  return observeNativeIdentity({ artifact: executable, command: executable, arguments_, target, execute, readBytes });
+}
+
+export function observeAddonIdentity({ addon, loader = process.execPath, arguments_, target, execute, readBytes }) {
+  return observeNativeIdentity({ artifact: addon, command: loader, arguments_, target, execute, readBytes });
 }

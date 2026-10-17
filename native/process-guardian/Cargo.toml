@@ -6,6 +6,14 @@ rust-version = "1.85"
 license = "MIT"
 publish = false
 
+[lib]
+name = "process_guardian"
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "=2.16.17", default-features = false, features = ["napi9"] }
+napi-derive = "=2.16.13"
+
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 libc = "=0.2.189"
 

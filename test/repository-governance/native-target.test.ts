@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildManifest } from "../../scripts/development/build-terminal-host.mjs";
-import { machoArchitecture, observeExecutableIdentity, parseTargetArgument, RELEASE_TARGETS, resolveBuildTarget, targetIdentity } from "../../scripts/development/native-target.mjs";
+import { addonLibraryName, machoArchitecture, observeAddonIdentity, observeExecutableIdentity, parseTargetArgument, RELEASE_TARGETS, resolveBuildTarget, targetIdentity } from "../../scripts/development/native-target.mjs";
 
 function macho(cpuType: number): Buffer {
   const header = Buffer.alloc(32);
@@ -19,6 +19,14 @@ describe("native release targets", () => {
     }
     expect(Object.keys(RELEASE_TARGETS)).toHaveLength(4);
     expect(() => targetIdentity("x86_64-unknown-linux-musl")).toThrow(/unsupported/u);
+  });
+
+  it("names addon libraries for every supported platform", () => {
+    expect(addonLibraryName("process_guardian", "win32")).toBe("process_guardian.dll");
+    expect(addonLibraryName("process_guardian", "linux")).toBe("libprocess_guardian.so");
+    expect(addonLibraryName("process_guardian", "darwin")).toBe("libprocess_guardian.dylib");
+    expect(() => addonLibraryName("process-guardian", "linux")).toThrow(/invalid addon crate/u);
+    expect(() => addonLibraryName("process_guardian", "freebsd")).toThrow(/unsupported addon platform/u);
   });
 
   it("parses --target and refuses unknown or missing triples", () => {
@@ -63,6 +71,11 @@ describe("native release targets", () => {
     const windowsCross = { ...host, platform: "win32", cross: true };
     expect(() => observeExecutableIdentity({ executable: "/dist/host.exe", arguments_: ["--version"], target: windowsCross, execute: refused, readBytes: bytes(0x01000007) }))
       .toThrow(/failed with ENOEXEC/u);
+
+    expect(observeAddonIdentity({ addon: "/dist/process-guardian.node", loader: "/node", arguments_: ["-e", "load"], target: cross, execute: executed, readBytes: bytes(0x01000007) }))
+      .toEqual({ check: "executed", stdout: '{"schema":"x"}' });
+    expect(observeAddonIdentity({ addon: "/dist/process-guardian.node", loader: "/node", arguments_: ["-e", "load"], target: cross, execute: refused, readBytes: bytes(0x01000007) }))
+      .toEqual({ check: "mach-o-header", stdout: null });
   });
 
   it("records the identity check in the terminal host manifest and refuses an unknown one", () => {
