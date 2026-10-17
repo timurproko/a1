@@ -8,10 +8,10 @@ Resident multiagent A1 feels markedly less responsive than direct `a1 solo`, and
 - Keep hidden child render scheduling and animation phase advancing; suppress only unnecessary surface delivery, never agent execution, terminal parsing, or the ability to acquire the newest complete screen on selection.
 - Make child synchronized-update boundaries authoritative for publication, with bounded malformed-transaction recovery and one final outer synchronization envelope containing content, overlays, modes, and cursor.
 - Separate complete retained surfaces from live terminal damage: unchanged rows do not repaint, ordinary edits do not force full-screen output, and slow viewers receive newest coherent state rather than a backlog.
-- Bound hot-path work and queues, keep input and switching fair under concurrent output, and keep expensive surface serialization outside shared server-state critical sections.
+- Bound raw ingress, queued/in-flight storage, and scheduling rounds; keep input and switching fair under concurrent output, isolate slow socket/terminal writers, and keep expensive surface serialization outside shared server-state critical sections. Server reconnect must not pause holder parsing.
 - Commit activation and resize only against the correct tab/incarnation/geometry, preserving coherent content until the replacement is ready and retaining first-input ownership guarantees.
 - Preserve certified text-terminal styles and hyperlink targets through reconstruction, with explicit unsupported-image fallback unchanged.
-- Extend exact-artifact comparison to real owned A1 rendering, concurrent streamed responses, animations, fragmented writes, resize, overlays, and adverse output pressure; do not treat encoder or token-presence probes as visual certification.
+- Extend exact-artifact comparison to the real configured engine and owned A1 renderer, concurrent streamed responses, animations, fragmented writes, resize, overlays, and adverse output pressure; use per-tab causal observations and negative controls rather than treating encoder, forced-render, or token-presence probes as visual certification.
 
 ## Capabilities
 
@@ -31,6 +31,10 @@ Resident multiagent A1 feels markedly less responsive than direct `a1 solo`, and
 - Focused Rust and TypeScript tests, deterministic provider fixtures, exact-artifact presentation/latency harnesses, and their existing platform validation callers.
 - Retain process isolation, session-writer ownership, prompt recovery, controller barriers, privacy, and explicit-close residency. No new public setting, arbitrary CLI support, split layout, or dual screen authority.
 - PRs #794 (native addon hosting) and #795 (session/native role decomposition) overlap relevant paths. Reconcile their integrated baseline in this same branch before implementation where applicable; never edit their worktrees or undo their ownership boundaries.
+
+## Agent implementation guidance
+
+The second source review is captured in `implementation-guide.md`: concrete owners and existing protections, native API/transport decision gates, complete-snapshot and compatibility contracts, transaction/reconnect state machines, queue/effect ownership, geometry fencing, and reproducible per-platform test criteria. `tasks.md` now follows those dependencies instead of treating the PR's outcome list as execution order; it maps each of the six unchanged outcomes to its completion tasks. No runtime defect is claimed reproduced or repaired by this planning refinement.
 
 ## Approval boundary
 

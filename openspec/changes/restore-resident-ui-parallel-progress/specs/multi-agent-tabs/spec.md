@@ -39,3 +39,13 @@ Every resident Agent SHALL continue engine work, render scheduling, child animat
 #### Scenario: Type while another Agent floods output
 - **WHEN** one Agent emits high-rate output while the user activates another working Agent and types into its prompt
 - **THEN** the input SHALL be delivered exactly once to the activated Agent and its visible echo and animations SHALL progress without waiting for the flood to finish
+
+#### Scenario: Requested target changes while first input waits
+- **WHEN** first input is pending behind a controller handoff and the requested target is cancelled, fails, or is superseded
+- **THEN** admitted input SHALL retain its original target and controller identity or receive the established explicit rejection or uncertain-delivery outcome
+- **AND** it SHALL not be silently retargeted to the previously visible Agent or replayed into a surviving tab
+
+#### Scenario: Server reconnects while no viewer is attached
+- **WHEN** all viewers are detached and a server reconnect overlaps unfinished turns
+- **THEN** each child SHALL continue engine/render progress and its holder SHALL continue parsing and retaining committed content during reconnect
+- **AND** a later viewer SHALL obtain current partial content and live continuation without restarting the Agent

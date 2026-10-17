@@ -1,45 +1,78 @@
-Parallel progress and solo-like interaction behavior are equal highest-priority functional requirements. Responsive input, flicker prevention, coherent presentation, and live animations are not a later polish phase. Group order expresses dependencies; completion requires both categories together.
+Parallel progress and solo-like interaction behavior are equal highest-priority functional requirements. Responsive input, flicker prevention, coherent presentation, and live animations are not a later polish phase. This ledger is in dependency order; PR outcome numbering is not execution order. Read `implementation-guide.md` for concrete owners, invariants, fixture design, and decision gates. All tasks remain unimplemented.
 
-## 1. Independent real-Agent progress (Implementation item 1)
+## 1. Baseline, real-Agent reproduction, and observation (supports all outcomes)
 
-- [ ] 1.1 Add a bounded deterministic provider/tool fixture driving three real owned A1 children with overlapping unfinished turns; cover every first-responder and initial-view order and identify pre-fix engine/render/presentation progress, input latency, flicker, stale frames, and frozen animation separately.
-- [ ] 1.2 Add content-free per-tab causal counters/timestamps at engine event, child render, PTY ingestion, retained commit, and outer paint; demonstrate that the fixture distinguishes a stalled engine, a stalled child renderer, and a stale viewer without logging user content.
-- [ ] 1.3 Repair demonstrated visibility, admission, event-delivery, or shared-resource coupling so all children generate content and advance animation state while hidden or detached; add focused regressions showing successive pre-settlement checkpoints in each Agent.
-- [ ] 1.4 Keep retained state current without mandatory hidden full-screen serialization, with a fresh complete snapshot and continued live updates on subscription; cover hidden animation phase and a switch while every turn is unfinished.
-- [ ] 1.5 Preserve per-tab revision/incarnation independence and separate slow-client pressure from child progress; cover a high-revision first Agent, lower-revision later Agents, and two clients viewing different tabs.
+- [ ] 1.1 Reconcile current `origin/develop` and any integrated #794/#795 changes in this branch; record actual source/native/child/cohort identities, map changed owners, and keep fixtures isolated from user profiles, credentials, resident processes, clipboard, and sessions.
+- [ ] 1.2 Add a bounded loopback provider/tool scenario through the real configured engine and owned-shell renderer, not a mocked session or counter child; run three unfinished turns with all six first-response permutations crossed with three initial views and a fixture-controlled completion barrier.
+- [ ] 1.3 Add opt-in bounded content-free observations for engine delivery, actual child render/write, PTY ingestion, committed holder state, attach receipt, and completed outer paint, with tab/incarnation and causal sequence identity; establish compatible clocks and report observation loss instead of silently discarding samples.
+- [ ] 1.4 Add negative controls isolating one stopped engine, renderer, holder commit, or outer painter; demonstrate stage-specific failure even when other tabs and final output succeed. Do not force `renderNow` in the liveness fixture.
+- [ ] 1.5 Characterize actual built PTY/ConPTY transaction controls and mode changes with fragmented real-A1 writes; classify the live/reproduced stall without asserting that source findings alone prove its cause. Record explicit blockers if the reproduction or native coherence mechanism is unavailable.
 
-## 2. Atomic native frame publication (Implementation item 2)
+## 2. Native snapshot, identity, and compatibility contracts (outcomes 2–5; prerequisite to representation edits)
 
-- [ ] 2.1 Characterize real A1 synchronized output through the built PTY/ConPTY on each exercised platform and add split-sequence, chunk-boundary, mode-only, and clear-before-paint fixtures; record what the transport actually preserves.
-- [ ] 2.2 Separate mutable parsed state from coherent committed state, withholding normal publication during open transactions and publishing promptly at completion; assertions reject incomplete subscription/reconnect snapshots.
-- [ ] 2.3 Add bounded local recovery for malformed or unfinished transactions without blocking unrelated tabs or extending the bound with every byte; cover timeout and subsequent valid output.
-- [ ] 2.4 Give the final compositor sole synchronization ownership over child damage, overlays, modes, and cursor; byte/protocol assertions reject nested end markers and early cursor exposure.
+- [ ] 2.1 Define complete immutable row/cell snapshots with styles, links, grapheme widths, cursor/modes, tab/incarnation/revision, dimensions and geometry generation; keep controller generation, server epoch, and client request identity distinct. Prefer full wire snapshots with shared unchanged rows over wire patches.
+- [ ] 2.2 Establish the pinned public Ghostty API path for transaction boundaries and hyperlink target/ID extraction, including end→begin within one read and resize clearing sync mode; resolve any missing capability with the maintainer before vendor changes or alternate visual authority.
+- [ ] 2.3 Specify and enforce encoded/decoded bounds, checked dimensions and allocation arithmetic, attribute/link limits, and oversized-state behavior within existing frame/input ceilings; keep a complete prior view on a typed failure rather than truncating or enlarging limits silently.
+- [ ] 2.4 Add additive capability negotiation on both holder/server and server/attach links, complete legacy fallback, and mixed-cohort/reconnect fixtures; regenerate canonical protocol bytes and cover Rust/TypeScript decoders and malformed inputs without changing generation-1 compatibility.
+- [ ] 2.5 Define a bounded ordered effect lane with incarnation/sequence and foreground attribution independent of body subscription or visual revision; specify duplicate/stale rejection and no historical clipboard replay.
 
-## 3. Retained state and incremental outer damage (Implementation item 3)
+## 3. Coherent holder commits and hidden progress (outcomes 1–3)
 
-- [ ] 3.1 Introduce bounded native row/attribute snapshots with tab, incarnation, revision, and geometry identity, reusing unchanged retained rows; cover full-snapshot completeness without attach parsing arbitrary ANSI patches.
-- [ ] 3.2 Add negotiated presentation transport and complete legacy fallback; mixed-feature and skipped-base fixtures require explicit resynchronization rather than corrupt patch reuse.
-- [ ] 3.3 Compare current retained state with actually painted state and emit only changed rows/runs during ordinary input/streaming; tests bound write volume and prohibit redundant body paints for equivalent surfaces or strip-only animations.
-- [ ] 3.4 Preserve overlay restoration and full resync after attach/reconnect/geometry invalidation; cover selection, popup dismissal, and recovery without blank repair frames.
+- [ ] 3.1 Implement mutable-parser versus immutable-committed state; keep the previous commit during open synchronized updates and publish at valid completion, including mode-only/end-only writes, multiple transactions per read, and end→begin in one read.
+- [ ] 3.2 Implement local deadline-based malformed-transaction recovery without restarting the child or renewing the deadline on bytes/repeated begin/subscription; cover late end, parser reset, resize, exit, and subsequent valid output while queries and other tabs keep progressing.
+- [ ] 3.3 Capture and retain dirty rows before clearing damage, reuse unchanged complete rows, and advance commits while hidden without full-screen wire serialization; mode/cursor/palette changes must remain observable even without text damage.
+- [ ] 3.4 Route subscription, reconnect, resize, normal streaming, and crash/recovery surface production through the same committed-state contract; fixtures reject mutable mid-transaction snapshots and false child progress from re-offered revisions.
+- [ ] 3.5 Keep PTY draining, query replies, animation state, and local commits running during bounded asynchronous server reconnect/backoff; fence obsolete connection completions and bound reader/writer teardown and retained pending state.
 
-## 4. Responsive scheduling, activation, and geometry (Implementation item 4)
+## 4. Fair routing, subscriptions, and independent execution (outcomes 1, 3, 4)
 
-- [ ] 4.1 Bound ingress buffers and scheduling rounds while keeping reliable control/input separate from replaceable visual state; flood fixtures demonstrate fair service without dropped admitted input or unbounded accumulation.
-- [ ] 4.2 Remove expensive render serialization and blocking operations from shared server critical sections; concurrent output plus lifecycle-delay fixtures show unrelated Agents and input continue.
-- [ ] 4.3 Commit only matching tab/incarnation/revision/geometry and preserve safely fitted prior content during resize; cover rapid shrink/grow, interleaved old frames, and superseding view requests.
-- [ ] 4.4 Preserve exactly-once first input through bounded controller acknowledgement while switching among streaming Agents; cover typing, paste, focus, mouse, two-terminal transfer, and Settings activation.
-- [ ] 4.5 Keep child and strip animations live under simultaneous streaming and overlays; assert advancing phase and bounded visible gaps, not merely a static working glyph.
+- [ ] 4.1 Replace unbounded holder-output and attach server/input ingress with explicitly byte-accounted lanes; retain lossless ordered raw PTY bytes and admitted semantic input, whole-paste admission, one latest complete visual state, and separate reliable control/effects.
+- [ ] 4.2 Bound work rounds by event/byte/time quanta with level-safe wakes and earliest-deadline timers; sustained input and output must both yield to control, other work, and animations without waiting for a queue to empty or adding isolated-event pacing delay.
+- [ ] 4.3 Snapshot small routing/authority records under the server mutex, then encode/share large immutable surfaces outside it; reject stale route/incarnation completions and cover switch/close/restart or delayed lifecycle work during serialization.
+- [ ] 4.4 Track per-tab subscriber sets across attach, view change, disconnect, and reconnect; keep metadata/heartbeats independent, unsubscribe only after the last viewer leaves, request a fresh complete commit on selection, and bound stale fallback from the request start rather than each re-offer.
+- [ ] 4.5 Isolate blocked socket/stdout writers from input and shared routing; bound queued plus in-flight bytes, acknowledge completed paints before advancing the diff baseline, and cover slow viewer, slow physical sink, partial write, disconnect, and teardown without worker leaks.
+- [ ] 4.6 Repair only the demonstrated engine/admission/render coupling from task 1 with a focused regression; retain existing visibility-independent child scheduling and process/session ownership, including hidden/detached successive pre-settlement content and animation checkpoints.
 
-## 5. Text-terminal fidelity (Implementation item 5)
+## 5. Incremental composition, activation, and geometry (outcomes 2–4)
 
-- [ ] 5.1 Preserve hyperlink targets/IDs and supported style attributes including underline type/color, strike, overline, conceal, blink, intensity, and Unicode width through retained snapshots and damage output; round-trip assertions inspect semantics rather than visible labels alone.
-- [ ] 5.2 Preserve cursor/mode ordering and once-only foreground effects under frame replacement while suppressing hidden clipboard effects; cover switching, overlay transitions, and detach restoration with synthetic payloads only.
-- [ ] 5.3 Correct the existing fidelity probe's overbroad hyperlink/style claims and retain explicit unsupported-image fallback; failures identify the missing attribute or boundary.
+- [ ] 5.1 Make final attach composition the only outer synchronization owner, including cursor shape/blink and visibility; protocol assertions reject nested ends, cursor-style writes outside the envelope, mode-only update loss, and link/style leakage into host chrome.
+- [ ] 5.2 Diff the desired child/strip/overlay composite against the actually painted baseline; equal states produce no body writes, one-row edits do not repaint unchanged transcript, strip-only changes stay strip-only, and overlay dismissal restores the newest underlying content.
+- [ ] 5.3 Restrict full paints to initialization, invalid geometry/base, and explicit resync; cover styled trailing blanks, erasure, wide-cell tails, bottom-right wrap, selection, overlay overlap, and skipped visual states. If wire patches become necessary, require explicit matching bases and full resync on gaps before enabling them.
+- [ ] 5.4 Carry geometry generation through resize and commit only compatible tab/incarnation/request/revision/geometry; distinguish parser resize/provisional fitting from child repaint, publish idle-child resize without a model token, and preserve controller-owned geometry for differently sized spectators.
+- [ ] 5.5 Preserve coherent prior content during A→B→A switches and shrink→grow races; fence old holder frames and superseded responses, commit target topology/body/overlays/modes/cursor together, and keep the final selected tab updating while its turn remains unfinished.
+- [ ] 5.6 Preserve exactly-once ordered first input through the existing controller boundary; cover cancelled/failed targets, pending key/paste/focus/mouse events, Settings activation, and two-terminal transfer without retargeting input to whichever old body remains visible.
+- [ ] 5.7 Keep normal child and strip animations live under simultaneous streaming, overlays, and output pressure; assert advancing phases and per-tab maximum gaps rather than only a working glyph.
 
-## 6. Real-A1 temporal parity and delivery (Implementation item 6)
+## 6. Semantic terminal fidelity and effect safety (outcome 5)
 
-- [ ] 6.1 Add equivalent direct-solo and resident real-owned-shell scripts at matching child dimensions, checking intermediate text, cursor, modes, styles, effects, and damage over typing, streaming, overlays, and resize.
-- [ ] 6.2 Extend exact-artifact workloads to simultaneous three-Agent turns, rotating first responder, hidden/detached animation progress, repeated activation, and slow-client/lifecycle pressure; missing progress in any Agent fails independently of final success.
-- [ ] 6.3 Add separate per-tab input, engine-to-render, output-to-present, activation, animation-gap, and write-volume observations; retain existing p95 budgets and report worst stalls without pooling away a frozen Agent.
-- [ ] 6.4 Wire bounded workloads into the existing platform validation owners and document exact platform/build verdicts without claiming unrun physical or macOS x64 behavior.
-- [ ] 6.5 Reconcile integrated #794/#795 changes and current origin/develop, run quick touched checks plus strict OpenSpec validation, and dispose of substantive known gaps before the final Implementation marker; update truthful task/outcome bookkeeping and plain Acceptance without promoting the PR manually.
+- [ ] 6.1 Carry and emit hyperlink targets/IDs, default/indexed/RGB colors, underline type/color, strike, overline, conceal, blink, intensity, and Unicode widths; semantic round trips cover palette/default-color-only changes, styled blanks, and combining/wide/emoji transitions.
+- [ ] 6.2 Preserve child-model versus attach-owned outer-mode responsibilities and detach/failure restoration; implement independent effect sequencing/foreground eligibility with two effects in one visual revision, hidden emissions, delayed old-incarnation effects, frame replacement, and reattach without replay.
+- [ ] 6.3 Correct `main.rs::probe_input` and fidelity report claims to inspect link targets, attributes, cursor/mode semantics and synthetic clipboard output, not token presence; retain bell suppression and explicit unsupported-image text fallback.
+
+## 7. Real-A1 temporal comparison and validation owners (outcome 6)
+
+- [ ] 7.1 Add direct-solo/resident scripts at matching child geometry/capabilities with normal rendering; compare intermediate cells/cursor/styles/modes and inspect every outer transaction for clear/partial-frame artifacts, not just final text or raw ANSI equality.
+- [ ] 7.2 Add named bounded concurrent variants for first-response/view permutations, hidden and detached intervals, slow socket and outer sink, lifecycle/reconnect pressure, repeated switching, input, overlays, and resize; require per-tab partial-content and animation progress before any turn is released to settle.
+- [ ] 7.3 Add per-tab matched latency samples, provider/engine-to-render and renderer-to-holder delay, completed-paint timing, animation/worst-gap and write-volume assertions; retain the four p95 budgets, minimum sample counts and independent no-progress deadline from the guide, and reject clock/missing/duplicate/stale-observation faults.
+- [ ] 7.4 Fault-test the integrated harness with frozen/late individual tabs, redundant full repaint, premature transaction publication, lost geometry identity and duplicated effects; incomplete instrumentation, skipped cases, or successful final content must not yield a passing verdict.
+- [ ] 7.5 Wire exact-built real A1 plus native roles into existing validation owners/callers and report uploads; ensure path selection and build prerequisites include new fixtures, preserve existing component tests, and report Windows x64/Linux x64/macOS arm64 separately without inheriting physical or macOS x64 verdicts.
+
+## 8. Pre-ready delivery bookkeeping (finish before the last PR marker)
+
+- [ ] 8.1 Update architecture/evidence documentation with actual representation, lane bounds, compatibility, reproduction boundary and limitations; dispose of substantive gaps without calling unrun checks successes or weakening the approved behavior.
+- [ ] 8.2 Complete the outcome map below, reconcile and push current `origin/develop`, run quick typecheck/touched checks and strict OpenSpec validation, add plain Acceptance, and pass `check-delivery-body.mjs --final` before checking the final Implementation item. Do not mark ready manually or require future CI/manual results in committed tasks.
+
+## Outcome completion map
+
+Keep the six existing PR item texts unchanged. Toggle each marker as soon as its mapped code/tests and detailed bookkeeping are complete, even if other outcomes remain open. Shared prerequisites need not be repeated or re-run. CI/manual results are not checkbox prerequisites.
+
+| Existing PR outcome | Required task groups |
+| --- | --- |
+| 1. Independent generation/rendering/animation | 1; 3; 4; 5.5–5.7, including real pre-settlement progress regressions |
+| 2. Coherent transactions and one envelope | 2.1–2.4; 3.1–3.4; 5.1, including transaction/recovery fixtures |
+| 3. Complete retained state and changed-content painting | 2.1–2.4; 3.3–3.4; 4.3–4.5; 5.2–5.3 |
+| 4. Responsive input/activation/resize/fairness | 4; 5.4–5.7, including blocked-output and controller regressions |
+| 5. Styles/links/cursor/effects | 2.2; 2.5; 5.1; 6 |
+| 6. Real-A1 temporal/concurrent harnesses | 1; 7 |
+
+Whichever outcome finishes last also waits for group 8. Exact-head CI then runs under trusted readiness/finalization; report its verdict separately at handoff.
