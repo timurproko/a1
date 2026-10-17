@@ -291,6 +291,12 @@ pub fn failure_applies(failed_tab: Option<&str>, viewed: Option<&str>) -> bool {
     failed_tab.is_some() && failed_tab == viewed
 }
 
+fn adopt_initial_surface(viewed: Option<&str>, requested: &mut Option<String>, tab_id: &str) {
+    if viewed.is_none() && requested.is_none() {
+        *requested = Some(tab_id.to_owned());
+    }
+}
+
 fn render_drag_marker(column: u16, columns: u16) -> String {
     render_drag_marker_configured(column, columns, !palette_fallback_requested())
 }
@@ -1221,6 +1227,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             match kind.message_type.as_str() {
                 "surface" => {
                     let (_, surface): (_, Surface) = wire::body(&payload)?;
+                    // The server selects its default tab before attach.start can report that ID.
+                    // Adopt its first surface as the requested view, then stage it until the tab
+                    // list arrives so the chip and child surface still commit in one frame.
+                    adopt_initial_surface(
+                        viewed.as_deref(),
+                        &mut requested_view,
+                        &surface.tab_id,
+                    );
                     let requested = requested_view.as_deref() == Some(surface.tab_id.as_str());
                     if requested
                         && staged_tabs.is_none()
@@ -2615,6 +2629,20 @@ mod tests {
         assert!(!failure_applies(Some("tab-a"), Some("tab-b")));
         assert!(!failure_applies(None, Some("tab-a")));
         assert!(!failure_applies(None, None));
+    }
+
+    #[test]
+    fn initial_surface_adopts_the_servers_default_without_overwriting_a_request() {
+        let mut requested = None;
+        adopt_initial_surface(None, &mut requested, "server-default");
+        assert_eq!(requested.as_deref(), Some("server-default"));
+
+        adopt_initial_surface(None, &mut requested, "later-surface");
+        assert_eq!(requested.as_deref(), Some("server-default"));
+
+        requested = None;
+        adopt_initial_surface(Some("viewed"), &mut requested, "other");
+        assert_eq!(requested, None);
     }
 
     #[test]
