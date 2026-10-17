@@ -145,6 +145,7 @@ export interface OwnedUiShellEngineOptions {
   /** Resident tab quit routes detach the outer client without stopping this engine session. */
   readonly residentTab?: {
     requestDetach(): Promise<boolean>;
+    closeOwnedRoute?(route: string): void;
     reportStatus?(status: "working" | "idle" | "stalled"): void;
     readonly stallNoticeSeconds?: number;
     admit?(input: {
@@ -377,6 +378,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly requestHyperlinkCleanup?: (rows?: readonly number[]) => void;
       readonly enableDockInputReuse?: boolean;
       readonly persistentHistory?: boolean;
+      readonly hideSettingsCommand?: boolean;
       readonly historyEditor?: import("../../integrations/pi/components/index.js").HistoryEditorConstructor;
       readonly onSubmit: (text: string) => void;
       readonly onPasteRejected?: (error: unknown) => void;

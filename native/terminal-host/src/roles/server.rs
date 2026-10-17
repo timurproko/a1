@@ -26,6 +26,12 @@ use crate::roles::wire::{
 };
 use crate::session_lock::SessionLock;
 
+const SETTINGS_TAB_PREFIX: &str = "settings-";
+
+fn is_settings_tab_id(tab_id: &str) -> bool {
+    tab_id.starts_with(SETTINGS_TAB_PREFIX)
+}
+
 /// One non-blocking render slot per attached client. Replacing an unsent update forces the
 /// next delivery to use the supplied full surface so skipped revisions cannot corrupt state.
 #[derive(Debug, Default)]
@@ -135,7 +141,6 @@ const CONTROL_LANE_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_CONNECTIONS: usize = 128;
 pub const MAX_ATTACHED_CLIENTS: usize = 16;
 pub const MAX_STOPPED_RECORDS: usize = 16;
-pub const HARD_TABS_MAX: usize = 50;
 
 /// True while another viewing client may attach.
 pub fn client_slot_available(attached: usize) -> bool {
@@ -294,7 +299,6 @@ struct RuntimeState {
     holders_terminating: std::collections::HashSet<String>,
     surfaces: HashMap<String, Surface>,
     holders_starting: std::collections::HashSet<String>,
-    tabs_max: usize,
     max_concurrent_starts: usize,
     active_starts: usize,
     /// The start-gate slot each recovering tab holds, by a token unique to that acquisition.
@@ -722,7 +726,6 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         holders_terminating: std::collections::HashSet::new(),
         surfaces: HashMap::new(),
         holders_starting: starting_tabs,
-        tabs_max: 10,
         max_concurrent_starts: config.max_concurrent_starts.clamp(1, 8),
         active_starts: 0,
         recovery_slots: HashMap::new(),
@@ -836,22 +839,6 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
             }
         }
     }
-}
-
-/// Tabs that count against `tabsMax`: open records plus starts not yet in the registry.
-fn open_tab_count(state: &RuntimeState) -> usize {
-    let open = state
-        .registry
-        .tabs
-        .iter()
-        .filter(|tab| tab.desired != "stopped")
-        .count();
-    let pending = state
-        .holders_starting
-        .iter()
-        .filter(|tab_id| !state.registry.tabs.iter().any(|tab| &tab.tab_id == *tab_id))
-        .count();
-    open + pending
 }
 
 fn acquire_start_gate(state: &Arc<Mutex<RuntimeState>>, timeout: std::time::Duration) -> bool {
@@ -2170,8 +2157,6 @@ fn host_status(state: &Arc<Mutex<RuntimeState>>) -> Result<serde_json::Value, St
         },
         "lifecycle": lifecycle_status(&locked.lifecycle, std::time::Instant::now()),
         "limits": {
-            "tabsMax": locked.tabs_max,
-            "tabsMaxHard": 50,
             "maxConcurrentStarts": locked.max_concurrent_starts,
             "maxConcurrentStartsHard": crate::core::server::HARD_MAX_CONCURRENT_STARTS,
             "idleExitSeconds": crate::core::server::IDLE_EXIT.as_secs(),
@@ -2484,7 +2469,6 @@ fn handle_lifecycle(
                 let mut locked = state
                     .lock()
                     .map_err(|_| "resident state poisoned".to_owned())?;
-                locked.tabs_max = start.tabs_max.clamp(1, 50);
                 if let Some(selected) = selected.as_deref()
                     && let Some(tab) = locked.registry.tabs.iter().find(|tab| {
                         tab.session_file
@@ -2495,10 +2479,7 @@ fn handle_lifecycle(
                     })
                 {
                     (tab.tab_id.clone(), false)
-                } else if selected.is_some()
-                    && !locked.registry.tabs.is_empty()
-                    && open_tab_count(&locked) < locked.tabs_max.min(HARD_TABS_MAX)
-                {
+                } else if selected.is_some() && !locked.registry.tabs.is_empty() {
                     let tab_id = format!("tab-{:016x}", rand::random::<u64>());
                     let start = locked.holders_starting.insert(tab_id.clone());
                     (tab_id, start)
@@ -2528,44 +2509,9 @@ fn handle_lifecycle(
         }
         "tab.create" => {
             let (_, create): (_, TabCreate) = wire::body(payload)?;
-            let tabs_max = {
-                let locked = state
-                    .lock()
-                    .map_err(|_| "resident state poisoned".to_owned())?;
-                let active_tabs = locked
-                    .registry
-                    .tabs
-                    .iter()
-                    .filter(|tab| tab.desired != "stopped")
-                    .count();
-                let pending_tabs = locked
-                    .holders_starting
-                    .iter()
-                    .filter(|tab_id| {
-                        !locked
-                            .registry
-                            .tabs
-                            .iter()
-                            .any(|tab| &tab.tab_id == *tab_id)
-                    })
-                    .count();
-                if active_tabs + pending_tabs >= locked.tabs_max {
-                    tx.offer_control(wire::frame(
-                        "tab.create-refused",
-                        request_id,
-                        wire::ResultBody {
-                            accepted: false,
-                            message: Some("tab-limit".into()),
-                        },
-                    )?)
-                    .map_err(str::to_owned)?;
-                    return Ok(());
-                }
-                locked.tabs_max
-            };
             let mut start = AttachStart {
                 client_id: client_id.clone(),
-                tabs_max,
+                tabs_max: usize::MAX,
                 cwd: create.cwd,
                 columns: create.columns,
                 rows: create.rows,
@@ -2679,7 +2625,8 @@ fn handle_lifecycle(
         "tab.rename" => {
             let (_, rename): (_, wire::TabRename) = wire::body(payload)?;
             let name = rename.name.trim();
-            let valid = !name.is_empty()
+            let valid = !is_settings_tab_id(&rename.tab_id)
+                && !name.is_empty()
                 && name.chars().count() <= 64
                 && !name.chars().any(char::is_control);
             if !valid {
@@ -2969,6 +2916,7 @@ fn serve_attach(
                         .registry
                         .tabs
                         .iter()
+                        .filter(|tab| tab.desired != "stopped")
                         .map(|tab| TabSummary {
                             tab_id: tab.tab_id.clone(),
                             name: tab.display_name.clone(),
@@ -2995,42 +2943,64 @@ fn serve_attach(
                 .map_err(str::to_owned)?;
             }
             "tab.open-settings" => {
-                let (_, target): (_, TabTarget) = wire::body(&payload)?;
-                let bridge = {
-                    let locked = state
+                let (_, create): (_, TabCreate) = wire::body(&payload)?;
+                let (settings_tab_id, should_start) = {
+                    let mut locked = state
                         .lock()
                         .map_err(|_| "resident state poisoned".to_owned())?;
-                    let viewed = locked
-                        .clients
-                        .get(&client_id)
-                        .is_some_and(|client| client.viewed_tab == target.tab_id);
-                    viewed
-                        .then(|| {
+                    let existing = locked
+                        .registry
+                        .tabs
+                        .iter()
+                        .find(|tab| is_settings_tab_id(&tab.tab_id) && tab.desired != "stopped")
+                        .map(|tab| tab.tab_id.clone())
+                        .or_else(|| {
                             locked
-                                .bridges
-                                .get(&target.tab_id)
-                                .map(|bridge| bridge.peer.clone())
-                        })
-                        .flatten()
+                                .holders_starting
+                                .iter()
+                                .find(|tab_id| is_settings_tab_id(tab_id))
+                                .cloned()
+                        });
+                    if let Some(tab_id) = existing {
+                        (tab_id, false)
+                    } else {
+                        let tab_id = format!("{SETTINGS_TAB_PREFIX}{:016x}", rand::random::<u64>());
+                        let inserted = locked.holders_starting.insert(tab_id.clone());
+                        (tab_id, inserted)
+                    }
                 };
-                let accepted = if let Some(bridge) = bridge {
-                    bridge
-                        .offer_control(wire::frame(
-                            "bridge.route",
-                            None,
-                            serde_json::json!({ "route": "settings" }),
-                        )?)
-                        .is_ok()
-                } else {
-                    false
-                };
+                if should_start {
+                    let mut start = AttachStart {
+                        client_id: client_id.clone(),
+                        tabs_max: usize::MAX,
+                        cwd: create.cwd,
+                        columns: create.columns,
+                        rows: create.rows,
+                        release_root: create.release_root,
+                        node_executable: create.node_executable,
+                        environment: create.environment,
+                        session_file: None,
+                        session_dir: None,
+                    };
+                    sanitize_tab_environment(&mut start.environment);
+                    if let Err(error) =
+                        start_holder(&profile, &state, settings_tab_id.clone(), start)
+                    {
+                        if let Ok(mut locked) = state.lock() {
+                            locked.holders_starting.remove(&settings_tab_id);
+                        }
+                        return Err(error);
+                    }
+                }
                 tx.offer_control(wire::frame(
-                    "tab.route-opened",
+                    if should_start {
+                        "tab.created"
+                    } else {
+                        "tab.selected"
+                    },
                     kind.request_id,
-                    wire::ResultBody {
-                        accepted,
-                        message: (!accepted)
-                            .then(|| "Settings is unavailable for this tab.".into()),
+                    TabTarget {
+                        tab_id: settings_tab_id,
                     },
                 )?)
                 .map_err(str::to_owned)?;
@@ -3110,20 +3080,13 @@ fn serve_attach(
                         .clients
                         .values()
                         .any(|client| client.viewed_tab == previous_tab)
-                    && let Some(holder) = locked.holders.get(&previous_tab)
+                    && let Some(bridge) = locked.bridges.get(&previous_tab)
                 {
-                    let _ = holder.peer.offer_control(wire::frame(
-                        "surface.subscription",
+                    let _ = bridge.peer.offer_control(wire::frame(
+                        "bridge.visibility",
                         None,
-                        wire::SurfaceSubscription { enabled: false },
+                        serde_json::json!({ "visible": false }),
                     )?);
-                    if let Some(bridge) = locked.bridges.get(&previous_tab) {
-                        let _ = bridge.peer.offer_control(wire::frame(
-                            "bridge.visibility",
-                            None,
-                            serde_json::json!({ "visible": false }),
-                        )?);
-                    }
                 }
                 if let Some(holder) = locked.holders.get(&target.tab_id) {
                     let _ = holder.peer.offer_control(wire::frame(
@@ -3314,17 +3277,6 @@ fn serve_attach(
                 .detach(&session.viewed_tab, &client_id, session.controller_revision);
         }
         cancel_controller_transfer(&mut locked, &session.viewed_tab, &client_id)?;
-        let still_viewed = locked
-            .clients
-            .values()
-            .any(|client| client.viewed_tab == session.viewed_tab);
-        if !still_viewed && let Some(holder) = locked.holders.get(&session.viewed_tab) {
-            let _ = holder.peer.offer_control(wire::frame(
-                "surface.subscription",
-                None,
-                wire::SurfaceSubscription { enabled: false },
-            )?);
-        }
     }
     locked.last_activity = std::time::Instant::now();
     Ok(())
@@ -3490,7 +3442,7 @@ fn promote_standby(
         prune_stopped_records(&mut locked.registry.tabs);
         locked.registry.tabs.push(TabRecord {
             tab_id: standby.tab_id.clone(),
-            kind: "a1".into(),
+            kind: "agent".into(),
             created_at,
             display_name,
             name_source: "default".into(),
@@ -3744,16 +3696,20 @@ fn start_holder(
             .iter()
             .map(|tab| tab.display_name.as_str())
             .collect::<std::collections::HashSet<_>>();
-        let display_name = (1usize..)
-            .map(|number| {
-                if number == 1 {
-                    "agent".into()
-                } else {
-                    format!("agent {number}")
-                }
-            })
-            .find(|name| !names.contains(name.as_str()))
-            .expect("unbounded default tab names");
+        let display_name = if is_settings_tab_id(&tab_id) {
+            "Settings".into()
+        } else {
+            (1usize..)
+                .map(|number| {
+                    if number == 1 {
+                        "agent".into()
+                    } else {
+                        format!("agent {number}")
+                    }
+                })
+                .find(|name| !names.contains(name.as_str()))
+                .expect("unbounded default tab names")
+        };
         let created_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -3764,10 +3720,20 @@ fn start_holder(
         prune_stopped_records(&mut locked.registry.tabs);
         locked.registry.tabs.push(TabRecord {
             tab_id: tab_id.clone(),
-            kind: "a1".into(),
+            kind: if is_settings_tab_id(&tab_id) {
+                "settings"
+            } else {
+                "agent"
+            }
+            .into(),
             created_at,
             display_name,
-            name_source: "default".into(),
+            name_source: if is_settings_tab_id(&tab_id) {
+                "system"
+            } else {
+                "default"
+            }
+            .into(),
             order,
             cwd: start.cwd.clone(),
             session_file: start.session_file.clone(),
@@ -3969,18 +3935,14 @@ fn serve_holder(
         let mut locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
-        let viewed = locked
-            .clients
-            .values()
-            .any(|client| client.viewed_tab == tab_id);
-        if viewed {
-            tx.offer_control(wire::frame(
-                "surface.subscription",
-                None,
-                wire::SurfaceSubscription { enabled: true },
-            )?)
-            .map_err(str::to_owned)?;
-        }
+        // Each holder continuously refreshes the server's per-tab retained surface. Client
+        // delivery remains view-scoped, so hidden Agents cannot block or overwrite one another.
+        tx.offer_control(wire::frame(
+            "surface.subscription",
+            None,
+            wire::SurfaceSubscription { enabled: true },
+        )?)
+        .map_err(str::to_owned)?;
         let holder_pid = identity.pid;
         let holder_start = identity.start.clone();
         let holder_peer = tx.clone();
@@ -5005,6 +4967,14 @@ fn serve_bridge(
             serde_json::json!({ "visible": visible }),
         )?)
         .map_err(str::to_owned)?;
+        if is_settings_tab_id(&tab_id) {
+            tx.offer_control(wire::frame(
+                "bridge.route",
+                None,
+                serde_json::json!({ "route": "settings" }),
+            )?)
+            .map_err(str::to_owned)?;
+        }
     }
     crate::fault_injection::crash_at("bridge-after-admit");
     while let Some(payload) = wire::read_payload(&mut stream)? {
@@ -5160,7 +5130,7 @@ fn serve_bridge(
                 .registry
                 .tabs
                 .iter_mut()
-                .find(|tab| tab.tab_id == tab_id)
+                .find(|tab| tab.tab_id == tab_id && !is_settings_tab_id(&tab_id))
             {
                 record.session_file = session.file.clone();
                 record.session_dir = session
@@ -5227,6 +5197,16 @@ fn serve_bridge(
                         )?);
                     }
                     true
+                } else {
+                    false
+                }
+            } else if request.action == "close" {
+                let authorized = state.lock().ok().is_some_and(|locked| {
+                    locked.attachment.current(&tab_id)
+                        == Some((request.client_id.as_str(), request.controller_revision))
+                });
+                if authorized {
+                    close_tab(&state, &tab_id, kind.request_id)?
                 } else {
                     false
                 }
@@ -5452,7 +5432,7 @@ mod tests {
     fn record(tab_id: &str, created_at: u64, desired: &str, holder_pid: Option<u32>) -> TabRecord {
         TabRecord {
             tab_id: tab_id.into(),
-            kind: "a1".into(),
+            kind: "agent".into(),
             created_at: created_at.to_string(),
             display_name: tab_id.into(),
             name_source: "default".into(),
@@ -5536,6 +5516,32 @@ mod tests {
             })
         );
         assert_eq!(lane.drain(Vec::new), None);
+    }
+
+    #[test]
+    fn three_tabs_keep_independent_successive_partial_frames() {
+        let mut lanes = [
+            SingleSlotRenderLane::default(),
+            SingleSlotRenderLane::default(),
+            SingleSlotRenderLane::default(),
+        ];
+        for revision in 1..=4 {
+            for (tab, lane) in lanes.iter_mut().enumerate() {
+                lane.offer(
+                    revision,
+                    format!("tab-{tab}-partial-{revision}").into_bytes(),
+                );
+            }
+            for (tab, lane) in lanes.iter_mut().enumerate() {
+                let delivery = lane.drain(Vec::new).expect("tab delivery");
+                assert_eq!(delivery.revision, revision);
+                assert_eq!(
+                    delivery.bytes,
+                    format!("tab-{tab}-partial-{revision}").into_bytes()
+                );
+                assert!(!delivery.full);
+            }
+        }
     }
 
     #[test]

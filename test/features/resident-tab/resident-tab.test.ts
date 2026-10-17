@@ -108,6 +108,7 @@ describe("resident tab shortcuts", () => {
     expect(assignments["tabs.new"]).toBe("alt+a");
     expect(assignments["tabs.close"]).toBe("alt+w");
     expect(assignments["tabs.rename"]).toBe("f2");
+    expect(assignments["tabs.settings"]).toBe("alt+.");
     expect(Object.values(assignments)).not.toContain("r");
     expect(RESIDENT_TAB_SHORTCUTS.filter(shortcut => shortcut.scope === "failed-banner").map(shortcut => [shortcut.id, shortcut.defaultKey]))
       .toEqual([["tabs.retry", "r"], ["tabs.fresh", "f"]]);

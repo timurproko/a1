@@ -1510,7 +1510,9 @@ fn maintenance_lists_stops_reports_and_stops_the_host_without_starting_one() {
     assert_eq!(status.1["result"]["tabs"], 2);
     assert_eq!(status.1["result"]["generation"], 1);
     assert!(status.1["result"]["counters"]["crashRestarts"].is_u64());
-    assert!(status.1["result"]["limits"]["tabsMaxHard"].is_u64());
+    assert!(status.1["result"]["limits"].get("tabsMax").is_none());
+    assert!(status.1["result"]["limits"].get("tabsMaxHard").is_none());
+    assert!(status.1["result"]["limits"]["maxConcurrentStarts"].is_u64());
 
     let unknown = tabs(
         &executable,

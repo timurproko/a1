@@ -14,7 +14,7 @@ export interface DoctorOptions {
   readonly stateDir: string;
   readonly hostStatus: MaintenanceReport;
   readonly releaseRoots: readonly string[];
-  readonly settings: { readonly tabsMax: number; readonly tabsAutoName: boolean };
+  readonly settings: { readonly tabsAutoName: boolean };
   readonly home?: string;
   readonly platform?: NodeJS.Platform;
   readonly architecture?: string;
@@ -57,7 +57,7 @@ export async function writeDoctorBundle(options: DoctorOptions): Promise<DoctorB
       node: process.version,
       detachmentMode: (options.hostStatus.result as { detachmentMode?: unknown } | undefined)?.detachmentMode ?? null,
     }),
-    json("settings.json", { tabsMax: options.settings.tabsMax, tabsAutoName: options.settings.tabsAutoName }),
+    json("settings.json", { tabsAutoName: options.settings.tabsAutoName }),
   ];
   const crashes: ZipEntry[] = [];
   for (const name of names.filter(name => CRASH_NAME.test(name)).sort()) {

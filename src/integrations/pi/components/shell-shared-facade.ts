@@ -203,6 +203,8 @@ export interface PiShellEditorOptions {
   readonly historyEditor?: HistoryEditorConstructor;
   /** Bare A1 adds ergonomic aliases while comparison profiles retain Pi defaults. */
   readonly keybindingProfile?: "pi" | "a1";
+  /** Resident Agents expose Settings through the global tab instead of a slash command. */
+  readonly hideSettingsCommand?: boolean;
   /** The process's shared keybindings; its profile must match `keybindingProfile`. */
   readonly keybindings?: PiKeybindingsHost;
   readonly getColumns: () => number;
