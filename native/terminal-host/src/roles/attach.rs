@@ -297,6 +297,14 @@ fn adopt_initial_surface(viewed: Option<&str>, requested: &mut Option<String>, t
     }
 }
 
+/// Invariant: a rejection notice answers input the person typed, pasted, or clicked. Focus
+/// traffic is forwarded too, and terminals such as ConPTY synthesize it on attach, so its
+/// rejection stays silent and a read-only viewer's first frame keeps the child's top row.
+fn rejection_notice(user_input_pending: &mut bool, message: Option<String>) -> Option<String> {
+    let armed = std::mem::replace(user_input_pending, false);
+    message.filter(|_| armed)
+}
+
 fn render_drag_marker(column: u16, columns: u16) -> String {
     render_drag_marker_configured(column, columns, !palette_fallback_requested())
 }
@@ -1102,6 +1110,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut pending_close: Option<String> = None;
     let mut close_fallback: Option<CloseFallback> = None;
     let mut transient_notice: Option<String> = None;
+    let mut user_input_pending = false;
     let mut prompt_view = viewed.clone();
     let mut registry_revision = 0u64;
     let mut drag: Option<TabDrag> = None;
@@ -1590,8 +1599,13 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "viewer.status" | "input.rejected" | "input.uncertain" | "recovery.notice" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
-                    if result.message.is_some() {
-                        transient_notice = result.message;
+                    let message = if kind.message_type == "input.rejected" {
+                        rejection_notice(&mut user_input_pending, result.message)
+                    } else {
+                        result.message
+                    };
+                    if message.is_some() {
+                        transient_notice = message;
                         paint_current!(false);
                     }
                 }
@@ -1912,6 +1926,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 } else {
                     bytes
                 };
+                user_input_pending = true;
                 wire::send(
                     &mut stream,
                     "input",
@@ -1935,6 +1950,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     continue;
                 }
                 let bytes = text.into_bytes();
+                user_input_pending = true;
                 wire::send(
                     &mut stream,
                     "paste.start",
@@ -2158,6 +2174,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     paint_current!(false);
                 }
                 if let Some(bytes) = encode_mouse(mouse.kind, mouse.column, mouse.row) {
+                    user_input_pending = true;
                     wire::send(
                         &mut stream,
                         "input",
@@ -2639,6 +2656,26 @@ mod tests {
         requested = None;
         adopt_initial_surface(Some("viewed"), &mut requested, "other");
         assert_eq!(requested, None);
+    }
+
+    #[test]
+    fn rejection_notices_answer_only_user_input() {
+        let mut pending = false;
+        assert_eq!(
+            rejection_notice(&mut pending, Some("read-only-viewer".into())),
+            None
+        );
+
+        pending = true;
+        assert_eq!(
+            rejection_notice(&mut pending, Some("read-only-viewer".into())).as_deref(),
+            Some("read-only-viewer")
+        );
+        assert!(!pending);
+        assert_eq!(
+            rejection_notice(&mut pending, Some("read-only-viewer".into())),
+            None
+        );
     }
 
     #[test]
