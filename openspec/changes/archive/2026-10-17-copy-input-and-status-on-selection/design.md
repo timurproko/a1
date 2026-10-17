@@ -25,7 +25,7 @@ Dock composition already knows the ordinary editor body offset and length and th
 
 ### 1. Declare semantic dock copy ranges during shell composition
 
-The dock layout will provide copy metadata for the exact ordinary editor body rows and footer/status rows alongside the combined dock rows. The metadata will be expressed in stable dock-relative coordinates and passed through both full and dock-only viewport composition. Only the default ordinary input surface contributes prompt rows; replacement surfaces remain covered and ineligible.
+The dock layout will provide copy metadata for the exact ordinary editor body rows and footer/status rows alongside the combined dock rows. The metadata will be expressed in stable dock-relative coordinates and passed through both full and dock-only viewport composition. Only the default ordinary input surface contributes prompt rows; replacement surfaces remain covered and ineligible. A draft holding chip tags contributes no prompt rows either, because the rendered chip label is truncated presentation that cannot be expanded from a column range; editor-owned word and line selection remains the semantic route for chip text.
 
 Inferring eligibility from `❯`, path, model, or footer text was rejected because prompt wrapping, themes, extension statuses, and localized or user-controlled values make text an unsafe classifier. Treating the complete input segment as copyable was rejected because that segment can include borders, counters, autocomplete, and other presentation rows around the editor body.
 
