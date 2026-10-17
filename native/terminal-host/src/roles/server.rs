@@ -3935,8 +3935,8 @@ fn serve_holder(
         let mut locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
-        // Each holder continuously refreshes the server's per-tab retained surface. Client
-        // delivery remains view-scoped, so hidden Agents cannot block or overwrite one another.
+        // Concurrency: each holder continuously refreshes the server's per-tab retained surface.
+        // Client delivery remains view-scoped, so hidden Agents cannot block or overwrite one another.
         tx.offer_control(wire::frame(
             "surface.subscription",
             None,
