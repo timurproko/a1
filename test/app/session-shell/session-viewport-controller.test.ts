@@ -91,12 +91,12 @@ describe("session viewport interaction controller", () => {
     } finally { target.clearPointerState(); }
   });
 
-  it("copies declared status rows only through explicit Ctrl+C", () => {
+  it("copies declared prompt and status rows automatically or through retained Ctrl+C", () => {
     const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
     const input = {
       documentRows: ["transcript"],
       dockRows: ["❯ draft", "status bar"],
-      explicitCopyDockRows: 1,
+      copyableDockRows: [{ row: 0, prompt: "first" as const }, { row: 1 }],
       promptAnchors: [],
       width: 20,
       height: 3,
@@ -104,20 +104,18 @@ describe("session viewport interaction controller", () => {
     try {
       target.compose(input);
       const statusOnly = target.handlePreInput("\u001b[<0;1;3M\u001b[<32;6;3M\u001b[<0;6;3m");
-      expect(statusOnly.copySelection).toBeUndefined();
+      expect(copiedText(statusOnly)).toBe("status");
       expect(target.hasSelection).toBe(true);
-      expect(copiedText(target.handlePreInput("\u0003"))).toBe("status");
-      expect(target.hasSelection).toBe(false);
 
       target.compose(input);
       const mixed = target.handlePreInput("\u001b[<0;1;1M\u001b[<32;6;3M\u001b[<0;6;3m");
-      expect(copiedText(mixed)).toBe("transcript");
-      expect(copiedText(target.handlePreInput("\u0003"))).toBe("transcript\nstatus");
+      expect(copiedText(mixed)).toBe("transcript\ndraft\nstatus");
 
+      target.setCopyOnSelect(false);
       target.compose(input);
-      const promptOnly = target.handlePreInput("\u001b[<0;1;2M\u001b[<32;6;2M\u001b[<0;6;2m");
+      const promptOnly = target.handlePreInput("\u001b[<0;1;2M\u001b[<32;8;2M\u001b[<0;8;2m");
       expect(promptOnly.copySelection).toBeUndefined();
-      expect(target.handlePreInput("\u0003")).toMatchObject({ data: "", consumed: true });
+      expect(copiedText(target.handlePreInput("\u0003"))).toBe("draft");
       expect(target.hasSelection).toBe(false);
     } finally { target.clearPointerState(); }
   });
@@ -965,6 +963,51 @@ describe("session viewport interaction controller", () => {
     expect(events.map(event => event.kind)).toEqual([
       "press", "release", "press", "release", "press", "release",
     ]);
+  });
+
+  it("copies editor-owned word and line selections exactly once when enabled", () => {
+    const events: PiShellEditorPointerEvent[] = [];
+    let click = 0;
+    let selected: string | undefined;
+    const target = new SessionViewportController({
+      enabled: true,
+      editor: editor({
+        hasSelection: () => selected !== undefined,
+        selectedText: () => selected,
+        handlePointer: event => {
+          events.push(event);
+          if (event.kind === "press") click += 1;
+          if (event.kind === "release") {
+            selected = click === 2 ? "expanded word" : click === 3 ? "expanded whole line" : undefined;
+          }
+          return true;
+        },
+      }),
+      requestRender() {},
+    });
+    target.setEditorPointerFrame({ rowStart: 4, rowEnd: 5 });
+    frame(target);
+
+    const clickPrompt = () => target.handlePreInput("\u001b[<0;3;4M\u001b[<0;3;4m");
+    expect(copiedText(clickPrompt())).toBeUndefined();
+    expect(copiedText(clickPrompt())).toBe("expanded word");
+    expect(selected).toBe("expanded word");
+
+    target.setCopyOnSelect(false);
+    expect(copiedText(clickPrompt())).toBeUndefined();
+    expect(selected).toBe("expanded whole line");
+    expect(target.handlePreInput("\u0003")).toEqual({ data: "\u0003", consumed: false });
+
+    const beforeDragEvents = events.length;
+    target.setCopyOnSelect(true);
+    const drag = target.handlePreInput("\u001b[<0;3;4M\u001b[<32;6;4M\u001b[<0;6;4m");
+    expect(copiedText(drag)).toBeTruthy();
+    expect(events).toHaveLength(beforeDragEvents);
+
+    target.setCopyOnSelect(false);
+    expect(copiedText(target.handlePreInput("\u001b[<0;3;4M\u001b[<32;6;4M\u001b[<0;6;4m"))).toBeUndefined();
+    expect(copiedText(target.handlePreInput("\u0003"))).toBeTruthy();
+    expect(events).toHaveLength(beforeDragEvents);
   });
 
   it("routes editor pointer input only through the declared editor frame", () => {
