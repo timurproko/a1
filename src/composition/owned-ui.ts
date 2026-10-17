@@ -185,7 +185,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       namespace: PRODUCT_IDENTITY.commandName,
       legacyConfigDir: productPaths.configDir,
       agentProvider: () => backend.settingsPort(),
-      ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsMax", "tabsAutoName"] } : {}),
+      ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsAutoName"] } : {}),
       hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
       agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
     });
@@ -252,12 +252,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   );
   if (tabBridge !== null && settings !== null && ownedSurfaces) tabBridge.accent(settings.value("accentColor"));
   let removeControllerBoundaryInput = () => {};
-  const unsubscribeTabBridge = tabBridge === null ? () => {} : await bindResidentTabBridge(
-    tabBridge,
-    backend,
-    tabRecovery,
-    { autoName: settings?.value("tabsAutoName") ?? true },
-  );
+  let unsubscribeTabBridge = () => {};
   let releaseNotes: ReleaseNoteCatalog | null = null;
   let releaseNotesFailure: unknown;
   if (ownedSurfaces) {
@@ -380,6 +375,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
         ...(tabBridge === null || tabRecovery === null ? {} : { residentTab: {
           requestDetach: () => tabBridge.requestDetach(),
+          closeOwnedRoute: route => {
+            if (tabBridge.tabId.startsWith("settings-") && route === "settings") void tabBridge.requestClose();
+          },
           reportStatus: status => tabBridge.status(status),
           stallNoticeSeconds: 300,
           admit: input => tabRecovery.admit({ ...input, incarnation: options.tab!.incarnation }),
@@ -429,6 +427,12 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     };
     if (recoveryDegraded) presentRecoveryDegraded(true);
     terminalHost.attach(presenter);
+    if (tabBridge !== null) {
+      unsubscribeTabBridge = await bindResidentTabBridge(tabBridge, backend, tabRecovery, {
+        autoName: settings?.value("tabsAutoName") ?? true,
+        openRoute: route => presenter.openOwnedRoute(route),
+      });
+    }
   } catch (error) {
     await createdTerminalHost?.dispose().catch(() => undefined);
     unsubscribeAccent();
@@ -503,7 +507,7 @@ export async function bindResidentTabBridge(
   tabBridge: TabBridgeClient,
   backend: Pick<ComposedSessionBackend, "identity" | "session" | "workflows" | "generateResidentTabName">,
   recovery: Pick<ResidentTabRecovery, "settled"> | null = null,
-  options: { readonly autoName?: boolean } = {},
+  options: { readonly autoName?: boolean; readonly openRoute?: (route: "settings") => void } = {},
 ): Promise<() => void> {
   await tabBridge.start().catch(() => false);
   tabBridge.status("starting");
@@ -557,7 +561,8 @@ export async function bindResidentTabBridge(
     if (command.type === "rename") {
       void backend.workflows.executeWorkflow({ command: "name", argument: command.name }).catch(() => {});
     } else if (command.type === "route") {
-      void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
+      if (options.openRoute !== undefined) options.openRoute(command.route);
+      else void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
     } else if (command.type === "stop") {
       void backend.session.dispose().catch(() => {});
     }

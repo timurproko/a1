@@ -50,7 +50,7 @@ export async function runTabsCommand(request: TabsRequest, options: TabsCommandO
       stateDir: report.stateDir,
       hostStatus: report,
       releaseRoots,
-      settings: { tabsMax: settings.tabsMax, tabsAutoName: settings.tabsAutoName },
+      settings: { tabsAutoName: settings.tabsAutoName },
     });
     if (request.json) stdout(`${JSON.stringify({ schema: "a1-tabs-doctor-v1", path: bundle.path, bytes: bundle.bytes, dropped: bundle.dropped })}\n`);
     else stdout(`Wrote ${bundle.path}\n`);
