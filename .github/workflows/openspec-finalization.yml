@@ -3,7 +3,7 @@ name: OpenSpec finalization
 on:
   pull_request_target:
     branches: [develop]
-    types: [opened, synchronize, ready_for_review, reopened, edited]
+    types: [opened, synchronize, ready_for_review, converted_to_draft, reopened, edited]
   workflow_dispatch:
     inputs:
       pr:
