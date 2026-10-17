@@ -15,7 +15,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-17-finalization-redraft-promotion/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-17-finalization-redraft-promotion/acceptance.md",
   "finalizedDate": "2026-10-17",
-  "specBaseSha": "ce3e1b3cf0beeead4d7c6c9372b6483b9fcf7414",
+  "specBaseSha": "488a97fcd8da77067afd57ee5442dd79c5f88dea",
   "acceptanceScenarios": [
     "Returning a finalized pull request with every item checked to draft makes it ready again without a manual readiness change.",
     "A draft whose fence claims finalization but whose tree holds the active change again stays draft with a visible `draft-finalization-redraft-form` failure."
