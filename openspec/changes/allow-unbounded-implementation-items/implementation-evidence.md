@@ -1,6 +1,6 @@
 ## Implementation
 
-- Delivery policy, the first-party skill, the runbook, and the canonical change-delivery requirement now require one or more outcome-sized Implementation items with no fixed item-count maximum.
+- Delivery policy, the first-party skill, and the runbook now require one or more outcome-sized Implementation items with no fixed item-count maximum; the change delta defines the matching canonical requirement for finalization-time synchronization.
 - The version-3 progress parser accepts one item and lists longer than ten items while retaining the overall body-size limit and existing per-item syntax, size, uniqueness, wording, and completion checks.
 - Focused governance coverage exercises a single-item list, a twelve-item list, malformed empty-item syntax, and aligned agent-facing guidance.
 
