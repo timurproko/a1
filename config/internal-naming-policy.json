@@ -125,7 +125,7 @@
       "role": "probeTrace",
       "key": "A1_PROBE_TRACE",
       "exposure": "review",
-      "owner": "native/terminal-host/src/main.rs",
+      "owner": "native/terminal-host/src/roles/entry.rs",
       "evidence": "native/terminal-host/src/ghostty.rs",
       "semantics": "Opt-in developer diagnostics; retain pending exposure review"
     },
@@ -190,7 +190,7 @@
       "key": "A1_TABS_ENDPOINT",
       "exposure": "integration",
       "owner": "src/foundation/resident-tabs/ensure-terminal-host.ts",
-      "evidence": "native/terminal-host/src/main.rs",
+      "evidence": "native/terminal-host/src/roles/entry.rs",
       "semantics": "Hermetic resident endpoint override for native integration tests"
     },
     {
@@ -493,16 +493,16 @@
       "role": "fixtureInput",
       "key": "TERMINAL_FIXTURE_INPUT",
       "exposure": "test",
-      "owner": "native/terminal-host/src/main.rs",
-      "evidence": "native/terminal-host/src/main.rs",
+      "owner": "native/terminal-host/src/roles/entry.rs",
+      "evidence": "native/terminal-host/src/roles/entry.rs",
       "semantics": "Native terminal probe expected input"
     },
     {
       "role": "fixtureToken",
       "key": "TERMINAL_FIXTURE_TOKEN",
       "exposure": "test",
-      "owner": "native/terminal-host/src/main.rs",
-      "evidence": "native/terminal-host/src/main.rs",
+      "owner": "native/terminal-host/src/roles/entry.rs",
+      "evidence": "native/terminal-host/src/roles/entry.rs",
       "semantics": "Native terminal probe token"
     },
     {

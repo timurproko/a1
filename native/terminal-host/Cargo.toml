@@ -15,6 +15,11 @@ name = "fake-tab"
 path = "tests/fixtures/fake-tab/main.rs"
 required-features = ["resident-fixtures"]
 
+[[bin]]
+name = "role-host"
+path = "tests/fixtures/role-host/main.rs"
+required-features = ["resident-fixtures"]
+
 [features]
 default = []
 node-addon = ["dep:napi", "dep:napi-derive"]

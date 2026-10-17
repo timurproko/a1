@@ -20,7 +20,7 @@ function crate(name: string, license: string | null, kind = "lib") {
 
 function graph(): CargoMetadata {
   return {
-    packages: [crate("terminal-host", null, "bin"), crate("alpha", "MIT OR Apache-2.0"), crate("beta", "Apache-2.0 WITH LLVM-exception OR MIT"), crate("macro", "MIT", "proc-macro"), crate("hidden", "AGPL-3.0"), crate("tooling", "GPL-3.0")],
+    packages: [crate("terminal-host", null, "cdylib"), crate("alpha", "MIT OR Apache-2.0"), crate("beta", "Apache-2.0 WITH LLVM-exception OR MIT"), crate("macro", "MIT", "proc-macro"), crate("hidden", "AGPL-3.0"), crate("tooling", "GPL-3.0")],
     resolve: {
       root: "terminal-host 1.0.0",
       nodes: [
@@ -114,7 +114,7 @@ describe("terminal-host release build", () => {
     expect(TERMINAL_HOST_ENTRY).toBe("dist/foundation/resident-tabs/host-entry.js");
   });
 
-  it("refuses a binary whose identity or features differ from a release build", () => {
+  it("refuses an addon whose identity or features differ from a release build", () => {
     expect(verifyVersionReport(report, "0.1.0-dev")).toEqual([]);
     expect(verifyVersionReport({ ...report, generation: 2 }, "0.1.0-dev")).toContain("generation 2 is not 1");
     expect(verifyVersionReport(report, "0.2.0")).toContain("crate version 0.1.0-dev is not 0.2.0");

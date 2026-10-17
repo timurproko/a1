@@ -959,30 +959,28 @@ fn wait_for_replacement(
 
 /// Asks for a replacement server. Ok(false) means the registry no longer wants any tab to run.
 fn request_server_replacement(config: &HolderLaunchConfig) -> Result<bool, String> {
-    let executable = std::env::current_exe()
-        .map_err(|error| format!("resolve terminal host executable: {error}"))?;
-    let child = std::process::Command::new(executable)
-        .args([
-            "server",
-            "--detach",
-            "--resident-parent-holder",
-            "--profile",
-            &config.server.profile,
-            "--data-dir",
-            &config.server.data_dir,
-            "--runtime-dir",
-            &config.server.runtime_dir,
-            "--max-concurrent-starts",
-            &config.server.max_concurrent_starts.to_string(),
-            "--unresponsive-restart-seconds",
-            &config.server.unresponsive_restart_seconds.to_string(),
-        ])
-        .env("A1_TABS_ENDPOINT", &config.server.endpoint)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .map_err(|error| format!("request server replacement: {error}"))?;
+    let child = crate::launch::command([
+        "server",
+        "--detach",
+        "--resident-parent-holder",
+        "--profile",
+        &config.server.profile,
+        "--data-dir",
+        &config.server.data_dir,
+        "--runtime-dir",
+        &config.server.runtime_dir,
+        "--max-concurrent-starts",
+        &config.server.max_concurrent_starts.to_string(),
+        "--unresponsive-restart-seconds",
+        &config.server.unresponsive_restart_seconds.to_string(),
+    ])
+    .map_err(|error| error.to_string())?
+    .env("A1_TABS_ENDPOINT", &config.server.endpoint)
+    .stdin(std::process::Stdio::null())
+    .stdout(std::process::Stdio::piped())
+    .stderr(std::process::Stdio::null())
+    .spawn()
+    .map_err(|error| format!("request server replacement: {error}"))?;
     // Invariant: a replacement request that never finishes must not strand the holder; it is
     // abandoned at its deadline and the holder's reconnect loop asks again.
     let (status, printed) = wait_for_replacement(child, SERVER_REPLACEMENT_DEADLINE)?;
