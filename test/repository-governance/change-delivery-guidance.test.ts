@@ -51,7 +51,8 @@ describe("repository-owned atomic delivery guidance", () => {
         throw error;
       });
     for (const guidance of [config, skill, runbook]) {
-      expect(guidance).toMatch(/two to ten/i);
+      expect(guidance).toMatch(/one or more/i);
+      expect(guidance).toMatch(/no fixed maximum/i);
       expect(guidance).toContain("`## Implementation`");
       expect(guidance).toMatch(/\[ \].*\[x\]|\[ \].*to.*\[x\]/s);
       expect(guidance).not.toMatch(/focused (?:pre-ready )?evidence/i);
