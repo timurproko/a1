@@ -899,11 +899,69 @@ fn input_rejected_message(error: InputAdmissionError) -> &'static str {
     }
 }
 
+/// Longest one replacement request may take before the holder abandons it and retries.
+const SERVER_REPLACEMENT_DEADLINE: Duration = Duration::from_secs(15);
+
+/// Waits for a replacement request with a deadline and returns its exit and the outcome it
+/// printed. Its stdout is read on a thread and not to end-of-file, because a detached server
+/// that inherited the pipe would hold it open for its whole life.
+fn wait_for_replacement(
+    mut child: std::process::Child,
+    deadline: Duration,
+) -> Result<(std::process::ExitStatus, String), String> {
+    let printed = Arc::new(Mutex::new(Vec::<u8>::new()));
+    if let Some(mut stdout) = child.stdout.take() {
+        let printed = printed.clone();
+        thread::spawn(move || {
+            let mut buffer = [0_u8; 1024];
+            while let Ok(count) = stdout.read(&mut buffer) {
+                if count == 0 {
+                    break;
+                }
+                if let Ok(mut printed) = printed.lock() {
+                    printed.extend_from_slice(&buffer[..count]);
+                    if printed.len() > 64 * 1024 {
+                        break;
+                    }
+                }
+            }
+        });
+    }
+    let started = std::time::Instant::now();
+    let status = loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|error| format!("wait for server replacement: {error}"))?
+        {
+            break status;
+        }
+        if started.elapsed() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("server replacement request timed out".to_owned());
+        }
+        thread::sleep(Duration::from_millis(20));
+    };
+    // Concurrency: the outcome line is written before the request exits; allow the reader a
+    // moment to collect it without waiting on a pipe a detached server may still hold.
+    let collected = std::time::Instant::now();
+    loop {
+        let text = printed
+            .lock()
+            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+            .unwrap_or_default();
+        if text.contains("\"outcome\"") || collected.elapsed() >= Duration::from_millis(500) {
+            return Ok((status, text));
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
 /// Asks for a replacement server. Ok(false) means the registry no longer wants any tab to run.
 fn request_server_replacement(config: &HolderLaunchConfig) -> Result<bool, String> {
     let executable = std::env::current_exe()
         .map_err(|error| format!("resolve terminal host executable: {error}"))?;
-    let output = std::process::Command::new(executable)
+    let child = std::process::Command::new(executable)
         .args([
             "server",
             "--detach",
@@ -921,13 +979,17 @@ fn request_server_replacement(config: &HolderLaunchConfig) -> Result<bool, Strin
         ])
         .env("A1_TABS_ENDPOINT", &config.server.endpoint)
         .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
-        .output()
+        .spawn()
         .map_err(|error| format!("request server replacement: {error}"))?;
-    if output.status.success() {
-        Ok(!String::from_utf8_lossy(&output.stdout).contains("\"not-needed\""))
+    // Invariant: a replacement request that never finishes must not strand the holder; it is
+    // abandoned at its deadline and the holder's reconnect loop asks again.
+    let (status, printed) = wait_for_replacement(child, SERVER_REPLACEMENT_DEADLINE)?;
+    if status.success() {
+        Ok(!printed.contains("\"not-needed\""))
     } else {
-        Err(format!("server replacement stopped with {}", output.status))
+        Err(format!("server replacement stopped with {status}"))
     }
 }
 
@@ -1136,6 +1198,61 @@ fn connect_retry(address: &str, retry_forever: bool) -> Result<endpoint::Endpoin
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn shell(script: &str) -> std::process::Child {
+        let mut command = if cfg!(windows) {
+            let mut command = std::process::Command::new("cmd");
+            command.args(["/C", script]);
+            command
+        } else {
+            let mut command = std::process::Command::new("sh");
+            command.args(["-c", script]);
+            command
+        };
+        command
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn shell")
+    }
+
+    #[test]
+    fn replacement_requests_are_bounded_and_read_their_outcome() {
+        let (status, printed) = wait_for_replacement(
+            shell("echo {\"outcome\":\"not-needed\"}"),
+            Duration::from_secs(10),
+        )
+        .expect("finished request");
+        assert!(status.success());
+        assert!(printed.contains("not-needed"), "{printed}");
+
+        let started = std::time::Instant::now();
+        let hung = if cfg!(windows) {
+            shell("ping -n 30 127.0.0.1 >NUL")
+        } else {
+            shell("sleep 30")
+        };
+        assert_eq!(
+            wait_for_replacement(hung, Duration::from_millis(300)).unwrap_err(),
+            "server replacement request timed out"
+        );
+        assert!(started.elapsed() < Duration::from_secs(5));
+
+        // Invariant: a detached child that inherited stdout keeps the pipe open after the request
+        // exits; the outcome is still returned instead of waiting for end-of-file.
+        if cfg!(unix) {
+            let started = std::time::Instant::now();
+            let (status, printed) = wait_for_replacement(
+                shell("echo '{\"outcome\":\"started\"}'; (sleep 30 &)"),
+                Duration::from_secs(10),
+            )
+            .expect("request with a lingering child");
+            assert!(status.success());
+            assert!(printed.contains("\"started\""), "{printed}");
+            assert!(started.elapsed() < Duration::from_secs(5));
+        }
+    }
+
     #[test]
     fn over_capacity_paste_delivers_no_prefix() {
         let mut queue = BoundedInputQueue::new(4);
