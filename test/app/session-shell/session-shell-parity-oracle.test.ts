@@ -17,12 +17,13 @@ vi.mock("node:worker_threads", async importOriginal => {
   } };
 });
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
+import { renderPiShellHotkeysLines } from "../../../src/integrations/pi/components/shell-presenters-info.js";
 import { interactionCase } from "../../../scripts/development/interaction-parity/matrix.mjs";
 import { validateObservations } from "../../../scripts/development/interaction-parity/observations.mjs";
 import { ObservationRecorder } from "../../support/interaction-parity/recorder.js";
 import { fixture } from "./session-shell-fixture.js";
 
-const ORACLE_CASES = ["prompt.type-ascii", "prompt.type-unicode", "shortcut.default-prompt", "selection.prompt-drag", "clipboard.copy-selection", "clipboard.first-paste", "detach.double-ctrl-c"].map(interactionCase);
+const ORACLE_CASES = ["prompt.type-ascii", "prompt.type-unicode", "shortcut.default-prompt", "shortcut.help", "selection.prompt-drag", "clipboard.copy-selection", "clipboard.first-paste", "attachment.entry", "extension.text-ui", "stream.concurrent", "detach.double-ctrl-c"].map(interactionCase);
 
 /**
  * Drives the direct owned shell through the shared matrix cases that need no provider and records
@@ -33,7 +34,7 @@ const ORACLE_CASES = ["prompt.type-ascii", "prompt.type-unicode", "shortcut.defa
 async function recordDirectOracle(clipboardText: string): Promise<ObservationRecorder> {
   const recorder = new ObservationRecorder("direct");
   const written: string[] = [];
-  const { shell, terminal } = await fixture([
+  const { engine, shell, terminal } = await fixture([
     { role: "assistant", content: [{ type: "text", text: "alpha beta gamma" }], timestamp: 1 },
   ], [], true, undefined, {
     readText: async () => clipboardText,
@@ -130,6 +131,55 @@ async function recordDirectOracle(clipboardText: string): Promise<ObservationRec
     recorder.observe("action", "owned.editor.paste", { action: "owned.editor.paste", pastes: 1 });
     recorder.observe("prompt", prompt(), { pasted: true });
     shell.root.editor.setText("");
+
+    recorder.begin("shortcut.help");
+    const help = renderPiShellHotkeysLines(shell.hotkeysPresentation(), 100);
+    recorder.observe("key", "/hotkeys", { keys: 8 });
+    recorder.observe("cells", help.join("\n"), { rows: help.length, tabsSection: help.some(line => stripTerminalSequences(line).includes("Tabs")) });
+    expect(help.some(line => stripTerminalSequences(line).includes("Navigation"))).toBe(true);
+
+    recorder.begin("attachment.entry");
+    terminal.input("@");
+    await vi.waitFor(() => expect(prompt()).toBe("@"));
+    recorder.observe("key", "@", { keys: 1 });
+    recorder.observe("prompt", prompt(), { length: prompt().length });
+    shell.root.editor.setText("");
+
+    recorder.begin("extension.text-ui");
+    const received: string[] = [];
+    const overlay = shell.runtime.showOverlay({
+      render: (width: number) => ["extension surface".padEnd(width, " ")],
+      invalidate() {},
+      handleInput: (data: string) => received.push(data),
+    }, { width: "100%", anchor: "top-left" });
+    shell.runtime.renderNow();
+    recorder.sent();
+    terminal.input("\u001b[B");
+    terminal.input("\r");
+    shell.runtime.renderNow();
+    recorder.observe("key", received.join(""), { keys: received.length });
+    expect(received.join("")).toContain(String.fromCharCode(13));
+    expect(prompt()).toBe("");
+    const overlaid = shell.root.render(100);
+    recorder.observe("cells", overlaid.join("\n"), { rows: overlaid.length, overlay: shell.runtime.hasOverlay() });
+    overlay.hide();
+    shell.runtime.renderNow();
+
+    recorder.begin("stream.concurrent");
+    engine.session.emit({ type: "agent_start" });
+    await shell.backend.session.flushEvents();
+    for (let checkpoint = 1; checkpoint <= 3; checkpoint++) {
+      recorder.sent();
+      engine.session.emit({ type: "message_start", message: { role: "assistant", content: [{ type: "text", text: `streamed chunk ${checkpoint}` }], timestamp: 10 + checkpoint } });
+      await shell.backend.session.flushEvents();
+      shell.runtime.renderNow();
+      const frame = shell.root.render(100).map(line => stripTerminalSequences(line)).join("\n");
+      recorder.observe("stream", frame, { checkpoint, final: checkpoint === 3, shown: frame.includes(`streamed chunk ${checkpoint}`) });
+      expect(frame).toContain(`streamed chunk ${checkpoint}`);
+    }
+    recorder.observe("latency", "stream", { checkpoints: 3 });
+    engine.session.emit({ type: "agent_end", messages: [] });
+    await shell.backend.session.flushEvents();
 
     recorder.begin("detach.double-ctrl-c");
     const first = await shell.clearOrExit(1_000);
