@@ -58,13 +58,17 @@ impl SemanticEncoder {
             } => {
                 let code = semantic_keys::key_code(key)
                     .ok_or_else(|| "input rejected; unknown key identity".to_owned())?;
-                self.keys.encode(
+                let encoded = self.keys.encode(
                     terminal,
                     code,
                     ghostty_mods(*mods),
                     text.as_deref(),
                     *repeat,
-                )
+                )?;
+                if encoded.is_empty() {
+                    return Ok(modified_control_fallback(key, *mods).unwrap_or_default());
+                }
+                Ok(encoded)
             }
             InputEvent::Focus { gained } => Ok(if terminal.mode(MODE_FOCUS_EVENT)? {
                 if *gained {
@@ -117,6 +121,39 @@ impl SemanticEncoder {
             }
         }
     }
+}
+
+/// The bytes direct A1 observes for a modified Enter, Tab, Backspace, or Escape that the legacy
+/// key protocol leaves unencoded: the xterm CSI u form every supported terminal emits for them.
+///
+/// Platform: Windows terminals send LF for Ctrl+Enter and ConPTY reports LF as Ctrl+Enter, so LF
+/// is the byte the direct prompt observes there.
+pub fn modified_control_fallback(key: &str, mods: u8) -> Option<Vec<u8>> {
+    let mut parameter = 1u8;
+    if mods & MOD_SHIFT != 0 {
+        parameter += 1;
+    }
+    if mods & MOD_ALT != 0 {
+        parameter += 2;
+    }
+    if mods & MOD_CTRL != 0 {
+        parameter += 4;
+    }
+    if parameter == 1 {
+        return None;
+    }
+    let codepoint = match key {
+        "enter" if cfg!(windows) && mods & (MOD_CTRL | MOD_ALT | MOD_SHIFT) == MOD_CTRL => {
+            return Some(b"\n".to_vec());
+        }
+        "enter" => 13,
+        "tab" if parameter == 2 => return Some(b"\x1b[Z".to_vec()),
+        "tab" => 9,
+        "backspace" => 127,
+        "escape" => 27,
+        _ => return None,
+    };
+    Some(format!("\x1b[{codepoint};{parameter}u").into_bytes())
 }
 
 /// The bytes a complete paste produces for the child, honoring its bracketed-paste mode the way
@@ -230,6 +267,38 @@ mod tests {
         assert_eq!(recovery_action(&key("r", MOD_CTRL)), None);
         assert_eq!(recovery_action(&key("q", 0)), None);
         assert_eq!(recovery_action(&InputEvent::Focus { gained: true }), None);
+    }
+
+    #[test]
+    fn modified_control_keys_fall_back_to_what_direct_terminals_send() {
+        assert_eq!(modified_control_fallback("enter", 0), None);
+        assert_eq!(modified_control_fallback("a", MOD_CTRL), None);
+        assert_eq!(
+            modified_control_fallback("enter", MOD_SHIFT),
+            Some(b"\x1b[13;2u".to_vec())
+        );
+        assert_eq!(
+            modified_control_fallback("tab", MOD_SHIFT),
+            Some(b"\x1b[Z".to_vec())
+        );
+        assert_eq!(
+            modified_control_fallback("tab", MOD_CTRL | MOD_SHIFT),
+            Some(b"\x1b[9;6u".to_vec())
+        );
+        assert_eq!(
+            modified_control_fallback("backspace", MOD_ALT),
+            Some(b"\x1b[127;3u".to_vec())
+        );
+        assert_eq!(
+            modified_control_fallback("escape", MOD_CTRL),
+            Some(b"\x1b[27;5u".to_vec())
+        );
+        let ctrl_enter = modified_control_fallback("enter", MOD_CTRL).expect("ctrl+enter");
+        if cfg!(windows) {
+            assert_eq!(ctrl_enter, b"\n");
+        } else {
+            assert_eq!(ctrl_enter, b"\x1b[13;5u");
+        }
     }
 
     #[test]
