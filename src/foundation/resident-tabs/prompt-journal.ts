@@ -15,7 +15,6 @@ export interface SubmittedPromptRecord {
   readonly fileExisted: boolean;
   readonly kind: "prompt" | "steer" | "follow-up";
   readonly text: string;
-  readonly images?: readonly unknown[];
   readonly at: string;
 }
 export interface CorrelatedPromptRecord { readonly type: "correlated"; readonly id: string; readonly entryId: string }
@@ -30,7 +29,6 @@ export interface PromptSubmission {
   readonly fileExisted: boolean;
   readonly kind: SubmittedPromptRecord["kind"];
   readonly text: string;
-  readonly images?: readonly unknown[];
 }
 
 export interface SessionJournalEntry {
@@ -70,7 +68,6 @@ export class PromptJournal {
       type: "submitted",
       id: randomUUID(),
       ...submission,
-      ...(submission.images === undefined ? {} : { images: submission.images }),
       at: new Date().toISOString(),
     };
     await this.#append(record, "journal-before-append", "journal-after-append", "journal-after-sync");
