@@ -25,8 +25,11 @@ export const FULL_REGRESSION_MAX_WORKERS = 2;
 export const FULL_REGRESSION_SHARD_SCHEMA = "a1-full-regression-shard-v1";
 // Invariant: the build is a per-runner prerequisite every shard authenticates for itself; it is not owned work.
 const FULL_REGRESSION_SHARD_PREREQUISITES = Object.freeze(["candidate-build"]);
-// Invariant: every canonical command and invocation matches exactly one entry; an unassigned or doubly
-// assigned owner rejects the partition instead of silently joining a shard.
+// Invariant: packing is a per-shard prerequisite of every shard that installs the exact package; each such
+// shard packs and prepares its own candidate, and no installed state crosses shards.
+const FULL_REGRESSION_PACKAGE_PREREQUISITES = Object.freeze(["candidate-pack"]);
+// Invariant: every canonical invocation matches exactly one entry; an unassigned or doubly assigned
+// owner rejects the partition instead of silently joining a shard.
 const FULL_REGRESSION_SHARD_ASSIGNMENT = Object.freeze({
   core: {
     commands: ["typecheck", "architecture", "code-documentation-full", "internal-naming-full", "candidate-engine-conformance-report", "deprecated-dependencies"],
@@ -36,7 +39,13 @@ const FULL_REGRESSION_SHARD_ASSIGNMENT = Object.freeze({
   rendering: { commands: [], invocations: [/^vitest-isolated-suites$/u] },
   package: {
     commands: ["candidate-pack"],
-    invocations: [/^vitest-isolated-timing$/u, /^vitest-package-smoke-\d+$/u, /^vitest-package-startup$/u, /^vitest-package-contracts$/u, /^vitest-update-predecessor$/u],
+    invocations: [/^vitest-isolated-timing$/u, /^vitest-package-smoke-\d+$/u, /^vitest-package-startup$/u, /^vitest-package-contracts$/u],
+  },
+  // Rationale: the published-predecessor invocation took 11 to 12 minutes of the 24-minute package shard on
+  // Windows; its own shard with its own preparation halves the Windows critical path of complete regression.
+  predecessor: {
+    commands: ["candidate-pack"],
+    invocations: [/^vitest-update-predecessor$/u],
   },
 });
 
@@ -246,19 +255,33 @@ export function partitionFullRegressionPlan(plan) {
   if (duplicates.length > 0) throw new Error(`duplicate complete-regression work: ${[...new Set(duplicates)].join(", ")}`);
   const shards = Object.fromEntries(FULL_REGRESSION_SHARDS.map(id => [id, { commands: [], preparation: [], invocations: [] }]));
   const prerequisites = [];
+  const owners = (id, kind) => FULL_REGRESSION_SHARDS.filter(shard => kind === "command"
+    ? FULL_REGRESSION_SHARD_ASSIGNMENT[shard].commands.includes(id)
+    : FULL_REGRESSION_SHARD_ASSIGNMENT[shard].invocations.some(pattern => pattern.test(id)));
   const owner = (id, kind) => {
-    const owners = FULL_REGRESSION_SHARDS.filter(shard => kind === "command"
-      ? FULL_REGRESSION_SHARD_ASSIGNMENT[shard].commands.includes(id)
-      : FULL_REGRESSION_SHARD_ASSIGNMENT[shard].invocations.some(pattern => pattern.test(id)));
-    if (owners.length !== 1) throw new Error(`complete-regression ${kind} ${id} has ${owners.length === 0 ? "no" : "more than one"} shard`);
-    return owners[0];
+    const found = owners(id, kind);
+    if (found.length !== 1) throw new Error(`complete-regression ${kind} ${id} has ${found.length === 0 ? "no" : "more than one"} shard`);
+    return found[0];
   };
   for (const command of plan.commands) {
     if (FULL_REGRESSION_SHARD_PREREQUISITES.includes(command.id)) prerequisites.push(command.id);
-    else shards[owner(command.id, "command")].commands.push(command.id);
+    else if (FULL_REGRESSION_PACKAGE_PREREQUISITES.includes(command.id)) {
+      const packing = owners(command.id, "command");
+      if (packing.length === 0) throw new Error(`complete-regression command ${command.id} has no shard`);
+      for (const shard of packing) shards[shard].commands.push(command.id);
+    } else shards[owner(command.id, "command")].commands.push(command.id);
   }
-  if (plan.exactPackagePreparation) shards.package.preparation.push(plan.exactPackagePreparation.id);
   for (const invocation of invocations) shards[owner(invocation.id, "invocation")].invocations.push(invocation.id);
+  if (plan.exactPackagePreparation) {
+    // Invariant: every shard owning an exact-package consumer prepares its own installation; a shard that packs
+    // without consuming, or consumes without packing, rejects the partition.
+    for (const shard of FULL_REGRESSION_SHARDS) {
+      const consumes = shardExactPackageConsumers(plan.exactPackagePreparation, shards[shard].invocations).length > 0;
+      const packs = shards[shard].commands.includes("candidate-pack");
+      if (consumes !== packs) throw new Error(`complete-regression shard ${shard} ${consumes ? "consumes the exact package without packing it" : "packs without an exact-package consumer"}`);
+      if (consumes) shards[shard].preparation.push(plan.exactPackagePreparation.id);
+    }
+  }
   const empty = FULL_REGRESSION_SHARDS.filter(shard => shards[shard].invocations.length === 0);
   if (empty.length > 0) throw new Error(`complete-regression shards own no invocation: ${empty.join(", ")}`);
   return {
@@ -281,14 +304,28 @@ export function createFullRegressionShardPlan(plan, shard) {
   if (!FULL_REGRESSION_SHARDS.includes(shard)) throw new Error(`unknown complete-regression shard: ${shard}`);
   const partition = partitionFullRegressionPlan(plan);
   const assigned = partition.shards[shard];
+  // Rationale: a shard prepares the exact package only for the consumers it owns, so its receipt, handoff,
+  // and pre/post-invocation verification name exactly that shard's installation.
+  const consumers = assigned.preparation.length > 0 ? shardExactPackageConsumers(plan.exactPackagePreparation, assigned.invocations) : [];
   return {
     ...plan,
     consumesPackage: assigned.commands.includes("candidate-pack"),
-    exactPackagePreparation: assigned.preparation.length > 0 ? plan.exactPackagePreparation : null,
+    exactPackagePreparation: consumers.length > 0 ? { ...plan.exactPackagePreparation, consumers } : null,
     commands: plan.commands.filter(command => partition.prerequisites.includes(command.id) || assigned.commands.includes(command.id)),
     vitest: { mode: "full-shard", invocations: plan.vitest.invocations.filter(invocation => assigned.invocations.includes(invocation.id)) },
     fullShard: { schema: FULL_REGRESSION_SHARD_SCHEMA, id: shard, planDigest: partition.planDigest, prerequisites: partition.prerequisites, assigned },
   };
+}
+
+/** The canonical preparation's consumers whose invocation a shard owns, in canonical order. */
+function shardExactPackageConsumers(preparation, invocationIds) {
+  return (preparation?.consumers ?? []).filter(consumer => invocationIds.some(id => exactPackageConsumerOf(id) === consumer));
+}
+
+function exactPackageConsumerOf(invocationId) {
+  return invocationId === "vitest-package-startup" ? "package-startup"
+    : invocationId === "vitest-package-contracts" ? "package-contracts"
+      : invocationId === "vitest-update-predecessor" || invocationId.startsWith("vitest-explicit-update-predecessor") ? "update-predecessor" : null;
 }
 
 export async function runTierPlan(plan, options = {}) {

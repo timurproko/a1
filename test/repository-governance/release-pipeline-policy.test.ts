@@ -114,13 +114,29 @@ describe("deliberate publication pipeline", () => {
   it("builds the guardian and terminal host on all four release platforms and packs only a complete set", async () => {
     const source = await workflow();
     const job = (name: string, next: string) => source.slice(source.indexOf(`\n  ${name}:`), source.indexOf(`\n  ${next}:`));
-    const runners = "os: [windows-2025, ubuntu-24.04, macos-15, macos-15-intel]";
-    expect(job("guardians", "terminal_hosts")).toContain(runners);
+    // Rationale: macOS x64 is cross-compiled on the arm64 runner; the Intel runner took two to three times as long.
+    const runners = "os: [windows-2025, ubuntu-24.04, macos-15]";
+    expect(source).not.toContain("macos-15-intel");
+    const guardians = job("guardians", "terminal_hosts");
+    expect(guardians).toContain(runners);
+    expect(guardians).toContain("- name: Add the macOS x64 target\n        if: runner.os == 'macOS'\n        run: rustup target add x86_64-apple-darwin");
+    expect(guardians).toContain("- name: Build the macOS x64 process guardian\n        if: runner.os == 'macOS'\n        run: npm run build:process-guardian -- --target x86_64-apple-darwin");
+    expect(guardians.indexOf("run: npm run build:process-guardian\n")).toBeLessThan(guardians.indexOf("- name: Add the macOS x64 target"));
     const hosts = job("terminal_hosts", "package");
     expect(hosts).toContain(runners);
+    expect(hosts).toContain("- name: Add the macOS x64 target\n        if: runner.os == 'macOS'\n        run: rustup target add x86_64-apple-darwin");
+    expect(hosts).toContain("- name: Build, verify, and record the macOS x64 release terminal host\n        if: runner.os == 'macOS'\n        run: npm run build:terminal-host -- --target x86_64-apple-darwin");
+    expect(hosts.indexOf("run: npm run build:terminal-host\n")).toBeLessThan(hosts.indexOf("- name: Add the macOS x64 target"));
+    expect(hosts.indexOf("- name: Build, verify, and record the macOS x64 release terminal host")).toBeLessThan(hosts.indexOf("- name: Run the nightly server-core simulation budget"));
     expect(hosts.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'");
     expect(hosts).toContain("uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1");
     expect(hosts).toContain("version: 0.15.2");
+    expect(hosts).toContain("cache-key: publication");
+    expect(hosts).toContain("cache-size-limit: 512");
+    const regression = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
+    for (const step of Object.values(regression.jobs as Record<string, { steps?: { uses?: string; with?: Record<string, unknown> }[] }>).flatMap(job => job.steps ?? [])) {
+      if (step.uses?.startsWith("mlugg/setup-zig@")) expect(step.with).toEqual({ version: "0.15.2", "cache-key": "full-regression", "cache-size-limit": 512 });
+    }
     expect(hosts).toContain("run: bash scripts/development/prepare-ci-rust.sh");
     expect(hosts).toContain("run: npm run build:terminal-host");
     // Invariant: the larger simulation budget runs nightly on one platform, never on stable publication.
@@ -260,6 +276,17 @@ describe("deliberate publication pipeline", () => {
     const publish = source.slice(source.indexOf("\n  publish:"));
     expect(publish.slice(0, publish.indexOf("\n  post_publish:"))).not.toMatch(/npm ci|npm run build|prepare-validation-package/);
     expect(source.indexOf("Exercise the exact published pair")).toBeLessThan(source.indexOf("Upload the exact asset to the published Release"));
+  });
+
+  it("replaces npm only on Node 22 lanes, because packing needs npm 11 and Node 24 ships it", async () => {
+    const regression = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
+    const pinName = "Use the pinned npm for packing";
+    expect(regression.jobs["windows-shard"].steps.find((step: { name?: string }) => step.name === pinName).if).toBe("matrix.node == 22");
+    expect(regression.jobs["full-regression"].strategy.matrix.include.every((entry: { node: number }) => entry.node === 24)).toBe(true);
+    expect(regression.jobs["full-regression"].steps.some((step: { name?: string }) => step.name === pinName)).toBe(false);
+    expect(await workflow()).not.toContain(pinName);
+    const packing = await readFile("scripts/release/npm-pack-metadata.mjs", "utf8");
+    expect(packing).toContain("export const MINIMUM_PACK_NPM_MAJOR = 11;");
   });
 
   it("packs native process guardians with host-independent executability", async () => {
