@@ -22,12 +22,16 @@ const hostAddon = resolve(".artifacts/terminal-host/terminal-host.node");
 const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
 const fakeTab = resolve("native/terminal-host/target/debug", `fake-tab${executable}`);
 const nativeIt = existsSync(hostAddon) && existsSync(hostEntry) && existsSync(fakeTab) ? it : it.skip;
-const hostEnvironment = (addon: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
-  ...process.env,
-  A1_DEV_INSTANCE_ID: "resident-release-retention",
-  A1_TERMINAL_HOST_PATH: addon,
-  ...extra,
-});
+const hostEnvironment = (addon: string, endpoint: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => {
+  const environment = {
+    ...process.env,
+    A1_DEV_INSTANCE_ID: "resident-release-retention",
+    A1_TERMINAL_HOST_PATH: addon,
+    A1_TABS_ENDPOINT: endpoint,
+    ...extra,
+  };
+  return environment;
+};
 
 const roots: string[] = [];
 const stops: (() => void)[] = [];
@@ -61,7 +65,7 @@ describe("resident release retention with real processes", () => {
     const common = ["--profile", profile, "--data-dir", fixture.dataDir, "--runtime-dir", runtime];
     const run = (arguments_: readonly string[]) => spawnSync(process.execPath, [hostEntry, ...arguments_], {
       encoding: "utf8",
-      env: hostEnvironment(releaseHost, { A1_TABS_ENDPOINT: endpoint }),
+      env: hostEnvironment(releaseHost, endpoint),
       cwd: heldByTab!.releaseRoot,
       timeout: 120_000,
       windowsHide: true,
@@ -87,7 +91,7 @@ describe("resident release retention with real processes", () => {
       run: async (_command, arguments_, timeoutMs) => runBoundedHostCommand(
         { executable: process.execPath, entry: hostEntry },
         arguments_,
-        { environment: hostEnvironment(releaseHost, { A1_TABS_ENDPOINT: endpoint }), maxStdoutBytes: 1024 * 1024, timeoutMs, label: "fixture release-hold inspection" },
+        { environment: hostEnvironment(releaseHost, endpoint), maxStdoutBytes: 1024 * 1024, timeoutMs, label: "fixture release-hold inspection" },
       ),
     });
     await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
@@ -120,7 +124,7 @@ describe("resident release retention with real processes", () => {
     const common = ["--profile", profile, "--data-dir", environment.A1_DATA_DIR, "--runtime-dir", runtime];
     const run = (arguments_: readonly string[], extra: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [hostEntry, ...arguments_], {
       encoding: "utf8",
-      env: hostEnvironment(hostAddon, { A1_TABS_ENDPOINT: endpoint, ...extra }),
+      env: hostEnvironment(hostAddon, endpoint, extra),
       cwd: release.releaseRoot,
       timeout: 120_000,
       windowsHide: true,

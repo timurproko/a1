@@ -171,7 +171,10 @@ describe("impact-aware validation workflows", () => {
     expect(cleanup).toBeLessThan(certify.indexOf(measured));
     expect(certify).toContain('CommandLine.Contains("host-entry.js")');
     expect(certify).not.toContain("taskkill //IM");
-    expect(certify).toContain('pkill -f "a1-resident-measure-"');
+    expect(certify).not.toContain("pkill -f");
+    expect(certify).toContain('pgrep -f "a1-resident-measure-"');
+    expect(certify).toContain('ps -p "$pid" -o comm=');
+    expect(certify).toContain('kill -TERM "$pid"');
     expect(certify.endsWith(`${measured}\n`) || certify.endsWith(measured)).toBe(true);
     const upload = modular.steps.find((step: any) => step.name === "Upload terminal host contract artifacts");
     expect(upload.with.path).toContain(".artifacts/terminal-host/${{ matrix.terminalHostAddon }}");

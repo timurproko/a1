@@ -79,7 +79,7 @@ describe("immutable release materialization", () => {
     const payload = resolve(release.releaseRoot, "dist/app.js");
     await chmod(payload, 0o600);
     await writeFile(payload, "altered");
-    // Presence is deliberately cheaper than digest verification for the certified bootstrap path.
+    // Performance: presence is deliberately cheaper than digest verification on this bootstrap path.
     await expect(assertCertifiedFilesPresent(release.releaseRoot)).resolves.toBeUndefined();
 
     await expect(repairMaterializedRelease(packageRoot, release.releaseRoot)).resolves.toMatchObject({ releaseId: release.releaseId });

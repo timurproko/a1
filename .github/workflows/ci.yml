@@ -745,7 +745,11 @@ jobs:
           if [ "${{ matrix.platform }}" = win32 ]; then
             powershell.exe -NoProfile -NonInteractive -Command 'Get-CimInstance Win32_Process | Where-Object { $_.Name -eq "node.exe" -and $_.CommandLine -and $_.CommandLine.Contains("host-entry.js") -and $_.CommandLine.Contains("a1-resident-measure-") } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }' > /dev/null 2>&1 || true
           else
-            pkill -f "a1-resident-measure-" > /dev/null 2>&1 || true
+            for pid in $(pgrep -f "a1-resident-measure-" || true); do
+              if ps -p "$pid" -o comm= 2>/dev/null | grep -Eq '^[[:space:]]*(.*/)?node[[:space:]]*$'; then
+                kill -TERM "$pid" > /dev/null 2>&1 || true
+              fi
+            done
           fi
           sleep 5
           node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json"

@@ -62,8 +62,8 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
   const instanceId = randomUUID();
   const helperPath = options.helperPath ?? resolveProcessGuardianPath(options.releaseRoot, environment);
   await (options.ensureHelper ?? verifyProcessGuardianArtifact)(helperPath);
-  // Tests that inject both process boundaries need no native module; every production path loads the
-  // exact artifact only after its manifest and digest have been verified.
+  // Rationale: tests that inject both process boundaries need no native module; every production
+  // path loads the exact artifact only after its manifest and digest have been verified.
   const addon = options.addon ?? (options.containment && options.inspector ? null : loadProcessGuardianAddon(helperPath));
   const inspector = options.inspector ?? platformInspector(requireAddon(addon));
   const guardianIdentity = await inspector.observe(process.pid);

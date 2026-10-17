@@ -817,10 +817,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.test.ts:53:32",
+      "id": "test/foundation/release/package-surface.test.ts:51:32",
       "path": "test/foundation/release/package-surface.test.ts",
       "locationKind": "content",
-      "line": 53,
+      "line": 51,
       "column": 32,
       "value": "addone",
       "context": "expect(paths.some(path => /addone/i.test(path))).toBe(false);",

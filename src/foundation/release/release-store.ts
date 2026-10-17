@@ -63,6 +63,7 @@ export interface CertifiedReleaseRecord {
   readonly launchContract?: string;
 }
 
+/** Reports that installed package bytes cannot safely reproduce an approved release. */
 export class ReleaseRepairUnavailableError extends Error {
   readonly code = "RELEASE_REPAIR_UNAVAILABLE" as const;
   constructor(message: string, options: ErrorOptions = {}) {

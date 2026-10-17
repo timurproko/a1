@@ -36,8 +36,8 @@ const metadata = phases.runSync("npm-pack", () => {
 });
 const source = resolve(outputDirectory, metadata.filename);
 const target = resolve(outputDirectory, "candidate.tgz");
-// Native release payloads are loadable addons, so package identity is host-independent and needs
-// no executable-mode rewrite after `npm pack`.
+// Rationale: native release payloads are loadable addons, so package identity is host-independent
+// and needs no executable-mode rewrite after `npm pack`.
 const bytes = await phases.run("read-packed-candidate", () => readFile(source));
 phases.bindCandidate(bytes);
 await phases.run("write-exact-candidate", () => writeFile(target, bytes));

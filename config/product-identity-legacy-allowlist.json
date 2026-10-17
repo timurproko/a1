@@ -280,9 +280,9 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.test.ts:53:32",
+      "id": "test/foundation/release/package-surface.test.ts:51:32",
       "value": "addone",
-      "fingerprint": "11ad83a7168a0ab00fb52a49585e30f3acffa2c82974e238983f87a60df6c02b",
+      "fingerprint": "4e80426ddc17ec89381d3d7d3a0261be9cb396b4235e68ea3dc5b259f1dba171",
       "reason": "explicit legacy rejection fixture"
     },
     {

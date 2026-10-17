@@ -66,6 +66,14 @@ pub(super) fn spawn(options: SpawnContainedOptions) -> Result<Runtime, String> {
         "cannot configure the contained process-group leader",
     )?;
     let mut actions = SpawnFileActions::new()?;
+    // Invariant: launchers may mark even descriptors 0–2 close-on-exec. Same-descriptor spawn
+    // duplication clears that flag and preserves byte-for-byte terminal or pipe inheritance.
+    for descriptor in [libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO] {
+        posix_result(
+            unsafe { libc::posix_spawn_file_actions_adddup2(&mut actions.value, descriptor, descriptor) },
+            "cannot inherit a contained standard stream",
+        )?;
+    }
     posix_result(
         unsafe { libc::posix_spawn_file_actions_addchdir_np(&mut actions.value, cwd.as_ptr()) },
         "cannot configure the contained working directory",

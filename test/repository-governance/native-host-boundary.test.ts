@@ -50,6 +50,7 @@ describe("native host and launch executable boundaries", () => {
     expect(attach).toContain("OuterTerminal");
     expect(bridge).not.toMatch(FORBIDDEN_NODE_PROTOCOL_PAYLOADS);
     expect(runner).toContain('stdio: "inherit"');
+    expect(runner).toContain('["build", "--manifest-path", manifest, "--bin", "fake-tab"');
     expect(runner).not.toContain('stdio: "pipe"');
     expect(runner).not.toContain("encoding:");
   });

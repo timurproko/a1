@@ -1,13 +1,11 @@
 import crossSpawn from "cross-spawn";
 import { readFile, rm } from "node:fs/promises";
-import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { guardianAddonReference, terminalHostAddonReference } from "../../../scripts/governance/candidate-evidence.mjs";
 import { RELEASE_NATIVE_TARGETS } from "../../../scripts/release/verify-native-artifacts.mjs";
 import { extractValidationCandidate, loadValidationCandidate } from "./package-candidate-fixture.js";
 
-const require = createRequire(import.meta.url);
 let candidate: Awaited<ReturnType<typeof loadValidationCandidate>>;
 let extracted: Awaited<ReturnType<typeof extractValidationCandidate>>;
 
@@ -83,7 +81,7 @@ describe("exact packed npm command surface", () => {
     if (!localManifest) throw new Error(`packed local guardian manifest is missing: ${localPath}`);
     const local = guardianAddonReference(localManifest.path, localManifest.content);
     if (!local) throw new Error(`packed local guardian manifest is foreign: ${localPath}`);
-    expect(require(resolve(extracted.packageRoot, local.addonPath.slice("package/".length))).version()).toMatchObject({ protocolVersion: 2 });
+    expect(readAddonVersion(resolve(extracted.packageRoot, local.addonPath.slice("package/".length)))).toMatchObject({ protocolVersion: 2 });
   });
 
   // Platform: only the publication package job assembles every platform; a lane that packs its own
@@ -109,7 +107,7 @@ describe("exact packed npm command surface", () => {
     if (!localManifest) throw new Error(`packed terminal host manifest is missing: ${localManifestPath}`);
     const localReference = terminalHostAddonReference(localManifest.path, localManifest.content);
     if (!localReference) throw new Error(`packed terminal host manifest is foreign: ${localManifestPath}`);
-    const report = require(resolve(extracted.packageRoot, localReference.addonPath.slice("package/".length))).version() as { generation?: number; features?: { faultInjection?: boolean; residentFixtures?: boolean } };
+    const report = readAddonVersion(resolve(extracted.packageRoot, localReference.addonPath.slice("package/".length))) as { generation?: number; features?: { faultInjection?: boolean; residentFixtures?: boolean } };
     expect(report.generation).toBe(1);
     expect(report.features).toEqual({ faultInjection: false, residentFixtures: false });
   });
@@ -156,3 +154,13 @@ describe("exact packed npm command surface", () => {
     expect(command.stderr).toBe("");
   });
 });
+
+function readAddonVersion(path: string): unknown {
+  const probe = crossSpawn.sync(process.execPath, [
+    "-e",
+    "process.stdout.write(JSON.stringify(require(process.argv[1]).version()));",
+    path,
+  ], { encoding: "utf8", env: process.env, windowsHide: true });
+  if (probe.status !== 0) throw new Error(`packed addon version probe failed: ${probe.stderr}`);
+  return JSON.parse(probe.stdout);
+}

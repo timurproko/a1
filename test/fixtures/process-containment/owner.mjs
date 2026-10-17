@@ -10,10 +10,8 @@ const options = parseOptions(process.argv.slice(2, separator));
 const [executable, ...arguments_] = process.argv.slice(separator + 1);
 const addon = require(resolve(options.addon));
 const encodedModes = addon.captureTerminalModes();
-const environment = {
-  ...process.env,
-  ...(options.notice ? { A1_EXIT_NOTICE_PATH: options.notice } : {}),
-};
+const environment = { ...process.env };
+if (options.notice) environment.A1_EXIT_NOTICE_PATH = options.notice;
 const runtime = addon.spawnContained({
   executable,
   arguments: arguments_,

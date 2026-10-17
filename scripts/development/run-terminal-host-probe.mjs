@@ -77,6 +77,9 @@ async function main() {
   } else {
     run(cargo, ["test", "--manifest-path", manifest, "--features", ROLE_TEST_FEATURES], environment);
   }
+  // Platform: `cargo test --bins` does not place a normal `.exe` at the path used by the Windows
+  // parity probe, so build the child fixture explicitly on every platform.
+  run(cargo, ["build", "--manifest-path", manifest, "--bin", "fake-tab", "--features", "resident-fixtures"], environment);
   assertNoFixtureProcesses(environment);
   // Invariant: the real-process Vitest fixture must see the addon before test collection; otherwise
   // its native assertions would skip while the old executable target no longer exists.

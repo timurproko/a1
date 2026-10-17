@@ -77,7 +77,7 @@
       "role": "exitNoticePath",
       "key": "A1_EXIT_NOTICE_PATH",
       "exposure": "review",
-      "owner": "src/foundation/process-containment/native-guardian-containment.ts",
+      "owner": "src/foundation/process-containment/addon-containment.ts",
       "evidence": "test/foundation/process-containment/windows-job.integration.test.ts",
       "semantics": "Guardian-to-runtime handoff of the unclean-exit notice path, removed from the runtime environment on read; retain pending exposure review"
     },
@@ -85,9 +85,9 @@
       "role": "processGuardianPath",
       "key": "A1_PROCESS_GUARDIAN_PATH",
       "exposure": "review",
-      "owner": "src/foundation/process-containment/native-guardian-containment.ts",
+      "owner": "src/foundation/process-containment/addon-containment.ts",
       "evidence": "test/foundation/process-containment/windows-job.integration.test.ts",
-      "semantics": "Explicit helper executable override; retain pending caller exposure review"
+      "semantics": "Explicit process-guardian addon override; retain pending caller exposure review"
     },
     {
       "role": "skipVersionCheck",
