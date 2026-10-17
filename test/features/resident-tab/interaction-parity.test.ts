@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { EXACT_PACKAGE_CASES, INTERACTION_MATRIX, interactionCase, LATENCY_BUDGETS_MS, type InteractionCategory } from "../../support/interaction-parity/matrix.js";
-import { compareCandidates, digestContent, normalizeResident, type Observation, validateObservations } from "../../support/interaction-parity/observations.js";
+import { EXACT_PACKAGE_CASES, INTERACTION_CATEGORIES, INTERACTION_MATRIX, interactionCase, KEY_TRANSPORT_CASES, LATENCY_BUDGETS_MS, type InteractionCategory } from "../../../scripts/development/interaction-parity/matrix.mjs";
+import { compareCandidates, digestContent, normalizeResident, type Observation, validateObservations } from "../../../scripts/development/interaction-parity/observations.mjs";
 
 const platform = "linux-x64";
 const sample = (overrides: Partial<Observation> = {}): Observation => ({
@@ -28,9 +28,12 @@ describe("interaction parity matrix", () => {
   it("names every category once or more with unique ids and a non-empty exact-package subset", () => {
     const ids = INTERACTION_MATRIX.map(entry => entry.id);
     expect(new Set(ids).size).toBe(ids.length);
-    const categories: InteractionCategory[] = ["prompt-editing", "completion-history", "shortcuts", "selection", "clipboard", "mouse-focus", "dialogs", "extension-ui", "attachments", "resize", "streaming", "switching", "detach", "recovery", "restoration"];
+    const categories: readonly InteractionCategory[] = INTERACTION_CATEGORIES;
+    expect(categories).toHaveLength(15);
     for (const category of categories) expect(INTERACTION_MATRIX.some(entry => entry.category === category), category).toBe(true);
     expect(EXACT_PACKAGE_CASES.length).toBeGreaterThanOrEqual(10);
+    expect(KEY_TRANSPORT_CASES.map(entry => entry.id)).toEqual(expect.arrayContaining(["prompt.type-ascii", "clipboard.terminal-paste", "mouse.focus"]));
+    expect(KEY_TRANSPORT_CASES.every(entry => entry.residentDifference === undefined)).toBe(true);
     expect(INTERACTION_MATRIX.every(entry => entry.expects.length > 0 && entry.steps.length > 0)).toBe(true);
     expect(() => interactionCase("missing.case")).toThrow(/unknown interaction case/u);
     expect(Object.values(LATENCY_BUDGETS_MS).every(budget => budget > 0)).toBe(true);

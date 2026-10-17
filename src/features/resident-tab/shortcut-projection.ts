@@ -45,17 +45,17 @@ function keysOf(value: string | readonly string[] | null | undefined): readonly 
  */
 export function projectResidentTabShortcuts(input: ResidentTabShortcutInput = {}): ResidentTabShortcutProjection {
   const configured = input.configured ?? {};
-  const claimedByA1 = new Map<string, readonly string[]>();
+  const claimedByOwnedActions = new Map<string, readonly string[]>();
   for (const [action, value] of Object.entries(input.reserved ?? {})) {
     if (action.startsWith("tabs.")) continue;
-    claimedByA1.set(action, keysOf(value) ?? []);
+    claimedByOwnedActions.set(action, keysOf(value) ?? []);
   }
   for (const [action, value] of Object.entries(configured)) {
     if (action.startsWith("tabs.") || action === "$schema") continue;
-    claimedByA1.set(action, keysOf(value) ?? []);
+    claimedByOwnedActions.set(action, keysOf(value) ?? []);
   }
   const reserved = new Set<string>();
-  for (const keys of claimedByA1.values()) for (const key of keys) reserved.add(normalizeKey(key));
+  for (const keys of claimedByOwnedActions.values()) for (const key of keys) reserved.add(normalizeKey(key));
   const claimed = new Set<string>();
   const conflicts: ResidentTabShortcutConflict[] = [];
   const assignments = {} as Record<ResidentTabGlobalAction, string | null>;

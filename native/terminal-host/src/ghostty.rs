@@ -711,9 +711,13 @@ impl GhosttyTerminal {
 
     /// The modes a viewer needs to mirror this child; read after `frame_at` so the render state
     /// cursor fields are current.
+    ///
+    /// Compatibility: each field is read on its own and falls back to the terminal default, so one
+    /// datum a library build does not report never withholds the cursor shape and modes the
+    /// viewer needs from every other field.
     pub fn mode_snapshot(&self) -> Result<TerminalModeSnapshot, String> {
         let mut style = 1i32;
-        check(
+        let _ = check(
             unsafe {
                 ghostty_render_state_get(
                     self.render,
@@ -722,9 +726,9 @@ impl GhosttyTerminal {
                 )
             },
             "read cursor style",
-        )?;
+        );
         let mut blink = false;
-        check(
+        let _ = check(
             unsafe {
                 ghostty_render_state_get(
                     self.render,
@@ -733,9 +737,9 @@ impl GhosttyTerminal {
                 )
             },
             "read cursor blink",
-        )?;
+        );
         Ok(TerminalModeSnapshot {
-            cursor_visible: self.mode(MODE_CURSOR_VISIBLE)?,
+            cursor_visible: self.mode(MODE_CURSOR_VISIBLE).unwrap_or(true),
             cursor_style: match style {
                 0 => "bar",
                 2 => "underline",
@@ -743,12 +747,12 @@ impl GhosttyTerminal {
                 _ => "block",
             },
             cursor_blink: blink,
-            mouse_tracking: self.mouse_tracking()?,
-            focus_events: self.mode(MODE_FOCUS_EVENT)?,
-            bracketed_paste: self.mode(MODE_BRACKETED_PASTE)?,
-            kitty_keyboard_flags: self.kitty_keyboard_flags()?,
-            alternate_screen: self.alternate_screen()?,
-            synchronized_output: self.mode(MODE_SYNC_OUTPUT)?,
+            mouse_tracking: self.mouse_tracking().unwrap_or(false),
+            focus_events: self.mode(MODE_FOCUS_EVENT).unwrap_or(false),
+            bracketed_paste: self.mode(MODE_BRACKETED_PASTE).unwrap_or(false),
+            kitty_keyboard_flags: self.kitty_keyboard_flags().unwrap_or(0),
+            alternate_screen: self.alternate_screen().unwrap_or(false),
+            synchronized_output: self.mode(MODE_SYNC_OUTPUT).unwrap_or(false),
         })
     }
 

@@ -98,17 +98,17 @@ pub fn project_tab_shortcuts(
     configured: &ShortcutBindings,
     reserved: &ShortcutBindings,
 ) -> Vec<(String, Option<String>)> {
-    let mut held_by_a1: HashMap<&str, Vec<String>> = reserved
+    let mut held_by_owned_actions: HashMap<&str, Vec<String>> = reserved
         .iter()
         .filter(|(action, _)| !action.starts_with("tabs."))
         .map(|(action, keys)| (action.as_str(), keys.clone().unwrap_or_default()))
         .collect();
     for (action, keys) in configured {
         if !action.starts_with("tabs.") {
-            held_by_a1.insert(action.as_str(), keys.clone().unwrap_or_default());
+            held_by_owned_actions.insert(action.as_str(), keys.clone().unwrap_or_default());
         }
     }
-    let reserved_keys = held_by_a1
+    let reserved_keys = held_by_owned_actions
         .values()
         .flatten()
         .cloned()
@@ -2426,8 +2426,14 @@ impl OuterTerminal {
             .map_err(|error| format!("write outer terminal: {error}"))
     }
     /// Mirrors the viewed child's cursor shape; `None` returns the outer default once.
+    ///
+    /// Invariant: a block cursor is the terminal model's default, so it is left to the outer
+    /// terminal's own default exactly as direct A1 leaves it; only a shape the child chose is
+    /// mirrored and later reset.
     fn apply_cursor_style(&mut self, modes: Option<&TerminalModes>) -> Result<(), String> {
-        let next = modes.map(|modes| (modes.cursor_style.clone(), modes.cursor_blink));
+        let next = modes
+            .filter(|modes| modes.cursor_style != "block")
+            .map(|modes| (modes.cursor_style.clone(), modes.cursor_blink));
         if next == self.cursor_style {
             return Ok(());
         }

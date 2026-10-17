@@ -521,6 +521,60 @@ mod tests {
         assert_eq!(view.viewed, None);
     }
 
+    // Performance: strip churn and view commits must stay far inside the attach budgets so a
+    // clock tick, hover, or rapid switch never queues behind frame composition itself.
+    #[test]
+    fn composition_and_commits_stay_inside_the_interactive_budget_under_churn() {
+        let strip = "\x1b[1;1H".to_owned() + &" chip ".repeat(50);
+        let body = vec![b'x'; 100 * 23 * 12];
+        let started = Instant::now();
+        for _ in 0..200 {
+            let frame = Frame {
+                strip: &strip,
+                body: Some(&body),
+                overlay: Some("notice"),
+                cursor: Some(FinalCursor::At(SurfaceCursor { column: 1, row: 1 })),
+                clear: false,
+            }
+            .compose()
+            .expect("frame");
+            assert!(frame.len() > body.len());
+            let strip_only = Frame {
+                strip: &strip,
+                body: None,
+                overlay: None,
+                cursor: Some(FinalCursor::Hidden),
+                clear: false,
+            }
+            .compose()
+            .expect("strip frame");
+            assert!(strip_only.len() < body.len());
+        }
+        assert!(
+            started.elapsed() < Duration::from_millis(400),
+            "400 frames took {:?}",
+            started.elapsed()
+        );
+
+        let mut view = ViewModel::new(Some("a".into()));
+        let tabs = (0..50)
+            .map(|index| tab(&format!("t{index}")))
+            .collect::<Vec<_>>();
+        let started = Instant::now();
+        for round in 0..200u64 {
+            let target = format!("t{}", round % 50);
+            view.request(&target);
+            let _ = view.topology(&tabs, tabs.clone(), |_| None);
+            let outcome = view.offer(surface(&target, round + 1, false), Instant::now(), true);
+            assert!(matches!(outcome, Offer::Commit { .. }), "{outcome:?}");
+        }
+        assert!(
+            started.elapsed() < Duration::from_millis(200),
+            "200 switches took {:?}",
+            started.elapsed()
+        );
+    }
+
     #[test]
     fn frames_are_one_ordered_write_and_refuse_blank_or_contradictory_output() {
         let cursor = FinalCursor::At(SurfaceCursor { column: 3, row: 1 });

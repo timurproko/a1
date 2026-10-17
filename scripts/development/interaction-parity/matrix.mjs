@@ -1,47 +1,10 @@
-/**
- * The direct-versus-resident interaction matrix.
- *
- * Every case is an input script plus the observation kinds it must produce. The same cases drive
- * the owned-shell oracle, the native role fixtures, and the exact-package harness, so a resident
- * divergence is named by case, kind, and sequence rather than by a screenshot diff.
- */
-
-export type InteractionCategory =
-  | "prompt-editing" | "completion-history" | "shortcuts" | "selection" | "clipboard" | "mouse-focus"
-  | "dialogs" | "extension-ui" | "attachments" | "resize" | "streaming" | "switching" | "detach"
-  | "recovery" | "restoration";
-
-export type ObservationKind =
-  | "key" | "action" | "prompt" | "selection" | "clipboard" | "cells" | "cursor" | "modes" | "stream" | "latency";
-
-/** The only resident behaviours that may differ from direct A1, each named so a case can declare it. */
-export type ResidentDifference =
-  | "tab-strip-row" | "detach-instead-of-exit" | "session-name-hidden" | "image-text-fallback" | "process-residency";
-
-export type InteractionStep =
-  | { readonly kind: "key"; readonly key: string; readonly mods?: readonly ("ctrl" | "alt" | "shift")[]; readonly text?: string }
-  | { readonly kind: "text"; readonly text: string }
-  | { readonly kind: "paste"; readonly text: string }
-  | { readonly kind: "mouse"; readonly action: "press" | "release" | "motion" | "scroll-up" | "scroll-down"; readonly button?: 1 | 2 | 3; readonly column: number; readonly row: number }
-  | { readonly kind: "focus"; readonly gained: boolean }
-  | { readonly kind: "resize"; readonly columns: number; readonly rows: number }
-  | { readonly kind: "wait"; readonly ms: number };
-
-export interface InteractionCase {
-  readonly id: string;
-  readonly category: InteractionCategory;
-  readonly description: string;
-  readonly steps: readonly InteractionStep[];
-  /** Observation kinds every candidate must report for this case. */
-  readonly expects: readonly ObservationKind[];
-  /** A declared resident-only difference that comparison tolerates for this case. */
-  readonly residentDifference?: ResidentDifference;
-  /** Whether the exact-package harness may run this case against built candidates. */
-  readonly exactPackage: boolean;
-}
+// Rationale: the direct-versus-resident interaction matrix. Every case is an input script plus the
+// observation kinds it must produce. The same cases drive the owned-shell oracle, the native role
+// fixtures, and the exact-package harness, so a resident divergence is named by case, kind, and
+// sequence rather than by a screenshot diff.
 
 /** Latency bounds per observation kind, in milliseconds, consistent with the resident budgets. */
-export const LATENCY_BUDGETS_MS: Readonly<Record<ObservationKind, number>> = Object.freeze({
+export const LATENCY_BUDGETS_MS = Object.freeze({
   key: 16,
   action: 16,
   prompt: 16,
@@ -54,9 +17,15 @@ export const LATENCY_BUDGETS_MS: Readonly<Record<ObservationKind, number>> = Obj
   latency: 300,
 });
 
-const letters = (text: string): InteractionStep[] => [{ kind: "text", text }];
+export const INTERACTION_CATEGORIES = Object.freeze([
+  "prompt-editing", "completion-history", "shortcuts", "selection", "clipboard", "mouse-focus",
+  "dialogs", "extension-ui", "attachments", "resize", "streaming", "switching", "detach",
+  "recovery", "restoration",
+]);
 
-export const INTERACTION_MATRIX: readonly InteractionCase[] = Object.freeze([
+const letters = text => [{ kind: "text", text }];
+
+export const INTERACTION_MATRIX = Object.freeze([
   { id: "prompt.type-ascii", category: "prompt-editing", description: "Type ASCII into an ordinary prompt", steps: letters("hello"), expects: ["key", "prompt", "cells", "cursor"], exactPackage: true },
   { id: "prompt.type-unicode", category: "prompt-editing", description: "Type wide and combining Unicode", steps: letters("开发 é"), expects: ["key", "prompt", "cells", "cursor"], exactPackage: true },
   { id: "prompt.multiline", category: "prompt-editing", description: "Insert a new line and move across it", steps: [...letters("one"), { kind: "key", key: "enter", mods: ["shift"] }, ...letters("two"), { kind: "key", key: "arrow-up" }], expects: ["key", "prompt", "cursor"], exactPackage: true },
@@ -85,9 +54,12 @@ export const INTERACTION_MATRIX: readonly InteractionCase[] = Object.freeze([
   { id: "restoration.modes", category: "restoration", description: "Terminal modes and cursor are restored on exit", steps: [{ kind: "key", key: "c", mods: ["ctrl"], text: "c" }, { kind: "key", key: "c", mods: ["ctrl"], text: "c" }], expects: ["modes", "cursor"], residentDifference: "detach-instead-of-exit", exactPackage: true },
 ]);
 
-export const EXACT_PACKAGE_CASES: readonly InteractionCase[] = INTERACTION_MATRIX.filter(entry => entry.exactPackage);
+export const EXACT_PACKAGE_CASES = Object.freeze(INTERACTION_MATRIX.filter(entry => entry.exactPackage));
 
-export function interactionCase(id: string): InteractionCase {
+/** The cases whose scripts a certified key-recording child can replay byte for byte. */
+export const KEY_TRANSPORT_CASES = Object.freeze(EXACT_PACKAGE_CASES.filter(entry => entry.steps.every(step => step.kind === "key" || step.kind === "text" || step.kind === "paste" || step.kind === "focus" || step.kind === "mouse") && entry.expects.includes("key") && entry.residentDifference === undefined));
+
+export function interactionCase(id) {
   const found = INTERACTION_MATRIX.find(entry => entry.id === id);
   if (!found) throw new Error(`unknown interaction case: ${id}`);
   return found;

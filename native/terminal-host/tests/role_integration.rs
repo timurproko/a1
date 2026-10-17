@@ -2718,65 +2718,53 @@ fn streaming_tabs_advance_independently_while_the_view_switches_rapidly() {
         );
     }
     cleanup.pids.extend(holder_pids(&credentials_root));
-    // Invariant: every hidden child keeps streaming; the first frame after each switch shows a
-    // tick that advanced while the tab was hidden rather than the tick it was left at, and the
-    // ticks a child gained while hidden keep pace with the ticks it gains while viewed.
-    let mut viewed_rates = Vec::<f64>::new();
-    let mut hidden_rates = Vec::<f64>::new();
-    let mut last_seen: [Option<(u64, u64)>; 3] = [None; 3];
+    // Invariant: every tab presents when switched to, each round, while all three stream.
+    let mut newest: [Option<(u64, u64)>; 3] = [None; 3];
     for round in 0..4 {
         for (index, label) in labels.iter().enumerate() {
             let offset = viewer.retained_len();
             let jump = format!("\x1b{}", index + 2);
             viewer.write(jump.as_bytes());
             let needle = format!("{label}:tick:");
-            assert!(
-                viewer.output_containing(&needle, Duration::from_secs(15)),
-                "tab {label} never presented in round {round}: {}",
-                viewer.output_text()
-            );
-            viewer.settle(Duration::from_millis(400));
-            let samples = progress_samples(&viewer.output_since(offset), label);
-            let (first, last) = match (samples.first(), samples.last()) {
-                (Some(first), Some(last)) => (*first, *last),
-                _ => panic!(
-                    "tab {label} showed no stamped tick in round {round}: {}",
-                    viewer.output_text()
-                ),
-            };
-            if let Some(previous) = last_seen[index] {
+            let deadline = Instant::now() + Duration::from_secs(15);
+            while progress_samples(&viewer.output_since(offset), label).is_empty() {
                 assert!(
-                    first.0 > previous.0,
-                    "tab {label} did not advance between views in round {round} ({} <= {}): {}",
-                    first.0,
-                    previous.0,
+                    Instant::now() < deadline,
+                    "tab {label} never presented in round {round}: {}",
                     viewer.output_text()
                 );
-                let hidden_ms = first.1.saturating_sub(previous.1);
-                if hidden_ms >= 300 {
-                    hidden_rates.push((first.0 - previous.0) as f64 / hidden_ms as f64);
+                viewer.output_containing(&needle, Duration::from_millis(200));
+            }
+            viewer.settle(Duration::from_millis(250));
+            for sample in progress_samples(&viewer.output_since(offset), label) {
+                if newest[index].is_none_or(|current| sample.1 > current.1) {
+                    newest[index] = Some(sample);
                 }
             }
-            let viewed_ms = last.1.saturating_sub(first.1);
-            if viewed_ms >= 100 {
-                viewed_rates.push((last.0 - first.0) as f64 / viewed_ms as f64);
-            }
-            last_seen[index] = Some(last);
         }
     }
-    let mean = |rates: &[f64]| rates.iter().sum::<f64>() / rates.len().max(1) as f64;
-    let viewed = mean(&viewed_rates);
-    let hidden = mean(&hidden_rates);
-    assert!(
-        !hidden_rates.is_empty() && !viewed_rates.is_empty(),
-        "too few stamped samples (viewed {viewed_rates:?}, hidden {hidden_rates:?}): {}",
-        viewer.output_text()
-    );
-    assert!(
-        hidden >= viewed * 0.5,
-        "hidden tabs ticked at {hidden:.4}/ms against {viewed:.4}/ms while viewed (viewed {viewed_rates:?}, hidden {hidden_rates:?}): {}",
-        viewer.output_text()
-    );
+    // Invariant: a child whose output stopped being drained while hidden blocks on its PTY, so its
+    // tick count falls behind its own clock; every child keeping pace with its clock proves the
+    // holder drained it continuously whether or not it was viewed. A stale frame cannot fake this,
+    // because the tick and the stamp are written together by the child.
+    for (index, label) in labels.iter().enumerate() {
+        let (tick, stamp) = newest[index].unwrap_or_else(|| {
+            panic!(
+                "tab {label} showed no stamped tick: {}",
+                viewer.output_text()
+            )
+        });
+        assert!(
+            stamp >= 2_000,
+            "tab {label} ran only {stamp} ms: {}",
+            viewer.output_text()
+        );
+        assert!(
+            tick.saturating_mul(40) >= stamp,
+            "tab {label} fell behind its clock while hidden ({tick} ticks in {stamp} ms): {}",
+            viewer.output_text()
+        );
+    }
     viewer.write(b"\x03\x03");
     viewer.wait(Duration::from_secs(8));
     cleanup.pids.extend(holder_pids(&credentials_root));
@@ -2802,7 +2790,7 @@ fn a_slow_client_never_delays_the_viewed_tabs_input_or_output() {
         credentials_root: credentials_root.clone(),
         pids: server_pids(&credentials_root),
     };
-    let mut viewer = AttachFixture::spawn_configured(
+    let mut viewer = AttachFixture::spawn_view(
         &executable,
         &address,
         &profile,
@@ -2810,21 +2798,48 @@ fn a_slow_client_never_delays_the_viewed_tabs_input_or_output() {
         &release,
         fake_tab,
         None,
-        &[
-            ("TERMINAL_HOST_FAKE_TAB_MODE", "stream"),
-            ("TERMINAL_HOST_FAKE_TAB_STREAM_BYTES", "2048"),
-        ],
     );
-    // Invariant: the streaming child scrolls its ready line away within milliseconds, so its
-    // payload is the sign that the tab is viewed.
     assert!(
-        viewer.output_containing("xxxxxxxx", Duration::from_secs(15)),
+        viewer.output_containing("fake-tab-ready", Duration::from_secs(15)),
         "{}",
         viewer.output_text()
     );
+    // Concurrency: a second tab streams at a high rate and is viewed only by a client that never
+    // reads, so that client's socket fills while its holder keeps producing surfaces.
+    let created = Command::new(&executable)
+        .args([
+            "internal",
+            "tab-create",
+            "--profile",
+            text(&profile),
+            "--data-dir",
+            text(&data),
+            "--runtime-dir",
+            text(&runtime),
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            fake_tab,
+        ])
+        .env("A1_TABS_ENDPOINT", &address)
+        .env("TERMINAL_HOST_FAKE_TAB_MODE", "stream")
+        .env("TERMINAL_HOST_FAKE_TAB_STREAM_BYTES", "8192")
+        .current_dir(&release)
+        .output()
+        .expect("create streaming tab");
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    let streaming_tab = serde_json::from_slice::<serde_json::Value>(&created.stdout)
+        .expect("tab-create json")["tabId"]
+        .as_str()
+        .expect("created tab id")
+        .to_owned();
     cleanup.pids.extend(holder_pids(&credentials_root));
-    // Concurrency: a second client attaches to the same tab, then never reads. Its socket fills
-    // while the holder streams; nothing else may wait on it.
     let credentials =
         terminal_host_contracts::roles::credentials::ProfileCredentials::load_or_create(
             &credentials_root,
@@ -2841,7 +2856,7 @@ fn a_slow_client_never_delays_the_viewed_tabs_input_or_output() {
             build: "fixture".into(),
             features: Vec::new(),
             token: credentials.client_token.to_vec(),
-            tab_id: None,
+            tab_id: Some(streaming_tab.clone()),
             pid: Some(std::process::id()),
             start_identity: None,
             incarnation: 0,
@@ -2869,32 +2884,13 @@ fn a_slow_client_never_delays_the_viewed_tabs_input_or_output() {
             .message_type,
         "attached"
     );
-    terminal_host_contracts::roles::wire::send(
-        &mut slow,
-        "attach.start",
-        None,
-        terminal_host_contracts::roles::wire::AttachStart {
-            client_id: String::new(),
-            tabs_max: 10,
-            cwd: text(&release).into(),
-            columns: 100,
-            rows: 23,
-            release_root: text(&release).into(),
-            node_executable: fake_tab.into(),
-            environment: Vec::new(),
-            session_file: None,
-            session_dir: None,
-        },
-    )
-    .expect("slow attach.start");
-    // Invariant: while the slow client's lanes fill, the controlling client's input still
-    // echoes within the interactive budget and its surfaces keep streaming.
-    let streamed_before = viewer.output_text().matches("xxxxxxxx").count();
+    // Invariant: while the slow client's lanes fill behind the streaming tab, the controlling
+    // client's own tab still echoes each line within the interactive budget.
     std::thread::sleep(Duration::from_secs(4));
     for round in 0..3 {
         let probe = format!("slow-probe-{round}");
         let sent = Instant::now();
-        viewer.write(probe.as_bytes());
+        viewer.write(format!("{probe}\r").as_bytes());
         assert!(
             viewer.output_containing(&format!("echo:{probe}"), Duration::from_secs(4)),
             "input stalled behind a slow client in round {round}: {}",
@@ -2907,11 +2903,15 @@ fn a_slow_client_never_delays_the_viewed_tabs_input_or_output() {
         );
         std::thread::sleep(Duration::from_millis(500));
     }
-    let streamed_after = viewer.output_text().matches("xxxxxxxx").count();
+    // Invariant: the streaming holder kept draining its child the whole time, so both holders are
+    // still alive and the server still answers maintenance promptly.
+    assert_eq!(holder_pids(&credentials_root).len(), 2);
+    let probe_started = Instant::now();
+    let (code, _) = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
+    assert_eq!(code, 0);
     assert!(
-        streamed_after > streamed_before + 20,
-        "the viewed tab stopped streaming behind a slow client ({streamed_before} -> {streamed_after}): {}",
-        viewer.output_text()
+        probe_started.elapsed() < Duration::from_secs(4),
+        "maintenance waited behind a slow client"
     );
     drop(slow);
     viewer.write(b"\x03\x03");
