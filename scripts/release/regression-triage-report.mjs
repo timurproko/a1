@@ -24,7 +24,7 @@ export const TRIAGE_PROVENANCE_FILE = "regression-provenance.json";
 export const EXCERPT_LINE_LIMIT = 40;
 export const EXCERPT_BYTE_LIMIT = 2048;
 /** Windows complete-regression shard identities; kept free of the planner's dependencies for the triage job. */
-export const FULL_SHARDS = Object.freeze(["core", "resource", "rendering", "package"]);
+export const FULL_SHARDS = Object.freeze(["core", "resource", "rendering", "package", "predecessor"]);
 
 const RESULT_SCHEMA = "a1-validation-outcomes-v1";
 // Rationale: Vitest's default reporter, Node's assertion output, npm, and the repository gates name

@@ -568,7 +568,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     # A cold terminal-host build compiles libghostty-vt with Zig before the Rust crate; lanes that
     # pack a candidate build the release host too, which the selection decides after scheduling.
-    timeout-minutes: ${{ (matrix.terminalHost || matrix.chaos) && 45 || 35 }}
+    timeout-minutes: ${{ matrix.partition && 25 || (matrix.terminalHost || matrix.chaos) && 45 || 35 }}
     steps:
       - name: Start job timing
         shell: bash
@@ -589,8 +589,9 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       # Compatibility: Node 22 ships npm 10, whose pack runs the prepare script even under
-      # --ignore-scripts; the candidate is packed with the pinned package manager on every lane.
+      # --ignore-scripts; Node 22 lanes pack with the pinned package manager, and Node 24 ships npm 11.
       - name: Use the pinned npm for packing
+        if: matrix.node == 22
         shell: bash
         run: |
           pinned=$(node -p "require('./package.json').packageManager.split('@')[1]")
@@ -625,6 +626,11 @@ jobs:
       - name: Install exact dependencies and build
         if: steps.job-selection.outputs.active == 'true' && matrix.build
         run: npm ci
+      # Rationale: a partition job runs only Cargo and the tier runner, so it needs the scripts' dependencies
+      # but neither the TypeScript build nor the process guardian.
+      - name: Install dependencies for the test partition
+        if: steps.job-selection.outputs.active == 'true' && matrix.partition
+        run: npm ci --ignore-scripts
       # Invariant: a packed candidate carries the release terminal host a published package ships.
       # Without it every packaged launch falls back to the direct UI and the resident route is untested.
       - name: Prepare release terminal host Rust toolchain
@@ -636,6 +642,8 @@ jobs:
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.15.2
+          cache-key: development-validation
+          cache-size-limit: 512
       - name: Cache release terminal host build
         if: steps.job-selection.outputs.packs_candidate == 'true'
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
@@ -658,16 +666,18 @@ jobs:
       # Platform: the terminal host builds only here. Its Zig fetch unpacks upstream test data
       # that workstation antivirus quarantines, so build.rs refuses local Windows builds.
       - name: Prepare terminal host Rust toolchain
-        if: steps.job-selection.outputs.active == 'true' && (matrix.terminalHost || matrix.chaos)
+        if: steps.job-selection.outputs.active == 'true' && (matrix.terminalHost || matrix.chaos || matrix.partition)
         shell: bash
         run: bash scripts/development/prepare-ci-rust.sh
       - name: Set up Zig for terminal host
-        if: steps.job-selection.outputs.active == 'true' && (matrix.terminalHost || matrix.chaos)
+        if: steps.job-selection.outputs.active == 'true' && (matrix.terminalHost || matrix.chaos || matrix.partition)
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.15.2
+          cache-key: development-validation
+          cache-size-limit: 512
       - name: Cache terminal host build
-        if: steps.job-selection.outputs.active == 'true' && (matrix.terminalHost || matrix.chaos)
+        if: steps.job-selection.outputs.active == 'true' && (matrix.terminalHost || matrix.chaos || matrix.partition)
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: terminal-host
@@ -688,12 +698,19 @@ jobs:
           VALIDATION_TARGET_PLATFORM: ${{ matrix.platform }}
           VALIDATION_TARGET_ARCHITECTURE: ${{ matrix.architecture }}
           VALIDATION_TARGET_NODE: ${{ matrix.node }}
+          VALIDATION_PARTITION: ${{ matrix.partition || '' }}
           VALIDATION_OWNERS_JSON: ${{ steps.job-selection.outputs.owners_json }}
           VALIDATION_CACHE_STATE: setup-node-download-cache
+          # Rationale: a partition job runs its third of the role-fixture suite; the build-and-probe job skips
+          # that suite and keeps everything else; other groups see no value.
+          TERMINAL_HOST_PARTITION: ${{ matrix.partition || (matrix.terminalHost && 'none') || '' }}
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-runtime
           RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
+          # Rationale: pull requests run a shorter bounded chaos budget; nightly, Full regression, and
+          # manual dispatch keep the script's 600-second default.
+          RESIDENT_CHAOS_SECONDS: ${{ github.event_name == 'pull_request' && '300' || '600' }}
           # Shared runners measure startup reliably but time it unreliably; this owner records
           # an overrun, and nightly publication and Full regression still fail on it.
           STARTUP_BUDGET_ENFORCEMENT: record
@@ -701,7 +718,7 @@ jobs:
           # Rationale: native lanes export the terminal library they link so a developer build can
           # link the same bytes without Zig; other lanes leave it empty, which build.rs ignores.
           TERMINAL_HOST_EXPORT_VT: ${{ matrix.terminalHost && format('{0}/.artifacts/terminal-vt', github.workspace) || '' }}
-        run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}.json
+        run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}${{ matrix.partitionSlug && format('-{0}', matrix.partitionSlug) || '' }}-attempt-${{ github.run_attempt }}.json
       - name: Certify terminal fidelity and resident latency
         if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
         shell: bash
@@ -709,6 +726,14 @@ jobs:
           mkdir -p .artifacts/terminal-host
           host="native/terminal-host/target/debug/${{ matrix.terminalHostBinary }}"
           node scripts/development/verify-terminal-fidelity.mjs --host "$host" > ".artifacts/terminal-host/fidelity-${{ matrix.platform }}-${{ matrix.architecture }}.json"
+          # Rationale: the role-fixture suite used to run in this job before certification and warmed every
+          # resident launch path; its partitions now run on other runners, so one unmeasured pass restores
+          # that state before the measured pass, whose single-sample budgets are unchanged.
+          node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-warm-up-${{ matrix.platform }}-${{ matrix.architecture }}.json" || echo "::notice::the unmeasured warm-up pass exceeded a budget; the measured pass follows"
+          # Invariant: the measured pass starts on a quiet machine, as it did after the role suite's cleanup; the
+          # warm-up's detached server, holders, and fixtures are stopped and given a moment to exit first.
+          if [ "${{ matrix.platform }}" = win32 ]; then taskkill //F //T //IM "${{ matrix.terminalHostBinary }}" > /dev/null 2>&1 || true; else pkill -f "a1-resident-measure-" > /dev/null 2>&1 || true; fi
+          sleep 5
           node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json"
       - name: Run bounded terminal-host decoder fuzzing
         if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost && matrix.platform == 'linux'
@@ -756,7 +781,7 @@ jobs:
         run: |
           node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
           import { readFile } from "node:fs/promises";
-          const result = JSON.parse(await readFile(`.artifacts/validation/outcome-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`, "utf8"));
+          const result = JSON.parse(await readFile(`.artifacts/validation/outcome-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}${process.env.PARTITION_SLUG ? `-${process.env.PARTITION_SLUG}` : ""}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`, "utf8"));
           const setup = Math.max(0, result.startedAt - Number(process.env.VALIDATION_JOB_STARTED_MS));
           console.log(`Setup: **${(setup / 1000).toFixed(2)}s**; gates: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**; invocations: **${result.outcomes.length}**.`);
           for (const outcome of result.outcomes) console.log(`- ${outcome.scopes.join(", ")}: **${(outcome.durationMs / 1000).toFixed(2)}s** (${outcome.id})`);
@@ -765,6 +790,7 @@ jobs:
           GROUP: ${{ matrix.group }}
           PLATFORM: ${{ matrix.platform }}
           NODE_VERSION: ${{ matrix.node }}
+          PARTITION_SLUG: ${{ matrix.partitionSlug || '' }}
       - name: Complete content-free job envelope
         if: always()
         shell: bash
@@ -773,16 +799,18 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           ARCHITECTURE: ${{ matrix.architecture }}
           NODE_VERSION: ${{ matrix.node }}
+          PARTITION: ${{ matrix.partition || '' }}
+          PARTITION_SLUG: ${{ matrix.partitionSlug || '' }}
           SELECTED_HEAD: ${{ needs.changes.outputs.head-sha }}
           JOB_STATUS: ${{ job.status }}
           ACTIVE: ${{ steps.job-selection.outputs.active || 'unknown' }}
           SELECTION_ID: ${{ steps.job-selection.outputs.selection_id }}
-        run: node -e 'const fs=require("fs"),p=`.artifacts/validation/job-envelope-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`,x={schema:"a1-validation-job-envelope-v2",head:process.env.SELECTED_HEAD,runId:process.env.GITHUB_RUN_ID,runAttempt:Number(process.env.GITHUB_RUN_ATTEMPT),selectionId:process.env.SELECTION_ID,job:process.env.GROUP,platform:process.env.PLATFORM,architecture:process.env.ARCHITECTURE,node:Number(process.env.NODE_VERSION),startedAt:Number(process.env.VALIDATION_JOB_STARTED_MS),completedAt:Date.now(),status:process.env.JOB_STATUS,active:process.env.ACTIVE};fs.mkdirSync(".artifacts/validation",{recursive:true});fs.writeFileSync(p,JSON.stringify(x,null,2)+"\n")'
+        run: node -e 'const fs=require("fs"),p=`.artifacts/validation/job-envelope-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}${process.env.PARTITION_SLUG?`-${process.env.PARTITION_SLUG}`:""}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`,x={schema:"a1-validation-job-envelope-v2",head:process.env.SELECTED_HEAD,runId:process.env.GITHUB_RUN_ID,runAttempt:Number(process.env.GITHUB_RUN_ATTEMPT),selectionId:process.env.SELECTION_ID,job:process.env.GROUP,platform:process.env.PLATFORM,architecture:process.env.ARCHITECTURE,node:Number(process.env.NODE_VERSION),...(process.env.PARTITION?{partition:process.env.PARTITION}:{}),startedAt:Number(process.env.VALIDATION_JOB_STARTED_MS),completedAt:Date.now(),status:process.env.JOB_STATUS,active:process.env.ACTIVE};fs.mkdirSync(".artifacts/validation",{recursive:true});fs.writeFileSync(p,JSON.stringify(x,null,2)+"\n")'
       - name: Upload modular outcome and fixture phases
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: development-validation-outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}
+          name: development-validation-outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}${{ matrix.partitionSlug && format('-{0}', matrix.partitionSlug) || '' }}-attempt-${{ github.run_attempt }}
           path: |
             .artifacts/validation/job-envelope-*.json
             .artifacts/validation/outcome-*.json

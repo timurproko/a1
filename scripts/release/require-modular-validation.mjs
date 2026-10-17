@@ -3,8 +3,15 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { evaluateDevelopmentValidationTiming } from "./development-validation-timing.mjs";
 import { assertIntegrationSelection } from "./integration-selection.mjs";
-import { validationJobGroup } from "./validation-matrix.mjs";
-import { assertValidationOutcomeAuthority } from "./validation-outcome.mjs";
+import { TERMINAL_HOST_TEST_PARTITIONS, validationJobGroup } from "./validation-matrix.mjs";
+import { assertValidationOutcomeAuthority, PARTITION } from "./validation-outcome.mjs";
+
+/** The jobs one selected owner target expands to: its build-and-probe job plus, for the terminal host, every test partition. */
+export function ownerTargetJobs(owner, platform) {
+  const job = validationJobGroup(owner, platform);
+  if (owner !== "terminal-host") return [{ job }];
+  return [{ job }, ...Array.from({ length: TERMINAL_HOST_TEST_PARTITIONS }, (_value, offset) => ({ job, partition: `${offset + 1}/${TERMINAL_HOST_TEST_PARTITIONS}` }))];
+}
 
 /** Resolve current-attempt results plus same-run successful evidence from jobs GitHub did not rerun. */
 export function requireModularValidation({ impact, owners, outcomes, envelopes = [], modularResult, head, runId, runAttempt }) {
@@ -49,26 +56,27 @@ export function requireModularValidation({ impact, owners, outcomes, envelopes =
     if (impact.prCore.resourceTests.length > 0) expected.push({ owner: "pr-resource", job: "resource", platform: "win32", architecture: "x64", node: 24,
       scopes: ["pr-selected-resource"] });
   }
-  for (const decision of selection.owners) for (const target of decision.targets) {
-    const descriptor = { owner: decision.owner, job: validationJobGroup(decision.owner, target.platform), platform: target.platform,
-      architecture: target.architecture, node: target.node, scopes: decision.scopes };
+  for (const decision of selection.owners) for (const target of decision.targets) for (const { job, partition } of ownerTargetJobs(decision.owner, target.platform)) {
+    const descriptor = { owner: decision.owner, job, platform: target.platform,
+      architecture: target.architecture, node: target.node, ...(partition ? { partition } : {}), scopes: decision.scopes };
     if (decision.selected) expected.push(descriptor);
     else if (evidence.some(({ authority }) => matchesOwnerTarget(authority, descriptor))) throw new Error(`excluded owner produced unexpected evidence: ${decision.owner}`);
   }
 
   const used = [], reused = [];
   for (const descriptor of expected) {
-    const key = `${descriptor.job}:${descriptor.platform}:${descriptor.architecture}:${descriptor.node}`;
+    const key = targetKey(descriptor);
     const currentEnvelope = envelopeEvidence.find(item => item.key === key && item.envelope.runAttempt === runAttempt)?.envelope;
     if (currentEnvelope && (currentEnvelope.status !== "success" || currentEnvelope.active !== "true")) {
       throw new Error(`current-attempt modular job did not succeed: ${key}`);
     }
     const candidates = evidence.filter(({ authority, successful }) => successful && matchesOwner(authority, descriptor)
       && (!currentEnvelope || authority.runAttempt === runAttempt)).sort((left, right) => right.authority.runAttempt - left.authority.runAttempt);
-    if (candidates.length === 0) throw new Error(`required modular outcome missing: ${descriptor.owner}/${descriptor.platform}/node${descriptor.node}`);
+    const label = `${descriptor.owner}/${descriptor.platform}/node${descriptor.node}${descriptor.partition ? `/partition ${descriptor.partition}` : ""}`;
+    if (candidates.length === 0) throw new Error(`required modular outcome missing: ${label}`);
     const chosen = candidates[0];
     if (candidates.some(candidate => candidate.authority.runAttempt === chosen.authority.runAttempt && candidate !== chosen)) {
-      throw new Error(`required modular outcome duplicated: ${descriptor.owner}/${descriptor.platform}/node${descriptor.node}`);
+      throw new Error(`required modular outcome duplicated: ${label}`);
     }
     if (!currentEnvelope) {
       const priorEnvelope = envelopeEvidence.find(item => item.key === key && item.envelope.runAttempt === chosen.authority.runAttempt)?.envelope;
@@ -105,16 +113,18 @@ function assertEnvelope(value) {
     || !/^\d{1,24}$/u.test(value.runId ?? "") || !Number.isSafeInteger(value.runAttempt) || value.runAttempt < 1
     || !/^[0-9a-f]{64}$/u.test(value.selectionId ?? "") || !/^[a-z][a-z0-9-]{0,79}$/u.test(value.job ?? "")
     || !["win32", "linux", "darwin"].includes(value.platform) || !["x64", "arm64"].includes(value.architecture) || ![22, 24].includes(value.node)
+    || (value.partition !== undefined && (typeof value.partition !== "string" || !PARTITION.test(value.partition)))
     || !["success", "failure", "cancelled", "skipped"].includes(value.status) || !["true", "false"].includes(value.active)) {
     throw new Error("modular validation envelope is malformed");
   }
   return value;
 }
-function targetKey(value) { return `${value.job}:${value.platform}:${value.architecture}:${value.node}`; }
+// Invariant: a partition job is its own target; evidence without a partition never satisfies a partition and vice versa.
+function targetKey(value) { return `${value.job}:${value.platform}:${value.architecture}:${value.node}${value.partition ? `:${value.partition}` : ""}`; }
 function uniqueAttemptKeys(keys, message) { if (new Set(keys).size !== keys.length) throw new Error(message); }
 function matchesOwnerTarget(authority, expected) {
   return authority.job === expected.job && authority.platform === expected.platform && authority.architecture === expected.architecture && authority.node === expected.node
-    && authority.owners.includes(expected.owner);
+    && (authority.partition ?? null) === (expected.partition ?? null) && authority.owners.includes(expected.owner);
 }
 function matchesOwner(authority, expected) {
   return matchesOwnerTarget(authority, expected) && expected.scopes.every(scope => authority.selected.includes(scope));
@@ -137,6 +147,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const acceptedAttempts = new Map(result.attempts.map(item => [item.job, item]));
   const jobs = outcomes.filter(outcome => acceptedAttempts.get(targetKey(outcome.authority))?.attempt === outcome.authority.runAttempt)
     .map(outcome => ({ job: outcome.authority.job, platform: outcome.authority.platform, architecture: outcome.authority.architecture, node: outcome.authority.node,
+      ...(outcome.authority.partition ? { partition: outcome.authority.partition } : {}),
       attempt: outcome.authority.runAttempt, reused: acceptedAttempts.get(targetKey(outcome.authority))?.reused === true,
       setupMs: Math.max(0, outcome.startedAt - outcome.authority.jobStartedAt), gateMs: Math.max(0, outcome.completedAt - outcome.startedAt),
       runnerMs: Math.max(0, outcome.completedAt - outcome.authority.jobStartedAt), invocations: outcome.outcomes.length, cacheState: outcome.authority.cacheState,

@@ -19,6 +19,8 @@ export function bindFullShard(context: FullContext, lane: string, shard: string,
 export function mergeFullShards(context: FullContext, lane: string, partition: import("./validation-tier.mjs").FullRegressionPartition, records: FullShardRecord[]): Omit<FullTierResult, "outcomes"> & {
   startedAt: number;
   completedAt: number;
+  exactPackagePreparation: Record<string, unknown> | null;
+  exactPackagePreparations: Record<string, Record<string, unknown> | null>;
   fullShards: { schema: string; planDigest: string; elapsedMs: number; runnerMs: number; shards: { id: string; startedAt: number; completedAt: number; durationMs: number; work: string[] }[] };
   outcomes: { id: string; exitCode: number; scopes: string[]; shard: string }[];
 };
