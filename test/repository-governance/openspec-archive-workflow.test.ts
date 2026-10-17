@@ -74,7 +74,8 @@ describe("trusted archive workflow wiring", () => {
       permissions: ["contents: read", "pull-requests: read"],
       trustedSource: "default-branch", concurrency: "openspec-finalization-", authority: ["single-pr-finalization-publication"],
     });
-    expect(source).toContain("types: [opened, synchronize, ready_for_review, reopened, edited]");
+    // Invariant: returning a finalized PR to draft re-runs finalization, which promotes it again once complete.
+    expect(source).toContain("types: [opened, synchronize, ready_for_review, converted_to_draft, reopened, edited]");
     expect(source).toContain("branches: [develop]");
     expect(source).toContain("cancel-in-progress: false");
     expect(source).toContain("timeout-minutes: 10");
