@@ -119,6 +119,29 @@ describe("trusted finalization publication", () => {
     expect(f.state.readyCalls).toBe(1);
   }, 120_000);
 
+  it("promotes a finalized head returned to draft without rewriting it, and refuses a draft whose tree lost that form", async () => {
+    const f = await fixture();
+    const finalized = await f.reconcile();
+    expect(finalized.disposition).toBe("finalized");
+    f.state.draft = true;
+    const writes = f.mutations.length;
+    await expect(f.reconcile()).resolves.toMatchObject({ disposition: "promoted", head: finalized.pushedHead, promoted: true });
+    expect(f.state).toMatchObject({ draft: false, readyCalls: 1 });
+    expect(await f.remoteHead()).toBe(finalized.pushedHead);
+    expect(f.mutations).toHaveLength(writes);
+    await expect(f.reconcile()).resolves.toMatchObject({ disposition: "already-finalized", commits: [] });
+
+    // Invariant: a fence that claims the head is finalized while the active change is back is not promoted unchecked.
+    await git(f.seed, ["pull", "--quiet", "origin", "feature/example"]);
+    await commit(f.seed, "docs: reopen example", { "openspec/changes/example/notes.md": "reopened\n" });
+    await git(f.seed, ["push", "--quiet", "origin", "feature/example"]);
+    const reopened = await f.remoteHead();
+    f.state.body = f.state.body.replace(`"finalizedHead": "${finalized.pushedHead}"`, `"finalizedHead": "${reopened}"`);
+    f.state.draft = true;
+    await expect(f.reconcile()).resolves.toMatchObject({ disposition: "blocked", reason: "draft-finalization-redraft-form" });
+    expect(f.state.readyCalls).toBe(1);
+  }, 180_000);
+
   it("leaves incomplete, refused, legacy, and raced draft snapshots unchanged and blocks only fully checked refusals", async () => {
     const incomplete = await fixture();
     incomplete.state.draft = true;
