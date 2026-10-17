@@ -423,9 +423,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ...(handlers.promptImageLimit === undefined ? {} : { imageLimit: handlers.promptImageLimit }) });
     this.#submittedPromptComposer = this.#customViewport
       ? {
-          layout: submittedPromptLayout,
-          compose: (rows, width, source, style) => composeSubmittedPromptRows(rows, width, source, { ...style, prefix: text => promptArrow(text, piTheme()) })
-            .map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor)),
+          layout: (width, source) => submittedPromptLayout(width, source, this.#viewportController.config.timeFormat ?? "8:00 PM"),
+          compose: (rows, width, source, style) => composeSubmittedPromptRows(
+            rows,
+            width,
+            source,
+            { ...style, prefix: text => promptArrow(text, piTheme()) },
+            this.#viewportController.config.timeFormat ?? "8:00 PM",
+          ).map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor)),
         }
       : undefined;
     this.#cwd = cwd;
@@ -944,7 +949,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   setViewportConfig(config: OwnedUiViewportSettings): void {
-    if (this.#viewportController.setConfig(config)) this.#documentLayouts.clear();
+    if (this.#viewportController.setConfig(config)) {
+      this.#renderedRows.clear();
+      this.#documentLayouts.clear();
+      this.#visibleViewportSnapshot = undefined;
+    }
   }
 
   setFullscreenCopyOnSelect(enabled: boolean): void {
@@ -1171,11 +1180,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       }
       rows.push(...blockRows);
       if (promptLike && blockRows[0] !== undefined) {
+        const source = pinnedPromptSource(block, blockRows[0], blockWidth, this.#viewportController.config.timeFormat);
         promptAnchors.push({
           id: block.id,
           firstRow,
           lastRow: Math.max(firstRow, rows.length - 1),
-          sourceRow: pinnedPromptSourceRow(block, blockRows[0], blockWidth),
+          sourceRow: source.row,
+          copySuffixWidth: source.copySuffixWidth,
           prominentSourceRow: blockRows[0],
         });
       }
@@ -1763,25 +1774,26 @@ function withoutTerminalBackground(text: string): string {
 }
 
 /** Preserve the stable metadata-grey foreground for every pinned timestamp state. */
-function pinnedPromptSourceRow(
+function pinnedPromptSource(
   block: OwnedUiSessionViewModel["transcript"][number],
   sourceRow: string,
   width: number,
-): string {
-  if (typeof block.payload !== "object" || block.payload === null) return sourceRow;
+  timeFormat: OwnedUiViewportSettings["timeFormat"],
+): { readonly row: string; readonly copySuffixWidth: number } {
+  const unchanged = { row: sourceRow, copySuffixWidth: 0 };
+  if (typeof block.payload !== "object" || block.payload === null) return unchanged;
   const value = (block.payload as Record<string, unknown>).timestamp;
-  if (typeof value !== "number" || !Number.isFinite(value)) return sourceRow;
-  const timestamp = formatSubmittedPromptTime(value);
-  if (timestamp === null || submittedPromptLayout(width, value).timestamp === null) return sourceRow;
+  if (typeof value !== "number" || !Number.isFinite(value)) return unchanged;
+  const format = timeFormat ?? "8:00 PM";
+  const timestamp = formatSubmittedPromptTime(value, format);
+  if (timestamp === null || submittedPromptLayout(width, value, format).timestamp === null) return unchanged;
   const rowWidth = displayWidth(sourceRow);
   const timestampWidth = displayWidth(timestamp);
-  if (rowWidth < timestampWidth) return sourceRow;
-  return overlaySpan(
-    sourceRow,
-    rowWidth - timestampWidth,
-    rowWidth,
-    paintPiSubmittedPromptTimestamp(timestamp),
-  );
+  if (rowWidth < timestampWidth) return unchanged;
+  return {
+    row: overlaySpan(sourceRow, rowWidth - timestampWidth, rowWidth, paintPiSubmittedPromptTimestamp(timestamp)),
+    copySuffixWidth: timestampWidth,
+  };
 }
 
 export type PinnedLayoutPart = "document" | "queued" | "aboveWidgets" | "status" | "editor" | "belowWidgets" | "footer";

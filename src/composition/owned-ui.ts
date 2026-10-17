@@ -543,6 +543,8 @@ export async function bindResidentTabBridge(
     // keeps its resident terminal current while the holder withholds only its client surfaces.
     if (command.type === "rename") {
       void backend.workflows.executeWorkflow({ command: "name", argument: command.name }).catch(() => {});
+    } else if (command.type === "route") {
+      void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
     } else if (command.type === "stop") {
       void backend.session.dispose().catch(() => {});
     }
@@ -616,6 +618,7 @@ function quitOutroSettingsSnapshot(settings: OwnedSettingsManager): OwnedUiQuitO
 
 function viewportSettingsSnapshot(settings: OwnedSettingsManager): OwnedUiViewportSettings {
   return {
+    timeFormat: settings.value("timeFormat"),
     scrollbarAppearance: settings.value("scrollbarAppearance"),
     scrollbarStyle: settings.value("scrollbarStyle"),
     scrollbarSpeed: settings.value("scrollbarSpeed"),

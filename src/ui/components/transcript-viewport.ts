@@ -29,6 +29,8 @@ export interface TranscriptPromptAnchor {
   readonly lastRow: number;
   /** The source first row, including its submitted-prompt styling and timestamp. */
   readonly sourceRow: string;
+  /** Right-edge metadata cells omitted from semantic prompt copies. */
+  readonly copySuffixWidth?: number;
   /** Optional source-styled row used only while prominent and not hovered. */
   readonly prominentSourceRow?: string;
 }
@@ -392,11 +394,14 @@ export class TranscriptViewport {
         const row = this.#selectionRows[line] ?? "";
         const anchor = this.#selectionRowAnchors[line];
         const dock = anchor?.kind === "dock" ? this.#copyableDockRows.get(anchor.fromBottom) : undefined;
-        return prompt !== undefined && anchor?.kind === "document"
-          ? selectionCopyLineContent(row, anchor.row === prompt.firstRow ? "first" : "continuation")
-          : dock?.prompt !== undefined
-            ? selectionCopyLineContent(row, dock.prompt)
-            : usefulTextLineContent(row);
+        if (prompt !== undefined && anchor?.kind === "document") {
+          const first = anchor.row === prompt.firstRow;
+          const copyRow = first && (prompt.copySuffixWidth ?? 0) > 0
+            ? truncateToWidth(row, Math.max(0, displayWidth(row) - (prompt.copySuffixWidth ?? 0)))
+            : row;
+          return selectionCopyLineContent(copyRow, first ? "first" : "continuation");
+        }
+        return dock?.prompt !== undefined ? selectionCopyLineContent(row, dock.prompt) : usefulTextLineContent(row);
       },
       line => included.has(line),
     );

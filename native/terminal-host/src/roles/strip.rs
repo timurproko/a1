@@ -25,10 +25,40 @@ pub struct TitleAnimation {
     pub started_at: Instant,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimeFormat {
+    TwentyFour,
+    Twelve,
+}
+
+impl TimeFormat {
+    pub fn from_setting(value: Option<&str>) -> Self {
+        if value == Some("20:00") {
+            Self::TwentyFour
+        } else {
+            Self::Twelve
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StripHover {
+    Tab(String),
+    Overflow,
+    New,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StripRename {
+    pub tab_id: String,
+    pub text: String,
+    pub cursor: usize,
+    pub selection: Option<(usize, usize)>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StripHit {
     View(String),
-    Close(String),
     Overflow,
     New,
 }
@@ -37,6 +67,7 @@ pub enum StripHit {
 pub struct StripFrame {
     pub bytes: String,
     pub hits: Vec<(u16, u16, StripHit)>,
+    pub hidden_tabs: Vec<String>,
 }
 
 fn clean(value: &str) -> String {
@@ -277,14 +308,82 @@ pub fn reconcile_title_animation(
 }
 
 fn chip_fixed_width(tab: &StripTab) -> usize {
-    4 + if status_glyph(&tab.status).is_empty() {
+    2 + if status_glyph(&tab.status).is_empty() {
         0
     } else {
         2
     }
 }
 
-fn chip_title(tab: &StripTab, max_width: usize, now: Instant, truecolor: bool) -> TitleFrame {
+fn rename_title(rename: &StripRename, max_width: usize) -> TitleFrame {
+    let graphemes = clean(&rename.text)
+        .graphemes(true)
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    let cursor = rename.cursor.min(graphemes.len());
+    let room = max_width.saturating_sub(1).max(1);
+    let mut start = 0usize;
+    let width_between = |left: usize, right: usize| {
+        graphemes[left..right]
+            .iter()
+            .map(|value| UnicodeWidthStr::width(value.as_str()))
+            .sum::<usize>()
+    };
+    while start < cursor && width_between(start, cursor) > room {
+        start += 1;
+    }
+    let mut end = start;
+    let mut visible_width = 0usize;
+    while let Some(grapheme) = graphemes.get(end) {
+        let next = UnicodeWidthStr::width(grapheme.as_str());
+        if visible_width + next > room {
+            break;
+        }
+        visible_width += next;
+        end += 1;
+    }
+    let selection = rename.selection.map(|(left, right)| {
+        (
+            left.min(right).min(graphemes.len()),
+            left.max(right).min(graphemes.len()),
+        )
+    });
+    let mut text = String::new();
+    let mut width = 0usize;
+    for (index, grapheme) in graphemes[start..end].iter().enumerate() {
+        let absolute = start + index;
+        let selected = selection.is_some_and(|(left, right)| absolute >= left && absolute < right);
+        let pointed = selection.is_none() && absolute == cursor;
+        if selected || pointed {
+            text.push_str("\x1b[7m");
+        }
+        text.push_str(grapheme);
+        if selected || pointed {
+            text.push_str("\x1b[27m");
+        }
+        width += UnicodeWidthStr::width(grapheme.as_str());
+    }
+    if selection.is_none() && cursor >= end && width < max_width {
+        text.push_str("\x1b[7m \x1b[27m");
+        width += 1;
+    }
+    TitleFrame {
+        text,
+        width: width.min(max_width),
+        done: true,
+    }
+}
+
+fn chip_title(
+    tab: &StripTab,
+    max_width: usize,
+    now: Instant,
+    truecolor: bool,
+    rename: Option<&StripRename>,
+) -> TitleFrame {
+    if let Some(rename) = rename.filter(|rename| rename.tab_id == tab.id) {
+        return rename_title(rename, max_width);
+    }
     let elapsed = tab.title_animation.as_ref().map(|animation| {
         now.saturating_duration_since(animation.started_at)
             .as_millis()
@@ -310,39 +409,63 @@ fn chip(
     hovered: bool,
     now: Instant,
     truecolor: bool,
-) -> (String, usize, usize) {
+    rename: Option<&StripRename>,
+) -> (String, usize) {
     let glyph = status_glyph(&tab.status);
     let fixed = chip_fixed_width(tab);
-    let title = chip_title(tab, 20usize.saturating_sub(fixed), now, truecolor);
+    let title = chip_title(tab, 20usize.saturating_sub(fixed), now, truecolor, rename);
     let name = title.text;
     let width = fixed + title.width;
     let background = if active {
         "\x1b[48;2;55;55;55m\x1b[38;2;255;255;255m"
     } else if hovered {
-        "\x1b[48;2;48;48;48m\x1b[38;2;220;220;220m"
+        "\x1b[48;2;48;48;48m\x1b[38;2;170;170;170m"
     } else {
         "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m"
     };
     let glyph_color = accent(&tab.status, tab.accent.as_deref());
-    let text = format!("{background} {glyph_color}{glyph}\x1b[39m{name} \x1b[39m× \x1b[0m");
-    (text, width, 3)
+    let text = format!("{background} {glyph_color}{glyph}\x1b[39m{name} \x1b[0m");
+    (text, width)
 }
 
 pub fn render(tabs: &[StripTab], viewed: Option<&str>, columns: u16) -> StripFrame {
-    render_with_hover(tabs, viewed, columns, None)
+    render_configured(tabs, viewed, columns, None, TimeFormat::Twelve)
 }
 
 pub fn render_with_hover(
     tabs: &[StripTab],
     viewed: Option<&str>,
     columns: u16,
-    hovered: Option<&str>,
+    hovered: Option<&StripHover>,
+) -> StripFrame {
+    render_configured(tabs, viewed, columns, hovered, TimeFormat::Twelve)
+}
+
+pub fn render_configured(
+    tabs: &[StripTab],
+    viewed: Option<&str>,
+    columns: u16,
+    hovered: Option<&StripHover>,
+    time_format: TimeFormat,
+) -> StripFrame {
+    render_interactive(tabs, viewed, columns, hovered, time_format, None)
+}
+
+pub fn render_interactive(
+    tabs: &[StripTab],
+    viewed: Option<&str>,
+    columns: u16,
+    hovered: Option<&StripHover>,
+    time_format: TimeFormat,
+    rename: Option<&StripRename>,
 ) -> StripFrame {
     render_frame(
         tabs,
         viewed,
         columns,
         hovered,
+        time_format,
+        rename,
         Instant::now(),
         !palette_fallback_requested(),
     )
@@ -352,24 +475,28 @@ fn render_frame(
     tabs: &[StripTab],
     viewed: Option<&str>,
     columns: u16,
-    hovered: Option<&str>,
+    hovered: Option<&StripHover>,
+    time_format: TimeFormat,
+    rename: Option<&StripRename>,
     now: Instant,
     truecolor: bool,
 ) -> StripFrame {
-    let chip =
-        |tab: &StripTab, active: bool, hovered: bool| chip(tab, active, hovered, now, truecolor);
-    let clock = clock_text();
-    let clock_width = UnicodeWidthStr::width(clock.as_str());
-    let available = usize::from(columns).saturating_sub(clock_width + 1);
+    let chip = |tab: &StripTab, active: bool, hovered: bool| {
+        chip(tab, active, hovered, now, truecolor, rename)
+    };
+    let clock = (!tabs.is_empty()).then(|| clock_text(time_format));
+    let clock_width = clock.as_deref().map_or(0, UnicodeWidthStr::width);
+    let clock_reserve = if clock.is_some() { clock_width + 1 } else { 0 };
+    let available = usize::from(columns).saturating_sub(clock_reserve);
     let mut selected = Vec::new();
     let mut used = 0usize;
     let plus_width = 3usize;
     let mut overflow = false;
     for tab in tabs {
-        let (_, width, _) = chip(
+        let (_, width) = chip(
             tab,
             viewed == Some(tab.id.as_str()),
-            hovered == Some(tab.id.as_str()),
+            hovered == Some(&StripHover::Tab(tab.id.clone())),
         );
         if used + width + plus_width <= available {
             selected.push(tab);
@@ -382,10 +509,19 @@ fn render_frame(
         && !selected.iter().any(|tab| tab.id == active.id)
     {
         overflow = true;
-        let (_, active_width, _) = chip(active, true, hovered == Some(active.id.as_str()));
+        let (_, active_width) = chip(
+            active,
+            true,
+            hovered == Some(&StripHover::Tab(active.id.clone())),
+        );
         while !selected.is_empty() && used + active_width + plus_width + 3 > available {
             let removed = selected.pop().expect("checked nonempty");
-            used -= chip(removed, false, hovered == Some(removed.id.as_str())).1;
+            used -= chip(
+                removed,
+                false,
+                hovered == Some(&StripHover::Tab(removed.id.clone())),
+            )
+            .1;
         }
         selected.push(active);
         used += active_width;
@@ -393,46 +529,63 @@ fn render_frame(
     let overflow_width = if overflow { 3 } else { 0 };
     while !selected.is_empty() && used + overflow_width + plus_width > available {
         let removed = selected.pop().expect("checked nonempty");
-        used -= chip(removed, false, hovered == Some(removed.id.as_str())).1;
+        used -= chip(
+            removed,
+            false,
+            hovered == Some(&StripHover::Tab(removed.id.clone())),
+        )
+        .1;
         overflow = true;
     }
 
+    let hidden_tabs = tabs
+        .iter()
+        .filter(|tab| !selected.iter().any(|visible| visible.id == tab.id))
+        .map(|tab| tab.id.clone())
+        .collect::<Vec<_>>();
     let mut bytes = String::from("\x1b[1;1H");
     let mut hits = Vec::new();
     let mut column = 0u16;
     for tab in selected {
-        let (text, width, close_width) = chip(
+        let (text, width) = chip(
             tab,
             viewed == Some(tab.id.as_str()),
-            hovered == Some(tab.id.as_str()),
+            hovered == Some(&StripHover::Tab(tab.id.clone())),
         );
         bytes.push_str(&text);
         let end = column.saturating_add(width as u16);
-        hits.push((
-            column,
-            end.saturating_sub(close_width as u16),
-            StripHit::View(tab.id.clone()),
-        ));
-        hits.push((
-            end.saturating_sub(close_width as u16),
-            end,
-            StripHit::Close(tab.id.clone()),
-        ));
+        hits.push((column, end, StripHit::View(tab.id.clone())));
         column = end;
     }
     if overflow {
-        bytes.push_str("\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m … \x1b[0m");
+        let background = if hovered == Some(&StripHover::Overflow) {
+            "48;48;48"
+        } else {
+            "38;38;38"
+        };
+        bytes.push_str(&format!(
+            "\x1b[48;2;{background}m\x1b[38;2;170;170;170m … \x1b[0m"
+        ));
         hits.push((column, column.saturating_add(3), StripHit::Overflow));
         column = column.saturating_add(3);
     }
-    bytes.push_str("\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m + \x1b[0m");
+    let plus_background = if hovered == Some(&StripHover::New) {
+        "48;48;48"
+    } else {
+        "38;38;38"
+    };
+    bytes.push_str(&format!(
+        "\x1b[48;2;{plus_background}m\x1b[38;2;170;170;170m + \x1b[0m"
+    ));
     hits.push((column, column.saturating_add(3), StripHit::New));
     column = column.saturating_add(3);
-    let padding = usize::from(columns).saturating_sub(column as usize + clock_width);
+    let padding = usize::from(columns).saturating_sub(column as usize + clock_reserve);
     bytes.push_str(&" ".repeat(padding));
-    bytes.push_str("\x1b[38;2;170;170;170m");
-    bytes.push_str(&clock);
-    bytes.push_str("\x1b[0m");
+    if let Some(clock) = clock {
+        bytes.push_str("\x1b[38;2;170;170;170m");
+        bytes.push_str(&clock);
+        bytes.push_str("\x1b[0m ");
+    }
     if !truecolor {
         for (rgb, palette) in [
             ("\x1b[48;2;38;38;38m", "\x1b[48;5;235m"),
@@ -444,7 +597,11 @@ fn render_frame(
             bytes = bytes.replace(rgb, palette);
         }
     }
-    StripFrame { bytes, hits }
+    StripFrame {
+        bytes,
+        hits,
+        hidden_tabs,
+    }
 }
 
 fn palette_fallback_requested() -> bool {
@@ -492,13 +649,20 @@ pub fn hit(frame: &StripFrame, column: u16) -> Option<&StripHit> {
         .map(|(_, _, hit)| hit)
 }
 
-fn clock_text() -> String {
+fn clock_text(format: TimeFormat) -> String {
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
     let (hour, minute) = local_hour_minute(seconds);
-    let suffix = if hour < 12 { "am" } else { "pm" };
+    format_clock(hour, minute, format)
+}
+
+pub fn format_clock(hour: u32, minute: u32, format: TimeFormat) -> String {
+    if format == TimeFormat::TwentyFour {
+        return format!("{hour:02}:{minute:02}");
+    }
+    let suffix = if hour < 12 { "AM" } else { "PM" };
     let hour = match hour % 12 {
         0 => 12,
         value => value,
@@ -752,9 +916,59 @@ mod tests {
     #[test]
     fn manual_rename_renders_the_complete_title_immediately() {
         let now = Instant::now();
-        let frame = render_frame(&[tab("one", "auth-fix")], Some("one"), 80, None, now, true);
-        assert!(plain(&frame.bytes).contains(" auth-fix ×"));
+        let frame = render_frame(
+            &[tab("one", "auth-fix")],
+            Some("one"),
+            80,
+            None,
+            TimeFormat::Twelve,
+            None,
+            now,
+            true,
+        );
+        assert!(plain(&frame.bytes).contains(" auth-fix "));
+        assert!(!plain(&frame.bytes).contains('×'));
         assert_eq!(truecolor_runs(&frame.bytes), 4);
+    }
+
+    #[test]
+    fn inline_rename_renders_cursor_selection_and_bounded_geometry() {
+        let tabs = [tab("one", "agent")];
+        let selected = StripRename {
+            tab_id: "one".into(),
+            text: "文档-helper".into(),
+            cursor: 9,
+            selection: Some((0, 9)),
+        };
+        let frame = render_interactive(
+            &tabs,
+            Some("one"),
+            80,
+            None,
+            TimeFormat::Twelve,
+            Some(&selected),
+        );
+        assert!(frame.bytes.contains("\x1b[7m"));
+        assert!(plain(&frame.bytes).contains("文档-helper"));
+        let (_, end, _) = frame.hits.first().unwrap();
+        assert!(*end <= 20);
+
+        let cursor = StripRename {
+            tab_id: "one".into(),
+            text: "docs".into(),
+            cursor: 4,
+            selection: None,
+        };
+        let frame = render_interactive(
+            &tabs,
+            Some("one"),
+            80,
+            None,
+            TimeFormat::Twelve,
+            Some(&cursor),
+        );
+        assert!(frame.bytes.contains("\x1b[7m \x1b[27m"));
+        assert_eq!(frame.hidden_tabs, Vec::<String>::new());
     }
 
     #[test]
@@ -766,7 +980,16 @@ mod tests {
             started_at: start,
         });
         let tabs = vec![animated, tab("two", "agent 2")];
-        let reference = render_frame(&tabs, Some("one"), 80, None, start, true);
+        let reference = render_frame(
+            &tabs,
+            Some("one"),
+            80,
+            None,
+            TimeFormat::Twelve,
+            None,
+            start,
+            true,
+        );
         for elapsed in [
             0,
             TITLE_RAINBOW_MS,
@@ -777,7 +1000,17 @@ mod tests {
             let at = start + Duration::from_millis(elapsed as u64);
             for truecolor in [true, false] {
                 assert_eq!(
-                    render_frame(&tabs, Some("one"), 80, None, at, truecolor).hits,
+                    render_frame(
+                        &tabs,
+                        Some("one"),
+                        80,
+                        None,
+                        TimeFormat::Twelve,
+                        None,
+                        at,
+                        truecolor
+                    )
+                    .hits,
                     reference.hits
                 );
             }
@@ -787,15 +1020,17 @@ mod tests {
             Some("one"),
             80,
             None,
+            TimeFormat::Twelve,
+            None,
             start + Duration::from_secs(5),
             true,
         );
-        assert!(plain(&settled.bytes).contains(" auth-fix ×"));
+        assert!(plain(&settled.bytes).contains(" auth-fix "));
         assert_eq!(settled.hits, reference.hits);
     }
 
     #[test]
-    fn truncates_at_grapheme_boundaries_and_keeps_close() {
+    fn truncates_at_grapheme_boundaries_without_close_geometry() {
         for name in [
             "abcdefghijklmnopqrstu",
             "开发助手一二三四五六七",
@@ -803,23 +1038,62 @@ mod tests {
             "e\u{301}e\u{301}e\u{301}e\u{301}e\u{301}e\u{301}e\u{301}e\u{301}",
         ] {
             let frame = render(&[tab("one", name)], Some("one"), 80);
-            assert!(frame.bytes.contains("×"));
-            assert!(
+            assert!(!frame.bytes.contains("×"));
+            assert_eq!(
                 frame
                     .hits
                     .iter()
-                    .any(|(_, _, hit)| matches!(hit, StripHit::Close(id) if id == "one"))
+                    .filter(|(_, _, hit)| matches!(hit, StripHit::View(id) if id == "one"))
+                    .count(),
+                1
             );
         }
     }
 
     #[test]
-    fn hover_changes_visual_style_without_changing_hit_targets() {
-        let tabs = vec![tab("tab-0", "agent")];
-        let plain = render(&tabs, None, 80);
-        let hovered = render_with_hover(&tabs, None, 80, Some("tab-0"));
-        assert_ne!(plain.bytes, hovered.bytes);
-        assert_eq!(plain.hits, hovered.hits);
+    fn hover_changes_each_target_style_without_changing_hit_targets() {
+        let tabs = (0..10)
+            .map(|index| tab(&format!("tab-{index}"), &format!("long agent {index}")))
+            .collect::<Vec<_>>();
+        let plain = render(&tabs, None, 40);
+        assert!(!plain.hidden_tabs.is_empty());
+        for hover in [
+            StripHover::Tab("tab-0".into()),
+            StripHover::Overflow,
+            StripHover::New,
+        ] {
+            let hovered = render_with_hover(&tabs, None, 40, Some(&hover));
+            assert_ne!(plain.bytes, hovered.bytes);
+            assert_eq!(plain.hits, hovered.hits);
+        }
+    }
+
+    #[test]
+    fn empty_strip_contains_only_the_new_tab_control() {
+        let frame = render(&[], None, 80);
+        assert_eq!(plain(&frame.bytes).trim(), "+");
+        assert_eq!(frame.hits, vec![(0, 3, StripHit::New)]);
+    }
+
+    #[test]
+    fn formats_clock_boundaries_and_reserves_a_trailing_cell() {
+        assert_eq!(format_clock(0, 5, TimeFormat::Twelve), "12:05 AM");
+        assert_eq!(format_clock(12, 5, TimeFormat::Twelve), "12:05 PM");
+        assert_eq!(format_clock(23, 5, TimeFormat::TwentyFour), "23:05");
+        for format in [TimeFormat::Twelve, TimeFormat::TwentyFour] {
+            let frame = render_frame(
+                &[tab("one", "agent")],
+                Some("one"),
+                80,
+                None,
+                format,
+                None,
+                Instant::now(),
+                true,
+            );
+            assert!(plain(&frame.bytes).ends_with(' '));
+            assert_eq!(UnicodeWidthStr::width(plain(&frame.bytes).as_str()), 80);
+        }
     }
 
     #[test]
@@ -887,10 +1161,7 @@ mod tests {
                 .any(|glyph| frame.bytes.contains(glyph))
         );
         assert!(frame.hits.iter().any(|(start, end, hit)| {
-            end - start == 8 && matches!(hit, StripHit::View(id) if id == "blue")
-        }));
-        assert!(frame.hits.iter().any(|(start, end, hit)| {
-            end - start == 3 && matches!(hit, StripHit::Close(id) if id == "blue")
+            end - start == 9 && matches!(hit, StripHit::View(id) if id == "blue")
         }));
     }
 
@@ -910,7 +1181,7 @@ mod tests {
         for columns in [80, 120, 200] {
             let frame = render(&tabs, Some("tab-49"), columns);
             assert!(frame.hits.iter().all(|(_, end, _)| *end <= columns));
-            assert!(frame.bytes.contains("×"));
+            assert!(!frame.bytes.contains("×"));
             assert!(frame.bytes.contains(" + "));
             assert!(frame.bytes.contains("开发助手49"));
         }

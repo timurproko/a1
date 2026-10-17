@@ -31,6 +31,7 @@ import { withPinnedHyperlinks, fixture, nextImmediate } from "./session-shell-fi
 
 describe("prompt-style compaction in the real engine and shell", () => {
   const time = new Date(2026, 8, 13, 14, 35).getTime();
+  const formattedTime = formatSubmittedPromptTime(time)!;
   const compaction = (tokensBefore = 281483, summary = Array.from({ length: 24 }, (_, i) => `summary-${i} alpha beta`).join("\n\n")) => ({
     role: "compactionSummary", summary, tokensBefore, timestamp: time,
   });
@@ -99,7 +100,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
       const firstExtent = shell.root.viewportPresentationEvidence().maxScroll;
       frame = await key("\u001b[<65;3;3M");
       expect(frame[0]).toContain("❯ Compacted from 281,483 tokens");
-      expect(frame[0]).toContain("14:35");
+      expect(frame[0]).toContain(formattedTime);
       expect(shell.root.render(80)[0]).not.toContain("\u001b[2m");
       expect(frame.filter(row => row.includes("Compacted from 281,483 tokens"))).toHaveLength(1);
       expect(shell.root.viewportPresentationEvidence().maxScroll).toBe(firstExtent);
@@ -173,10 +174,10 @@ describe("prompt-style compaction in the real engine and shell", () => {
           } finally { screen.dispose(); }
         }
         const labelColumn = stripTerminalSequences(frames[1]![0]!).indexOf("Compacted");
-        const timeColumn = stripTerminalSequences(frames[1]![0]!).indexOf("14:35");
+        const timeColumn = stripTerminalSequences(frames[1]![0]!).indexOf(formattedTime);
         expect(labelColumn).toBeGreaterThanOrEqual(0);
         expect(timeColumn).toBeGreaterThan(labelColumn);
-        const sourceTimeColumn = stripTerminalSequences(frames[0]![1]!).indexOf("14:35");
+        const sourceTimeColumn = stripTerminalSequences(frames[0]![1]!).indexOf(formattedTime);
         expect(sourceTimeColumn).toBeGreaterThanOrEqual(0);
         const sourceTimeStyle = rendered[0]![1]![sourceTimeColumn]!.foreground!;
         expect(sourceTimeStyle[2]).toBe(0);
@@ -186,8 +187,10 @@ describe("prompt-style compaction in the real engine and shell", () => {
         expect(sourceTimeStyle.slice(0, 2)).not.toEqual(rendered[7]![0]![labelColumn]!.foreground!.slice(0, 2));
         expect(rendered[5]![1]![sourceTimeColumn]!.foreground).toEqual(sourceTimeStyle);
         for (const state of [1, 2, 3, 4, 6, 7, 8]) {
-          for (let column = timeColumn; column < timeColumn + 5; column++) {
-            expect(rendered[state]![0]![column]!.foreground).toEqual(sourceTimeStyle);
+          for (let column = timeColumn; column < timeColumn + formattedTime.length; column++) {
+            if (formattedTime[column - timeColumn] !== " ") {
+              expect(rendered[state]![0]![column]!.foreground).toEqual(sourceTimeStyle);
+            }
             expect(rendered[state]![0]![column]!.background).toEqual(rendered[state]![0]![labelColumn]!.background);
           }
         }
@@ -217,8 +220,8 @@ describe("prompt-style compaction in the real engine and shell", () => {
       expect(timeColumn).toBeGreaterThanOrEqual(0);
       const terminalRow = rowIndex + 1;
       terminal.input(`\u001b[<0;${timeColumn + 1};${terminalRow}M`);
-      terminal.input(`\u001b[<32;${timeColumn + 5};${terminalRow}M`);
-      terminal.input(`\u001b[<0;${timeColumn + 5};${terminalRow}m`);
+      terminal.input(`\u001b[<32;${timeColumn + formatted.length};${terminalRow}M`);
+      terminal.input(`\u001b[<0;${timeColumn + formatted.length};${terminalRow}m`);
       await nextImmediate();
       const selectedRow = shell.root.render(80)[rowIndex]!;
       const screen = new HeadlessXterm.Terminal({ cols: 80, rows: 3, allowProposedApi: true });
@@ -229,7 +232,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
         ));
         const before = screen.buffer.active.getLine(0)!;
         const selected = screen.buffer.active.getLine(1)!;
-        for (let column = timeColumn; column < timeColumn + 5; column++) {
+        for (let column = timeColumn; column < timeColumn + formatted.length; column++) {
           const beforeCell = before.getCell(column)!;
           const selectedCell = selected.getCell(column)!;
           expect([
@@ -262,13 +265,13 @@ describe("prompt-style compaction in the real engine and shell", () => {
           const screen = new HeadlessXterm.Terminal({ cols: width, rows: 25, allowProposedApi: true });
           try {
             await new Promise<void>(resolve => screen.write(frame.map(row => `${row}\u001b[0m`).join("\r\n"), resolve));
-            const hasTimestamp = formatted !== null && width >= 18;
+            const hasTimestamp = formatted !== null && width >= 20;
             const line = screen.buffer.active.getLine(0)!;
-            if (hasTimestamp) expect(line.translateToString().slice(-5)).toBe(formatted);
+            if (hasTimestamp) expect(line.translateToString().slice(-formatted.length)).toBe(formatted);
             for (let column = 0; column < width; column++) {
               const cell = line.getCell(column)!;
               if (!cell.getChars().trim()) continue;
-              const isTimestamp = hasTimestamp && column >= width - 5;
+              const isTimestamp = hasTimestamp && column >= width - formatted.length;
               expect(cell.isDim() !== 0, `${kind} width=${width} column=${column}`).toBe(!isTimestamp);
               if (isTimestamp) expect(cell.isBold()).toBe(0);
               expect(cell.getBgColor()).toBe(line.getCell(0)!.getBgColor());
@@ -332,7 +335,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
       terminal.input("\u001b[<65;3;3M");
       await nextImmediate();
       shell.root.render(80);
-      for (const [data, expected] of [["\u001b[<65;3;3M", "14:35"], ["\u001b[1;5F", "14:36"]]) {
+      for (const [data, expected] of [["\u001b[<65;3;3M", formattedTime], ["\u001b[1;5F", formatSubmittedPromptTime(time + 60_000)!]] as const) {
         terminal.input(data!);
         await nextImmediate();
         const frame = shell.root.render(80);
@@ -340,10 +343,11 @@ describe("prompt-style compaction in the real engine and shell", () => {
         try {
           await new Promise<void>(resolve => screen.write(`${frame[0]}\r\nsentinel`, resolve));
           const row = screen.buffer.active.getLine(0)!;
-          expect(row.translateToString().slice(74, 79)).toBe(expected);
-          for (let column = 74; column < 79; column++) expect(row.getCell(column)!.isDim()).toBe(0);
+          const timestampStart = 79 - expected.length;
+          expect(row.translateToString().slice(timestampStart, 79)).toBe(expected);
+          for (let column = timestampStart; column < 79; column++) expect(row.getCell(column)!.isDim()).toBe(0);
           expect(row.getCell(2)!.isDim()).not.toBe(0);
-          expect(row.getCell(73)!.isDim()).not.toBe(0);
+          expect(row.getCell(timestampStart - 1)!.isDim()).not.toBe(0);
           expect(screen.buffer.active.getLine(1)!.getCell(0)!.isDim()).toBe(0);
           expect(screen.buffer.active.getLine(1)!.getCell(0)!.isBold()).toBe(0);
         } finally { screen.dispose(); }

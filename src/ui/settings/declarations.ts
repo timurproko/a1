@@ -1,6 +1,6 @@
-import type { OwnedUiBackgroundStyle, UiAccentColor } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiBackgroundStyle, OwnedUiTimeFormat, UiAccentColor } from "../../contracts/owned-ui/index.js";
 
-export const OWNED_UI_SETTINGS_VERSION = 16;
+export const OWNED_UI_SETTINGS_VERSION = 17;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
   "purple", "blue", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);
@@ -45,6 +45,17 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     application: "restart",
     defaultValue: true,
     allowedValues: Object.freeze([true, false] as const),
+  }),
+  timeFormat: Object.freeze({
+    id: "timeFormat",
+    label: "Time format",
+    section: GENERIC_SECTION,
+    description: "Format used by submitted-prompt timestamps and the resident tab clock.",
+    application: "live",
+    defaultValue: "8:00 PM",
+    allowedValues: Object.freeze([
+      "20:00", "8:00 PM",
+    ] as const satisfies readonly OwnedUiTimeFormat[]),
   }),
   accentColor: Object.freeze({
     id: "accentColor",
