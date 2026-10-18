@@ -111,7 +111,9 @@ async function createDirect(spawnPty, context) {
   const waiters = new Set();
   terminal.onData(data => {
     output = (output + data).slice(-8 * 1024 * 1024);
-    if (data.includes("\x1b[?u")) terminal.write("\x1b[?0u");
+    // Platform: the Windows attach cannot negotiate kitty keyboard flags, so its direct oracle
+    // must expose the same outer capability instead of answering a query resident mode cannot make.
+    if (process.platform !== "win32" && data.includes("\x1b[?u")) terminal.write("\x1b[?0u");
     if (data.includes("\x1b[6n")) terminal.write("\x1b[29;100R");
     for (const wake of waiters) wake();
   });
@@ -634,10 +636,14 @@ async function compareDirectAndResidentTemporalState(spawnPty, host, attach, con
   }
   const directSnapshot = addon.inspectTerminalSnapshot(Buffer.from(directOutput, "utf8"), 100, 29, 0, marker);
   const residentSnapshot = addon.inspectTerminalSnapshot(Buffer.from(residentOutput, "utf8"), 100, 30, 1, marker);
+  // Platform: ConPTY consumes mouse-tracking controls before node-pty exposes captured output.
+  // The native outer-mode contract covers those exact bytes; all other semantic modes remain in
+  // this temporal comparison.
+  const transportHiddenFields = process.platform === "win32" ? ["mouseTracking"] : [];
   const comparableFields = [
     "markerDigest", "markerOccurrences", "cursorColumn", "cursorRow", "cursorVisible", "cursorStyle",
     "cursorBlink", "mouseTracking", "focusEvents", "bracketedPaste", "kittyKeyboardFlags", "alternateScreen",
-  ];
+  ].filter(field => !transportHiddenFields.includes(field));
   const mismatches = comparableFields.filter(field => directSnapshot[field] !== residentSnapshot[field]);
   const transactionFaults = [];
   for (const [name, snapshot] of [["direct", directSnapshot], ["resident", residentSnapshot]]) {
@@ -651,7 +657,7 @@ async function compareDirectAndResidentTemporalState(spawnPty, host, attach, con
     if (snapshot.markerCountRegressions !== 0) transactionFaults.push(`${name} outer transaction cleared intermediate content`);
   }
   const faults = [
-    ...mismatches.map(field => `direct/resident temporal ${field} mismatch`),
+    ...mismatches.map(field => `direct/resident temporal ${field} mismatch (direct=${JSON.stringify(directSnapshot[field])}, resident=${JSON.stringify(residentSnapshot[field])})`),
     ...transactionFaults,
   ];
   return {
@@ -664,6 +670,7 @@ async function compareDirectAndResidentTemporalState(spawnPty, host, attach, con
     residentTransactions: { begins: residentSnapshot.synchronizedBegins, ends: residentSnapshot.synchronizedEnds,
       resets: residentSnapshot.synchronizedResets },
     compared: comparableFields,
+    transportHiddenFields,
     faults,
     passed: faults.length === 0,
   };
