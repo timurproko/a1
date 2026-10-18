@@ -1495,8 +1495,9 @@ an already-published package an exact-byte no-op. Automation SHALL never move a 
 delete a tag at another commit, or delete a tag once npm may have been reached.
 
 Registry verification SHALL compare exact integrity and shasum for both packages,
-verify the requested dist-tag, and keep polling for at least ten minutes before
-failing an upload npm is still ingesting.
+verify the requested dist-tag, and keep polling for at least thirty minutes before
+failing an upload npm is still ingesting. The publishing job's timeout SHALL exceed
+that polling window.
 
 #### Scenario: Validation fails after the click
 - **WHEN** an exact-package gate fails before either package upload starts
@@ -1510,6 +1511,11 @@ failing an upload npm is still ingesting.
 #### Scenario: An upload started but npm does not yet serve it
 - **WHEN** an npm upload step ran and registry verification timed out while npm is still ingesting
 - **THEN** the recovery job SHALL keep the Release and tag and direct the maintainer to confirm the registry and rerun the failed jobs
+
+#### Scenario: npm serves an upload after a delay within the window
+- **WHEN** npm accepts both uploads but serves one of them only about seventeen minutes later with the validated bytes
+- **THEN** registry verification SHALL succeed in the same run
+- **AND** the published-pair smoke and completion SHALL keep their existing eligibility
 
 #### Scenario: One package reached npm
 - **WHEN** either target package version exists on npm after a failure
