@@ -9,6 +9,7 @@ import type { QuitOutroEffect } from "./quit-outro-effects.js";
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../ui/components/mouse.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
 import { piCanvasBackgroundAnsi } from "../../integrations/pi/components/theme.js";
+import { residentProgressObserver } from "../../foundation/resident-tabs/progress-observation.js";
 import {
   DamageAwareTerminalAdapter,
   type PiTuiDamageDecision,
@@ -156,6 +157,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     this.#customViewport = options.layout === "custom-viewport";
     this.#quitOutro = options.quitOutro;
     const input = options.input;
+    const progressObserver = residentProgressObserver();
     let damageTerminal: DamageAwareTerminalAdapter | undefined;
     const surface: PiTuiComponentPort = {
       render: width => this.#active?.render(width) ?? [],
@@ -181,6 +183,10 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
             inspectHyperlinks: readVisibleHyperlinks,
             onResize: () => this.#active?.noteImmediatePresentation(),
             onHyperlinkCleanupRequired: () => this.runtime?.requestRender(true),
+            ...(progressObserver === null ? {} : {
+              onWrite: ({ bytes, frameId, cause }: { readonly bytes: number; readonly frameId?: number; readonly cause?: string }) =>
+                progressObserver.childRenderWrite(bytes, frameId, cause),
+            }),
           });
           return damageTerminal;
         },

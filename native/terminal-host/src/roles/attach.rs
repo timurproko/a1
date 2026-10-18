@@ -29,6 +29,7 @@ use crate::roles::presentation::Frame;
 use crate::roles::presentation::{
     DesiredPresentation, FinalCursor, Offer, PresentationComposer, TopologyAction, ViewModel,
 };
+use crate::roles::progress_observation::{self, ProgressMetadata};
 use crate::roles::strip::{self, StripHit, StripHover, StripTab, TimeFormat};
 use crate::roles::wire::{
     self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface, TabCreate, TabList,
@@ -1360,6 +1361,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     terminal.present(DesiredPresentation {
         tab_id: view.viewed.clone(),
         incarnation: latest_incarnation,
+        revision: latest_revision,
+        geometry_generation: latest_geometry_generation,
         strip: strip_frame.bytes.clone(),
         structured: None,
         legacy_body: latest_surface.clone(),
@@ -1471,6 +1474,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             terminal.present(DesiredPresentation {
                 tab_id: view.viewed.clone(),
                 incarnation: latest_incarnation,
+                revision: latest_revision,
+                geometry_generation: latest_geometry_generation,
                 strip: strip_frame.bytes.clone(),
                 structured: latest_structured.clone(),
                 legacy_body: latest_surface.clone(),
@@ -1621,6 +1626,22 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     {
                         continue;
                     }
+                    progress_observation::observe(
+                        "attach",
+                        "attach-receipt",
+                        ProgressMetadata {
+                            tab_id: Some(&surface.tab_id),
+                            incarnation: surface.incarnation,
+                            revision: surface.revision,
+                            geometry_generation: surface
+                                .structured
+                                .as_ref()
+                                .map_or(0, |structured| structured.geometry_generation),
+                            bytes: payload.len(),
+                            count: 1,
+                            ..ProgressMetadata::default()
+                        },
+                    );
                     let listed = tabs.iter().any(|tab| tab.id == surface.tab_id);
                     if let Offer::Commit {
                         surface,
@@ -2714,6 +2735,21 @@ impl OuterWriter {
                                     *failed = Some(error);
                                 }
                                 return;
+                            }
+                            if let Some(tab_id) = prepared.tab_id.as_deref() {
+                                progress_observation::observe(
+                                    "attach",
+                                    "outer-paint",
+                                    ProgressMetadata {
+                                        tab_id: Some(tab_id),
+                                        incarnation: prepared.incarnation,
+                                        revision: prepared.revision,
+                                        geometry_generation: prepared.geometry_generation,
+                                        bytes: prepared.bytes.len(),
+                                        count: 1,
+                                        ..ProgressMetadata::default()
+                                    },
+                                );
                             }
                             prepared.acknowledge(&mut composer);
                         }

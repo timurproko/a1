@@ -65,6 +65,8 @@ export interface DamageAwareTerminalOptions {
   };
   readonly onResize?: () => void;
   readonly onHyperlinkCleanupRequired?: () => void;
+  /** Optional payload-free observation after a terminal write returns. */
+  readonly onWrite?: (metadata: { readonly bytes: number; readonly frameId?: number; readonly cause?: string }) => void;
 }
 
 interface ArmedFrame {
@@ -257,6 +259,15 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
       ? output
       : paintTerminalCanvasFrame(output, this.#canvasBackgroundAnsi);
     this.inner.write(forwarded);
+    try {
+      this.options.onWrite?.({
+        bytes: Buffer.byteLength(forwarded),
+        ...(armed === undefined ? {} : {
+          frameId: armed.descriptor.frameId,
+          cause: armed.descriptor.cause,
+        }),
+      });
+    } catch { /* Invariant: observation never changes rendering or write completion. */ }
     if (epoch !== this.#epoch
       || (armed !== undefined && this.#lastConsumedFrameId !== armed.descriptor.frameId)) return;
     // Invariant: cache invalidation follows forwarded bytes, not a suppressed clear.

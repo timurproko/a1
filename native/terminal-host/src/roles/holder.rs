@@ -23,6 +23,7 @@ use crate::protocol::{
 };
 use crate::roles::child_containment::ChildContainment;
 use crate::roles::child_input::{self, SemanticEncoder};
+use crate::roles::progress_observation::{self, ProgressMetadata};
 use crate::roles::wire::{
     self, HolderExit, HolderLaunchConfig, HolderRespawn, Input, PasteStart, Resize, RoleHello,
     Surface, SurfaceSubscription,
@@ -229,6 +230,18 @@ fn commit_retained_surface(
     }
     *revision = revision.saturating_add(1);
     *committed = next;
+    progress_observation::observe(
+        "holder",
+        "holder-commit",
+        ProgressMetadata {
+            tab_id: Some(tab_id),
+            incarnation,
+            revision: *revision,
+            geometry_generation,
+            count: 1,
+            ..ProgressMetadata::default()
+        },
+    );
     if let Some(subscription) = subscription {
         server.offer_surface(surface_message(
             committed,
@@ -607,6 +620,7 @@ fn run_holder(
         command.env(name, value);
     }
     command.env("A1_TAB_ID", &config.tab_id);
+    command.env("A1_TAB_INCARNATION", config.incarnation.to_string());
     command.env("A1_TAB_TOKEN", BASE64.encode(&config.bridge_token));
     command.env("A1_TAB_ENDPOINT", &config.endpoint);
     let mut child = pair
@@ -700,6 +714,7 @@ fn run_holder(
     let mut geometry_deadline: Option<std::time::Instant> = None;
     let mut pending_effects = Vec::<EffectKind>::new();
     let mut effect_sequence = 0u64;
+    let mut pty_event_sequence = 0u64;
     let mut revision = initial_revision(config.incarnation);
     let mut input =
         crate::core::holder::State::new(config.tab_id.clone(), config.incarnation, highest_epoch);
@@ -1046,6 +1061,19 @@ fn run_holder(
                 break;
             };
             output_bytes = output_bytes.saturating_add(bytes.len());
+            pty_event_sequence = pty_event_sequence.saturating_add(1);
+            progress_observation::observe(
+                "holder",
+                "pty-ingest",
+                ProgressMetadata {
+                    tab_id: Some(&config.tab_id),
+                    incarnation: config.incarnation,
+                    event_sequence: pty_event_sequence,
+                    bytes: bytes.len(),
+                    count: 1,
+                    ..ProgressMetadata::default()
+                },
+            );
             recovery_output.extend(&bytes);
             while recovery_output.len() > 2 * 1024 * 1024 {
                 recovery_output.pop_front();

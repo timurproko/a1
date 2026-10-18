@@ -303,6 +303,8 @@ pub enum FinalCursor {
 pub struct DesiredPresentation {
     pub tab_id: Option<String>,
     pub incarnation: u64,
+    pub revision: u64,
+    pub geometry_generation: u64,
     pub strip: String,
     pub structured: Option<StructuredSurface>,
     pub legacy_body: Vec<u8>,
@@ -333,6 +335,10 @@ pub struct PresentationComposer {
 #[derive(Debug)]
 pub struct PreparedPresentation {
     pub bytes: Vec<u8>,
+    pub tab_id: Option<String>,
+    pub incarnation: u64,
+    pub revision: u64,
+    pub geometry_generation: u64,
     next: PresentationComposer,
 }
 
@@ -481,7 +487,14 @@ impl PresentationComposer {
             cursor_style,
             modes: desired.modes.clone(),
         };
-        Ok(Some(PreparedPresentation { bytes, next }))
+        Ok(Some(PreparedPresentation {
+            bytes,
+            tab_id: desired.tab_id.clone(),
+            incarnation: desired.incarnation,
+            revision: desired.revision,
+            geometry_generation: desired.geometry_generation,
+            next,
+        }))
     }
 
     pub fn invalidate(&mut self) {
@@ -1133,6 +1146,10 @@ mod tests {
         DesiredPresentation {
             tab_id: Some("a".into()),
             incarnation: 2,
+            revision: 1,
+            geometry_generation: surface
+                .as_ref()
+                .map_or(0, |value| value.geometry_generation),
             strip: "\x1b[1;1HSTRIP".into(),
             structured: surface,
             legacy_body,

@@ -695,4 +695,20 @@ describe("A1-owned damage-aware terminal adapter", () => {
     absent.adapter.write(reflowed);
     expect(absent.adapter.lastDecision).toMatchObject({ transformed: true, paintedRows: [1, 6] });
   });
+
+  it("observes only completed forwarded writes with frame identity and cause", () => {
+    const terminal = new RecordingTerminal();
+    const observed: { bytes: number; frameId?: number; cause?: string }[] = [];
+    const adapter = new DamageAwareTerminalAdapter(terminal, {
+      regionalScroll: true,
+      inspectHyperlinks: readVisibleHyperlinks,
+      onWrite: value => observed.push(value),
+    });
+    const write = fullscreenWrite(initialRows);
+    adapter.arm(descriptor(7), SAFE);
+    adapter.write(write);
+
+    expect(terminal.writes).toEqual([write]);
+    expect(observed).toEqual([{ bytes: Buffer.byteLength(write), frameId: 7, cause: "initial" }]);
+  });
 });
