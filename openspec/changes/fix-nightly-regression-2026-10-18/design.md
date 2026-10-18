@@ -4,7 +4,10 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- **What failed:** every Windows `package` and `predecessor` shard rejected its own exact-package handoff (`handoff-rejected`, "malformed or contradicts the validation plan"). Preparation installed the candidate and wrote a handoff naming `package-startup`, `package-contracts`, and `update-predecessor`, while the `package` shard plans only the first two and the `predecessor` shard only the third. With four shard jobs failing, `Complete regression required` saw incomplete lane evidence.
+- **Why:** introduced by `ee097cf` (#789). It changed `run-validation-tier.mjs --prepare-exact-package` from preparing the canonical plan to preparing the shard plan, which exists only when `--full-shard` is passed, but the sharded "Prepare the exact package" steps in `full-regression-shared.yml` and in `publish.yml` (`validate_windows_shard`) never passed it. Preparation therefore planned the canonical consumers. Not environmental.
+- **Fix:** both sharded preparation steps pass `--full-shard "${{ matrix.shard }}"`, so each shard prepares exactly the consumers it runs. Handoff validation, consumers, and coverage are unchanged; the unsharded sequential preparations keep the canonical plan.
+- **Regression evidence:** the full-regression workflow policy test now requires both sharded preparation steps to pass the matrix shard, so the preparation and consumer plans cannot drift apart again.
 
 ## Evidence
 
@@ -44,6 +47,7 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
       Temporarily overriding HOME='/home/runner/work/_temp/a701aae1-6bda-4cd3-b212-e07fe79f853b' before making global git config changes
       ```
 
+  - Local reproduction on `cc0a011` plus `develop`: with `VALIDATION_SELECTION_JSON='["full-release"]'`, `run-validation-tier.mjs --plan` names exact-package consumers `package-startup,package-contracts,update-predecessor` (the set the failed preparation logged), `--plan --full-shard package` names `package-startup,package-contracts`, and `--plan --full-shard predecessor` names `update-predecessor`. The focused full-regression and release pipeline policy tests pass with the fix.
   - Last successful Full regression run: [#65](https://github.com/timurproko/a1/actions/runs/38991464211) on `2148ffa`; 11 `develop` commits since:
     - `cc0a011` feature(native): host every native component inside the Node runtime (#794)
     - `19f3479` chore(delivery): allow unbounded progress items (#800)
