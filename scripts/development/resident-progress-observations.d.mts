@@ -62,7 +62,8 @@ export function evaluateStoppedStageControl(records: readonly ProgressObservatio
   faults: string[];
   counts: Record<string, Record<string, number>>;
 };
-export function progressLatencyReport(records: readonly ProgressObservation[], tabIds: readonly string[]): {
+export function progressLatencyReport(records: readonly ProgressObservation[], tabIds: readonly string[],
+  activeWindows?: readonly { readonly startedUnixUs: number; readonly barrierUnixUs: number }[] | null): {
   perTab: Record<string, {
     engineToRender: LatencySummary;
     renderToPty: LatencySummary;

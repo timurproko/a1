@@ -162,7 +162,7 @@ export function evaluateStoppedStageControl(records, control) {
     passed: faults.length === 0, faults, counts };
 }
 
-export function progressLatencyReport(records, tabIds) {
+export function progressLatencyReport(records, tabIds, activeWindows = null) {
   const perTab = {};
   const allFaults = [];
   for (const tabId of tabIds) {
@@ -179,7 +179,13 @@ export function progressLatencyReport(records, tabIds) {
       ? durationMs(record, paintsByRevision.get(record.revision)) : Number.NaN).filter(Number.isFinite);
     const commitTimes = tab.filter(record => record.stage === "holder-commit").map(record => record.timestampUnixUs)
       .sort((left, right) => left - right);
-    const gaps = commitTimes.slice(1).map((value, index) => (value - commitTimes[index]) / 1_000);
+    // Invariant: a holder owes commits only while its child has new output. Settled turns, stopped-stage
+    // controls, server replacement, and paused sinks are idle by design, so gaps are measured only
+    // inside the supplied windows where every tab streams and animates.
+    const gaps = (activeWindows ?? [{ startedUnixUs: -Infinity, barrierUnixUs: Infinity }]).flatMap(window => {
+      const inside = commitTimes.filter(value => value >= window.startedUnixUs && value <= window.barrierUnixUs);
+      return inside.slice(1).map((value, index) => (value - inside[index]) / 1_000);
+    });
     perTab[tabId] = {
       engineToRender: summary(engineToRender),
       renderToPty: summary(renderToPty),

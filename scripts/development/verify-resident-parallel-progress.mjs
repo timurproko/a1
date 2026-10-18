@@ -419,7 +419,7 @@ async function runScenarios(attach, context, provider, tabIds) {
         return tabIds.every(tabId => next.records.some(record => record.tabId === tabId && record.stage === "engine-delivery"
           && record.eventKind === "agent_settled" && record.timestampUnixUs >= barrierUnixUs));
       }, `${id} engine settlement`);
-      results.push({ ...result, order, initialView: tabIds[initialView] });
+      results.push({ ...result, order, initialView: tabIds[initialView], window: { startedUnixUs, barrierUnixUs } });
       if (!result.passed) throw new Error(result.faults.join("; "));
     }
   }
@@ -977,7 +977,7 @@ async function collect(host) {
     const transactionCharacterization = await characterizeFragmentedTransactions(attach, context, provider, tabIds);
     const stoppedStageControls = await runStoppedStageControls(attach, context, provider, tabIds);
     const observations = await currentObservations(context);
-    const latency = progressLatencyReport(observations.records, tabIds);
+    const latency = progressLatencyReport(observations.records, tabIds, scenarios.map(scenario => scenario.window));
     const faults = [...observations.faults, ...latency.faults];
     return {
       schema: "a1-resident-parallel-progress-v1",

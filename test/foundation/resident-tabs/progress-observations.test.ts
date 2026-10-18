@@ -140,4 +140,19 @@ describe("resident progress observations", () => {
     const incomplete = progressLatencyReport(records.filter(value => value.tabId !== "tab-c" || value.eventSequence !== 40), TABS);
     expect(incomplete.faults).toEqual(expect.arrayContaining([expect.stringContaining("tab-c: fewer than 40")]));
   });
+
+  it("measures holder no-progress gaps only inside active streaming windows", () => {
+    const commits = [0, 400_000, 800_000, 5_800_000, 6_200_000].map((timestampUnixUs, index) => record({
+      stage: "holder-commit", tabId: "tab-a", timestampUnixUs, revision: index + 1, sequence: index + 1,
+    }));
+    const whole = progressLatencyReport(commits, ["tab-a"]);
+    expect(whole.perTab["tab-a"]!.holderWorstGapMs).toBe(5_000);
+    expect(whole.faults).toEqual(expect.arrayContaining(["tab-a: holder no-progress gap exceeded 1000 ms"]));
+    const windows = [{ startedUnixUs: 0, barrierUnixUs: 900_000 }, { startedUnixUs: 5_500_000, barrierUnixUs: 6_500_000 }];
+    const active = progressLatencyReport(commits, ["tab-a"], windows);
+    expect(active.perTab["tab-a"]!.holderWorstGapMs).toBe(400);
+    expect(active.faults).not.toContain("tab-a: holder no-progress gap exceeded 1000 ms");
+    const stalled = progressLatencyReport(commits, ["tab-a"], [{ startedUnixUs: 0, barrierUnixUs: 6_500_000 }]);
+    expect(stalled.faults).toContain("tab-a: holder no-progress gap exceeded 1000 ms");
+  });
 });
