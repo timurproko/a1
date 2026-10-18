@@ -506,11 +506,26 @@ async function runInteractionPressureVariant(attach, context, provider, tabIds) 
     const sizes = [[96, 28], [104, 32], [100, 30]];
     let switches = 0;
     let overlays = 0;
+    const geometryGenerations = { ...geometryBaselines };
     for (let round = 0; round < sizes.length; round += 1) {
       const [columns, rows] = sizes[round];
-      attach.terminal.resize(columns, rows);
       for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
-        await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
+        const tabId = tabIds[tabIndex];
+        await selectTab(attach, context, tabIndex, tabId);
+        const priorGeneration = geometryGenerations[tabId];
+        const resizedUnixUs = epochUs();
+        attach.terminal.resize(columns, rows);
+        await waitUntil(async () => {
+          const current = await currentObservations(context);
+          const committed = current.records
+            .filter(record => record.tabId === tabId && record.stage === "holder-commit"
+              && record.timestampUnixUs >= resizedUnixUs
+              && record.geometryGeneration > priorGeneration)
+            .map(record => record.geometryGeneration);
+          if (committed.length === 0) return false;
+          geometryGenerations[tabId] = Math.max(...committed);
+          return true;
+        }, `${id} tab ${tabIndex + 1} round ${round + 1} resize commit`);
         switches += 1;
         attach.terminal.write("\x1b[D\x1b[C");
         attach.terminal.write("\x1bOQ");
@@ -519,12 +534,6 @@ async function runInteractionPressureVariant(attach, context, provider, tabIds) 
         attach.terminal.write("\x1b");
       }
     }
-    await waitUntil(async () => {
-      const current = await currentObservations(context);
-      return tabIds.every(tabId => current.records.some(record => record.tabId === tabId
-        && record.stage === "holder-commit" && record.timestampUnixUs >= startedUnixUs
-        && record.geometryGeneration > geometryBaselines[tabId]));
-    }, `${id} per-view resize commits`);
     for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
       await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
       await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C11`,
