@@ -1132,6 +1132,7 @@ fn probe_input() -> Result<(), String> {
         ));
     }
 
+    terminal.resize(80, 8)?;
     terminal.write(b"\x1b[2J\x1b[Hbase-screen\x1b[?1049halternate\x1b[?1049l");
     terminal.write("\x1b]4;7;rgb:11/22/33\x07\x1b]10;rgb:44/55/66\x07\x1b]11;rgb:77/88/99\x07\x1b]12;rgb:aa/bb/cc\x07\x1b]8;id=probe-link;https://example.invalid\x07linked\x1b]8;;\x07 \x1b[1;2;3;4:3;5;7;8;9;53;38;2;1;2;3;48;5;4;58;5;5mstyled\x1b[0m wide-开发 combining-e\u{301} \x1b[3 q [image unavailable]".as_bytes());
     let mut retained_builder = RetainedSurfaceBuilder::default();
