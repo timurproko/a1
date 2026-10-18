@@ -278,6 +278,14 @@ async function currentObservations(context) {
 }
 
 async function selectTab(attach, context, index, tabId) {
+  const before = await currentObservations(context);
+  if (before.faults.length > 0) throw new Error(before.faults.join("; "));
+  const latestPaint = before.records
+    .filter(record => record.stage === "outer-paint")
+    .sort((left, right) => right.timestampUnixUs - left.timestampUnixUs)[0];
+  // Invariant: selecting the already active tab is a no-op and correctly emits no completed paint.
+  // Treat its latest completed presentation as activation instead of waiting for invented damage.
+  if (latestPaint?.tabId === tabId) return;
   const sentUnixUs = epochUs();
   attach.terminal.write(`\x1b${index + 1}`);
   await waitUntil(async () => {
