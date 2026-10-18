@@ -345,6 +345,43 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     } finally { await shell.dispose(); }
   });
 
+  it("copies visible application messages while excluding surrounding dock chrome", async () => {
+    const copied: string[] = [];
+    const { shell, terminal } = await fixture([], [], true, undefined, {
+      readText: async () => null,
+      writeText: async value => { copied.push(value); },
+    });
+    const cases = [
+      { text: "selectable status", show: () => shell.root.appendWorkflowStatus("selectable status") },
+      { text: "selectable warning", show: () => shell.root.appendWorkflowMessage({ kind: "warning", message: "selectable warning" }) },
+      { text: "selectable error", show: () => shell.root.appendWorkflowMessage({ kind: "error", message: "selectable error" }) },
+      { text: "selectable result", show: () => shell.root.appendWorkflowResult({ command: "reload", outcome: "completed", message: "selectable result" }) },
+      { text: "selectable notice", show: () => shell.root.appendWorkflowResult({ command: "new", outcome: "completed", message: "selectable notice" }) },
+    ] as const;
+    try {
+      terminal.resize(60, 14);
+      for (const [index, value] of cases.entries()) {
+        shell.root.clearViewportPointerState();
+        shell.root.setFullscreenCopyOnSelect(index === 0);
+        value.show();
+        shell.runtime.renderNow(true);
+        const rows = shell.root.render(60).map(stripTerminalSequences);
+        const row = rows.findIndex(candidate => candidate.includes(value.text));
+        expect(row).toBeGreaterThanOrEqual(0);
+        const column = rows[row]!.indexOf(value.text) + 1;
+        const before = copied.length;
+        terminal.input(`\u001b[<0;${column};${row + 1}M\u001b[<32;${column + value.text.length - 1};${row + 1}M\u001b[<0;${column + value.text.length - 1};${row + 1}m`);
+        if (index === 0) await vi.waitFor(() => expect(copied.slice(before)).toEqual([value.text]));
+        else {
+          await nextImmediate();
+          expect(copied).toHaveLength(before);
+          terminal.input("\u0003");
+          await vi.waitFor(() => expect(copied.slice(before)).toEqual([value.text]));
+        }
+      }
+    } finally { await shell.dispose(); }
+  });
+
   it("acknowledges successful Ctrl+C copies of keyboard-selected prompt text", async () => {
     const copied: string[] = [];
     const text = "copy 日本語";
@@ -501,7 +538,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       await nextImmediate();
       const failure = shell.root.render(50).map(stripTerminalSequences).join("\n");
       expect(failure).not.toContain("chars to clipboard");
-      expect(failure).toContain("Could not copy the selection");
+      expect(failure).not.toMatch(/clipboard (?:is unavailable|did not respond)|Could not copy the selection/iu);
     } finally { await shell.dispose(); }
   });
 

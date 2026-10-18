@@ -6,10 +6,12 @@ registerHooks({
   resolve(specifier, context, next) {
     if (specifier === "@mariozechner/clipboard") return {
       shortCircuit: true,
-      url: "data:text/javascript," + encodeURIComponent(`export async function setText(text) {
-        if (text === 'denied') throw new Error('denied');
-        if (text === 'busy') { for (;;) {} }
-      }`),
+      url: "data:text/javascript," + encodeURIComponent(`let attempts = 0;
+        export async function setText(text) {
+          if (text === 'denied' || text === 'platform-denied') throw new Error('denied');
+          if (text === 'transient' && attempts++ < 2) throw Object.assign(new Error('clipboard busy'), { code: 'EBUSY' });
+          if (text === 'busy') { for (;;) {} }
+        }`),
     };
     return next(specifier, context);
   },

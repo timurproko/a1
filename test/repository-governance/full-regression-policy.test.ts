@@ -168,6 +168,7 @@ describe("complete regression automation", () => {
     expect(release.jobs.guardians.steps.indexOf(guardianCache)).toBeLessThan(release.jobs.guardians.steps.findIndex((step: { run: string }) => step.run === "npm run build:process-guardian"));
     for (const job of [releaseShard, fullJob]) {
       expect(job.steps.find((step: { name: string }) => step.name === "Prepare the exact package").if).toBe("matrix.shard == 'package' || matrix.shard == 'predecessor'");
+      expect(job.steps.find((step: { name: string }) => step.name === "Prepare the exact package").run).toContain('--full-shard "${{ matrix.shard }}"');
       expect(job.steps.find((step: { name?: string }) => step.name?.startsWith("Run complete")).run).toContain('if [ "$FULL_SHARD" = package ] || [ "$FULL_SHARD" = predecessor ]; then');
     }
     for (const [job, defenderCondition, consumerName] of [
