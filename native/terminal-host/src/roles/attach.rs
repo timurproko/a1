@@ -1754,6 +1754,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     {
                         continue;
                     }
+                    crate::roles::fixture_control::delay(
+                        "attach-receipt",
+                        &surface.tab_id,
+                        Duration::from_millis(35),
+                    );
                     progress_observation::observe(
                         "attach",
                         "attach-receipt",

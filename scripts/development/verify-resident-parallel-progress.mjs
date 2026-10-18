@@ -397,6 +397,145 @@ async function runScenarios(attach, context, provider, tabIds) {
   return results;
 }
 
+async function beginThreeTabScenario(attach, context, provider, tabIds, id, order) {
+  const scenario = provider.scenario(id, order);
+  for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
+    await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
+    attach.terminal.write(`scenario=${id};tab=${tabIndex}`);
+    attach.terminal.write("\r");
+    await waitUntil(() => scenario.requests.has(tabIndex), `${id} tab ${tabIndex + 1} provider request`);
+  }
+  await withTimeout(scenario.requestsReady, `${id} provider requests`);
+  return scenario;
+}
+
+async function runSlowTransportVariant(attach, context, provider, tabIds) {
+  const id = "slow-socket-outer-sink";
+  const delayedTabId = tabIds[1];
+  const delayMarker = join(context.controls, `${delayedTabId}.attach-receipt.delay`);
+  const scenario = await beginThreeTabScenario(attach, context, provider, tabIds, id, [2, 0, 1]);
+  const startedUnixUs = epochUs();
+  await writeFile(delayMarker, "", { mode: 0o600 });
+  scenario.start();
+  let paused = false;
+  try {
+    await withTimeout(scenario.partialReady, `${id} unfinished partials`);
+    attach.terminal.pause();
+    paused = true;
+    const pressuredUnixUs = epochUs();
+    scenario.release();
+    await delay(900);
+    const pressured = await currentObservations(context);
+    if (pressured.faults.length > 0) throw new Error(pressured.faults.join("; "));
+    const hiddenProgress = Object.fromEntries(tabIds.map(tabId => {
+      const records = pressured.records.filter(record => record.tabId === tabId
+        && record.timestampUnixUs >= pressuredUnixUs);
+      return [tabId, {
+        childWrites: records.filter(record => record.stage === "child-render-write").length,
+        ptyIngestions: records.filter(record => record.stage === "pty-ingest").length,
+        holderCommits: records.filter(record => record.stage === "holder-commit").length,
+      }];
+    }));
+    const faults = [];
+    for (const [tabId, counts] of Object.entries(hiddenProgress)) {
+      if (counts.childWrites < 3 || counts.ptyIngestions < 3 || counts.holderCommits < 3) {
+        faults.push(`${id}: ${tabId} did not progress under transport pressure`);
+      }
+    }
+    const delayedReceipts = pressured.records.filter(record => record.tabId === delayedTabId
+      && record.stage === "attach-receipt" && record.timestampUnixUs >= startedUnixUs).length;
+    if (delayedReceipts < 1) faults.push(`${id}: delayed attach received no surface`);
+    attach.terminal.resume();
+    paused = false;
+    await rm(delayMarker, { force: true });
+    await withTimeout(scenario.completed, `${id} completion`);
+    for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
+      const checkpoint = attach.checkpoint();
+      await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
+      await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C59`,
+        `${id} tab ${tabIndex + 1} final output`, checkpoint);
+    }
+    const report = { id, socketReceiptDelayMs: 35, outerSinkPauseMs: 900, delayedTabId,
+      delayedReceipts, hiddenProgress, finalOutput: true, faults, passed: faults.length === 0 };
+    if (!report.passed) throw new Error(faults.join("; "));
+    return report;
+  } finally {
+    if (paused) attach.terminal.resume();
+    await rm(delayMarker, { force: true });
+    scenario.releaseEngine();
+    scenario.release();
+  }
+}
+
+async function runInteractionPressureVariant(attach, context, provider, tabIds) {
+  const id = "switch-input-overlay-resize";
+  const scenario = await beginThreeTabScenario(attach, context, provider, tabIds, id, [1, 0, 2]);
+  const before = await currentObservations(context);
+  if (before.faults.length > 0) throw new Error(before.faults.join("; "));
+  const geometryBaselines = Object.fromEntries(tabIds.map(tabId => [tabId, Math.max(0, ...before.records
+    .filter(record => record.tabId === tabId && record.stage === "holder-commit")
+    .map(record => record.geometryGeneration))]));
+  const startedUnixUs = epochUs();
+  scenario.start();
+  try {
+    await withTimeout(scenario.partialReady, `${id} unfinished partials`);
+    const sizes = [[96, 28], [104, 32], [100, 30]];
+    let switches = 0;
+    let overlays = 0;
+    for (let round = 0; round < sizes.length; round += 1) {
+      const [columns, rows] = sizes[round];
+      attach.terminal.resize(columns, rows);
+      for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
+        await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
+        switches += 1;
+        attach.terminal.write("\x1b[D\x1b[C");
+        attach.terminal.write("\x1bOQ");
+        overlays += 1;
+        await delay(35);
+        attach.terminal.write("\x1b");
+      }
+    }
+    await waitUntil(async () => {
+      const current = await currentObservations(context);
+      return tabIds.every(tabId => current.records.some(record => record.tabId === tabId
+        && record.stage === "holder-commit" && record.timestampUnixUs >= startedUnixUs
+        && record.geometryGeneration > geometryBaselines[tabId]));
+    }, `${id} per-view resize commits`);
+    for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
+      const checkpoint = attach.checkpoint();
+      await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
+      await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C11`,
+        `${id} tab ${tabIndex + 1} partial output`, checkpoint);
+    }
+    const partial = await currentObservations(context);
+    const faults = [...partial.faults];
+    for (const tabId of tabIds) {
+      const records = partial.records.filter(record => record.tabId === tabId
+        && record.timestampUnixUs >= startedUnixUs);
+      if (!records.some(record => record.stage === "outer-paint")) {
+        faults.push(`${id}: ${tabId} was not painted during interaction pressure`);
+      }
+    }
+    scenario.release();
+    await withTimeout(scenario.completed, `${id} completion`);
+    for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
+      const checkpoint = attach.checkpoint();
+      await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
+      await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C59`,
+        `${id} tab ${tabIndex + 1} final output`, checkpoint);
+    }
+    const report = { id, switches, navigationInputs: switches * 2, overlays,
+      sizes: sizes.map(([columns, rows]) => ({ columns, rows })), perViewResizeCommits: true,
+      partialOutput: true, finalOutput: true, faults, passed: faults.length === 0 };
+    if (!report.passed) throw new Error(faults.join("; "));
+    return report;
+  } finally {
+    scenario.releaseEngine();
+    scenario.release();
+    try { attach.terminal.resize(100, 30); } catch { /* Invariant: cleanup cannot mask the verdict. */ }
+  }
+}
+
 async function runDetachedReconnectVariant(spawnPty, host, attach, context, provider, tabIds) {
   const id = "detached-server-reconnect";
   const scenario = provider.scenario(id, [1, 2, 0]);
@@ -760,6 +899,8 @@ async function collect(host) {
     const temporalParity = await compareDirectAndResidentTemporalState(spawn, host, attach, context, provider, tabIds);
     if (!temporalParity.passed) throw new Error(temporalParity.faults.join("; "));
     const scenarios = await runScenarios(attach, context, provider, tabIds);
+    const slowTransport = await runSlowTransportVariant(attach, context, provider, tabIds);
+    const interactionPressure = await runInteractionPressureVariant(attach, context, provider, tabIds);
     const detachedReconnect = await runDetachedReconnectVariant(spawn, host, attach, context, provider, tabIds);
     attach = detachedReconnect.attach;
     const transactionCharacterization = await characterizeFragmentedTransactions(attach, context, provider, tabIds);
@@ -778,11 +919,14 @@ async function collect(host) {
         releaseHead: gitHead(context.release),
       },
       fixture: { scenarios: scenarios.length, firstResponseOrders: firstOrders.length, initialViews: 3,
-        temporalParityComparisons: 1, detachedReconnectVariants: 1, transactionCharacterizations: 1,
+        temporalParityComparisons: 1, slowTransportVariants: 1, interactionPressureVariants: 1,
+        detachedReconnectVariants: 1, transactionCharacterizations: 1,
         stoppedStageControls: stoppedStageControls.length, chunksPerTurn: 60 },
       tabs: tabIds,
       temporalParity,
       scenarios,
+      slowTransport,
+      interactionPressure,
       detachedReconnect: detachedReconnect.report,
       transactionCharacterization,
       stoppedStageControls,
@@ -791,7 +935,7 @@ async function collect(host) {
       observations: { files: observations.files.length, records: observations.records.length, faults: observations.faults },
       faults,
       passed: faults.length === 0 && temporalParity.passed && scenarios.every(scenario => scenario.passed)
-        && detachedReconnect.report.passed
+        && slowTransport.passed && interactionPressure.passed && detachedReconnect.report.passed
         && transactionCharacterization.passed && transactionCharacterization.finalOutput
         && stoppedStageControls.every(control => control.passed && control.finalOutput),
     };
