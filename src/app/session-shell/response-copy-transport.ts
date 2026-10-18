@@ -1,5 +1,6 @@
 import { execFile, fork, type ChildProcess, type ForkOptions, type SpawnOptions } from "node:child_process";
 import { HelperPool } from "./helper-pool.js";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import type { SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
 import { COPY_CHUNK_UNITS, COPY_CLEANUP_MS, MAX_COPY_BYTES, MAX_COPY_CONTROL_BYTES, type CopyHelperInput, type CopyHelperOutput, type CopyResult } from "./response-copy-protocol.js";
 
@@ -29,7 +30,7 @@ export interface ResponseCopyTerminal {
 
 /** Never substitute a remote host's native clipboard for the terminal user's clipboard. */
 export function responseCopyDestination(env: NodeJS.ProcessEnv): "native" | "terminal" {
-  return env.A1_TAB_ID || env.SSH_CONNECTION || env.SSH_CLIENT || env.SSH_TTY || env.TMUX || env.STY || env.WSL_DISTRO_NAME
+  return env[PRODUCT_IDENTITY.environment.tabId] || env.SSH_CONNECTION || env.SSH_CLIENT || env.SSH_TTY || env.TMUX || env.STY || env.WSL_DISTRO_NAME
     ? "terminal" : "native";
 }
 
