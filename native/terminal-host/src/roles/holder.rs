@@ -14,10 +14,12 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 
 use crate::endpoint;
-use crate::ghostty::GhosttyTerminal;
+use crate::ghostty::{
+    GhosttyTerminal, RetainedSurface, RetainedSurfaceBuilder, SynchronizedOutputBoundary,
+};
 use crate::protocol::{
-    self, ClipboardLocation, EffectKind, MAX_INPUT_BYTES, SemanticInput, SurfaceCursor,
-    TerminalEffect, TerminalModes, Welcome,
+    self, ClipboardLocation, EffectKind, MAX_INPUT_BYTES, SemanticInput, SurfaceCommitKind,
+    SurfaceCursor, TerminalEffect, TerminalModes, Welcome,
 };
 use crate::roles::child_containment::ChildContainment;
 use crate::roles::child_input::{self, SemanticEncoder};
@@ -30,7 +32,12 @@ pub const HOLDER_INPUT_CAPACITY: usize = 1024 * 1024;
 
 /// Features this holder offers the server; `semantic-input` means it encodes `input.event`
 /// frames itself and `terminal-effects` means it forwards typed child terminal effects.
-pub const HOLDER_FEATURES: [&str; 3] = ["retained-surface", "semantic-input", "terminal-effects"];
+pub const HOLDER_FEATURES: [&str; 4] = [
+    "retained-surface",
+    "semantic-input",
+    "terminal-effects",
+    protocol::FEATURE_STRUCTURED_SURFACE,
+];
 
 /// Surface revisions start above every earlier incarnation's so a viewer can order surfaces of
 /// one tab across restarts without knowing which holder produced them.
@@ -38,45 +45,257 @@ pub fn initial_revision(incarnation: u64) -> u64 {
     incarnation.saturating_mul(1 << 32)
 }
 
-/// Encodes one complete retained surface together with the child's current modes and cursor.
-fn surface_message(
-    terminal: &mut GhosttyTerminal,
-    tab_id: &str,
-    revision: u64,
-    status: &str,
-) -> Result<Vec<u8>, String> {
-    terminal.mark_dirty()?;
-    let frame = terminal.frame_at(0, 1, true)?.into_bytes();
-    let modes = terminal.mode_snapshot().ok().map(|snapshot| TerminalModes {
-        cursor_visible: snapshot.cursor_visible,
-        cursor_style: snapshot.cursor_style.to_owned(),
-        cursor_blink: snapshot.cursor_blink,
-        mouse_tracking: snapshot.mouse_tracking,
-        focus_events: snapshot.focus_events,
-        bracketed_paste: snapshot.bracketed_paste,
-        kitty_keyboard_flags: snapshot.kitty_keyboard_flags,
-        alternate_screen: snapshot.alternate_screen,
-        synchronized_output: snapshot.synchronized_output,
-    });
-    let cursor = terminal
-        .cursor_cell()
-        .ok()
-        .flatten()
-        .map(|(column, row)| SurfaceCursor { column, row });
-    wire::frame(
-        "surface",
-        None,
-        Surface {
-            tab_id: tab_id.to_owned(),
-            revision,
-            bytes: frame,
-            status: status.into(),
-            accent: None,
-            stale: false,
+const SYNCHRONIZED_OUTPUT_RECOVERY_DELAY: Duration = Duration::from_millis(250);
+
+#[derive(Debug, Default)]
+struct SynchronizationState {
+    open: bool,
+    deadline: Option<std::time::Instant>,
+    recovered: bool,
+}
+
+impl SynchronizationState {
+    fn begin(&mut self, now: std::time::Instant) {
+        if self.open {
+            return;
+        }
+        self.open = true;
+        self.deadline = now.checked_add(SYNCHRONIZED_OUTPUT_RECOVERY_DELAY);
+        self.recovered = false;
+    }
+
+    fn close(&mut self) {
+        self.open = false;
+        self.deadline = None;
+        self.recovered = false;
+    }
+
+    fn recover_if_due(&mut self, now: std::time::Instant) -> bool {
+        if !self.open || self.recovered || !self.deadline.is_some_and(|deadline| now >= deadline) {
+            return false;
+        }
+        self.recovered = true;
+        true
+    }
+
+    fn may_publish(&self) -> bool {
+        !self.open || self.recovered
+    }
+
+    fn commit_kind(&self) -> SurfaceCommitKind {
+        if self.open {
+            SurfaceCommitKind::Recovery
+        } else {
+            SurfaceCommitKind::Complete
+        }
+    }
+}
+
+/// One immutable coherent holder commit. Cursor and modes are captured beside the retained rows,
+/// so a subscription or reconnect can never combine an old body with mutable parser metadata.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CommittedSurface {
+    retained: RetainedSurface,
+    modes: TerminalModes,
+    cursor: Option<SurfaceCursor>,
+}
+
+impl CommittedSurface {
+    fn capture(
+        terminal: &mut GhosttyTerminal,
+        builder: &mut RetainedSurfaceBuilder,
+        geometry_generation: u64,
+        commit_kind: SurfaceCommitKind,
+    ) -> Result<Self, String> {
+        let retained =
+            terminal.capture_retained_surface(builder, geometry_generation, commit_kind)?;
+        let snapshot = terminal.mode_snapshot()?;
+        let modes = TerminalModes {
+            cursor_visible: snapshot.cursor_visible,
+            cursor_style: snapshot.cursor_style.to_owned(),
+            cursor_blink: snapshot.cursor_blink,
+            mouse_tracking: snapshot.mouse_tracking,
+            focus_events: snapshot.focus_events,
+            bracketed_paste: snapshot.bracketed_paste,
+            kitty_keyboard_flags: snapshot.kitty_keyboard_flags,
+            alternate_screen: snapshot.alternate_screen,
+            // The final attach compositor is the only outer synchronization owner. Whether the
+            // mutable parser is currently withholding a transaction is not replayable state.
+            synchronized_output: false,
+        };
+        let cursor = terminal
+            .cursor_cell()?
+            .filter(|(column, row)| *column < retained.columns && *row < retained.rows)
+            .map(|(column, row)| SurfaceCursor { column, row });
+        Ok(Self {
+            retained,
             modes,
             cursor,
-        },
-    )
+        })
+    }
+}
+
+/// A cheap immutable handoff to the holder's sole server writer. Full row cloning, ANSI fallback
+/// construction, MessagePack encoding, and socket I/O all happen off the parser/scheduler loop.
+#[derive(Clone)]
+struct HolderSurfaceOffer {
+    committed: CommittedSurface,
+    subscription: SurfaceSubscription,
+    tab_id: String,
+    incarnation: u64,
+    revision: u64,
+    status: String,
+}
+
+impl HolderSurfaceOffer {
+    fn frame(self) -> Result<Vec<u8>, String> {
+        let structured = self.committed.retained.structured()?;
+        let bytes = if self.subscription.legacy {
+            super::presentation::complete_surface_bytes(&structured)?
+        } else {
+            Vec::new()
+        };
+        wire::frame(
+            "surface",
+            None,
+            Surface {
+                tab_id: self.tab_id,
+                incarnation: self.incarnation,
+                revision: self.revision,
+                request_generation: 0,
+                bytes,
+                structured: self.subscription.structured.then_some(structured),
+                status: self.status,
+                accent: None,
+                stale: false,
+                modes: Some(self.committed.modes),
+                cursor: self.committed.cursor,
+            },
+        )
+    }
+}
+
+fn surface_message(
+    committed: &CommittedSurface,
+    subscription: &SurfaceSubscription,
+    tab_id: &str,
+    incarnation: u64,
+    revision: u64,
+    status: &str,
+) -> Result<HolderSurfaceOffer, String> {
+    Ok(HolderSurfaceOffer {
+        committed: committed.clone(),
+        subscription: subscription.clone(),
+        tab_id: tab_id.to_owned(),
+        incarnation,
+        revision,
+        status: status.into(),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn commit_retained_surface(
+    terminal: &mut GhosttyTerminal,
+    builder: &mut RetainedSurfaceBuilder,
+    committed: &mut CommittedSurface,
+    server: &HolderServerPeer,
+    subscription: Option<&SurfaceSubscription>,
+    tab_id: &str,
+    incarnation: u64,
+    revision: &mut u64,
+    geometry_generation: u64,
+    commit_kind: SurfaceCommitKind,
+    status: &str,
+) -> Result<(), String> {
+    let next = match CommittedSurface::capture(terminal, builder, geometry_generation, commit_kind)
+    {
+        Ok(next) => next,
+        Err(error) => {
+            // Keep the prior complete commit authoritative on an oversized or malformed capture.
+            // The typed notice is bounded and never substitutes a truncated visual state.
+            let _ = server.offer_control(wire::frame(
+                "surface.rejected",
+                None,
+                wire::ResultBody {
+                    accepted: false,
+                    message: Some(error),
+                },
+            )?);
+            return Ok(());
+        }
+    };
+    if next == *committed {
+        return Ok(());
+    }
+    *revision = revision.saturating_add(1);
+    *committed = next;
+    if let Some(subscription) = subscription {
+        server.offer_surface(surface_message(
+            committed,
+            subscription,
+            tab_id,
+            incarnation,
+            *revision,
+            status,
+        )?);
+    }
+    Ok(())
+}
+
+fn collect_clipboard_effects(
+    terminal: &mut GhosttyTerminal,
+    effects: &mut Vec<EffectKind>,
+    viewed: bool,
+) {
+    for write in terminal.take_clipboard_writes() {
+        if !viewed {
+            continue;
+        }
+        let effect = EffectKind::ClipboardWrite {
+            location: match write.location {
+                1 => ClipboardLocation::Selection,
+                2 => ClipboardLocation::Primary,
+                _ => ClipboardLocation::Standard,
+            },
+            mime: write.mime,
+            data: write.data,
+        };
+        if protocol::validate_effect(&effect).is_ok() {
+            effects.push(effect);
+        }
+    }
+}
+
+fn publish_pending_effects(
+    effects: &mut Vec<EffectKind>,
+    server: &HolderServerPeer,
+    connected: bool,
+    tab_id: &str,
+    incarnation: u64,
+    revision: u64,
+    sequence: &mut u64,
+) -> Result<(), String> {
+    if !connected {
+        // A disconnected holder cannot know whether this tab is still viewed. Once-only outer
+        // effects are therefore dropped, never replayed after reconstruction or reconnection.
+        effects.clear();
+        return Ok(());
+    }
+    for effect in effects.drain(..) {
+        *sequence = sequence.saturating_add(1);
+        server.offer_control(wire::frame(
+            "terminal.effect",
+            None,
+            TerminalEffect {
+                tab_id: tab_id.to_owned(),
+                incarnation,
+                sequence: *sequence,
+                revision,
+                effect,
+            },
+        )?)?;
+    }
+    Ok(())
 }
 
 enum HolderCommand {
@@ -84,7 +303,7 @@ enum HolderCommand {
     Semantic(SemanticInput),
     PasteStart { bytes: usize, epoch: u64 },
     Resize(Resize),
-    SurfaceSubscription(bool),
+    SurfaceSubscription(SurfaceSubscription),
     ControllerBoundary(protocol::ControllerBoundary),
     Respawn(HolderRespawn),
     Promote,
@@ -99,7 +318,7 @@ enum PendingPaste {
 
 struct HolderServerPeer {
     control: mpsc::SyncSender<Vec<u8>>,
-    surface: Arc<Mutex<Option<Vec<u8>>>>,
+    surface: Arc<Mutex<Option<HolderSurfaceOffer>>>,
     surface_signaled: Arc<AtomicBool>,
 }
 impl HolderServerPeer {
@@ -110,7 +329,7 @@ impl HolderServerPeer {
             .try_clone()
             .map_err(|error| format!("clone holder server stream: {error}"))?;
         let (control, control_rx) = mpsc::sync_channel::<Vec<u8>>(64);
-        let surface = Arc::new(Mutex::new(None::<Vec<u8>>));
+        let surface = Arc::new(Mutex::new(None::<HolderSurfaceOffer>));
         let surface_signaled = Arc::new(AtomicBool::new(false));
         let writer_surface = surface.clone();
         let writer_signaled = surface_signaled.clone();
@@ -131,13 +350,30 @@ impl HolderServerPeer {
                 }
                 writer_signaled.store(false, Ordering::SeqCst);
                 let frame = writer_surface.lock().ok().and_then(|mut slot| slot.take());
-                if let Some(frame) = frame
-                    && stream
+                if let Some(offer) = frame {
+                    let frame = match offer.frame() {
+                        Ok(frame) => frame,
+                        Err(error) => {
+                            let Ok(notice) = wire::frame(
+                                "surface.rejected",
+                                None,
+                                wire::ResultBody {
+                                    accepted: false,
+                                    message: Some(error),
+                                },
+                            ) else {
+                                continue;
+                            };
+                            notice
+                        }
+                    };
+                    if stream
                         .write_all(&frame)
                         .and_then(|()| stream.flush())
                         .is_err()
-                {
-                    return;
+                    {
+                        return;
+                    }
                 }
             }
         });
@@ -157,7 +393,7 @@ impl HolderServerPeer {
             .map_err(|_| "holder server control lane overrun".to_owned())
     }
 
-    fn offer_surface(&self, frame: Vec<u8>) {
+    fn offer_surface(&self, frame: HolderSurfaceOffer) {
         if let Ok(mut slot) = self.surface.lock() {
             *slot = Some(frame);
         }
@@ -171,7 +407,7 @@ impl HolderServerPeer {
 
 fn apply_holder_effects(
     effects: Vec<crate::core::Effect>,
-    write_tx: &mpsc::Sender<(Vec<u8>, usize)>,
+    write_tx: &mpsc::SyncSender<(Vec<u8>, usize)>,
     server: &HolderServerPeer,
 ) -> Result<(), String> {
     for effect in effects {
@@ -179,7 +415,7 @@ fn apply_holder_effects(
             crate::core::Effect::WritePty { bytes } => {
                 let count = bytes.len();
                 write_tx
-                    .send((bytes, count))
+                    .try_send((bytes, count))
                     .map_err(|_| "resident PTY writer stopped".to_owned())?;
             }
             crate::core::Effect::Send { message, .. } => {
@@ -399,7 +635,7 @@ fn run_holder(
         .master
         .take_writer()
         .map_err(|error| format!("take resident PTY writer: {error}"))?;
-    let (write_tx, write_rx) = mpsc::channel::<(Vec<u8>, usize)>();
+    let (write_tx, write_rx) = mpsc::sync_channel::<(Vec<u8>, usize)>(256);
     let (write_result_tx, write_result_rx) = mpsc::channel::<Result<usize, String>>();
     // Performance: PTY, command, and write-completion threads wake the holder loop directly so
     // input and output never wait out an idle poll; capacity one keeps wakes coalesced.
@@ -425,7 +661,9 @@ fn run_holder(
             }
         }
     });
-    let (output_tx, output_rx) = mpsc::channel::<Vec<u8>>();
+    // Bounded transport applies backpressure at the PTY reader instead of letting a hidden or
+    // disconnected child grow process memory without limit.
+    let (output_tx, output_rx) = mpsc::sync_channel::<Vec<u8>>(64);
     let reader_wake = wake_tx.clone();
     thread::spawn(move || {
         let mut buffer = [0_u8; 16 * 1024];
@@ -442,7 +680,7 @@ fn run_holder(
         }
         let _ = reader_wake.try_send(());
     });
-    let (command_tx, command_rx) = mpsc::sync_channel::<HolderCommand>(4);
+    let (command_tx, command_rx) = mpsc::sync_channel::<HolderCommand>(256);
     spawn_command_reader(command_stream, command_tx.clone(), wake_tx.clone());
     std::fs::write(ready, format!("{}:holder\n", std::process::id()))
         .map_err(|error| format!("write holder readiness: {error}"))?;
@@ -450,7 +688,18 @@ fn run_holder(
     let mut terminal = GhosttyTerminal::new(config.columns, config.rows)?;
     let mut encoder = SemanticEncoder::new(&terminal, config.columns, config.rows)?;
     let mut recovery_output = VecDeque::<u8>::new();
-    terminal.mark_dirty()?;
+    let mut surface_builder = RetainedSurfaceBuilder::default();
+    let mut geometry_generation = 0u64;
+    let mut committed = CommittedSurface::capture(
+        &mut terminal,
+        &mut surface_builder,
+        geometry_generation,
+        SurfaceCommitKind::Complete,
+    )?;
+    let mut synchronization = SynchronizationState::default();
+    let mut geometry_deadline: Option<std::time::Instant> = None;
+    let mut pending_effects = Vec::<EffectKind>::new();
+    let mut effect_sequence = 0u64;
     let mut revision = initial_revision(config.incarnation);
     let mut input =
         crate::core::holder::State::new(config.tab_id.clone(), config.incarnation, highest_epoch);
@@ -463,33 +712,22 @@ fn run_holder(
     let mut pending_paste: Option<PendingPaste> = None;
     let mut stop_deadline: Option<std::time::Instant> = None;
     let mut shutdown_holder = false;
-    let mut subscribed = false;
+    let mut subscription: Option<SurfaceSubscription> = None;
     let mut heartbeat = std::time::Instant::now()
         .checked_sub(Duration::from_secs(5))
         .unwrap_or_else(std::time::Instant::now);
     let mut child_exited = false;
+    let (reconnect_tx, reconnect_rx) =
+        mpsc::sync_channel::<Result<(endpoint::EndpointStream, u64), String>>(1);
+    let mut reconnecting = false;
+    let mut server_connected = true;
     loop {
         watchdog.bump();
         let mut changed = false;
-        while let Ok(result) = write_result_rx.try_recv() {
-            let event = match result {
-                Ok(completed) => crate::core::holder::Event::Written { bytes: completed },
-                Err(_) => crate::core::holder::Event::WriterFailed,
-            };
-            let effects = crate::core::holder::step(&mut input, event, Duration::ZERO);
-            apply_holder_effects(effects, &write_tx, &server)?;
-        }
-        while let Ok(command) = command_rx.try_recv() {
-            if matches!(command, HolderCommand::Disconnected) {
-                let (replacement, epoch) = reconnect_holder(
-                    &config,
-                    Some(&child_identity),
-                    highest_epoch,
-                    &diagnostics_root,
-                )?;
-                if epoch < highest_epoch {
-                    continue;
-                }
+        if let Ok(reconnected) = reconnect_rx.try_recv() {
+            let (replacement, epoch) = reconnected?;
+            reconnecting = false;
+            if epoch >= highest_epoch {
                 highest_epoch = epoch;
                 let epoch_effects = crate::core::holder::step(
                     &mut input,
@@ -499,15 +737,59 @@ fn run_holder(
                 apply_holder_effects(epoch_effects, &write_tx, &server)?;
                 let (replacement_peer, replacement_reader) = HolderServerPeer::start(replacement)?;
                 server = replacement_peer;
+                server_connected = true;
                 spawn_command_reader(replacement_reader, command_tx.clone(), wake_tx.clone());
-                if subscribed {
-                    revision = revision.saturating_add(1);
+                if let Some(subscription) = subscription.as_ref() {
                     server.offer_surface(surface_message(
-                        &mut terminal,
+                        &committed,
+                        subscription,
                         &config.tab_id,
+                        config.incarnation,
                         revision,
                         "idle",
                     )?);
+                }
+            }
+        }
+        for _ in 0..8 {
+            let Ok(result) = write_result_rx.try_recv() else {
+                break;
+            };
+            let event = match result {
+                Ok(completed) => crate::core::holder::Event::Written { bytes: completed },
+                Err(_) => crate::core::holder::Event::WriterFailed,
+            };
+            let effects = crate::core::holder::step(&mut input, event, Duration::ZERO);
+            apply_holder_effects(effects, &write_tx, &server)?;
+        }
+        // Fairness: one hot producer cannot monopolize the holder loop indefinitely.
+        let command_round_started = std::time::Instant::now();
+        for _ in 0..8 {
+            let Ok(command) = command_rx.try_recv() else {
+                break;
+            };
+            if matches!(command, HolderCommand::Disconnected) {
+                server_connected = false;
+                subscription = None;
+                pending_effects.clear();
+                if !reconnecting {
+                    reconnecting = true;
+                    let reconnect_tx = reconnect_tx.clone();
+                    let reconnect_wake = wake_tx.clone();
+                    let reconnect_config = config.clone();
+                    let reconnect_child = child_identity.clone();
+                    let reconnect_diagnostics = diagnostics_root.clone();
+                    let reconnect_epoch = highest_epoch;
+                    thread::spawn(move || {
+                        let result = reconnect_holder(
+                            &reconnect_config,
+                            Some(&reconnect_child),
+                            reconnect_epoch,
+                            &reconnect_diagnostics,
+                        );
+                        let _ = reconnect_tx.send(result);
+                        let _ = reconnect_wake.try_send(());
+                    });
                 }
             } else if let HolderCommand::Respawn(respawn) = command {
                 if respawn.tab_id != config.tab_id || respawn.incarnation <= config.incarnation {
@@ -526,13 +808,14 @@ fn run_holder(
                 };
                 next.recovery_journals = respawn.recovery_journals;
                 return run_holder(_profile, ready, next, true);
-            } else if let HolderCommand::SurfaceSubscription(enabled) = command {
-                subscribed = enabled;
-                if subscribed {
-                    revision = revision.saturating_add(1);
+            } else if let HolderCommand::SurfaceSubscription(next) = command {
+                subscription = next.enabled.then_some(next);
+                if let Some(subscription) = subscription.as_ref() {
                     server.offer_surface(surface_message(
-                        &mut terminal,
+                        &committed,
+                        subscription,
                         &config.tab_id,
+                        config.incarnation,
                         revision,
                         "idle",
                     )?);
@@ -544,7 +827,7 @@ fn run_holder(
                 let _ = std::fs::create_dir_all(&tab_data_dir)
                     .and_then(|()| std::fs::write(&promotion, b"promote\n"));
                 write_tx
-                    .send((b"\x1b]a1;standby-promote\x07".to_vec(), 0))
+                    .try_send((b"\x1b]a1;standby-promote\x07".to_vec(), 0))
                     .map_err(|_| "promote standby child writer stopped".to_owned())?;
             } else if matches!(
                 &command,
@@ -556,7 +839,7 @@ fn run_holder(
                     return Ok(());
                 }
                 if stop_deadline.is_none() {
-                    let _ = write_tx.send((vec![0x04], 0));
+                    let _ = write_tx.try_send((vec![0x04], 0));
                     stop_deadline = Some(std::time::Instant::now() + Duration::from_secs(5));
                 }
             } else if let HolderCommand::Resize(resize) = command {
@@ -574,7 +857,24 @@ fn run_holder(
                     .map_err(|error| format!("resize resident PTY: {error}"))?;
                 terminal.resize(resize.columns, resize.rows)?;
                 encoder.resize(resize.columns, resize.rows);
-                terminal.mark_dirty()?;
+                if synchronization.open
+                    && terminal
+                        .mode_snapshot()
+                        .is_ok_and(|modes| !modes.synchronized_output)
+                {
+                    synchronization.close();
+                }
+                geometry_generation = resize
+                    .geometry_generation
+                    .max(geometry_generation.saturating_add(1));
+                // Give the child one short opportunity to repaint the new geometry. If it does
+                // not, publish one explicitly provisional complete state rather than mixing the
+                // old body with new strip coordinates.
+                geometry_deadline = Some(
+                    std::time::Instant::now()
+                        .checked_add(Duration::from_millis(50))
+                        .unwrap_or_else(std::time::Instant::now),
+                );
             } else if let HolderCommand::PasteStart { bytes, epoch } = command {
                 if epoch < highest_epoch {
                     continue;
@@ -604,7 +904,7 @@ fn run_holder(
                 };
             } else if let HolderCommand::ControllerBoundary(boundary) = command {
                 write_tx
-                    .send((
+                    .try_send((
                         crate::controller::encode_boundary_marker(
                             boundary.generation,
                             boundary.nonce,
@@ -735,60 +1035,179 @@ fn run_holder(
                 );
                 apply_holder_effects(effects, &write_tx, &server)?;
             }
+            if command_round_started.elapsed() >= Duration::from_millis(2) {
+                break;
+            }
         }
-        while let Ok(bytes) = output_rx.try_recv() {
+        let output_round_started = std::time::Instant::now();
+        let mut output_bytes = 0usize;
+        for _ in 0..32 {
+            let Ok(bytes) = output_rx.try_recv() else {
+                break;
+            };
+            output_bytes = output_bytes.saturating_add(bytes.len());
             recovery_output.extend(&bytes);
             while recovery_output.len() > 2 * 1024 * 1024 {
                 recovery_output.pop_front();
             }
-            terminal.write(&bytes);
-            let answers = terminal.take_responses();
-            if !answers.is_empty() {
-                write_tx
-                    .send((answers, 0))
-                    .map_err(|_| "resident PTY writer stopped".to_owned())?;
+            let mut offset = 0usize;
+            while offset < bytes.len() {
+                let (consumed, boundary) = terminal.write_until_sync_boundary(&bytes[offset..])?;
+                offset += consumed;
+                changed = true;
+                let answers = terminal.take_responses();
+                if !answers.is_empty() {
+                    write_tx
+                        .try_send((answers, 0))
+                        .map_err(|_| "resident PTY writer stopped".to_owned())?;
+                }
+                collect_clipboard_effects(
+                    &mut terminal,
+                    &mut pending_effects,
+                    server_connected && subscription.as_ref().is_some_and(|value| value.effects),
+                );
+                match boundary {
+                    Some(SynchronizedOutputBoundary::Begin) => {
+                        // Bytes preceding the opening delimiter belong to the prior coherent
+                        // state. The delimiter itself changes no visible cells, and duplicate
+                        // commits are suppressed by the retained commit contract.
+                        commit_retained_surface(
+                            &mut terminal,
+                            &mut surface_builder,
+                            &mut committed,
+                            &server,
+                            subscription.as_ref(),
+                            &config.tab_id,
+                            config.incarnation,
+                            &mut revision,
+                            geometry_generation,
+                            SurfaceCommitKind::Complete,
+                            "idle",
+                        )?;
+                        publish_pending_effects(
+                            &mut pending_effects,
+                            &server,
+                            server_connected,
+                            &config.tab_id,
+                            config.incarnation,
+                            revision,
+                            &mut effect_sequence,
+                        )?;
+                        changed = false;
+                        synchronization.begin(std::time::Instant::now());
+                        geometry_deadline = None;
+                    }
+                    Some(
+                        boundary @ (SynchronizedOutputBoundary::End
+                        | SynchronizedOutputBoundary::Reset),
+                    ) => {
+                        commit_retained_surface(
+                            &mut terminal,
+                            &mut surface_builder,
+                            &mut committed,
+                            &server,
+                            subscription.as_ref(),
+                            &config.tab_id,
+                            config.incarnation,
+                            &mut revision,
+                            geometry_generation,
+                            if boundary == SynchronizedOutputBoundary::Reset {
+                                SurfaceCommitKind::Recovery
+                            } else {
+                                SurfaceCommitKind::Complete
+                            },
+                            "idle",
+                        )?;
+                        publish_pending_effects(
+                            &mut pending_effects,
+                            &server,
+                            server_connected,
+                            &config.tab_id,
+                            config.incarnation,
+                            revision,
+                            &mut effect_sequence,
+                        )?;
+                        changed = false;
+                        synchronization.close();
+                        geometry_deadline = None;
+                    }
+                    None => {}
+                }
             }
-            changed = true;
+            if output_bytes >= 256 * 1024
+                || output_round_started.elapsed() >= Duration::from_millis(2)
+            {
+                break;
+            }
         }
-        // Invariant: a clipboard write belongs to the outer terminal only while this tab is
-        // viewed; a hidden tab's write updates nothing outside the retained model and is dropped
-        // rather than replayed later against a different view.
-        for write in terminal.take_clipboard_writes() {
-            if !subscribed {
-                continue;
-            }
-            let effect = EffectKind::ClipboardWrite {
-                location: match write.location {
-                    1 => ClipboardLocation::Selection,
-                    2 => ClipboardLocation::Primary,
-                    _ => ClipboardLocation::Standard,
-                },
-                mime: write.mime,
-                data: write.data,
-            };
-            if protocol::validate_effect(&effect).is_err() {
-                continue;
-            }
-            let _ = server.offer_control(wire::frame(
-                "terminal.effect",
-                None,
-                TerminalEffect {
-                    tab_id: config.tab_id.clone(),
-                    revision,
-                    effect,
-                },
-            )?);
-        }
-        // Performance: each pass drains all queued PTY output before rendering, so floods coalesce
-        // into one surface per pass without delaying an isolated echo behind a pacing timer.
-        if changed && subscribed {
-            revision = revision.saturating_add(1);
-            server.offer_surface(surface_message(
+        // Normal output commits after this bounded coalescing round. Synchronized output remains
+        // private until a real close/reset boundary or one non-renewable recovery deadline.
+        if changed && synchronization.may_publish() {
+            commit_retained_surface(
                 &mut terminal,
+                &mut surface_builder,
+                &mut committed,
+                &server,
+                subscription.as_ref(),
                 &config.tab_id,
-                revision,
+                config.incarnation,
+                &mut revision,
+                geometry_generation,
+                synchronization.commit_kind(),
                 "idle",
-            )?);
+            )?;
+            publish_pending_effects(
+                &mut pending_effects,
+                &server,
+                server_connected,
+                &config.tab_id,
+                config.incarnation,
+                revision,
+                &mut effect_sequence,
+            )?;
+            geometry_deadline = None;
+        }
+        if synchronization.recover_if_due(std::time::Instant::now()) {
+            commit_retained_surface(
+                &mut terminal,
+                &mut surface_builder,
+                &mut committed,
+                &server,
+                subscription.as_ref(),
+                &config.tab_id,
+                config.incarnation,
+                &mut revision,
+                geometry_generation,
+                SurfaceCommitKind::Recovery,
+                "idle",
+            )?;
+            publish_pending_effects(
+                &mut pending_effects,
+                &server,
+                server_connected,
+                &config.tab_id,
+                config.incarnation,
+                revision,
+                &mut effect_sequence,
+            )?;
+        }
+        if !synchronization.open
+            && geometry_deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline)
+        {
+            commit_retained_surface(
+                &mut terminal,
+                &mut surface_builder,
+                &mut committed,
+                &server,
+                subscription.as_ref(),
+                &config.tab_id,
+                config.incarnation,
+                &mut revision,
+                geometry_generation,
+                SurfaceCommitKind::ProvisionalGeometry,
+                "idle",
+            )?;
+            geometry_deadline = None;
         }
         if stop_deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
             let _ = child.kill();
@@ -814,6 +1233,31 @@ fn run_holder(
                 .map_err(|error| format!("inspect resident child: {error}"))?
         {
             child_exited = true;
+            if synchronization.open {
+                commit_retained_surface(
+                    &mut terminal,
+                    &mut surface_builder,
+                    &mut committed,
+                    &server,
+                    subscription.as_ref(),
+                    &config.tab_id,
+                    config.incarnation,
+                    &mut revision,
+                    geometry_generation,
+                    SurfaceCommitKind::Recovery,
+                    "crashed",
+                )?;
+                publish_pending_effects(
+                    &mut pending_effects,
+                    &server,
+                    server_connected,
+                    &config.tab_id,
+                    config.incarnation,
+                    revision,
+                    &mut effect_sequence,
+                )?;
+                synchronization.close();
+            }
             let recovery_root = tab_data_dir.join("recovery");
             let _ = crate::roles::recovery_artifacts::write_last_screen(
                 &recovery_root,
@@ -829,11 +1273,12 @@ fn run_holder(
                 &["child-exited"],
                 child_record.as_deref(),
             );
-            if subscribed {
-                revision = revision.saturating_add(1);
+            if let Some(subscription) = subscription.as_ref() {
                 server.offer_surface(surface_message(
-                    &mut terminal,
+                    &committed,
+                    subscription,
                     &config.tab_id,
+                    config.incarnation,
                     revision,
                     "crashed",
                 )?);
@@ -1163,8 +1608,7 @@ fn spawn_command_reader(
                 }
                 "surface.subscription" => {
                     if let Ok((_, subscription)) = wire::body::<SurfaceSubscription>(&payload) {
-                        let _ = command_tx
-                            .send(HolderCommand::SurfaceSubscription(subscription.enabled));
+                        let _ = command_tx.send(HolderCommand::SurfaceSubscription(subscription));
                     }
                 }
                 _ => {}
@@ -1212,6 +1656,70 @@ mod tests {
             .stderr(std::process::Stdio::null())
             .spawn()
             .expect("spawn shell")
+    }
+
+    #[test]
+    fn synchronization_recovery_deadline_is_not_renewed_and_releases_publication() {
+        let started = std::time::Instant::now();
+        let mut synchronization = SynchronizationState::default();
+        synchronization.begin(started);
+        let deadline = synchronization.deadline.expect("deadline");
+        synchronization.begin(started + Duration::from_millis(200));
+        assert_eq!(synchronization.deadline, Some(deadline));
+        assert!(!synchronization.may_publish());
+        assert!(!synchronization.recover_if_due(
+            started + SYNCHRONIZED_OUTPUT_RECOVERY_DELAY - Duration::from_millis(1)
+        ));
+        assert!(synchronization.recover_if_due(started + SYNCHRONIZED_OUTPUT_RECOVERY_DELAY));
+        assert!(synchronization.may_publish());
+        assert_eq!(synchronization.commit_kind(), SurfaceCommitKind::Recovery);
+        assert!(
+            !synchronization.recover_if_due(
+                started + SYNCHRONIZED_OUTPUT_RECOVERY_DELAY + Duration::from_secs(1)
+            )
+        );
+        synchronization.close();
+        assert_eq!(synchronization.commit_kind(), SurfaceCommitKind::Complete);
+    }
+
+    #[test]
+    fn synchronized_begin_does_not_manufacture_a_commit_and_end_captures_content() {
+        let mut terminal = GhosttyTerminal::new(8, 2).expect("terminal");
+        let mut builder = RetainedSurfaceBuilder::default();
+        let initial =
+            CommittedSurface::capture(&mut terminal, &mut builder, 0, SurfaceCommitKind::Complete)
+                .expect("initial commit");
+        let (_, boundary) = terminal
+            .write_until_sync_boundary(b"\x1b[?2026h")
+            .expect("begin transaction");
+        assert_eq!(boundary, Some(SynchronizedOutputBoundary::Begin));
+        let after_begin =
+            CommittedSurface::capture(&mut terminal, &mut builder, 0, SurfaceCommitKind::Complete)
+                .expect("begin snapshot");
+        assert_eq!(after_begin, initial);
+
+        terminal.write(b"X");
+        let (_, boundary) = terminal
+            .write_until_sync_boundary(b"\x1b[?2026l")
+            .expect("end transaction");
+        assert_eq!(boundary, Some(SynchronizedOutputBoundary::End));
+        let completed =
+            CommittedSurface::capture(&mut terminal, &mut builder, 0, SurfaceCommitKind::Complete)
+                .expect("completed snapshot");
+        assert_ne!(completed, initial);
+        assert_eq!(
+            completed.retained.structured().unwrap().row_data[0].cells[0].text,
+            "X"
+        );
+
+        let (_, boundary) = terminal
+            .write_until_sync_boundary(b"\x1b[?2026h")
+            .expect("begin reset transaction");
+        assert_eq!(boundary, Some(SynchronizedOutputBoundary::Begin));
+        let (_, boundary) = terminal
+            .write_until_sync_boundary(b"\x1bc")
+            .expect("reset transaction");
+        assert_eq!(boundary, Some(SynchronizedOutputBoundary::Reset));
     }
 
     #[test]

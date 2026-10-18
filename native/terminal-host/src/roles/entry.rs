@@ -14,7 +14,7 @@ use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 
 use contracts::ghostty::{
     GhosttyTerminal, KeyEncoder, MOD_CTRL, MouseAction, MouseButton, MouseEncoder, MouseInput,
-    SelectionGesture, key_for_character,
+    RetainedSurfaceBuilder, SelectionGesture, key_for_character,
 };
 
 const PROTOCOL_VERSION: u32 = 1;
@@ -1091,7 +1091,7 @@ fn probe_input() -> Result<(), String> {
         ));
     }
 
-    terminal.write(b"\x1b[?1000h\x1b[?1006h");
+    terminal.write(b"\x1b[?1000h\x1b[?1006h\x1b[?1004h\x1b[?2004h");
     if !terminal.mouse_tracking()? {
         return Err("mouse tracking mode was not retained".to_owned());
     }
@@ -1120,9 +1120,81 @@ fn probe_input() -> Result<(), String> {
     if clipboard != b"\x1b]52;c;bmF0aXZlIGNsaXBib2FyZA==\x07" {
         return Err("OSC 52 clipboard encoding did not stay in the native host".to_owned());
     }
+    terminal.write(b"\x1b]52;c;c3ludGhldGlj\x07");
+    let writes = terminal.take_clipboard_writes();
+    if writes.len() != 1
+        || writes[0].location != 0
+        || writes[0].mime != "text/plain"
+        || writes[0].data != b"synthetic"
+    {
+        return Err(format!(
+            "synthetic child clipboard output was not captured safely: {writes:?}"
+        ));
+    }
 
     terminal.write(b"\x1b[2J\x1b[Hbase-screen\x1b[?1049halternate\x1b[?1049l");
-    terminal.write("\x1b]8;;https://example.invalid\x07linked\x1b]8;;\x07 wide-开发 combining-e\u{301} \x1b[3 q [image unavailable]".as_bytes());
+    terminal.write("\x1b]4;7;rgb:11/22/33\x07\x1b]10;rgb:44/55/66\x07\x1b]11;rgb:77/88/99\x07\x1b]12;rgb:aa/bb/cc\x07\x1b]8;id=probe-link;https://example.invalid\x07linked\x1b]8;;\x07 \x1b[1;2;3;4:3;5;7;8;9;53;38;2;1;2;3;48;5;4;58;5;5mstyled\x1b[0m wide-开发 combining-e\u{301} \x1b[3 q [image unavailable]".as_bytes());
+    let mut retained_builder = RetainedSurfaceBuilder::default();
+    let retained = terminal.capture_retained_surface(
+        &mut retained_builder,
+        1,
+        contracts::protocol::SurfaceCommitKind::Complete,
+    )?;
+    let structured = retained.structured()?;
+    let link = structured
+        .links
+        .iter()
+        .find(|link| link.uri == "https://example.invalid")
+        .ok_or_else(|| "structured fidelity snapshot omitted hyperlink target".to_owned())?;
+    if link.id.as_deref() != Some("probe-link") {
+        return Err(format!(
+            "structured fidelity snapshot changed hyperlink ID: {link:?}"
+        ));
+    }
+    if !structured.styles.iter().any(|style| {
+        style.bold
+            && style.faint
+            && style.italic
+            && style.underline == 3
+            && style.blink
+            && style.inverse
+            && style.conceal
+            && style.strikethrough
+            && style.overline
+            && style.foreground == contracts::protocol::SurfaceColor::Rgb([1, 2, 3])
+            && style.background == contracts::protocol::SurfaceColor::Palette(4)
+            && style.underline_color == contracts::protocol::SurfaceColor::Palette(5)
+    }) {
+        return Err("structured fidelity snapshot omitted semantic attributes".to_owned());
+    }
+    if structured.palette.get(7) != Some(&[0x11, 0x22, 0x33])
+        || structured.default_foreground != [0x44, 0x55, 0x66]
+        || structured.default_background != [0x77, 0x88, 0x99]
+        || structured.cursor_color != Some([0xaa, 0xbb, 0xcc])
+    {
+        return Err("structured fidelity snapshot changed palette or default colors".to_owned());
+    }
+    if !structured
+        .row_data
+        .iter()
+        .flat_map(|row| &row.cells)
+        .any(|cell| cell.width == 2)
+    {
+        return Err("structured fidelity snapshot omitted wide-cell semantics".to_owned());
+    }
+    let modes = terminal.mode_snapshot()?;
+    if modes.cursor_style != "underline"
+        || !modes.cursor_blink
+        || !modes.mouse_tracking
+        || !modes.focus_events
+        || !modes.bracketed_paste
+        || modes.alternate_screen
+    {
+        return Err(format!(
+            "structured fidelity snapshot changed cursor mode: {modes:?}"
+        ));
+    }
+    terminal.mark_dirty()?;
     let frame = terminal.frame()?;
     for expected in [
         "base-screen",
@@ -1139,7 +1211,7 @@ fn probe_input() -> Result<(), String> {
     probe_faint_intensity()?;
 
     println!(
-        "{{\"schema\":\"a1-terminal-host-fidelity-probe-v1\",\"keyEncoding\":true,\"kittyKeys\":true,\"textImeEncoding\":true,\"mouseEncoding\":true,\"paneRelativeMouse\":true,\"bracketedPaste\":true,\"clipboardOsc52\":true,\"hyperlinkOsc8\":true,\"cursorShape\":true,\"wideCombiningUnicode\":true,\"alternateScreen\":true,\"imageTextFallback\":true,\"faintIntensity\":true,\"nodeRelay\":false}}"
+        "{{\"schema\":\"a1-terminal-host-fidelity-probe-v1\",\"keyEncoding\":true,\"kittyKeys\":true,\"textImeEncoding\":true,\"mouseEncoding\":true,\"paneRelativeMouse\":true,\"bracketedPaste\":true,\"clipboardOsc52\":true,\"syntheticClipboardEffect\":true,\"hyperlinkTargetAndId\":true,\"semanticAttributes\":true,\"paletteAndDefaultColors\":true,\"cursorShapeAndBlink\":true,\"interactionModes\":true,\"wideCombiningUnicode\":true,\"alternateScreen\":true,\"imageTextFallback\":true,\"faintIntensity\":true,\"nodeRelay\":false}}"
     );
     Ok(())
 }

@@ -127,6 +127,48 @@ pub fn grid_ref_hyperlink_uri(
     return .success;
 }
 
+pub fn grid_ref_hyperlink_id(
+    ref: *const CGridRef,
+    out_buf: ?[*]u8,
+    buf_len: usize,
+    out_len: *usize,
+) callconv(lib.calling_conv) Result {
+    const p = ref.toPin() orelse return .invalid_value;
+    const terminal_page = p.node.page();
+    const rac = terminal_page.getRowAndCell(p.x, p.y);
+    const cell = rac.cell;
+
+    if (!cell.hyperlink) {
+        out_len.* = 0;
+        return .success;
+    }
+
+    const link_id = terminal_page.lookupHyperlink(cell) orelse {
+        out_len.* = 0;
+        return .success;
+    };
+    const entry = terminal_page.hyperlink_set.get(
+        terminal_page.memory,
+        link_id,
+    );
+    const id = switch (entry.id) {
+        .explicit => |value| value.slice(terminal_page.memory),
+        .implicit => {
+            out_len.* = 0;
+            return .success;
+        },
+    };
+
+    if (out_buf == null or buf_len < id.len) {
+        out_len.* = id.len;
+        return .out_of_space;
+    }
+
+    @memcpy(out_buf.?[0..id.len], id);
+    out_len.* = id.len;
+    return .success;
+}
+
 pub fn grid_ref_style(
     ref: *const CGridRef,
     out: ?*style_c.Style,
@@ -181,6 +223,12 @@ test "grid_ref_graphemes null buf returns out_of_space" {
     // With null node this returns invalid_value before checking the buffer,
     // so we can only test null node here. Full buffer tests require a real page.
     try testing.expectEqual(Result.invalid_value, grid_ref_graphemes(&ref, null, 0, &len));
+}
+
+test "grid_ref_hyperlink_id null node" {
+    const ref = CGridRef{};
+    var len: usize = undefined;
+    try testing.expectEqual(Result.invalid_value, grid_ref_hyperlink_id(&ref, null, 0, &len));
 }
 
 test "grid_ref_style null node" {
@@ -252,4 +300,40 @@ test "grid_ref_hyperlink_uri with hyperlink" {
     var buf: [256]u8 = undefined;
     try testing.expectEqual(Result.success, grid_ref_hyperlink_uri(&ref, &buf, buf.len, &len));
     try testing.expectEqualStrings("https://example.com", buf[0..len]);
+}
+
+test "grid_ref_hyperlink_id distinguishes explicit and implicit identity" {
+    var terminal: terminal_c.Terminal = null;
+    try testing.expectEqual(Result.success, terminal_c.new(
+        &lib.alloc.test_allocator,
+        &terminal,
+        .{ .cols = 80, .rows = 24, .max_scrollback = 10_000 },
+    ));
+    defer terminal_c.free(terminal);
+
+    const seq = "\x1b]8;id=link-1;https://example.com\x1b\\E\x1b]8;;\x1b\\" ++
+        "\x1b]8;;https://example.com\x1b\\I\x1b]8;;\x1b\\";
+    terminal_c.vt_write(terminal, seq, seq.len);
+
+    var explicit_ref: CGridRef = undefined;
+    try testing.expectEqual(Result.success, terminal_c.grid_ref(
+        terminal,
+        point.Point.cval(.{ .active = .{ .x = 0, .y = 0 } }),
+        &explicit_ref,
+    ));
+    var len: usize = undefined;
+    try testing.expectEqual(Result.out_of_space, grid_ref_hyperlink_id(&explicit_ref, null, 0, &len));
+    try testing.expectEqual(@as(usize, 6), len);
+    var buf: [16]u8 = undefined;
+    try testing.expectEqual(Result.success, grid_ref_hyperlink_id(&explicit_ref, &buf, buf.len, &len));
+    try testing.expectEqualStrings("link-1", buf[0..len]);
+
+    var implicit_ref: CGridRef = undefined;
+    try testing.expectEqual(Result.success, terminal_c.grid_ref(
+        terminal,
+        point.Point.cval(.{ .active = .{ .x = 1, .y = 0 } }),
+        &implicit_ref,
+    ));
+    try testing.expectEqual(Result.success, grid_ref_hyperlink_id(&implicit_ref, null, 0, &len));
+    try testing.expectEqual(@as(usize, 0), len);
 }

@@ -22,7 +22,7 @@ use crate::roles::registry::{RegistryAuthority, RegistryDocument, RegistryStore,
 use crate::roles::wire::{
     self, AttachStart, BridgeSession, BridgeStatus, HolderExit, HolderLaunchConfig, Input,
     PasteStart, Resize, RoleHello, ServerLaunchConfig, Surface, TabCreate, TabList, TabStatus,
-    TabSummary, TabTarget,
+    TabSummary, TabTarget, ViewTarget,
 };
 use crate::session_lock::SessionLock;
 
@@ -194,13 +194,13 @@ struct Peer {
 impl Peer {
     fn offer_control(&self, frame: Vec<u8>) -> Result<(), &'static str> {
         let length = frame.len();
-        let reserved =
-            self.queued_bytes
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |queued| {
-                    queued
-                        .checked_add(length)
-                        .filter(|total| *total <= CONTROL_LANE_BYTES)
-                });
+        let reserved = self
+            .queued_bytes
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |queued| {
+                queued
+                    .checked_add(length)
+                    .filter(|total| *total <= CONTROL_LANE_BYTES)
+            });
         if reserved.is_err() {
             return Err("client-overrun");
         }
@@ -231,9 +231,12 @@ struct HolderSession {
     peer: Peer,
     identity: ProcessIdentity,
     incarnation: u64,
+    /// Unique to one authenticated socket, even when a reconnect keeps the same incarnation.
+    connection_id: u64,
     /// Whether this holder encodes `input.event` frames itself; an older same-generation holder
     /// receives only pre-encoded bytes.
     semantic_input: bool,
+    structured_surface: bool,
 }
 
 #[derive(Clone)]
@@ -244,6 +247,83 @@ struct ClientSession {
     controller_revision: u64,
     /// Whether this client applies typed `terminal.effect` frames for its viewed tab.
     terminal_effects: bool,
+    structured_surface: bool,
+    /// Monotonic per-client identity for one view request; stamped onto every offered surface.
+    view_generation: u64,
+}
+
+fn surface_for_client(
+    mut surface: Surface,
+    structured_supported: bool,
+    request_generation: u64,
+) -> Result<Surface, String> {
+    surface.request_generation = request_generation;
+    if structured_supported {
+        if surface.structured.is_some() {
+            surface.bytes.clear();
+        }
+    } else {
+        if surface.bytes.is_empty()
+            && let Some(structured) = surface.structured.as_ref()
+        {
+            surface.bytes = super::presentation::complete_surface_bytes(structured)?;
+        }
+        surface.structured = None;
+    }
+    Ok(surface)
+}
+
+fn accepts_holder_surface(existing: Option<&Surface>, next: &Surface) -> bool {
+    let Some(existing) = existing else {
+        return true;
+    };
+    if next.incarnation != existing.incarnation {
+        return next.incarnation > existing.incarnation;
+    }
+    if next.revision != existing.revision {
+        return next.revision > existing.revision;
+    }
+    // Equal revisions are idempotent metadata re-offers, never another child commit. Status and
+    // accent may change independently, but retained visual and terminal state may not.
+    next.bytes == existing.bytes
+        && next.structured == existing.structured
+        && next.modes == existing.modes
+        && next.cursor == existing.cursor
+}
+
+fn desired_surface_subscription(
+    state: &RuntimeState,
+    tab_id: &str,
+    holder_structured: bool,
+) -> wire::SurfaceSubscription {
+    let viewers = state
+        .clients
+        .values()
+        .filter(|client| client.viewed_tab == tab_id)
+        .collect::<Vec<_>>();
+    let enabled = !viewers.is_empty();
+    wire::SurfaceSubscription {
+        enabled,
+        effects: viewers
+            .iter()
+            .any(|client| client.controller && client.terminal_effects),
+        structured: enabled
+            && holder_structured
+            && viewers.iter().any(|client| client.structured_surface),
+        legacy: enabled
+            && (!holder_structured || viewers.iter().any(|client| !client.structured_surface)),
+    }
+}
+
+fn refresh_surface_subscription(state: &RuntimeState, tab_id: &str) -> Result<(), String> {
+    let Some(holder) = state.holders.get(tab_id) else {
+        return Ok(());
+    };
+    let subscription = desired_surface_subscription(state, tab_id, holder.structured_surface);
+    let _ = holder
+        .peer
+        .offer_control(wire::frame("surface.subscription", None, subscription)?);
+    Ok(())
 }
 
 struct BridgePeer {
@@ -297,7 +377,7 @@ struct RuntimeState {
     holders: HashMap<String, HolderSession>,
     launches: HashMap<String, AttachStart>,
     holders_terminating: std::collections::HashSet<String>,
-    surfaces: HashMap<String, Surface>,
+    surfaces: HashMap<String, Arc<Surface>>,
     holders_starting: std::collections::HashSet<String>,
     max_concurrent_starts: usize,
     active_starts: usize,
@@ -960,6 +1040,7 @@ fn complete_controller_transfer(
             },
         )?);
     }
+    refresh_surface_subscription(locked, tab_id)?;
     if let Some(holder) = locked.holders.get(tab_id) {
         for frame in pending.held_frames {
             holder.peer.offer_control(frame).map_err(str::to_owned)?;
@@ -983,7 +1064,7 @@ fn expire_controller_boundaries(locked: &mut RuntimeState) {
 }
 
 fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
-    let (stale, commit) = {
+    let (stale, commit, deliveries) = {
         let Ok(mut locked) = state.lock() else {
             return;
         };
@@ -1018,6 +1099,7 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
             }
         }
         let mut registry_changed = false;
+        let mut deliveries = Vec::<(Arc<Surface>, Vec<(Peer, bool, u64)>)>::new();
         for (tab_id, message) in notices {
             if message == "terminate-unresponsive-child" {
                 counters::record(CounterEvent::ChildHangRecovery);
@@ -1036,19 +1118,23 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
                 }
             } else if message == "child-responsive" {
                 let responsive = locked.surfaces.get_mut(&tab_id).map(|surface| {
-                    surface.status = "idle".into();
+                    Arc::make_mut(surface).status = "idle".into();
                     surface.clone()
                 });
                 if let Some(surface) = responsive {
-                    for client in locked
+                    let clients = locked
                         .clients
                         .values()
                         .filter(|client| client.viewed_tab == tab_id)
-                    {
-                        client.peer.offer_surface(
-                            wire::frame("surface", None, surface.clone()).unwrap_or_default(),
-                        );
-                    }
+                        .map(|client| {
+                            (
+                                client.peer.clone(),
+                                client.structured_surface,
+                                client.view_generation,
+                            )
+                        })
+                        .collect();
+                    deliveries.push((surface, clients));
                 }
                 if let Some(record) = locked
                     .registry
@@ -1063,19 +1149,23 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
                 }
             } else if message == "child-unresponsive" {
                 let unresponsive = locked.surfaces.get_mut(&tab_id).map(|surface| {
-                    surface.status = "unresponsive".into();
+                    Arc::make_mut(surface).status = "unresponsive".into();
                     surface.clone()
                 });
                 if let Some(surface) = unresponsive {
-                    for client in locked
+                    let clients = locked
                         .clients
                         .values()
                         .filter(|client| client.viewed_tab == tab_id)
-                    {
-                        client.peer.offer_surface(
-                            wire::frame("surface", None, surface.clone()).unwrap_or_default(),
-                        );
-                    }
+                        .map(|client| {
+                            (
+                                client.peer.clone(),
+                                client.structured_surface,
+                                client.view_generation,
+                            )
+                        })
+                        .collect();
+                    deliveries.push((surface, clients));
                 }
                 if let Some(record) = locked
                     .registry
@@ -1108,8 +1198,18 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
         }
         let commit =
             registry_changed.then(|| (locked.registry_store.clone(), locked.registry.clone()));
-        (stale, commit)
+        (stale, commit, deliveries)
     };
+    for (surface, clients) in deliveries {
+        for (client, structured, generation) in clients {
+            if let Ok(surface) =
+                surface_for_client(surface.as_ref().clone(), structured, generation)
+                && let Ok(frame) = wire::frame("surface", None, surface)
+            {
+                client.offer_surface(frame);
+            }
+        }
+    }
     if let Some((store, document)) = commit {
         let _ = commit_registry(store, document);
     }
@@ -1381,6 +1481,8 @@ fn serve_peer(
             let allow_control = hello.role == "attach";
             let terminal_effects =
                 protocol::negotiated(&hello.features, protocol::FEATURE_TERMINAL_EFFECTS);
+            let structured_surface =
+                protocol::negotiated(&hello.features, protocol::FEATURE_STRUCTURED_SURFACE);
             serve_attach(
                 stream,
                 peer,
@@ -1389,6 +1491,7 @@ fn serve_peer(
                 hello.tab_id,
                 allow_control,
                 terminal_effects,
+                structured_surface,
             )
         }
         "holder" => {
@@ -1411,6 +1514,7 @@ fn serve_peer(
                 child_identity,
                 hello.incarnation,
                 protocol::negotiated(&hello.features, protocol::FEATURE_SEMANTIC_INPUT),
+                protocol::negotiated(&hello.features, protocol::FEATURE_STRUCTURED_SURFACE),
             )
         }
         "bridge" => {
@@ -1455,6 +1559,7 @@ fn welcome(epoch: u64) -> Welcome {
             "recovery-status".into(),
             protocol::FEATURE_SEMANTIC_INPUT.into(),
             protocol::FEATURE_TERMINAL_EFFECTS.into(),
+            protocol::FEATURE_STRUCTURED_SURFACE.into(),
             "bridge-shortcuts".into(),
         ],
         frame_limit: protocol::MAX_FRAME_BYTES as u32,
@@ -1677,6 +1782,9 @@ fn claim_client_control(
             },
         )?);
     }
+    // Revoke one-shot effect authority before beginning a controller handoff. Visual
+    // subscriptions remain independent and may stay active for both viewers.
+    refresh_surface_subscription(locked, &viewed_tab)?;
     let can_boundary = previous.is_some()
         && locked.holders.contains_key(&viewed_tab)
         && locked
@@ -1735,6 +1843,7 @@ fn claim_client_control(
         client.controller = true;
         client.controller_revision = revision;
     }
+    refresh_surface_subscription(locked, &viewed_tab)?;
     Ok(ControlClaim {
         attachment: locked.bridges.get(&viewed_tab).map(|bridge| {
             (
@@ -1788,6 +1897,7 @@ fn cancel_controller_transfer(
             .attachment
             .detach(tab_id, client_id, pending.revision);
     }
+    refresh_surface_subscription(locked, tab_id)?;
     Ok(())
 }
 
@@ -2770,9 +2880,10 @@ fn serve_attach(
     requested_tab: Option<String>,
     allow_control: bool,
     terminal_effects: bool,
+    structured_surface: bool,
 ) -> Result<(), String> {
     let client_id = format!("client-{:016x}", rand::random::<u64>());
-    let (_controller, startup_notice) = {
+    let (_controller, startup_notice, initial_surface) = {
         let mut locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
@@ -2816,14 +2927,17 @@ fn serve_attach(
                 controller,
                 controller_revision: revision,
                 terminal_effects,
+                structured_surface,
+                view_generation: 1,
             },
         );
         if let Some(holder) = locked.holders.get(&viewed_tab) {
-            let _ = holder.peer.offer_control(wire::frame(
-                "surface.subscription",
-                None,
-                wire::SurfaceSubscription { enabled: true },
-            )?);
+            let subscription =
+                desired_surface_subscription(&locked, &viewed_tab, holder.structured_surface);
+            let _ =
+                holder
+                    .peer
+                    .offer_control(wire::frame("surface.subscription", None, subscription)?);
         }
         if let Some(bridge) = locked.bridges.get(&viewed_tab) {
             let _ = bridge.peer.offer_control(wire::frame(
@@ -2835,10 +2949,7 @@ fn serve_attach(
         if let Some(shortcuts) = locked.shortcuts.clone() {
             let _ = tx.offer_control(wire::frame("tabs.shortcuts", None, shortcuts)?);
         }
-        if let Some(mut surface) = locked.surfaces.get(&viewed_tab).cloned() {
-            surface.stale = true;
-            tx.offer_surface(wire::frame("surface", None, surface)?);
-        }
+        let initial_surface = locked.surfaces.get(&viewed_tab).cloned();
         if controller && let Some(bridge) = locked.bridges.get(&viewed_tab) {
             let _ = bridge.peer.offer_control(wire::frame(
                 "attachment",
@@ -2853,8 +2964,17 @@ fn serve_attach(
             .startup_notice
             .clone()
             .or_else(|| locked.registry_store.failure());
-        (controller, startup_notice)
+        (controller, startup_notice, initial_surface)
     };
+    if let Some(surface) = initial_surface {
+        let mut surface = surface.as_ref().clone();
+        surface.stale = true;
+        tx.offer_surface(wire::frame(
+            "surface",
+            None,
+            surface_for_client(surface, structured_surface, 1)?,
+        )?);
+    }
     if let Some(message) = startup_notice {
         tx.offer_control(wire::frame(
             "recovery.notice",
@@ -3006,7 +3126,7 @@ fn serve_attach(
                 .map_err(str::to_owned)?;
             }
             "tab.view" => {
-                let (_, target): (_, TabTarget) = wire::body(&payload)?;
+                let (_, target): (_, ViewTarget) = wire::body(&payload)?;
                 let mut locked = state
                     .lock()
                     .map_err(|_| "resident state poisoned".to_owned())?;
@@ -3020,7 +3140,7 @@ fn serve_attach(
                 }
                 let seen = locked.surfaces.get_mut(&target.tab_id).and_then(|surface| {
                     if surface.status == "done-unseen" {
-                        surface.status = "idle".into();
+                        Arc::make_mut(surface).status = "idle".into();
                         Some(surface.clone())
                     } else {
                         None
@@ -3069,30 +3189,56 @@ fn serve_attach(
                     } else {
                         None
                     };
-                if let Some(client) = locked.clients.get_mut(&client_id) {
-                    client.viewed_tab = target.tab_id.clone();
-                    client.controller = next_revision.is_some();
-                    client.controller_revision = next_revision.unwrap_or(0);
-                }
-                if let Some((previous_tab, _, _)) = previous
-                    && previous_tab != target.tab_id
-                    && !locked
+                let (view_generation, client_structured) =
+                    if let Some(client) = locked.clients.get_mut(&client_id) {
+                        client.viewed_tab = target.tab_id.clone();
+                        client.controller = next_revision.is_some();
+                        client.controller_revision = next_revision.unwrap_or(0);
+                        client.view_generation = target
+                            .request_generation
+                            .max(client.view_generation.saturating_add(1));
+                        (client.view_generation, client.structured_surface)
+                    } else {
+                        continue;
+                    };
+                if let Some((previous_tab, _, _)) = previous.as_ref()
+                    && previous_tab != &target.tab_id
+                {
+                    if !locked
                         .clients
                         .values()
-                        .any(|client| client.viewed_tab == previous_tab)
-                    && let Some(bridge) = locked.bridges.get(&previous_tab)
-                {
-                    let _ = bridge.peer.offer_control(wire::frame(
-                        "bridge.visibility",
-                        None,
-                        serde_json::json!({ "visible": false }),
-                    )?);
+                        .any(|client| client.viewed_tab == *previous_tab)
+                        && let Some(bridge) = locked.bridges.get(previous_tab)
+                    {
+                        let _ = bridge.peer.offer_control(wire::frame(
+                            "bridge.visibility",
+                            None,
+                            serde_json::json!({ "visible": false }),
+                        )?);
+                    }
+                    if let Some(holder) = locked.holders.get(previous_tab) {
+                        let subscription = desired_surface_subscription(
+                            &locked,
+                            previous_tab,
+                            holder.structured_surface,
+                        );
+                        let _ = holder.peer.offer_control(wire::frame(
+                            "surface.subscription",
+                            None,
+                            subscription,
+                        )?);
+                    }
                 }
                 if let Some(holder) = locked.holders.get(&target.tab_id) {
+                    let subscription = desired_surface_subscription(
+                        &locked,
+                        &target.tab_id,
+                        holder.structured_surface,
+                    );
                     let _ = holder.peer.offer_control(wire::frame(
                         "surface.subscription",
                         None,
-                        wire::SurfaceSubscription { enabled: true },
+                        subscription,
                     )?);
                 }
                 if let Some(bridge) = locked.bridges.get(&target.tab_id) {
@@ -3104,11 +3250,9 @@ fn serve_attach(
                 }
                 // Protocol: the retained surface is offered at once so a view can commit even
                 // when the holder is slow, but it is marked stale so the client prefers the
-                // fresh frame the new subscription produces.
-                if let Some(mut surface) = locked.surfaces.get(&target.tab_id).cloned() {
-                    surface.stale = true;
-                    tx.offer_surface(wire::frame("surface", None, surface)?);
-                }
+                // fresh frame the new subscription produces. Keep only an Arc under the routing
+                // lock; fallback reconstruction and encoding happen after it is released.
+                let stale_surface = locked.surfaces.get(&target.tab_id).cloned();
                 if let Some(controller_revision) = next_revision
                     && let Some(bridge) = locked.bridges.get(&target.tab_id)
                 {
@@ -3122,6 +3266,15 @@ fn serve_attach(
                     )?);
                 }
                 drop(locked);
+                if let Some(surface) = stale_surface {
+                    let mut surface = surface.as_ref().clone();
+                    surface.stale = true;
+                    tx.offer_surface(wire::frame(
+                        "surface",
+                        None,
+                        surface_for_client(surface, client_structured, view_generation)?,
+                    )?);
+                }
                 if let Some(delay) = status_persist {
                     persist_status_after(state.clone(), target.tab_id, delay);
                 }
@@ -3277,6 +3430,17 @@ fn serve_attach(
                 .detach(&session.viewed_tab, &client_id, session.controller_revision);
         }
         cancel_controller_transfer(&mut locked, &session.viewed_tab, &client_id)?;
+        if let Some(holder) = locked.holders.get(&session.viewed_tab) {
+            let subscription = desired_surface_subscription(
+                &locked,
+                &session.viewed_tab,
+                holder.structured_surface,
+            );
+            let _ =
+                holder
+                    .peer
+                    .offer_control(wire::frame("surface.subscription", None, subscription)?);
+        }
     }
     locked.last_activity = std::time::Instant::now();
     Ok(())
@@ -3506,6 +3670,7 @@ fn promote_standby(
                 columns: start.columns,
                 rows: start.rows,
                 epoch: 0,
+                geometry_generation: 1,
             },
         )?)
         .map_err(str::to_owned)?;
@@ -3930,17 +4095,19 @@ fn serve_holder(
     child_identity: Option<ProcessIdentity>,
     connection_incarnation: u64,
     semantic_input: bool,
+    structured_surface: bool,
 ) -> Result<(), String> {
+    let connection_id = rand::random::<u64>();
     {
         let mut locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
-        // Concurrency: each holder continuously refreshes the server's per-tab retained surface.
-        // Client delivery remains view-scoped, so hidden Agents cannot block or overwrite one another.
+        // Hidden holders continue parsing and committing locally but do no full-surface
+        // serialization or delivery until at least one client views this tab.
         tx.offer_control(wire::frame(
             "surface.subscription",
             None,
-            wire::SurfaceSubscription { enabled: true },
+            desired_surface_subscription(&locked, &tab_id, structured_surface),
         )?)
         .map_err(str::to_owned)?;
         let holder_pid = identity.pid;
@@ -3976,7 +4143,9 @@ fn serve_holder(
                 peer: tx,
                 identity,
                 incarnation: connection_incarnation,
+                connection_id,
                 semantic_input,
+                structured_surface,
             },
         );
         let mut recovering = false;
@@ -4054,37 +4223,87 @@ fn serve_holder(
     let served = (|| -> Result<(), String> {
         while let Some(payload) = wire::read_payload(&mut stream)? {
             let kind = wire::kind(&payload)?;
+            let current_connection = state.lock().ok().is_some_and(|locked| {
+                locked
+                    .holders
+                    .get(&tab_id)
+                    .is_some_and(|holder| holder.connection_id == connection_id)
+            });
+            if !current_connection {
+                continue;
+            }
             match kind.message_type.as_str() {
                 "surface" => {
                     let (_, mut surface): (_, Surface) = wire::body(&payload)?;
-                    surface.tab_id = tab_id.clone();
-                    let mut locked = state
-                        .lock()
-                        .map_err(|_| "resident state poisoned".to_owned())?;
-                    if locked.bridge_status_sequences.get(&tab_id).is_some_and(
-                        |(seen_incarnation, _)| *seen_incarnation == connection_incarnation,
-                    ) && let Some(existing) = locked.surfaces.get(&tab_id)
-                    {
-                        surface.status = existing.status.clone();
-                        surface.accent = existing.accent.clone();
-                    } else if locked
-                        .registry
-                        .tabs
-                        .iter()
-                        .find(|record| record.tab_id == tab_id)
-                        .is_some_and(|record| record.attention_seq > record.seen_seq)
-                    {
-                        surface.status = "done-unseen".into();
+                    if surface.incarnation != 0 && surface.incarnation != connection_incarnation {
+                        continue;
                     }
-                    locked.surfaces.insert(tab_id.clone(), surface.clone());
-                    for client in locked
-                        .clients
-                        .values()
-                        .filter(|client| client.viewed_tab == tab_id)
+                    if let Some(structured) = surface.structured.as_ref()
+                        && structured.validate().is_err()
                     {
-                        client
-                            .peer
-                            .offer_surface(wire::frame("surface", None, surface.clone())?);
+                        continue;
+                    }
+                    if surface.structured.is_none() && surface.bytes.is_empty() {
+                        continue;
+                    }
+                    surface.tab_id = tab_id.clone();
+                    surface.incarnation = connection_incarnation;
+                    let routed = {
+                        let mut locked = state
+                            .lock()
+                            .map_err(|_| "resident state poisoned".to_owned())?;
+                        if !locked
+                            .holders
+                            .get(&tab_id)
+                            .is_some_and(|holder| holder.incarnation == connection_incarnation)
+                            || !accepts_holder_surface(
+                                locked.surfaces.get(&tab_id).map(Arc::as_ref),
+                                &surface,
+                            )
+                        {
+                            None
+                        } else {
+                            if locked.bridge_status_sequences.get(&tab_id).is_some_and(
+                                |(seen_incarnation, _)| *seen_incarnation == connection_incarnation,
+                            ) && let Some(existing) = locked.surfaces.get(&tab_id)
+                            {
+                                surface.status = existing.status.clone();
+                                surface.accent = existing.accent.clone();
+                            } else if locked
+                                .registry
+                                .tabs
+                                .iter()
+                                .find(|record| record.tab_id == tab_id)
+                                .is_some_and(|record| record.attention_seq > record.seen_seq)
+                            {
+                                surface.status = "done-unseen".into();
+                            }
+                            let surface = Arc::new(surface);
+                            locked.surfaces.insert(tab_id.clone(), surface.clone());
+                            let clients = locked
+                                .clients
+                                .values()
+                                .filter(|client| client.viewed_tab == tab_id)
+                                .map(|client| {
+                                    (
+                                        client.peer.clone(),
+                                        client.structured_surface,
+                                        client.view_generation,
+                                    )
+                                })
+                                .collect::<Vec<_>>();
+                            Some((clients, surface))
+                        }
+                    };
+                    let Some((clients, surface)) = routed else {
+                        continue;
+                    };
+                    // Serialization and fallback reconstruction are intentionally outside the
+                    // shared server-state lock; one large surface cannot delay unrelated tabs.
+                    for (client, structured, generation) in clients {
+                        let offered =
+                            surface_for_client(surface.as_ref().clone(), structured, generation)?;
+                        client.offer_surface(wire::frame("surface", None, offered)?);
                     }
                 }
                 "input.rejected" | "input.uncertain" => {
@@ -4108,23 +4327,28 @@ fn serve_holder(
                 // effects; the server never applies, logs, or retains its payload.
                 "terminal.effect" => {
                     let (_, mut effect): (_, protocol::TerminalEffect) = wire::body(&payload)?;
-                    if protocol::validate_effect(&effect.effect).is_err() {
+                    if protocol::validate_effect(&effect.effect).is_err()
+                        || (effect.incarnation != 0 && effect.incarnation != connection_incarnation)
+                    {
                         continue;
                     }
                     effect.tab_id = tab_id.clone();
-                    let locked = state
+                    effect.incarnation = connection_incarnation;
+                    let clients = state
                         .lock()
-                        .map_err(|_| "resident state poisoned".to_owned())?;
-                    for client in locked
+                        .map_err(|_| "resident state poisoned".to_owned())?
                         .clients
                         .values()
-                        .filter(|client| client.viewed_tab == tab_id && client.terminal_effects)
-                    {
-                        let _ = client.peer.offer_control(wire::frame(
-                            "terminal.effect",
-                            None,
-                            effect.clone(),
-                        )?);
+                        .filter(|client| {
+                            client.viewed_tab == tab_id
+                                && client.controller
+                                && client.terminal_effects
+                        })
+                        .map(|client| client.peer.clone())
+                        .collect::<Vec<_>>();
+                    let frame = wire::frame("terminal.effect", None, effect)?;
+                    for client in clients {
+                        let _ = client.offer_control(frame.clone());
                     }
                 }
                 "holder.heartbeat" => {
@@ -4347,7 +4571,7 @@ fn serve_holder(
                             .map_or_else(|| "ended".into(), |code| format!("exit {code}"))
                     });
                     last_exit = Some(reason.clone());
-                    let (store, document, respawn) = {
+                    let (store, document, respawn, restart_delivery) = {
                         let mut locked = state
                             .lock()
                             .map_err(|_| "resident state poisoned".to_owned())?;
@@ -4442,28 +4666,29 @@ fn serve_holder(
                                 },
                             )
                         });
-                        if respawn.is_some() {
-                            let restarting = locked.surfaces.get_mut(&tab_id).map(|surface| {
-                                surface.status = "restarting".into();
-                                surface.clone()
-                            });
-                            if let Some(surface) = restarting {
-                                for client in locked
-                                    .clients
-                                    .values()
-                                    .filter(|client| client.viewed_tab == tab_id)
-                                {
-                                    client.peer.offer_surface(wire::frame(
-                                        "surface",
-                                        None,
-                                        surface.clone(),
-                                    )?);
-                                }
-                            }
-                        }
+                        let restart_delivery = if respawn.is_some() {
+                            let clients = locked
+                                .clients
+                                .values()
+                                .filter(|client| client.viewed_tab == tab_id)
+                                .map(|client| {
+                                    (
+                                        client.peer.clone(),
+                                        client.structured_surface,
+                                        client.view_generation,
+                                    )
+                                })
+                                .collect::<Vec<_>>();
+                            locked.surfaces.get_mut(&tab_id).map(|surface| {
+                                Arc::make_mut(surface).status = "restarting".into();
+                                (surface.clone(), clients)
+                            })
+                        } else {
+                            None
+                        };
                         if failed {
                             if let Some(surface) = locked.surfaces.get_mut(&tab_id) {
-                                surface.status = "failed".into();
+                                Arc::make_mut(surface).status = "failed".into();
                             }
                             for client in locked
                                 .clients
@@ -4484,8 +4709,19 @@ fn serve_holder(
                             locked.registry_store.clone(),
                             locked.registry.clone(),
                             respawn,
+                            restart_delivery,
                         )
                     };
+                    if let Some((surface, clients)) = restart_delivery {
+                        for (client, structured, generation) in clients {
+                            let surface = surface_for_client(
+                                surface.as_ref().clone(),
+                                structured,
+                                generation,
+                            )?;
+                            client.offer_surface(wire::frame("surface", None, surface)?);
+                        }
+                    }
                     commit_registry(store, document)?;
                     crate::fault_injection::crash_at("after-restart-budget-commit");
                     let diagnostics_root = state
@@ -4536,7 +4772,7 @@ fn serve_holder(
                                 locked
                                     .holders
                                     .get(&tab_id)
-                                    .filter(|holder| holder.incarnation == connection_incarnation)
+                                    .filter(|holder| holder.connection_id == connection_id)
                                     .map(|holder| holder.peer.clone())
                             });
                             if !acquire_recovery_slot(
@@ -4569,10 +4805,10 @@ fn serve_holder(
     let mut locked = state
         .lock()
         .map_err(|_| "resident state poisoned".to_owned())?;
-    if locked
+    if !locked
         .holders
         .get(&tab_id)
-        .is_some_and(|holder| holder.incarnation != connection_incarnation)
+        .is_some_and(|holder| holder.connection_id == connection_id)
     {
         return served;
     }
@@ -5039,8 +5275,10 @@ fn serve_bridge(
                 .clients
                 .values()
                 .any(|client| client.viewed_tab == tab_id);
-            let (updated, attention_changed) =
-                if let Some(surface) = locked.surfaces.get_mut(&tab_id) {
+            let (updated, attention_changed) = if let Some(entry) = locked.surfaces.get_mut(&tab_id)
+            {
+                let attention_changed = {
+                    let surface = Arc::make_mut(entry);
                     let previous = surface.status.clone();
                     surface.status = bridge_surface_status(
                         &previous,
@@ -5060,14 +5298,13 @@ fn serve_bridge(
                     if status.accent.is_some() {
                         surface.accent = status.accent;
                     }
-                    (
-                        Some(surface.clone()),
-                        matches!(previous.as_str(), "working" | "needs-input")
-                            && surface.status == "done-unseen",
-                    )
-                } else {
-                    (None, false)
+                    matches!(previous.as_str(), "working" | "needs-input")
+                        && surface.status == "done-unseen"
                 };
+                (Some(entry.clone()), attention_changed)
+            } else {
+                (None, false)
+            };
             let status_persist = if attention_changed {
                 if let Some(record) = locked
                     .registry
@@ -5085,19 +5322,32 @@ fn serve_bridge(
             } else {
                 None
             };
-            if let Some(surface) = updated {
-                broadcast_tab_status(&locked, &surface)?;
-                for client in locked
+            let delivery = updated.map(|surface| {
+                let clients = locked
                     .clients
                     .values()
                     .filter(|client| client.viewed_tab == tab_id)
-                {
-                    client
-                        .peer
-                        .offer_surface(wire::frame("surface", None, surface.clone())?);
-                }
+                    .map(|client| {
+                        (
+                            client.peer.clone(),
+                            client.structured_surface,
+                            client.view_generation,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                (surface, clients)
+            });
+            if let Some((surface, _)) = delivery.as_ref() {
+                broadcast_tab_status(&locked, surface)?;
             }
             drop(locked);
+            if let Some((surface, clients)) = delivery {
+                for (client, structured, generation) in clients {
+                    let surface =
+                        surface_for_client(surface.as_ref().clone(), structured, generation)?;
+                    client.offer_surface(wire::frame("surface", None, surface)?);
+                }
+            }
             if let Some(delay) = status_persist {
                 persist_status_after(state.clone(), tab_id.clone(), delay);
             }
@@ -5349,7 +5599,7 @@ fn serve_bridge(
             },
         );
     let fallback_surface = locked.surfaces.get_mut(&tab_id).map(|surface| {
-        surface.status = fallback_status;
+        Arc::make_mut(surface).status = fallback_status;
         surface.clone()
     });
     if let Some(surface) = fallback_surface.as_ref() {
@@ -5378,6 +5628,48 @@ pub fn encoded_bridge_token(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn retained_surface(incarnation: u64, revision: u64, bytes: &[u8]) -> Surface {
+        Surface {
+            tab_id: "tab".into(),
+            incarnation,
+            revision,
+            request_generation: 0,
+            bytes: bytes.to_vec(),
+            structured: None,
+            status: "idle".into(),
+            accent: None,
+            stale: false,
+            modes: None,
+            cursor: None,
+        }
+    }
+
+    #[test]
+    fn holder_surface_identity_rejects_stale_or_mutated_equal_revisions() {
+        let existing = retained_surface(2, 9, b"current");
+        assert!(accepts_holder_surface(None, &existing));
+        assert!(accepts_holder_surface(
+            Some(&existing),
+            &retained_surface(2, 10, b"next")
+        ));
+        assert!(accepts_holder_surface(
+            Some(&existing),
+            &retained_surface(3, 1, b"restart")
+        ));
+        assert!(!accepts_holder_surface(
+            Some(&existing),
+            &retained_surface(2, 8, b"old")
+        ));
+        assert!(!accepts_holder_surface(
+            Some(&existing),
+            &retained_surface(2, 9, b"different")
+        ));
+        let mut metadata = existing.clone();
+        metadata.status = "working".into();
+        metadata.accent = Some("blue".into());
+        assert!(accepts_holder_surface(Some(&existing), &metadata));
+    }
 
     #[test]
     fn welcome_advertises_the_owned_route_bridge() {

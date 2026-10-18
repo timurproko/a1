@@ -23,6 +23,13 @@ const log = std.log.scoped(.stream_terminal);
 /// a Terminal and updates the Terminal state.
 pub const Stream = stream.Stream(Handler);
 
+/// Why DEC synchronized-output mode changed while processing one parser action.
+pub const SynchronizedOutputBoundary = enum {
+    begin,
+    end,
+    reset,
+};
+
 /// A stream handler that updates terminal state. By default, it is
 /// readonly in the sense that it only updates terminal state and ignores
 /// all other sequences that require a response or otherwise have side
@@ -50,6 +57,11 @@ pub const Handler = struct {
     default_cursor: bool = true,
     default_cursor_style: Screen.CursorStyle = .block,
     default_cursor_blink: bool = false,
+
+    /// Set by the parser action that changes synchronized-output mode and consumed by embedders
+    /// immediately after that action. This distinguishes an explicit close from a terminal reset
+    /// without introducing a second control-sequence parser.
+    synchronized_output_boundary: ?SynchronizedOutputBoundary = null,
 
     pub const Effects = struct {
         /// Called when the terminal needs to write data back to the pty,
@@ -136,6 +148,11 @@ pub const Handler = struct {
 
     pub fn deinit(self: *Handler) void {
         self.apc_handler.deinit();
+    }
+
+    pub fn takeSynchronizedOutputBoundary(self: *Handler) ?SynchronizedOutputBoundary {
+        defer self.synchronized_output_boundary = null;
+        return self.synchronized_output_boundary;
     }
 
     pub fn vt(
@@ -266,7 +283,11 @@ pub const Handler = struct {
             .active_status_display => self.terminal.status_display = value,
             .decaln => try self.terminal.decaln(),
             .full_reset => {
+                const synchronized = self.terminal.modes.get(.synchronized_output);
                 self.terminal.fullReset();
+                if (synchronized and !self.terminal.modes.get(.synchronized_output)) {
+                    self.synchronized_output_boundary = .reset;
+                }
                 self.default_cursor = true;
                 self.terminal.modes.set(.cursor_blinking, self.default_cursor_blink);
                 self.terminal.screens.active.cursor.cursor_style = self.default_cursor_style;
@@ -576,8 +597,16 @@ pub const Handler = struct {
     }
 
     fn setMode(self: *Handler, mode: modes.Mode, enabled: bool) !void {
+        const synchronized_before = if (mode == .synchronized_output)
+            self.terminal.modes.get(.synchronized_output)
+        else
+            false;
+
         // Set the mode on the terminal
         self.terminal.modes.set(mode, enabled);
+        if (mode == .synchronized_output and synchronized_before != enabled) {
+            self.synchronized_output_boundary = if (enabled) .begin else .end;
+        }
 
         // Some modes require additional processing
         switch (mode) {
