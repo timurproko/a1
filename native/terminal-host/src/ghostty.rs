@@ -2514,20 +2514,30 @@ mod retained_tests {
     }
 
     #[test]
-    fn native_control_parser_ignores_control_like_string_payloads() {
+    fn native_control_parser_ignores_control_like_valid_string_payloads() {
         let mut terminal = GhosttyTerminal::new(8, 2).expect("terminal");
         let mut found = Vec::new();
+        feed_boundaries(&mut terminal, b"\x1b]0;[?2026h-not-a-mode\x07", &mut found);
         feed_boundaries(
             &mut terminal,
-            b"\x1b]0;\x1b[?2026hnot-a-mode\x07",
-            &mut found,
-        );
-        feed_boundaries(
-            &mut terminal,
-            b"\x1bPpayload\x07\x1b[?2026hstill-dcs\x1b\\",
+            b"\x1bPpayload[?2026h-still-dcs\x1b\\",
             &mut found,
         );
         assert!(found.is_empty());
+    }
+
+    #[test]
+    fn native_control_parser_owns_malformed_string_abort_semantics() {
+        let mut terminal = GhosttyTerminal::new(8, 2).expect("terminal");
+        let mut found = Vec::new();
+        // ESC aborts OSC before `[` begins a CSI sequence. A raw string scanner would disagree;
+        // the native parser correctly treats the following DECSET as synchronized output.
+        feed_boundaries(
+            &mut terminal,
+            b"\x1b]0;unterminated\x1b[?2026hinside",
+            &mut found,
+        );
+        assert_eq!(found, [SynchronizedOutputBoundary::Begin]);
     }
 
     #[test]

@@ -2439,7 +2439,7 @@ test "vt write stops at every synchronized output transition" {
     }, boundaries[0..boundary_count]);
 }
 
-test "vt write boundary parser ignores control-like string payloads" {
+test "vt write boundary parser ignores control-like valid string payloads" {
     var t: Terminal = null;
     try testing.expectEqual(Result.success, new(
         &lib.alloc.test_allocator,
@@ -2448,7 +2448,7 @@ test "vt write boundary parser ignores control-like string payloads" {
     ));
     defer free(t);
 
-    const input = "\x1b]0;\x1b[?2026hnot-a-mode\x07plain";
+    const input = "\x1b]0;[?2026h-not-a-mode\x07\x1bPpayload[?2026h-still-dcs\x1b\\";
     var consumed: usize = 0;
     var boundary: VtBoundary = .none;
     try testing.expectEqual(Result.success, vt_write_until_sync_boundary(
@@ -2460,6 +2460,29 @@ test "vt write boundary parser ignores control-like string payloads" {
     ));
     try testing.expectEqual(input.len, consumed);
     try testing.expectEqual(VtBoundary.none, boundary);
+}
+
+test "vt write boundary parser owns malformed string abort semantics" {
+    var t: Terminal = null;
+    try testing.expectEqual(Result.success, new(
+        &lib.alloc.test_allocator,
+        &t,
+        .{ .cols = 80, .rows = 24, .max_scrollback = 0 },
+    ));
+    defer free(t);
+
+    const input = "\x1b]0;unterminated\x1b[?2026hinside";
+    var consumed: usize = 0;
+    var boundary: VtBoundary = .none;
+    try testing.expectEqual(Result.success, vt_write_until_sync_boundary(
+        t,
+        input.ptr,
+        input.len,
+        &consumed,
+        &boundary,
+    ));
+    try testing.expect(consumed < input.len);
+    try testing.expectEqual(VtBoundary.synchronized_output_begin, boundary);
 }
 
 test "set write_pty callback" {
