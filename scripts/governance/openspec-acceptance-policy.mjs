@@ -191,7 +191,7 @@ export function assertManualAcceptanceMerge(pull, permission, events) {
   return { kind: "manual", actor: decision.actor };
 }
 
-/** Version 3 accepts either direct manual integration or native auto-merge personally armed for the final head. */
+/** Version 3 accepts direct authorized-human integration, including a requested agent invocation, or human-armed native auto-merge. */
 export function assertVersion3AcceptanceMerge(pull, permission, events) {
   const decision = assertMergeEvent(pull, permission, events);
   const active = activeAutoMergeEvent(pull, events, decision.mergeIndex);
