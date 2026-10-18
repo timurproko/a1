@@ -30,6 +30,7 @@ struct ProgressRecord<'a> {
     role: &'static str,
     stage: &'static str,
     pid: u32,
+    process_instance: &'a str,
     timestamp_unix_us: u64,
     clock_error_us: u32,
     sequence: u64,
@@ -46,6 +47,7 @@ struct ProgressRecord<'a> {
 
 struct ObservationSink {
     run_id: String,
+    process_instance: String,
     sender: mpsc::SyncSender<Vec<u8>>,
     state: Mutex<ObservationState>,
 }
@@ -77,6 +79,7 @@ pub fn observe(role: &'static str, stage: &'static str, metadata: ProgressMetada
         role,
         stage,
         pid: std::process::id(),
+        process_instance: &sink.process_instance,
         timestamp_unix_us: timestamp_unix_us(),
         // Rationale: SystemTime is the common cross-process clock. One millisecond is a conservative bound
         // for wall-clock quantization and scheduler delay at the call boundary.
@@ -101,16 +104,38 @@ pub fn observe(role: &'static str, stage: &'static str, metadata: ProgressMetada
     }
 }
 
+/// Protocol: configure a fixed holder from its authenticated launch environment. Detached
+/// resident launch clears ambient state, so the holder copies only this payload-free route.
+pub fn configure_from_launch_environment(environment: &[(String, String)]) {
+    let Some(directory) = environment.iter().find_map(|(name, value)| {
+        (name == OBSERVATION_DIRECTORY_ENV).then(|| PathBuf::from(value))
+    }) else {
+        return;
+    };
+    let Some(run_id) = environment
+        .iter()
+        .find_map(|(name, value)| (name == OBSERVATION_RUN_ENV).then(|| value.clone()))
+    else {
+        return;
+    };
+    let _ = SINK.set(start_sink_at(directory, run_id));
+}
+
 fn start_sink() -> Option<ObservationSink> {
     let directory = std::env::var_os(OBSERVATION_DIRECTORY_ENV).map(PathBuf::from)?;
     let run_id = std::env::var(OBSERVATION_RUN_ENV).ok()?;
+    start_sink_at(directory, run_id)
+}
+
+fn start_sink_at(directory: PathBuf, run_id: String) -> Option<ObservationSink> {
     if run_id.is_empty() || run_id.len() > 128 {
         return None;
     }
     if create_dir_all(&directory).is_err() {
         return None;
     }
-    let path = directory.join(format!("native-{}.jsonl", std::process::id()));
+    let process_instance = format!("{}-{:016x}", std::process::id(), rand::random::<u64>());
+    let path = directory.join(format!("native-{process_instance}.jsonl"));
     let (sender, receiver) = mpsc::sync_channel::<Vec<u8>>(OBSERVATION_QUEUE_CAPACITY);
     thread::Builder::new()
         .name("resident-progress-observer".into())
@@ -132,6 +157,7 @@ fn start_sink() -> Option<ObservationSink> {
         .ok()?;
     Some(ObservationSink {
         run_id,
+        process_instance,
         sender,
         state: Mutex::new(ObservationState::default()),
     })
@@ -158,6 +184,7 @@ mod tests {
             role: "holder",
             stage: "holder-commit",
             pid: 7,
+            process_instance: "7-instance",
             timestamp_unix_us: 10,
             clock_error_us: 1_000,
             sequence: 2,

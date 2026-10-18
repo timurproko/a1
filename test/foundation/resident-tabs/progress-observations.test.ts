@@ -15,6 +15,7 @@ function record(overrides: Partial<ProgressObservation> & Pick<ProgressObservati
     runId: RUN,
     role: overrides.stage.startsWith("engine") || overrides.stage.startsWith("child") ? "child" : "holder",
     pid: overrides.pid ?? 10,
+    processInstance: overrides.processInstance ?? `process-${overrides.pid ?? 10}`,
     clockErrorUs: 1_000,
     sequence: overrides.sequence ?? 1,
     incarnation: 1,
@@ -105,6 +106,14 @@ describe("resident progress observations", () => {
       expect.stringContaining("duplicate or reordered process sequence"),
       expect.stringContaining("process clock moved backwards"),
     ]));
+  });
+
+  it("keeps recycled process ids distinct by process instance", () => {
+    const first = record({ stage: "outer-paint", tabId: "tab-a", timestampUnixUs: 2_000,
+      pid: 4, processInstance: "process-first", sequence: 1 });
+    const recycled = record({ stage: "outer-paint", tabId: "tab-b", timestampUnixUs: 2_100,
+      pid: 4, processInstance: "process-second", sequence: 1 });
+    expect(validateProgressObservations([first, recycled], RUN)).toEqual([]);
   });
 
   it("retains at least forty matched per-tab latency samples and exposes missing samples", () => {

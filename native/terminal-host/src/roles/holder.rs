@@ -542,6 +542,7 @@ fn run_holder(
     config: HolderLaunchConfig,
     respawned: bool,
 ) -> Result<(), String> {
+    progress_observation::configure_from_launch_environment(&config.environment);
     crate::fault_injection::install(&config.server.fault_environment);
     crate::fault_injection::validate_environment()?;
     let profile_token = crate::endpoint::endpoint_token(Path::new(&config.server.profile))

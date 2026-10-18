@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
@@ -24,6 +25,7 @@ interface ProgressRecord extends ProgressFields {
   readonly role: "child";
   readonly stage: "engine-delivery" | "child-render-write";
   readonly pid: number;
+  readonly processInstance: string;
   readonly timestampUnixUs: number;
   readonly clockErrorUs: number;
   readonly sequence: number;
@@ -42,6 +44,7 @@ class ResidentProgressObserver implements ResidentProgressObserverPort {
   readonly #runId: string;
   readonly #tabId: string;
   readonly #incarnation: number;
+  readonly #processInstance: string;
   readonly #path: string;
   #sequence = 0;
   #engineSequence = 0;
@@ -55,7 +58,8 @@ class ResidentProgressObserver implements ResidentProgressObserverPort {
     this.#runId = runId;
     this.#tabId = tabId;
     this.#incarnation = incarnation;
-    this.#path = join(directory, `child-${process.pid}.jsonl`);
+    this.#processInstance = `${process.pid}-${randomUUID()}`;
+    this.#path = join(directory, `child-${this.#processInstance}.jsonl`);
   }
 
   engineDelivery(event: unknown): void {
@@ -86,6 +90,7 @@ class ResidentProgressObserver implements ResidentProgressObserverPort {
       role: "child",
       stage,
       pid: process.pid,
+      processInstance: this.#processInstance,
       timestampUnixUs: Math.round((performance.timeOrigin + performance.now()) * 1_000),
       // Rationale: timeOrigin is calibrated to the Unix epoch; retain a conservative cross-process error.
       clockErrorUs: 1_000,

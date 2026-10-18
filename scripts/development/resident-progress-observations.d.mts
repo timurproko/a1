@@ -4,6 +4,7 @@ export interface ProgressObservation {
   readonly role: string;
   readonly stage: string;
   readonly pid: number;
+  readonly processInstance: string;
   readonly timestampUnixUs: number;
   readonly clockErrorUs: number;
   readonly sequence: number;

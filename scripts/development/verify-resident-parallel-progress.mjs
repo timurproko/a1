@@ -244,6 +244,14 @@ async function selectTab(attach, context, index, tabId) {
   await delay(50);
 }
 
+function stopAttach(attach) {
+  if (process.platform === "win32") {
+    spawnSync("taskkill", ["/pid", String(attach.terminal.pid), "/t", "/f"], { stdio: "ignore", windowsHide: true });
+    return;
+  }
+  attach.terminal.kill();
+}
+
 async function createRealTabs(host, context) {
   await waitUntil(() => JSON.parse(internal(host, context, "tab-list")).tabs.length === 1, "first real A1 tab");
   for (let count = 2; count <= 3; count += 1) {
@@ -258,10 +266,11 @@ async function createRealTabs(host, context) {
     const { records } = await currentObservations(context);
     return tabIds.every(tabId => records.some(record => record.stage === "child-render-write" && record.tabId === tabId));
   }, "all real A1 child renderers");
+  await delay(500);
   return tabIds;
 }
 
-async function runScenarios(attach, host, context, provider, tabIds) {
+async function runScenarios(attach, context, provider, tabIds) {
   const results = [];
   let scenarioNumber = 0;
   for (const order of firstOrders) {
@@ -278,6 +287,7 @@ async function runScenarios(attach, host, context, provider, tabIds) {
         await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
         attach.terminal.write(`scenario=${id};tab=${tabIndex}`);
         attach.terminal.write("\r");
+        await waitUntil(() => scenario.requests.has(tabIndex), `${id} tab ${tabIndex + 1} provider request`);
       }
       await withTimeout(scenario.requestsReady, `${id} provider requests`);
       await selectTab(attach, context, initialView, tabIds[initialView]);
@@ -287,7 +297,12 @@ async function runScenarios(attach, host, context, provider, tabIds) {
       for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
         const checkpoint = attach.checkpoint();
         await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
-        await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C11`, `${id} tab ${tabIndex + 1} partial surface`, checkpoint);
+        try {
+          await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C11`, `${id} tab ${tabIndex + 1} partial surface`, checkpoint);
+        } catch (error) {
+          await writeFile(join(context.root, "attach-debug.bin"), attach.output(), "latin1");
+          throw error;
+        }
       }
       await delay(350);
       const barrierUnixUs = epochUs();
@@ -338,6 +353,8 @@ async function collect(host) {
   context.environment = {
     ...process.env,
     TERM: "xterm-256color",
+    HOME: context.profile,
+    USERPROFILE: context.profile,
     [tabsEndpointEnvironment]: context.endpoint,
     [productIdentity.environment.profileHome]: context.profile,
     [productIdentity.environment.configDir]: context.profile,
@@ -357,6 +374,10 @@ async function collect(host) {
       id: "parallel-stream", name: "Parallel stream fixture", contextWindow: 32_000, maxTokens: 4_096,
     }] } },
   }, null, 2)}\n`);
+  const fallbackAgentDir = join(context.profile, ".pi", "agent");
+  await mkdir(fallbackAgentDir, { recursive: true });
+  await writeFile(join(context.profile, "auth.json"), "{}\n");
+  await writeFile(join(fallbackAgentDir, "auth.json"), "{}\n");
   await writeFile(join(context.profile, "settings.json"), `${JSON.stringify({
     defaultProvider: "fixture",
     defaultModel: "parallel-stream",
@@ -372,7 +393,7 @@ async function collect(host) {
     });
     attach = await createAttach(spawn, host, context);
     tabIds = await createRealTabs(host, context);
-    const scenarios = await runScenarios(attach, host, context, provider, tabIds);
+    const scenarios = await runScenarios(attach, context, provider, tabIds);
     const observations = await currentObservations(context);
     const latency = progressLatencyReport(observations.records, tabIds);
     const faults = [...observations.faults, ...latency.faults];
@@ -397,9 +418,14 @@ async function collect(host) {
     };
   } finally {
     for (const tabId of tabIds) {
-      try { internal(host, context, "tab-close", ["--tab", tabId]); } catch {}
+      try { internal(host, context, "tab-close", ["--tab", tabId]); } catch { /* Invariant: a tab that already exited needs no cleanup. */ }
     }
-    try { attach?.terminal.kill(); } catch {}
+    try { if (attach !== undefined) stopAttach(attach); } catch { /* Invariant: cleanup never masks the fixture result. */ }
+    try {
+      run(host, ["tabs", "host-stop", "--profile", context.profile, "--data-dir", context.data, "--runtime-dir", context.runtime], {
+        env: context.environment,
+      });
+    } catch { /* Invariant: a host that already stopped leaves nothing to stop. */ }
     await provider.stop();
   }
 }

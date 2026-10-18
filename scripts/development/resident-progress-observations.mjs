@@ -27,7 +27,8 @@ export async function readProgressObservations(directory, runId) {
     }
   }
   faults.push(...validateProgressObservations(records, runId));
-  records.sort((left, right) => left.timestampUnixUs - right.timestampUnixUs || left.pid - right.pid || left.sequence - right.sequence);
+  records.sort((left, right) => left.timestampUnixUs - right.timestampUnixUs
+    || String(left.processInstance).localeCompare(String(right.processInstance)) || left.sequence - right.sequence);
   return { records, faults, files: names };
 }
 
@@ -42,6 +43,7 @@ export function validateProgressObservations(records, runId) {
     if (record?.runId !== runId) faults.push(`${label}: wrong run id`);
     if (!stageSet.has(record?.stage)) faults.push(`${label}: invalid stage`);
     if (!Number.isSafeInteger(record?.pid) || record.pid <= 0) faults.push(`${label}: invalid pid`);
+    if (typeof record?.processInstance !== "string" || !/^[a-z0-9-]{1,128}$/iu.test(record.processInstance)) faults.push(`${label}: invalid process instance`);
     if (!Number.isSafeInteger(record?.sequence) || record.sequence <= 0) faults.push(`${label}: invalid sequence`);
     if (!Number.isSafeInteger(record?.timestampUnixUs) || record.timestampUnixUs <= 0) faults.push(`${label}: invalid timestamp`);
     if (!Number.isSafeInteger(record?.clockErrorUs) || record.clockErrorUs < 0 || record.clockErrorUs > 5_000) faults.push(`${label}: invalid clock error`);
@@ -52,7 +54,7 @@ export function validateProgressObservations(records, runId) {
     for (const key of Object.keys(record ?? {})) {
       if (sensitiveKeys.test(key) && key !== "eventKind") faults.push(`${label}: payload-bearing field ${key}`);
     }
-    const processKey = `${record?.role ?? "unknown"}:${record?.pid ?? "unknown"}`;
+    const processKey = `${record?.role ?? "unknown"}:${record?.pid ?? "unknown"}:${record?.processInstance ?? "unknown"}`;
     const previousSequence = priorSequence.get(processKey) ?? 0;
     if (record?.sequence <= previousSequence) faults.push(`${label}: duplicate or reordered process sequence`);
     priorSequence.set(processKey, record?.sequence);

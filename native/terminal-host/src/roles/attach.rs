@@ -1393,6 +1393,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut latest_modes: Option<TerminalModes> = None;
     let mut latest_cursor: Option<FinalCursor> = None;
     let mut bindings = TabBindings::load(options.profile);
+    // Concurrency: a shortcut can arrive after the server created a tab but before its registry
+    // snapshot reaches this client; retain the requested ordinal until that snapshot arrives.
+    let mut pending_jump = None::<(usize, u64)>;
     macro_rules! send_input {
         ($event:expr, $legacy:expr) => {{
             match channel.outgoing($event, $legacy) {
@@ -1703,7 +1706,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "tab.list" => {
                     let (_, list): (_, TabList) = wire::body(&payload)?;
-                    registry_revision = list.revision;
+                    let list_revision = list.revision;
+                    registry_revision = list_revision;
                     let previous_tabs = view.staged_tabs().unwrap_or(&tabs);
                     let pending_name_confirmed =
                         pending_manual_name.as_ref().is_some_and(|(id, name)| {
@@ -1744,6 +1748,16 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         .collect::<Vec<_>>();
                     if pending_name_confirmed {
                         pending_manual_name = None;
+                    }
+                    if let Some((index, requested_revision)) = pending_jump {
+                        if let Some(tab_id) = next_tabs.get(index).map(|tab| tab.id.clone()) {
+                            pending_jump = None;
+                            request_view!(tab_id);
+                        } else if list_revision > requested_revision {
+                            // Protocol: a newer authoritative registry still lacking the ordinal
+                            // proves this was not an in-flight tab creation.
+                            pending_jump = None;
+                        }
                     }
                     let outcome = view.topology(&tabs, next_tabs, |candidates| {
                         close_fallback
@@ -2222,7 +2236,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 .unwrap_or(1)
                                 .saturating_sub(1);
                             if let Some(tab) = tabs.get(index) {
+                                pending_jump = None;
                                 request_view!(tab.id.clone());
+                            } else {
+                                pending_jump = Some((index, registry_revision));
                             }
                         }
                         _ => {}
