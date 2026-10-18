@@ -53,8 +53,8 @@ export async function selectLocalTerminalVt({
   if (explicit) return resolve(explicit);
   await expectedTerminalVtIdentity(platform, architecture);
   const artifactPlatform = `${platform}-${architecture}`;
-  // CI exports the library it linked for its three native validation targets. Intel macOS has no
-  // native lane, so its local build uses the pinned Zig toolchain instead of inventing an artifact.
+  // Platform: CI exports the library it linked for its three native validation targets. Intel macOS
+  // has no native lane, so its local build uses the pinned Zig toolchain instead of inventing an artifact.
   if (!TERMINAL_VT_PLATFORMS.includes(artifactPlatform)) return null;
   const expected = await expectedTerminalVtIdentity(platform, architecture);
   if (existsSync(cache) && await terminalVtCacheCompatible(cache, expected)) return cache;
@@ -68,8 +68,8 @@ export async function selectLocalTerminalVt({
 
 export async function prepareLocalTerminalHost(options = {}) {
   const environment = options.environment ?? process.env;
-  // CI owns its pinned Zig setup and release artifact assembly. Local Windows builds instead link
-  // a manifest-verified library so the quarantined Zig package fetch never runs on the workstation.
+  // Rationale: CI owns its pinned Zig setup and release artifact assembly. Local Windows builds
+  // instead link a manifest-verified library so the quarantined Zig package fetch never runs on the workstation.
   const prebuilt = environment.CI ? null : await selectLocalTerminalVt({ ...options, environment });
   if (prebuilt === null && !environment.CI) requirePinnedZig(environment);
   const childEnvironment = prebuilt === null ? { ...environment } : {
