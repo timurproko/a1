@@ -67,16 +67,23 @@ fn main() {
         // selection; appending the archive as a raw link argument creates weak-symbol conflicts.
         println!("cargo:rustc-link-lib=static=ghostty-vt-static");
     } else {
-        // Rationale: the explicit static kind selects the archive even when Zig emits an adjacent shared
-        // library. Cargo then propagates the native dependency to lib tests as well as the addon
-        // and role host; target-only link args do not reach the generated library test harness.
+        // Rationale: Cargo must propagate one native dependency to generated lib tests, the addon,
+        // and the role host. Give the archive a unique stem so an adjacent Ghostty shared library
+        // cannot satisfy the link request on macOS; target-only link args miss generated lib tests.
         let archive = lib_dir.join("libghostty-vt.a");
         assert!(
             archive.is_file(),
             "libghostty-vt archive is unavailable: {}",
             archive.display()
         );
-        println!("cargo:rustc-link-lib=static=ghostty-vt");
+        let rust_archive = lib_dir.join("libghostty-vt-rust-static.a");
+        fs::copy(&archive, &rust_archive).unwrap_or_else(|error| {
+            panic!(
+                "prepare libghostty-vt Rust archive {}: {error}",
+                rust_archive.display()
+            )
+        });
+        println!("cargo:rustc-link-lib=static=ghostty-vt-rust-static");
     }
     if target.contains("apple") && env::var_os("CARGO_FEATURE_NODE_ADDON").is_some() {
         // Platform: Node resolves N-API symbols when loading an addon on Darwin.

@@ -693,7 +693,9 @@ jobs:
         if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
         shell: bash
         working-directory: native/terminal-host/vendor/libghostty-vt
-        run: zig build test-lib-vt -Demit-lib-vt -Doptimize=ReleaseFast -Dsimd=true -Demit-xcframework=false -Dversion-string=$(cat VERSION)
+        # Rationale: Ghostty's module tests intentionally assert the Debug-only slow-runtime-safety contract;
+        # the exact ReleaseFast library remains built and linked by the following validation scope.
+        run: zig build test-lib-vt -Demit-lib-vt -Doptimize=Debug -Dsimd=true -Demit-xcframework=false -Dversion-string=$(cat VERSION)
       - name: Run exact selected scopes
         if: steps.job-selection.outputs.active == 'true'
         shell: bash
