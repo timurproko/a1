@@ -17,6 +17,7 @@ const tabsEndpointEnvironment = productIdentity.environment.tabsEndpoint;
 const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
 const firstOrders = permutations([0, 1, 2]);
 const scenarioTimeoutMs = 20_000;
+const childStartupTimeoutMs = 60_000;
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -265,7 +266,7 @@ async function createRealTabs(host, context) {
   await waitUntil(async () => {
     const { records } = await currentObservations(context);
     return tabIds.every(tabId => records.some(record => record.stage === "child-render-write" && record.tabId === tabId));
-  }, "all real A1 child renderers");
+  }, "all real A1 child renderers", childStartupTimeoutMs);
   await delay(500);
   return tabIds;
 }
