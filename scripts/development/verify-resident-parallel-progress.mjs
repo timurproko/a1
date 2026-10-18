@@ -652,12 +652,13 @@ async function compareDirectAndResidentTemporalState(spawnPty, host, attach, con
   }
   const directSnapshot = addon.inspectTerminalSnapshot(Buffer.from(directOutput, "utf8"), 100, 29, 0, marker);
   const residentSnapshot = addon.inspectTerminalSnapshot(Buffer.from(residentOutput, "utf8"), 100, 30, 1, marker);
-  // Platform: ConPTY consumes mouse tracking before node-pty exposes captured output, while the
-  // Windows attach terminates kitty negotiation rather than forwarding child flags. Native mode
-  // contracts cover those owned boundaries; all observable semantic modes remain compared here.
-  const transportHiddenFields = process.platform === "win32"
-    ? ["mouseTracking", "kittyKeyboardFlags"]
-    : [];
+  // Protocol: attach terminates kitty negotiation and selects its own outer flags rather than
+  // forwarding the child's value. ConPTY also consumes mouse tracking before capture. Native mode
+  // and input-fidelity contracts cover those owned boundaries; observable child modes stay here.
+  const transportHiddenFields = [
+    "kittyKeyboardFlags",
+    ...(process.platform === "win32" ? ["mouseTracking"] : []),
+  ];
   const comparableFields = [
     "markerDigest", "markerOccurrences", "cursorColumn", "cursorRow", "cursorVisible", "cursorStyle",
     "cursorBlink", "mouseTracking", "focusEvents", "bracketedPaste", "kittyKeyboardFlags", "alternateScreen",
