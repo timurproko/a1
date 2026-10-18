@@ -751,6 +751,7 @@ fn run_holder(
         .checked_sub(Duration::from_secs(5))
         .unwrap_or_else(std::time::Instant::now);
     let mut child_exited = false;
+    let mut child_exit_report: Option<HolderExit> = None;
     let (reconnect_tx, reconnect_rx) =
         mpsc::sync_channel::<Result<(endpoint::EndpointStream, u64), String>>(1);
     let mut reconnecting = false;
@@ -782,6 +783,13 @@ fn run_holder(
                         revision,
                         "idle",
                     )?);
+                }
+                // Invariant: reconnection runs beside the loop, so the child can exit while no server
+                // is attached or just before the old server's death is observed. The replacement
+                // was admitted with a live child identity and learns of the exit only from this
+                // replay; a server that already handled it matches no record for this incarnation.
+                if let Some(exit) = child_exit_report.as_ref() {
+                    offer_child_exit(&server, &config.tab_id, config.incarnation, exit)?;
                 }
             }
         }
@@ -1330,23 +1338,16 @@ fn run_holder(
                     "crashed",
                 )?);
             }
-            server.offer_control(wire::frame(
-                "holder.snapshot",
-                None,
-                wire::HolderSnapshot {
-                    tab_id: config.tab_id.clone(),
-                    incarnation: config.incarnation,
-                    status: "crashed".into(),
-                },
-            )?)?;
-            server.offer_control(wire::frame(
-                "holder.exit",
-                None,
-                HolderExit {
-                    code: Some(status.exit_code() as i32),
-                    signal: status.signal().map(str::to_owned),
-                },
-            )?)?;
+            let exit = HolderExit {
+                code: Some(status.exit_code() as i32),
+                signal: status.signal().map(str::to_owned),
+            };
+            // Invariant: a disconnected holder's peer may already be closed; the report waits for
+            // the replacement connection instead of being dropped or failing the holder.
+            if server_connected {
+                offer_child_exit(&server, &config.tab_id, config.incarnation, &exit)?;
+            }
+            child_exit_report = Some(exit);
             if shutdown_holder {
                 watchdog.stop();
                 return Ok(());
@@ -1354,6 +1355,38 @@ fn run_holder(
         }
         let _ = wake_rx.recv_timeout(Duration::from_millis(8));
     }
+}
+
+/// The crashed snapshot and exit status that tell a server this incarnation's child ended.
+fn child_exit_frames(
+    tab_id: &str,
+    incarnation: u64,
+    exit: &HolderExit,
+) -> Result<[Vec<u8>; 2], String> {
+    Ok([
+        wire::frame(
+            "holder.snapshot",
+            None,
+            wire::HolderSnapshot {
+                tab_id: tab_id.to_owned(),
+                incarnation,
+                status: "crashed".into(),
+            },
+        )?,
+        wire::frame("holder.exit", None, exit.clone())?,
+    ])
+}
+
+fn offer_child_exit(
+    server: &HolderServerPeer,
+    tab_id: &str,
+    incarnation: u64,
+    exit: &HolderExit,
+) -> Result<(), String> {
+    for frame in child_exit_frames(tab_id, incarnation, exit)? {
+        server.offer_control(frame)?;
+    }
+    Ok(())
 }
 
 fn first_turn_session_id(tab_data_dir: &Path) -> Option<String> {
@@ -1703,6 +1736,30 @@ mod tests {
             .stderr(std::process::Stdio::null())
             .spawn()
             .expect("spawn shell")
+    }
+
+    #[test]
+    fn child_exit_report_is_a_crashed_snapshot_followed_by_its_exit_status() {
+        let exit = HolderExit {
+            code: Some(137),
+            signal: Some("SIGKILL".into()),
+        };
+        let [snapshot, status] = child_exit_frames("tab-a", 3, &exit).unwrap();
+        assert_eq!(
+            wire::kind(&snapshot[4..]).unwrap().message_type,
+            "holder.snapshot"
+        );
+        let (_, snapshot): (_, wire::HolderSnapshot) = wire::body(&snapshot[4..]).unwrap();
+        assert_eq!(snapshot.tab_id, "tab-a");
+        assert_eq!(snapshot.incarnation, 3);
+        assert_eq!(snapshot.status, "crashed");
+        assert_eq!(
+            wire::kind(&status[4..]).unwrap().message_type,
+            "holder.exit"
+        );
+        let (_, replayed): (_, HolderExit) = wire::body(&status[4..]).unwrap();
+        assert_eq!(replayed.code, Some(137));
+        assert_eq!(replayed.signal.as_deref(), Some("SIGKILL"));
     }
 
     #[test]
