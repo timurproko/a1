@@ -19,10 +19,11 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(config).toContain("Omit routine validation-command listings");
     expect(config).toContain("explicit plan approval and an implementation request");
     expect(config).toContain("same worktree, branch, history, and draft PR");
-    expect(config).toContain("Agents, Apps, bots, merge queue, and repository automation never arm or invoke auto-merge");
+    expect(config).toContain("Agents never infer or independently choose implementation integration");
     expect(config).toContain("personally arms native auto-merge");
+    expect(config).toContain("explicit request for the active agent to merge the identified currently eligible head");
     expect(config).toContain("A new head, changed body list, changed manifest, or advanced target baseline requires renewed validation");
-    expect(config).toContain("manual merge of the exact validated head or personal native auto-merge arm");
+    expect(config).toContain("Each exact maintainer choice accepts the listed scenarios for that unchanged candidate");
     expect(config).toContain("one to ten concise implementation-specific behavior-and-result bullets");
     expect(config).toContain("no acceptance, spec-only, or archive-only follow-up PR");
     expect(config).toContain("Standalone existing-spec/OpenSpec revisions and ordinary docs retain this route");
@@ -80,10 +81,38 @@ describe("repository-owned atomic delivery guidance", () => {
       expect(guidance).toContain("Never mark an implementation pull request ready yourself");
       expect(guidance).toContain("report the concrete blocker");
       expect(guidance).toContain("GitHub check counts");
+      expect(guidance).toContain("explicitly asks in the current interaction");
+      expect(guidance).toContain("expected-head enforcement");
+      expect(guidance).toContain("never wait, watch, arm auto-merge");
       expect(guidance).not.toContain("gh pr ready");
     }
     for (const path of ["openspec/config.yaml", ".agents/skills/change-delivery/SKILL.md", "docs/openspec-archive-automation.md"])
       expect(await readFile(path, "utf8")).toMatch(/agents never mark implementation (?:pull requests|PRs) ready/i);
+  });
+
+  it("allows only an explicitly requested current exact-head agent merge", async () => {
+    const agents = await readFile("AGENTS.md", "utf8");
+    const skill = await readFile(".agents/skills/change-delivery/SKILL.md", "utf8");
+    const config = await readFile("openspec/config.yaml", "utf8");
+    const runbook = await readFile("docs/openspec-archive-automation.md", "utf8");
+    for (const guidance of [agents, skill, config, runbook]) {
+      expect(guidance).toMatch(/explicit(?:ly)? asks? in the current interaction|explicitly asking the active agent/i);
+      expect(guidance).toMatch(/exact head|exact-head/i);
+      expect(guidance).toContain("Development validation required");
+      expect(guidance).toMatch(/positive mergeability|positively mergeable|MERGEABLE/);
+      expect(guidance).toMatch(/authorized human [`]?User[`]?|human `User`/);
+      expect(guidance).toMatch(/protected squash merge|protected-squash-merge/);
+      expect(guidance).toMatch(/expected-head/);
+      expect(guidance).toMatch(/fresh (?:maintainer )?request|fresh (?:integration )?decision/);
+      expect(guidance).toMatch(/never wait|never waits|do not poll/i);
+      expect(guidance).toMatch(/bypass protection|no `--admin`/);
+    }
+    expect(runbook).toContain("`MERGEABLE`/`CLEAN`");
+    expect(runbook).toContain("write, maintain, or admin repository permission");
+    expect(runbook).toContain("gh pr merge <pr> --repo <owner>/<repository> --squash --match-head-commit <exact-head-sha>");
+    expect(runbook).toContain("Do not poll, watch, arm native auto-merge, or retain the instruction for later");
+    expect(config).toContain("use an App/bot/workflow credential or merge queue");
+    expect(skill).toContain("Never infer integration authority");
   });
 
   it("requires the owning session to link its exact worktree before delivery edits", async () => {
@@ -161,6 +190,8 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(skill).toContain("`local-worktree-cleanup.mjs sweep --repo <primary>`");
     expect(skill).toContain("`local-worktree-cleanup.mjs handoff`");
     expect(skill).toContain("A `BEHIND` PR: merge `origin/develop`, push, re-finalize, hand off again.");
+    expect(skill).toContain("explicitly asks in the current interaction");
+    expect(skill).toContain("one protected squash merge with expected-head enforcement");
     expect(skill).toContain("`discard --confirm-closed-unmerged`");
     expect(skill).toContain("PR closure alone authorizes nothing");
     expect(skill).toContain("never delete those ad hoc");
@@ -244,8 +275,9 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(docs).toContain("## Automation");
     expect(docs).toContain("## Acceptance");
     expect(docs).toContain("plain bullets");
-    expect(docs).toContain("manual merge or personal native auto-merge arm");
+    expect(docs).toContain("direct merge, personal native auto-merge arm, or explicit request for the active agent");
     expect(docs).toContain("never creates or exercises that arm");
+    expect(docs).toContain("### Maintainer-requested agent merge");
     expect(docs).toContain("acceptance PR, archive PR");
     expect(docs).toContain("standalone spec/docs PR retaining auto-merge");
     expect(docs).toContain("## Legacy delivery");
