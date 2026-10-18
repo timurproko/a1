@@ -391,7 +391,9 @@ Every queue, buffer, file, and collection the resident roles keep has a declared
 | Bound | Cap | Enforced in | Test |
 |---|---|---|---|
 | Protocol frame | 2 MiB, nesting 64, 65,536 collection items | `native/terminal-host/src/protocol.rs`, `src/foundation/resident-tabs/protocol.ts` | `refuses_oversized_header_before_payload`; `refuses a frame header past 2 MiB before buffering its payload`, `refuses nesting past 64 levels`, `refuses a collection past 65,536 items` |
+| Structured complete surface | 512 × 256 geometry, 65,536 cells, 4,096 styles, 4,096 links, and 8 MiB decoded state | `protocol.rs` `StructuredSurface::validate` | `structured_surfaces_fail_closed_on_dimensions_indexes_and_control_injection` |
 | Input per message and holder input queue | 1 MiB | `protocol.rs`, `core/holder.rs`, `roles/holder.rs` | `over_capacity_paste_delivers_no_prefix` |
+| Holder PTY ingress and work round | 64 × 16 KiB lossless chunks; at most 256 KiB or 2 ms before yielding | `roles/holder.rs` | `verify-resident-parallel-progress.mjs` concurrent and stopped-stage cases |
 | Per-client control lane | 1,024 frames and 4 MiB | `roles/server.rs` | `control_lane_is_bounded_by_frames_and_bytes` |
 | Per-client render slot | one pending full surface; a newer one replaces it | `roles/server.rs` `Peer::offer_surface` | `stalled_client_gets_one_full_current_surface` |
 | Concurrent endpoint connections | 128 | `roles/server.rs` `admit_connection` | `connections_beyond_the_cap_are_refused_and_released_slots_are_reused` |
@@ -407,7 +409,9 @@ Every queue, buffer, file, and collection the resident roles keep has a declared
 | Session reconciliation read | 64 MiB | `src/foundation/resident-tabs/recovery.ts` | `refuses to scan a session past the 64 MiB reconciliation cap` |
 | Release-hold report | 32 uncertainty reasons; 1 MiB read | `roles/release_holds.rs`, `release-holds.ts`, `bounded-host-command.ts` | `uncertainty_reasons_stay_within_their_cap`; `fails a release-hold report that pushes past its byte cap without returning a prefix` |
 | Maintenance exchange | 5 s reads, 60 s stops, 4 MiB report | `roles/maintain.rs`, `maintenance.ts`, `bounded-host-command.ts` | `fails a maintenance report that pushes past its byte cap without returning a prefix`, `kills and rejects a command that outlives its deadline` |
-| Attach client | no outbound queue: input is written synchronously in chunks of at most 1 MiB; inbound frames at most 2 MiB; one coalesced wake | `roles/attach.rs` | `refuses_oversized_header_before_payload`, `over_capacity_paste_delivers_no_prefix` |
+| Attach server ingress | reader queue 64 frames/4 MiB; execution queue 8 frames/4 MiB; at most 64 KiB or 2 ms before yielding | `roles/attach.rs` | `verify-resident-parallel-progress.mjs` slow-receipt and switching cases |
+| Attach input | 1,024 parsed events; semantic input is emitted in at most 1 MiB chunks and target-bound while a view/create is pending | `roles/attach.rs` | `deferred_input_is_atomic_bounded_and_bound_to_the_requested_tab` |
+| Outer presentation writer | one replaceable complete desired state, 8 control/effect frames, and 4 MiB effect bytes | `roles/attach.rs` `OuterWriter` | `presentation_is_one_ordered_synchronized_write`; `verify-resident-parallel-progress.mjs` paused-sink case |
 | Doctor bundle | 25 MiB, oldest log generations dropped first | `src/foundation/resident-tabs/doctor.ts` | `drops the oldest log generations first to stay within its cap` |
 
 ### 13. Packaging and certification
