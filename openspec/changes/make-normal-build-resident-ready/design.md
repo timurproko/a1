@@ -30,7 +30,7 @@ This reverses the current naming mismatch: the default command means a runnable 
 
 ### 2. Local terminal-library selection is deterministic and fail-closed
 
-A development helper will select the current platform, accept an explicit `TERMINAL_HOST_PREBUILT_VT`, otherwise reuse the ignored `.artifacts/terminal-vt` cache when its manifest is compatible, and otherwise fetch a CI-published artifact. It will prefer the current branch and may fall back to the default branch only when the existing manifest identity proves compatibility with the local vendored contract. The Rust build remains the final authority: a mismatched manifest or changed bytes fails without invoking Zig.
+A development helper will select the current platform, accept an explicit `TERMINAL_HOST_PREBUILT_VT`, otherwise reuse the ignored `.artifacts/terminal-vt` cache when its manifest is compatible, and otherwise fetch a CI-published artifact. It will prefer the current branch and then only branches whose pull requests GitHub reports merged into `develop`; open and closed-unmerged branch artifacts are never fallback inputs. The existing manifest identity must match the local vendored contract, and the Rust build remains the final authority: a mismatched manifest or changed bytes fails without invoking Zig.
 
 The helper will set `TERMINAL_HOST_LOCAL_BUILD=1` and `TERMINAL_HOST_PREBUILT_VT` only for the bounded terminal-host child build. CI builds continue ignoring these local overrides and use their pinned Zig setup.
 
