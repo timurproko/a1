@@ -504,6 +504,7 @@ async function runInteractionPressureVariant(attach, context, provider, tabIds) 
   try {
     await withTimeout(scenario.partialReady, `${id} unfinished partials`);
     const sizes = [[96, 28], [104, 32], [100, 30]];
+    const appliedSizes = [];
     let switches = 0;
     let overlays = 0;
     const geometryGenerations = { ...geometryBaselines };
@@ -514,7 +515,9 @@ async function runInteractionPressureVariant(attach, context, provider, tabIds) 
         await selectTab(attach, context, tabIndex, tabId);
         const priorGeneration = geometryGenerations[tabId];
         const resizedUnixUs = epochUs();
-        attach.terminal.resize(columns, rows);
+        const tabColumns = columns + tabIndex;
+        attach.terminal.resize(tabColumns, rows);
+        appliedSizes.push({ tabId, columns: tabColumns, rows });
         await waitUntil(async () => {
           const current = await currentObservations(context);
           const committed = current.records
@@ -557,7 +560,7 @@ async function runInteractionPressureVariant(attach, context, provider, tabIds) 
         `${id} tab ${tabIndex + 1} final output`, finalOutputCheckpoint);
     }
     const report = { id, switches, navigationInputs: switches * 2, overlays,
-      sizes: sizes.map(([columns, rows]) => ({ columns, rows })), perViewResizeCommits: true,
+      sizes: appliedSizes, perViewResizeCommits: true,
       partialOutput: true, finalOutput: true, faults, passed: faults.length === 0 };
     if (!report.passed) throw new Error(faults.join("; "));
     return report;
