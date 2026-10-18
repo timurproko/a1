@@ -373,14 +373,16 @@ async function runScenarios(attach, context, provider, tabIds) {
       }
       await withTimeout(scenario.requestsReady, `${id} provider requests`);
       await selectTab(attach, context, initialView, tabIds[initialView]);
+      const partialOutputCheckpoint = attach.checkpoint();
       scenario.start();
       await withTimeout(scenario.partialReady, `${id} unfinished partials`);
       // Invariant: leave each turn unfinished while every retained surface is activated and painted.
+      // The initially viewed tab can finish its paint before this loop and selecting it is a no-op,
+      // so all checks use the checkpoint immediately before partial output became possible.
       for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
-        const checkpoint = attach.checkpoint();
         await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
         try {
-          await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C11`, `${id} tab ${tabIndex + 1} partial surface`, checkpoint);
+          await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C11`, `${id} tab ${tabIndex + 1} partial surface`, partialOutputCheckpoint);
         } catch (error) {
           await writeFile(join(context.root, "attach-debug.bin"), attach.output(), "latin1");
           throw error;
@@ -441,6 +443,7 @@ async function runSlowTransportVariant(attach, context, provider, tabIds) {
     attach.terminal.pause();
     paused = true;
     const pressuredUnixUs = epochUs();
+    const finalOutputCheckpoint = attach.checkpoint();
     scenario.release();
     await delay(900);
     const pressured = await currentObservations(context);
@@ -468,10 +471,9 @@ async function runSlowTransportVariant(attach, context, provider, tabIds) {
     await rm(delayMarker, { force: true });
     await withTimeout(scenario.completed, `${id} completion`);
     for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
-      const checkpoint = attach.checkpoint();
       await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
       await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C59`,
-        `${id} tab ${tabIndex + 1} final output`, checkpoint);
+        `${id} tab ${tabIndex + 1} final output`, finalOutputCheckpoint);
     }
     const report = { id, socketReceiptDelayMs: 35, outerSinkPauseMs: 900, delayedTabId,
       delayedReceipts, hiddenProgress, finalOutput: true, faults, passed: faults.length === 0 };
@@ -494,6 +496,7 @@ async function runInteractionPressureVariant(attach, context, provider, tabIds) 
     .filter(record => record.tabId === tabId && record.stage === "holder-commit")
     .map(record => record.geometryGeneration))]));
   const startedUnixUs = epochUs();
+  const partialOutputCheckpoint = attach.checkpoint();
   scenario.start();
   try {
     await withTimeout(scenario.partialReady, `${id} unfinished partials`);
@@ -520,10 +523,9 @@ async function runInteractionPressureVariant(attach, context, provider, tabIds) 
         && record.geometryGeneration > geometryBaselines[tabId]));
     }, `${id} per-view resize commits`);
     for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
-      const checkpoint = attach.checkpoint();
       await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
       await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C11`,
-        `${id} tab ${tabIndex + 1} partial output`, checkpoint);
+        `${id} tab ${tabIndex + 1} partial output`, partialOutputCheckpoint);
     }
     const partial = await currentObservations(context);
     const faults = [...partial.faults];
@@ -534,13 +536,13 @@ async function runInteractionPressureVariant(attach, context, provider, tabIds) 
         faults.push(`${id}: ${tabId} was not painted during interaction pressure`);
       }
     }
+    const finalOutputCheckpoint = attach.checkpoint();
     scenario.release();
     await withTimeout(scenario.completed, `${id} completion`);
     for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
-      const checkpoint = attach.checkpoint();
       await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
       await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C59`,
-        `${id} tab ${tabIndex + 1} final output`, checkpoint);
+        `${id} tab ${tabIndex + 1} final output`, finalOutputCheckpoint);
     }
     const report = { id, switches, navigationInputs: switches * 2, overlays,
       sizes: sizes.map(([columns, rows]) => ({ columns, rows })), perViewResizeCommits: true,
@@ -592,10 +594,9 @@ async function runDetachedReconnectVariant(spawnPty, host, attach, context, prov
     }, `${id} replacement server`, childStartupTimeoutMs);
     const replacement = await createAttach(spawnPty, host, context);
     for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
-      const checkpoint = replacement.checkpoint();
       await selectTab(replacement, context, tabIndex, tabIds[tabIndex]);
       await replacement.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C59`,
-        `${id} tab ${tabIndex + 1} retained final output`, checkpoint);
+        `${id} tab ${tabIndex + 1} retained final output`);
     }
     const replacementStatus = tabsCommand(host, context, "host-status");
     return {
@@ -713,14 +714,14 @@ async function characterizeFragmentedTransactions(attach, context, provider, tab
   const marker = join(context.controls, `${targetTabId}.child-render-fragments.enable`);
   await writeFile(marker, "", { mode: 0o600 });
   const startedUnixUs = epochUs();
+  const partialOutputCheckpoint = attach.checkpoint();
   scenario.start();
   try {
     await withTimeout(scenario.partialReady, `${id} unfinished partials`);
     for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
-      const checkpoint = attach.checkpoint();
       await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
       await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C11`,
-        `${id} tab ${tabIndex + 1} partial output`, checkpoint);
+        `${id} tab ${tabIndex + 1} partial output`, partialOutputCheckpoint);
     }
     await waitUntil(async () => {
       const current = await currentObservations(context);
@@ -758,6 +759,7 @@ async function characterizeFragmentedTransactions(attach, context, provider, tab
     };
     if (!result.passed) throw new Error(`${id}: fragmented synchronized output did not commit coherently`);
     await rm(marker, { force: true });
+    const finalOutputCheckpoint = attach.checkpoint();
     scenario.release();
     await withTimeout(scenario.completed, `${id} completion`);
     await waitUntil(async () => {
@@ -767,10 +769,9 @@ async function characterizeFragmentedTransactions(attach, context, provider, tab
         && record.timestampUnixUs >= barrierUnixUs));
     }, `${id} engine settlement`);
     for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
-      const checkpoint = attach.checkpoint();
       await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
       await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C59`,
-        `${id} tab ${tabIndex + 1} final output`, checkpoint);
+        `${id} tab ${tabIndex + 1} final output`, finalOutputCheckpoint);
     }
     return { ...result, finalOutput: true };
   } finally {
@@ -823,6 +824,7 @@ async function runStoppedStageControls(attach, context, provider, tabIds) {
       if (marker !== null) await rm(marker, { force: true });
       scenario.releaseEngine();
       await withTimeout(scenario.partialReady, `${id} released partials`);
+      const finalOutputCheckpoint = attach.checkpoint();
       scenario.release();
       await withTimeout(scenario.completed, `${id} completion`);
       await waitUntil(async () => {
@@ -832,10 +834,9 @@ async function runStoppedStageControls(attach, context, provider, tabIds) {
           && record.timestampUnixUs >= barrierUnixUs));
       }, `${id} engine settlement`);
       for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
-        const checkpoint = attach.checkpoint();
         await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
         await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C59`,
-          `${id} tab ${tabIndex + 1} final output`, checkpoint);
+          `${id} tab ${tabIndex + 1} final output`, finalOutputCheckpoint);
       }
       controls.push({ ...result, finalOutput: true });
     } finally {
