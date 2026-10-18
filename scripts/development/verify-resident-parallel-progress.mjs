@@ -434,6 +434,9 @@ async function runSlowTransportVariant(attach, context, provider, tabIds) {
   const delayedTabId = tabIds[1];
   const delayMarker = join(context.controls, `${delayedTabId}.attach-receipt.delay`);
   const scenario = await beginThreeTabScenario(attach, context, provider, tabIds, id, [2, 0, 1]);
+  // Invariant: attach receives surfaces for the viewed tab. Select the delayed target before the
+  // provider starts so its receipt is guaranteed by topology rather than a stale-selection race.
+  await selectTab(attach, context, 1, delayedTabId);
   const startedUnixUs = epochUs();
   await writeFile(delayMarker, "", { mode: 0o600 });
   scenario.start();
