@@ -60,7 +60,7 @@ Parallel progress and solo-like interaction behavior are equal highest-priority 
 ## 8. Pre-ready delivery bookkeeping (finish before the last PR marker)
 
 - [x] 8.1 Update architecture/evidence documentation with actual representation, lane bounds, compatibility, reproduction boundary and limitations; dispose of substantive gaps without calling unrun checks successes or weakening the approved behavior.
-- [ ] 8.2 Complete the outcome map below, reconcile and push current `origin/develop`, run quick typecheck/touched checks and strict OpenSpec validation, add plain Acceptance, and pass `check-delivery-body.mjs --final` before checking the final Implementation item. Do not mark ready manually or require future CI/manual results in committed tasks.
+- [x] 8.2 Complete the outcome map below, reconcile and push current `origin/develop`, run quick typecheck/touched checks and strict OpenSpec validation, add plain Acceptance, and pass `check-delivery-body.mjs --final` before checking the final Implementation item. Do not mark ready manually or require future CI/manual results in committed tasks.
 
 ## Outcome completion map
 
