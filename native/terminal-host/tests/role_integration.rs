@@ -548,8 +548,8 @@ setInterval(() => {}, 1000);
     std::thread::sleep(Duration::from_millis(500));
     attach.write(b"\x1ba");
     std::thread::sleep(Duration::from_millis(300));
-    // A new-tab request owns input until its target exists. Explicitly returning to the existing
-    // viewed tab retargets subsequent input without waiting behind the occupied lifecycle slot.
+    // Invariant: a new-tab request owns input until its target exists. Explicitly returning to the
+    // existing viewed tab retargets subsequent input without waiting behind the lifecycle slot.
     attach.write(b"\x1b1");
     std::thread::sleep(Duration::from_millis(300));
 
