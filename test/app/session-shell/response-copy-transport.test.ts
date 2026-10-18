@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createResponseCopyExecutor, hasAsyncClipboardOutput, responseCopyDestination } from "../../../src/app/session-shell/response-copy-transport.js";
+import { createResponseCopyExecutor, responseCopyDestination } from "../../../src/app/session-shell/response-copy-transport.js";
 import { MAX_COPY_BYTES, MAX_COPY_CONTROL_BYTES } from "../../../src/app/session-shell/response-copy-protocol.js";
 import type { SelectionCopySnapshot } from "../../../src/ui/components/selection-copy.js";
 
@@ -10,14 +10,8 @@ function source(text = "hello 界 e\u0301 👩‍💻"): SelectionCopySnapshot {
 
 /** Real isolated preparation, but a fake terminal: these tests never write the system clipboard. */
 describe("response-copy transport isolation", () => {
-  it.each([{}, { SSH_TTY: "tty" }, { SSH_CONNECTION: "remote" }, { TMUX: "mux" }, { STY: "screen" }, { WSL_DISTRO_NAME: "distro" }])("routes destination for %j", env => {
+  it.each([{}, { A1_TAB_ID: "resident" }, { SSH_TTY: "tty" }, { SSH_CONNECTION: "remote" }, { TMUX: "mux" }, { STY: "screen" }, { WSL_DISTRO_NAME: "distro" }])("routes destination for %j", env => {
     expect(responseCopyDestination(env)).toBe(Object.keys(env).length ? "terminal" : "native");
-  });
-
-  it("rejects inherently synchronous terminal output", () => {
-    expect(hasAsyncClipboardOutput("linux", { isTTY: true } as NodeJS.WriteStream)).toBe(false);
-    expect(hasAsyncClipboardOutput("win32", { isTTY: false } as NodeJS.WriteStream)).toBe(false);
-    expect(hasAsyncClipboardOutput("win32", { isTTY: true } as NodeJS.WriteStream)).toBe(true);
   });
 
   it("prepares exact Unicode in a cold child while parent timers progress", async () => {
@@ -147,12 +141,52 @@ describe("response-copy transport isolation", () => {
     } finally { clearInterval(timer); job.cancel(); }
   }, 15_000);
 
-  it.each(["ordinary native text", "denied", "x".repeat(MAX_COPY_BYTES)])("uses isolated native delivery without emitting terminal controls (case %#)", async text => {
+  it.each(["ordinary native text", "transient", "x".repeat(MAX_COPY_BYTES)])("uses isolated native retry without emitting terminal controls (case %#)", async text => {
     const submit = vi.fn(async () => {});
     const job = createResponseCopyExecutor({ destination: "native", terminal: { submit },
       helper: new URL("./response-copy-native-fixture.mjs", import.meta.url) })(source(text), () => {});
-    await expect(job.result).resolves.toMatchObject(text === "denied" ? { outcome: "failed", failure: "denied" } : { outcome: "delivered" });
+    await expect(job.result).resolves.toMatchObject({ outcome: "delivered" });
     expect(submit).not.toHaveBeenCalled();
+  }, 15_000);
+
+  it.each([
+    { text: "denied", helper: "response-copy-native-fixture.mjs" },
+    { text: "platform fallback", helper: "response-copy-platform-fixture.mjs" },
+  ])("uses a cancelable platform writer after the native route stops ($text)", async ({ text, helper }) => {
+    const submit = vi.fn(async () => {}), platformWriteText = vi.fn(async () => true);
+    const transports: string[] = [];
+    const job = createResponseCopyExecutor({ destination: "native", terminal: { submit }, platformWriteText,
+      helper: new URL(`./${helper}`, import.meta.url) })(source(text), (_phase, _bytes, transport) => transports.push(transport));
+    await expect(job.result).resolves.toMatchObject({ outcome: "delivered" });
+    expect(platformWriteText).toHaveBeenCalledWith(text, expect.any(AbortSignal));
+    expect(transports).toContain("platform");
+    expect(submit).not.toHaveBeenCalled();
+  }, 15_000);
+
+  it("cancels an in-flight platform writer before any terminal fallback", async () => {
+    const submit = vi.fn(async () => {});
+    let admitted!: () => void;
+    const started = new Promise<void>(resolve => { admitted = resolve; });
+    const platformWriteText = vi.fn(async (_text: string, signal: AbortSignal) => {
+      admitted();
+      return new Promise<boolean>(resolve => signal.addEventListener("abort", () => resolve(false), { once: true }));
+    });
+    const job = createResponseCopyExecutor({ destination: "native", terminal: { submit }, platformWriteText,
+      helper: new URL("./response-copy-native-fixture.mjs", import.meta.url) })(source("denied"), () => {});
+    await started;
+    job.cancel();
+    await expect(job.result).resolves.toEqual({ outcome: "canceled" });
+    await job.stopped;
+    expect(submit).not.toHaveBeenCalled();
+  }, 15_000);
+
+  it("uses the certified terminal route only after local writers stop", async () => {
+    const submit = vi.fn(async () => {}), platformWriteText = vi.fn(async () => false);
+    const job = createResponseCopyExecutor({ destination: "native", terminal: { submit }, platformWriteText,
+      helper: new URL("./response-copy-native-fixture.mjs", import.meta.url) })(source("platform-denied"), () => {});
+    await expect(job.result).resolves.toMatchObject({ outcome: "submitted-unverified" });
+    expect(platformWriteText).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenCalledOnce();
   }, 15_000);
 
   it("kills a genuinely blocked executor and fences exit before completing cancellation", async () => {
