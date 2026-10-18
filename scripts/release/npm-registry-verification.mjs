@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 const REGISTRY = "https://registry.npmjs.org";
-export const REGISTRY_VERIFICATION_ATTEMPTS = 60;
+export const REGISTRY_VERIFICATION_ATTEMPTS = 180;
 export const REGISTRY_VERIFICATION_INTERVAL_MS = 10_000;
 
 function requiredString(value, label) {

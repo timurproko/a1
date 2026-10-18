@@ -1,4 +1,4 @@
-export const REGISTRY_VERIFICATION_ATTEMPTS: 60;
+export const REGISTRY_VERIFICATION_ATTEMPTS: 180;
 export const REGISTRY_VERIFICATION_INTERVAL_MS: 10000;
 
 export interface RegistryPackageIdentity {
