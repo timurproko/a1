@@ -127,6 +127,8 @@ fn link_prebuilt(prebuilt: &Path, identity: &VtIdentity) -> PathBuf {
     }
 }
 
+const ZIG_BUILD_ATTEMPTS: u32 = 3;
+
 fn build_library(
     source: &Path,
     target: &str,
@@ -152,18 +154,35 @@ fn build_library(
     }
 
     let zig = env::var("ZIG").unwrap_or_else(|_| "zig".to_owned());
-    let status = Command::new(zig)
-        .current_dir(&work)
-        .arg("build")
-        .arg("-Demit-lib-vt")
-        .arg("-Doptimize=ReleaseFast")
-        .arg("-Dsimd=true")
-        .arg(format!("-Dtarget={}", zig_target.triple))
-        .arg(format!("-Dcpu={}", zig_target.cpu))
-        .arg(format!("-Dversion-string={version}"))
-        .arg("-Demit-xcframework=false")
-        .status()
-        .expect("run Zig for libghostty-vt");
+    // Rationale: Zig fetches pinned dependency archives from upstream hosts, and one interrupted
+    // download fails the whole native build. Fetched packages stay in Zig's global cache, so a
+    // bounded retry repeats only what failed; a genuine build error fails on every attempt.
+    let mut status = None;
+    for attempt in 1..=ZIG_BUILD_ATTEMPTS {
+        let result = Command::new(&zig)
+            .current_dir(&work)
+            .arg("build")
+            .arg("-Demit-lib-vt")
+            .arg("-Doptimize=ReleaseFast")
+            .arg("-Dsimd=true")
+            .arg(format!("-Dtarget={}", zig_target.triple))
+            .arg(format!("-Dcpu={}", zig_target.cpu))
+            .arg(format!("-Dversion-string={version}"))
+            .arg("-Demit-xcframework=false")
+            .status()
+            .expect("run Zig for libghostty-vt");
+        if result.success() {
+            status = Some(result);
+            break;
+        }
+        eprintln!("libghostty-vt Zig build attempt {attempt} failed: {result}");
+        if attempt < ZIG_BUILD_ATTEMPTS {
+            std::thread::sleep(std::time::Duration::from_secs(10 * u64::from(attempt)));
+        } else {
+            status = Some(result);
+        }
+    }
+    let status = status.expect("Zig build attempts ran");
     assert!(status.success(), "libghostty-vt Zig build failed: {status}");
 
     let lib_dir = work.join("zig-out/lib");
