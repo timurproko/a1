@@ -259,10 +259,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:102:37",
+      "id": "docs/architecture/toolchain.md:104:37",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 102,
+      "line": 104,
       "column": 37,
       "value": "ADDONE",
       "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
@@ -276,10 +276,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:102:59",
+      "id": "docs/architecture/toolchain.md:104:59",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 102,
+      "line": 104,
       "column": 59,
       "value": "AddOne",
       "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
@@ -293,10 +293,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:102:68",
+      "id": "docs/architecture/toolchain.md:104:68",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 102,
+      "line": 104,
       "column": 68,
       "value": "addone",
       "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
@@ -310,10 +310,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:102:255",
+      "id": "docs/architecture/toolchain.md:104:255",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 102,
+      "line": 104,
       "column": 255,
       "value": "AddOne",
       "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
@@ -327,10 +327,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:102:284",
+      "id": "docs/architecture/toolchain.md:104:284",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 102,
+      "line": 104,
       "column": 284,
       "value": "AddOne",
       "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
@@ -344,10 +344,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:102:319",
+      "id": "docs/architecture/toolchain.md:104:319",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 102,
+      "line": 104,
       "column": 319,
       "value": "addone",
       "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
@@ -361,10 +361,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:106:39",
+      "id": "docs/architecture/toolchain.md:108:39",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 106,
+      "line": 108,
       "column": 39,
       "value": "addone",
       "context": "The obsolete npm package `@timurproko/addone` is deprecated with the registry message `This package is obsolete. Use @timurproko/a1 instead.` It is not a current identity, compatibility channel, or rollback source. Whole-package unpublic...",
@@ -1266,5 +1266,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-10-17T16:22:46.264Z"
+  "generatedAt": "2026-10-18T14:41:38.857Z"
 }

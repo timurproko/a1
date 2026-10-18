@@ -15,14 +15,14 @@ export const PREFLIGHT_BUILD_RECEIPT = ".artifacts/validation/receipts/build.jso
 /** The exact pinned OpenSpec validator the Documentation governance validation job runs. */
 export const PREFLIGHT_OPENSPEC = "@fission-ai/openspec@1.8.0";
 
-/** The ordered preflight steps a local impact selection requires; nothing here builds the native host. */
+/** The ordered preflight steps a local impact selection requires; its core build leaves native-host certification to selected CI. */
 export function preflightSteps(selection) {
   const ordinary = !selection.docsOnly && !selection.versionOnly;
   const steps = [];
   if (ordinary) {
-    // Invariant: the core job type-checks `bin/` against `dist/` after `npm ci` ran `prepare`, the
-    // ordinary build, and records the receipt that lets its test tier reuse that build.
-    steps.push({ id: "build", executable: "npm", arguments: ["run", "build"] });
+    // Invariant: the core job type-checks `bin/` against `dist/` after `npm ci` ran the same core
+    // build, and records the receipt that lets its test tier reuse that build without native duplication.
+    steps.push({ id: "build", executable: "npm", arguments: ["run", "build:core"] });
     steps.push({ id: "build-receipt", executable: "node", arguments: ["scripts/release/record-validation-prerequisite.mjs", "build"] });
     steps.push({ id: "typecheck", executable: "npm", arguments: ["run", "typecheck"] });
     steps.push({ id: "architecture", executable: "npm", arguments: ["run", "check:architecture"] });

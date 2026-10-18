@@ -13,7 +13,8 @@ export const TERMINAL_HOST_ADDON = "terminal-host.node";
 export const TERMINAL_HOST_ENTRY = "dist/foundation/resident-tabs/host-entry.js";
 export const TERMINAL_HOST_GENERATION = 1;
 const PROTOCOL_VERSION = 1;
-const GHOSTTY_VT_COMMIT = "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3";
+export const GHOSTTY_VT_COMMIT = "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3";
+export const PINNED_ZIG_VERSION = "0.15.2";
 
 /** Checks the version JSON exported by a built terminal host addon. */
 export function verifyVersionReport(report, crateVersion) {
@@ -85,6 +86,13 @@ function run(executable, arguments_, verbose, options = {}) {
   return result.stdout?.toString() ?? "";
 }
 
+/** Report the pinned producer version when a local build links verified CI bytes and never invokes Zig. */
+export function terminalHostZigVersion(environment, observe) {
+  const localPrebuilt = environment.TERMINAL_HOST_LOCAL_BUILD === "1"
+    && !environment.CI && Boolean(environment.TERMINAL_HOST_PREBUILT_VT?.trim());
+  return localPrebuilt ? `${PINNED_ZIG_VERSION} (prebuilt terminal library)` : observe();
+}
+
 async function main() {
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   const target = resolveBuildTarget({ argv: process.argv.slice(2) });
@@ -138,7 +146,7 @@ async function main() {
     notices: await fileRecord(resolve(targetDirectory, NOTICES_FILENAME)),
     cargoLockSha256: createHash("sha256").update(await readFile(resolve(repositoryRoot, "native/terminal-host/Cargo.lock"))).digest("hex"),
     rustVersion: run(process.env.RUSTC ?? "rustc", ["--version"], false, { encoding: "utf8" }).trim(),
-    zigVersion: run(process.env.ZIG ?? "zig", ["version"], false, { encoding: "utf8" }).trim(),
+    zigVersion: terminalHostZigVersion(process.env, () => run(process.env.ZIG ?? "zig", ["version"], false, { encoding: "utf8" }).trim()),
     builtAt: new Date().toISOString(),
     identityCheck: observed.check,
   });
