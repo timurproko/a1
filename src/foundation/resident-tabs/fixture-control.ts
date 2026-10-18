@@ -16,8 +16,7 @@ export function residentFixtureControl(
 ): ResidentFixtureControlPort | null {
   const directory = environment[PRODUCT_IDENTITY.environment.residentFixtureControlDir];
   if (environment === process.env) delete process.env[PRODUCT_IDENTITY.environment.residentFixtureControlDir];
-  // Invariant: the launch context erases the bridge tab identity before UI composition, so the fixture
-  // binds to the observed run identity, which the observer captures once per process in any call order.
+  // Invariant: launch erases the bridge tab identity; the observer retains the observed one.
   const tabId = residentProgressObserver(environment)?.tabId;
   if (!directory || !tabId || !/^[a-z0-9-]{1,128}$/iu.test(tabId)) return null;
   return {
