@@ -17,6 +17,8 @@ interface ProgressFields {
   readonly eventKind?: string;
   readonly frameId?: number;
   readonly renderCause?: string;
+  readonly fragmentCount?: number;
+  readonly transactionKind?: "synchronized-output" | "ordinary";
 }
 
 interface ProgressRecord extends ProgressFields {
@@ -36,7 +38,8 @@ interface ProgressRecord extends ProgressFields {
 
 export interface ResidentProgressObserverPort {
   engineDelivery(event: unknown): void;
-  childRenderWrite(bytes: number, frameId?: number, renderCause?: string): void;
+  childRenderWrite(bytes: number, fragments: number, transaction: "synchronized-output" | "ordinary",
+    frameId?: number, renderCause?: string): void;
 }
 
 class ResidentProgressObserver implements ResidentProgressObserverPort {
@@ -71,11 +74,14 @@ class ResidentProgressObserver implements ResidentProgressObserverPort {
     });
   }
 
-  childRenderWrite(bytes: number, frameId?: number, renderCause?: string): void {
+  childRenderWrite(bytes: number, fragments: number, transaction: "synchronized-output" | "ordinary",
+    frameId?: number, renderCause?: string): void {
     this.#observe("child-render-write", {
       eventSequence: this.#engineSequence,
       bytes,
       count: 1,
+      fragmentCount: fragments,
+      transactionKind: transaction,
       ...(frameId === undefined ? {} : { frameId }),
       ...(renderCause === undefined ? {} : { renderCause }),
     });

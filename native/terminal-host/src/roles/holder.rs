@@ -208,6 +208,9 @@ fn commit_retained_surface(
     commit_kind: SurfaceCommitKind,
     status: &str,
 ) -> Result<(), String> {
+    if crate::roles::fixture_control::stopped("holder-commit", tab_id) {
+        return Ok(());
+    }
     let next = match CommittedSurface::capture(terminal, builder, geometry_generation, commit_kind)
     {
         Ok(next) => next,
@@ -239,6 +242,11 @@ fn commit_retained_surface(
             revision: *revision,
             geometry_generation,
             count: 1,
+            event_kind: Some(match commit_kind {
+                SurfaceCommitKind::Complete => "complete",
+                SurfaceCommitKind::Recovery => "recovery",
+                SurfaceCommitKind::ProvisionalGeometry => "provisional-geometry",
+            }),
             ..ProgressMetadata::default()
         },
     );

@@ -19,6 +19,8 @@ export interface ProgressObservation {
   readonly eventKind?: string;
   readonly frameId?: number;
   readonly renderCause?: string;
+  readonly fragmentCount?: number;
+  readonly transactionKind?: "synchronized-output" | "ordinary";
 }
 
 export const progressObservationSchema: "a1-resident-progress-observation-v1";
@@ -43,6 +45,22 @@ export function evaluateProgressScenario(records: readonly ProgressObservation[]
   faults: string[];
   byTab: Record<string, Record<string, number>>;
   observedFirstOrder: string[];
+};
+export function evaluateStoppedStageControl(records: readonly ProgressObservation[], control: {
+  readonly id: string;
+  readonly stage: "engine-delivery" | "child-render-write" | "holder-commit" | "outer-paint";
+  readonly targetTabId: string;
+  readonly tabIds: readonly string[];
+  readonly startedUnixUs: number;
+  readonly barrierUnixUs: number;
+  readonly engineBaselines: Readonly<Record<string, number>>;
+}): {
+  id: string;
+  stage: string;
+  targetTabId: string;
+  passed: boolean;
+  faults: string[];
+  counts: Record<string, Record<string, number>>;
 };
 export function progressLatencyReport(records: readonly ProgressObservation[], tabIds: readonly string[]): {
   perTab: Record<string, {

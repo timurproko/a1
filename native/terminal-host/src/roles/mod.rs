@@ -5,6 +5,7 @@ pub mod counters;
 pub mod credentials;
 pub mod diagnostics;
 pub mod entry;
+mod fixture_control;
 pub mod holder;
 pub mod maintain;
 pub mod outer_input;

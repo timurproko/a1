@@ -51,6 +51,12 @@ export function validateProgressObservations(records, runId) {
     if (!Number.isSafeInteger(record?.incarnation) || record.incarnation < 0) faults.push(`${label}: invalid incarnation`);
     if (!Number.isSafeInteger(record?.lostBefore) || record.lostBefore < 0) faults.push(`${label}: invalid loss count`);
     else if (record.lostBefore > 0) faults.push(`${label}: ${record.lostBefore} observations lost before this record`);
+    if (record?.fragmentCount !== undefined
+      && (!Number.isSafeInteger(record.fragmentCount) || record.fragmentCount < 1 || record.fragmentCount > 4_096)) {
+      faults.push(`${label}: invalid fragment count`);
+    }
+    if (record?.transactionKind !== undefined
+      && !["synchronized-output", "ordinary"].includes(record.transactionKind)) faults.push(`${label}: invalid transaction kind`);
     for (const key of Object.keys(record ?? {})) {
       if (sensitiveKeys.test(key) && key !== "eventKind") faults.push(`${label}: payload-bearing field ${key}`);
     }
@@ -111,6 +117,49 @@ export function evaluateProgressScenario(records, scenario) {
     faults.push(`${scenario.id}: first engine order ${observedOrder.join(",")} did not match ${scenario.expectedFirstOrder.join(",")}`);
   }
   return { id: scenario.id, passed: faults.length === 0, faults, byTab, observedFirstOrder: observedOrder };
+}
+
+export function evaluateStoppedStageControl(records, control) {
+  const faults = [];
+  const interval = records.filter(record => record.timestampUnixUs >= control.startedUnixUs
+    && record.timestampUnixUs <= control.barrierUnixUs && control.tabIds.includes(record.tabId));
+  const counts = Object.fromEntries(control.tabIds.map(tabId => {
+    const tab = interval.filter(record => record.tabId === tabId);
+    return [tabId, {
+      engine: tab.filter(record => record.stage === "engine-delivery" && record.eventKind === "message_update").length,
+      renderer: tab.filter(record => record.stage === "child-render-write"
+        && record.eventSequence > control.engineBaselines[tabId]).length,
+      pty: tab.filter(record => record.stage === "pty-ingest").length,
+      holder: tab.filter(record => record.stage === "holder-commit").length,
+      receipt: tab.filter(record => record.stage === "attach-receipt").length,
+      painter: tab.filter(record => record.stage === "outer-paint").length,
+    }];
+  }));
+  const target = counts[control.targetTabId];
+  if (target === undefined) faults.push(`${control.id}: target tab is absent`);
+  const stoppedField = {
+    "engine-delivery": "engine", "child-render-write": "renderer", "holder-commit": "holder", "outer-paint": "painter",
+  }[control.stage];
+  if (stoppedField === undefined) faults.push(`${control.id}: unsupported stopped stage ${control.stage}`);
+  else if (target?.[stoppedField] !== 0) faults.push(`${control.id}: stopped ${control.stage} still advanced`);
+  const prerequisites = {
+    "engine-delivery": [],
+    "child-render-write": ["engine"],
+    "holder-commit": ["engine", "renderer", "pty"],
+    "outer-paint": ["engine", "renderer", "pty", "holder", "receipt"],
+  }[control.stage] ?? [];
+  for (const field of prerequisites) {
+    const minimum = field === "receipt" ? 1 : 3;
+    if ((target?.[field] ?? 0) < minimum) faults.push(`${control.id}: target prerequisite ${field} did not advance`);
+  }
+  for (const tabId of control.tabIds) {
+    if (tabId === control.targetTabId) continue;
+    for (const field of ["engine", "renderer", "pty", "holder"]) {
+      if (counts[tabId][field] < 3) faults.push(`${control.id}/${tabId}: unaffected ${field} did not advance`);
+    }
+  }
+  return { id: control.id, stage: control.stage, targetTabId: control.targetTabId,
+    passed: faults.length === 0, faults, counts };
 }
 
 export function progressLatencyReport(records, tabIds) {

@@ -20,6 +20,7 @@ pub struct ProgressMetadata<'a> {
     pub geometry_generation: u64,
     pub bytes: usize,
     pub count: usize,
+    pub event_kind: Option<&'a str>,
 }
 
 #[derive(Serialize)]
@@ -42,6 +43,8 @@ struct ProgressRecord<'a> {
     geometry_generation: u64,
     bytes: usize,
     count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    event_kind: Option<&'a str>,
     lost_before: u64,
 }
 
@@ -92,6 +95,7 @@ pub fn observe(role: &'static str, stage: &'static str, metadata: ProgressMetada
         geometry_generation: metadata.geometry_generation,
         bytes: metadata.bytes,
         count: metadata.count,
+        event_kind: metadata.event_kind,
         lost_before,
     };
     let Ok(mut encoded) = serde_json::to_vec(&record) else {
@@ -195,11 +199,13 @@ mod tests {
             geometry_generation: 6,
             bytes: 7,
             count: 1,
+            event_kind: Some("complete"),
             lost_before: 8,
         };
         let value = serde_json::to_value(record).expect("serialize observation");
         assert_eq!(value["stage"], "holder-commit");
         assert_eq!(value["revision"], 5);
+        assert_eq!(value["eventKind"], "complete");
         assert_eq!(value["lostBefore"], 8);
         assert!(value.get("content").is_none());
         assert!(value.get("cells").is_none());

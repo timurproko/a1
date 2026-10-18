@@ -5,8 +5,8 @@ Parallel progress and solo-like interaction behavior are equal highest-priority 
 - [x] 1.1 Reconcile current `origin/develop` and any integrated #794/#795 changes in this branch; record actual source/native/child/cohort identities, map changed owners, and keep fixtures isolated from user profiles, credentials, resident processes, clipboard, and sessions.
 - [x] 1.2 Add a bounded loopback provider/tool scenario through the real configured engine and owned-shell renderer, not a mocked session or counter child; run three unfinished turns with all six first-response permutations crossed with three initial views and a fixture-controlled completion barrier.
 - [x] 1.3 Add opt-in bounded content-free observations for engine delivery, actual child render/write, PTY ingestion, committed holder state, attach receipt, and completed outer paint, with tab/incarnation and causal sequence identity; establish compatible clocks and report observation loss instead of silently discarding samples.
-- [ ] 1.4 Add negative controls isolating one stopped engine, renderer, holder commit, or outer painter; demonstrate stage-specific failure even when other tabs and final output succeed. Do not force `renderNow` in the liveness fixture.
-- [ ] 1.5 Characterize actual built PTY/ConPTY transaction controls and mode changes with fragmented real-A1 writes; classify the live/reproduced stall without asserting that source findings alone prove its cause. Record explicit blockers if the reproduction or native coherence mechanism is unavailable.
+- [x] 1.4 Add negative controls isolating one stopped engine, renderer, holder commit, or outer painter; demonstrate stage-specific failure even when other tabs and final output succeed. Do not force `renderNow` in the liveness fixture.
+- [x] 1.5 Characterize actual built PTY/ConPTY transaction controls and mode changes with fragmented real-A1 writes; classify the live/reproduced stall without asserting that source findings alone prove its cause. Record explicit blockers if the reproduction or native coherence mechanism is unavailable.
 
 ## 2. Native snapshot, identity, and compatibility contracts (outcomes 2–5; prerequisite to representation edits)
 
@@ -31,7 +31,7 @@ Parallel progress and solo-like interaction behavior are equal highest-priority 
 - [x] 4.3 Snapshot small routing/authority records under the server mutex, then encode/share large immutable surfaces outside it; reject stale route/incarnation completions and cover switch/close/restart or delayed lifecycle work during serialization.
 - [x] 4.4 Track per-tab subscriber sets across attach, view change, disconnect, and reconnect; keep metadata/heartbeats independent, unsubscribe only after the last viewer leaves, request a fresh complete commit on selection, and bound stale fallback from the request start rather than each re-offer.
 - [x] 4.5 Isolate blocked socket/stdout writers from input and shared routing; bound queued plus in-flight bytes, acknowledge completed paints before advancing the diff baseline, and cover slow viewer, slow physical sink, partial write, disconnect, and teardown without worker leaks.
-- [ ] 4.6 Repair only the demonstrated engine/admission/render coupling from task 1 with a focused regression; retain existing visibility-independent child scheduling and process/session ownership, including hidden/detached successive pre-settlement content and animation checkpoints.
+- [x] 4.6 Repair only the demonstrated engine/admission/render coupling from task 1 with a focused regression; retain existing visibility-independent child scheduling and process/session ownership, including hidden/detached successive pre-settlement content and animation checkpoints.
 
 ## 5. Incremental composition, activation, and geometry (outcomes 2–4)
 
@@ -39,8 +39,8 @@ Parallel progress and solo-like interaction behavior are equal highest-priority 
 - [x] 5.2 Diff the desired child/strip/overlay composite against the actually painted baseline; equal states produce no body writes, one-row edits do not repaint unchanged transcript, strip-only changes stay strip-only, and overlay dismissal restores the newest underlying content.
 - [x] 5.3 Restrict full paints to initialization, invalid geometry/base, and explicit resync; cover styled trailing blanks, erasure, wide-cell tails, bottom-right wrap, selection, overlay overlap, and skipped visual states. If wire patches become necessary, require explicit matching bases and full resync on gaps before enabling them.
 - [x] 5.4 Carry geometry generation through resize and commit only compatible tab/incarnation/request/revision/geometry; distinguish parser resize/provisional fitting from child repaint, publish idle-child resize without a model token, and preserve controller-owned geometry for differently sized spectators.
-- [ ] 5.5 Preserve coherent prior content during A→B→A switches and shrink→grow races; fence old holder frames and superseded responses, commit target topology/body/overlays/modes/cursor together, and keep the final selected tab updating while its turn remains unfinished.
-- [ ] 5.6 Preserve exactly-once ordered first input through the existing controller boundary; cover cancelled/failed targets, pending key/paste/focus/mouse events, Settings activation, and two-terminal transfer without retargeting input to whichever old body remains visible.
+- [x] 5.5 Preserve coherent prior content during A→B→A switches and shrink→grow races; fence old holder frames and superseded responses, commit target topology/body/overlays/modes/cursor together, and keep the final selected tab updating while its turn remains unfinished.
+- [x] 5.6 Preserve exactly-once ordered first input through the existing controller boundary; cover cancelled/failed targets, pending key/paste/focus/mouse events, Settings activation, and two-terminal transfer without retargeting input to whichever old body remains visible.
 - [x] 5.7 Keep normal child and strip animations live under simultaneous streaming, overlays, and output pressure; assert advancing phases and per-tab maximum gaps rather than only a working glyph.
 
 ## 6. Semantic terminal fidelity and effect safety (outcome 5)
@@ -51,10 +51,10 @@ Parallel progress and solo-like interaction behavior are equal highest-priority 
 
 ## 7. Real-A1 temporal comparison and validation owners (outcome 6)
 
-- [ ] 7.1 Add direct-solo/resident scripts at matching child geometry/capabilities with normal rendering; compare intermediate cells/cursor/styles/modes and inspect every outer transaction for clear/partial-frame artifacts, not just final text or raw ANSI equality.
+- [x] 7.1 Add direct-solo/resident scripts at matching child geometry/capabilities with normal rendering; compare intermediate cells/cursor/styles/modes and inspect every outer transaction for clear/partial-frame artifacts, not just final text or raw ANSI equality.
 - [ ] 7.2 Add named bounded concurrent variants for first-response/view permutations, hidden and detached intervals, slow socket and outer sink, lifecycle/reconnect pressure, repeated switching, input, overlays, and resize; require per-tab partial-content and animation progress before any turn is released to settle.
 - [x] 7.3 Add per-tab matched latency samples, provider/engine-to-render and renderer-to-holder delay, completed-paint timing, animation/worst-gap and write-volume assertions; retain the four p95 budgets, minimum sample counts and independent no-progress deadline from the guide, and reject clock/missing/duplicate/stale-observation faults.
-- [ ] 7.4 Fault-test the integrated harness with frozen/late individual tabs, redundant full repaint, premature transaction publication, lost geometry identity and duplicated effects; incomplete instrumentation, skipped cases, or successful final content must not yield a passing verdict.
+- [x] 7.4 Fault-test the integrated harness with frozen/late individual tabs, redundant full repaint, premature transaction publication, lost geometry identity and duplicated effects; incomplete instrumentation, skipped cases, or successful final content must not yield a passing verdict.
 - [x] 7.5 Wire exact-built real A1 plus native roles into existing validation owners/callers and report uploads; ensure path selection and build prerequisites include new fixtures, preserve existing component tests, and report Windows x64/Linux x64/macOS arm64 separately without inheriting physical or macOS x64 verdicts.
 
 ## 8. Pre-ready delivery bookkeeping (finish before the last PR marker)

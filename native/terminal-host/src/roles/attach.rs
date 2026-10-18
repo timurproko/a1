@@ -1052,14 +1052,24 @@ pub fn child_mouse_row(outer_row: u16) -> Option<u16> {
     outer_row.checked_sub(1)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DeferredInputTarget {
+    Tab(String),
+    NextCreated,
+}
+
 #[derive(Debug, Default)]
 struct DeferredInput {
-    frames: VecDeque<(String, Vec<u8>)>,
+    frames: VecDeque<(DeferredInputTarget, Vec<u8>)>,
     bytes: usize,
 }
 
 impl DeferredInput {
-    fn push(&mut self, target: &str, frames: Vec<Vec<u8>>) -> Result<(), &'static str> {
+    fn push(
+        &mut self,
+        target: DeferredInputTarget,
+        frames: Vec<Vec<u8>>,
+    ) -> Result<(), &'static str> {
         let added_bytes = frames
             .iter()
             .try_fold(0usize, |total, frame| total.checked_add(frame.len()))
@@ -1074,15 +1084,24 @@ impl DeferredInput {
         }
         self.bytes = next_bytes;
         self.frames
-            .extend(frames.into_iter().map(|frame| (target.to_owned(), frame)));
+            .extend(frames.into_iter().map(|frame| (target.clone(), frame)));
         Ok(())
     }
 
+    fn retarget_created(&mut self, target: &str) {
+        for (frame_target, _) in &mut self.frames {
+            if *frame_target == DeferredInputTarget::NextCreated {
+                *frame_target = DeferredInputTarget::Tab(target.to_owned());
+            }
+        }
+    }
+
     fn resolve(&mut self, target: &str) -> (Vec<Vec<u8>>, bool) {
+        let selected_target = DeferredInputTarget::Tab(target.to_owned());
         let mut selected = Vec::new();
         let mut dropped = false;
         while let Some((frame_target, frame)) = self.frames.pop_front() {
-            if frame_target == target {
+            if frame_target == selected_target {
                 selected.push(frame);
             } else {
                 dropped = true;
@@ -1092,7 +1111,15 @@ impl DeferredInput {
         (selected, dropped)
     }
 
-    fn discard(&mut self, target: &str) -> bool {
+    fn discard_tab(&mut self, target: &str) -> bool {
+        self.discard(&DeferredInputTarget::Tab(target.to_owned()))
+    }
+
+    fn discard_created(&mut self) -> bool {
+        self.discard(&DeferredInputTarget::NextCreated)
+    }
+
+    fn discard(&mut self, target: &DeferredInputTarget) -> bool {
         let before = self.frames.len();
         self.frames
             .retain(|(frame_target, _)| frame_target != target);
@@ -1447,11 +1474,19 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     // Concurrency: a shortcut can arrive after the server created a tab but before its registry
     // snapshot reaches this client; retain the requested ordinal until that snapshot arrives.
     let mut pending_jump = None::<(usize, u64)>;
+    let mut pending_created_activation = false;
     let mut deferred_input = DeferredInput::default();
     macro_rules! send_child_frames {
         ($frames:expr) => {{
             let frames: Vec<Vec<u8>> = $frames;
-            if let Some(target) = view.requested.as_deref() {
+            let deferred = if let Some(target) = view.requested.as_deref() {
+                Some(DeferredInputTarget::Tab(target.to_owned()))
+            } else if pending_created_activation {
+                Some(DeferredInputTarget::NextCreated)
+            } else {
+                None
+            };
+            if let Some(target) = deferred {
                 if deferred_input.push(target, frames).is_err() {
                     user_input_pending = false;
                     transient_notice = Some("Input was not sent; try again.".into());
@@ -1589,9 +1624,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     }
                 }
                 PopupAction::NewAgent => {
+                    pending_created_activation = true;
                     wire::send(&mut stream, "tab.create", None, create.clone())?;
                 }
                 PopupAction::Settings => {
+                    pending_created_activation = true;
                     wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
                 }
                 PopupAction::View(tab_id) => {
@@ -1855,7 +1892,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     if outcome
                         .dropped_request
                         .as_deref()
-                        .is_some_and(|target| deferred_input.discard(target))
+                        .is_some_and(|target| deferred_input.discard_tab(target))
                     {
                         user_input_pending = false;
                         transient_notice = Some("Input was not sent; try again.".into());
@@ -1926,6 +1963,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "tab.created" | "tab.selected" => {
                     let (_, target): (_, TabTarget) = wire::body(&payload)?;
+                    pending_created_activation = false;
+                    deferred_input.retarget_created(&target.tab_id);
                     request_view!(target.tab_id);
                     wire::send(
                         &mut stream,
@@ -1940,8 +1979,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 "tab.create-failed" | "tab.create-refused" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
                     if let Some(target) = view.requested.as_deref() {
-                        deferred_input.discard(target);
+                        deferred_input.discard_tab(target);
                     }
+                    deferred_input.discard_created();
+                    pending_created_activation = false;
                     view.cancel_request();
                     user_input_pending = false;
                     transient_notice = Some(tab_create_failure_notice(result.message.as_deref()));
@@ -2267,9 +2308,13 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 if let Some(action) = bindings.action(&key) {
                     match action {
-                        "tabs.new" => wire::send(&mut stream, "tab.create", None, create.clone())?,
+                        "tabs.new" => {
+                            pending_created_activation = true;
+                            wire::send(&mut stream, "tab.create", None, create.clone())?;
+                        }
                         "tabs.settings" => {
-                            wire::send(&mut stream, "tab.open-settings", None, create.clone())?
+                            pending_created_activation = true;
+                            wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
                         }
                         "tabs.close" => {
                             if let Some(tab_id) = view.viewed.clone() {
@@ -2796,7 +2841,7 @@ struct OuterWriter {
 impl OuterWriter {
     fn start() -> Self {
         let (control, receiver) = mpsc::sync_channel::<OuterWrite>(OUTER_CONTROL_QUEUE_FRAMES);
-        let latest = Arc::new(Mutex::new(None));
+        let latest = Arc::new(Mutex::new(None::<DesiredPresentation>));
         let signaled = Arc::new(AtomicBool::new(false));
         let effect_bytes = Arc::new(AtomicUsize::new(0));
         let failed = Arc::new(Mutex::new(None));
@@ -2839,6 +2884,11 @@ impl OuterWriter {
                 thread_signaled.store(false, Ordering::SeqCst);
                 let desired = thread_latest.lock().ok().and_then(|mut slot| slot.take());
                 if let Some(desired) = desired {
+                    if desired.tab_id.as_deref().is_some_and(|tab_id| {
+                        crate::roles::fixture_control::stopped("outer-paint", tab_id)
+                    }) {
+                        continue;
+                    }
                     match composer.prepare(&desired) {
                         Ok(Some(prepared)) => {
                             let result = out
@@ -3141,10 +3191,13 @@ mod tests {
     fn deferred_input_is_atomic_bounded_and_bound_to_the_requested_tab() {
         let mut deferred = DeferredInput::default();
         deferred
-            .push("tab-b", vec![vec![1, 2], vec![3]])
+            .push(
+                DeferredInputTarget::Tab("tab-b".into()),
+                vec![vec![1, 2], vec![3]],
+            )
             .expect("defer input");
         deferred
-            .push("tab-c", vec![vec![4]])
+            .push(DeferredInputTarget::Tab("tab-c".into()), vec![vec![4]])
             .expect("defer superseding input");
         let (selected, dropped) = deferred.resolve("tab-c");
         assert_eq!(selected, vec![vec![4]]);
@@ -3154,13 +3207,33 @@ mod tests {
 
         let mut full = DeferredInput::default();
         assert_eq!(
-            full.push("tab-a", vec![vec![0; DEFERRED_INPUT_BYTES + 1]]),
+            full.push(
+                DeferredInputTarget::Tab("tab-a".into()),
+                vec![vec![0; DEFERRED_INPUT_BYTES + 1]],
+            ),
             Err("deferred input byte limit reached")
         );
         assert!(
             full.frames.is_empty(),
             "an oversized paste admitted no prefix"
         );
+
+        let pending_frames = vec![vec![10], vec![20], vec![30], vec![40], vec![50]];
+        let mut settings_activation = DeferredInput::default();
+        settings_activation
+            .push(DeferredInputTarget::NextCreated, pending_frames.clone())
+            .expect("defer key, paste, focus, mouse, and resize frames");
+        settings_activation.retarget_created("settings-a");
+        assert_eq!(
+            settings_activation.resolve("settings-a"),
+            (pending_frames, false)
+        );
+        let mut failed_creation = DeferredInput::default();
+        failed_creation
+            .push(DeferredInputTarget::NextCreated, vec![vec![1]])
+            .expect("defer failed target input");
+        assert!(failed_creation.discard_created());
+        assert!(failed_creation.frames.is_empty());
     }
     #[test]
     fn outer_contract_offsets_rows_and_never_forwards_bell() {

@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { createRequire } from "node:module";
 import process from "node:process";
 import { createHash, randomUUID } from "node:crypto";
 import {
   evaluateProgressScenario,
+  evaluateStoppedStageControl,
   progressLatencyReport,
   readProgressObservations,
 } from "./resident-progress-observations.mjs";
@@ -86,6 +88,37 @@ async function createAttach(spawnPty, host, context) {
   return { terminal, checkpoint: () => output.length, output: () => output, waitForOutput };
 }
 
+async function createDirect(spawnPty, context) {
+  const environment = {
+    ...context.environment,
+    LAUNCH_CONTEXT_MODE: "solo",
+    HOME: context.directProfile,
+    USERPROFILE: context.directProfile,
+    [productIdentity.environment.profileHome]: context.directProfile,
+    [productIdentity.environment.configDir]: context.directProfile,
+    [productIdentity.environment.dataDir]: context.directData,
+    [productIdentity.environment.runtimeDir]: context.directRuntime,
+    PI_CODING_AGENT_DIR: context.directProfile,
+  };
+  delete environment[tabsEndpointEnvironment];
+  delete environment[productIdentity.environment.residentFixtureControlDir];
+  delete environment[productIdentity.environment.residentProgressObservationDir];
+  delete environment[productIdentity.environment.residentProgressRunId];
+  const terminal = spawnPty(process.execPath, [join(context.release, "bin", "ui.js")], {
+    name: "xterm-256color", cols: 100, rows: 29, cwd: context.root, env: environment,
+  });
+  let output = "";
+  const waiters = new Set();
+  terminal.onData(data => {
+    output = (output + data).slice(-8 * 1024 * 1024);
+    if (data.includes("\x1b[?u")) terminal.write("\x1b[?0u");
+    if (data.includes("\x1b[6n")) terminal.write("\x1b[29;100R");
+    for (const wake of waiters) wake();
+  });
+  await waitUntil(() => output.includes("\x1b[?2026l"), "direct real A1 initial paint", childStartupTimeoutMs, waiters);
+  return { terminal, output: () => output, waiters };
+}
+
 async function waitUntil(probe, description, timeoutMs = scenarioTimeoutMs, waiters = null) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
@@ -115,8 +148,8 @@ class LoopbackProvider {
     return `http://127.0.0.1:${address.port}/v1`;
   }
 
-  scenario(id, order) {
-    const state = deferredScenario(id, order);
+  scenario(id, order, expectedTabs = 3) {
+    const state = deferredScenario(id, order, expectedTabs);
     this.#scenarios.set(id, state);
     return state;
   }
@@ -124,7 +157,10 @@ class LoopbackProvider {
   get requests() { return [...this.#requests]; }
 
   async stop() {
-    for (const scenario of this.#scenarios.values()) scenario.release();
+    for (const scenario of this.#scenarios.values()) {
+      scenario.releaseEngine();
+      scenario.release();
+    }
     if (this.#server === undefined) return;
     await new Promise(resolvePromise => this.#server.close(resolvePromise));
   }
@@ -152,6 +188,7 @@ class LoopbackProvider {
         connection: "keep-alive",
       });
       await scenario.started;
+      if (scenario.blockedEngineTab === tabIndex) await scenario.engineReleased;
       await delay(scenario.order.indexOf(tabIndex) * 100);
       for (let index = 0; index < 12; index += 1) {
         if (index === 0) requestRecord.firstChunkUnixUs = epochUs();
@@ -176,12 +213,13 @@ class LoopbackProvider {
   }
 }
 
-function deferredScenario(id, order) {
+function deferredScenario(id, order, expectedTabs) {
   let start;
   let release;
   let allRequests;
   let allPartial;
   let allComplete;
+  let releaseEngine;
   const requests = new Map();
   const partial = new Set();
   const complete = new Set();
@@ -190,12 +228,14 @@ function deferredScenario(id, order) {
   const requestsReady = new Promise(resolvePromise => { allRequests = resolvePromise; });
   const partialReady = new Promise(resolvePromise => { allPartial = resolvePromise; });
   const completed = new Promise(resolvePromise => { allComplete = resolvePromise; });
+  const engineReleased = new Promise(resolvePromise => { releaseEngine = resolvePromise; });
   return {
-    id, order, requests, started, released, requestsReady, partialReady, completed,
-    start, release,
-    noteRequest() { if (requests.size === 3) allRequests(); },
-    notePartial(index) { partial.add(index); if (partial.size === 3) allPartial(); },
-    noteComplete(index) { complete.add(index); if (complete.size === 3) allComplete(); },
+    id, order, requests, started, released, requestsReady, partialReady, completed, engineReleased,
+    blockedEngineTab: null,
+    start, release, releaseEngine,
+    noteRequest() { if (requests.size === expectedTabs) allRequests(); },
+    notePartial(index) { partial.add(index); if (partial.size === expectedTabs) allPartial(); },
+    noteComplete(index) { complete.add(index); if (complete.size === expectedTabs) allComplete(); },
   };
 }
 
@@ -245,6 +285,24 @@ async function selectTab(attach, context, index, tabId) {
   await delay(50);
 }
 
+function tabsCommand(host, context, command) {
+  return JSON.parse(run(host, ["tabs", command, "--profile", context.profile,
+    "--data-dir", context.data, "--runtime-dir", context.runtime], {
+    cwd: context.root, env: context.environment,
+  }));
+}
+
+function terminateExactProcess(pid, serverId) {
+  if (!Number.isSafeInteger(pid) || pid <= 0 || typeof serverId !== "string"
+    || !serverId.startsWith(`${pid}:`)) throw new Error("fixture process identity is invalid");
+  if (process.platform === "win32") {
+    const result = spawnSync("taskkill", ["/pid", String(pid), "/f"], { stdio: "ignore", windowsHide: true });
+    if (result.status !== 0) throw new Error(`could not terminate fixture process ${pid}`);
+    return;
+  }
+  process.kill(pid, "SIGKILL");
+}
+
 function stopAttach(attach) {
   if (process.platform === "win32") {
     spawnSync("taskkill", ["/pid", String(attach.terminal.pid), "/t", "/f"], { stdio: "ignore", windowsHide: true });
@@ -271,6 +329,12 @@ async function createRealTabs(host, context) {
   return tabIds;
 }
 
+function currentEngineBaselines(records, tabIds) {
+  return Object.fromEntries(tabIds.map(tabId => [tabId, Math.max(0, ...records
+    .filter(record => record.tabId === tabId && record.stage === "engine-delivery")
+    .map(record => record.eventSequence))]));
+}
+
 async function runScenarios(attach, context, provider, tabIds) {
   const results = [];
   let scenarioNumber = 0;
@@ -281,8 +345,7 @@ async function runScenarios(attach, context, provider, tabIds) {
       const scenario = provider.scenario(id, order);
       const before = await currentObservations(context);
       if (before.faults.length > 0) throw new Error(before.faults.join("; "));
-      const engineBaselines = Object.fromEntries(tabIds.map(tabId => [tabId, Math.max(0, ...before.records
-        .filter(record => record.tabId === tabId && record.stage === "engine-delivery").map(record => record.eventSequence))]));
+      const engineBaselines = currentEngineBaselines(before.records, tabIds);
       const startedUnixUs = epochUs();
       for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
         await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
@@ -334,6 +397,311 @@ async function runScenarios(attach, context, provider, tabIds) {
   return results;
 }
 
+async function runDetachedReconnectVariant(spawnPty, host, attach, context, provider, tabIds) {
+  const id = "detached-server-reconnect";
+  const scenario = provider.scenario(id, [1, 2, 0]);
+  for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
+    await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
+    attach.terminal.write(`scenario=${id};tab=${tabIndex}`);
+    attach.terminal.write("\r");
+    await waitUntil(() => scenario.requests.has(tabIndex), `${id} tab ${tabIndex + 1} provider request`);
+  }
+  await withTimeout(scenario.requestsReady, `${id} provider requests`);
+  scenario.start();
+  await withTimeout(scenario.partialReady, `${id} unfinished partials`);
+  const status = tabsCommand(host, context, "host-status");
+  const serverPid = status?.result?.pid;
+  const detachedUnixUs = epochUs();
+  stopAttach(attach);
+  terminateExactProcess(serverPid, status?.result?.serverId);
+  scenario.release();
+  try {
+    await withTimeout(scenario.completed, `${id} detached completion`, childStartupTimeoutMs);
+    await waitUntil(async () => {
+      const observations = await currentObservations(context);
+      return tabIds.every(tabId => {
+        const records = observations.records.filter(record => record.tabId === tabId
+          && record.timestampUnixUs >= detachedUnixUs);
+        return records.some(record => record.stage === "child-render-write")
+          && records.some(record => record.stage === "pty-ingest")
+          && records.some(record => record.stage === "holder-commit");
+      });
+    }, `${id} hidden progress`, childStartupTimeoutMs);
+    await waitUntil(() => {
+      try {
+        const next = tabsCommand(host, context, "host-status");
+        return next.host === "running" && next.result?.pid !== serverPid;
+      } catch { return false; }
+    }, `${id} replacement server`, childStartupTimeoutMs);
+    const replacement = await createAttach(spawnPty, host, context);
+    for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
+      const checkpoint = replacement.checkpoint();
+      await selectTab(replacement, context, tabIndex, tabIds[tabIndex]);
+      await replacement.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C59`,
+        `${id} tab ${tabIndex + 1} retained final output`, checkpoint);
+    }
+    const replacementStatus = tabsCommand(host, context, "host-status");
+    return {
+      attach: replacement,
+      report: { id, serverReplaced: replacementStatus.result?.pid !== serverPid,
+        hiddenProgress: true, retainedFinalOutput: true, passed: true },
+    };
+  } finally {
+    scenario.releaseEngine();
+    scenario.release();
+  }
+}
+
+async function compareDirectAndResidentTemporalState(spawnPty, host, attach, context, provider, tabIds) {
+  const id = "temporal-parity";
+  const marker = `P${id.replaceAll("-", "").slice(-2)}T1C`;
+  const directScenario = provider.scenario(id, [0], 1);
+  const direct = await createDirect(spawnPty, context);
+  let directOutput;
+  try {
+    direct.terminal.write(`scenario=${id};tab=0`);
+    direct.terminal.write("\r");
+    await waitUntil(() => directScenario.requests.has(0), `${id} direct provider request`);
+    directScenario.start();
+    await withTimeout(directScenario.partialReady, `${id} direct unfinished partial`);
+    await waitUntil(() => direct.output().includes(`${marker}11`), `${id} direct intermediate output`,
+      scenarioTimeoutMs, direct.waiters);
+    await delay(150);
+    directOutput = direct.output();
+    directScenario.release();
+    await withTimeout(directScenario.completed, `${id} direct completion`);
+  } finally {
+    directScenario.releaseEngine();
+    directScenario.release();
+    try { stopAttach(direct); } catch { /* Invariant: direct fixture cleanup cannot mask its verdict. */ }
+  }
+
+  const residentScenario = provider.scenario(id, [0], 1);
+  await selectTab(attach, context, 0, tabIds[0]);
+  attach.terminal.write(`scenario=${id};tab=0`);
+  attach.terminal.write("\r");
+  await waitUntil(() => residentScenario.requests.has(0), `${id} resident provider request`);
+  residentScenario.start();
+  await withTimeout(residentScenario.partialReady, `${id} resident unfinished partial`);
+  await waitUntil(() => attach.output().includes(`${marker}11`), `${id} resident intermediate output`);
+  await delay(150);
+  const residentOutput = attach.output();
+  residentScenario.release();
+  await withTimeout(residentScenario.completed, `${id} resident completion`);
+
+  const addon = createRequire(import.meta.url)(resolve(host));
+  if (typeof addon.inspectTerminalSnapshot !== "function") {
+    throw new Error("exact native artifact omitted temporal snapshot inspection");
+  }
+  const directSnapshot = addon.inspectTerminalSnapshot(Buffer.from(directOutput, "utf8"), 100, 29, 0, marker);
+  const residentSnapshot = addon.inspectTerminalSnapshot(Buffer.from(residentOutput, "utf8"), 100, 30, 1, marker);
+  const comparableFields = [
+    "markerDigest", "markerOccurrences", "cursorColumn", "cursorRow", "cursorVisible", "cursorStyle",
+    "cursorBlink", "mouseTracking", "focusEvents", "bracketedPaste", "kittyKeyboardFlags", "alternateScreen",
+  ];
+  const mismatches = comparableFields.filter(field => directSnapshot[field] !== residentSnapshot[field]);
+  const transactionFaults = [];
+  for (const [name, snapshot] of [["direct", directSnapshot], ["resident", residentSnapshot]]) {
+    if (snapshot.schema !== productIdentity.evidence.terminalTemporalSnapshotSchema) {
+      transactionFaults.push(`${name} snapshot used the wrong schema`);
+    }
+    if (snapshot.markerOccurrences < 12) transactionFaults.push(`${name} snapshot omitted intermediate marker cells`);
+    if (snapshot.synchronizedBegins !== snapshot.synchronizedEnds || snapshot.openSynchronizedOutput) {
+      transactionFaults.push(`${name} snapshot ended inside synchronized output`);
+    }
+    if (snapshot.markerCountRegressions !== 0) transactionFaults.push(`${name} outer transaction cleared intermediate content`);
+  }
+  const faults = [
+    ...mismatches.map(field => `direct/resident temporal ${field} mismatch`),
+    ...transactionFaults,
+  ];
+  return {
+    id,
+    geometry: { childColumns: 100, childRows: 29, residentStripRows: 1 },
+    markerOccurrences: directSnapshot.markerOccurrences,
+    semanticDigest: directSnapshot.markerDigest,
+    directTransactions: { begins: directSnapshot.synchronizedBegins, ends: directSnapshot.synchronizedEnds,
+      resets: directSnapshot.synchronizedResets },
+    residentTransactions: { begins: residentSnapshot.synchronizedBegins, ends: residentSnapshot.synchronizedEnds,
+      resets: residentSnapshot.synchronizedResets },
+    compared: comparableFields,
+    faults,
+    passed: faults.length === 0,
+  };
+}
+
+async function characterizeFragmentedTransactions(attach, context, provider, tabIds) {
+  const id = "fragmented-synchronized-output";
+  const targetIndex = 1;
+  const targetTabId = tabIds[targetIndex];
+  const scenario = provider.scenario(id, [2, 0, 1]);
+  for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
+    await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
+    attach.terminal.write(`scenario=${id};tab=${tabIndex}`);
+    attach.terminal.write("\r");
+    await waitUntil(() => scenario.requests.has(tabIndex), `${id} tab ${tabIndex + 1} provider request`);
+  }
+  await withTimeout(scenario.requestsReady, `${id} provider requests`);
+  const before = await currentObservations(context);
+  if (before.faults.length > 0) throw new Error(before.faults.join("; "));
+  const engineBaselines = currentEngineBaselines(before.records, tabIds);
+  const marker = join(context.controls, `${targetTabId}.child-render-fragments.enable`);
+  await writeFile(marker, "", { mode: 0o600 });
+  const startedUnixUs = epochUs();
+  scenario.start();
+  try {
+    await withTimeout(scenario.partialReady, `${id} unfinished partials`);
+    for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
+      const checkpoint = attach.checkpoint();
+      await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
+      await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C11`,
+        `${id} tab ${tabIndex + 1} partial output`, checkpoint);
+    }
+    await waitUntil(async () => {
+      const current = await currentObservations(context);
+      const target = current.records.filter(record => record.tabId === targetTabId
+        && record.timestampUnixUs >= startedUnixUs);
+      return target.filter(record => record.stage === "child-render-write"
+        && record.eventSequence > engineBaselines[targetTabId]
+        && record.transactionKind === "synchronized-output" && record.fragmentCount > 1).length >= 3
+        && target.filter(record => record.stage === "pty-ingest").length >= 3
+        && target.filter(record => record.stage === "holder-commit" && record.eventKind === "complete").length >= 3;
+    }, `${id} fragmented transaction evidence`);
+    const barrierUnixUs = epochUs();
+    const observed = await currentObservations(context);
+    if (observed.faults.length > 0) throw new Error(observed.faults.join("; "));
+    const target = observed.records.filter(record => record.tabId === targetTabId
+      && record.timestampUnixUs >= startedUnixUs && record.timestampUnixUs <= barrierUnixUs);
+    const writes = target.filter(record => record.stage === "child-render-write"
+      && record.eventSequence > engineBaselines[targetTabId]
+      && record.transactionKind === "synchronized-output" && record.fragmentCount > 1);
+    const pty = target.filter(record => record.stage === "pty-ingest");
+    const commits = target.filter(record => record.stage === "holder-commit");
+    const recoveryCommits = commits.filter(record => record.eventKind === "recovery");
+    const result = {
+      id,
+      targetTabId,
+      transaction: "DEC-private-mode-2026",
+      fragmentedChildWrites: writes.length,
+      maximumFragmentsPerWrite: Math.max(0, ...writes.map(record => record.fragmentCount)),
+      ptyIngestions: pty.length,
+      completeHolderCommits: commits.filter(record => record.eventKind === "complete").length,
+      recoveryCommits: recoveryCommits.length,
+      passed: writes.length >= 3 && pty.length >= 3
+        && commits.filter(record => record.eventKind === "complete").length >= 3
+        && recoveryCommits.length === 0,
+    };
+    if (!result.passed) throw new Error(`${id}: fragmented synchronized output did not commit coherently`);
+    await rm(marker, { force: true });
+    scenario.release();
+    await withTimeout(scenario.completed, `${id} completion`);
+    await waitUntil(async () => {
+      const next = await currentObservations(context);
+      return tabIds.every(tabId => next.records.some(record => record.tabId === tabId
+        && record.stage === "engine-delivery" && record.eventKind === "agent_settled"
+        && record.timestampUnixUs >= barrierUnixUs));
+    }, `${id} engine settlement`);
+    for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
+      const checkpoint = attach.checkpoint();
+      await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
+      await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C59`,
+        `${id} tab ${tabIndex + 1} final output`, checkpoint);
+    }
+    return { ...result, finalOutput: true };
+  } finally {
+    await rm(marker, { force: true });
+    scenario.releaseEngine();
+    scenario.release();
+  }
+}
+
+async function runStoppedStageControls(attach, context, provider, tabIds) {
+  const controls = [];
+  const targetIndex = 1;
+  const targetTabId = tabIds[targetIndex];
+  for (const [controlIndex, stage] of [
+    "engine-delivery", "child-render-write", "holder-commit", "outer-paint",
+  ].entries()) {
+    const id = `control-${controlIndex + 1}-${stage}`;
+    const scenario = provider.scenario(id, [0, 1, 2]);
+    if (stage === "engine-delivery") scenario.blockedEngineTab = targetIndex;
+    for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
+      await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
+      attach.terminal.write(`scenario=${id};tab=${tabIndex}`);
+      attach.terminal.write("\r");
+      await waitUntil(() => scenario.requests.has(tabIndex), `${id} tab ${tabIndex + 1} provider request`);
+    }
+    await withTimeout(scenario.requestsReady, `${id} provider requests`);
+    await selectTab(attach, context, targetIndex, targetTabId);
+    const before = await currentObservations(context);
+    if (before.faults.length > 0) throw new Error(before.faults.join("; "));
+    const engineBaselines = currentEngineBaselines(before.records, tabIds);
+    const marker = stage === "engine-delivery" ? null : join(context.controls, `${targetTabId}.${stage}.stop`);
+    if (marker !== null) await writeFile(marker, "", { mode: 0o600 });
+    const startedUnixUs = epochUs();
+    scenario.start();
+    try {
+      await waitUntil(async () => {
+        const observations = await currentObservations(context);
+        return evaluateStoppedStageControl(observations.records, {
+          id, stage, targetTabId, tabIds, startedUnixUs, barrierUnixUs: epochUs(), engineBaselines,
+        }).passed;
+      }, `${id} isolated stop`);
+      await delay(250);
+      const barrierUnixUs = epochUs();
+      const stopped = await currentObservations(context);
+      if (stopped.faults.length > 0) throw new Error(stopped.faults.join("; "));
+      const result = evaluateStoppedStageControl(stopped.records, {
+        id, stage, targetTabId, tabIds, startedUnixUs, barrierUnixUs, engineBaselines,
+      });
+      if (!result.passed) throw new Error(result.faults.join("; "));
+      if (marker !== null) await rm(marker, { force: true });
+      scenario.releaseEngine();
+      await withTimeout(scenario.partialReady, `${id} released partials`);
+      scenario.release();
+      await withTimeout(scenario.completed, `${id} completion`);
+      await waitUntil(async () => {
+        const next = await currentObservations(context);
+        return tabIds.every(tabId => next.records.some(record => record.tabId === tabId
+          && record.stage === "engine-delivery" && record.eventKind === "agent_settled"
+          && record.timestampUnixUs >= barrierUnixUs));
+      }, `${id} engine settlement`);
+      for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
+        const checkpoint = attach.checkpoint();
+        await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
+        await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C59`,
+          `${id} tab ${tabIndex + 1} final output`, checkpoint);
+      }
+      controls.push({ ...result, finalOutput: true });
+    } finally {
+      if (marker !== null) await rm(marker, { force: true });
+      scenario.releaseEngine();
+      scenario.release();
+    }
+  }
+  return controls;
+}
+
+async function writeFixtureProfile(profile, baseUrl) {
+  await mkdir(profile, { recursive: true });
+  await writeFile(join(profile, "models.json"), `${JSON.stringify({
+    providers: { fixture: { baseUrl, api: "openai-completions", apiKey: "fixture", models: [{
+      id: "parallel-stream", name: "Parallel stream fixture", contextWindow: 32_000, maxTokens: 4_096,
+    }] } },
+  }, null, 2)}\n`);
+  const fallbackAgentDir = join(profile, ".pi", "agent");
+  await mkdir(fallbackAgentDir, { recursive: true });
+  await writeFile(join(profile, "auth.json"), "{}\n");
+  await writeFile(join(fallbackAgentDir, "auth.json"), "{}\n");
+  await writeFile(join(profile, "settings.json"), `${JSON.stringify({
+    defaultProvider: "fixture",
+    defaultModel: "parallel-stream",
+    defaultProjectTrust: "always",
+    promptSuggestions: false,
+    lastChangelogVersion: "0.2.7-dev",
+  }, null, 2)}\n`);
+}
+
 async function collect(host) {
   await prepareNodePty();
   const { spawn } = await import("node-pty");
@@ -344,7 +712,11 @@ async function collect(host) {
     profile: join(root, "profile"),
     data: join(root, "data"),
     runtime: join(root, "runtime"),
+    directProfile: join(root, "direct-profile"),
+    directData: join(root, "direct-data"),
+    directRuntime: join(root, "direct-runtime"),
     observations: join(root, "observations"),
+    controls: join(root, "controls"),
     release: resolve("."),
     runId,
     endpoint: process.platform === "win32" ? `\\\\.\\pipe\\a1-resident-parallel-${process.pid}-${Date.now()}` : join(root, "resident.sock"),
@@ -354,6 +726,9 @@ async function collect(host) {
   context.environment = {
     ...process.env,
     TERM: "xterm-256color",
+    LAUNCH_CONTEXT_PROFILE: "a1",
+    LAUNCH_CONTEXT_MODE: "tabs",
+    LAUNCH_CONTEXT_RELEASE_ROOT: context.release,
     HOME: context.profile,
     USERPROFILE: context.profile,
     [tabsEndpointEnvironment]: context.endpoint,
@@ -363,29 +738,17 @@ async function collect(host) {
     [productIdentity.environment.runtimeDir]: context.runtime,
     PI_CODING_AGENT_DIR: context.profile,
     [productIdentity.environment.skipVersionCheck]: "1",
+    [productIdentity.environment.residentFixtureControlDir]: context.controls,
     [productIdentity.environment.residentProgressObservationDir]: context.observations,
     [productIdentity.environment.residentProgressRunId]: runId,
   };
-  for (const directory of [context.profile, context.data, context.runtime, context.observations]) {
+  for (const directory of [context.profile, context.data, context.runtime, context.directProfile,
+    context.directData, context.directRuntime, context.observations, context.controls]) {
     await mkdir(directory, { recursive: true });
     if (process.platform !== "win32") await chmod(directory, 0o700);
   }
-  await writeFile(join(context.profile, "models.json"), `${JSON.stringify({
-    providers: { fixture: { baseUrl, api: "openai-completions", apiKey: "fixture", models: [{
-      id: "parallel-stream", name: "Parallel stream fixture", contextWindow: 32_000, maxTokens: 4_096,
-    }] } },
-  }, null, 2)}\n`);
-  const fallbackAgentDir = join(context.profile, ".pi", "agent");
-  await mkdir(fallbackAgentDir, { recursive: true });
-  await writeFile(join(context.profile, "auth.json"), "{}\n");
-  await writeFile(join(fallbackAgentDir, "auth.json"), "{}\n");
-  await writeFile(join(context.profile, "settings.json"), `${JSON.stringify({
-    defaultProvider: "fixture",
-    defaultModel: "parallel-stream",
-    defaultProjectTrust: "always",
-    promptSuggestions: false,
-    lastChangelogVersion: "0.2.7-dev",
-  }, null, 2)}\n`);
+  await writeFixtureProfile(context.profile, baseUrl);
+  await writeFixtureProfile(context.directProfile, baseUrl);
   let attach;
   let tabIds = [];
   try {
@@ -394,7 +757,13 @@ async function collect(host) {
     });
     attach = await createAttach(spawn, host, context);
     tabIds = await createRealTabs(host, context);
+    const temporalParity = await compareDirectAndResidentTemporalState(spawn, host, attach, context, provider, tabIds);
+    if (!temporalParity.passed) throw new Error(temporalParity.faults.join("; "));
     const scenarios = await runScenarios(attach, context, provider, tabIds);
+    const detachedReconnect = await runDetachedReconnectVariant(spawn, host, attach, context, provider, tabIds);
+    attach = detachedReconnect.attach;
+    const transactionCharacterization = await characterizeFragmentedTransactions(attach, context, provider, tabIds);
+    const stoppedStageControls = await runStoppedStageControls(attach, context, provider, tabIds);
     const observations = await currentObservations(context);
     const latency = progressLatencyReport(observations.records, tabIds);
     const faults = [...observations.faults, ...latency.faults];
@@ -408,14 +777,23 @@ async function collect(host) {
         release: context.release,
         releaseHead: gitHead(context.release),
       },
-      fixture: { scenarios: scenarios.length, firstResponseOrders: firstOrders.length, initialViews: 3, chunksPerTurn: 60 },
+      fixture: { scenarios: scenarios.length, firstResponseOrders: firstOrders.length, initialViews: 3,
+        temporalParityComparisons: 1, detachedReconnectVariants: 1, transactionCharacterizations: 1,
+        stoppedStageControls: stoppedStageControls.length, chunksPerTurn: 60 },
       tabs: tabIds,
+      temporalParity,
       scenarios,
+      detachedReconnect: detachedReconnect.report,
+      transactionCharacterization,
+      stoppedStageControls,
       latency: latency.perTab,
       requests: provider.requests,
       observations: { files: observations.files.length, records: observations.records.length, faults: observations.faults },
       faults,
-      passed: faults.length === 0 && scenarios.every(scenario => scenario.passed),
+      passed: faults.length === 0 && temporalParity.passed && scenarios.every(scenario => scenario.passed)
+        && detachedReconnect.report.passed
+        && transactionCharacterization.passed && transactionCharacterization.finalOutput
+        && stoppedStageControls.every(control => control.passed && control.finalOutput),
     };
   } finally {
     for (const tabId of tabIds) {

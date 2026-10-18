@@ -2,14 +2,14 @@ import rawIdentity from "./product-identity.json" with { type: "json" };
 
 const ENVIRONMENT_KEYS = [
   "clipboardDiagnostics", "configDir", "dataDir", "databasePath", "developmentInstanceId", "developmentRoot", "endpoint", "exitNoticePath",
-  "paneId", "probeTrace", "processGuardianPath", "prFooterPreview", "profileHome", "residentProgressObservationDir", "residentProgressRunId", "residentProgressTabId", "residentProgressTabIncarnation", "runtimeDir", "sessionRuntimeId", "skipVersionCheck", "startupTrace", "suggestionDiagnostics", "tabEndpoint", "tabId", "tabToken", "tabsEndpoint", "terminalHostPath", "terminalSessionId",
+  "paneId", "probeTrace", "processGuardianPath", "prFooterPreview", "profileHome", "residentFixtureControlDir", "residentProgressObservationDir", "residentProgressRunId", "residentProgressTabId", "residentProgressTabIncarnation", "runtimeDir", "sessionRuntimeId", "skipVersionCheck", "startupTrace", "suggestionDiagnostics", "tabEndpoint", "tabId", "tabToken", "tabsEndpoint", "terminalHostPath", "terminalSessionId",
 ] as const;
 const FILESYSTEM_KEYS = ["slug", "windowsDirectory", "unixDirectory", "temporaryPrefix"] as const;
 const STATE_KEYS = ["windowsControlDirectory", "unixControlDirectory", "developmentDirectory", "piAgentProfile", "piVanillaProfile", "sessionRepositoryDirectory", "sessionWorktreeClaimDirectory"] as const;
 const ENDPOINT_KEYS = ["windowsPipeStem", "unixSocketFilename", "metadataFilename", "supervisorLogFilename", "databaseFilename"] as const;
 const MANIFEST_KEYS = ["releaseFilename", "packageFilename"] as const;
 const PROTOCOL_KEYS = ["namespace", "controlEnvelope", "supervisorSchema", "nativeHostSchema", "structuredAgentSchema", "controlStoreSchema", "promptHistorySchema", "releaseCohortSchema", "updateJournalSchema"] as const;
-const EVIDENCE_KEYS = ["nativeSpikeSchema", "terminalProvenanceSchema", "terminalProofSchema", "stableReleaseSchema", "previewReleaseSchema", "releaseCertificationSchema", "previewPlatformVerdictSchema", "piSourceLedgerSchema", "piComponentParitySchema", "piEventFrameParitySchema", "startupTraceSchema", "dependencyLayerSchema", "dependencyLayerCertificationSchema", "runtimePayloadSchema"] as const;
+const EVIDENCE_KEYS = ["nativeSpikeSchema", "terminalProvenanceSchema", "terminalProofSchema", "terminalTemporalSnapshotSchema", "stableReleaseSchema", "previewReleaseSchema", "releaseCertificationSchema", "previewPlatformVerdictSchema", "piSourceLedgerSchema", "piComponentParitySchema", "piEventFrameParitySchema", "startupTraceSchema", "dependencyLayerSchema", "dependencyLayerCertificationSchema", "runtimePayloadSchema"] as const;
 const ARTIFACT_KEYS = ["cliEntry", "supervisorEntry", "guardianEntry", "uiEntry", "terminalHostAddon", "terminalHostEntry", "nativeCrate", "processGuardianAddon", "releaseTarballStem", "diagnosticStem"] as const;
 const ROOT_KEYS = ["schema", "displayName", "commandName", "packageName", "filesystem", "environment", "state", "endpoint", "manifest", "protocol", "evidence", "artifacts"] as const;
 

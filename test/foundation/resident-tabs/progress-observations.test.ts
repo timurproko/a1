@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   evaluateProgressScenario,
+  evaluateStoppedStageControl,
   progressLatencyReport,
   validateProgressObservations,
   type ProgressObservation,
@@ -74,25 +75,25 @@ describe("resident progress observations", () => {
   });
 
   it.each([
-    ["engine-delivery", "engine partials"],
-    ["child-render-write", "completed child writes"],
-    ["pty-ingest", "PTY ingestions"],
-    ["holder-commit", "holder commits"],
-    ["attach-receipt", "attach receipt"],
-    ["outer-paint", "outer paint"],
-  ])("fails a frozen %s stage even when later output exists", (stage, expected) => {
-    const records = scenarioRecords().filter(value => value.tabId !== "tab-b" || value.stage !== stage);
-    const result = evaluateProgressScenario(records, {
-      id: `frozen-${stage}`,
+    "engine-delivery", "child-render-write", "holder-commit", "outer-paint",
+  ] as const)("recognizes an isolated stopped %s control and rejects a control that did not stop", stage => {
+    const control = {
+      id: `stopped-${stage}`,
+      stage,
+      targetTabId: "tab-b",
       tabIds: TABS,
-      viewedTabIds: TABS,
       startedUnixUs: 1_000_000,
       barrierUnixUs: 5_000_000,
       engineBaselines: { "tab-a": 0, "tab-b": 0, "tab-c": 0 },
-      expectedFirstOrder: TABS,
-    });
-    expect(result.passed).toBe(false);
-    expect(result.faults.some(fault => fault.includes(`tab-b`) && fault.includes(expected))).toBe(true);
+    };
+    const stopped = evaluateStoppedStageControl(
+      scenarioRecords().filter(value => value.tabId !== "tab-b" || value.stage !== stage),
+      control,
+    );
+    expect(stopped).toMatchObject({ passed: true, faults: [], stage, targetTabId: "tab-b" });
+    const stillAdvancing = evaluateStoppedStageControl(scenarioRecords(), control);
+    expect(stillAdvancing.passed).toBe(false);
+    expect(stillAdvancing.faults).toContain(`stopped-${stage}: stopped ${stage} still advanced`);
   });
 
   it("rejects loss, duplicate process sequence, bad clocks, and payload fields", () => {
