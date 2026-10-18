@@ -620,7 +620,17 @@ fn run_holder(
         command.env(name, value);
     }
     command.env("A1_TAB_ID", &config.tab_id);
-    command.env("A1_TAB_INCARNATION", config.incarnation.to_string());
+    if config
+        .environment
+        .iter()
+        .any(|(name, _)| name == "A1_RESIDENT_PROGRESS_OBSERVATION_DIR")
+    {
+        command.env("A1_RESIDENT_PROGRESS_TAB_ID", &config.tab_id);
+        command.env(
+            "A1_RESIDENT_PROGRESS_TAB_INCARNATION",
+            config.incarnation.to_string(),
+        );
+    }
     command.env("A1_TAB_TOKEN", BASE64.encode(&config.bridge_token));
     command.env("A1_TAB_ENDPOINT", &config.endpoint);
     let mut child = pair

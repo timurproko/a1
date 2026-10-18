@@ -122,12 +122,22 @@ export function residentProgressObserver(
   if (environment === process.env && observer !== undefined) return observer;
   const directory = environment[OBSERVATION_DIRECTORY_ENV];
   const runId = environment[OBSERVATION_RUN_ENV];
-  const tabId = environment.A1_TAB_ID;
-  const incarnation = Number(environment.A1_TAB_INCARNATION);
+  const tabId = environment.A1_RESIDENT_PROGRESS_TAB_ID;
+  const incarnation = Number(environment.A1_RESIDENT_PROGRESS_TAB_INCARNATION);
   const value = directory && runId && runId.length <= 128 && tabId && Number.isSafeInteger(incarnation) && incarnation >= 0
     ? new ResidentProgressObserver(directory, runId, tabId, incarnation)
     : null;
-  if (environment === process.env) observer = value;
+  if (environment === process.env) {
+    observer = value;
+    // Test evidence paths and tab identity are not child/tool configuration. Retain them only in
+    // this observer instance so extensions and spawned tools cannot append to the fixture trace.
+    for (const name of [
+      OBSERVATION_DIRECTORY_ENV,
+      OBSERVATION_RUN_ENV,
+      "A1_RESIDENT_PROGRESS_TAB_ID",
+      "A1_RESIDENT_PROGRESS_TAB_INCARNATION",
+    ]) delete process.env[name];
+  }
   return value;
 }
 
