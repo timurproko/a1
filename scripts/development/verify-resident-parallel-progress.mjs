@@ -244,10 +244,12 @@ async function selectTab(attach, context, index, tabId) {
   await delay(50);
 }
 
-async function createRealTabs(attach, host, context) {
+async function createRealTabs(host, context) {
   await waitUntil(() => JSON.parse(internal(host, context, "tab-list")).tabs.length === 1, "first real A1 tab");
   for (let count = 2; count <= 3; count += 1) {
-    attach.terminal.write("\x1ba");
+    internal(host, context, "tab-create", [
+      "--cwd", context.root, "--release-root", context.release, "--node-executable", process.execPath,
+    ]);
     await waitUntil(() => JSON.parse(internal(host, context, "tab-list")).tabs.length === count, `${count} real A1 tabs`);
   }
   const tabs = JSON.parse(internal(host, context, "tab-list")).tabs;
@@ -369,7 +371,7 @@ async function collect(host) {
       cwd: root, env: context.environment,
     });
     attach = await createAttach(spawn, host, context);
-    tabIds = await createRealTabs(attach, host, context);
+    tabIds = await createRealTabs(host, context);
     const scenarios = await runScenarios(attach, host, context, provider, tabIds);
     const observations = await currentObservations(context);
     const latency = progressLatencyReport(observations.records, tabIds);
