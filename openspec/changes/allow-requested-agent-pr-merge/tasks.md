@@ -13,5 +13,5 @@
 ## 3. Complete Delivery Evidence
 
 - [x] 3.1 Run type checking, focused delivery/acceptance governance tests, and strict OpenSpec validation, and record command results plus explicit known-gap disposition in implementation evidence.
-- [ ] 3.2 Reconcile the branch with current `origin/develop`, inspect the final delivery body with the repository body checker, and verify every substantive task and acceptance scenario is complete before finalization.
+- [x] 3.2 Reconcile the branch with current `origin/develop`, inspect the final delivery body with the repository body checker, and verify every substantive task and acceptance scenario is complete before finalization.
 - [x] 3.3 Record the bootstrap constraint and later live-exercise path: this policy PR uses the currently deployed human integration route, while a subsequent exact finalized candidate can demonstrate requested agent merge and read-only accepted/archive verification.
