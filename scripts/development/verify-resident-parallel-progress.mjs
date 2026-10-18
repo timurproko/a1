@@ -75,17 +75,25 @@ async function createAttach(spawnPty, host, context) {
     env: hostEnvironment(host, context.environment),
   });
   let output = "";
+  let outputOffset = 0;
+  const outputLimit = 2 * 1024 * 1024;
   const waiters = new Set();
   terminal.onData(data => {
-    output = (output + data).slice(-2 * 1024 * 1024);
+    output += data;
+    if (output.length > outputLimit) {
+      const dropped = output.length - outputLimit;
+      output = output.slice(dropped);
+      outputOffset += dropped;
+    }
     if (data.includes("\x1b[?u")) terminal.write("\x1b[?0u");
     if (data.includes("\x1b[6n")) terminal.write("\x1b[30;100R");
     for (const wake of waiters) wake();
   });
   const waitForOutput = async (token, description, after = 0, timeoutMs = scenarioTimeoutMs) => {
-    await waitUntil(() => output.slice(after).includes(token), description, timeoutMs, waiters);
+    await waitUntil(() => output.slice(Math.max(0, after - outputOffset)).includes(token),
+      description, timeoutMs, waiters);
   };
-  return { terminal, checkpoint: () => output.length, output: () => output, waitForOutput };
+  return { terminal, checkpoint: () => outputOffset + output.length, output: () => output, waitForOutput };
 }
 
 async function createDirect(spawnPty, context) {
