@@ -1,11 +1,12 @@
-import { fork, type ChildProcess, type ForkOptions, type SpawnOptions } from "node:child_process";
-import { fstatSync } from "node:fs";
+import { execFile, fork, type ChildProcess, type ForkOptions, type SpawnOptions } from "node:child_process";
 import { HelperPool } from "./helper-pool.js";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import type { SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
 import { COPY_CHUNK_UNITS, COPY_CLEANUP_MS, MAX_COPY_BYTES, MAX_COPY_CONTROL_BYTES, type CopyHelperInput, type CopyHelperOutput, type CopyResult } from "./response-copy-protocol.js";
 
 type HelperResult = Extract<CopyHelperOutput, { kind: "result" }> & { readonly text?: string; readonly bytes?: number };
 type HelperMode = "native" | "terminal" | "prepare";
+const PLATFORM_WRITE_TIMEOUT_MS = 1_500;
 
 export interface ResponseCopyJob {
   readonly result: Promise<CopyResult>;
@@ -13,7 +14,7 @@ export interface ResponseCopyJob {
   readonly stopped: Promise<void>;
   cancel(): void;
 }
-export type CopyPhaseObserver = (phase: "extracted" | "encoded" | "submitting", bytes: number, transport: "native" | "terminal" | "injected") => void;
+export type CopyPhaseObserver = (phase: "extracted" | "encoded" | "submitting", bytes: number, transport: "native" | "terminal" | "platform" | "injected") => void;
 export type ResponseCopyExecutor = (snapshot: SelectionCopySnapshot, phase: CopyPhaseObserver) => ResponseCopyJob;
 /** The production executor also holds a spare helper; the owner warms it at start and disposes it at shutdown unless the pool is shared. */
 export interface OwnedResponseCopyExecutor extends ResponseCopyExecutor {
@@ -29,16 +30,47 @@ export interface ResponseCopyTerminal {
 
 /** Never substitute a remote host's native clipboard for the terminal user's clipboard. */
 export function responseCopyDestination(env: NodeJS.ProcessEnv): "native" | "terminal" {
-  return env.SSH_CONNECTION || env.SSH_CLIENT || env.SSH_TTY || env.TMUX || env.STY || env.WSL_DISTRO_NAME
+  return env[PRODUCT_IDENTITY.environment.tabId] || env.SSH_CONNECTION || env.SSH_CLIENT || env.SSH_TTY || env.TMUX || env.STY || env.WSL_DISTRO_NAME
     ? "terminal" : "native";
 }
 
-/** Node documents synchronous POSIX TTY and Windows pipe writes; do not put clipboard traffic there. */
-export function hasAsyncClipboardOutput(platform = process.platform, stdout: { readonly isTTY?: boolean | undefined; readonly fd?: number | undefined } = process.stdout): boolean {
-  if (stdout.isTTY) return platform === "win32";
-  if (platform === "win32") return false;
-  try { const stat = fstatSync(stdout.fd ?? -1); return stat.isFIFO() || stat.isSocket(); }
-  catch { return false; }
+function platformClipboardCommands(): readonly { readonly command: string; readonly args: readonly string[] }[] {
+  if (process.platform === "win32") return [{
+    command: "powershell.exe",
+    args: ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "$value=[Console]::In.ReadToEnd(); Set-Clipboard -Value $value"],
+  }];
+  if (process.platform === "darwin") return [{ command: "pbcopy", args: [] }];
+  return [
+    { command: "wl-copy", args: ["--type", "text/plain;charset=utf-8"] },
+    { command: "xclip", args: ["-selection", "clipboard", "-in"] },
+  ];
+}
+
+async function writePlatformClipboardText(text: string, signal: AbortSignal): Promise<boolean> {
+  for (const route of platformClipboardCommands()) {
+    if (signal.aborted) return false;
+    const delivered = await new Promise<boolean>(resolve => {
+      let settled = false;
+      const done = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      const child = execFile(route.command, [...route.args], {
+        signal,
+        windowsHide: true,
+        timeout: PLATFORM_WRITE_TIMEOUT_MS,
+        killSignal: "SIGKILL",
+        maxBuffer: 1_024,
+      }, error => done(error === null));
+      child.once("error", () => done(false));
+      if (child.stdin === null) { child.kill("SIGKILL"); done(false); return; }
+      child.stdin.once("error", () => { child.kill("SIGKILL"); done(false); });
+      child.stdin.end(text);
+    });
+    if (delivered) return true;
+  }
+  return false;
 }
 
 /** Isolates preparation and native clipboard access; only the owner may submit terminal controls. */
@@ -47,6 +79,8 @@ export function createResponseCopyExecutor(options: {
   readonly destination?: "native" | "terminal";
   /** Explicit host seam: must be non-blocking and honor cancellation, or its unresolved lifetime is quarantined. */
   readonly writeText?: (text: string, signal: AbortSignal) => Promise<void>;
+  /** Platform/fault-test seam; production writes through the supported operating-system command. */
+  readonly platformWriteText?: (text: string, signal: AbortSignal) => Promise<boolean>;
   /** Package/fault-test seam: the production helper is always an emitted sibling. */
   readonly helper?: URL;
   /** Idle bound for the spare helper; production keeps the default. */
@@ -72,8 +106,16 @@ export function createResponseCopyExecutor(options: {
       };
       let outcome = await execute(destination);
       // Concurrency: helper results settle only after exit; fallback cannot race an older native write.
-      if (!controller.signal.aborted && destination === "native" && outcome.result.failure === "unavailable" && options.terminal !== undefined) {
-        outcome = await execute("terminal");
+      if (!controller.signal.aborted && destination === "native" && outcome.result.outcome === "failed") {
+        const prepared = await execute("prepare");
+        if (prepared.result.outcome === "delivered" && prepared.text !== undefined) {
+          phase("submitting", prepared.bytes ?? 0, "platform");
+          const delivered = await (options.platformWriteText ?? writePlatformClipboardText)(prepared.text, controller.signal);
+          outcome = { kind: "result", result: delivered ? { outcome: "delivered" } : { outcome: "failed", failure: "unavailable" } };
+        } else outcome = { kind: "result", result: { outcome: "failed", failure: "transport" } };
+        if (!controller.signal.aborted && outcome.result.outcome === "failed" && options.terminal !== undefined) {
+          outcome = await execute("terminal");
+        }
       }
       if (controller.signal.aborted) return { outcome: "canceled" };
       if (destination === "prepare" && outcome.result.outcome === "delivered") {

@@ -12,6 +12,7 @@ describe("clipboard diagnostic capture", () => {
     const snapshots: string[] = [];
     const capture = new ClipboardDiagnosticCapture("local-only.json", async (_path, data) => { snapshots.push(data); });
     capture.copy({ ...event, payload: "private clipboard payload", path: "private/path", image: "secret-base64" } as ResponseCopyEvent);
+    capture.copy({ ...event, request: 2, transport: "platform" });
     await capture.flush();
     capture.copy({ ...event, phase: "private clipboard payload" } as unknown as ResponseCopyEvent);
     capture.paste({ request: -1, phase: "shortcut-received", atMs: 10.5, pending: 0 });
@@ -25,6 +26,7 @@ describe("clipboard diagnostic capture", () => {
     expect(data).not.toMatch(/private|secret|base64|image|payload/);
     expect(JSON.parse(data).records).toEqual(expect.arrayContaining([
       expect.objectContaining({ source: "copy", phase: "submitting", transport: "native" }),
+      expect.objectContaining({ source: "copy", phase: "submitting", transport: "platform" }),
       expect.objectContaining({ source: "paste", phase: "shortcut-received", request: -1 }),
       expect.objectContaining({ source: "paste", phase: "shortcut-matched", request: -1 }),
       expect.objectContaining({ source: "paste", phase: "shortcut-admitted", request: -1 }),
