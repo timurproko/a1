@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { GHOSTTY_VT_COMMIT } from "./build-terminal-host.mjs";
-import { fetchTerminalVt, TERMINAL_VT_DIRECTORY } from "./fetch-terminal-vt.mjs";
+import { fetchTerminalVt, TERMINAL_VT_DIRECTORY, TERMINAL_VT_PLATFORMS } from "./fetch-terminal-vt.mjs";
 import { RELEASE_TARGETS, ZIG_BASELINE_CPU } from "./native-target.mjs";
 
 const repositoryRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
@@ -40,7 +40,7 @@ export async function terminalVtCacheCompatible(directory, expected) {
   }
 }
 
-/** Select a prebuilt VT library only where workstation policy forbids the implicit source build. */
+/** Select a compatible CI-built VT library for every platform whose native lane publishes one. */
 export async function selectLocalTerminalVt({
   platform = process.platform,
   architecture = process.arch,
@@ -51,15 +51,18 @@ export async function selectLocalTerminalVt({
 } = {}) {
   const explicit = environment.TERMINAL_HOST_PREBUILT_VT?.trim();
   if (explicit) return resolve(explicit);
-  if (platform !== "win32") return null;
-  if (architecture !== "x64") throw new Error(`the resident terminal host does not support ${platform}-${architecture}`);
+  await expectedTerminalVtIdentity(platform, architecture);
+  const artifactPlatform = `${platform}-${architecture}`;
+  // CI exports the library it linked for its three native validation targets. Intel macOS has no
+  // native lane, so its local build uses the pinned Zig toolchain instead of inventing an artifact.
+  if (!TERMINAL_VT_PLATFORMS.includes(artifactPlatform)) return null;
   const expected = await expectedTerminalVtIdentity(platform, architecture);
   if (existsSync(cache) && await terminalVtCacheCompatible(cache, expected)) return cache;
   try {
-    return fetch({ branches: [branch, "develop"], platform: `${platform}-${architecture}`, target: cache, includeMergedDevelop: true }).target;
+    return fetch({ branches: [branch, "develop"], platform: artifactPlatform, target: cache, includeMergedDevelop: true }).target;
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`the normal build needs a verified Windows terminal library before it can build resident tabs: ${detail}`);
+    throw new Error(`the normal build needs a verified ${artifactPlatform} terminal library before it can build resident tabs: ${detail}`);
   }
 }
 
@@ -68,6 +71,7 @@ export async function prepareLocalTerminalHost(options = {}) {
   // CI owns its pinned Zig setup and release artifact assembly. Local Windows builds instead link
   // a manifest-verified library so the quarantined Zig package fetch never runs on the workstation.
   const prebuilt = environment.CI ? null : await selectLocalTerminalVt({ ...options, environment });
+  if (prebuilt === null && !environment.CI) requirePinnedZig(environment);
   const childEnvironment = prebuilt === null ? { ...environment } : {
     ...environment,
     TERMINAL_HOST_LOCAL_BUILD: "1",
@@ -82,6 +86,15 @@ export async function prepareLocalTerminalHost(options = {}) {
   if (result.error) throw result.error;
   if (result.status !== 0) process.exitCode = result.status ?? 1;
   return result.status ?? 1;
+}
+
+function requirePinnedZig(environment) {
+  const executable = environment.ZIG?.trim() || "zig";
+  const result = spawnSync(executable, ["version"], { env: environment, encoding: "utf8", windowsHide: true });
+  if (result.error || result.status !== 0) {
+    throw new Error(`the normal resident build requires Zig 0.15.2 for this platform; install the pinned toolchain or set TERMINAL_HOST_PREBUILT_VT to a verified library`);
+  }
+  if (result.stdout.trim() !== "0.15.2") throw new Error(`the normal resident build requires Zig 0.15.2, but ${executable} reports ${result.stdout.trim() || "an unknown version"}`);
 }
 
 function gitBranch() {

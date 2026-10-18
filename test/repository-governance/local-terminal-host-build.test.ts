@@ -33,7 +33,7 @@ describe("resident-ready normal build", () => {
     expect(await terminalVtCacheCompatible(root, expected)).toBe(false);
   });
 
-  it("prefers an explicit library and otherwise fetches current-branch then develop on Windows", async () => {
+  it("prefers an explicit library and otherwise fetches current-branch then develop for native-lane platforms", async () => {
     let calls = 0;
     const explicit = await selectLocalTerminalVt({
       platform: "win32", architecture: "x64", environment: { TERMINAL_HOST_PREBUILT_VT: "./chosen" },
@@ -61,11 +61,11 @@ describe("resident-ready normal build", () => {
     expect(terminalHostZigVersion({}, () => "0.15.2")).toBe("0.15.2");
   });
 
-  it("fails actionably when Windows has no verified library", async () => {
+  it("fails actionably when a native-lane platform has no verified library", async () => {
     await expect(selectLocalTerminalVt({
       platform: "win32", architecture: "x64", environment: {},
       cache: resolve(await mkdtemp(join(tmpdir(), "a1-terminal-vt-unavailable-")), "cache"),
       branch: "fix/example", fetch: () => { throw new Error("artifact unavailable"); },
-    })).rejects.toThrow(/normal build needs a verified Windows terminal library.*artifact unavailable/u);
+    })).rejects.toThrow(/normal build needs a verified win32-x64 terminal library.*artifact unavailable/u);
   });
 });
