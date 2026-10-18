@@ -1178,7 +1178,7 @@ jobs:
     needs: [plan, package, documentation, validate]
     if: always() && needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && (needs.validate.result == 'success' || (needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped'))
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     environment: npm-publish
     permissions:
       contents: read
