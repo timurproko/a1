@@ -1,9 +1,27 @@
 use std::{
     path::{Path, PathBuf},
+    sync::OnceLock,
     time::Duration,
 };
 
 const CONTROL_DIRECTORY_ENV: &str = "A1_RESIDENT_FIXTURE_CONTROL_DIR";
+
+static CONTROL_DIRECTORY: OnceLock<Option<PathBuf>> = OnceLock::new();
+
+/// Binds a role launched with a cleared process environment to the control directory its tab
+/// was created with; roles started directly by a fixture read their own environment instead.
+pub fn configure_from_launch_environment(environment: &[(String, String)]) {
+    let directory = environment
+        .iter()
+        .find_map(|(name, value)| (name == CONTROL_DIRECTORY_ENV).then(|| PathBuf::from(value)));
+    let _ = CONTROL_DIRECTORY.set(directory);
+}
+
+fn control_directory() -> Option<&'static Path> {
+    CONTROL_DIRECTORY
+        .get_or_init(|| std::env::var_os(CONTROL_DIRECTORY_ENV).map(PathBuf::from))
+        .as_deref()
+}
 
 pub fn stopped(stage: &str, tab_id: &str) -> bool {
     marker_exists(tab_id, stage, "stop")
@@ -15,20 +33,13 @@ pub fn delay(stage: &str, tab_id: &str, duration: Duration) {
     }
 }
 
+// Rationale: negative controls must exercise the exact shipped addon, so they are compiled into
+// every build and stay inert unless a fixture names an isolated control directory.
 fn marker_exists(tab_id: &str, stage: &str, action: &str) -> bool {
-    #[cfg(feature = "resident-fixtures")]
-    {
-        let Some(directory) = std::env::var_os(CONTROL_DIRECTORY_ENV) else {
-            return false;
-        };
-        return marker_path(Path::new(&directory), tab_id, stage, action)
-            .is_some_and(|path| path.is_file());
-    }
-    #[cfg(not(feature = "resident-fixtures"))]
-    {
-        let _ = (tab_id, stage, action);
-        false
-    }
+    let Some(directory) = control_directory() else {
+        return false;
+    };
+    marker_path(directory, tab_id, stage, action).is_some_and(|path| path.is_file())
 }
 
 fn marker_path(directory: &Path, tab_id: &str, stage: &str, action: &str) -> Option<PathBuf> {
