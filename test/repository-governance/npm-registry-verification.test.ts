@@ -49,8 +49,8 @@ describe("npm post-publication registry verification", () => {
     expect(calls).not.toContain("/%40timurproko%2Fa1");
   });
 
-  it("retains the established ten-minute polling bound while exact resources converge", async () => {
-    expect(REGISTRY_VERIFICATION_ATTEMPTS).toBe(60);
+  it("retains the thirty-minute polling bound while exact resources converge", async () => {
+    expect(REGISTRY_VERIFICATION_ATTEMPTS).toBe(180);
     expect(REGISTRY_VERIFICATION_INTERVAL_MS).toBe(10_000);
     const reports: string[] = [];
     const sleeps: number[] = [];

@@ -246,7 +246,9 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain("cancel-in-progress: false");
     expect(source).toContain("Serialize the final registry check");
     expect(source).toContain("run: node scripts/release/npm-registry-verification.mjs");
-    expect(verifier).toContain("REGISTRY_VERIFICATION_ATTEMPTS = 60");
+    // Invariant: the publish job outlives the full 180 x 10s verification window.
+    expect(source).toMatch(/timeout-minutes: 45\n {4}environment: npm-publish\n/u);
+    expect(verifier).toContain("REGISTRY_VERIFICATION_ATTEMPTS = 180");
     expect(verifier).toContain("REGISTRY_VERIFICATION_INTERVAL_MS = 10_000");
     expect(verifier).toContain("/${encodedName}/${encodedVersion}?verify=${nonce}");
     expect(verifier).toContain("/-/package/${encodedName}/dist-tags?verify=${nonce}");
