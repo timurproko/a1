@@ -996,9 +996,12 @@ jobs:
           VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/release/candidate.tgz
           VALIDATION_PACKAGE_RECEIPT: ${{ github.workspace }}/.artifacts/release/candidate.receipt.json
           VALIDATION_PACKAGE_SOURCE_IDENTITY: ${{ github.workspace }}/.artifacts/release/candidate-identity.json
+        # Invariant: preparation plans the same shard its consumer runs, so the handoff names exactly
+        # that shard's exact-package consumers.
         run: >-
           node scripts/release/run-validation-tier.mjs
           --prepare-exact-package
+          --full-shard "${{ matrix.shard }}"
           --handoff .artifacts/validation/exact-package-handoff.json
       - name: Enable Defender real-time protection for startup acceptance
         if: matrix.shard == 'package'
