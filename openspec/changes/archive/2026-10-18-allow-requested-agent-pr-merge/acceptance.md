@@ -15,7 +15,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-18-allow-requested-agent-pr-merge/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-18-allow-requested-agent-pr-merge/acceptance.md",
   "finalizedDate": "2026-10-18",
-  "specBaseSha": "3513efa745148527e3b635de4a8a89024fd7e32f",
+  "specBaseSha": "163e8311dabdd8b0ec8e41f13eab033d054dd58c",
   "acceptanceScenarios": [
     "An explicit maintainer request lets the active agent protected-squash-merge the unchanged finalized candidate.",
     "A changed, pending, ambiguous, or automation-credential candidate remains unmerged and requires a fresh maintainer request."
