@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-18-reliable-session-clipboard/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-18-reliable-session-clipboard/acceptance.md",
   "finalizedDate": "2026-10-18",
-  "specBaseSha": "a57b841b8cb84684c9bfa4e88342707f1074b2d5",
+  "specBaseSha": "3513efa745148527e3b635de4a8a89024fd7e32f",
   "acceptanceScenarios": [
     "Supported local copy retries transient contention and falls back to a platform or active terminal route without rendering failure notices.",
     "Viewed resident tabs forward admitted selection copy while hidden or stale tabs cannot change the clipboard.",
