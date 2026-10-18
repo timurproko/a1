@@ -829,6 +829,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ? Math.max(0, dock.inputRows - 2)
       : 0;
     const copyableDockRows: NonNullable<TranscriptViewportFrameInput["copyableDockRows"]> = [
+      ...dock.copyableMessageRows,
       ...Array.from({ length: promptCopyRows }, (_value, index) => ({
         row: editorOffset + index + 1,
         prompt: index === 0 ? "first" as const : "continuation" as const,
@@ -1027,10 +1028,18 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     readonly editorOffset: number;
     readonly inputRows: number;
     readonly footerRows: number;
+    /** Exact status, warning, error, command-result, and notice rows; queued and structural rows stay excluded. */
+    readonly copyableMessageRows: NonNullable<TranscriptViewportFrameInput["copyableDockRows"]>;
   } {
     const queued = this.#customViewport ? [] : this.#renderQueued(width);
     const statusRows = this.#customViewport ? this.#status.renderDock(width) : this.#renderStatus(width);
-    const transientRows = [...queued, ...statusRows, ...this.#renderDockNotice(width)];
+    const noticeRows = this.#renderDockNotice(width);
+    const transientRows = [...queued, ...statusRows, ...noticeRows];
+    const messageStart = queued.length;
+    const copyableMessageRows = Array.from(
+      { length: statusRows.length + noticeRows.length },
+      (_value, index) => ({ row: messageStart + index }),
+    );
     const aboveWidgets = this.#renderWidgets("aboveEditor", width);
     const input = this.#inputSurface.render(width);
     const body = this.usesDefaultInputSurface() ? this.editor.bodyGeometry?.() : undefined;
@@ -1044,6 +1053,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       editorOffset: inputOffset + (body?.rowOffset ?? 0),
       inputRows: body?.rowCount ?? input.length,
       footerRows: footer.length,
+      copyableMessageRows,
     };
   }
 
