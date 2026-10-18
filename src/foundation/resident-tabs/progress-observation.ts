@@ -1,9 +1,10 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
-const OBSERVATION_DIRECTORY_ENV = "A1_RESIDENT_PROGRESS_OBSERVATION_DIR";
-const OBSERVATION_RUN_ENV = "A1_RESIDENT_PROGRESS_RUN_ID";
+const OBSERVATION_DIRECTORY_ENV = PRODUCT_IDENTITY.environment.residentProgressObservationDir;
+const OBSERVATION_RUN_ENV = PRODUCT_IDENTITY.environment.residentProgressRunId;
 const MAX_PENDING_BYTES = 256 * 1024;
 
 interface ProgressFields {
@@ -86,7 +87,7 @@ class ResidentProgressObserver implements ResidentProgressObserverPort {
       stage,
       pid: process.pid,
       timestampUnixUs: Math.round((performance.timeOrigin + performance.now()) * 1_000),
-      // timeOrigin is calibrated to the Unix epoch; retain a conservative cross-process error.
+      // Rationale: timeOrigin is calibrated to the Unix epoch; retain a conservative cross-process error.
       clockErrorUs: 1_000,
       sequence: ++this.#sequence,
       tabId: this.#tabId,
@@ -122,20 +123,20 @@ export function residentProgressObserver(
   if (environment === process.env && observer !== undefined) return observer;
   const directory = environment[OBSERVATION_DIRECTORY_ENV];
   const runId = environment[OBSERVATION_RUN_ENV];
-  const tabId = environment.A1_RESIDENT_PROGRESS_TAB_ID;
-  const incarnation = Number(environment.A1_RESIDENT_PROGRESS_TAB_INCARNATION);
+  const tabId = environment[PRODUCT_IDENTITY.environment.residentProgressTabId];
+  const incarnation = Number(environment[PRODUCT_IDENTITY.environment.residentProgressTabIncarnation]);
   const value = directory && runId && runId.length <= 128 && tabId && Number.isSafeInteger(incarnation) && incarnation >= 0
     ? new ResidentProgressObserver(directory, runId, tabId, incarnation)
     : null;
   if (environment === process.env) {
     observer = value;
-    // Test evidence paths and tab identity are not child/tool configuration. Retain them only in
+    // Security: test evidence paths and tab identity are not child/tool configuration. Retain them only in
     // this observer instance so extensions and spawned tools cannot append to the fixture trace.
     for (const name of [
       OBSERVATION_DIRECTORY_ENV,
       OBSERVATION_RUN_ENV,
-      "A1_RESIDENT_PROGRESS_TAB_ID",
-      "A1_RESIDENT_PROGRESS_TAB_INCARNATION",
+      PRODUCT_IDENTITY.environment.residentProgressTabId,
+      PRODUCT_IDENTITY.environment.residentProgressTabIncarnation,
     ]) delete process.env[name];
   }
   return value;

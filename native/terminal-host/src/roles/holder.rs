@@ -120,7 +120,7 @@ impl CommittedSurface {
             bracketed_paste: snapshot.bracketed_paste,
             kitty_keyboard_flags: snapshot.kitty_keyboard_flags,
             alternate_screen: snapshot.alternate_screen,
-            // The final attach compositor is the only outer synchronization owner. Whether the
+            // Invariant: the final attach compositor is the only outer synchronization owner. Whether the
             // mutable parser is currently withholding a transaction is not replayable state.
             synchronized_output: false,
         };
@@ -212,7 +212,7 @@ fn commit_retained_surface(
     {
         Ok(next) => next,
         Err(error) => {
-            // Keep the prior complete commit authoritative on an oversized or malformed capture.
+            // Invariant: keep the prior complete commit authoritative on an oversized or malformed capture.
             // The typed notice is bounded and never substitutes a truncated visual state.
             let _ = server.offer_control(wire::frame(
                 "surface.rejected",
@@ -289,7 +289,7 @@ fn publish_pending_effects(
     sequence: &mut u64,
 ) -> Result<(), String> {
     if !connected {
-        // A disconnected holder cannot know whether this tab is still viewed. Once-only outer
+        // Rationale: a disconnected holder cannot know whether this tab is still viewed. Once-only outer
         // effects are therefore dropped, never replayed after reconstruction or reconnection.
         effects.clear();
         return Ok(());
@@ -685,7 +685,7 @@ fn run_holder(
             }
         }
     });
-    // Bounded transport applies backpressure at the PTY reader instead of letting a hidden or
+    // Concurrency: bounded transport applies backpressure at the PTY reader instead of letting a hidden or
     // disconnected child grow process memory without limit.
     let (output_tx, output_rx) = mpsc::sync_channel::<Vec<u8>>(64);
     let reader_wake = wake_tx.clone();
@@ -787,7 +787,7 @@ fn run_holder(
             let effects = crate::core::holder::step(&mut input, event, Duration::ZERO);
             apply_holder_effects(effects, &write_tx, &server)?;
         }
-        // Fairness: one hot producer cannot monopolize the holder loop indefinitely.
+        // Concurrency: one hot producer cannot monopolize the holder loop indefinitely.
         let command_round_started = std::time::Instant::now();
         for _ in 0..8 {
             let Ok(command) = command_rx.try_recv() else {
@@ -892,7 +892,7 @@ fn run_holder(
                 geometry_generation = resize
                     .geometry_generation
                     .max(geometry_generation.saturating_add(1));
-                // Give the child one short opportunity to repaint the new geometry. If it does
+                // Rationale: give the child one short opportunity to repaint the new geometry. If it does
                 // not, publish one explicitly provisional complete state rather than mixing the
                 // old body with new strip coordinates.
                 geometry_deadline = Some(
@@ -1106,7 +1106,7 @@ fn run_holder(
                 );
                 match boundary {
                     Some(SynchronizedOutputBoundary::Begin) => {
-                        // Bytes preceding the opening delimiter belong to the prior coherent
+                        // Protocol: bytes preceding the opening delimiter belong to the prior coherent
                         // state. The delimiter itself changes no visible cells, and duplicate
                         // commits are suppressed by the retained commit contract.
                         commit_retained_surface(
@@ -1178,7 +1178,7 @@ fn run_holder(
                 break;
             }
         }
-        // Normal output commits after this bounded coalescing round. Synchronized output remains
+        // Concurrency: normal output commits after this bounded coalescing round. Synchronized output remains
         // private until a real close/reset boundary or one non-renewable recovery deadline.
         if changed && synchronization.may_publish() {
             commit_retained_surface(

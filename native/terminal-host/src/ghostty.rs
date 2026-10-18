@@ -2530,7 +2530,7 @@ mod retained_tests {
     fn native_control_parser_owns_malformed_string_abort_semantics() {
         let mut terminal = GhosttyTerminal::new(8, 2).expect("terminal");
         let mut found = Vec::new();
-        // ESC aborts OSC before `[` begins a CSI sequence. A raw string scanner would disagree;
+        // Protocol: ESC aborts OSC before `[` begins a CSI sequence. A raw string scanner would disagree;
         // the native parser correctly treats the following DECSET as synchronized output.
         feed_boundaries(
             &mut terminal,

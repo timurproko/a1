@@ -283,7 +283,7 @@ fn accepts_holder_surface(existing: Option<&Surface>, next: &Surface) -> bool {
     if next.revision != existing.revision {
         return next.revision > existing.revision;
     }
-    // Equal revisions are idempotent metadata re-offers, never another child commit. Status and
+    // Protocol: equal revisions are idempotent metadata re-offers, never another child commit. Status and
     // accent may change independently, but retained visual and terminal state may not.
     next.bytes == existing.bytes
         && next.structured == existing.structured
@@ -1782,7 +1782,7 @@ fn claim_client_control(
             },
         )?);
     }
-    // Revoke one-shot effect authority before beginning a controller handoff. Visual
+    // Concurrency: revoke one-shot effect authority before beginning a controller handoff. Visual
     // subscriptions remain independent and may stay active for both viewers.
     refresh_surface_subscription(locked, &viewed_tab)?;
     let can_boundary = previous.is_some()
@@ -4102,7 +4102,7 @@ fn serve_holder(
         let mut locked = state
             .lock()
             .map_err(|_| "resident state poisoned".to_owned())?;
-        // Hidden holders continue parsing and committing locally but do no full-surface
+        // Performance: hidden holders continue parsing and committing locally but do no full-surface
         // serialization or delivery until at least one client views this tab.
         tx.offer_control(wire::frame(
             "surface.subscription",
@@ -4298,7 +4298,7 @@ fn serve_holder(
                     let Some((clients, surface)) = routed else {
                         continue;
                     };
-                    // Serialization and fallback reconstruction are intentionally outside the
+                    // Concurrency: serialization and fallback reconstruction are intentionally outside the
                     // shared server-state lock; one large surface cannot delay unrelated tabs.
                     for (client, structured, generation) in clients {
                         let offered =

@@ -86,7 +86,7 @@ export function evaluateProgressScenario(records, scenario) {
     if ((scenario.viewedTabIds ?? []).includes(tabId) && receipts.length < 1) faults.push(`${scenario.id}/${tabId}: no attach receipt while selected`);
     if ((scenario.viewedTabIds ?? []).includes(tabId) && paints.length < 1) faults.push(`${scenario.id}/${tabId}: no completed outer paint while selected`);
     const latestEngineAt = engine.at(-1)?.timestampUnixUs ?? scenario.startedUnixUs;
-    // The renderer write immediately following the last delta is content delivery; only later
+    // Invariant: the renderer write immediately following the last delta is content delivery; only later
     // writes with no new engine event are independent animation checkpoints.
     const animationWrites = renders.filter(record => record.timestampUnixUs > latestEngineAt + 50_000);
     if (animationWrites.length < 2) faults.push(`${scenario.id}/${tabId}: fewer than two post-partial animation writes`);

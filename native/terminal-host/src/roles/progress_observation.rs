@@ -78,7 +78,7 @@ pub fn observe(role: &'static str, stage: &'static str, metadata: ProgressMetada
         stage,
         pid: std::process::id(),
         timestamp_unix_us: timestamp_unix_us(),
-        // SystemTime is the common cross-process clock. One millisecond is a conservative bound
+        // Rationale: SystemTime is the common cross-process clock. One millisecond is a conservative bound
         // for wall-clock quantization and scheduler delay at the call boundary.
         clock_error_us: 1_000,
         sequence,

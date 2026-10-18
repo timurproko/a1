@@ -638,7 +638,7 @@ fn render_surface_row(
     if active_style.is_some() {
         output.extend_from_slice(b"\x1b[0m");
     }
-    // A spectator may be wider than the controller-owned child geometry, and a row may replace
+    // Invariant: a spectator may be wider than the controller-owned child geometry, and a row may replace
     // previously wider content. Erasing after the complete retained row prevents stale suffixes
     // without dropping styled blanks inside the child surface.
     if visible < usize::from(columns) {

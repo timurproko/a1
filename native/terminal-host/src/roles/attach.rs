@@ -1488,7 +1488,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             })?;
         }};
     }
-    // The composer compares the complete desired state, so strip-only damage is inferred without
+    // Invariant: the composer compares the complete desired state, so strip-only damage is inferred without
     // omitting the retained body from a replaceable queued update.
     macro_rules! paint_strip {
         () => {{
@@ -1666,7 +1666,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "terminal.effect" => {
                     let (_, effect): (_, TerminalEffect) = wire::body(&payload)?;
-                    // The control lane may overtake a replaceable surface slot. Defer the effect
+                    // Concurrency: the control lane may overtake a replaceable surface slot. Defer the effect
                     // until its coherent revision is committed, then deduplicate by incarnation
                     // and sequence; reconstruction and stale re-offers can never replay it.
                     if apply_effects
@@ -2335,7 +2335,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 if let Some(menu) = popup.as_mut() {
                     menu.resize(columns);
                 }
-                // The old viewport is never combined with new strip/overlay coordinates.
+                // Invariant: the old viewport is never combined with new strip/overlay coordinates.
                 latest_surface.clear();
                 latest_structured = None;
                 latest_cursor = Some(FinalCursor::Hidden);

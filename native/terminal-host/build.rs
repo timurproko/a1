@@ -67,7 +67,7 @@ fn main() {
         // selection; appending the archive as a raw link argument creates weak-symbol conflicts.
         println!("cargo:rustc-link-lib=static=ghostty-vt-static");
     } else {
-        // The explicit static kind selects the archive even when Zig emits an adjacent shared
+        // Rationale: the explicit static kind selects the archive even when Zig emits an adjacent shared
         // library. Cargo then propagates the native dependency to lib tests as well as the addon
         // and role host; target-only link args do not reach the generated library test harness.
         let archive = lib_dir.join("libghostty-vt.a");

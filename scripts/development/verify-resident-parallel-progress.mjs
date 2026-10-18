@@ -281,7 +281,7 @@ async function runScenarios(attach, host, context, provider, tabIds) {
       await selectTab(attach, context, initialView, tabIds[initialView]);
       scenario.start();
       await withTimeout(scenario.partialReady, `${id} unfinished partials`);
-      // Leave each turn unfinished while every retained surface is activated and painted.
+      // Invariant: leave each turn unfinished while every retained surface is activated and painted.
       for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
         const checkpoint = attach.checkpoint();
         await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
@@ -337,14 +337,14 @@ async function collect(host) {
     ...process.env,
     TERM: "xterm-256color",
     [tabsEndpointEnvironment]: context.endpoint,
-    A1_PROFILE_HOME: context.profile,
-    A1_CONFIG_DIR: context.profile,
-    A1_DATA_DIR: context.data,
-    A1_RUNTIME_DIR: context.runtime,
+    [productIdentity.environment.profileHome]: context.profile,
+    [productIdentity.environment.configDir]: context.profile,
+    [productIdentity.environment.dataDir]: context.data,
+    [productIdentity.environment.runtimeDir]: context.runtime,
     PI_CODING_AGENT_DIR: context.profile,
-    A1_SKIP_VERSION_CHECK: "1",
-    A1_RESIDENT_PROGRESS_OBSERVATION_DIR: context.observations,
-    A1_RESIDENT_PROGRESS_RUN_ID: runId,
+    [productIdentity.environment.skipVersionCheck]: "1",
+    [productIdentity.environment.residentProgressObservationDir]: context.observations,
+    [productIdentity.environment.residentProgressRunId]: runId,
   };
   for (const directory of [context.profile, context.data, context.runtime, context.observations]) {
     await mkdir(directory, { recursive: true });
