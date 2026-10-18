@@ -173,7 +173,10 @@ class LoopbackProvider {
       scenario.release();
     }
     if (this.#server === undefined) return;
-    await new Promise(resolvePromise => this.#server.close(resolvePromise));
+    // Invariant: a surviving tab may hold a keep-alive stream; cleanup closes it rather than waiting forever.
+    const closed = new Promise(resolvePromise => this.#server.close(resolvePromise));
+    this.#server.closeAllConnections();
+    await Promise.race([closed, delay(5_000)]);
   }
 
   async #handle(request, response) {
@@ -965,16 +968,25 @@ async function collect(host) {
     run(host, ["server", "--detach", "--profile", context.profile, "--data-dir", context.data, "--runtime-dir", context.runtime], {
       cwd: root, env: context.environment,
     });
+    phase("attach");
     attach = await createAttach(spawn, host, context);
+    phase("real tabs");
     tabIds = await createRealTabs(host, context);
+    phase("temporal parity");
     const temporalParity = await compareDirectAndResidentTemporalState(spawn, host, attach, context, provider, tabIds);
     if (!temporalParity.passed) throw new Error(temporalParity.faults.join("; "));
+    phase("scenarios");
     const scenarios = await runScenarios(attach, context, provider, tabIds);
+    phase("slow transport");
     const slowTransport = await runSlowTransportVariant(attach, context, provider, tabIds);
+    phase("interaction pressure");
     const interactionPressure = await runInteractionPressureVariant(attach, context, provider, tabIds);
+    phase("detached reconnect");
     const detachedReconnect = await runDetachedReconnectVariant(spawn, host, attach, context, provider, tabIds);
     attach = detachedReconnect.attach;
+    phase("fragmented transactions");
     const transactionCharacterization = await characterizeFragmentedTransactions(attach, context, provider, tabIds);
+    phase("stopped-stage controls");
     const stoppedStageControls = await runStoppedStageControls(attach, context, provider, tabIds);
     const observations = await currentObservations(context);
     const latency = progressLatencyReport(observations.records, tabIds, scenarios.map(scenario => scenario.window));
@@ -1020,6 +1032,7 @@ async function collect(host) {
         env: context.environment,
       });
     } catch { /* Invariant: a host that already stopped leaves nothing to stop. */ }
+    phase("cleanup");
     await provider.stop();
   }
 }
@@ -1044,7 +1057,18 @@ async function withTimeout(promise, description, timeoutMs = scenarioTimeoutMs) 
   } finally { clearTimeout(timeout); }
 }
 
+// Rationale: the report goes to stdout, so phase progress goes to stderr and names a stalled phase in CI.
+function phase(name) { process.stderr.write(`[parallel-progress] ${new Date().toISOString()} ${name}
+`); }
+
+const harnessTimeoutMs = 15 * 60_000;
+
 async function main() {
+  // Invariant: a stalled fixture fails with its last phase instead of holding the runner to the job limit.
+  setTimeout(() => {
+    phase(`exceeded ${harnessTimeoutMs / 60_000} minutes`);
+    process.exit(1);
+  }, harnessTimeoutMs).unref();
   const host = argument("--host") ?? process.env.A1_TERMINAL_HOST_PATH;
   if (!host) throw new Error("usage: verify-resident-parallel-progress.mjs --host <terminal-host.node>");
   const report = await collect(resolve(host));

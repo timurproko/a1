@@ -756,6 +756,8 @@ jobs:
         run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}${{ matrix.partitionSlug && format('-{0}', matrix.partitionSlug) || '' }}-attempt-${{ github.run_attempt }}.json
       - name: Certify terminal fidelity and resident latency
         if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
+        # Rationale: certification takes minutes on every target; a stalled fixture fails here, not at the job limit.
+        timeout-minutes: 20
         shell: bash
         run: |
           mkdir -p .artifacts/terminal-host
