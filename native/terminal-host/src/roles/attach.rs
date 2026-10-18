@@ -45,6 +45,8 @@ const ATTACH_SERVER_QUEUE_BYTES: usize = 4 * 1024 * 1024;
 const ATTACH_SERVER_QUEUE_FRAMES: usize = 64;
 const ATTACH_INGRESS_BYTES: usize = 4 * 1024 * 1024;
 const ATTACH_INGRESS_FRAMES: usize = 8;
+const DEFERRED_INPUT_BYTES: usize = 4 * 1024 * 1024;
+const DEFERRED_INPUT_FRAMES: usize = 64;
 const OUTER_EFFECT_QUEUE_BYTES: usize = 4 * 1024 * 1024;
 const OUTER_CONTROL_QUEUE_FRAMES: usize = 8;
 #[cfg(test)]
@@ -1050,6 +1052,55 @@ pub fn child_mouse_row(outer_row: u16) -> Option<u16> {
     outer_row.checked_sub(1)
 }
 
+#[derive(Debug, Default)]
+struct DeferredInput {
+    frames: VecDeque<(String, Vec<u8>)>,
+    bytes: usize,
+}
+
+impl DeferredInput {
+    fn push(&mut self, target: &str, frames: Vec<Vec<u8>>) -> Result<(), &'static str> {
+        let added_bytes = frames
+            .iter()
+            .try_fold(0usize, |total, frame| total.checked_add(frame.len()))
+            .ok_or("deferred input byte limit reached")?;
+        let next_bytes = self
+            .bytes
+            .checked_add(added_bytes)
+            .filter(|bytes| *bytes <= DEFERRED_INPUT_BYTES)
+            .ok_or("deferred input byte limit reached")?;
+        if self.frames.len().saturating_add(frames.len()) > DEFERRED_INPUT_FRAMES {
+            return Err("deferred input frame limit reached");
+        }
+        self.bytes = next_bytes;
+        self.frames
+            .extend(frames.into_iter().map(|frame| (target.to_owned(), frame)));
+        Ok(())
+    }
+
+    fn resolve(&mut self, target: &str) -> (Vec<Vec<u8>>, bool) {
+        let mut selected = Vec::new();
+        let mut dropped = false;
+        while let Some((frame_target, frame)) = self.frames.pop_front() {
+            if frame_target == target {
+                selected.push(frame);
+            } else {
+                dropped = true;
+            }
+        }
+        self.bytes = 0;
+        (selected, dropped)
+    }
+
+    fn discard(&mut self, target: &str) -> bool {
+        let before = self.frames.len();
+        self.frames
+            .retain(|(frame_target, _)| frame_target != target);
+        self.bytes = self.frames.iter().map(|(_, frame)| frame.len()).sum();
+        self.frames.len() != before
+    }
+}
+
 struct AttachServerWriter {
     sender: mpsc::SyncSender<Vec<u8>>,
     reserved_bytes: Arc<AtomicUsize>,
@@ -1396,14 +1447,34 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     // Concurrency: a shortcut can arrive after the server created a tab but before its registry
     // snapshot reaches this client; retain the requested ordinal until that snapshot arrives.
     let mut pending_jump = None::<(usize, u64)>;
+    let mut deferred_input = DeferredInput::default();
+    macro_rules! send_child_frames {
+        ($frames:expr) => {{
+            let frames: Vec<Vec<u8>> = $frames;
+            if let Some(target) = view.requested.as_deref() {
+                if deferred_input.push(target, frames).is_err() {
+                    user_input_pending = false;
+                    transient_notice = Some("Input was not sent; try again.".into());
+                    paint_current!(false);
+                }
+            } else {
+                for frame in frames {
+                    stream
+                        .write_all(&frame)
+                        .map_err(|error| format!("queue resident frame: {error}"))?;
+                }
+            }
+        }};
+    }
     macro_rules! send_input {
         ($event:expr, $legacy:expr) => {{
-            match channel.outgoing($event, $legacy) {
-                Some(Outgoing::Semantic(input)) => {
-                    wire::send(&mut stream, "input.event", None, input)?;
-                }
-                Some(Outgoing::Legacy(input)) => wire::send(&mut stream, "input", None, input)?,
-                None => {}
+            let frame = match channel.outgoing($event, $legacy) {
+                Some(Outgoing::Semantic(input)) => Some(wire::frame("input.event", None, input)?),
+                Some(Outgoing::Legacy(input)) => Some(wire::frame("input", None, input)?),
+                None => None,
+            };
+            if let Some(frame) = frame {
+                send_child_frames!(vec![frame]);
             }
         }};
     }
@@ -1558,6 +1629,22 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     popup = None;
                     prompt_view = view.viewed.clone();
                 }
+                // Protocol: input typed after a view request remains bound to that target and is
+                // released only after its coherent surface commits and its holder is routable.
+                let (frames, mut dropped) = deferred_input.resolve(&surface.tab_id);
+                if surface.status == "failed" {
+                    dropped |= !frames.is_empty();
+                } else {
+                    for frame in frames {
+                        stream
+                            .write_all(&frame)
+                            .map_err(|error| format!("queue deferred resident input: {error}"))?;
+                    }
+                }
+                if dropped {
+                    user_input_pending = false;
+                    transient_notice = Some("Input was not sent; try again.".into());
+                }
             }
             if surface.status == "failed" {
                 failed_tab = Some(surface.tab_id.clone());
@@ -1624,7 +1711,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     let (_, surface): (_, Surface) = wire::body(&payload)?;
                     if let Some(structured) = surface.structured.as_ref()
                         && (structured.validate().is_err()
-                            || (surface.incarnation == latest_incarnation
+                            || (view.viewed.as_deref() == Some(surface.tab_id.as_str())
+                                && surface.incarnation == latest_incarnation
                                 && structured.geometry_generation < latest_geometry_generation))
                     {
                         continue;
@@ -1764,6 +1852,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             .as_ref()
                             .and_then(|fallback| fallback.resolve(candidates))
                     });
+                    if outcome
+                        .dropped_request
+                        .as_deref()
+                        .is_some_and(|target| deferred_input.discard(target))
+                    {
+                        user_input_pending = false;
+                        transient_notice = Some("Input was not sent; try again.".into());
+                    }
                     if let Some(tab_id) = outcome.view_request {
                         request_view!(tab_id);
                     }
@@ -1843,7 +1939,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "tab.create-failed" | "tab.create-refused" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    if let Some(target) = view.requested.as_deref() {
+                        deferred_input.discard(target);
+                    }
                     view.cancel_request();
+                    user_input_pending = false;
                     transient_notice = Some(tab_create_failure_notice(result.message.as_deref()));
                     paint_current!(false);
                 }
@@ -2320,18 +2420,16 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 chord.reset();
                 let bytes = text.into_bytes();
                 user_input_pending = true;
-                wire::send(
-                    &mut stream,
+                let mut frames = vec![wire::frame(
                     "paste.start",
                     None,
                     PasteStart {
                         bytes: bytes.len(),
                         epoch: 0,
                     },
-                )?;
+                )?];
                 for chunk in bytes.chunks(MAX_INPUT_BYTES) {
-                    wire::send(
-                        &mut stream,
+                    frames.push(wire::frame(
                         "input",
                         None,
                         Input {
@@ -2339,8 +2437,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             paste: true,
                             epoch: 0,
                         },
-                    )?;
+                    )?);
                 }
+                send_child_frames!(frames);
             }
             Event::Resize(cols, rows) => {
                 outer_rows = rows;
@@ -2357,8 +2456,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 latest_structured = None;
                 latest_cursor = Some(FinalCursor::Hidden);
                 paint_current!(true);
-                wire::send(
-                    &mut stream,
+                send_child_frames!(vec![wire::frame(
                     "resize",
                     None,
                     Resize {
@@ -2367,7 +2465,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         epoch: 0,
                         geometry_generation,
                     },
-                )?;
+                )?]);
             }
             Event::FocusGained if !failed => {
                 wire::send(
@@ -3038,6 +3136,31 @@ mod tests {
         assert!(is_ctrl_c_bytes(b"\x03"));
         assert!(is_ctrl_c_bytes(b"\x1b[99;5u"));
         assert!(is_ctrl_c_console('C', true, true));
+    }
+    #[test]
+    fn deferred_input_is_atomic_bounded_and_bound_to_the_requested_tab() {
+        let mut deferred = DeferredInput::default();
+        deferred
+            .push("tab-b", vec![vec![1, 2], vec![3]])
+            .expect("defer input");
+        deferred
+            .push("tab-c", vec![vec![4]])
+            .expect("defer superseding input");
+        let (selected, dropped) = deferred.resolve("tab-c");
+        assert_eq!(selected, vec![vec![4]]);
+        assert!(dropped);
+        assert_eq!(deferred.bytes, 0);
+        assert!(deferred.frames.is_empty());
+
+        let mut full = DeferredInput::default();
+        assert_eq!(
+            full.push("tab-a", vec![vec![0; DEFERRED_INPUT_BYTES + 1]]),
+            Err("deferred input byte limit reached")
+        );
+        assert!(
+            full.frames.is_empty(),
+            "an oversized paste admitted no prefix"
+        );
     }
     #[test]
     fn outer_contract_offsets_rows_and_never_forwards_bell() {
