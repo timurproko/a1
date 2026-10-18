@@ -3,15 +3,14 @@ use std::fs;
 #[cfg(not(windows))]
 use std::io::BufRead;
 use std::io::{Read, Write};
-use std::process::{Command, ExitCode};
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate as contracts;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
-use terminal_host_contracts as contracts;
 
 use contracts::ghostty::{
     GhosttyTerminal, KeyEncoder, MOD_CTRL, MouseAction, MouseButton, MouseEncoder, MouseInput,
@@ -29,64 +28,98 @@ const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");
 const FAULT_INJECTION: bool = cfg!(feature = "fault-injection");
 const RESIDENT_FIXTURES: bool = cfg!(feature = "resident-fixtures");
 
-fn main() -> ExitCode {
-    // Platform: Windows rounds short sleeps up to its ~15.6 ms default timer tick, which the
-    // synchronous pipe readiness poll would add to every hop; a 1 ms period is scoped to this
-    // process on current Windows releases.
-    #[cfg(windows)]
-    unsafe {
-        windows_sys::Win32::Media::timeBeginPeriod(1);
+#[derive(Debug, Clone)]
+pub struct VersionFeatures {
+    pub fault_injection: bool,
+    pub resident_fixtures: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct VersionReport {
+    pub schema: &'static str,
+    pub protocol_version: u32,
+    pub generation: u16,
+    pub crate_version: &'static str,
+    pub features: VersionFeatures,
+    pub host_mode: &'static str,
+    pub desktop_window: bool,
+    pub libghostty_vt_commit: &'static str,
+    pub libghostty_target: &'static str,
+    pub libghostty_cpu: &'static str,
+    pub portable_pty: &'static str,
+    pub crossterm: &'static str,
+}
+
+pub fn version_report() -> VersionReport {
+    VersionReport {
+        schema: "a1-terminal-host-version-v1",
+        protocol_version: PROTOCOL_VERSION,
+        generation: GENERATION,
+        crate_version: CRATE_VERSION,
+        features: VersionFeatures {
+            fault_injection: FAULT_INJECTION,
+            resident_fixtures: RESIDENT_FIXTURES,
+        },
+        host_mode: "console-inside-existing-terminal",
+        desktop_window: false,
+        libghostty_vt_commit: GHOSTTY_VT_COMMIT,
+        libghostty_target: GHOSTTY_ZIG_TARGET,
+        libghostty_cpu: GHOSTTY_ZIG_CPU,
+        portable_pty: PORTABLE_PTY_VERSION,
+        crossterm: CROSSTERM_VERSION,
     }
-    match run_from_args(env::args().skip(1).collect()) {
-        Ok(()) => ExitCode::SUCCESS,
+}
+
+/// Runs one fixed terminal-host role on the calling thread and returns its process exit code.
+pub fn run_from_args(args: Vec<String>) -> u32 {
+    match dispatch_from_args(args) {
+        Ok(code) => u32::from(code),
         Err(error) => {
             eprintln!("a1-terminal-host: {error}");
-            ExitCode::from(2)
+            2
         }
     }
 }
 
-fn run_from_args(args: Vec<String>) -> Result<(), String> {
+fn dispatch_from_args(args: Vec<String>) -> Result<u8, String> {
     contracts::fault_injection::validate_environment()?;
     match args.first().map(String::as_str) {
-        Some("--version") => {
-            print_provenance();
-            Ok(())
-        }
-        Some("server") => resident_server_command(&args[1..]),
-        Some("probe") => resident_probe_command(&args[1..]),
-        Some("release-holds") => release_holds_command(&args[1..]),
+        Some("--version") => successful(|| print_provenance()),
+        Some("server") => resident_server_command(&args[1..]).map(|()| 0),
+        Some("probe") => resident_probe_command(&args[1..]).map(|()| 0),
+        Some("release-holds") => release_holds_command(&args[1..]).map(|()| 0),
         Some("tabs") => tabs_command(&args[1..]),
         Some("holder") => Err("holder role is started only by the resident server".to_owned()),
-        Some("attach") => resident_attach_command(&args[1..]),
-        Some("internal") => resident_internal_command(&args[1..]),
-        Some("--probe") => probe(),
-        Some("--probe-scroll") => probe_scroll(),
-        Some("--probe-selection") => probe_selection(),
-        Some("--probe-input") => probe_input(),
-        Some("--probe-contracts") => probe_contracts(),
-        Some("--probe-durable") => probe_durable_replacement(),
+        Some("attach") => resident_attach_command(&args[1..]).map(|()| 0),
+        Some("internal") => resident_internal_command(&args[1..]).map(|()| 0),
+        Some("--probe") => probe().map(|()| 0),
+        Some("--probe-scroll") => probe_scroll().map(|()| 0),
+        Some("--probe-selection") => probe_selection().map(|()| 0),
+        Some("--probe-input") => probe_input().map(|()| 0),
+        Some("--probe-contracts") => probe_contracts().map(|()| 0),
+        Some("--probe-durable") => probe_durable_replacement().map(|()| 0),
         Some("--durable-replace-child") if args.len() == 3 => {
-            durable_replace_child(&args[1], &args[2])
+            durable_replace_child(&args[1], &args[2]).map(|()| 0)
         }
-        Some("--probe-controller-boundary") => probe_controller_boundary(),
+        Some("--probe-controller-boundary") => probe_controller_boundary().map(|()| 0),
         Some("--controller-boundary-child") if args.len() == 4 => {
-            controller_boundary_child(&args[1], &args[2], &args[3])
+            controller_boundary_child(&args[1], &args[2], &args[3]).map(|()| 0)
         }
         #[cfg(feature = "resident-fixtures")]
-        Some("--probe-resident-launch") => probe_resident_launch(),
+        Some("--probe-resident-launch") => probe_resident_launch().map(|()| 0),
         Some("--resident-role-child") if args.len() == 5 => {
             contracts::launch::run_resident_child(&args[1], &args[2], &args[3], &args[4])
+                .map(|()| 0)
                 .map_err(|error| error.to_string())
         }
         Some("--resolve") if args.len() == 2 => {
             println!("{}", resolve_command(&args[1])?);
-            Ok(())
+            Ok(0)
         }
         Some("--resolve-shell") => {
             let (program, arguments) = contracts::shell::default_shell();
             println!("{program} {}", arguments.join(" "));
-            Ok(())
+            Ok(0)
         }
         _ => {
             eprintln!(
@@ -95,6 +128,11 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
             Err("expected a mode".to_owned())
         }
     }
+}
+
+fn successful(action: impl FnOnce()) -> Result<u8, String> {
+    action();
+    Ok(0)
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -292,7 +330,7 @@ struct TabsOutcome {
 
 /// `a1 tabs` maintenance. It never starts a server to report state; only `host-stop` may start
 /// a replacement, and only to stop holders that an unresponsive server left behind.
-fn tabs_command(arguments: &[String]) -> Result<(), String> {
+fn tabs_command(arguments: &[String]) -> Result<u8, String> {
     let command = arguments.first().map(String::as_str).unwrap_or("");
     let tab_id = (command == "stop")
         .then(|| arguments.get(1).cloned())
@@ -321,10 +359,7 @@ fn tabs_command(arguments: &[String]) -> Result<(), String> {
         );
     }
     println!("{report}");
-    if outcome.exit != 0 {
-        std::process::exit(i32::from(outcome.exit));
-    }
-    Ok(())
+    Ok(outcome.exit)
 }
 
 fn tabs_outcome(
@@ -483,9 +518,8 @@ fn stop_unresponsive_host(
             exit: 0,
         });
     }
-    let executable = env::current_exe().map_err(|error| error.to_string())?;
-    let started = Command::new(executable)
-        .args(["server", "--detach", "--restart", "--profile"])
+    let started = contracts::launch::command(["server", "--detach", "--restart", "--profile"])
+        .map_err(|error| error.to_string())?
         .arg(profile)
         .arg("--data-dir")
         .arg(data)
@@ -935,8 +969,22 @@ fn resident_endpoint(
 }
 
 fn print_provenance() {
+    let report = version_report();
     println!(
-        "{{\"schema\":\"a1-terminal-host-version-v1\",\"protocolVersion\":{PROTOCOL_VERSION},\"generation\":{GENERATION},\"crateVersion\":\"{CRATE_VERSION}\",\"features\":{{\"faultInjection\":{FAULT_INJECTION},\"residentFixtures\":{RESIDENT_FIXTURES}}},\"hostMode\":\"console-inside-existing-terminal\",\"desktopWindow\":false,\"libghosttyVtCommit\":\"{GHOSTTY_VT_COMMIT}\",\"libghosttyTarget\":\"{GHOSTTY_ZIG_TARGET}\",\"libghosttyCpu\":\"{GHOSTTY_ZIG_CPU}\",\"portablePty\":\"{PORTABLE_PTY_VERSION}\",\"crossterm\":\"{CROSSTERM_VERSION}\"}}"
+        "{{\"schema\":\"{}\",\"protocolVersion\":{},\"generation\":{},\"crateVersion\":\"{}\",\"features\":{{\"faultInjection\":{},\"residentFixtures\":{}}},\"hostMode\":\"{}\",\"desktopWindow\":{},\"libghosttyVtCommit\":\"{}\",\"libghosttyTarget\":\"{}\",\"libghosttyCpu\":\"{}\",\"portablePty\":\"{}\",\"crossterm\":\"{}\"}}",
+        report.schema,
+        report.protocol_version,
+        report.generation,
+        report.crate_version,
+        report.features.fault_injection,
+        report.features.resident_fixtures,
+        report.host_mode,
+        report.desktop_window,
+        report.libghostty_vt_commit,
+        report.libghostty_target,
+        report.libghostty_cpu,
+        report.portable_pty,
+        report.crossterm,
     );
 }
 
@@ -1307,15 +1355,17 @@ fn probe_controller_boundary() -> Result<(), String> {
                 pixel_height: 0,
             })
             .map_err(|error| format!("open controller boundary PTY: {error}"))?;
-        let mut command = CommandBuilder::new(
-            env::current_exe().map_err(|error| format!("resolve controller child: {error}"))?,
-        );
+        let host = contracts::launch::host_command().map_err(|error| error.to_string())?;
+        let mut arguments = vec![host.executable.into_os_string()];
+        arguments.extend(host.arguments);
+        let mut command = CommandBuilder::from_argv(arguments);
         command.args([
             "--controller-boundary-child",
             &generation.to_string(),
             &nonce.to_string(),
             &acknowledgement.to_string_lossy(),
         ]);
+        command.env("A1_TERMINAL_HOST_PATH", host.artifact);
         let mut child = pair
             .slave
             .spawn_command(command)
@@ -1455,20 +1505,18 @@ fn probe_durable_replacement() -> Result<(), String> {
     ));
     fs::create_dir_all(&root).map_err(|error| format!("create durability probe: {error}"))?;
     let target = root.join("state.bin");
-    let executable = env::current_exe()
-        .map_err(|error| format!("resolve durability probe executable: {error}"))?;
     let result = (|| {
         for step in contracts::durable::ALL_DURABILITY_STEPS {
             fs::write(&target, b"old durable bytes")
                 .map_err(|error| format!("seed durability probe: {error}"))?;
-            let status = Command::new(&executable)
-                .args([
-                    "--durable-replace-child",
-                    &target.to_string_lossy(),
-                    step.name(),
-                ])
-                .status()
-                .map_err(|error| format!("run durability kill child: {error}"))?;
+            let status = contracts::launch::command([
+                "--durable-replace-child",
+                &target.to_string_lossy(),
+                step.name(),
+            ])
+            .map_err(|error| error.to_string())?
+            .status()
+            .map_err(|error| format!("run durability kill child: {error}"))?;
             if status.success() {
                 return Err(format!(
                     "durability child did not terminate at {}",

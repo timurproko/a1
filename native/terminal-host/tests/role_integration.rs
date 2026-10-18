@@ -50,7 +50,7 @@ setInterval(() => {}, 1000);
     )
     .expect("fake child");
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     start_servers_concurrently(&executable, &profile, &data, &runtime, &address);
 
     let credentials_root = data
@@ -220,7 +220,7 @@ if (!fs.existsSync(marker)) {
     )
     .expect("fake crash-recovery child");
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let mut server = server_command(&executable, &profile, &data, &runtime, &address);
     server.env("A1_TABS_FAULT_CRASH_POINT", "after-restart-budget-commit");
     assert!(
@@ -314,7 +314,7 @@ fn blocked_identity_inspection_times_out_without_stalling_server_progress() {
     let release = directory(root.path(), "release");
     directory(&release, "bin");
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let mut server = server_command(&executable, &profile, &data, &runtime, &address);
     server.env("A1_TABS_FAULT_DELAY_HOLDER_IDENTITY_MS", "3000");
     assert!(
@@ -399,7 +399,7 @@ fn blocked_registry_sync_times_out_without_stalling_server_progress() {
     let release = directory(root.path(), "release");
     directory(&release, "bin");
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let mut server = server_command(&executable, &profile, &data, &runtime, &address);
     server.env("A1_TABS_FAULT_DELAY_REGISTRY_FSYNC_MS", "6000");
     assert!(
@@ -494,7 +494,7 @@ setInterval(() => {}, 1000);
     )
     .expect("fake child");
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     // Rationale: every tab start holds the server's only start slot for eight seconds.
     let mut server = server_command(&executable, &profile, &data, &runtime, &address);
     server
@@ -596,7 +596,7 @@ fn a_start_slot_that_never_frees_fails_the_new_tab_and_keeps_the_client() {
     let release = directory(root.path(), "release");
     directory(&release, "bin");
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
     let mut server = server_command(&executable, &profile, &data, &runtime, &address);
     server
@@ -683,7 +683,7 @@ fn a_start_slot_that_never_frees_fails_the_new_tab_and_keeps_the_client() {
 fn server_crash_points_recover_without_empty_or_split_registry_state() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     for point in ["after-lease", "after-epoch", "after-marker", "after-bind"] {
         let profile = directory(root.path(), &format!("profile-{point}"));
         let data = directory(root.path(), &format!("data-{point}"));
@@ -720,7 +720,7 @@ fn server_crash_points_recover_without_empty_or_split_registry_state() {
 fn every_role_watchdog_records_and_terminates_only_its_frozen_process() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let release = directory(root.path(), "release");
     directory(&release, "bin");
 
@@ -841,7 +841,7 @@ fn every_role_watchdog_records_and_terminates_only_its_frozen_process() {
 fn registry_retries_transient_ebusy_and_fails_closed_on_enospc() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     for (mode, succeeds) in [("ebusy-once", true), ("enospc", false)] {
         let profile = directory(root.path(), &format!("profile-{mode}"));
         let data = directory(root.path(), &format!("data-{mode}"));
@@ -888,7 +888,7 @@ fn ten_concurrent_tab_starts_respect_the_server_limit() {
     let release = directory(root.path(), "release");
     directory(&release, "bin");
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
     start_server(&executable, &profile, &data, &runtime, &address);
     let credentials_root = data
@@ -1032,7 +1032,7 @@ fn recovery_refuses_unverifiable_owners_and_enforces_the_start_budget() {
     let runtime = directory(root.path(), "runtime");
     protect_runtime(&runtime);
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let credentials_root = data
         .join("tabs")
         .join(endpoint::endpoint_token(&profile).expect("profile token"));
@@ -1105,7 +1105,7 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
     let release = directory(root.path(), "release");
     directory(&release, "bin");
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
     start_servers_concurrently(&executable, &profile, &data, &runtime, &address);
 
@@ -1305,7 +1305,7 @@ const REACHED_ON_START_AND_TAB: &[&str] = &[
 fn every_named_crash_point_recovers_to_a_clean_start_with_a_working_tab() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
     let mut unreached = Vec::new();
     for (index, point) in terminal_host_contracts::fault_injection::CRASH_POINTS
@@ -1437,7 +1437,7 @@ fn maintenance_lists_stops_reports_and_stops_the_host_without_starting_one() {
     protect_runtime(&runtime);
     let release = directory(root.path(), "release");
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
 
     // Invariant: with no host ever run, every read-only form reports none and creates nothing.
@@ -1591,7 +1591,7 @@ fn maintenance_stop_terminates_a_hung_holder_only_by_its_verified_identity() {
     let release = directory(root.path(), "release");
     protect_runtime(&runtime);
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let mut server = server_command(&executable, &profile, &data, &runtime, &address);
     server.env("A1_TABS_FAULT_FREEZE_ROLE", "holder");
     assert!(
@@ -1673,7 +1673,7 @@ fn maintenance_stops_a_streaming_tab_and_keeps_its_session_on_disk() {
     std::fs::write(&session, b"{\"type\":\"session\"}\n").expect("seed session");
     protect_runtime(&runtime);
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     start_server(&executable, &profile, &data, &runtime, &address);
     let credentials_root = data
         .join("tabs")
@@ -1777,7 +1777,7 @@ fn host_stop_terminates_an_unresponsive_server_and_stops_its_tabs() {
     let release = directory(root.path(), "release");
     protect_runtime(&runtime);
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     start_server(&executable, &profile, &data, &runtime, &address);
     let credentials_root = data
         .join("tabs")
@@ -1891,7 +1891,7 @@ fn host_stop_releases_a_tab_whose_holder_died_awaiting_readmission() {
     let release = directory(root.path(), "release");
     protect_runtime(&runtime);
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     start_server(&executable, &profile, &data, &runtime, &address);
     let credentials_root = data
         .join("tabs")
@@ -2006,7 +2006,7 @@ fn host_stop_releases_a_tab_whose_holder_died_awaiting_readmission() {
 fn host_stop_killed_at_each_step_leaves_no_orphan_or_duplicate_host() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     for (index, point) in [
         "host-stop-after-terminate",
         "host-stop-after-replacement",
@@ -2174,7 +2174,7 @@ fn a_bridge_status_survives_the_surfaces_of_the_holder_it_reports_under() {
     let release = directory(root.path(), "release");
     protect_runtime(&runtime);
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     start_server(&executable, &profile, &data, &runtime, &address);
     let credentials_root = data
         .join("tabs")
@@ -2340,7 +2340,7 @@ fn an_unviewed_tab_keeps_its_terminal_current_and_presents_it_in_full_when_viewe
     let release = directory(root.path(), "release");
     protect_runtime(&runtime);
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
     start_server(&executable, &profile, &data, &runtime, &address);
     let credentials_root = data
@@ -2493,7 +2493,7 @@ fn semantic_input_double_ctrl_c_and_effects_match_the_direct_child_contract() {
     let release = directory(root.path(), "release");
     protect_runtime(&runtime);
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
     start_server(&executable, &profile, &data, &runtime, &address);
     let credentials_root = data
@@ -2677,7 +2677,7 @@ fn streaming_tabs_advance_independently_while_the_view_switches_rapidly() {
     let release = directory(root.path(), "release");
     protect_runtime(&runtime);
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
     start_server(&executable, &profile, &data, &runtime, &address);
     let credentials_root = data
@@ -2796,7 +2796,7 @@ fn a_slow_client_never_delays_the_viewed_tabs_input_or_output() {
     let release = directory(root.path(), "release");
     protect_runtime(&runtime);
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let fake_tab = env!("CARGO_BIN_EXE_fake-tab");
     start_server(&executable, &profile, &data, &runtime, &address);
     let credentials_root = data
@@ -2944,7 +2944,7 @@ fn a_server_of_another_generation_is_reported_incompatible_and_never_signalled()
     let runtime = directory(root.path(), "runtime");
     protect_runtime(&runtime);
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     let mut server = server_command(&executable, &profile, &data, &runtime, &address);
     server.env("A1_TABS_FAULT_SERVER_GENERATION", "2");
     let started = server.output().expect("other-generation server");
@@ -3005,7 +3005,7 @@ fn host_stop_refuses_an_unverifiable_owner_and_changes_nothing() {
     let runtime = directory(root.path(), "runtime");
     protect_runtime(&runtime);
     let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_terminal-host"));
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     start_server(&executable, &profile, &data, &runtime, &address);
     let credentials_root = data
         .join("tabs")
@@ -3594,7 +3594,7 @@ fn fixture_terminal_host_pids() -> Vec<u32> {
             .to_ascii_lowercase()
     }
 
-    let expected = normalized(env!("CARGO_BIN_EXE_terminal-host"));
+    let expected = normalized(env!("CARGO_BIN_EXE_role-host"));
     let mut matches = Vec::new();
     unsafe {
         let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);

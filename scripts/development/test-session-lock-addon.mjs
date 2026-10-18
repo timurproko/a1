@@ -5,7 +5,7 @@ import { platform } from "node:os";
 import { resolve } from "node:path";
 
 const root = resolve(".artifacts/terminal-host/addon-test");
-const modulePath = resolve(".artifacts/terminal-host/a1_session_lock.node");
+const modulePath = resolve(".artifacts/terminal-host/terminal-host.node");
 const built = resolve("native/terminal-host/target/debug", platform() === "win32" ? "terminal_host_contracts.dll" : platform() === "darwin" ? "libterminal_host_contracts.dylib" : "libterminal_host_contracts.so");
 
 if (process.argv[2] === "--holder") {
@@ -23,6 +23,7 @@ await mkdir(root, { recursive: true });
 await copyFile(built, modulePath);
 const addon = createRequire(import.meta.url)(modulePath);
 if (typeof addon.SessionLock?.acquire !== "function") throw new Error("Node-API SessionLock export is unavailable");
+if (typeof addon.runRole !== "function" || typeof addon.version !== "function") throw new Error("terminal host role exports are unavailable");
 
 const newSession = resolve(root, "new-session.jsonl");
 await rm(newSession, { force: true });

@@ -7,23 +7,24 @@ Every interactive command uses this profile-neutral lifecycle path:
 ```text
 mutable a1 entry
   -> verified immutable release
-  -> Node launch guardian and authenticated launch-instance registration
-  -> native process guardian and per-instance containment
-  -> profile-aware owned-UI runtime selection
+  -> Node launch guardian loading the verified process-guardian addon
+  -> addon-held per-instance containment and profile-aware runtime selection
   -> owned Pi-backed composition, with A1 surfaces enabled only for bare a1
 ```
 
 Launch-instance ownership is plural. The supervisor tracks any number of independently authenticated `a1` and `a1 pi` instances and never uses one product-wide foreground mutex. Closing one instance closes only its verified process tree. Persisted rows alone do not prove liveness, and uncertainty never authorizes terminating an unrelated process.
 
-Neither guardian reads ordinary terminal input, parses or relays runtime output, renders cells, infers frames, synthesizes terminal responses, or emits display control. Both profiles use the same owned rendering and input pipeline. Bare `a1` exposes A1-owned surfaces; `a1 pi` withholds those surfaces and uses Pi's ordinary profile root. The private guardian boundary carries only bounded identity, readiness, stop, and outcome data.
+The launch guardian and process-guardian addon do not read ordinary terminal input, parse or relay runtime output, render cells, infer frames, or synthesize terminal responses. Their only terminal output is the bounded reset and sanitized armed exit notice after runtime failure. Both profiles use the same owned rendering and input pipeline. Bare `a1` exposes A1-owned surfaces; `a1 pi` withholds those surfaces and uses Pi's ordinary profile root. The containment boundary carries only bounded identity, readiness, stop, and outcome data.
+
+A detached Node exit watcher sits outside the launch guardian's containment. It waits for the guardian, performs bounded Unix process-group cleanup, and may deliver the same claimed exit notice. A kill aimed at every Node runtime also kills this watcher; the accepted loss of the notice and Unix fallback cleanup in that case is documented in [`process-guardian-provenance.md`](process-guardian-provenance.md), and A1 starts no native executable to close that gap.
 
 The owned Pi-backed surface is not an arbitrary-CLI terminal multiplexer. A feature that requires resident arbitrary CLI sessions, internal tabs, terminal-state reconnection, or A1-authoritative scrollback must introduce and certify the separate composed-terminal authority rather than reactivating the retired transparent attachment path.
 
 ## Current module responsibilities
 
 - `lifecycle`: dependency-free launch-instance, process identity, state transition, outcome, and control-command contracts.
-- `process-containment`: artifact verification, OS-verifiable process inspection, containment adapters, and bounded graceful/forced cleanup; it owns no terminal content.
-- `launch-guardian`: one profile-neutral instance coordinator above runtime selection.
+- `process-containment`: process-guardian addon loading and artifact verification, OS-verifiable process inspection, in-process containment adapters, and bounded graceful/forced cleanup; it owns no terminal content.
+- `launch-guardian`: one profile-neutral Node instance coordinator above runtime selection, plus the fixed Node exit-watcher entry used only for owner-death cleanup and the armed notice.
 - `protocol`: additive control handshake, bounded line framing, authenticated launch-instance commands, typed stop intent, snapshots, and command results.
 - `launch`: resolves the effective profile home and the history-specific data root. Composition uses its public path resolver to select `~/.a1/data` for history unless `A1_DATA_DIR` is explicit; global control/release/runtime/cache paths stay unchanged.
 - `prompt-history`: narrowly typed user-input retention in separate profile-owned databases under `~/.a1/data/history` (or `<A1_DATA_DIR>/history`), with bounded worker queues and no supervisor/control-store payloads. It receives a resolved root rather than importing launch-feature internals; it never probes, imports, or deletes the former platform-default history. The editor's owned history state machine remains inside the Pi component boundary; the session UI only coordinates snapshots and classified submissions.
@@ -32,14 +33,14 @@ The owned Pi-backed surface is not an arbitrary-CLI terminal multiplexer. A feat
 - `supervisor`: endpoint identity, plural cohort ownership, per-instance reconciliation, and aggregate release shutdown coordination. It owns no terminal surface.
 - `pi-engine-adapter`, `pi-component-adapter`, and `pi-tui-runtime-adapter`: isolate pinned Pi engine and presentation knowledge behind neutral contracts; product features do not import them directly. Inside the engine adapter, one process-level engine host owns what is process-wide (the HTTP dispatcher, the theme singletons, the one-time changelog and package-update announcements, the startup trace) and is the only place sessions are created, so every session id is unique per process.
 - `session-shell` (`src/app/session-shell`): the application layer that composes the feature owners, the UI foundations, and the three Pi adapters into the interactive session; only composition imports it. Its render root assembles semantic document and dock rows, while its focused viewport controller owns follow state, pointer routing, selection, and interaction timers. Owned-app route lifecycle belongs to the neutral `ui-apps` owner and is only hosted by the session shell.
-- release/update/bootstrap: package-derived immutable release identity, process-guardian integrity, cohort selection, durable update transactions, rollback, and dependency-light command entry. After an unsuccessful bare-A1 child exit, the bootstrap restores owned terminal modes; neither guardian emits terminal controls.
+- release/update/bootstrap: package-derived immutable release identity, native-addon integrity, cohort selection, durable update transactions, rollback, and dependency-light command entry. Before certified fast-path reuse it checks every recorded product file is present; a missing or altered file is replaced only from the matching installed package when its size and digest reproduce the approved release, followed by full verification. Dependency layers keep their separate verification and repair policy. After an unsuccessful bare-A1 child exit, the launch owner or its Node watcher restores owned terminal modes and emits only the armed bounded notice.
 - `terminal-cleanup`: bounded, idempotent emergency restoration and fatal-exit diagnostics for an explicitly owned terminal. It does not inspect commands, relay terminal input/output, or emulate terminal state. The owned UI installs its fatal boundary before terminal activation; packaged bootstrap and checkout launch provide the surviving-owner fallback. Fatal records retain at most ten 16 KiB records with trusted classifications and code locations, never prompts, attachments, raw input, credentials, or arbitrary exception messages.
 
 ## Dependency direction
 
 Terminal boundaries are application-agnostic. They may not select behavior from executable names, arguments, CLI-specific environment variables, or visible text. Production code may not import private Pi distribution APIs or use a Pi-specific terminal workaround.
 
-The JavaScript product path has no PTY or terminal-emulator dependency. Reintroducing `node-pty`, xterm state, custom input encoders, mode/query trackers, cadence-derived frame inference, or renderer/projection code requires an approved capability change and cannot become a second terminal authority. The Rust process guardian is a lifecycle-only native boundary and is independent from the held composed terminal host.
+The JavaScript product path has no PTY or terminal-emulator dependency. Reintroducing `node-pty`, xterm state, custom input encoders, mode/query trackers, cadence-derived frame inference, or renderer/projection code requires an approved capability change and cannot become a second terminal authority. The Rust process guardian is a lifecycle-only Node-API addon loaded by the launch guardian and is independent from the terminal-host Node-API addon. No A1-built executable is part of the production process surface.
 
 `scripts/governance/check-architecture.mjs` enforces the structural parts of these boundaries. Cross-cutting rationale belongs here; implementation history belongs in Git and archived OpenSpec changes.
 
@@ -61,7 +62,7 @@ Default future agents and composed hosts are children of the originating bare-`a
 
 The structured-agent runtime uses a versioned adapter hello and feature negotiation before readiness. Runtime state must use typed events, commands, snapshots, cancellation, and recovery evidence. It must not infer structured semantics from terminal text, terminal timing, or visual content and must not own pseudoterminals or renderer state.
 
-The terminal-host protocol boundary may carry only bounded typed control and semantic lifecycle messages. Pseudoterminal bytes, per-event child input, rendered cells, cell grids, framebuffers, and screen buffers are forbidden across it. Console host executables and packaging live outside the current JavaScript production owners and remain unavailable until the isolated in-terminal proof passes; replacing them with a lightweight custom parser/renderer is forbidden. A desktop-native window and GPU application shell are postponed and are not required for the terminal-hosted product.
+The JavaScript-to-native terminal-host boundary carries only the fixed role arguments, host command, return code, session-lock calls, and typed semantic bridge data. `host-entry.js` does not touch Node's stdin/stdout streams; pseudoterminal bytes, per-event child input, rendered cells, cell grids, framebuffers, and screen buffers remain inside the addon's native roles and their bounded native IPC. The verified addon and fixed entry are the packaged production host; no console host executable exists. Replacing libghostty-vt with a lightweight custom parser/renderer is forbidden. A desktop-native window and GPU application shell are postponed and are not required for the terminal-hosted product.
 
 Resource queues, retained state, evidence, logs, and diagnostics follow `docs/architecture/resource-and-data-policy.md`. Terminal content and authentication material are never control-store records. Unknown data is potentially sensitive by default and must be rejected or redacted before persistence.
 

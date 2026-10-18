@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { chmodSync, copyFileSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
@@ -22,6 +23,7 @@ const SERVER_START_BUDGET = 3;
 // Rationale: a margin past the 60-second budget window covers a start recorded just before the kill.
 const SERVER_START_WINDOW_SECONDS = 65;
 const MAX_DIAGNOSTIC_LINES = 120;
+const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
 
 export function percentile(values, fraction) {
   if (values.length === 0) return null;
@@ -162,19 +164,21 @@ function describeProcess(pid) {
   return (listing.stdout ?? "").trim().replace(/\s+/gu, " ").slice(0, 300) || "unknown";
 }
 
-function processesUsing(paths) {
+function processesUsing(paths, marker) {
   const wanted = paths.map(path => resolve(path));
   if (process.platform === "win32") {
-    const script = "Get-CimInstance Win32_Process | Select-Object ProcessId, ExecutablePath | ConvertTo-Json -Compress";
+    const script = "Get-CimInstance Win32_Process | Select-Object ProcessId, ExecutablePath, CommandLine | ConvertTo-Json -Compress";
     const listing = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { encoding: "utf8", windowsHide: true });
     const rows = JSON.parse(listing.stdout || "[]");
     return (Array.isArray(rows) ? rows : [rows])
-      .filter(row => typeof row.ExecutablePath === "string" && wanted.some(path => path.toLowerCase() === row.ExecutablePath.toLowerCase()))
+      .filter(row => typeof row.CommandLine === "string" && row.CommandLine.toLowerCase().includes(marker.toLowerCase()))
+      .filter(row => wanted.some(path => row.CommandLine.toLowerCase().includes(path.toLowerCase())
+        || (typeof row.ExecutablePath === "string" && path.toLowerCase() === row.ExecutablePath.toLowerCase())))
       .map(row => row.ProcessId);
   }
   const listing = spawnSync("ps", ["-axo", "pid=,command="], { encoding: "utf8" });
   return listing.stdout.split("\n")
-    .filter(line => wanted.some(path => line.includes(path)))
+    .filter(line => line.includes(marker) && wanted.some(path => line.includes(path)))
     .map(line => Number(line.trim().split(/\s+/u)[0]))
     .filter(pid => Number.isInteger(pid) && pid !== process.pid);
 }
@@ -187,10 +191,11 @@ function buildArtifacts() {
   const cargo = process.env.CARGO ?? "cargo";
   const fixture = spawnSync(cargo, ["build", "--release", "--locked", "--manifest-path", resolve("native/terminal-host/Cargo.toml"), "--features", "resident-fixtures", "--bin", "fake-tab"], { stdio: "inherit", windowsHide: true });
   if (fixture.status !== 0) throw new Error("fixture agent build failed");
-  return {
-    host: resolve("dist/native", `${process.platform}-${process.arch}`, `terminal-host${executable}`),
-    fakeTab: resolve("native/terminal-host/target/release", `fake-tab${executable}`),
-  };
+  const directory = resolve("dist/native", `${process.platform}-${process.arch}`);
+  const fakeTab = resolve(directory, `fake-tab${executable}`);
+  copyFileSync(resolve("native/terminal-host/target/release", `fake-tab${executable}`), fakeTab);
+  if (process.platform !== "win32") chmodSync(fakeTab, 0o755);
+  return { host: resolve(directory, "terminal-host.node"), fakeTab };
 }
 
 async function main() {
@@ -205,7 +210,7 @@ async function main() {
   const seed = recorded !== null ? recorded.seed : Number(option("--seed", String(randomBytes(4).readUInt32LE(0))));
   if ((!built && (!option("--host", "") || !option("--fake-tab", ""))) || !Number.isFinite(seconds) || seconds <= 0 || seconds > 900
     || !Number.isInteger(seed) || seed < 0 || seed > 0xffff_ffff) {
-    throw new Error("usage: run-resident-chaos.mjs (--build | --host <terminal-host> --fake-tab <fake-tab>) [--seconds 1-900 | --replay <report>] [--seed 0-4294967295] [--result <path>]");
+    throw new Error("usage: run-resident-chaos.mjs (--build | --host <terminal-host.node> --fake-tab <fake-tab>) [--seconds 1-900 | --replay <report>] [--seed 0-4294967295] [--result <path>]");
   }
   const random = createGenerator(seed);
   process.stderr.write(planned === null ? `resident chaos seed ${seed}\n` : `resident chaos replaying ${planned.length} actions of seed ${seed} from ${replayPath}\n`);
@@ -213,9 +218,9 @@ async function main() {
   const [profile, data, runtime, release] = ["profile", "data", "runtime", "release"].map(name => join(root, name));
   for (const directory of [profile, data, runtime, release]) await mkdir(directory, { recursive: true, mode: 0o700 });
   const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\a1-tabs-chaos-${process.pid}-${randomBytes(4).toString("hex")}` : join(runtime, "resident.sock");
-  const environment = { ...process.env, A1_TABS_ENDPOINT: endpoint };
+  const environment = { ...process.env, A1_TABS_ENDPOINT: endpoint, A1_DEV_INSTANCE_ID: process.env.A1_DEV_INSTANCE_ID ?? "terminal-host-validation", A1_TERMINAL_HOST_PATH: host };
   const common = ["--profile", profile, "--data-dir", data, "--runtime-dir", runtime];
-  const run = (arguments_, extra = {}) => spawnSync(host, arguments_, { encoding: "utf8", env: { ...environment, ...extra }, windowsHide: true, timeout: 120_000 });
+  const run = (arguments_, extra = {}) => spawnSync(process.execPath, [hostEntry, ...arguments_], { encoding: "utf8", env: { ...environment, ...extra }, windowsHide: true, timeout: 120_000 });
   const tabs = command => {
     const result = run(["tabs", ...command, ...common]);
     return JSON.parse(result.stdout.trim().split("\n").at(-1) || "{}");
@@ -341,10 +346,10 @@ async function main() {
   // Rationale: the result's `remainingReasons` names why each tab stayed, so the text keeps room for it.
   if (!["stopped", "none"].includes(stopped.host)) violations.push(`host stop reported ${stopped.host}: ${JSON.stringify(stopped).slice(0, 2000)}`);
   const orphanDeadline = Date.now() + 15_000;
-  let orphans = processesUsing([host, fakeTab]);
+  let orphans = processesUsing([hostEntry, fakeTab], root);
   while (orphans.length > 0 && Date.now() < orphanDeadline) {
     await sleep(250);
-    orphans = processesUsing([host, fakeTab]).filter(alive);
+    orphans = processesUsing([hostEntry, fakeTab], root).filter(alive);
   }
   if (orphans.length > 0) violations.push(`orphaned resident processes: ${orphans.map(pid => `${pid} (${describeProcess(pid)})`).join(", ")}`);
   for (const pid of orphans) kill(pid);

@@ -2,7 +2,6 @@ import crossSpawn from "cross-spawn";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { repairNativeExecutableModes } from "./repair-native-executable-modes.mjs";
 import { assertPackingNpm, normalizeNpmPackMetadata, parseNpmPackOutput } from "./npm-pack-metadata.mjs";
 import { createValidationPhaseRecorder } from "./validation-phase.mjs";
 import { recordPackageReceipt, verifyBuildReceipt } from "./validation-receipt.mjs";
@@ -37,9 +36,9 @@ const metadata = phases.runSync("npm-pack", () => {
 });
 const source = resolve(outputDirectory, metadata.filename);
 const target = resolve(outputDirectory, "candidate.tgz");
-// Platform: the pack host may not represent posix permissions, so packed native guardian
-// modes are repaired before the candidate identity below binds integrity to these bytes.
-const { bytes, repaired } = await phases.run("native-mode-repair", async () => repairNativeExecutableModes(await readFile(source)));
+// Rationale: native release payloads are loadable addons, so package identity is host-independent
+// and needs no executable-mode rewrite after `npm pack`.
+const bytes = await phases.run("read-packed-candidate", () => readFile(source));
 phases.bindCandidate(bytes);
 await phases.run("write-exact-candidate", () => writeFile(target, bytes));
 const identity = {
@@ -53,5 +52,4 @@ await phases.run("package-receipt", () => recordPackageReceipt(target, {
   buildReceipt,
   output: resolve(outputDirectory, "candidate.receipt.json"),
 }));
-if (repaired.length > 0) process.stdout.write(`Repaired native executable modes: ${repaired.join(", ")}\n`);
 process.stdout.write(`Validation package: ${target}\n`);

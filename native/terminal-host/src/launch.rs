@@ -1,6 +1,8 @@
+use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -24,6 +26,72 @@ impl ResidentRole {
             Self::Fixture => "fixture",
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostCommand {
+    pub executable: PathBuf,
+    pub arguments: Vec<OsString>,
+    pub artifact: PathBuf,
+}
+
+static HOST_COMMAND: OnceLock<HostCommand> = OnceLock::new();
+
+/// Records the trusted process command and loaded addon artifact. Repeated identical registration
+/// is accepted because one Node process can invoke more than one bounded role in tests.
+pub fn set_host_command<I, S>(
+    executable: impl AsRef<Path>,
+    arguments: I,
+    artifact: impl AsRef<Path>,
+) -> Result<(), LaunchError>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    let executable = std::fs::canonicalize(executable.as_ref())
+        .map_err(|error| LaunchError(format!("verify terminal-host role executable: {error}")))?;
+    let arguments = arguments.into_iter().map(Into::into).collect::<Vec<_>>();
+    let artifact = std::fs::canonicalize(artifact.as_ref())
+        .map_err(|error| LaunchError(format!("verify terminal-host artifact: {error}")))?;
+    let command = HostCommand {
+        executable,
+        arguments,
+        artifact,
+    };
+    if let Some(recorded) = HOST_COMMAND.get() {
+        return if recorded == &command {
+            Ok(())
+        } else {
+            Err(LaunchError(
+                "terminal-host command changed after initialization".to_owned(),
+            ))
+        };
+    }
+    HOST_COMMAND
+        .set(command)
+        .map_err(|_| LaunchError("terminal-host command initialization raced".to_owned()))
+}
+
+pub fn host_command() -> Result<HostCommand, LaunchError> {
+    HOST_COMMAND
+        .get()
+        .cloned()
+        .ok_or_else(|| LaunchError("terminal-host command is not initialized".to_owned()))
+}
+
+/// Builds a child command for another role or a bounded probe through the same addon host.
+pub fn command<I, S>(arguments: I) -> Result<Command, LaunchError>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    let host = host_command()?;
+    let mut command = Command::new(&host.executable);
+    command
+        .args(&host.arguments)
+        .args(arguments)
+        .env("A1_TERMINAL_HOST_PATH", &host.artifact);
+    Ok(command)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -152,9 +220,8 @@ fn launch_resident_with_config_from<T: Serialize>(
     context: &T,
     resident_parent: bool,
 ) -> Result<(ResidentProcess, LaunchObservation), LaunchError> {
-    let executable = std::env::current_exe()
-        .map_err(|error| LaunchError(format!("resolve terminal-host artifact: {error}")))?;
-    let artifact = std::fs::canonicalize(&executable)
+    let host = host_command()?;
+    let artifact = std::fs::canonicalize(&host.artifact)
         .map_err(|error| LaunchError(format!("verify terminal-host artifact: {error}")))?;
     let profile = std::fs::canonicalize(profile)
         .map_err(|error| LaunchError(format!("canonicalize resident profile: {error}")))?;
@@ -166,8 +233,9 @@ fn launch_resident_with_config_from<T: Serialize>(
     let context_path = result.with_extension("context.json");
     write_private_context(&context_path, context)?;
     let _context_cleanup = ContextCleanup(context_path.clone());
-    let mut command = Command::new(&artifact);
+    let mut command = Command::new(&host.executable);
     command
+        .args(&host.arguments)
         .args([
             "--resident-role-child",
             role.argument(),
@@ -177,10 +245,14 @@ fn launch_resident_with_config_from<T: Serialize>(
         ])
         .env_clear()
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+        .env("A1_TERMINAL_HOST_PATH", &artifact)
         .current_dir(&profile)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    if let Some(instance) = std::env::var_os("A1_DEV_INSTANCE_ID") {
+        command.env("A1_DEV_INSTANCE_ID", instance);
+    }
     #[cfg(feature = "fault-injection")]
     for name in crate::fault_injection::VARIABLES {
         if let Some(value) = std::env::var_os(name) {
@@ -188,9 +260,15 @@ fn launch_resident_with_config_from<T: Serialize>(
         }
     }
     let configured_mode = configure_detached(&mut command)?;
+    #[cfg(windows)]
+    for name in ["TEMP", "TMP", "SYSTEMROOT", "WINDIR"] {
+        if let Some(value) = std::env::var_os(name) {
+            command.env(name, value);
+        }
+    }
     let mut child = spawn_with_fallback(
         command,
-        &artifact,
+        &host,
         role,
         &profile,
         &result,
@@ -408,7 +486,7 @@ fn stop_inheriting_own_stdio() {
 
 fn spawn_with_fallback(
     command: Command,
-    artifact: &Path,
+    host: &HostCommand,
     role: ResidentRole,
     profile: &Path,
     result: &Path,
@@ -422,7 +500,7 @@ fn spawn_with_fallback(
         // recursively invoking WMI from the detached service can block in non-interactive sessions.
         if role != ResidentRole::Holder && !resident_parent {
             drop(command);
-            return spawn_via_wmi(artifact, role, profile, result, context).map_err(LaunchError);
+            return spawn_via_wmi(host, role, profile, result, context).map_err(LaunchError);
         }
     }
     #[cfg(windows)]
@@ -443,7 +521,7 @@ fn spawn_with_fallback(
 
 #[cfg(windows)]
 fn spawn_via_wmi(
-    artifact: &Path,
+    host: &HostCommand,
     role: ResidentRole,
     profile: &Path,
     result: &Path,
@@ -456,15 +534,18 @@ fn spawn_via_wmi(
     // Security: PowerShell is only a fixed WMI client. Win32_Process.Create performs creation
     // outside the foreign job; no caller-supplied executable or argv is accepted.
     let quote = |value: &Path| value.to_string_lossy().replace('\'', "''");
-    let command_line = format!(
-        "\"{}\" --resident-role-child {} \"{}\" \"{}\" \"{}\"",
-        artifact.display(),
+    let mut command_line = format!("\"{}\"", host.executable.display());
+    for argument in &host.arguments {
+        command_line.push_str(&format!(" \"{}\"", Path::new(argument).display()));
+    }
+    command_line.push_str(&format!(
+        " --resident-role-child {} \"{}\" \"{}\" \"{}\"",
         role.argument(),
         profile.display(),
         result.display(),
         context.display()
-    )
-    .replace('\'', "''");
+    ));
+    let command_line = command_line.replace('\'', "''");
     // Platform: a console program created through WMI gets a new visible console unless its
     // startup information says otherwise; DETACHED_PROCESS with a new process group gives the
     // resident role no console at all, exactly as the direct spawn path does.

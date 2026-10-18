@@ -87,9 +87,10 @@
     "supervisorEntry": "bin/supervisor.js",
     "guardianEntry": "bin/guardian.js",
     "uiEntry": "bin/ui.js",
-    "nativeExecutable": "terminal-host",
+    "terminalHostAddon": "terminal-host",
+    "terminalHostEntry": "host-entry",
     "nativeCrate": "terminal-host",
-    "processGuardianExecutable": "process-guardian",
+    "processGuardianAddon": "process-guardian",
     "releaseTarballStem": "timurproko-a1",
     "diagnosticStem": "a1"
   }

@@ -8,6 +8,11 @@ import process from "node:process";
 
 const productIdentity = JSON.parse(await readFile(new URL("../../src/product-identity.json", import.meta.url), "utf8"));
 const tabsEndpointEnvironment = productIdentity.environment.tabsEndpoint;
+const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
+
+function hostEnvironment(host, environment = process.env) {
+  return { ...environment, A1_DEV_INSTANCE_ID: environment.A1_DEV_INSTANCE_ID ?? "terminal-host-validation", A1_TERMINAL_HOST_PATH: resolve(host) };
+}
 
 const budgets = Object.freeze({
   warmCreateMs: 250,
@@ -56,7 +61,13 @@ export function findProcessedInput(output, token, sentNs) {
 }
 
 function run(host, arguments_, options = {}) {
-  const result = spawnSync(host, arguments_, { encoding: "utf8", windowsHide: true, timeout: 30_000, ...options });
+  const result = spawnSync(process.execPath, [hostEntry, ...arguments_], {
+    encoding: "utf8",
+    windowsHide: true,
+    timeout: 30_000,
+    ...options,
+    env: hostEnvironment(host, options.env),
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${basename(host)} ${arguments_.slice(0, 2).join(" ")} failed (${result.status}): ${result.stderr || result.stdout}`);
   return result.stdout.trim();
@@ -134,9 +145,9 @@ async function createAttach(spawnPty, host, context, viewTab = null) {
     "--node-executable", process.execPath,
   ];
   if (viewTab) arguments_.push("--view", viewTab);
-  const terminal = spawnPty(host, arguments_, {
+  const terminal = spawnPty(process.execPath, [hostEntry, ...arguments_], {
     cols: 100, rows: 24, cwd: context.root,
-    env: context.environment,
+    env: hostEnvironment(host, context.environment),
   });
   let output = "";
   const waiters = new Set();
@@ -283,7 +294,7 @@ async function main() {
     }
   } else {
     const samplesFile = argument("--samples");
-    if (!samplesFile) throw new Error("usage: measure-resident-tabs.mjs --host <a1-terminal-host> --direct-startup-budget-ms N");
+    if (!samplesFile) throw new Error("usage: measure-resident-tabs.mjs --host <terminal-host.node> --direct-startup-budget-ms N");
     const parsed = JSON.parse(await readFile(samplesFile, "utf8"));
     if (!Array.isArray(parsed)) throw new Error("measurement input must be a JSON array");
     samples = parsed;

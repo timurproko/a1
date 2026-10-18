@@ -1,11 +1,14 @@
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
+import { createRequire } from "node:module";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import type { ProcessGuardianAddon } from "../../../src/foundation/process-containment/index.js";
 
+const require = createRequire(import.meta.url);
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
@@ -13,87 +16,63 @@ const windowsIt = process.platform === "win32"
   && process.env.RUN_PROCESS_CONTAINMENT_INTEGRATION === "1"
   && process.env.A1_PROCESS_GUARDIAN_PATH ? it : it.skip;
 
-describe("Windows Job Object process guardian", () => {
+describe("Windows Job Object process guardian addon", () => {
   windowsIt("reports a stable OS process start token and then reports death", async () => {
-    const helper = process.env.A1_PROCESS_GUARDIAN_PATH
-      ?? resolve("native/process-guardian/target/debug/process-guardian.exe");
-    await expect(inspectOutcome(helper, 0xffff_ffff)).resolves.toEqual({ code: 3, stdout: "", stderr: "" });
+    const addon = guardianAddon();
+    expect(addon.inspectProcessStart(0xffff_ffff)).toBeNull();
 
     const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", windowsHide: true });
     if (!child.pid) throw new Error("identity fixture has no PID");
     const pid = child.pid;
     try {
-      const identities = await Promise.all(Array.from({ length: 4 }, () => inspect(helper, pid)));
-      expect(new Set(identities.map(identity => JSON.stringify(identity)))).toEqual(new Set([JSON.stringify(identities[0])]));
-      expect(identities[0]?.startIdentity).toMatch(/^windows-filetime:\d+$/);
+      const identities = Array.from({ length: 4 }, () => addon.inspectProcessStart(pid));
+      expect(new Set(identities)).toEqual(new Set([identities[0]]));
+      expect(identities[0]).toMatch(/^windows-filetime:\d+$/);
 
       const exited = once(child, "exit");
       child.kill();
       await exited;
-      for (let attempt = 0; attempt < 8; attempt += 1) {
-        await expect(inspectOutcome(helper, pid)).resolves.toEqual({ code: 3, stdout: "", stderr: "" });
-      }
+      for (let attempt = 0; attempt < 8; attempt += 1) expect(addon.inspectProcessStart(pid)).toBeNull();
     } finally {
       child.kill("SIGKILL");
     }
   }, 20_000);
 
-  windowsIt("kills root, detached child, and detached grandchild when its owner closes", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-job-containment-"));
-    roots.push(root);
-    const statePath = resolve(root, "tree.json");
-    const statusPath = resolve(root, "guardian-status.json");
-    const helper = process.env.A1_PROCESS_GUARDIAN_PATH
-      ?? resolve("native/process-guardian/target/debug/process-guardian.exe");
+  windowsIt("kills root, detached child, and detached grandchild when its Node owner closes", async () => {
+    const root = await fixtureRoot("a1-job-containment-");
+    const treePath = resolve(root, "tree.json");
+    const ownerState = resolve(root, "owner.json");
     const fixture = resolve("test/fixtures/process-containment/tree.mjs");
     const unrelated = spawn(process.execPath, [fixture, "wait"], { detached: true, stdio: "ignore", windowsHide: true });
     unrelated.unref();
-
-    const guardian = spawn(helper, [
-      "--parent-pid", String(process.pid),
-      "--instance", randomUUID(),
-      "--status-file", statusPath,
-      "--", process.execPath, fixture, "root", statePath,
-    ], { stdio: "ignore", windowsHide: true });
+    const owner = spawnOwner(ownerState, null, [process.execPath, fixture, "root", treePath]);
 
     try {
-      const tree = await waitForTree(statePath);
-      expect(tree.rootPid).toBeGreaterThan(0);
-      expect(tree.childPid).toBeGreaterThan(0);
-      expect(tree.grandchildPid).toBeGreaterThan(0);
+      const tree = await waitForTree(treePath);
       expect([tree.rootPid, tree.childPid, tree.grandchildPid].every(processIsAlive)).toBe(true);
-
-      guardian.kill();
+      await forceKill(owner.pid);
       await waitUntil(() => !processIsAlive(tree.rootPid) && !processIsAlive(tree.childPid) && !processIsAlive(tree.grandchildPid), 4_000);
       expect(processIsAlive(unrelated.pid ?? 0)).toBe(true);
     } finally {
-      guardian.kill();
+      safeKill(owner.pid, "SIGKILL");
       safeKill(unrelated.pid, "SIGKILL");
     }
   }, 20_000);
+
   windowsIt("prints the armed exit notice after the runtime is force-killed and stays silent after a clean exit", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-exit-notice-"));
-    roots.push(root);
-    const helper = process.env.A1_PROCESS_GUARDIAN_PATH
-      ?? resolve("native/process-guardian/target/debug/process-guardian.exe");
+    const root = await fixtureRoot("a1-exit-notice-");
     const run = async (script: string, kill: boolean) => {
-      const statusPath = resolve(root, `${randomUUID()}.ready.json`);
+      const statePath = resolve(root, `${randomUUID()}.owner.json`);
       const noticePath = resolve(root, `${randomUUID()}.exit-notice`);
-      const guardian = spawn(helper, [
-        "--parent-pid", String(process.pid),
-        "--instance", randomUUID(),
-        "--status-file", statusPath,
-        "--exit-notice", noticePath,
-        "--", process.execPath, "-e", script, noticePath,
-      ], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+      const owner = spawnOwner(statePath, noticePath, [process.execPath, "-e", script, noticePath]);
       let output = "";
-      guardian.stdout.on("data", chunk => { output += chunk; });
-      guardian.stderr.on("data", chunk => { output += chunk; });
-      const closed = once(guardian, "close");
+      owner.stdout?.on("data", chunk => { output += chunk; });
+      owner.stderr?.on("data", chunk => { output += chunk; });
+      const closed = once(owner, "close");
       if (kill) {
         await waitUntil(async () => (await readFile(noticePath, "utf8").catch(() => "")).length > 0, 10_000);
-        const status = JSON.parse(await readFile(statusPath, "utf8")) as { pid: number };
-        await new Promise(resolvePromise => execFile("taskkill", ["/F", "/PID", String(status.pid)], { windowsHide: true }, resolvePromise));
+        const state = JSON.parse(await readFile(statePath, "utf8")) as { runtimePid: number };
+        await forceKill(state.runtimePid);
       }
       await closed;
       return { output, noticeRemains: await readFile(noticePath, "utf8").then(() => true, () => false) };
@@ -113,26 +92,25 @@ describe("Windows Job Object process guardian", () => {
     expect(clean.output).toBe("");
   }, 30_000);
 
-  windowsIt("delivers the exit notice from its watcher when the Node owner is force-killed with the guardian", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-exit-notice-owner-"));
-    roots.push(root);
-    const helper = process.env.A1_PROCESS_GUARDIAN_PATH
-      ?? resolve("native/process-guardian/target/debug/process-guardian.exe");
-    const statusPath = resolve(root, "ready.json");
+  windowsIt("delivers the exit notice from its Node watcher when the owner is force-killed", async () => {
+    const root = await fixtureRoot("a1-exit-notice-owner-");
+    const statePath = resolve(root, "owner.json");
     const noticePath = resolve(root, "runtime.exit-notice");
     const runtime = "require('fs').writeFileSync(process.argv[1], 'a1 was stopped unexpectedly.\\n'); setInterval(() => {}, 1000)";
-    // Platform: the owner spawns the guardian the way the launcher does, so the guardian joins the
-    // owner's kill-on-close libuv job and dies with it.
-    const ownerScript = `require('child_process').spawn(${JSON.stringify(helper)}, ['--parent-pid', String(process.pid), '--instance', 'owner-kill', '--status-file', ${JSON.stringify(statusPath)}, '--exit-notice', ${JSON.stringify(noticePath)}, '--', process.execPath, '-e', ${JSON.stringify(runtime)}, ${JSON.stringify(noticePath)}], { stdio: 'inherit' }); setInterval(() => {}, 1000)`;
-    const owner = spawn(process.execPath, ["-e", ownerScript], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    const owner = spawnOwner(statePath, noticePath, [process.execPath, "-e", runtime, noticePath]);
     let output = "";
-    owner.stdout.on("data", chunk => { output += chunk; });
-    owner.stderr.on("data", chunk => { output += chunk; });
+    owner.stdout?.on("data", chunk => { output += chunk; });
+    owner.stderr?.on("data", chunk => { output += chunk; });
     try {
       await waitUntil(async () => (await readFile(noticePath, "utf8").catch(() => "")).length > 0, 10_000);
-      const runtimePid = (JSON.parse(await readFile(statusPath, "utf8")) as { pid: number }).pid;
-      await new Promise(resolvePromise => execFile("taskkill", ["/F", "/PID", String(owner.pid)], { windowsHide: true }, resolvePromise));
-      await waitUntil(() => output.includes("a1 was stopped unexpectedly.\r\n"), 10_000);
+      const state = JSON.parse(await readFile(statePath, "utf8")) as { runtimePid: number; watcherPid: number };
+      const runtimePid = state.runtimePid;
+      expect(processIsAlive(state.watcherPid), `watcher ${state.watcherPid} exited before its owner`).toBe(true);
+      await forceKill(owner.pid);
+      await waitUntil(() => output.includes("a1 was stopped unexpectedly.\r\n"), 10_000).catch(async error => {
+        const noticeRemains = await readFile(noticePath, "utf8").then(() => true, () => false);
+        throw new Error(`${error instanceof Error ? error.message : String(error)}; watcher output: ${JSON.stringify(output)}; watcher alive: ${processIsAlive(state.watcherPid)}; runtime alive: ${processIsAlive(runtimePid)}; notice remains: ${noticeRemains}`);
+      });
       await waitUntil(() => !processIsAlive(runtimePid), 4_000);
       await expect(readFile(noticePath, "utf8")).rejects.toThrow();
     } finally {
@@ -141,15 +119,35 @@ describe("Windows Job Object process guardian", () => {
   }, 30_000);
 });
 
+function guardianAddon(): ProcessGuardianAddon {
+  return require(resolve(process.env.A1_PROCESS_GUARDIAN_PATH ?? "dist/native/win32-x64/process-guardian.node")) as ProcessGuardianAddon;
+}
+
+function spawnOwner(statePath: string, noticePath: string | null, command: readonly string[]) {
+  const addonPath = resolve(process.env.A1_PROCESS_GUARDIAN_PATH ?? "dist/native/win32-x64/process-guardian.node");
+  const owner = resolve("test/fixtures/process-containment/owner.mjs");
+  const watcher = resolve("dist/foundation/launch-guardian/exit-watcher.js");
+  return spawn(process.execPath, [owner, "--addon", addonPath, "--watcher", watcher, "--state", statePath, ...(noticePath ? ["--notice", noticePath] : []), "--", ...command], {
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
+}
+
+async function forceKill(pid: number | undefined): Promise<void> {
+  if (!pid) throw new Error("process fixture has no PID");
+  await new Promise(resolvePromise => execFile("taskkill", ["/F", "/PID", String(pid)], { windowsHide: true }, resolvePromise));
+}
+
+async function fixtureRoot(prefix: string): Promise<string> {
+  const root = await mkdtemp(resolve(tmpdir(), prefix));
+  roots.push(root);
+  return root;
+}
+
 async function waitForTree(path: string): Promise<{ rootPid: number; childPid: number; grandchildPid: number }> {
   let parsed: { rootPid: number; childPid: number; grandchildPid: number } | null = null;
   await waitUntil(async () => {
-    try {
-      parsed = JSON.parse(await readFile(path, "utf8"));
-      return true;
-    } catch {
-      return false;
-    }
+    try { parsed = JSON.parse(await readFile(path, "utf8")); return true; } catch { return false; }
   }, 10_000);
   if (!parsed) throw new Error("process-tree fixture did not report identities");
   return parsed;
@@ -164,42 +162,14 @@ async function waitUntil(predicate: () => boolean | Promise<boolean>, timeoutMs:
   throw new Error(`condition remained false for ${timeoutMs}ms`);
 }
 
-async function inspect(helper: string, pid: number): Promise<{ pid: number; startIdentity: string }> {
-  return await new Promise((resolvePromise, rejectPromise) => {
-    execFile(helper, ["--inspect-pid", String(pid)], { windowsHide: true }, (error, stdout, stderr) => {
-      if (error) rejectPromise(new Error(stderr || error.message));
-      else resolvePromise(JSON.parse(stdout));
-    });
-  });
-}
-
-async function inspectOutcome(helper: string, pid: number | undefined): Promise<{ code: number; stdout: string; stderr: string }> {
-  return await new Promise(resolvePromise => {
-    execFile(helper, ["--inspect-pid", String(pid ?? 0)], { windowsHide: true }, (error, stdout, stderr) => {
-      resolvePromise({
-        code: error && "code" in error && typeof error.code === "number" ? error.code : error ? 1 : 0,
-        stdout,
-        stderr,
-      });
-    });
-  });
-}
-
 function processIsAlive(pid: number): boolean {
   if (!Number.isSafeInteger(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
+  try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
 function safeKill(pid: number | undefined, signal: NodeJS.Signals): void {
   if (!pid) return;
-  try {
-    process.kill(pid, signal);
-  } catch (error) {
+  try { process.kill(pid, signal); } catch (error) {
     if (!error || typeof error !== "object" || !("code" in error) || error.code !== "ESRCH") throw error;
   }
 }

@@ -1,10 +1,10 @@
 # A1 terminal host
 
-This Cargo package provides the native resident-tab host and the feature-gated Node-API session-writer lock. The terminal byte path stays native: Node starts or attaches to the host and exchanges only tab metadata through the bridge.
+This Cargo package provides the native resident-tab host as a Node-API addon, including the session-writer lock. The terminal byte path stays native: the hosting Node process starts or attaches to a role and exchanges only tab metadata through the bridge.
 
 ## Roles
 
-One binary exposes three product roles:
+One addon exports the fixed role dispatcher used by the release's Node host entry:
 
 - `server --detach --profile <root> --data-dir <dir> --runtime-dir <dir>` starts or joins the owner-scoped resident server and reports its verified endpoint.
 - `holder --tab <id> --incarnation <n>` is a fixed role reserved for the server. It is never a general child-process launcher.
@@ -30,7 +30,7 @@ The package is built by the three **Native terminal host** CI targets: Windows x
 npm run test:terminal-host
 ```
 
-The jobs upload the debug host binary, native lock library, and generation-1 fixture manifest. Vendored code is built for a baseline CPU. Linux also runs the bounded decoder fuzz target.
+The jobs upload the debug host addon and generation-1 fixture manifest. Vendored code is built for a baseline CPU. Linux also runs the bounded decoder fuzz target.
 
 On a Windows workstation, `build.rs` refuses the full Zig build unless `TERMINAL_HOST_LOCAL_BUILD=1` is set because managed antivirus can quarantine libghostty's deliberately malformed test fixture and parent processes. `TERMINAL_HOST_CONTRACTS_ONLY=1` permits contract-library diagnostics only and is not product evidence.
 
@@ -38,4 +38,4 @@ The non-interactive gate covers identity, owner endpoints, writer-lock/addon beh
 
 ## Development command
 
-`npm run proof:terminal-host -- <role and arguments>` builds and invokes the exact binary. With no arguments it runs the bounded non-interactive model probe. Use the repository `./scripts/dev` launcher for interactive A1 validation rather than invoking Node entry points directly.
+`npm run proof:terminal-host -- <role and arguments>` builds the debug addon and invokes it through `dist/foundation/resident-tabs/host-entry.js`. With no arguments it runs the bounded non-interactive model probe. Use the repository `./scripts/dev` launcher for interactive A1 validation rather than invoking Node entry points directly.

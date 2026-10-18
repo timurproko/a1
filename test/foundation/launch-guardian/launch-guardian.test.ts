@@ -10,7 +10,7 @@ import type {
 import { runLaunchGuardian } from "../../../src/foundation/launch-guardian/index.js";
 import { parseSessionSelection, sessionSelectionArguments } from "../../../src/foundation/lifecycle/index.js";
 import { dispatchCli, cliCapabilities } from "../../../src/cli/index.js";
-import type { NativeProcessInspector, ProcessContainment } from "../../../src/foundation/process-containment/index.js";
+import type { NativeProcessInspector, ProcessContainment, ProcessGuardianAddon } from "../../../src/foundation/process-containment/index.js";
 
 const guardianIdentity = { pid: 8000, startIdentity: "8000:guardian" };
 const rootIdentity = { pid: 8001, startIdentity: "8001:root" };
@@ -47,6 +47,25 @@ describe("launch guardian", () => {
     expect(control.commands[1]).toMatchObject({ rootIdentity, containmentIdentity: fixture.containment.identity });
     expect(fixture.containment.close).toHaveBeenCalledOnce();
     expect(control.close).toHaveBeenCalledOnce();
+  });
+
+  it("captures terminal modes before spawn and delivers an armed notice before containment closes", async () => {
+    const control = new FakeControl();
+    const fixture = containmentFixture(Promise.resolve({ kind: "exited", exitCode: 0 }));
+    const events: string[] = [];
+    fixture.containment.spawn.mockImplementationOnce(async () => {
+      events.push("spawn");
+      return { identity: rootIdentity, outcome: Promise.resolve({ kind: "exited", exitCode: 0 }) };
+    });
+    fixture.containment.close.mockImplementationOnce(async () => { events.push("close"); });
+    const addon = guardianAddon({
+      captureTerminalModes: () => { events.push("capture"); return "modes"; },
+      deliverExitNotice: () => { events.push("deliver"); },
+    });
+
+    await runLaunchGuardian({ ...options(control, fixture.containment, fixture.inspector), addon });
+
+    expect(events).toEqual(["capture", "spawn", "deliver", "close"]);
   });
 
   it("preserves validated CLI selection through guardian argv for distinct simultaneous invocations", async () => {
@@ -196,6 +215,23 @@ function options(control: FakeControl, containment: ProcessContainment, inspecto
     containment,
     inspector,
     ensureHelper: async () => undefined,
+  };
+}
+
+function guardianAddon(overrides: Partial<ProcessGuardianAddon> = {}): ProcessGuardianAddon {
+  return {
+    version: () => ({ crateVersion: "0.1.0-dev", protocolVersion: 2, target: "windows" }),
+    inspectProcessStart: () => "windows-filetime:1",
+    captureTerminalModes: () => "modes",
+    restoreTerminalModes() {},
+    deliverExitNotice() {},
+    spawnContained: () => { throw new Error("unused"); },
+    spawnWatcher: () => 1,
+    waitForProcessExit: async () => undefined,
+    stopProcessGroup() {},
+    restoreForegroundGroup() {},
+    ignoreConsoleControl() {},
+    ...overrides,
   };
 }
 

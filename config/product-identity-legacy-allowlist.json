@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-10-14T09:16:41.005Z",
+  "generatedAt": "2026-10-17T16:22:46.349Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -280,21 +280,21 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.test.ts:50:32",
+      "id": "test/foundation/release/package-surface.test.ts:51:32",
       "value": "addone",
-      "fingerprint": "fd15b741c7a1cd88fae2d75d0bfd6ad8a813fa6b7428d00f0c722027a307dbec",
+      "fingerprint": "4e80426ddc17ec89381d3d7d3a0261be9cb396b4235e68ea3dc5b259f1dba171",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/release-store.test.ts:79:91",
+      "id": "test/foundation/release/release-store.test.ts:121:91",
       "value": "addone",
-      "fingerprint": "1afc269d93f3a1b5048539a1710cfeb595e27d68fe57f31ebf6127c67124ec36",
+      "fingerprint": "581cba9ba242e6aaeb8f701316a92feae4643eb51829ce9d0db435b61291bdaa",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/release-store.test.ts:88:38",
+      "id": "test/foundation/release/release-store.test.ts:130:38",
       "value": "addone",
-      "fingerprint": "4d8159beb64b12fd2a42eb7875a244611546f2e275ea2defdbd6ca36bea359a9",
+      "fingerprint": "8571147d46a196a8ed3b758503ba2534f43fd7b07a0c842d4d1bfba1aefe5bba",
       "reason": "explicit legacy rejection fixture"
     },
     {
@@ -334,9 +334,9 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/product-identity/product-identity.test.ts:67:65",
+      "id": "test/product-identity/product-identity.test.ts:71:65",
       "value": "ADDONE",
-      "fingerprint": "50a1595f439e38086b244a91199f3f4059a57c8c904a311d0421e83bd695be5d",
+      "fingerprint": "02325a6b5b562e18e16367ff72d4de37c56f0e19cded6e1d5fc198566506d53b",
       "reason": "explicit legacy rejection fixture"
     },
     {
