@@ -20,6 +20,7 @@ const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
 const firstOrders = permutations([0, 1, 2]);
 const scenarioTimeoutMs = 20_000;
 const childStartupTimeoutMs = 60_000;
+const selectionRetryMs = 2_000;
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -296,9 +297,17 @@ async function selectTab(attach, context, index, tabId) {
   if (latestPaint?.tabId === tabId) return;
   const sentUnixUs = epochUs();
   attach.terminal.write(`\x1b${index + 1}`);
+  let selectedAt = Date.now();
   await waitUntil(async () => {
     const { records } = await currentObservations(context);
-    return records.some(record => record.stage === "outer-paint" && record.tabId === tabId && record.timestampUnixUs >= sentUnixUs);
+    if (records.some(record => record.stage === "outer-paint" && record.tabId === tabId && record.timestampUnixUs >= sentUnixUs)) return true;
+    // Rationale: an outer terminal can lose a selection typed while attach is still negotiating. Selecting
+    // the requested tab again is idempotent, so an unanswered selection is repeated instead of trusted.
+    if (Date.now() - selectedAt >= selectionRetryMs) {
+      attach.terminal.write(`\x1b${index + 1}`);
+      selectedAt = Date.now();
+    }
+    return false;
   }, `tab ${index + 1} activation paint`);
   await delay(50);
 }
@@ -607,7 +616,14 @@ async function runDetachedReconnectVariant(spawnPty, host, attach, context, prov
         return next.host === "running" && next.result?.pid !== serverPid;
       } catch { return false; }
     }, `${id} replacement server`, childStartupTimeoutMs);
+    const attachedUnixUs = epochUs();
     const replacement = await createAttach(spawnPty, host, context);
+    // Invariant: the replacement attach takes tab selection only after its first presentation; until
+    // then the newest paint belongs to the stopped attach and would misdirect the no-op shortcut.
+    await waitUntil(async () => {
+      const { records } = await currentObservations(context);
+      return records.some(record => record.stage === "outer-paint" && record.timestampUnixUs >= attachedUnixUs);
+    }, `${id} replacement attach first paint`, childStartupTimeoutMs);
     for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
       await selectTab(replacement, context, tabIndex, tabIds[tabIndex]);
       await replacement.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C59`,
@@ -738,16 +754,29 @@ async function characterizeFragmentedTransactions(attach, context, provider, tab
       await attach.waitForOutput(`P${id.replaceAll("-", "").slice(-2)}T${tabIndex + 1}C11`,
         `${id} tab ${tabIndex + 1} partial output`, partialOutputCheckpoint);
     }
-    await waitUntil(async () => {
-      const current = await currentObservations(context);
-      const target = current.records.filter(record => record.tabId === targetTabId
-        && record.timestampUnixUs >= startedUnixUs);
-      return target.filter(record => record.stage === "child-render-write"
-        && record.eventSequence > engineBaselines[targetTabId]
-        && record.transactionKind === "synchronized-output" && record.fragmentCount > 1).length >= 3
-        && target.filter(record => record.stage === "pty-ingest").length >= 3
-        && target.filter(record => record.stage === "holder-commit" && record.eventKind === "complete").length >= 3;
-    }, `${id} fragmented transaction evidence`);
+    let evidence = null;
+    try {
+      await waitUntil(async () => {
+        const current = await currentObservations(context);
+        const target = current.records.filter(record => record.tabId === targetTabId
+          && record.timestampUnixUs >= startedUnixUs);
+        const writes = target.filter(record => record.stage === "child-render-write");
+        evidence = {
+          childWrites: writes.length,
+          synchronizedWrites: writes.filter(record => record.transactionKind === "synchronized-output").length,
+          fragmentedWrites: writes.filter(record => record.fragmentCount > 1).length,
+          qualifyingWrites: writes.filter(record => record.eventSequence > engineBaselines[targetTabId]
+            && record.transactionKind === "synchronized-output" && record.fragmentCount > 1).length,
+          ptyIngestions: target.filter(record => record.stage === "pty-ingest").length,
+          completeCommits: target.filter(record => record.stage === "holder-commit" && record.eventKind === "complete").length,
+          recoveryCommits: target.filter(record => record.stage === "holder-commit" && record.eventKind === "recovery").length,
+        };
+        return evidence.qualifyingWrites >= 3 && evidence.ptyIngestions >= 3 && evidence.completeCommits >= 3;
+      }, `${id} fragmented transaction evidence`);
+    } catch (error) {
+      // Rationale: each native cycle runs only in CI, so the timeout names the missing evidence.
+      throw new Error(`${error instanceof Error ? error.message : String(error)} ${JSON.stringify(evidence)}`);
+    }
     const barrierUnixUs = epochUs();
     const observed = await currentObservations(context);
     if (observed.faults.length > 0) throw new Error(observed.faults.join("; "));

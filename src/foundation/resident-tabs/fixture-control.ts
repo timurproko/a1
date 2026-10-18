@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
+import { residentProgressObserver } from "./progress-observation.js";
 
 export type ResidentFixtureStoppedStage = "child-render-write";
 
@@ -14,8 +15,10 @@ export function residentFixtureControl(
   environment: NodeJS.ProcessEnv = process.env,
 ): ResidentFixtureControlPort | null {
   const directory = environment[PRODUCT_IDENTITY.environment.residentFixtureControlDir];
-  const tabId = environment[PRODUCT_IDENTITY.environment.tabId];
   if (environment === process.env) delete process.env[PRODUCT_IDENTITY.environment.residentFixtureControlDir];
+  // Invariant: the launch context erases the bridge tab identity before UI composition, so the fixture
+  // binds to the observed run identity, which the observer captures once per process in any call order.
+  const tabId = residentProgressObserver(environment)?.tabId;
   if (!directory || !tabId || !/^[a-z0-9-]{1,128}$/iu.test(tabId)) return null;
   return {
     stopped: stage => existsSync(join(directory, `${tabId}.${stage}.stop`)),

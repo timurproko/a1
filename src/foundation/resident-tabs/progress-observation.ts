@@ -37,6 +37,8 @@ interface ProgressRecord extends ProgressFields {
 }
 
 export interface ResidentProgressObserverPort {
+  /** The observed tab, retained here after launch erases every inheritable tab identity. */
+  readonly tabId: string;
   engineDelivery(event: unknown): void;
   childRenderWrite(bytes: number, fragments: number, transaction: "synchronized-output" | "ordinary",
     frameId?: number, renderCause?: string): void;
@@ -55,6 +57,8 @@ class ResidentProgressObserver implements ResidentProgressObserverPort {
   #lost = 0;
   #writing: Promise<void> = Promise.resolve();
   #failed = false;
+
+  get tabId(): string { return this.#tabId; }
 
   constructor(directory: string, runId: string, tabId: string, incarnation: number) {
     this.#directory = directory;
