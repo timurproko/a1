@@ -1,6 +1,7 @@
 export const TERMINAL_HOST_MANIFEST: "terminal-host.manifest.json";
-export const TERMINAL_HOST_SCHEMA: "a1-terminal-host-artifact-v1";
-export const SESSION_LOCK_FILENAME: "a1_session_lock.node";
+export const TERMINAL_HOST_SCHEMA: "a1-terminal-host-artifact-v2";
+export const TERMINAL_HOST_ADDON: "terminal-host.node";
+export const TERMINAL_HOST_ENTRY: "dist/foundation/resident-tabs/host-entry.js";
 export const TERMINAL_HOST_GENERATION: 1;
 
 export interface ArtifactFileRecord { filename: string; sha256: string; size: number }
@@ -17,7 +18,9 @@ export interface TerminalHostVersionReport {
 }
 
 export interface TerminalHostArtifactManifest {
-  schema: "a1-terminal-host-artifact-v1";
+  schema: "a1-terminal-host-artifact-v2";
+  kind: "node-addon";
+  nodeApi: 9;
   protocolVersion: 1;
   generation: 1;
   crateVersion: string;
@@ -27,13 +30,11 @@ export interface TerminalHostArtifactManifest {
   capability: "supported" | "unsupported";
   builtAt: string;
   artifact: ArtifactFileRecord;
-  sessionLock: ArtifactFileRecord;
+  entry: ArtifactFileRecord;
   notices: ArtifactFileRecord;
   provenance: Record<string, unknown>;
 }
 
-export function terminalHostExecutableName(identity: { artifacts: { nativeExecutable: string } }, platform?: NodeJS.Platform): string;
-export function sessionLockLibraryName(platform?: NodeJS.Platform): string;
 export function verifyVersionReport(report: unknown, crateVersion: string): string[];
 export function buildManifest(input: {
   platform: string;
@@ -41,13 +42,12 @@ export function buildManifest(input: {
   triple: string;
   crateVersion: string;
   report: TerminalHostVersionReport;
-  executable: ArtifactFileRecord;
-  sessionLock: ArtifactFileRecord;
+  artifact: ArtifactFileRecord;
+  entry: ArtifactFileRecord;
   notices: ArtifactFileRecord;
   cargoLockSha256: string;
   rustVersion: string;
   zigVersion: string;
   builtAt: string;
-  /** How the built executable's identity was observed; a cross build without Rosetta 2 records only its Mach-O header. */
   identityCheck?: "executed" | "mach-o-header";
 }): TerminalHostArtifactManifest;

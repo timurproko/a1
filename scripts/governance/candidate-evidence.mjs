@@ -109,28 +109,30 @@ export function readPackedEntries(tarball) {
   return entries;
 }
 
-export function guardianBinaryReference(manifestPath, content) {
+export function guardianAddonReference(manifestPath, content) {
   const manifest = JSON.parse(content.toString("utf8"));
-  if (manifest?.schema !== "a1-process-guardian-artifact-v1" || manifest.protocolVersion !== 1) return null;
-  return nativeBinaryReference(manifestPath, manifest, "guardian");
+  if (manifest?.schema !== "a1-process-guardian-artifact-v2" || manifest.protocolVersion !== 2) return null;
+  return nativeAddonReference(manifestPath, manifest, "guardian");
 }
 
-/** The packed terminal-host executable named by its separate build manifest beside the guardian's. */
-export function terminalHostBinaryReference(manifestPath, content) {
+/** The packed terminal-host addon named by its separate build manifest beside the guardian's. */
+export function terminalHostAddonReference(manifestPath, content) {
   const manifest = JSON.parse(content.toString("utf8"));
-  if (manifest?.schema !== "a1-terminal-host-artifact-v1" || manifest.protocolVersion !== 1) return null;
-  return nativeBinaryReference(manifestPath, manifest, "terminal host");
+  if (manifest?.schema !== "a1-terminal-host-artifact-v2" || manifest.protocolVersion !== 1) return null;
+  return nativeAddonReference(manifestPath, manifest, "terminal host");
 }
 
-function nativeBinaryReference(manifestPath, manifest, label) {
+function nativeAddonReference(manifestPath, manifest, label) {
   const artifact = manifest.artifact;
-  if (typeof manifest.platform !== "string" || typeof manifest.architecture !== "string"
-    || typeof artifact?.filename !== "string" || artifact.filename.includes("/") || artifact.filename.includes("..")
+  if (manifest.kind !== "node-addon" || manifest.nodeApi !== 9
+    || typeof manifest.platform !== "string" || typeof manifest.architecture !== "string"
+    || typeof artifact?.filename !== "string" || !artifact.filename.endsWith(".node")
+    || artifact.filename.includes("/") || artifact.filename.includes("..")
     || !/^[a-f0-9]{64}$/.test(artifact?.sha256 ?? "") || !Number.isSafeInteger(artifact?.size)) {
     throw new Error(`${label} manifest ${manifestPath} is malformed`);
   }
   const directory = manifestPath.slice(0, manifestPath.lastIndexOf("/"));
-  return { binaryPath: `${directory}/${artifact.filename}`, sha256: artifact.sha256, size: artifact.size };
+  return { addonPath: `${directory}/${artifact.filename}`, sha256: artifact.sha256, size: artifact.size };
 }
 
 function validateEvidenceShape(evidence) {

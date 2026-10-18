@@ -106,8 +106,8 @@ describe("impact-aware validation workflows", () => {
   it("keeps the bounded PR core and selected resource-sensitive work isolated", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
     const entries = DEVELOPMENT_VALIDATION_MATRIX as any[];
-    expect(entries.find(entry => entry.group === "core")).toMatchObject({ os: "windows-2025", node: 24, build: true, guardian: true });
-    expect(entries.find(entry => entry.group === "resource")).toMatchObject({ os: "windows-2025", node: 24, build: true, guardian: false });
+    expect(entries.find(entry => entry.group === "core")).toMatchObject({ os: "windows-2025", node: 24, build: true, guardian: true, addon: "process-guardian.node" });
+    expect(entries.find(entry => entry.group === "resource")).toMatchObject({ os: "windows-2025", node: 24, build: true, guardian: false, addon: "process-guardian.node" });
     // Invariant: every job builds the workspace except the terminal-host test partitions, which run only Cargo.
     expect(entries.every(entry => entry.build || (entry.partition && entry.group === "terminal-host"))).toBe(true);
     expect(workflow.jobs.modular.steps.some((step: any) => step.name === "Install exact analysis dependencies")).toBe(false);
@@ -154,6 +154,7 @@ describe("impact-aware validation workflows", () => {
     // Rationale: the role suite warmed every resident launch path before certification; one unmeasured pass
     // now does, and the measured pass keeps its budgets and runs exactly once.
     const certify = modular.steps.find((step: any) => step.name === "Certify terminal fidelity and resident latency").run as string;
+    expect(certify).toContain('host=".artifacts/terminal-host/${{ matrix.terminalHostAddon }}"');
     const measured = 'node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json"';
     const warmUp = 'node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-warm-up-${{ matrix.platform }}-${{ matrix.architecture }}.json" || echo';
     expect(certify.indexOf("verify-terminal-fidelity.mjs")).toBeLessThan(certify.indexOf(warmUp));
@@ -165,11 +166,19 @@ describe("impact-aware validation workflows", () => {
     expect(certify.indexOf(warmUp)).toBeLessThan(certify.indexOf(measured));
     expect(certify.split("measure-resident-tabs.mjs")).toHaveLength(3);
     // Invariant: the warm-up's leftover host processes are stopped before the measured pass starts.
-    const cleanup = certify.indexOf('taskkill //F //T //IM "${{ matrix.terminalHostBinary }}"');
+    const cleanup = certify.indexOf('Get-CimInstance Win32_Process');
     expect(cleanup).toBeGreaterThan(certify.indexOf(warmUp));
     expect(cleanup).toBeLessThan(certify.indexOf(measured));
-    expect(certify).toContain('pkill -f "a1-resident-measure-"');
+    expect(certify).toContain('CommandLine.Contains("host-entry.js")');
+    expect(certify).not.toContain("taskkill //IM");
+    expect(certify).not.toContain("pkill -f");
+    expect(certify).toContain('pgrep -f "a1-resident-measure-"');
+    expect(certify).toContain('ps -p "$pid" -o comm=');
+    expect(certify).toContain('kill -TERM "$pid"');
     expect(certify.endsWith(`${measured}\n`) || certify.endsWith(measured)).toBe(true);
+    const upload = modular.steps.find((step: any) => step.name === "Upload terminal host contract artifacts");
+    expect(upload.with.path).toContain(".artifacts/terminal-host/${{ matrix.terminalHostAddon }}");
+    expect(upload.with.path).not.toContain("a1_session_lock.node");
   });
 
   it("shortens the resident chaos budget on pull requests only and leaves the script default elsewhere", async () => {

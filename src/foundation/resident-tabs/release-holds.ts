@@ -1,7 +1,8 @@
 import { readdir, stat } from "node:fs/promises";
 import { resolve } from "node:path";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { runBoundedHostCommand } from "./bounded-host-command.js";
-import { resolveTerminalHostPath } from "./ensure-terminal-host.js";
+import { resolveTerminalHostEntryPath, resolveTerminalHostPath, type TerminalHostCommand } from "./ensure-terminal-host.js";
 import { verifyTerminalHostArtifact } from "./terminal-host-artifact.js";
 
 export interface ResidentReleaseHoldReport {
@@ -18,8 +19,8 @@ export interface ResidentReleaseHoldOptions {
   readonly platform?: NodeJS.Platform;
   readonly architecture?: string;
   readonly timeoutMs?: number;
-  readonly verify?: (executable: string, platform: NodeJS.Platform, architecture: string) => Promise<unknown>;
-  readonly run?: (executable: string, arguments_: readonly string[], timeoutMs: number) => Promise<{ readonly code: number; readonly stdout: string }>;
+  readonly verify?: (addon: string, platform: NodeJS.Platform, architecture: string) => Promise<unknown>;
+  readonly run?: (command: TerminalHostCommand, arguments_: readonly string[], timeoutMs: number) => Promise<{ readonly code: number; readonly stdout: string }>;
 }
 
 const COMPLETE_EMPTY: ResidentReleaseHoldReport = Object.freeze({ complete: true, releaseRoots: Object.freeze([]), uncertain: Object.freeze([]) });
@@ -34,20 +35,20 @@ export async function readResidentReleaseHolds(options: ResidentReleaseHoldOptio
   const platform = options.platform ?? process.platform;
   const architecture = options.architecture ?? process.arch;
   const verify = options.verify ?? verifyTerminalHostArtifact;
-  let executable: string | undefined;
+  let command: TerminalHostCommand | undefined;
   for (const root of options.releaseRoots) {
     const candidate = resolveTerminalHostPath(root, {}, platform, architecture);
     try {
       await verify(candidate, platform, architecture);
-      executable = candidate;
+      command = { executable: process.execPath, entry: resolveTerminalHostEntryPath(root) };
       break;
     } catch {
       // Rationale: an older release may predate the packaged host; another retained release may still carry it.
     }
   }
-  if (!executable) return incomplete("no verified terminal host is installed to inspect resident records");
+  if (!command) return incomplete("no verified terminal host is installed to inspect resident records");
   try {
-    const result = await (options.run ?? runHost)(executable, ["release-holds", "--data-dir", options.dataDir], options.timeoutMs ?? 5_000);
+    const result = await (options.run ?? runHost)(command, ["release-holds", "--data-dir", options.dataDir], options.timeoutMs ?? 5_000);
     const report = JSON.parse(result.stdout.trim().split(/\r?\n/u).at(-1) ?? "") as Record<string, unknown>;
     if (result.code !== 0 || report.schema !== "a1-resident-release-holds-v1" || typeof report.complete !== "boolean"
       || !isStringArray(report.releaseRoots) || !isStringArray(report.uncertain)) {
@@ -90,6 +91,14 @@ function isStringArray(value: unknown): value is string[] {
 /** The largest release-hold report accepted from the terminal host. */
 export const MAX_RELEASE_HOLD_REPORT_BYTES = 1024 * 1024;
 
-async function runHost(executable: string, arguments_: readonly string[], timeoutMs: number): Promise<{ code: number; stdout: string }> {
-  return await runBoundedHostCommand(executable, arguments_, { maxStdoutBytes: MAX_RELEASE_HOLD_REPORT_BYTES, timeoutMs, label: "terminal host release-hold inspection" });
+async function runHost(command: TerminalHostCommand, arguments_: readonly string[], timeoutMs: number): Promise<{ code: number; stdout: string }> {
+  const environment = { ...process.env };
+  delete environment[PRODUCT_IDENTITY.environment.developmentInstanceId];
+  delete environment[PRODUCT_IDENTITY.environment.terminalHostPath];
+  return await runBoundedHostCommand(command, arguments_, {
+    environment,
+    maxStdoutBytes: MAX_RELEASE_HOLD_REPORT_BYTES,
+    timeoutMs,
+    label: "terminal host release-hold inspection",
+  });
 }

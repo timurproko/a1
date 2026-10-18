@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildManifest } from "../../scripts/development/build-terminal-host.mjs";
-import { machoArchitecture, observeExecutableIdentity, parseTargetArgument, RELEASE_TARGETS, resolveBuildTarget, targetIdentity } from "../../scripts/development/native-target.mjs";
+import { addonLibraryName, machoArchitecture, observeAddonIdentity, observeExecutableIdentity, parseTargetArgument, RELEASE_TARGETS, resolveBuildTarget, targetIdentity } from "../../scripts/development/native-target.mjs";
 
 function macho(cpuType: number): Buffer {
   const header = Buffer.alloc(32);
@@ -19,6 +19,14 @@ describe("native release targets", () => {
     }
     expect(Object.keys(RELEASE_TARGETS)).toHaveLength(4);
     expect(() => targetIdentity("x86_64-unknown-linux-musl")).toThrow(/unsupported/u);
+  });
+
+  it("names addon libraries for every supported platform", () => {
+    expect(addonLibraryName("process_guardian", "win32")).toBe("process_guardian.dll");
+    expect(addonLibraryName("process_guardian", "linux")).toBe("libprocess_guardian.so");
+    expect(addonLibraryName("process_guardian", "darwin")).toBe("libprocess_guardian.dylib");
+    expect(() => addonLibraryName("process-guardian", "linux")).toThrow(/invalid addon crate/u);
+    expect(() => addonLibraryName("process_guardian", "freebsd")).toThrow(/unsupported addon platform/u);
   });
 
   it("parses --target and refuses unknown or missing triples", () => {
@@ -63,6 +71,11 @@ describe("native release targets", () => {
     const windowsCross = { ...host, platform: "win32", cross: true };
     expect(() => observeExecutableIdentity({ executable: "/dist/host.exe", arguments_: ["--version"], target: windowsCross, execute: refused, readBytes: bytes(0x01000007) }))
       .toThrow(/failed with ENOEXEC/u);
+
+    expect(observeAddonIdentity({ addon: "/dist/process-guardian.node", loader: "/node", arguments_: ["-e", "load"], target: cross, execute: executed, readBytes: bytes(0x01000007) }))
+      .toEqual({ check: "executed", stdout: '{"schema":"x"}' });
+    expect(observeAddonIdentity({ addon: "/dist/process-guardian.node", loader: "/node", arguments_: ["-e", "load"], target: cross, execute: refused, readBytes: bytes(0x01000007) }))
+      .toEqual({ check: "mach-o-header", stdout: null });
   });
 
   it("records the identity check in the terminal host manifest and refuses an unknown one", () => {
@@ -70,7 +83,7 @@ describe("native release targets", () => {
     const input = {
       platform: "darwin", architecture: "x64", triple: "x86_64-apple-darwin", crateVersion: "0.1.0-dev",
       report: { schema: "a1-terminal-host-version-v1", protocolVersion: 1, generation: 1, crateVersion: "0.1.0-dev", features: { faultInjection: false, residentFixtures: false }, libghosttyVtCommit: "c".repeat(40), libghosttyTarget: "x86_64-macos", libghosttyCpu: "baseline" },
-      executable: file("terminal-host"), sessionLock: file("a1_session_lock.node"), notices: file("terminal-host-THIRD-PARTY-NOTICES.txt"),
+      artifact: file("terminal-host.node"), entry: file("dist/foundation/resident-tabs/host-entry.js"), notices: file("terminal-host-THIRD-PARTY-NOTICES.txt"),
       cargoLockSha256: "b".repeat(64), rustVersion: "rustc 1.99.1", zigVersion: "0.15.2", builtAt: "2026-10-16T00:00:00.000Z",
     };
     expect(buildManifest(input).provenance).toMatchObject({ identityCheck: "executed", zigTarget: "x86_64-macos", zigCpu: "baseline" });

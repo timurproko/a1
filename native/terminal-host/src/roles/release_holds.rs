@@ -46,11 +46,11 @@ enum Liveness {
 
 const MAX_UNCERTAIN: usize = 32;
 
-/// The installed release root of the running executable, `<root>/dist/native/<target>/<exe>`.
+/// The installed release root of the loaded addon, `<root>/dist/native/<target>/terminal-host.node`.
 /// A development build outside that layout has none.
 pub fn own_release_root() -> Option<String> {
-    let executable = std::env::current_exe().ok()?;
-    let target = executable.parent()?;
+    let artifact = crate::launch::host_command().ok()?.artifact;
+    let target = artifact.parent()?;
     let native = target.parent()?;
     let dist = native.parent()?;
     if native.file_name()? != "native" || dist.file_name()? != "dist" {

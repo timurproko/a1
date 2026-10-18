@@ -17,8 +17,13 @@ export type TerminalHostFallbackReason =
   | "launch not verified"
   | "host startup timed out";
 
+export interface TerminalHostCommand {
+  readonly executable: string;
+  readonly entry: string;
+}
+
 export type EnsureTerminalHostResult =
-  | { readonly status: "ready"; readonly executable: string; readonly endpoint: string }
+  | { readonly status: "ready"; readonly executable: TerminalHostCommand; readonly endpoint: string }
   | { readonly status: "fallback"; readonly reason: TerminalHostFallbackReason };
 
 interface HostCommandResult { readonly code: number; readonly stdout: string; readonly stderr: string }
@@ -34,7 +39,7 @@ export interface EnsureTerminalHostOptions {
   readonly maxConcurrentStarts?: number;
   readonly unresponsiveRestartSeconds?: number;
   readonly run?: (executable: string, arguments_: readonly string[], environment: NodeJS.ProcessEnv, timeoutMs: number) => Promise<HostCommandResult>;
-  readonly verify?: (executable: string, platform: NodeJS.Platform, architecture: string) => Promise<unknown>;
+  readonly verify?: (addon: string, platform: NodeJS.Platform, architecture: string) => Promise<unknown>;
 }
 
 export function resolveTerminalHostPath(
@@ -45,8 +50,11 @@ export function resolveTerminalHostPath(
 ): string {
   const override = developmentOverride(environment);
   if (override) return resolve(override);
-  const executable = platform === "win32" ? `${PRODUCT_IDENTITY.artifacts.nativeExecutable}.exe` : PRODUCT_IDENTITY.artifacts.nativeExecutable;
-  return resolve(releaseRoot, "dist", "native", `${platform}-${architecture}`, executable);
+  return resolve(releaseRoot, "dist", "native", `${platform}-${architecture}`, `${PRODUCT_IDENTITY.artifacts.terminalHostAddon}.node`);
+}
+
+export function resolveTerminalHostEntryPath(releaseRoot: string): string {
+  return resolve(releaseRoot, "dist", "foundation", "resident-tabs", `${PRODUCT_IDENTITY.artifacts.terminalHostEntry}.js`);
 }
 
 /** The terminal-host override is a development aid; installed releases always run their own verified artifact. */
@@ -59,12 +67,13 @@ export async function ensureTerminalHost(options: EnsureTerminalHostOptions): Pr
   const platform = options.platform ?? process.platform;
   const architecture = options.architecture ?? process.arch;
   if (!supported(platform, architecture)) return { status: "fallback", reason: "unsupported platform" };
-  const executable = resolveTerminalHostPath(options.releaseRoot, options.environment, platform, architecture);
+  const addon = resolveTerminalHostPath(options.releaseRoot, options.environment, platform, architecture);
+  const command: TerminalHostCommand = { executable: process.execPath, entry: resolveTerminalHostEntryPath(options.releaseRoot) };
   if (developmentOverride(options.environment)) {
-    try { await access(executable, constants.R_OK | (platform === "win32" ? 0 : constants.X_OK)); }
+    try { await Promise.all([access(addon, constants.R_OK), access(command.entry, constants.R_OK)]); }
     catch { return { status: "fallback", reason: "terminal host not installed" }; }
   } else {
-    try { await (options.verify ?? verifyTerminalHostArtifact)(executable, platform, architecture); }
+    try { await (options.verify ?? verifyTerminalHostArtifact)(addon, platform, architecture); }
     catch (error) { return { status: "fallback", reason: verificationReason(error) }; }
   }
 
@@ -72,12 +81,14 @@ export async function ensureTerminalHost(options: EnsureTerminalHostOptions): Pr
   const timeoutMs = options.timeoutMs ?? 8_000;
   const common = ["--profile", options.profileRoot, "--data-dir", options.dataDir, "--runtime-dir", options.runtimeDir];
   const environment = { ...options.environment };
+  const invoke = async (arguments_: readonly string[], commandTimeoutMs: number) =>
+    await run(command.executable, [command.entry, ...arguments_], environment, commandTimeoutMs);
   try {
-    const probe = await run(executable, ["probe", ...common], environment, Math.min(4_000, timeoutMs));
+    const probe = await invoke(["probe", ...common], Math.min(4_000, timeoutMs));
     const existing = parseResult(probe.stdout);
     if (probe.code === 0) {
       if (existing?.generation === 1 && typeof existing.endpoint === "string") {
-        return { status: "ready", executable, endpoint: existing.endpoint };
+        return { status: "ready", executable: command, endpoint: existing.endpoint };
       }
       return {
         status: "fallback",
@@ -89,22 +100,22 @@ export async function ensureTerminalHost(options: EnsureTerminalHostOptions): Pr
 
     const maximum = Math.max(1, Math.min(8, Math.trunc(options.maxConcurrentStarts ?? 2)));
     const unresponsiveRestartSeconds = Math.max(30, Math.min(600, Math.trunc(options.unresponsiveRestartSeconds ?? 120)));
-    const start = await run(executable, [
+    const start = await invoke([
       "server", "--detach", ...common,
       "--max-concurrent-starts", String(maximum),
       "--unresponsive-restart-seconds", String(unresponsiveRestartSeconds),
-    ], environment, timeoutMs);
+    ], timeoutMs);
     const started = parseResult(start.stdout);
     if (start.code !== 0) return { status: "fallback", reason: classifiedReason(started?.reason, "launch not verified") };
     if (started?.verified !== true || typeof started.endpoint !== "string") return { status: "fallback", reason: "launch not verified" };
 
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      const result = await run(executable, ["probe", ...common], environment, Math.min(1_000, Math.max(1, deadline - Date.now())));
+      const result = await invoke(["probe", ...common], Math.min(1_000, Math.max(1, deadline - Date.now())));
       const ready = parseResult(result.stdout);
       if (result.code === 0) {
         if (ready?.generation === 1 && typeof ready.endpoint === "string") {
-          return { status: "ready", executable, endpoint: ready.endpoint };
+          return { status: "ready", executable: command, endpoint: ready.endpoint };
         }
         return {
           status: "fallback",

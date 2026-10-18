@@ -12,7 +12,7 @@ import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
 import { probeOwnership, readEndpointMetadata, removeEndpointArtifacts, sweepDeadEndpoints } from "./endpoints.js";
 import { UpdateTransactionStore } from "./update-transaction.js";
 import { selectUpdateLaunchRelease } from "./update-launch.js";
-import { consumeMaterializationProof, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease, type VerifyMaterializedReleaseOptions } from "./release-store.js";
+import { assertCertifiedFilesPresent, consumeMaterializationProof, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, repairMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type CertifiedReleaseRecord, type MaterializedRelease, type VerifyMaterializedReleaseOptions } from "./release-store.js";
 import { scheduleReleaseCleanup } from "./release-gc.js";
 import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDocument } from "./restart-certification.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
@@ -88,8 +88,9 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
     });
     if (resident !== null) {
       residentContext = resident.status === "ready" ? {
-        residentRootExecutable: resident.executable,
+        residentRootExecutable: resident.executable.executable,
         residentRootArguments: JSON.stringify([
+          resident.executable.entry,
           "attach", "--endpoint", resident.endpoint, "--cwd", process.cwd(), "--clear-exit-ms", String(CLEAR_EXIT_INTERVAL_MS),
           "--profile", environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
           "--settings-file", resolve(agentProfileDir, "settings.json"),
@@ -147,7 +148,21 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   const installedVersion = await readInstalledVersion(options.packageRoot);
   const activeId = state.references.active;
   const active = activeId === null ? undefined : state.releases[activeId];
-  const activeIsLaunchable = active === undefined || (options.releaseIsLaunchable?.(active.releaseRoot) ?? true);
+  let activeIsLaunchable = active === undefined || (options.releaseIsLaunchable?.(active.releaseRoot) ?? true);
+  let excludedRetainedReleaseId: string | undefined;
+  if (activeIsLaunchable && active?.approval === "approved" && active.packageVersion === installedVersion) {
+    try {
+      await assertCertifiedFilesPresent(active.releaseRoot);
+    } catch {
+      try {
+        await repairApprovedRelease(options.packageRoot, active, paths.dataDir);
+      } catch {
+        // Security: a damaged certified release is no longer a fallback when package bytes cannot restore it.
+        activeIsLaunchable = false;
+        excludedRetainedReleaseId = active.releaseId;
+      }
+    }
+  }
   if (activeIsLaunchable && active?.approval === "approved" && active.packageVersion === installedVersion) {
     const endpointMatches = endpoint?.releaseId === active.releaseId
       && endpoint.releaseRoot === active.releaseRoot
@@ -160,18 +175,26 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
       if (endpoint) await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint);
       await markStartupPhase(environment, "durable-validation-start");
       const retained = await readRestartCertifiedRelease(active, paths.dataDir).catch(async () => {
-        const verified = await readMaterializedRelease(active.releaseRoot, resolve(paths.dataDir, "releases"));
-        if (verified.releaseId !== active.releaseId || verified.contentDigest !== active.contentDigest || verified.packageVersion !== active.packageVersion) {
-          throw new Error("completely verified release differs from the approved active record");
+        let verified: MaterializedRelease;
+        try {
+          verified = await readMaterializedRelease(active.releaseRoot, resolve(paths.dataDir, "releases"));
+        } catch {
+          verified = await repairApprovedRelease(options.packageRoot, active, paths.dataDir);
+          return verified;
         }
+        assertApprovedReleaseMatches(verified, active);
         await certifyMaterializedRelease(verified, paths.dataDir);
         return verified;
-      });
-      await markStartupPhase(environment, "durable-validation-complete");
-      await markStartupPhase(environment, "replacement-supervisor-start");
-      await ensureSupervisor(retained, environment);
-      await markStartupPhase(environment, "replacement-supervisor-ready");
-      return await launchSelected(retained);
+      }).catch(() => null);
+      if (retained !== null) {
+        await markStartupPhase(environment, "durable-validation-complete");
+        await markStartupPhase(environment, "replacement-supervisor-start");
+        await ensureSupervisor(retained, environment);
+        await markStartupPhase(environment, "replacement-supervisor-ready");
+        return await launchSelected(retained);
+      }
+      activeIsLaunchable = false;
+      excludedRetainedReleaseId = active.releaseId;
     }
   }
 
@@ -183,7 +206,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   try {
     candidate = await materializeRelease(options.packageRoot, paths.dataDir);
   } catch (error) {
-    const fallback = await launchRetainedActive(state, paths, environment, launchSelected);
+    const fallback = await launchRetainedActive(state, paths, environment, launchSelected, excludedRetainedReleaseId);
     if (fallback === null) throw error;
     return fallback;
   }
@@ -314,16 +337,35 @@ async function launchRetainedActive(
   paths: ReturnType<typeof resolveProductPaths>,
   environment: NodeJS.ProcessEnv,
   launch: (release: MaterializedRelease) => Promise<number>,
+  excludedReleaseId?: string,
 ): Promise<number | null> {
   const activeId = state.references.active;
   const active = activeId === null ? undefined : state.releases[activeId];
-  if (!active || active.approval !== "approved") return null;
+  if (!active || active.approval !== "approved" || active.releaseId === excludedReleaseId) return null;
   try {
     const retained = await readCertifiedReleaseManifest(active, resolve(paths.dataDir, "releases"));
     await ensureSupervisor(retained, environment);
     return await launch(retained);
   } catch {
     return null;
+  }
+}
+
+async function repairApprovedRelease(
+  packageRoot: string,
+  active: CertifiedReleaseRecord,
+  dataDir: string,
+): Promise<MaterializedRelease> {
+  const repaired = await repairMaterializedRelease(packageRoot, active.releaseRoot);
+  assertApprovedReleaseMatches(repaired, active);
+  await recordParentCertifiedRelease(repaired, dataDir);
+  return repaired;
+}
+
+function assertApprovedReleaseMatches(release: MaterializedRelease, active: CertifiedReleaseRecord): void {
+  if (release.releaseId !== active.releaseId || release.contentDigest !== active.contentDigest
+    || (active.packageVersion !== undefined && release.packageVersion !== active.packageVersion)) {
+    throw new Error("completely verified release differs from the approved active record");
   }
 }
 

@@ -20,7 +20,11 @@ describe("product identity authority", () => {
         piAgentProfile: ".a1/agent",
         piVanillaProfile: ".pi/agent",
       },
-      artifacts: { cliEntry: "bin/cli.js", nativeExecutable: "terminal-host" },
+      artifacts: {
+        cliEntry: "bin/cli.js",
+        terminalHostAddon: "terminal-host",
+        terminalHostEntry: "host-entry",
+      },
     });
     expect(allObjectsFrozen(PRODUCT_IDENTITY)).toBe(true);
     expect(() => { (PRODUCT_IDENTITY as { displayName: string }).displayName = "changed"; }).toThrow(TypeError);

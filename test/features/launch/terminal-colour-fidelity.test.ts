@@ -34,8 +34,9 @@ describe("terminal colour fidelity", () => {
   it("hands every launched process the terminal it was started from", async () => {
     const guardian = await source("native/process-guardian/src/windows.rs");
 
-    expect(guardian).not.toMatch(/CREATE_NEW_CONSOLE|CREATE_NO_WINDOW|DETACHED_PROCESS/u);
-    expect(guardian).toMatch(/CREATE_SUSPENDED \| CREATE_UNICODE_ENVIRONMENT/u);
+    expect(guardian).not.toMatch(/CREATE_NEW_CONSOLE|CREATE_NO_WINDOW|DETACHED_PROCESS|CREATE_SUSPENDED/u);
+    expect(guardian).toMatch(/EXTENDED_STARTUPINFO_PRESENT \| CREATE_UNICODE_ENVIRONMENT/u);
+    expect(guardian).toContain("PROC_THREAD_ATTRIBUTE_JOB_LIST");
   });
 
   it("keeps every launched process attached to the inherited streams", async () => {

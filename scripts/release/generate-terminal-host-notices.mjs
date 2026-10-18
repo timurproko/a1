@@ -62,7 +62,7 @@ export async function renderTerminalHostNotices({ metadata, readText, linkedComp
   return [
     "Third-party notices for the A1 terminal host",
     "",
-    "The terminal-host executable and its session-writer lock include the following components.",
+    "The terminal-host Node-API addon includes the following components.",
     "",
     ...sections,
   ].join("\n");

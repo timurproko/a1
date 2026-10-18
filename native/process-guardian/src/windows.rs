@@ -2,25 +2,29 @@ use std::ffi::OsStr;
 use std::mem::{size_of, zeroed};
 use std::os::windows::ffi::OsStrExt;
 use std::ptr::{null, null_mut};
+use std::sync::Mutex;
 
 use windows_sys::Win32::Foundation::{
-    CloseHandle, GetLastError, FILETIME, HANDLE, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
+    CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, FILETIME, GetLastError, HANDLE,
+    INVALID_HANDLE_VALUE, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
+};
+use windows_sys::Win32::System::Console::{
+    GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, SetConsoleCtrlHandler,
 };
 use windows_sys::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    SetInformationJobObject, TerminateJobObject,
+    CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JobObjectExtendedLimitInformation, SetInformationJobObject, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
-    CreateProcessW, GetExitCodeProcess, GetProcessTimes, OpenProcess, ResumeThread, WaitForMultipleObjects,
-    WaitForSingleObject, CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, INFINITE,
-    PROCESS_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, STARTUPINFOW,
+    CREATE_BREAKAWAY_FROM_JOB, CREATE_UNICODE_ENVIRONMENT, CreateProcessW,
+    DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess,
+    GetExitCodeProcess, GetProcessTimes, INFINITE, InitializeProcThreadAttributeList, OpenProcess,
+    PROC_THREAD_ATTRIBUTE_JOB_LIST, PROCESS_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION,
+    STARTF_USESTDHANDLES, STARTUPINFOEXW, TerminateProcess, UpdateProcThreadAttribute,
+    WaitForSingleObject,
 };
 
-use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
-
-use crate::exit_notice::ExitNotice;
-use crate::{Invocation, write_ready_status};
+use crate::SpawnContainedOptions;
 
 const SYNCHRONIZE_ACCESS: u32 = 0x0010_0000;
 const ERROR_INVALID_PARAMETER: u32 = 87;
@@ -43,7 +47,7 @@ pub(super) fn inspect_process_start(pid: u32) -> Result<Option<String>, String> 
             std::io::Error::from_raw_os_error(error as i32)
         ));
     }
-    let process = OwnedHandle(handle);
+    let process = OwnedHandle::new(handle)?;
     inspect_process_handle(process.raw())
 }
 
@@ -52,7 +56,11 @@ fn inspect_process_handle(process: HANDLE) -> Result<Option<String>, String> {
         WAIT_TIMEOUT => {}
         WAIT_OBJECT_0 => return Ok(None),
         WAIT_FAILED => return Err(last_error("cannot inspect process state")),
-        outcome => return Err(format!("cannot inspect process state: unexpected wait result {outcome}")),
+        outcome => {
+            return Err(format!(
+                "cannot inspect process state: unexpected wait result {outcome}"
+            ));
+        }
     }
     Ok(Some(format!(
         "windows-filetime:{}",
@@ -71,41 +79,84 @@ fn process_creation_ticks(process: HANDLE) -> Result<u64, String> {
     Ok(((creation.dwHighDateTime as u64) << 32) | creation.dwLowDateTime as u64)
 }
 
-pub(super) fn run(invocation: Invocation) -> Result<u8, String> {
-    let parent = OwnedHandle::new(unsafe {
-        OpenProcess(
-            SYNCHRONIZE_ACCESS | PROCESS_QUERY_LIMITED_INFORMATION,
-            0,
-            invocation.parent_pid,
-        )
-    })
-    .map_err(|error| format!("cannot observe Node guardian parent: {error}"))?;
+pub(super) struct Runtime {
+    process: OwnedHandle,
+    job: Mutex<Option<OwnedHandle>>,
+    pid: u32,
+    start_identity: String,
+    containment_token: String,
+    wait_result: Mutex<Option<u32>>,
+}
 
+pub(super) fn spawn(options: SpawnContainedOptions) -> Result<Runtime, String> {
     let job = OwnedHandle::new(unsafe { CreateJobObjectW(null(), null()) })
         .map_err(|error| format!("cannot create Job Object: {error}"))?;
     configure_job(job.raw())
-        .map_err(|error| format!("instance {}: {error}", invocation.instance_id))?;
+        .map_err(|error| format!("instance {}: {error}", options.instance_id))?;
 
-    let mut command_line = wide_null(&build_command_line(
-        &invocation.executable,
-        &invocation.arguments,
-    ));
-    let executable = wide_null(&invocation.executable);
-    let mut startup: STARTUPINFOW = unsafe { zeroed() };
-    startup.cb = size_of::<STARTUPINFOW>() as u32;
+    let mut attribute_bytes = 0usize;
+    unsafe {
+        InitializeProcThreadAttributeList(null_mut(), 1, 0, &mut attribute_bytes);
+    }
+    if attribute_bytes == 0 {
+        return Err(last_error("cannot size process thread attribute list"));
+    }
+    let mut attribute_storage = vec![0u8; attribute_bytes];
+    let attribute_list = attribute_storage.as_mut_ptr().cast();
+    if unsafe { InitializeProcThreadAttributeList(attribute_list, 1, 0, &mut attribute_bytes) } == 0
+    {
+        return Err(last_error(
+            "cannot initialize process thread attribute list",
+        ));
+    }
+    let attributes = AttributeList(attribute_list);
+    let job_handle = job.raw();
+    if unsafe {
+        UpdateProcThreadAttribute(
+            attributes.0,
+            0,
+            PROC_THREAD_ATTRIBUTE_JOB_LIST as usize,
+            (&job_handle as *const HANDLE).cast(),
+            size_of::<HANDLE>(),
+            null_mut(),
+            null(),
+        )
+    } == 0
+    {
+        return Err(last_error(
+            "cannot assign the Job Object at process creation",
+        ));
+    }
+
+    let mut command_line = wide_null(&build_command_line(&options.executable, &options.arguments));
+    let executable = wide_null(&options.executable);
+    let cwd = wide_null(&options.cwd);
+    let mut environment = environment_block(&options.environment);
+    let input = duplicate_standard_handle(STD_INPUT_HANDLE)?;
+    let output = duplicate_standard_handle(STD_OUTPUT_HANDLE)?;
+    let error = duplicate_standard_handle(STD_ERROR_HANDLE)?;
+    let mut startup: STARTUPINFOEXW = unsafe { zeroed() };
+    startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
+    startup.lpAttributeList = attributes.0;
+    if let (Some(input), Some(output), Some(error)) = (&input, &output, &error) {
+        startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+        startup.StartupInfo.hStdInput = input.raw();
+        startup.StartupInfo.hStdOutput = output.raw();
+        startup.StartupInfo.hStdError = error.raw();
+    }
     let mut process_info: PROCESS_INFORMATION = unsafe { zeroed() };
 
     let created = unsafe {
         CreateProcessW(
             executable.as_ptr(),
             command_line.as_mut_ptr(),
-            null_mut(),
-            null_mut(),
+            null(),
+            null(),
             1,
-            CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
-            null(),
-            null(),
-            &startup,
+            EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
+            environment.as_mut_ptr().cast(),
+            cwd.as_ptr(),
+            (&startup as *const STARTUPINFOEXW).cast(),
             &mut process_info,
         )
     };
@@ -114,91 +165,218 @@ pub(super) fn run(invocation: Invocation) -> Result<u8, String> {
     }
     let child_process = OwnedHandle::new(process_info.hProcess)
         .map_err(|error| format!("contained process returned no handle: {error}"))?;
-    let child_thread = OwnedHandle::new(process_info.hThread)
+    let _child_thread = OwnedHandle::new(process_info.hThread)
         .map_err(|error| format!("contained process returned no thread handle: {error}"))?;
 
-    if unsafe { AssignProcessToJobObject(job.raw(), child_process.raw()) } == 0 {
+    let start_identity = inspect_process_start(process_info.dwProcessId)?.ok_or_else(|| {
         unsafe { TerminateJobObject(job.raw(), 125) };
-        return Err(last_error("cannot assign runtime to Job Object"));
-    }
-    if unsafe { ResumeThread(child_thread.raw()) } == u32::MAX {
-        unsafe { TerminateJobObject(job.raw(), 125) };
-        return Err(last_error("cannot resume contained runtime"));
-    }
-    let start_identity = inspect_process_start(process_info.dwProcessId)?
-        .ok_or_else(|| "contained runtime exited before identity observation".to_owned())?;
-    let containment_token = format!("windows-job:{}:{}", std::process::id(), process_info.dwProcessId);
-    if let Err(error) = write_ready_status(
-        &invocation.status_file,
-        process_info.dwProcessId,
-        &start_identity,
-        "windows-job",
-        &containment_token,
-    ) {
-        unsafe { TerminateJobObject(job.raw(), 125) };
-        return Err(error);
-    }
+        "contained runtime exited before identity observation".to_owned()
+    })?;
+    let containment_token = format!(
+        "windows-job:{}:{}",
+        std::process::id(),
+        process_info.dwProcessId
+    );
 
-    let handles = [child_process.raw(), parent.raw()];
-    let wait = unsafe { WaitForMultipleObjects(handles.len() as u32, handles.as_ptr(), 0, INFINITE) };
-    if wait == WAIT_OBJECT_0 + 1 {
-        unsafe { TerminateJobObject(job.raw(), 143) };
-        // Rationale: job termination is asynchronous; waiting keeps the runtime's last frame
-        // from landing after the exit notice the caller prints next.
-        unsafe { WaitForSingleObject(child_process.raw(), 2_000) };
-        return Ok(143);
-    }
-    if wait != WAIT_OBJECT_0 {
-        unsafe { TerminateJobObject(job.raw(), 125) };
-        return Err(last_error("cannot wait for contained runtime"));
-    }
-
-    let mut exit_code = 1u32;
-    if unsafe { GetExitCodeProcess(child_process.raw(), &mut exit_code) } == 0 {
-        unsafe { TerminateJobObject(job.raw(), 125) };
-        return Err(last_error("cannot read contained runtime exit code"));
-    }
-
-    // Security: the root has exited. Closing the Job Object is the terminal boundary for
-    // every descendant that remained after the root's own graceful shutdown.
-    unsafe { TerminateJobObject(job.raw(), exit_code) };
-    Ok(exit_code.min(255) as u8)
+    Ok(Runtime {
+        process: child_process,
+        job: Mutex::new(Some(job)),
+        pid: process_info.dwProcessId,
+        start_identity,
+        containment_token,
+        wait_result: Mutex::new(None),
+    })
 }
 
-/// Starts the process that delivers the exit notice if this guardian is killed with its owner.
-pub(super) fn spawn_notice_watcher(notice: &str, status_file: &str, modes: &str) {
-    let Ok(executable) = std::env::current_exe() else { return };
-    // Platform: libuv's kill-on-close job allows silent breakaway, so a process this guardian creates
-    // is outside the Node owner's job and outlives the owner's death.
-    let _ = std::process::Command::new(executable)
-        .args(["--watch-exit-notice", &std::process::id().to_string(), notice, status_file, modes])
-        .stdin(std::process::Stdio::null())
-        .spawn();
-}
+impl Runtime {
+    pub(super) fn pid(&self) -> u32 {
+        self.pid
+    }
 
-pub(super) fn watch_exit_notice(guardian_pid: u32, notice: String, status_file: &str, modes: &str) -> Result<u8, String> {
-    // Rationale: the watcher shares the console; Ctrl+C there belongs to the runtime, not to it.
-    unsafe { SetConsoleCtrlHandler(None, 1) };
-    let guardian = OwnedHandle::new(unsafe { OpenProcess(SYNCHRONIZE_ACCESS, 0, guardian_pid) })
-        .map_err(|error| format!("cannot observe guardian: {error}"))?;
-    let armed = ExitNotice::for_watcher(notice.clone(), modes);
-    unsafe { WaitForSingleObject(guardian.raw(), INFINITE) };
-    if std::path::Path::new(&notice).exists() {
-        // Rationale: the guardian's job closes asynchronously; waiting for the runtime keeps its
-        // last frame from landing after the notice.
-        if let Some(runtime) = std::fs::read_to_string(status_file).ok().and_then(|status| status_pid(&status)) {
-            if let Ok(process) = OwnedHandle::new(unsafe { OpenProcess(SYNCHRONIZE_ACCESS, 0, runtime) }) {
-                unsafe { WaitForSingleObject(process.raw(), 2_000) };
+    pub(super) fn start_identity(&self) -> &str {
+        &self.start_identity
+    }
+
+    pub(super) fn containment_provider(&self) -> &str {
+        "windows-job"
+    }
+
+    pub(super) fn containment_token(&self) -> &str {
+        &self.containment_token
+    }
+
+    pub(super) fn process_group(&self) -> Option<i32> {
+        None
+    }
+
+    pub(super) fn foreground_group(&self) -> Option<i32> {
+        None
+    }
+
+    pub(super) fn wait(&self) -> Result<u32, String> {
+        if let Some(result) = *self
+            .wait_result
+            .lock()
+            .map_err(|_| "runtime wait state is poisoned")?
+        {
+            return Ok(result);
+        }
+        let wait = unsafe { WaitForSingleObject(self.process.raw(), INFINITE) };
+        if wait != WAIT_OBJECT_0 {
+            return Err(last_error("cannot wait for contained runtime"));
+        }
+        let mut exit_code = 1u32;
+        if unsafe { GetExitCodeProcess(self.process.raw(), &mut exit_code) } == 0 {
+            return Err(last_error("cannot read contained runtime exit code"));
+        }
+        let exit_code = exit_code.min(255);
+        *self
+            .wait_result
+            .lock()
+            .map_err(|_| "runtime wait state is poisoned")? = Some(exit_code);
+        if let Ok(job) = self.job.lock()
+            && let Some(job) = job.as_ref()
+        {
+            // Security: once the root exits, terminate any descendants that outlived it.
+            unsafe { TerminateJobObject(job.raw(), exit_code) };
+        }
+        Ok(exit_code)
+    }
+
+    pub(super) fn terminate(&self, code: u32) -> Result<(), String> {
+        let job = self
+            .job
+            .lock()
+            .map_err(|_| "runtime job state is poisoned")?;
+        if let Some(job) = job.as_ref()
+            && unsafe { TerminateJobObject(job.raw(), code) } == 0
+        {
+            return Err(last_error("cannot terminate contained Job Object"));
+        }
+        Ok(())
+    }
+
+    pub(super) fn stop(&self) -> Result<(), String> {
+        if unsafe { TerminateProcess(self.process.raw(), 143) } == 0 {
+            let error = unsafe { GetLastError() };
+            if error != ERROR_INVALID_PARAMETER {
+                return Err(format!(
+                    "cannot stop contained runtime: {}",
+                    std::io::Error::from_raw_os_error(error as i32)
+                ));
             }
         }
+        Ok(())
     }
-    armed.deliver();
-    Ok(0)
+
+    pub(super) fn close(&self) -> Result<(), String> {
+        let mut job = self
+            .job
+            .lock()
+            .map_err(|_| "runtime job state is poisoned")?;
+        if let Some(job) = job.as_ref() {
+            unsafe { TerminateJobObject(job.raw(), 143) };
+        }
+        job.take();
+        Ok(())
+    }
 }
 
-fn status_pid(status: &str) -> Option<u32> {
-    let digits = status.split("\"pid\":").nth(1)?;
-    digits.chars().take_while(char::is_ascii_digit).collect::<String>().parse().ok()
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        if let Ok(job) = self.job.get_mut()
+            && let Some(job) = job.take()
+        {
+            unsafe { TerminateJobObject(job.raw(), 143) };
+        }
+    }
+}
+
+pub(super) fn spawn_watcher(executable: &str, arguments: &[String]) -> Result<u32, String> {
+    let mut command_line = wide_null(&build_command_line(executable, arguments));
+    let executable = wide_null(executable);
+    let input = duplicate_standard_handle(STD_INPUT_HANDLE)?;
+    let output = duplicate_standard_handle(STD_OUTPUT_HANDLE)?;
+    let error = duplicate_standard_handle(STD_ERROR_HANDLE)?;
+    let mut startup: windows_sys::Win32::System::Threading::STARTUPINFOW = unsafe { zeroed() };
+    startup.cb = size_of::<windows_sys::Win32::System::Threading::STARTUPINFOW>() as u32;
+    if let (Some(input), Some(output), Some(error)) = (&input, &output, &error) {
+        startup.dwFlags = STARTF_USESTDHANDLES;
+        startup.hStdInput = input.raw();
+        startup.hStdOutput = output.raw();
+        startup.hStdError = error.raw();
+    }
+    let mut process_info: PROCESS_INFORMATION = unsafe { zeroed() };
+    if unsafe {
+        CreateProcessW(
+            executable.as_ptr(),
+            command_line.as_mut_ptr(),
+            null(),
+            null(),
+            1,
+            CREATE_BREAKAWAY_FROM_JOB | CREATE_UNICODE_ENVIRONMENT,
+            null(),
+            null(),
+            &startup,
+            &mut process_info,
+        )
+    } == 0
+    {
+        return Err(last_error("cannot create exit watcher"));
+    }
+    let _process = OwnedHandle::new(process_info.hProcess)?;
+    let _thread = OwnedHandle::new(process_info.hThread)?;
+    Ok(process_info.dwProcessId)
+}
+
+fn duplicate_standard_handle(kind: u32) -> Result<Option<OwnedHandle>, String> {
+    let source = unsafe { GetStdHandle(kind) };
+    if source.is_null() || source == INVALID_HANDLE_VALUE {
+        return Ok(None);
+    }
+    let current = unsafe { GetCurrentProcess() };
+    let mut duplicate = null_mut();
+    if unsafe {
+        DuplicateHandle(
+            current,
+            source,
+            current,
+            &mut duplicate,
+            0,
+            1,
+            DUPLICATE_SAME_ACCESS,
+        )
+    } == 0
+    {
+        return Err(last_error("cannot duplicate inherited standard handle"));
+    }
+    OwnedHandle::new(duplicate).map(Some)
+}
+
+pub(super) fn wait_for_process_exit(pid: u32) -> Result<(), String> {
+    let handle = unsafe { OpenProcess(SYNCHRONIZE_ACCESS, 0, pid) };
+    if handle.is_null() {
+        let error = unsafe { GetLastError() };
+        if error == ERROR_INVALID_PARAMETER {
+            return Ok(());
+        }
+        return Err(format!(
+            "cannot observe process {pid}: {}",
+            std::io::Error::from_raw_os_error(error as i32)
+        ));
+    }
+    let process = OwnedHandle::new(handle)?;
+    if unsafe { WaitForSingleObject(process.raw(), INFINITE) } == WAIT_FAILED {
+        return Err(last_error("cannot wait for process exit"));
+    }
+    Ok(())
+}
+
+pub(super) fn ignore_console_control() -> Result<(), String> {
+    if unsafe { SetConsoleCtrlHandler(None, 1) } == 0 {
+        return Err(last_error("cannot ignore console control events"));
+    }
+    Ok(())
 }
 
 fn configure_job(job: HANDLE) -> Result<(), String> {
@@ -216,6 +394,18 @@ fn configure_job(job: HANDLE) -> Result<(), String> {
         return Err(last_error("cannot configure kill-on-close Job Object"));
     }
     Ok(())
+}
+
+fn environment_block(environment: &std::collections::HashMap<String, String>) -> Vec<u16> {
+    let mut entries = environment.iter().collect::<Vec<_>>();
+    entries.sort_by(|(left, _), (right, _)| left.to_uppercase().cmp(&right.to_uppercase()));
+    let mut block = Vec::new();
+    for (key, value) in entries {
+        block.extend(OsStr::new(&format!("{key}={value}")).encode_wide());
+        block.push(0);
+    }
+    block.push(0);
+    block
 }
 
 fn build_command_line(executable: &str, arguments: &[String]) -> String {
@@ -265,12 +455,23 @@ fn last_error(context: &str) -> String {
     format!("{context}: {}", std::io::Error::last_os_error())
 }
 
+struct AttributeList(windows_sys::Win32::System::Threading::LPPROC_THREAD_ATTRIBUTE_LIST);
+
+impl Drop for AttributeList {
+    fn drop(&mut self) {
+        unsafe { DeleteProcThreadAttributeList(self.0) };
+    }
+}
+
 struct OwnedHandle(HANDLE);
 
+unsafe impl Send for OwnedHandle {}
+unsafe impl Sync for OwnedHandle {}
+
 impl OwnedHandle {
-    fn new(handle: HANDLE) -> Result<Self, std::io::Error> {
+    fn new(handle: HANDLE) -> Result<Self, String> {
         if handle.is_null() {
-            Err(std::io::Error::last_os_error())
+            Err(std::io::Error::last_os_error().to_string())
         } else {
             Ok(Self(handle))
         }
@@ -292,8 +493,8 @@ impl Drop for OwnedHandle {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_command_line, inspect_process_handle, inspect_process_start,
-        process_creation_ticks, quote_windows_argument, status_pid,
+        build_command_line, inspect_process_handle, inspect_process_start, process_creation_ticks,
+        quote_windows_argument,
     };
     use std::os::windows::io::AsRawHandle;
     use std::process::Command;
@@ -301,15 +502,12 @@ mod tests {
     use windows_sys::Win32::System::Threading::WaitForSingleObject;
 
     #[test]
-    fn reads_the_runtime_pid_from_ready_status() {
-        assert_eq!(status_pid("{\"pid\":4242,\"startIdentity\":\"x\"}"), Some(4242));
-        assert_eq!(status_pid("{}"), None);
-    }
-
-    #[test]
     fn quotes_windows_arguments_without_shell_interpretation() {
         assert_eq!(quote_windows_argument("plain"), "plain");
-        assert_eq!(quote_windows_argument("value with spaces"), "\"value with spaces\"");
+        assert_eq!(
+            quote_windows_argument("value with spaces"),
+            "\"value with spaces\""
+        );
         assert_eq!(quote_windows_argument(""), "\"\"");
         assert_eq!(
             build_command_line("C:\\Program Files\\node.exe", &["a\\\"b".to_owned()]),
@@ -330,7 +528,13 @@ mod tests {
         let process = child.as_raw_handle() as HANDLE;
         assert_eq!(unsafe { WaitForSingleObject(process, 0) }, WAIT_OBJECT_0);
         assert!(process_creation_ticks(process).is_ok());
-        assert_eq!(inspect_process_handle(process).expect("inspect retained process object"), None);
-        assert_eq!(inspect_process_start(pid).expect("inspect terminated PID"), None);
+        assert_eq!(
+            inspect_process_handle(process).expect("inspect retained process object"),
+            None
+        );
+        assert_eq!(
+            inspect_process_start(pid).expect("inspect terminated PID"),
+            None
+        );
     }
 }
