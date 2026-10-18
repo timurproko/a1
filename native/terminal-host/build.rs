@@ -76,13 +76,17 @@ fn main() {
             "libghostty-vt archive is unavailable: {}",
             archive.display()
         );
-        let rust_archive = lib_dir.join("libghostty-vt-rust-static.a");
+        let rust_lib_dir =
+            PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR")).join("ghostty-vt-rust-link");
+        fs::create_dir_all(&rust_lib_dir).expect("create libghostty-vt Rust link directory");
+        let rust_archive = rust_lib_dir.join("libghostty-vt-rust-static.a");
         fs::copy(&archive, &rust_archive).unwrap_or_else(|error| {
             panic!(
                 "prepare libghostty-vt Rust archive {}: {error}",
                 rust_archive.display()
             )
         });
+        println!("cargo:rustc-link-search=native={}", rust_lib_dir.display());
         println!("cargo:rustc-link-lib=static=ghostty-vt-rust-static");
     }
     if target.contains("apple") && env::var_os("CARGO_FEATURE_NODE_ADDON").is_some() {
