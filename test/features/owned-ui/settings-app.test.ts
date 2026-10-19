@@ -1300,6 +1300,31 @@ describe("the input row and status line behind the screen", () => {
     expect(narrow.at(-1)).toHaveLength(24);
   });
 
+  it("keeps a pinned resident Settings tab open on Esc and omits its close hint", async () => {
+    const { session } = await app();
+    const pinned = new SettingsApp(session, { pinned: true });
+    let closes = 0;
+    const host: AppHostServices = { ...HOST, close: () => { closes += 1; } };
+    const hint = pinned.render({ width: 200, height: 24 }, host).map(line => line.replace(STYLE, ""))
+      .find(line => line.includes("/ search")) ?? "";
+    expect(hint).toContain("Ctrl+Z undo");
+    expect(hint).not.toContain("Esc close");
+    expect(pinned.onInput?.("\u001b", host)).toEqual({ consumed: true });
+    expect(closes).toBe(0);
+
+    // Esc still leaves search inside the pinned screen.
+    pinned.onInput?.("/", host);
+    expect(pinned.render({ width: 200, height: 24 }, host).map(line => line.replace(STYLE, "")).join("\n"))
+      .toContain("❯ search settings");
+    pinned.onInput?.("\u001b", host);
+    expect(pinned.render({ width: 200, height: 24 }, host).map(line => line.replace(STYLE, "")).join("\n"))
+      .not.toContain("❯ search settings");
+
+    const { app: ordinary } = await app();
+    ordinary.onInput?.("\u001b", host);
+    expect(closes).toBe(1);
+  });
+
   it("uses the configured live scrollbar speed for settings-list wheel movement", async () => {
     const visibleAfterWheel = async (speed: "normal" | "fast" | "high"): Promise<string> => {
       const { app: target } = await app(false, speed, WHEEL_SETTINGS);

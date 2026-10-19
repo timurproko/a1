@@ -292,7 +292,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     },
     session: () => import("./session-info-reference.js").then(m => m.loadSessionInfoReference(backend)),
   };
-  const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(settings, references);
+  const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(settings, references, {
+    settingsPinned: tabBridge?.tabId.startsWith("settings-") === true,
+  });
   const viewportSettings: OwnedUiViewportSettingsPort | null = settings === null || !ownedSurfaces ? null : {
     snapshot: () => viewportSettingsSnapshot(settings),
     onChange: listener => settings.onChange(() => listener(viewportSettingsSnapshot(settings))),
