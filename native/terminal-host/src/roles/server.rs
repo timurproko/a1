@@ -27,6 +27,9 @@ use crate::roles::wire::{
 use crate::session_lock::SessionLock;
 
 const SETTINGS_TAB_PREFIX: &str = "settings-";
+/// Every new Agent tab starts with this one name; duplicates are allowed and auto-naming or a
+/// manual rename distinguishes them.
+const DEFAULT_AGENT_TAB_NAME: &str = "Agent";
 
 fn is_settings_tab_id(tab_id: &str) -> bool {
     tab_id.starts_with(SETTINGS_TAB_PREFIX)
@@ -3582,22 +3585,7 @@ fn promote_standby(
             .ok_or_else(|| "standby holder disappeared".to_owned())?;
         locked.standby = None;
         let order = locked.registry.tabs.len() as u32;
-        let names = locked
-            .registry
-            .tabs
-            .iter()
-            .map(|tab| tab.display_name.as_str())
-            .collect::<std::collections::HashSet<_>>();
-        let display_name = (1usize..)
-            .map(|number| {
-                if number == 1 {
-                    "agent".into()
-                } else {
-                    format!("agent {number}")
-                }
-            })
-            .find(|name| !names.contains(name.as_str()))
-            .expect("unbounded default tab names");
+        let display_name = DEFAULT_AGENT_TAB_NAME.to_owned();
         let created_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -3856,25 +3844,10 @@ fn start_holder(
             .derive("bridge", &tab_id, incarnation)
             .to_vec();
         let order = locked.registry.tabs.len() as u32;
-        let names = locked
-            .registry
-            .tabs
-            .iter()
-            .map(|tab| tab.display_name.as_str())
-            .collect::<std::collections::HashSet<_>>();
         let display_name = if is_settings_tab_id(&tab_id) {
             "Settings".into()
         } else {
-            (1usize..)
-                .map(|number| {
-                    if number == 1 {
-                        "agent".into()
-                    } else {
-                        format!("agent {number}")
-                    }
-                })
-                .find(|name| !names.contains(name.as_str()))
-                .expect("unbounded default tab names")
+            DEFAULT_AGENT_TAB_NAME.to_owned()
         };
         let created_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
