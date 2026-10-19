@@ -362,6 +362,16 @@ fn admit_alt_code_input(
     if !windows {
         return Event::Key(key);
     }
+    // Platform: on Windows, crossterm can report a plain Ctrl+C as `Char('C')` with Shift and
+    // Control (observed in Windows Terminal), so neither the detach chord nor the child would see
+    // an interrupt. Windows Terminal binds a real Ctrl+Shift+C to copy before it reaches the
+    // program, so this report always means Ctrl+C.
+    if key.code == KeyCode::Char('C')
+        && key.modifiers == KeyModifiers::SHIFT | KeyModifiers::CONTROL
+    {
+        key.code = KeyCode::Char('c');
+        key.modifiers = KeyModifiers::CONTROL;
+    }
     if let KeyCode::Char(character) = key.code {
         let folded = character.to_lowercase().next().unwrap_or(character);
         match key.kind {
@@ -3833,6 +3843,38 @@ mod tests {
         assert!(!failure_applies(Some("tab-a"), Some("tab-b")));
         assert!(!failure_applies(None, Some("tab-a")));
         assert!(!failure_applies(None, None));
+    }
+
+    #[test]
+    fn windows_shifted_uppercase_ctrl_c_is_a_plain_ctrl_c_and_arms_the_chord() {
+        // Observed in Windows Terminal: `Char('C')` with Shift and Control for a plain Ctrl+C.
+        let reported = Event::Key(crossterm::event::KeyEvent::new_with_kind(
+            KeyCode::Char('C'),
+            KeyModifiers::SHIFT | KeyModifiers::CONTROL,
+            KeyEventKind::Press,
+        ));
+        let mut pressed = std::collections::HashSet::new();
+        let Event::Key(key) = admit_alt_code_input(true, &mut pressed, reported.clone()) else {
+            panic!("key event expected");
+        };
+        assert_eq!(
+            (key.code, key.modifiers),
+            (KeyCode::Char('c'), KeyModifiers::CONTROL)
+        );
+        let event = outer_input::normalize_key(&key).expect("semantic key");
+        assert!(outer_input::is_ctrl_c_event(&event));
+        let mut chord = DoubleCtrlC::new(1_500);
+        assert_eq!(chord.admit(0, true), CtrlCDisposition::Forward);
+        assert_eq!(chord.admit(700, true), CtrlCDisposition::Detach);
+
+        let Event::Key(other) = admit_alt_code_input(false, &mut pressed, reported) else {
+            panic!("key event expected");
+        };
+        assert_eq!(
+            other.code,
+            KeyCode::Char('C'),
+            "other platforms keep the report"
+        );
     }
 
     #[test]
