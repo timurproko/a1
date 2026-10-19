@@ -2925,7 +2925,10 @@ fn a_slow_client_never_delays_the_viewed_tabs_input_or_output() {
     }
     // Invariant: the streaming holder kept draining its child the whole time, so both holders are
     // still alive and the server still answers maintenance promptly.
-    assert_eq!(holder_pids(&credentials_root).len(), 2);
+    // Invariant: the attach client may prewarm a hidden Settings holder meanwhile; only the two
+    // Agent holders are counted, and every holder is reaped by cleanup.
+    cleanup.pids.extend(holder_pids(&credentials_root));
+    assert_eq!(agent_holder_pids(&credentials_root).len(), 2);
     let probe_started = Instant::now();
     let (code, _) = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
     assert_eq!(code, 0);
@@ -3564,6 +3567,21 @@ fn holder_identities(root: &Path) -> Vec<(String, u32, String)> {
     identities.sort();
     identities
 }
+fn agent_holder_pids(root: &Path) -> Vec<u32> {
+    RegistryStore::read(&root.join("registry.json"))
+        .ok()
+        .flatten()
+        .map(|registry| {
+            registry
+                .tabs
+                .into_iter()
+                .filter(|tab| !tab.tab_id.starts_with("settings-"))
+                .filter_map(|tab| tab.holder_pid)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn holder_pids(root: &Path) -> Vec<u32> {
     RegistryStore::read(&root.join("registry.json"))
         .ok()
