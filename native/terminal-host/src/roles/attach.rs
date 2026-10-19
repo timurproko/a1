@@ -2449,7 +2449,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         },
                     )?;
                     terminal.restore()?;
-                    print_hint(tabs.len());
+                    print_hint(running_agent_count(&tabs));
                     return Ok(());
                 }
                 "refused" => {
@@ -2918,7 +2918,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         ));
                     }
                     terminal.restore()?;
-                    print_hint(tabs.len());
+                    print_hint(running_agent_count(&tabs));
                     return Ok(());
                 }
                 let viewed_status = view
@@ -3583,6 +3583,13 @@ impl Drop for OuterTerminal {
             self.restored = true;
         }
     }
+}
+
+/// Agents left running after a detach; the global Settings tab is not an agent.
+fn running_agent_count(tabs: &[StripTab]) -> usize {
+    tabs.iter()
+        .filter(|tab| !tab.id.starts_with("settings-"))
+        .count()
 }
 
 fn print_hint(count: usize) {
