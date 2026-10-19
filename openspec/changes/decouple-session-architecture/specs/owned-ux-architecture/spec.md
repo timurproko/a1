@@ -40,7 +40,7 @@ A render root SHALL select one layout strategy at construction for the session's
 - **AND** the document SHALL evict only what that reason requires
 
 ### Requirement: The composition root constructs and returns
-The composition root SHALL resolve paths, construct services, construct the backend, construct the presenter, and return the application. It SHALL NOT own timers, heartbeats, state machines, or runtime event handling, and SHALL NOT rely on a reference that is bound only after construction. Runtime behavior that composition needs SHALL live in a class under an owning module that composition constructs and disposes.
+The composition root SHALL resolve paths, construct services, construct the backend, construct the presenter, and return the application. It SHALL NOT own timers, heartbeats, state machines, or runtime event handling. Runtime behavior that composition needs SHALL live in a class under an owning module that composition constructs and disposes.
 
 #### Scenario: Resident tab bridge behavior is needed
 - **WHEN** composition binds the resident tab bridge
@@ -49,10 +49,5 @@ The composition root SHALL resolve paths, construct services, construct the back
 
 #### Scenario: Session runtime identities must be refreshed
 - **WHEN** composition registers session runtime identities
-- **THEN** it SHALL construct a registry object with explicit start and dispose
+- **THEN** it SHALL construct a registry object that arms its heartbeat with the first claim and releases every claim on dispose
 - **AND** the composition root SHALL hold no identity map or refresh timer of its own
-
-#### Scenario: A service needs an object constructed later
-- **WHEN** a service built before the backend or presenter needs one of them
-- **THEN** composition SHALL pass the object after construction through a typed setter or option
-- **AND** no closure SHALL read a `let` binding that is assigned later

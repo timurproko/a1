@@ -114,7 +114,7 @@ Mode precedence is one `match` on `(mode, event)`. The `prompt_view`, pending-ju
 
 ### 9. Composition constructs and returns
 
-`session-runtime-registry.ts` is a class with `register(identity)`, `start()`, and `dispose()` holding the identity map, refresh chain, and timer. `startup-route.ts` builds the changelog route and release-note claim. The resident-tab coordinator (decision 2) takes the bridge state machine. `composeOwnedUi` becomes: resolve paths, build settings, build backend, build services, build presenter options, construct host and presenter, return. The forward references (`backend` read by settings, `presenter` read by hotkeys) are replaced by passing the constructed object after construction.
+`session-runtime-registry.ts` is a class with `readerFor(agentId)` and `dispose()` holding the identity map, refresh chain, and heartbeat timer, which it arms with the first claim. `startup-route.ts` holds `StartupReleaseNote`: the packaged catalog, the running version, the changelog route, and the release-note claim. `resident-tab-bridge.ts` takes the bridge state machine and tab-shortcut publishing, and `session-backend.ts` the composed backend and host interfaces (see the deviation under decision 2). `composeOwnedUi` resolves paths, builds settings, the backend, services, and presenter options, constructs host and presenter, and returns. **Deviation recorded in step 10:** the forward references (`backend` read by the settings manager's agent provider, `presenter` read by the hotkeys reference) remain, because removing them needs a late-binding API on the owned settings manager, which this change does not own.
 
 ### 10. A size ratchet in the architecture gate
 

@@ -193,11 +193,11 @@
     "src/app/session-shell/session-viewport-controller.ts::SessionViewportController.handlePreInput": {
       "lines": 325
     },
-    "src/composition/owned-ui.ts::bindResidentTabBridge": {
-      "lines": 123
-    },
     "src/composition/owned-ui.ts::composeOwnedUi": {
-      "lines": 390
+      "lines": 305
+    },
+    "src/composition/resident-tab-bridge.ts::bindResidentTabBridge": {
+      "lines": 123
     },
     "src/features/owned-ui/project-trust-prompt.ts::createConsoleProjectTrustPrompt": {
       "lines": 150

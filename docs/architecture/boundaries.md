@@ -44,6 +44,10 @@ The JavaScript product path has no PTY or terminal-emulator dependency. Reintrod
 
 `scripts/governance/check-architecture.mjs` enforces the structural parts of these boundaries. Cross-cutting rationale belongs here; implementation history belongs in Git and archived OpenSpec changes.
 
+## Session shell composition
+
+The session presenter (`src/app/session-shell/session-shell.ts`) coordinates; it does not own per-concern state. Each concern implements `SessionConcern` (`session-concern.ts`): it resets its own state in `onSessionReplaced` and releases it in `dispose`, and the presenter lists its concerns once, in reset order, in `#createConcerns`. New submission, routing, dialog, login, or resident-tab behavior goes into the concern that owns it, or a new concern added to that list. The render root (`session-shell-root.ts`) likewise picks one `ShellLayout` at construction and delegates transcript caching to `TranscriptDocument`, dock chrome to `DockChrome`, workflow output to `WorkflowOutput`, extension surfaces to `ExtensionSurface`, and the dock's input surface to `InputSurfaceSwitch`. The engine adapter serves the shell through the ports built in `src/integrations/pi/engine/ports.ts`, and the composition root delegates runtime claims, the startup release note, and the resident-tab bridge to their own modules under `src/composition/`.
+
 ## Unit size ratchet
 
 Module boundaries do not stop one class or function inside a module from absorbing every feature. The architecture gate therefore measures every production TypeScript class under `src/` (methods and fields) and every TypeScript or Rust function under `src/` and `native/<crate>/src/` (inclusive lines), excluding vendored sources and Rust `#[cfg(test)]` code. A unit with more than 20 methods, 15 fields, or 100 function lines must be recorded in `config/baselines/size-ratchet.json`, and its recorded counts can only shrink:
