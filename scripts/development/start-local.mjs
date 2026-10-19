@@ -51,8 +51,7 @@ if (launchArguments[0] === "--print-environment") {
   // endpoint, which silently forces this launch onto the single-agent fallback; testing always
   // wants the fresh build, so stop that checkout-owned run first.
   const { stopCheckoutProcesses } = await import("./stop-checkout-processes.mjs");
-  // Development: A1_DEV_KEEP_PROCESSES=1 runs a second instance (with its own A1_DEV_INSTANCE_ID)
-  // beside a running one, as automated probes do, without stopping it.
+  // Rationale: automated probes start a second instance beside a running one and opt out of the stop.
   const stopped = process.env.A1_DEV_KEEP_PROCESSES === "1" ? [] : stopCheckoutProcesses({ root: canonicalRoot });
   if (stopped.length > 0) {
     process.stderr.write(`Stopped ${stopped.length} earlier A1 process(es) from this checkout.\n`);

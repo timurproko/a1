@@ -1140,7 +1140,7 @@ mod tests {
                 truecolor,
             );
             assert!(frame.bytes.starts_with(&format!("\x1b[1;1H{background}")));
-            // Every reset inside the row re-establishes the row background before more cells.
+            // Invariant: Every reset inside the row re-establishes the row background before more cells.
             let body = frame.bytes.strip_suffix("\x1b[0m").expect("row ends reset");
             for (offset, _) in body.match_indices("\x1b[0m") {
                 assert!(body[offset + 4..].starts_with(background));

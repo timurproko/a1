@@ -1312,7 +1312,7 @@ describe("the input row and status line behind the screen", () => {
     expect(pinned.onInput?.("\u001b", host)).toEqual({ consumed: true });
     expect(closes).toBe(0);
 
-    // Esc still leaves search inside the pinned screen.
+    // Invariant: Esc still leaves search inside the pinned screen.
     pinned.onInput?.("/", host);
     expect(pinned.render({ width: 200, height: 24 }, host).map(line => line.replace(STYLE, "")).join("\n"))
       .toContain("❯ search settings");

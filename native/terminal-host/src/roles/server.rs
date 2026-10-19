@@ -5920,7 +5920,7 @@ mod tests {
 
     #[test]
     fn bridge_session_reads_the_child_name_source() {
-        // The child bridge client sends camelCase `nameSource`.
+        // Protocol: The child bridge client sends camelCase `nameSource`.
         let child: BridgeSession =
             serde_json::from_str(r#"{"file":"D:/s.jsonl","name":"ask-100","nameSource":"auto"}"#)
                 .unwrap();
@@ -5966,7 +5966,7 @@ mod tests {
             bridge_surface_status("idle", "suspended".into(), 0, 0, false, false),
             "idle"
         );
-        // Settlement markers reported by the child persist while viewed until the next turn.
+        // Invariant: Settlement markers reported by the child persist while viewed until the next turn.
         for settled in ["done", "aborted", "failed"] {
             assert_eq!(
                 bridge_surface_status("working", settled.into(), 0, 0, false, true),

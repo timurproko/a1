@@ -512,7 +512,7 @@ impl PresentationComposer {
                     )?;
                 }
             }
-            // Without a screen clear, rows below a shorter surface still hold the previous view.
+            // Invariant: Without a screen clear, rows below a shorter surface still hold the previous view.
             if force && !clear_screen {
                 for row_index in visible_rows..usize::from(desired.outer_rows.saturating_sub(1)) {
                     output.extend_from_slice(
@@ -687,7 +687,7 @@ fn render_palette_damage(
         if !inherited {
             push_osc_rgb(output, 4, Some(index), color);
         } else if all_inherited {
-            // One reset restores the whole outer palette instead of 256 single resets.
+            // Performance: One reset restores the whole outer palette instead of 256 single resets.
             if !reset_all {
                 output.extend_from_slice(b"\x1b]104\x1b\\");
                 reset_all = true;
@@ -822,7 +822,7 @@ fn render_surface_row_clipped(
                 output.extend_from_slice(b"\x1b[K");
             }
             Some((left, right)) => {
-                // The suffix contains the overlay, so erase explicitly around it.
+                // Invariant: The suffix contains the overlay, so erase explicitly around it.
                 let columns = usize::from(columns);
                 let before = left.clamp(visible, columns);
                 if before > visible {
@@ -1144,7 +1144,7 @@ mod tests {
         ));
         assert_eq!(view.viewed.as_deref(), Some("b"));
 
-        // A child that never draws still becomes visible after the bounded wait.
+        // Invariant: A child that never draws still becomes visible after the bounded wait.
         let mut silent = ViewModel::new(Some("a".into()));
         silent.request_at("c", now);
         silent.await_first_draw("c");
@@ -1159,7 +1159,7 @@ mod tests {
             })
         ));
 
-        // Creating the first tab from an empty strip waits for its drawn frame as well.
+        // Invariant: Creating the first tab from an empty strip waits for its drawn frame as well.
         let mut first = ViewModel::new(None);
         first.request_at("d", now);
         first.await_first_draw("d");
@@ -1177,7 +1177,7 @@ mod tests {
             }
         ));
 
-        // The tab attached at launch also waits for its first drawn frame.
+        // Invariant: The tab attached at launch also waits for its first drawn frame.
         let mut launch = ViewModel::new(None);
         let mut launch_blank = blank.clone();
         launch_blank.tab_id = "e".into();
@@ -1197,7 +1197,7 @@ mod tests {
             "the launch wait is bounded from the first offer, not renewed by each blank frame"
         );
 
-        // Switching to an existing tab is not delayed by a blank body.
+        // Invariant: Switching to an existing tab is not delayed by a blank body.
         let mut switch = ViewModel::new(Some("a".into()));
         assert!(matches!(
             switch.offer(surface("a", 3, false), now, true),
@@ -1603,7 +1603,7 @@ mod tests {
             .prepare(&desired(Some(next_generation), Vec::new()))
             .unwrap()
             .expect("geometry repaint");
-        // The invalidated base repaints every row in place rather than clearing the screen.
+        // Invariant: The invalidated base repaints every row in place rather than clearing the screen.
         assert!(!repaint.bytes.windows(4).any(|window| window == b"\x1b[2J"));
         for row in [b"\x1b[2;1H", b"\x1b[3;1H"] {
             assert!(repaint.bytes.windows(6).any(|window| window == row));
@@ -1734,7 +1734,7 @@ mod tests {
             streaming.overlay = Some(overlay.clone());
             let prepared = composer.prepare(&streaming).unwrap().expect("streamed row");
             let bytes = String::from_utf8(prepared.bytes.clone()).unwrap();
-            // Column 2 belongs to the overlay: the row writes column 1, then jumps to column 3.
+            // Invariant: Column 2 belongs to the overlay: the row writes column 1, then jumps to column 3.
             assert!(bytes.contains("\x1b[2;1H"));
             assert!(bytes.contains("\x1b[2;3H"), "{bytes:?}");
             assert_eq!(bytes.matches(text).count(), 2, "{bytes:?}");
@@ -1773,7 +1773,7 @@ mod tests {
         assert!(text.contains("\x1b]104;5\x1b\\"));
         assert!(!text.contains("\x1b]4;5;"));
 
-        // A child that later sets its background publishes it; a fully inherited palette resets
+        // Invariant: A child that later sets its background publishes it; a fully inherited palette resets
         // in one sequence.
         let mut composer = PresentationComposer::default();
         let mut set = inherited;

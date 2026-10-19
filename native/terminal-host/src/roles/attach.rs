@@ -850,7 +850,7 @@ impl PopupMenu {
                     let (mut label, gap, shortcut) = menu_text_parts(item, inner);
                     label.push_str(&" ".repeat(gap));
                     if !shortcut.is_empty() {
-                        // The palette counterpart of the truecolor muted shortcut.
+                        // Compatibility: The palette counterpart of the truecolor muted shortcut.
                         label.push_str("\x1b[38;5;242m");
                         label.push_str(&shortcut);
                     }
@@ -2582,7 +2582,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         if time_format.refresh() {
             paint_strip!();
         }
-        // A held glyph that no status replaced is released once its hold ends.
+        // Invariant: A held glyph that no status replaced is released once its hold ends.
         if glyph_hold_expires.is_some_and(|until| Instant::now() >= until) {
             paint_strip!();
         }
@@ -2667,7 +2667,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         if let Event::Key(key) = &next
             && key_trace_path.is_some()
         {
-            // Privacy: ordinary typed characters are recorded only as `Char(_)`.
+            // Security: ordinary typed characters are recorded only as `Char(_)`.
             let code = match key.code {
                 KeyCode::Char(character)
                     if !character.is_control()
@@ -3830,7 +3830,7 @@ mod tests {
         assert!(forward_pointer_motion(false, Some(&tracking)));
         assert!(forward_pointer_motion(false, None));
 
-        // Keys typed while a new Agent starts keep their place even after heavy pointer motion,
+        // Invariant: Keys typed while a new Agent starts keep their place even after heavy pointer motion,
         // because motion is no longer deferred.
         let mut deferred = DeferredInput::default();
         for _ in 0..500 {
@@ -3867,7 +3867,7 @@ mod tests {
         let mut working = vec![tab("working")];
         assert_eq!(hold_status_glyphs(&mut working, &mut held, start), None);
 
-        // The momentary idle between the spinner and the checkmark keeps the spinner.
+        // Invariant: The momentary idle between the spinner and the checkmark keeps the spinner.
         let mut gap = vec![tab("idle")];
         let expires = hold_status_glyphs(&mut gap, &mut held, start + Duration::from_millis(20));
         assert_eq!(gap[0].status, "working");
@@ -3876,7 +3876,7 @@ mod tests {
         hold_status_glyphs(&mut done, &mut held, start + Duration::from_millis(40));
         assert_eq!(done[0].status, "done");
 
-        // A glyph that really goes away is released after the hold.
+        // Invariant: A glyph that really goes away is released after the hold.
         let mut idle = vec![tab("idle")];
         let late = start + Duration::from_millis(40) + GLYPH_SWAP_HOLD;
         assert_eq!(hold_status_glyphs(&mut idle, &mut held, late), None);
@@ -3932,7 +3932,7 @@ mod tests {
             ["tab-1", "settings-1", "tab-2"]
         );
 
-        // A drop among shown tabs maps to the registry position the server reorders by.
+        // Invariant: A drop among shown tabs maps to the registry position the server reorders by.
         let shown = shown_tabs(&tabs, Some("tab-1"), false);
         assert_eq!(registry_index(&shown, &tabs, 0), 0);
         assert_eq!(registry_index(&shown, &tabs, 1), 2);
@@ -4025,7 +4025,7 @@ mod tests {
         );
         assert_eq!(editor.text, "agent ");
 
-        // A new edit after undo discards the redo branch, and no-op edits add no history.
+        // Invariant: A new edit after undo discards the redo branch, and no-op edits add no history.
         editor.undo();
         editor.insert('!');
         editor.redo();
@@ -4239,7 +4239,7 @@ mod tests {
 
     #[test]
     fn windows_shifted_uppercase_ctrl_c_is_a_plain_ctrl_c_and_arms_the_chord() {
-        // Observed in Windows Terminal: `Char('C')` with Shift and Control for a plain Ctrl+C.
+        // Platform: Windows Terminal reports `Char('C')` with Shift and Control for a plain Ctrl+C.
         let reported = Event::Key(crossterm::event::KeyEvent::new_with_kind(
             KeyCode::Char('C'),
             KeyModifiers::SHIFT | KeyModifiers::CONTROL,

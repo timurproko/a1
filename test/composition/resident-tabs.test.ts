@@ -183,7 +183,7 @@ describe("resident tab composition bridge", () => {
     await bindResidentTabBridge(value.bridge as never, value.backend as never, null, { autoName: true });
     value.rename("Agent");
     value.backend.workflows.executeWorkflow.mockImplementationOnce(async () => {
-      // The session stores a normalized form and announces it while the workflow runs.
+      // Invariant: The session stores a normalized form and announces it while the workflow runs.
       value.rename("fix-login");
       value.event({ type: "session-view" });
       return { outcome: "completed" };
@@ -203,12 +203,12 @@ describe("resident tab composition bridge", () => {
     value.event({ type: "agent-run-started" });
     await vi.waitFor(() => expect(value.backend.workflows.executeWorkflow).toHaveBeenCalledOnce());
     await vi.waitFor(() => expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/one.jsonl", "fix-login-please", "auto"));
-    // Observed: the session stores its own form and announces it only afterwards.
+    // Provenance: observed, the session stores its own form and announces it only afterwards.
     value.rename("russian");
     value.event({ type: "session-view" });
     expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/one.jsonl", "russian", "auto");
     expect(value.bridge.session).not.toHaveBeenCalledWith(expect.anything(), "russian", "user");
-    // A later manual rename is still the user's.
+    // Invariant: A later manual rename is still the user's.
     value.rename("my-own");
     value.event({ type: "session-view" });
     expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/one.jsonl", "my-own", "user");

@@ -66,6 +66,22 @@
       "semantics": "Developer invocation override; retain pending exposure review"
     },
     {
+      "role": "developmentKeepProcesses",
+      "key": "A1_DEV_KEEP_PROCESSES",
+      "exposure": "review",
+      "owner": "scripts/development/start-local.mjs",
+      "evidence": "test/repository-governance/stop-checkout-processes.test.ts",
+      "semantics": "Developer opt-out that keeps this checkout's running instances when starting another; retain pending exposure review"
+    },
+    {
+      "role": "attachKeyTrace",
+      "key": "A1_ATTACH_KEY_TRACE",
+      "exposure": "review",
+      "owner": "native/terminal-host/src/roles/attach.rs",
+      "evidence": "docs/architecture/resident-tabs.md",
+      "semantics": "Developer diagnostics path for redacted attach key and mouse events; retain pending exposure review"
+    },
+    {
       "role": "developmentRoot",
       "key": "A1_DEV_ROOT",
       "exposure": "review",

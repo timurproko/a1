@@ -568,12 +568,12 @@ export async function bindResidentTabBridge(
       }
       const current = currentSessionName();
       if (current !== null && !isDefaultName(current)) {
-        // The session already holds the applied name; report it as automatic now.
+        // Invariant: The session already holds the applied name; report it as automatic now.
         pendingAutoName = current;
         applyingAutoName = false;
         tabBridge.session(currentSessionFile(), current, "auto");
       } else {
-        // The session announces later; show the generated name meanwhile, still automatic.
+        // Invariant: The session announces later; show the generated name meanwhile, still automatic.
         tabBridge.session(currentSessionFile(), name, "auto");
       }
     }).catch(() => { pendingAutoName = null; applyingAutoName = false; });
