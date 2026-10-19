@@ -3,12 +3,17 @@
 ## ADDED Requirements
 
 ### Requirement: The attach client's interaction is a pure state machine
-The attach client SHALL model its tab list, viewed tab, view transition, interaction mode, hover, failure, notices, and pending requests in one state type stepped by a pure function from events to effects. Interaction mode SHALL be one enumerated value, so at most one of popup, rename, confirm-close, or drag is active, and key, mouse, and paste precedence SHALL be resolved by that one value. The role loop SHALL own only the handshake, reader threads, the outer terminal, bindings, settings observation, encoding, and effect application. The simulator SHALL be able to drive the attach core with seeded server messages and input.
+The attach client SHALL model its tab list, viewed tab, view transition, settings tab visibility, pending jump, deferred input, interaction mode, hover, failure, notices, and pending requests in one state type stepped by a pure function from events to effects. Interaction mode SHALL be one enumerated value, so at most one of popup, rename, or drag is active, and key, mouse, and paste precedence SHALL be resolved by that one value. The role loop SHALL own only the handshake, reader threads, the outer terminal, bindings, settings observation, encoding, and effect application. The simulator SHALL be able to drive the attach core with seeded server messages and input.
 
-#### Scenario: A popup is open when a close is requested
-- **WHEN** a close action arrives while the context menu is open
-- **THEN** the mode SHALL change from popup to confirm-close or close in one step
-- **AND** no frame SHALL show the menu and the confirmation together
+#### Scenario: A rename is requested while the context menu is open
+- **WHEN** the rename action is chosen from the open context menu
+- **THEN** the mode SHALL change from popup to rename in one step
+- **AND** no frame SHALL show the menu and the rename editor together
+
+#### Scenario: Input arrives while a view change is pending
+- **WHEN** keys or a paste arrive after a tab switch was requested and before its surface arrived
+- **THEN** the input SHALL be held, within the existing byte and frame limits, by the view transition for the tab it targets
+- **AND** when the transition commits, input held for that tab SHALL be delivered to it in order and input held for any other target SHALL be dropped, exactly as the current attach client does
 
 #### Scenario: A view transition completes
 - **WHEN** the requested tab's complete surface arrives after its list snapshot was staged

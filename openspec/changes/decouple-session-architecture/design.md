@@ -15,8 +15,8 @@ The repository already has the right structural patterns; the god objects are wh
 - The presenter constructs the root with a 33-callback handlers bag and the Pi extension bridge with 25 callbacks. Those bags are the de facto interface between the two classes.
 - On every session-generation change, the presenter's `#syncView` manually resets copy intent, waiting images, pending pastes, suggestions, program status, history, the login dialog, the extension bridge, the viewport, dialogs, the input surface, and workflow presentation.
 - The root keeps `#renderedRows` (per block, per width) and `#documentLayouts` (per width) and clears them from more than fifteen sites. Its `render` method branches on `#customViewport` and so does nearly every other method.
-- `run_attach` holds all interaction state in function locals, paints through a 40-site `paint_current!` macro, and resolves mode precedence three different ways: keys check pending-close, then rename, then popup, then bindings; mouse checks rename, then popup, then drag; paste checks rename, then drops on failed, pending-close, or popup.
-- `roles/server.rs` bumps `registry.registry_revision`, clones the store and document, drops the lock, and calls `commit_registry` at 25 sites. Viewer fan-out repeats `filter(|client| client.viewed_tab == tab_id)` nine times. The holder-exit, holder-lost, and bridge-request paths each re-implement respawn and the restart budget.
+- `run_attach` (1688 lines on `a7d7fe85`) holds all interaction state in function locals and works through nine local macros over those locals: `send_child_frames`, `send_input`, `request_view`, `shown`, `paint_current` (36 sites), `paint_strip`, `invoke_popup_action`, `apply_terminal_effect`, and `apply_commit`. The confirm-close prompt from the first plan is gone; closing now goes through `CloseFallback`. New since the first plan: a settings tab (`settings_shown`), a pending jump, `DeferredInput` that holds input while a view is pending, status-glyph debouncing and holds, and `AttachServerWriter`/`ServerIngress` for bounded server writes. Key, mouse, and paste paths still each resolve precedence between rename, popup, drag, and the pending view in their own order.
+- `roles/server.rs` (6129 lines) bumps `registry.registry_revision`, clones the store and document, drops the lock, and calls `commit_registry` at 25 sites. Viewer fan-out repeats `client.viewed_tab == tab_id` 15 times, and 23 handlers build `ResultBody` frames inline. The holder-exit, holder-lost, and bridge-request paths each re-implement respawn and the restart budget. New since the first plan: controller transfers (`PendingControllerTransfer`, `complete_controller_transfer`) and per-client render lanes.
 - Native tests run only in CI from this workstation, so every native step is validated by the `terminal-host` CI partitions, not locally.
 
 ## Goals / Non-Goals
@@ -32,7 +32,7 @@ The repository already has the right structural patterns; the god objects are wh
 
 **Non-Goals:**
 
-- Splitting the second-tier units (`SettingsApp`, `PiTuiRuntimeAdapter`, `SupervisorServer`, `TranscriptViewport.compose`, `SessionViewportController.handlePreInput`, `PiWorkflowRunner.#performWorkflow`, `PromptSelectionInterceptor`, `run_holder`, `main.rs`). They enter the size baseline so they cannot grow; splitting them is later work.
+- Splitting the second-tier units (`SettingsApp`, `PiTuiRuntimeAdapter`, `SupervisorServer`, `TranscriptViewport.compose`, `SessionViewportController.handlePreInput`, `PiWorkflowRunner.#performWorkflow`, `PromptSelectionInterceptor`, `run_holder`, `PresentationComposer::prepare`, and the command functions in `roles/entry.rs`). They enter the size baseline so they cannot grow; splitting them is later work.
 - Changing module owners, the owner DAG, or any `index.ts` public surface beyond re-exports.
 - Changing the resident wire protocol, the registry document, or credentials.
 - Any user-visible behavior change.
@@ -93,21 +93,22 @@ Callers of the flat methods inside `src/` are composition and the session presen
 ### 7. `core::attach` is a pure state machine
 
 ```text
-pub enum Mode { Idle, Popup(PopupMenu), Rename(RenameEditor), ConfirmClose { tab_id }, Drag(TabDrag) }
-pub enum ViewTransition { Settled, Requested { tab_id, staged: Option<Vec<StripTab>>, pending_surface: Option<Surface> } }
-pub struct State { tabs, viewed, transition, mode, hovered, failed_tab, close_fallback, notice, user_input_pending, registry_revision, pending_manual_name, pending_settings, ... }
+pub enum Mode { Idle, Popup(PopupMenu), Rename(RenameEditor), Drag(TabDrag) }
+pub enum ViewTransition { Settled, Requested { tab_id, staged: Option<Vec<StripTab>>, pending_surface: Option<Surface>, deferred: DeferredInput } }
+pub struct View { viewed, prompt_view, settings_shown, pending_jump, transition }
+pub struct State { tabs, view, mode, hovered, failed_tab, close_fallback, notice, user_input_pending, registry_revision, pending_manual_name, glyph_hold, ... }
 pub enum Event { Server(ServerMessage), Key(KeyEvent), Mouse(MouseEvent), Paste(String), Resize, FocusGained, FocusLost, Tick(now) }
 pub enum Effect { Send(Message), Paint { clear: bool }, RestoreAndExit { hint_tabs: usize }, Fail(String) }
 pub fn step(state: &mut State, event: Event, now: Duration) -> Vec<Effect>
 ```
 
-Mode precedence is one `match` on `(mode, event)`. The three existing `prompt_view != viewed` resets become one transition in `ViewTransition`. `roles/attach.rs` keeps the handshake, the two reader threads, `OuterTerminal`, `TabBindings`, `TimeFormatWatch`, `compose_presentation`, and the encoders, and runs a loop of receive, step, apply effects. `core/sim` gains an attach driver that feeds random server messages and input and asserts: at most one mode at a time, paint follows every state change, and no send after exit.
+Mode precedence is one `match` on `(mode, event)`. The `prompt_view`, pending-jump, deferred-input, and settings-tab handling become transitions of `View`. `roles/attach.rs` keeps the handshake, the reader threads, `OuterTerminal`, `OuterWriter`, `AttachServerWriter`, `TabBindings`, `TimeFormatWatch`, presentation composition, and the encoders, and runs a loop of receive, step, apply effects; the nine macros become effect handlers or core functions. `core/sim` gains an attach driver that feeds random server messages and input and asserts: at most one mode at a time, paint follows every state change, and no send after exit.
 
 **Alternative considered:** splitting `run_attach` into helper functions over a struct of the same locals. Rejected because it keeps implicit modes and does not make the client simulable.
 
 ### 8. The server is split by role and its per-tab state moves into the core
 
-`roles/server/mod.rs` keeps `RuntimeState` with peers, slots, gates, config, and the `core::server::State`; the per-tab fields (`surfaces`, `launches`, `holders_terminating`, `holders_starting`, `bridge_status_sequences`, `status_persist_*`) move into `core::server::TabState`. `attach.rs`, `holder.rs`, `bridge.rs`, `lifecycle.rs`, `standby.rs`, and `registry.rs` hold their handlers. `registry.rs` exports `RegistryTxn`, which takes the lock, applies a closure, bumps the revision, clones, releases, and commits; the 25 sites become `txn.apply(|r| ...)`. `fanout_to_viewers(tab_id, frame)` replaces the nine filters. `respawn_holder` and `restart_budget` replace the three duplicated blocks each. The recovery-slot wait and restart delay become `Effect::ArmTimer` from the core, so holder and bridge reader threads never sleep.
+`roles/server/mod.rs` keeps `RuntimeState` with peers, slots, gates, config, and the `core::server::State`; the per-tab fields (`surfaces`, `launches`, `holders_terminating`, `holders_starting`, `bridge_status_sequences`, `status_persist_*`) move into `core::server::TabState`. `attach.rs`, `holder.rs`, `bridge.rs`, `lifecycle.rs`, `standby.rs`, `controller.rs` (controller transfers and boundaries), and `registry.rs` hold their handlers. `RegistryTxn` (added in `roles/registry.rs` by the helper step) takes the lock, applies a closure, bumps the revision, clones, releases, and commits; the 25 sites become `txn.apply(|r| ...)`. `fanout_to_viewers(tab_id, frame)` replaces the 15 filters. `respawn_holder` and `restart_budget` replace the three duplicated blocks each. The recovery-slot wait and restart delay become `Effect::ArmTimer` from the core, so holder and bridge reader threads never sleep.
 
 ### 9. Composition constructs and returns
 
@@ -116,6 +117,10 @@ Mode precedence is one `match` on `(mode, event)`. The three existing `prompt_vi
 ### 10. A size ratchet in the architecture gate
 
 `config/baselines/size-ratchet.json` records, per unit, the current method count, field count, and line count for TypeScript classes and the line count for Rust functions, keyed by file and name. `check-architecture.mjs` recomputes them and fails when any recorded count grows or when a new unit exceeds the thresholds (20 methods, 15 fields, 100 lines per function). An entry whose unit falls under every threshold must be removed, so the baseline only shrinks. The measurement is the same brace-depth scan this change's planning used; it lives in `scripts/governance/size-ratchet-policy.mjs` with a unit test.
+
+The ratchet lands first, recording the counts on the branch's reconciled `develop`, not last. The two days between the first plan and this refresh showed why: with no gate, resident-tab fixes added 443 lines to `run_attach` while the plan sat in review. Each later step lowers the entries it shrinks in the same commit, and the final step removes the entries that fell below every threshold. A resident-tab fix that lands on `develop` during this change and has to grow a recorded unit raises that entry in its own PR with a stated reason; the ratchet makes growth visible and reviewed, not impossible.
+
+**Alternative considered:** landing the ratchet last, at post-refactor counts. Rejected because the native units grew faster than the refactor could shrink them.
 
 ## Risks
 
@@ -126,7 +131,9 @@ Mode precedence is one `match` on `(mode, event)`. The three existing `prompt_vi
 
 ## Sequencing
 
-Land in this order, one commit per numbered task section: 1, 2, 3, 4, 5, 6, 7, 8, 9. Steps 1 and 2 are mechanical and reduce line count without moving behavior; 3 and 4 are the largest single decouplings; 5 and 6 depend on 3; 7 depends on 2; 8 and 9 depend on 6.
+Land in this order, one commit per numbered task section: 1 through 10. Step 1 is the size ratchet at current counts. Steps 2 and 3 are mechanical and reduce line count without moving behavior; 4 and 5 are the largest single decouplings; 6 and 7 depend on 4; 8 depends on 3; 9 and 10 depend on 7. Every step lowers the ratchet entries it shrinks.
+
+Because the resident-tab code is still being fixed often, each native step (3, 5, 8) starts by merging current `origin/develop` and re-checking the counts and names in its task against the code. If a fix has changed a named function or macro, update the task text before editing code.
 
 ## Verification per decision
 
@@ -134,4 +141,5 @@ Land in this order, one commit per numbered task section: 1, 2, 3, 4, 5, 6, 7, 8
 - Decisions 3, 4, 5: `test/app/session-shell/session-bottom-hover.test.ts`, `test/features/owned-ui/pi-*-parity-fixture.ts`, new `transcript-document.test.ts` and `shell-layout.test.ts`.
 - Decision 6: `test/integrations/pi/engine/*`, new `ports.test.ts` and `view-state.test.ts`.
 - Decisions 7, 8: `native/terminal-host/src/core/sim`, `tests/role_integration.rs`, new `core/attach.rs` unit tests, `RegistryTxn` tests.
-- Decisions 9, 10: `test/composition/*`, new `test/repository-governance/size-ratchet.test.ts`.
+- Decision 9: `test/composition/*`, new `session-runtime-registry.test.ts`.
+- Decision 10: new `test/repository-governance/size-ratchet.test.ts`, and `check-architecture.mjs` green at every later step.
