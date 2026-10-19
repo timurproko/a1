@@ -1301,6 +1301,26 @@ fn shown_tabs(tabs: &[StripTab], viewed: Option<&str>, settings_shown: bool) -> 
         .collect()
 }
 
+/// How long a tab must stay starting or restoring before its chip shows the lifecycle spinner.
+const STARTING_GLYPH_DELAY: Duration = Duration::from_millis(500);
+
+/// Hides a starting chip's spinner for its first moments. A tab that becomes ready quickly
+/// otherwise shows a spinner that vanishes at once and shifts its title: a visible flash.
+fn debounce_starting_glyphs(
+    shown: &mut [StripTab],
+    since: &mut HashMap<String, Instant>,
+    now: Instant,
+) {
+    let starting = |tab: &StripTab| matches!(tab.status.as_str(), "starting" | "restoring");
+    since.retain(|id, _| shown.iter().any(|tab| &tab.id == id && starting(tab)));
+    for tab in shown.iter_mut().filter(|tab| starting(tab)) {
+        let began = *since.entry(tab.id.clone()).or_insert(now);
+        if now.saturating_duration_since(began) < STARTING_GLYPH_DELAY {
+            tab.status = "idle".into();
+        }
+    }
+}
+
 /// Maps an insertion index among shown tabs to the registry index the server reorders by.
 fn registry_index(shown: &[StripTab], tabs: &[StripTab], shown_index: usize) -> usize {
     shown
@@ -1756,6 +1776,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut settings_shown = false;
     let mut settings_prewarm_pending = false;
     let mut settings_absent_since: Option<Instant> = None;
+    let mut starting_since = HashMap::<String, Instant>::new();
     let mut deferred_input = DeferredInput::default();
     macro_rules! send_child_frames {
         ($frames:expr) => {{
@@ -1819,7 +1840,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     macro_rules! paint_current {
         ($clear:expr) => {{
             let rename_display = rename.as_ref().map(RenameEditor::display);
-            let shown = shown!();
+            let mut shown = shown!();
+            debounce_starting_glyphs(&mut shown, &mut starting_since, Instant::now());
             strip_frame = strip::render_interactive(
                 &shown,
                 view.viewed.as_deref(),
@@ -3752,6 +3774,31 @@ mod tests {
         }
         deferred.retarget_created("tab-new");
         assert_eq!(deferred.resolve("tab-new"), (keys, false));
+    }
+    #[test]
+    fn a_quick_start_never_flashes_the_starting_spinner() {
+        let tab = |status: &str| StripTab {
+            id: "tab-2".into(),
+            name: "agent 2".into(),
+            name_source: "default".into(),
+            status: status.into(),
+            accent: None,
+            title_animation: None,
+        };
+        let mut since = HashMap::new();
+        let start = Instant::now();
+        let mut shown = vec![tab("starting")];
+        debounce_starting_glyphs(&mut shown, &mut since, start);
+        assert_eq!(shown[0].status, "idle", "no spinner in the first moments");
+        let mut later = vec![tab("starting")];
+        debounce_starting_glyphs(&mut later, &mut since, start + STARTING_GLYPH_DELAY);
+        assert_eq!(
+            later[0].status, "starting",
+            "a slow start still shows progress"
+        );
+        let mut ready = vec![tab("idle")];
+        debounce_starting_glyphs(&mut ready, &mut since, start + STARTING_GLYPH_DELAY);
+        assert!(since.is_empty());
     }
     #[test]
     fn hidden_settings_tab_stays_out_of_the_strip_until_viewed_or_shown() {
