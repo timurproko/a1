@@ -1,6 +1,6 @@
 # Tasks
 
-Each numbered section is one Implementation item of the pull request and one commit, landed in order. Read `design.md` "Current mechanics" and "Invariants" before editing; every task names the files it may touch, and a file not named is out of scope for that task. Before each push run `npm run typecheck`, the test files the task names, and `openspec validate decouple-session-architecture --strict`; native tasks are validated by the terminal-host CI partitions. From section 2 on, every section also lowers the `config/baselines/size-ratchet.json` entries it shrinks.
+Each numbered section is one Implementation item of the pull request and one commit, landed in the order 1, 2, 3, 4, 6, 7, 9, 10, 5, 8 (see `design.md` "Sequencing"). Read `design.md` "Current mechanics" and "Invariants" before editing; every task names the files it may touch, and a file not named is out of scope for that task. Before each push run `npm run typecheck`, the test files the task names, and `openspec validate decouple-session-architecture --strict`; native tasks are validated by the terminal-host CI partitions. From section 2 on, every section also lowers the `config/baselines/size-ratchet.json` entries it shrinks.
 
 Counts and names below were re-measured on `develop` at `a7d7fe85` (2026-10-19). Native sections 3, 5, and 8 begin by merging current `origin/develop` and re-checking their counts and names, because resident-tab fixes still land often in `roles/attach.rs` and `roles/server.rs`.
 
@@ -37,9 +37,9 @@ Counts and names below were re-measured on `develop` at `a7d7fe85` (2026-10-19).
 
 ## 6. Shell root layouts and surfaces
 
-- [ ] 6.1 Add `src/app/session-shell/shell-layout.ts` (interface), `pinned-layout.ts`, and `viewport-layout.ts`; the root picks one in its constructor and removes every `#customViewport` read. The viewport layout owns the visible snapshot, dock-only reuse, and composition counters. Tests: `test/app/session-shell/session-bottom-hover.test.ts` green; new `shell-layout.test.ts` covers part order, dock-only reuse, and geometry readiness per layout.
-- [ ] 6.2 Add `dock-chrome.ts`, `workflow-output.ts`, `extension-surface.ts`, and `input-surface-switch.ts` under `src/app/session-shell/`, each owning its fields from the root; the root's `update(view)` fans out and `invalidate` delegates. Tests: new focused tests per file; `test/app/session-shell/session-shell*.test.ts` green.
-- [ ] 6.3 Move the editor construction closures from the root constructor into `src/app/session-shell/shell-editor-factory.ts`. Test: `test/app/session-shell/editor-hyperlink-budget.test.ts` and `paste-chip-lifecycle.test.ts` green.
+- [x] 6.1 Add `src/app/session-shell/shell-layout.ts` (the `ShellLayout` interface, its ports, and `PinnedLayout`) and `viewport-layout.ts` (`ViewportLayout`); the root picks one in its constructor and its render path never consults the layout mode again. The viewport layout owns the visible snapshot, dock-only reuse, and composition counters. The remaining `#customViewport` reads in the root choose presentation policy (dock notice versus transcript output, keybinding profile, status style), not layout. Tests: `test/app/session-shell/session-bottom-hover.test.ts` green; new `shell-layout.test.ts` covers part order, dock-only reuse, its invalidation, and copy-acknowledgement exclusion.
+- [x] 6.2 Add `dock-chrome.ts`, `workflow-output.ts`, `extension-surface.ts`, and `input-surface-switch.ts` under `src/app/session-shell/`, each owning its fields from the root; the root delegates and decides what to invalidate. Tests: new focused tests per file; `test/app/session-shell/session-shell*.test.ts` green.
+- [x] 6.3 Move the editor construction closures from the root constructor into `src/app/session-shell/shell-editor-factory.ts`, with the row decorator as its own function. Test: `test/app/session-shell/editor-hyperlink-budget.test.ts` and `paste-chip-lifecycle.test.ts` green.
 
 ## 7. Presenter concerns and lifecycle fan-out
 

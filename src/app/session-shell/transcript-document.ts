@@ -287,7 +287,7 @@ export class TranscriptDocument {
     return layout;
   }
 
-  /** The release, package, changelog, and recent diagnostic notices that close the document. */
+  // Invariant: release, package, and changelog notices, then the last three other diagnostics, close the document.
   #noticeRows(diagnostics: OwnedUiSessionViewModel["diagnostics"], width: number): readonly string[] {
     const { customViewport, cwd } = this.#options;
     const rows: string[] = [];

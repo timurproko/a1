@@ -18,29 +18,22 @@ import type {
 } from "../../contracts/owned-ui/index.js";
 import type { PiTuiPointerSurface } from "../../integrations/pi/tui-runtime/contracts.js";
 import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
-import { caretCell } from "../../ui/components/line-input.js";
-import { PromptInput, promptArrow } from "../../ui/components/prompt-input.js";
+import { promptArrow } from "../../ui/components/prompt-input.js";
 import {
   composeSubmittedPromptRows,
   submittedPromptLayout,
 } from "../../ui/components/submitted-prompt.js";
 import {
   backgroundSgrSpan,
-  heldNativeHyperlinkStyle,
-  hyperlinkSgrSpan,
   nativeHyperlinkStyle,
 } from "../../ui/components/spans.js";
 import { progressStatusFrame, progressStatusText } from "../../ui/components/progress-status.js";
-import { faint, stripAnsi } from "../../ui/components/text.js";
 import type {
-  TranscriptPromptAnchor,
   TranscriptViewportFrame,
   TranscriptViewportFrameDescriptor,
-  TranscriptViewportFrameInput,
   TranscriptViewportTheme,
 } from "../../ui/components/transcript-viewport.js";
 import type { PiShellLazySelectorLoader } from "../../integrations/pi/components/lazy-selectors.js";
-import { createPiShellEditor } from "../../integrations/pi/components/shell-editor-autocomplete.js";
 import {
   createPiQueuedInputStatus,
   createPiShellFooter,
@@ -48,29 +41,13 @@ import {
   createPiShellLoadedResources,
   createPiShellStatus,
 } from "../../integrations/pi/components/shell-footer-status.js";
-import {
-  createPiShellArmin,
-  createPiShellEarendilAnnouncement,
-} from "../../integrations/pi/components/shell-selectors-dialogs.js";
-import {
-  createPiShellChangelog,
-  createPiShellHotkeys,
-  createPiShellSessionInfo,
-  renderPiShellCommandMessage,
-  renderPiShellReleaseUpdateBanner,
-  renderPiShellStatusText,
-  type PiShellReleaseUpdateBanner,
-  type PiShellHotkeysPresentation,
-} from "../../integrations/pi/components/shell-presenters-info.js";
+import type { PiShellHotkeysPresentation } from "../../integrations/pi/components/shell-presenters-info.js";
 import {
   createPiShellTranscriptComponent,
   type PiShellSubmittedPromptComposer,
 } from "../../integrations/pi/components/shell-presenters-transcript.js";
-import { onPiThemeChange, PINNED_PI_LAYOUT, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
+import { onPiThemeChange, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
 import {
-  piShellHyperlink,
-  piShellTruncateToWidth,
-  piShellVisibleWidth,
   type PiShellClipboardContent,
   type PiShellComponentPort,
   type PiKeybindingsHost,
@@ -86,7 +63,6 @@ import {
   type PiShellViewComponentPort,
 } from "../../integrations/pi/components/shell-shared-facade.js";
 import {
-  classifyPiTuiInput,
   type PiTuiInputCoordinationScheduler,
   type PiTuiInputSurfaceKind,
 } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
@@ -99,13 +75,18 @@ import type {
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
 import type { PastePreparationClientOptions } from "./paste-preparation-client.js";
 import type { OwnedUiClipboardServices } from "./clipboard-services.js";
-import { EditorHyperlinkBudget } from "./editor-hyperlink-budget.js";
-import { SessionViewportController, type SessionViewportInputResult, type TailControlRegion } from "./session-viewport-controller.js";
+import { SessionViewportController, type SessionViewportInputResult } from "./session-viewport-controller.js";
 import type { ResponseCopyExecutor } from "./response-copy-transport.js";
 import type { ResponseCopyEvent } from "./response-copy-protocol.js";
 import type { PasteEvent, PasteSource } from "./paste-protocol.js";
-import { canPreparePasteInline } from "./paste-text-preparation.js";
-import { nativeTranscriptLinkColor, parseReleaseUpdateDiagnostic, TranscriptDocument } from "./transcript-document.js";
+import { createShellEditor } from "./shell-editor-factory.js";
+import { ExtensionSurface } from "./extension-surface.js";
+import { DockChrome } from "./dock-chrome.js";
+import { WorkflowOutput } from "./workflow-output.js";
+import { InputSurfaceSwitch } from "./input-surface-switch.js";
+import { PinnedLayout, type DockLayout, type ShellLayout, type ShellLayoutPorts } from "./shell-layout.js";
+import { ViewportLayout } from "./viewport-layout.js";
+import { nativeTranscriptLinkColor, TranscriptDocument } from "./transcript-document.js";
 import type { StreamPresentationScheduler } from "./stream-presentation-coalescer.js";
 
 export type OwnedUiTerminalPort = PiTuiTerminalPort;
@@ -288,15 +269,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #extensionRenderers: OwnedUiTranscriptRendererPort;
   readonly #imageAssets: PiShellImageAssetResolver | undefined;
   readonly #promptChips: PromptChipStore;
-  readonly #editorHyperlinks = new EditorHyperlinkBudget();
   #pasteDiagnosticId = 0;
-  #terminalPasteDiagnosticRequest: number | undefined;
   readonly #customViewport: boolean;
   readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
   readonly #viewportController: SessionViewportController;
-  readonly #viewportTheme: TranscriptViewportTheme;
-  readonly #onViewportFrame: ((frame: TranscriptViewportFrame) => void) | undefined;
-  readonly #onInputSurfaceChanged: (() => void) | undefined;
   readonly #onPromptSuggestionEligibilityChanged: (() => void) | undefined;
   readonly #componentRuntime: {
     readonly getColumns: () => number;
@@ -310,46 +286,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #showImages = true;
   #imageWidthCells = 80;
   #outputPad: 0 | 1 = 1;
-  #workflowTranscriptSequence = 0;
-  readonly #workflowStatusMessages = new Map<string, string>();
-  #lastWorkflowStatusId: string | undefined;
-  // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.
-  #dockNotice: {
-    readonly kind: "status" | "warning" | "error" | "new-session";
-    readonly message: string;
-    readonly errorCode?: ImageAttachmentError["code"];
-  } | undefined;
-  // Invariant: bare A1 docks the release notice above the live status; closing it lasts for this session only.
-  #releaseNoticeDismissed = false;
-  #releaseCloseTarget: TailControlRegion | undefined;
-  #copyAcknowledgement: string | undefined;
-  #copyAcknowledgementTimer: ReturnType<typeof setTimeout> | undefined;
-  #inputSurface: PiShellComponentPort;
-  #inputSurfaceCoordination: PiTuiInputSurfaceKind = "editor";
-  readonly #dockInputReuseEnabled: boolean;
-  #dockInputCandidate = false;
-  // Invariant: receipt-time eligibility is evidence, never authorization for composition-time reuse.
-  #dockInputRevision: number | undefined;
-  #visibleViewportSnapshot: {
-    readonly width: number;
-    readonly height: number;
-    readonly documentRows: readonly string[];
-    readonly transientSignature: string;
-    readonly promptAnchors: readonly TranscriptPromptAnchor[];
-    readonly dockLength: number;
-    readonly inputSurface: PiShellComponentPort;
-    readonly viewportRevision: number;
-    readonly selectionRevision: number;
-    readonly pointerPosition: TranscriptViewportFrameInput["pointerPosition"];
-  } | undefined;
-  #fullViewportCompositions = 0;
-  #dockOnlyViewportCompositions = 0;
-  #extensionHeader: PiShellComponentPort | null = null;
-  #extensionFooter: PiShellComponentPort | null = null;
-  readonly #extensionWidgets = new Map<string, { readonly component: PiShellComponentPort; readonly placement: "aboveEditor" | "belowEditor" }>();
-  readonly #extensionStatuses = new Map<string, string>();
-  #extensionWorkingMessage: string | undefined;
-  #extensionWorkingVisible = true;
+  readonly #workflowOutput: WorkflowOutput;
+  readonly #input: InputSurfaceSwitch;
+  readonly #layout: ShellLayout;
+  readonly #extensions = new ExtensionSurface();
+  readonly #dockChrome: DockChrome;
   #imageSubmissionsSending = 0;
 
   constructor(
@@ -414,10 +355,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#extensionRenderers = extensionRenderers;
     this.#imageAssets = imageAssets;
     this.#componentRuntime = handlers;
-    this.#onViewportFrame = handlers.onViewportFrame;
-    this.#onInputSurfaceChanged = handlers.onInputSurfaceChanged;
     this.#onPromptSuggestionEligibilityChanged = handlers.onPromptSuggestionEligibilityChanged;
-    this.#dockInputReuseEnabled = handlers.enableDockInputReuse ?? true;
     this.header = createPiShellHeader({
       ...startup,
       ...(this.#customViewport ? { getKeybindings: () => this.editor.keybindingConfig() } : {}),
@@ -428,110 +366,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       frame: progressStatusFrame,
     }, handlers);
     this.#status.setProgressPresentation(this.#customViewport ? "custom-viewport" : "pinned");
-    this.#footer = createPiShellFooter(this.#viewWithExtensionStatuses(view), cwd, this.#customViewport ? "a1" : "pi", () => this.#footerLevel, handlers.footerSessionName ?? true);
-    this.editor = createPiShellEditor({
-      ...handlers,
-      keybindingProfile: this.#customViewport ? "a1" : "pi",
-      ...(handlers.keybindings === undefined ? {} : { keybindings: handlers.keybindings }),
-      paintEditorSelection: (line, from, to, atomic) => backgroundSgrSpan(
-        line,
-        from,
-        to,
-        atomic ? "\u001b[7m" : "\u001b[27m\u001b[48;2;38;79;120m",
-        atomic ? "\u001b[27m" : "\u001b[49m",
-        piShellVisibleWidth,
-      ),
-      transformPastedContent: content => {
-        try {
-          return this.#promptChips.transformPastedContent(content, this.editor.getText());
-        } catch (error) {
-          handlers.onPasteRejected?.(error);
-          return "";
-        }
-      },
-      ...(this.#customViewport ? {
-        beginClipboardPaste: () => this.#promptChips.beginPaste(
-          this.editor.getText(),
-          handlers.captureClipboardPaste?.() ?? { kind: "provided", read: signal => handlers.readClipboardContent?.(signal) ?? Promise.resolve(null) },
-          error => handlers.onPasteRejected?.(error),
-          () => handlers.requestRender(),
-        ),
-        onPasteInput: (bytes, phase) => {
-          try {
-            if (phase === "framing") this.#terminalPasteDiagnosticRequest = --this.#pasteDiagnosticId;
-            const request = this.#terminalPasteDiagnosticRequest ?? --this.#pasteDiagnosticId;
-            handlers.pasteDiagnostics?.({ request, phase, bytes, atMs: performance.now(), pending: 0, transport: "terminal",
-              ...(phase === "settled" ? { outcome: "ready" as const } : {}) });
-            if (phase === "settled") this.#terminalPasteDiagnosticRequest = undefined;
-          } catch { /* Invariant: payload-free diagnostics cannot interfere with the input path. */ }
-        },
-        deferTextPaste: text => !canPreparePasteInline(text),
-        beginTextPaste: text => this.#promptChips.beginPaste(
-          this.editor.getText(), { kind: "text", text }, error => handlers.onPasteRejected?.(error),
-        ),
-      } : {}),
-      editorAtomicRanges: line => this.#promptChips.atomicRanges(line),
-      editorHiddenRanges: line => this.#promptChips.hiddenRanges(line),
-      decorateEditorRow: (row, width, rowIndex) => {
-        if (rowIndex === 0) this.#editorHyperlinks.reset();
-        const plain = stripAnsi(row);
-        const dimmed = this.#promptChips.unsentRanges(plain).reduce((result, range) => backgroundSgrSpan(
-          result,
-          piShellVisibleWidth(plain.slice(0, range.start)),
-          piShellVisibleWidth(plain.slice(0, range.end)),
-          "\u001b[2m",
-          "\u001b[22m",
-          piShellVisibleWidth,
-        ), row);
-        const ranges = this.#promptChips.hyperlinkRanges(plain);
-        if (ranges.length === 0 || !this.#editorHyperlinks.takeCleanup()) return dimmed;
-        const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(dimmed)))}`;
-        // Platform: VS15 is zero-column and default-ignorable. It breaks Windows Terminal's
-        // plain-text URL detector only in the held-button paint; semantic text stays exact.
-        const paintRow = this.#viewportController.editorPointerSelecting
-          ? dimmed.replaceAll("https://", "https:\uFE0E//").replaceAll("http://", "http:\uFE0E//")
-          : dimmed;
-        const decorated = this.#viewportController.editorPointerSelecting
-          ? ranges.reduce((result, range) => backgroundSgrSpan(
-              result,
-              piShellVisibleWidth(plain.slice(0, range.start)),
-              piShellVisibleWidth(plain.slice(0, range.end)),
-              "\u001b[4:4m",
-              "\u001b[24m",
-              piShellVisibleWidth,
-            ), paintRow)
-          : ranges.filter(range => this.#editorHyperlinks.take(range.target)).reduce((result, range) => hyperlinkSgrSpan(
-              result,
-              piShellVisibleWidth(plain.slice(0, range.start)),
-              piShellVisibleWidth(plain.slice(0, range.end)),
-              range.target,
-              piShellVisibleWidth,
-            ), dimmed);
-        // Platform: Windows Terminal can retain stale native dotted-link cells when a mutable
-        // prompt replaces a longer URL. Explicit non-link spaces overwrite that tail.
-        return `${decorated}${linkResetAndTail}`;
-      },
-
-      expandCopiedEditorText: text => this.#promptChips.expandCopiedText(text),
+    this.#footer = createPiShellFooter(this.#extensions.withStatuses(view), cwd, this.#customViewport ? "a1" : "pi", () => this.#footerLevel, handlers.footerSessionName ?? true);
+    this.editor = createShellEditor({
+      handlers,
+      customViewport: this.#customViewport,
       cwd,
       ...(agentDir === undefined ? {} : { agentDir }),
-      onToolsExpand: () => this.#setToolsExpanded(!this.#toolsExpanded),
-      ...(this.#customViewport ? {
-        promptPresentation: {
-          input: new PromptInput({ fg: (token, text) => piTheme().fg(token, text) }, {
-            measure: piShellVisibleWidth,
-            truncate: piShellTruncateToWidth,
-          }),
-          styleSuggestion: faint,
-          styleSuggestionCaret: caretCell,
-        },
-      } : {}),
-      onChange: text => {
-        handlers.onEditorChange?.(text);
-        // Concurrency: Pi clears before onSubmit; capture waiting references before pruning removed chips.
-        queueMicrotask(() => this.#promptChips.reconcileDraft(this.editor.getText()));
-      },
-      ...(handlers.onPromptSuggestionAccepted === undefined ? {} : { onPromptSuggestionAccepted: handlers.onPromptSuggestionAccepted }),
+      promptChips: this.#promptChips,
+      editorPointerSelecting: () => this.#viewportController.editorPointerSelecting,
+      nextPasteDiagnosticRequest: () => --this.#pasteDiagnosticId,
+      toggleToolsExpanded: () => this.#setToolsExpanded(!this.#toolsExpanded),
     });
     this.#queued = createPiQueuedInputStatus(
       view.editor.queuedSubmissions,
@@ -547,30 +391,28 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ...(handlers.pasteDiagnostics === undefined ? {} : { pasteDiagnostics: handlers.pasteDiagnostics }),
       nextPasteDiagnosticRequest: () => --this.#pasteDiagnosticId,
     });
-    // Performance: stable painter identities let the neutral viewport retain row-level
-    // selection variants while each callback still resolves the live Pi theme.
-    this.#viewportTheme = {
-      track: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("dim", text)}`,
-      thumb: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("accent", text)}`,
-      sticky: (text, hovered) => piTheme().bg(
-        hovered ? "selectedBg" : "toolPendingBg",
-        piTheme().fg("text", withoutTerminalBackground(text)),
-      ),
-      quietSticky: text => `\u001b[2m${text.replace(/\u001b\[(?:0|22)m/g, "$&\u001b[2m")}\u001b[22m`,
-      bottomControl: (text, hovered) => piTheme().bg(
-        hovered ? "selectedBg" : "toolPendingBg",
-        piTheme().fg("text", text),
-      ),
-      selection: (line, from, to) => backgroundSgrSpan(
-        line,
-        from,
-        to,
-        "\u001b[48;2;38;79;120m",
-        "\u001b[49m",
-      ),
-    };
+    this.#dockChrome = new DockChrome({
+      invalidateChrome: () => this.#invalidateChrome(),
+      requestRender: () => this.#componentRuntime.requestRender(),
+      viewport: this.#viewportController,
+    });
+    this.#workflowOutput = new WorkflowOutput({
+      customViewport: this.#customViewport,
+      document: this.#document,
+      dock: this.#dockChrome,
+      transcriptLength: () => this.#view.transcript.length,
+      outputPad: () => this.#outputPad,
+      hotkeysPresentation: () => this.hotkeysPresentation(),
+      componentRuntime: this.#componentRuntime,
+      invalidate: () => this.invalidate(),
+    });
     this.editor.setThinkingLevel(view.thinkingLevel);
-    this.#inputSurface = this.editor;
+    this.#input = new InputSurfaceSwitch(this.editor, {
+      dockInputReuse: this.#customViewport && (handlers.enableDockInputReuse ?? true),
+      viewport: this.#viewportController,
+      ...(handlers.onInputSurfaceChanged === undefined ? {} : { onChanged: handlers.onInputSurfaceChanged }),
+    });
+    this.#layout = this.#createLayout(handlers.onViewportFrame);
     for (const block of view.transcript) {
       if (block.kind === "user") this.editor.addToHistory(block.text);
     }
@@ -591,14 +433,34 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       mount: block => this.#mountTranscript(block),
       chrome: {
         diagnostics: () => this.#view.diagnostics,
-        headerRows: width => this.#extensionHeader !== null ? this.#extensionHeader.render(width)
+        headerRows: width => this.#extensions.header !== null ? this.#extensions.header.render(width)
           : this.#customViewport ? [] : this.header.render(width),
         resourceRows: width => this.#customViewport ? [] : this.resources.render(width),
-        hasExtensionHeader: () => this.#extensionHeader !== null,
+        hasExtensionHeader: () => this.#extensions.header !== null,
         thinkingVisible: () => this.#thinkingVisible,
         timeFormat: () => this.#viewportController.config.timeFormat,
       },
     });
+  }
+
+  // Invariant: one layout per root; the render path never consults the layout mode again.
+  #createLayout(onFrame: ((frame: TranscriptViewportFrame) => void) | undefined): ShellLayout {
+    const ports: ShellLayoutPorts = {
+      viewport: this.#viewportController,
+      input: this.#input,
+      editor: this.editor,
+      promptChips: this.#promptChips,
+      dockChrome: this.#dockChrome,
+      theme: VIEWPORT_THEME,
+      ...(onFrame === undefined ? {} : { onFrame }),
+      rows: () => this.#componentRuntime.getRows(),
+      dock: width => this.#renderDockLayout(width),
+      document: width => this.#document.layout(width),
+      queued: width => this.#renderQueued(width),
+      liveStatus: width => this.#renderStatus(width),
+      diagnostics: () => this.#view.diagnostics,
+    };
+    return this.#customViewport ? new ViewportLayout(ports) : new PinnedLayout(ports);
   }
 
   #createSubmittedPromptComposer(): PiShellSubmittedPromptComposer {
@@ -674,7 +536,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   reconcilePromptImageLimitNotice(text: string = this.editor.getText()): boolean {
-    if (this.#dockNotice?.errorCode !== "image-count" || !this.#promptChips.imageLimitState(text).corrected) return false;
+    if (this.#dockChrome.notice?.errorCode !== "image-count" || !this.#promptChips.imageLimitState(text).corrected) return false;
     this.dismissNotice();
     return true;
   }
@@ -731,13 +593,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#view = view;
     // Invariant: the idle new-session confirmation yields to the first truthful live status;
     // ordinary dock notices deliberately remain visible below Working during a run.
-    if (promptAccepted && this.#dockNotice?.kind === "new-session") this.#dockNotice = undefined;
+    if (promptAccepted && this.#dockChrome.notice?.kind === "new-session") this.#dockChrome.forgetNotice();
     if (promptAccepted && this.#imageSubmissionsSending > 0) {
       this.#imageSubmissionsSending = 0;
       this.#syncWorkingOverride();
     }
     this.#status.update(view);
-    this.#footer.update(this.#viewWithExtensionStatuses(view));
+    this.#footer.update(this.#extensions.withStatuses(view));
     this.#queued.update(view.editor.queuedSubmissions);
     this.#document.sync(view.transcript);
     this.editor.setSubmitEnabled(view.lifecycle !== "stopping" && view.lifecycle !== "stopped" && view.lifecycle !== "failed");
@@ -767,9 +629,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       { ...this.#componentRuntime, changed: () => {
         if (this.#document.component(block.id) !== created) return;
         this.#document.blockChanged(block.id);
-        this.#visibleViewportSnapshot = undefined;
-        this.#dockInputCandidate = false;
-        this.#dockInputRevision = undefined;
+        this.#layout.invalidate();
+        this.#input.clearDockInputCandidate();
         this.#componentRuntime.requestRender();
       } },
     );
@@ -778,134 +639,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   render(width: number): readonly string[] {
-    if (!this.#customViewport) {
-      this.#viewportController.setEditorPointerFrame(undefined);
-      return [...this.#renderDocument(width), ...this.#renderDock(width)];
-    }
-
-    const height = Math.max(0, this.#componentRuntime.getRows());
-    const dock = this.#renderDockLayout(width);
-    const copyAcknowledgement = this.#renderCopyAcknowledgement(width);
-    // Invariant: auto/always own one stable final-column gutter. Every scrollable
-    // surface ends before it; the dock remains full-width and hidden mode returns it.
-    const documentWidth = this.#viewportController.config.scrollbarAppearance === "hidden"
-      ? width
-      : Math.max(1, width - 1);
-    const document = this.#document.layout(documentWidth);
-    const steeringRows = this.#renderQueued(documentWidth);
-    const releaseBanner = this.#renderReleaseBanner(documentWidth);
-    // Rationale: the release notice rides the bottom-aligned tail directly above Working, so it
-    // never displaces transcript content and scrolls away with the live status.
-    // Invariant: when idle the banner's last row sits on the line Working would occupy.
-    const statusRows = [...releaseBanner?.rows ?? [], ...this.#renderStatus(documentWidth)];
-    const transientSignature = transientRowsSignature(steeringRows, statusRows);
-    const snapshot = this.#visibleViewportSnapshot;
-    // Invariant: paint-only feedback may cover either viewport or dock cells, so
-    // ordinary dock-only reuse cannot safely omit its overlay composition.
-    const dockInputCandidate = this.#dockInputCandidate && copyAcknowledgement === undefined;
-    // Concurrency: input may change after a keyboard receipt but before its paint.
-    // Capture only the live inputs this composition will actually represent.
-    const inputSurface = this.#inputSurface;
-    const dockRows = dock.rows;
-    const selectableDocumentRowCount = document.rows.length;
-    const dockStartRow = height - dockRows.length + 1;
-    const editorOffset = dock.editorOffset;
-    // Rationale: rendered chip tags are lossy presentation (truncated labels), so a frame drag over
-    // a draft holding chips stays visual-only; editor-owned word/line selection still copies the
-    // expanded chip text through its semantic route.
-    const draft = this.usesDefaultInputSurface() ? this.editor.getText() : "";
-    const promptCopyRows = draft.length > 0
-      && !draft.split("\n").some(line => this.#promptChips.atomicRanges(line).length > 0)
-      ? Math.max(0, dock.inputRows - 2)
-      : 0;
-    const copyableDockRows: NonNullable<TranscriptViewportFrameInput["copyableDockRows"]> = [
-      ...dock.copyableMessageRows,
-      ...Array.from({ length: promptCopyRows }, (_value, index) => ({
-        row: editorOffset + index + 1,
-        prompt: index === 0 ? "first" as const : "continuation" as const,
-      })),
-      ...Array.from({ length: dock.footerRows }, (_value, index) => ({
-        row: dockRows.length - dock.footerRows + index,
-      })),
-    ];
-    this.#viewportController.setInputSurfaceFrame(this.usesDefaultInputSurface() ? undefined : {
-      component: this.#inputSurface,
-      columnStart: 1,
-      columnEnd: width,
-      rowStart: Math.max(1, dockStartRow + editorOffset),
-      rowEnd: Math.min(height, dockStartRow + editorOffset + dock.inputRows - 1),
-    });
-    this.#viewportController.setEditorPointerFrame(this.usesDefaultInputSurface()
-      ? {
-          rowStart: dockStartRow + editorOffset,
-          rowEnd: dockStartRow + editorOffset + dock.inputRows - 1,
-        }
-      : undefined);
-    const viewportRevision = this.#viewportController.presentationRevision;
-    const selectionRevision = this.#viewportController.selectionRevision;
-    const pointerPosition = this.#viewportController.pointerPosition;
-    this.#dockInputCandidate = false;
-    let frame = dockInputCandidate
-      && snapshot !== undefined
-      && snapshot.width === width
-      && snapshot.height === height
-      && snapshot.documentRows === document.rows
-      && snapshot.transientSignature === transientSignature
-      && snapshot.promptAnchors === document.promptAnchors
-      && snapshot.dockLength === dockRows.length
-      && snapshot.inputSurface === inputSurface
-      && snapshot.viewportRevision === viewportRevision
-      && snapshot.selectionRevision === selectionRevision
-      ? this.#viewportController.composeDockOnly(dockRows, width, height, copyableDockRows)
-      : null;
-    if (frame === null) {
-      frame = this.#viewportController.compose({
-        // Performance: do not copy the complete document on unchanged dock-only input.
-        // Steering and Working retain their one non-persistent viewport-tail ownership.
-        documentRows: [...document.rows, ...steeringRows, ...statusRows],
-        ...(this.#viewportController.transcriptPointerSelecting
-          ? { paintDocumentRow: heldNativeHyperlinkStyle }
-          : {}),
-        // Invariant: this boundary tracks persistent transcript rows for streaming and
-        // geometry; transient Steering and Working rows remain complete-frame selectable.
-        selectableDocumentRowCount,
-        ...(document.liveTailStartRow === undefined ? {} : { liveTailStartRow: document.liveTailStartRow }),
-        bottomAlignedTailRowCount: steeringRows.length + statusRows.length,
-        dockRows,
-        copyableDockRows,
-        promptAnchors: document.promptAnchors,
-        width,
-        height,
-        // Invariant: the control belongs immediately above the complete dock and
-        // floats over transient viewport content rather than consuming a dock row.
-        bottomControlRow: Math.max(0, height - Math.min(height, dockRows.length) - 1),
-        ...(copyAcknowledgement === undefined || height <= 0 ? {} : {
-          frameOverlay: {
-            row: Math.max(1, Math.min(height, dockStartRow + dock.inputOffset - 1)),
-            text: copyAcknowledgement,
-          },
-        }),
-        theme: this.#viewportTheme,
-      });
-      this.#fullViewportCompositions += 1;
-    } else this.#dockOnlyViewportCompositions += 1;
-    this.#locateReleaseClose(frame, releaseBanner, document.rows.length + steeringRows.length + statusRows.length, statusRows.length);
-    this.#visibleViewportSnapshot = {
-      width,
-      height,
-      documentRows: document.rows,
-      transientSignature,
-      promptAnchors: document.promptAnchors,
-      dockLength: dockRows.length,
-      inputSurface,
-      // Invariant: a callback during composition cannot bless older rows with its
-      // newer revision. Its ordinary pending render will publish the newer state.
-      viewportRevision,
-      selectionRevision: frame.descriptor.selectionRevision,
-      pointerPosition,
-    };
-    this.#onViewportFrame?.(frame);
-    return frame.rows;
+    return this.#layout.render(width);
   }
 
   viewportFrameDescriptor(): TranscriptViewportFrameDescriptor | null {
@@ -915,10 +649,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   /** Read-only, payload-free evidence; observing a pending frame must never render or repair it. */
   viewportPresentationEvidence() {
     const frame = this.#viewportController.frame;
-    const snapshot = this.#visibleViewportSnapshot;
+    const snapshot = this.#layout.composed();
     return {
-      candidate: this.#dockInputCandidate,
-      candidateRevision: this.#dockInputCandidate ? this.#dockInputRevision ?? null : null,
+      candidate: this.#input.dockInputCandidate,
+      candidateRevision: this.#input.dockInputCandidate ? this.#input.dockInputRevision ?? null : null,
       currentRevision: this.#viewportController.presentationRevision,
       composedRevision: snapshot?.viewportRevision ?? null,
       currentPointer: this.#viewportController.pointerPosition ?? null,
@@ -944,7 +678,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   setViewportConfig(config: OwnedUiViewportSettings): void {
     if (this.#viewportController.setConfig(config)) {
       this.#document.invalidate("viewport-config");
-      this.#visibleViewportSnapshot = undefined;
+      this.#layout.invalidate();
     }
   }
 
@@ -953,19 +687,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   showCopyAcknowledgement(message: string): void {
-    this.#clearCopyAcknowledgement(false);
-    this.#copyAcknowledgement = message;
-    const timer = setTimeout(() => {
-      if (this.#copyAcknowledgementTimer !== timer) return;
-      this.#copyAcknowledgementTimer = undefined;
-      this.#copyAcknowledgement = undefined;
-      this.#invalidateChrome();
-      this.#componentRuntime.requestRender();
-    }, COPY_ACKNOWLEDGEMENT_DURATION_MS);
-    timer.unref?.();
-    this.#copyAcknowledgementTimer = timer;
-    this.#invalidateChrome();
-    this.#componentRuntime.requestRender();
+    this.#dockChrome.showCopyAcknowledgement(message);
   }
 
   resumeViewportFollowing(): void {
@@ -1002,32 +724,20 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#viewportController.handlePreInput(data, allowWheel, now, editorActive);
   }
 
-  #renderDock(width: number): readonly string[] {
-    return this.#renderDockLayout(width).rows;
-  }
-
-  #renderDockLayout(width: number): {
-    readonly rows: readonly string[];
-    readonly inputOffset: number;
-    readonly editorOffset: number;
-    readonly inputRows: number;
-    readonly footerRows: number;
-    /** Exact status, warning, error, command-result, and notice rows; queued and structural rows stay excluded. */
-    readonly copyableMessageRows: NonNullable<TranscriptViewportFrameInput["copyableDockRows"]>;
-  } {
+  #renderDockLayout(width: number): DockLayout {
     const queued = this.#customViewport ? [] : this.#renderQueued(width);
     const statusRows = this.#customViewport ? this.#status.renderDock(width) : this.#renderStatus(width);
-    const noticeRows = this.#renderDockNotice(width);
+    const noticeRows = this.#dockChrome.renderNotice(width, this.#outputPad);
     const transientRows = [...queued, ...statusRows, ...noticeRows];
     const messageStart = queued.length;
     const copyableMessageRows = Array.from(
       { length: statusRows.length + noticeRows.length },
       (_value, index) => ({ row: messageStart + index }),
     );
-    const aboveWidgets = this.#renderWidgets("aboveEditor", width);
-    const input = this.#inputSurface.render(width);
+    const aboveWidgets = this.#extensions.renderWidgets("aboveEditor", width);
+    const input = this.#input.surface.render(width);
     const body = this.usesDefaultInputSurface() ? this.editor.bodyGeometry?.() : undefined;
-    const belowWidgets = this.#renderWidgets("belowEditor", width);
+    const belowWidgets = this.#extensions.renderWidgets("belowEditor", width);
     const footer = this.#renderFooter(width);
     const rowsWithoutTransient = [...aboveWidgets, ...input, ...belowWidgets, ...footer];
     const inputOffset = transientRows.length + aboveWidgets.length;
@@ -1041,68 +751,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     };
   }
 
-  #renderCopyAcknowledgement(width: number): string | undefined {
-    if (this.#copyAcknowledgement === undefined || width <= 0) return undefined;
-    return piTheme().fg("accent", piShellTruncateToWidth(this.#copyAcknowledgement, width));
-  }
-
-  #clearCopyAcknowledgement(requestRender: boolean): void {
-    if (this.#copyAcknowledgementTimer !== undefined) clearTimeout(this.#copyAcknowledgementTimer);
-    this.#copyAcknowledgementTimer = undefined;
-    if (this.#copyAcknowledgement === undefined) return;
-    this.#copyAcknowledgement = undefined;
-    this.#invalidateChrome();
-    if (requestRender) this.#componentRuntime.requestRender();
-  }
-
-  #renderReleaseBanner(width: number): PiShellReleaseUpdateBanner | undefined {
-    if (this.#releaseNoticeDismissed) return undefined;
-    const diagnostic = this.#view.diagnostics.findLast(item => item.code === "release-update");
-    const release = diagnostic === undefined ? null : parseReleaseUpdateDiagnostic(diagnostic.message);
-    if (release === null) return undefined;
-    return renderPiShellReleaseUpdateBanner(release, width, this.#viewportController.tailControlHovered(this.#releaseCloseTarget));
-  }
-
-  #locateReleaseClose(
-    frame: TranscriptViewportFrame,
-    banner: PiShellReleaseUpdateBanner | undefined,
-    tailEnd: number,
-    tailLength: number,
-  ): void {
-    // Invariant: the tail is the document suffix, so the control's document row is fixed relative to its
-    // end; alignment gap rows precede it and the viewport scroll decides whether it is on screen.
-    const bannerStart = tailEnd + frame.descriptor.transientAlignmentGapRows - tailLength - frame.scrollTop + 1;
-    const rowStart = banner === undefined ? 0 : Math.max(1, bannerStart + banner.close.rowStart);
-    const rowEnd = banner === undefined ? 0 : Math.min(frame.hits.viewportHeight, bannerStart + banner.close.rowEnd);
-    this.#releaseCloseTarget = banner !== undefined && rowStart <= rowEnd
-      ? { rowStart, rowEnd, columnStart: banner.close.columnStart, columnEnd: banner.close.columnEnd }
-      : undefined;
-    this.#viewportController.setTailControl(this.#releaseCloseTarget === undefined ? undefined : {
-      ...this.#releaseCloseTarget,
-      activate: () => {
-        this.#releaseNoticeDismissed = true;
-        this.#releaseCloseTarget = undefined;
-      },
-    });
-  }
-
-  #renderDockNotice(width: number): readonly string[] {
-    const notice = this.#dockNotice;
-    if (notice === undefined) return [];
-    if (notice.kind === "status") {
-      // Compatibility: Pi pads its status text by one cell regardless of the output pad setting.
-      return ["", ...renderPiShellStatusText(notice.message, width, PINNED_PI_LAYOUT.outputPad)];
-    }
-    return renderPiShellCommandMessage({
-      kind: notice.kind === "new-session" ? "accent" : notice.kind,
-      message: notice.message,
-    }, width, this.#outputPad);
-  }
-
   dismissNotice(): void {
-    if (this.#dockNotice === undefined) return;
-    this.#dockNotice = undefined;
-    this.#invalidateChrome();
+    this.#dockChrome.dismissNotice();
   }
 
   #renderQueued(width: number): readonly string[] {
@@ -1114,11 +764,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return {
       document: layoutPort(width => this.#renderDocument(width), () => this.invalidate()),
       queued: layoutPort(width => this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width), () => this.#queued.invalidate()),
-      aboveWidgets: layoutPort(width => this.#renderWidgets("aboveEditor", width), () => this.#invalidateExtensions()),
+      aboveWidgets: layoutPort(width => this.#extensions.renderWidgets("aboveEditor", width), () => this.#extensions.invalidate()),
       status: layoutPort(width => this.#renderStatus(width), () => this.#status.invalidate()),
-      editor: layoutPort(width => this.#inputSurface.render(width), () => this.#inputSurface.invalidate(), data => this.#inputSurface.handleInput?.(data)),
-      belowWidgets: layoutPort(width => this.#renderWidgets("belowEditor", width), () => this.#invalidateExtensions()),
-      footer: layoutPort(width => this.#renderFooter(width), () => (this.#extensionFooter ?? this.#footer).invalidate()),
+      editor: layoutPort(width => this.#input.surface.render(width), () => this.#input.surface.invalidate(), data => this.#input.surface.handleInput?.(data)),
+      belowWidgets: layoutPort(width => this.#extensions.renderWidgets("belowEditor", width), () => this.#extensions.invalidate()),
+      footer: layoutPort(width => this.#renderFooter(width), () => (this.#extensions.footer ?? this.#footer).invalidate()),
     };
   }
 
@@ -1135,122 +785,15 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   appendWorkflowStatus(message: string): void {
-    // Rationale: bare A1 acknowledges commands in one dock notice above the editor, where the
-    // reader's eye already is, instead of a transcript row that opens an empty session at the
-    // top-left or sinks into a long feed. The pinned route keeps Pi's chat placement.
-    if (this.#customViewport) {
-      this.#dockNotice = { kind: "status", message };
-      this.#invalidateChrome();
-      return;
-    }
-    const previousId = this.#lastWorkflowStatusId;
-    if (previousId !== undefined
-      && this.#document.lastId === previousId
-      && this.#document.anchorOf(previousId) === this.#view.transcript.length) {
-      this.#workflowStatusMessages.set(previousId, message);
-      this.#document.invalidate("workflow-status");
-      this.invalidate();
-      return;
-    }
-    const id = this.#appendAnchoredWorkflowComponent(width => [
-      "",
-      ...renderPiShellStatusText(this.#workflowStatusMessages.get(id) ?? message, width),
-    ]);
-    this.#workflowStatusMessages.set(id, message);
-    this.#lastWorkflowStatusId = id;
+    this.#workflowOutput.appendStatus(message);
   }
 
   appendWorkflowMessage(message: OwnedUiWorkflowMessage, errorCode?: ImageAttachmentError["code"]): void {
-    if (message.kind === "status") {
-      this.appendWorkflowStatus(message.message);
-      return;
-    }
-    if (this.#customViewport && (message.kind === "warning" || message.kind === "error")) {
-      this.#dockNotice = {
-        kind: errorCode === "image-count" ? "warning" : message.kind,
-        message: message.message,
-        ...(errorCode === undefined ? {} : { errorCode }),
-      };
-      this.#invalidateChrome();
-      return;
-    }
-    this.#lastWorkflowStatusId = undefined;
-    const presentation = { kind: message.kind, message: message.message };
-    this.#appendAnchoredWorkflowComponent(width => renderPiShellCommandMessage(presentation, width, this.#outputPad));
+    this.#workflowOutput.appendMessage(message, errorCode);
   }
 
   appendWorkflowResult(result: OwnedUiWorkflowResult, errorCode?: ImageAttachmentError["code"]): void {
-    if (result.messages !== undefined) {
-      for (const message of result.messages) this.appendWorkflowMessage(message, errorCode);
-      return;
-    }
-    if (result.messageKind === "silent" || (result.outcome === "cancelled" && result.messageKind === undefined)) return;
-    if (result.command === "reload" && result.outcome === "completed") {
-      this.appendWorkflowStatus(result.message);
-      return;
-    }
-    if (result.command === "session" && result.outcome === "completed" && result.presentation?.kind === "session-info") {
-      this.#lastWorkflowStatusId = undefined;
-      const sessionInfo = createPiShellSessionInfo(result.presentation);
-      this.#appendAnchoredWorkflowComponent(width => sessionInfo.render(width), () => sessionInfo.dispose?.());
-      return;
-    }
-    if (result.command === "hotkeys" && result.outcome === "completed") {
-      this.#lastWorkflowStatusId = undefined;
-      const presentation = this.hotkeysPresentation();
-      const hotkeys = createPiShellHotkeys(
-        presentation.bindings,
-        presentation.getShortcuts,
-        presentation.profile,
-        presentation.residentTabs,
-      );
-      this.#appendAnchoredWorkflowComponent(width => hotkeys.render(width), () => hotkeys.dispose?.());
-      return;
-    }
-    if (result.command === "changelog" && result.outcome === "completed") {
-      this.#lastWorkflowStatusId = undefined;
-      const changelog = createPiShellChangelog(result.detail ?? "No changelog entries found.");
-      this.#appendAnchoredWorkflowComponent(width => changelog.render(width), () => changelog.dispose?.());
-      return;
-    }
-    if (result.outcome === "failed") {
-      this.appendWorkflowMessage({
-        kind: result.messageKind === "warning" ? "warning" : "error",
-        message: result.message,
-      }, errorCode);
-      return;
-    }
-    if (result.outcome === "completed" && (result.command === "quit" || result.command === "compact")) return;
-    if (result.outcome === "completed" && result.command === "new" && this.#customViewport) {
-      // Rationale: bare A1 keeps the replacement session visually empty while preserving Pi's accent notice shape.
-      this.#dockNotice = { kind: "new-session", message: result.message };
-      this.#invalidateChrome();
-      return;
-    }
-    if (result.outcome === "completed" && (result.command === "new" || result.command === "name" || result.command === "debug")) {
-      this.#lastWorkflowStatusId = undefined;
-      const presentation = { kind: result.command, message: result.message, ...(result.detail === undefined ? {} : { detail: result.detail }) };
-      this.#appendAnchoredWorkflowComponent(width => renderPiShellCommandMessage(presentation, width, this.#outputPad));
-      return;
-    }
-    if (result.command === "arminsayshi" && result.outcome === "completed") {
-      this.#lastWorkflowStatusId = undefined;
-      const armin = createPiShellArmin(this.#componentRuntime);
-      this.#appendAnchoredWorkflowComponent(width => ["", ...armin.render(width)], () => armin.dispose?.());
-      return;
-    }
-    if (result.command === "dementedelves" && result.outcome === "completed") {
-      this.#lastWorkflowStatusId = undefined;
-      const announcement = createPiShellEarendilAnnouncement();
-      this.#appendAnchoredWorkflowComponent(width => ["", ...announcement.render(width)], () => announcement.dispose?.());
-      return;
-    }
-    // Rationale: the pinned engine links both share URLs; the workflow result carries the plain URLs.
-    const message = result.command !== "share" ? result.message
-      : result.detail ? `${linkShareUrl(result.message)}\nGist: ${piShellHyperlink(result.detail)}`
-      // Protocol: Radius shares carry only the artifact URL.
-      : linkShareUrl(result.message);
-    this.appendWorkflowStatus(message);
+    this.#workflowOutput.appendResult(result, errorCode);
   }
 
   toggleThinkingVisibility(): void {
@@ -1266,36 +809,29 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   setExtensionWidget(key: string, component: PiShellComponentPort | null, placement: "aboveEditor" | "belowEditor"): void {
-    const previous = this.#extensionWidgets.get(key)?.component;
-    if (component === null) this.#extensionWidgets.delete(key);
-    else this.#extensionWidgets.set(key, { component, placement });
-    if (previous !== undefined && previous !== component) previous.dispose?.();
+    this.#extensions.placeWidget(key, component, placement);
     this.invalidate();
   }
 
   setExtensionHeader(component: PiShellComponentPort | null): void {
-    if (this.#extensionHeader !== component) this.#extensionHeader?.dispose?.();
-    this.#extensionHeader = component;
+    this.#extensions.replaceHeader(component);
     this.#document.invalidate("extension-header");
     this.invalidate();
   }
 
   setExtensionFooter(component: PiShellComponentPort | null): void {
-    if (this.#extensionFooter !== component) this.#extensionFooter?.dispose?.();
-    this.#extensionFooter = component;
+    this.#extensions.replaceFooter(component);
     this.invalidate();
   }
 
   setExtensionStatus(key: string, text: string | undefined): void {
-    if (text === undefined) this.#extensionStatuses.delete(key);
-    else this.#extensionStatuses.set(key, text);
-    this.#footer.update(this.#viewWithExtensionStatuses(this.#view));
+    this.#extensions.setStatus(key, text);
+    this.#footer.update(this.#extensions.withStatuses(this.#view));
     this.invalidate();
   }
 
-  setExtensionWorking(message: string | undefined, visible = this.#extensionWorkingVisible): void {
-    this.#extensionWorkingMessage = message;
-    this.#extensionWorkingVisible = visible;
+  setExtensionWorking(message: string | undefined, visible = this.#extensions.working.visible): void {
+    this.#extensions.setWorking(message, visible);
     this.#syncWorkingOverride();
     this.invalidate();
   }
@@ -1318,7 +854,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const sending = this.#imageSubmissionsSending > 0;
     this.#status.setWorkingOverride(sending
       ? "Sending…"
-      : this.#extensionWorkingVisible ? this.#extensionWorkingMessage : undefined, sending);
+      : this.#extensions.working.visible ? this.#extensions.working.message : undefined, sending);
   }
 
   hotkeysPresentation(): PiShellHotkeysPresentation {
@@ -1330,25 +866,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   resetWorkflowPresentation(): void {
-    this.#dockNotice = undefined;
-    this.#clearCopyAcknowledgement(false);
-    this.#document.removeAnchored();
-    this.#workflowStatusMessages.clear();
-    this.#lastWorkflowStatusId = undefined;
+    this.#dockChrome.forgetNotice();
+    this.#dockChrome.clearCopyAcknowledgement(false);
+    this.#workflowOutput.reset();
     this.invalidate();
   }
 
   resetExtensionUi(): void {
-    this.#extensionHeader?.dispose?.();
-    this.#extensionFooter?.dispose?.();
-    for (const { component } of this.#extensionWidgets.values()) component.dispose?.();
-    this.#extensionHeader = null;
-    this.#extensionFooter = null;
-    this.#extensionWidgets.clear();
-    this.#extensionStatuses.clear();
-    this.#extensionWorkingMessage = undefined;
+    this.#extensions.reset();
     this.#syncWorkingOverride();
-    this.#footer.update(this.#viewWithExtensionStatuses(this.#view));
+    this.#footer.update(this.#extensions.withStatuses(this.#view));
     // Invariant: an extension renderer may have drawn transcript blocks that are now unrendered by it.
     this.#document.invalidate("extension-renderers");
     this.invalidate();
@@ -1365,22 +892,22 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   extensionFooterData(): unknown {
     return {
       getGitBranch: () => this.#view.status.footer?.branch ?? null,
-      getExtensionStatuses: () => new Map(this.#extensionStatuses),
+      getExtensionStatuses: () => this.#extensions.statuses(),
       getAvailableProviderCount: () => this.#view.status.footer?.availableProviderCount ?? 1,
       onBranchChange: () => () => {},
     };
   }
 
   usesDefaultInputSurface(): boolean {
-    return this.#inputSurface === this.editor;
+    return this.#input.usesEditor;
   }
 
   inputCoordinationSurface(): PiTuiInputSurfaceKind {
-    return this.#inputSurfaceCoordination;
+    return this.#input.coordination;
   }
 
   viewportCompositionEvidence(): { readonly full: number; readonly dockOnly: number } {
-    return { full: this.#fullViewportCompositions, dockOnly: this.#dockOnlyViewportCompositions };
+    return this.#layout.compositions();
   }
 
   transcriptRenderCount(): number {
@@ -1394,33 +921,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     disposePrevious = true,
     coordination: Exclude<PiTuiInputSurfaceKind, "editor"> = "owned",
   ): void {
-    const next = component ?? this.editor;
-    const nextCoordination = next === this.editor ? "editor" : coordination;
-    if (next === this.#inputSurface) {
-      this.#inputSurfaceCoordination = nextCoordination;
-      return;
-    }
-    this.#dockInputCandidate = false;
-    this.#viewportController.invalidateInputSurface();
-    this.#inputSurface.setFocused?.(false);
-    if (disposePrevious && this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
-    this.#inputSurface = next;
-    this.#inputSurfaceCoordination = nextCoordination;
-    this.#onInputSurfaceChanged?.();
-    this.#inputSurface.setFocused?.(true);
-    this.invalidate();
+    if (this.#input.set(component, disposePrevious, coordination)) this.invalidate();
   }
 
   handleInput(data: string): void {
-    this.#dockInputCandidate = this.#customViewport && this.#dockInputReuseEnabled
-      && classifyPiTuiInput(data, this.#inputSurfaceCoordination) === "safe";
-    this.#dockInputRevision = this.#dockInputCandidate ? this.#viewportController.presentationRevision : undefined;
-    try {
-      this.#inputSurface.handleInput?.(data);
-    } catch (error) {
-      this.#dockInputCandidate = false;
-      throw error;
-    }
+    this.#input.handleInput(data);
   }
 
   invalidate(): void {
@@ -1432,33 +937,28 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.header.invalidate();
     this.resources.invalidate();
     this.editor.invalidate();
-    if (this.#inputSurface !== this.editor) this.#inputSurface.invalidate();
-    this.#invalidateExtensions();
+    if (!this.#input.usesEditor) this.#input.surface.invalidate();
+    this.#extensions.invalidate();
     this.#status.invalidate();
     this.#footer.invalidate();
     this.#queued.invalidate();
   }
 
   setFocused(focused: boolean): void {
-    this.#inputSurface.setFocused?.(focused);
+    this.#input.surface.setFocused?.(focused);
     if (focused) this.#onPromptSuggestionEligibilityChanged?.();
   }
 
   dispose(): void {
-    this.#clearCopyAcknowledgement(false);
+    this.#dockChrome.clearCopyAcknowledgement(false);
     this.clearViewportPointerState();
     this.#themeUnsubscribe();
     this.header.dispose?.();
     this.resources.dispose?.();
     this.#document.dispose();
-    this.#visibleViewportSnapshot = undefined;
-    this.#dockInputCandidate = false;
-    this.#dockInputRevision = undefined;
-    if (this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
-    this.#extensionHeader?.dispose?.();
-    this.#extensionFooter?.dispose?.();
-    for (const { component } of this.#extensionWidgets.values()) component.dispose?.();
-    this.#extensionWidgets.clear();
+    this.#layout.invalidate();
+    this.#input.dispose();
+    this.#extensions.dispose();
     this.editor.dispose?.();
     this.#status.dispose?.();
     this.#footer.dispose?.();
@@ -1470,68 +970,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.invalidate();
   }
 
-  #appendAnchoredWorkflowComponent(render: (width: number) => readonly string[], dispose?: () => void): string {
-    // Invariant: transcript-bound workflow output supersedes a pending acknowledgement.
-    this.dismissNotice();
-    this.#workflowTranscriptSequence += 1;
-    const id = `workflow-status-${this.#workflowTranscriptSequence}`;
-    const component: PiShellTranscriptComponentPort = {
-      id,
-      revision: 1,
-      render,
-      handleInput() {},
-      invalidate() {},
-      update() {},
-      setExpanded() {},
-      setOutputPad() {},
-      setHideThinkingBlock() {},
-      setMermaidRenderingMode() {},
-      setImagePresentation() {},
-      ...(dispose === undefined ? {} : { dispose }),
-    };
-    this.#document.appendAnchored(id, component, this.#view.transcript.length);
-    this.invalidate();
-    return id;
-  }
-
-  #renderWidgets(placement: "aboveEditor" | "belowEditor", width: number): readonly string[] {
-    const rows = [...this.#extensionWidgets.values()]
-      .filter(widget => widget.placement === placement)
-      .flatMap(widget => widget.component.render(width));
-    return placement === "aboveEditor" ? ["", ...rows] : rows;
-  }
-
   #renderStatus(width: number): readonly string[] {
     return this.#customViewport ? this.#status.renderLive(width) : this.#status.render(width);
   }
 
   #renderFooter(width: number): readonly string[] {
-    return (this.#extensionFooter ?? this.#footer).render(width);
-  }
-
-  #viewWithExtensionStatuses(view: OwnedUiSessionViewModel): OwnedUiSessionViewModel {
-    const footer = view.status.footer;
-    const statuses = new Map(footer?.extensionStatuses ?? []);
-    for (const [key, text] of this.#extensionStatuses) statuses.set(key, text);
-    return {
-      ...view,
-      status: {
-        ...view.status,
-        footer: {
-          ...footer,
-          branch: footer?.branch ?? null,
-          sessionName: footer?.sessionName ?? null,
-          availableProviderCount: footer?.availableProviderCount ?? 1,
-          extensionStatuses: [...statuses],
-        },
-      },
-    };
-  }
-
-  #invalidateExtensions(): void {
-    this.#extensionHeader?.invalidate();
-    this.#extensionFooter?.invalidate();
-    for (const { component } of this.#extensionWidgets.values()) component.invalidate();
+    return (this.#extensions.footer ?? this.#footer).render(width);
   }
 
   #setToolsExpanded(expanded: boolean): void {
@@ -1545,7 +989,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 }
 
-const COPY_ACKNOWLEDGEMENT_DURATION_MS = 1_000;
 const SCROLLBAR_CELL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";
 
 const TERMINAL_BACKGROUND = /\u001b\[(?:4[0-9]|10[0-7]|48(?:[;:][0-9;:]*)?)m/g;
@@ -1766,15 +1209,25 @@ function isPackageExtensionSource(sourceInfo: OwnedUiExtensionSourceSummary | nu
   return source.startsWith("npm:") || source.startsWith("git:");
 }
 
-function transientRowsSignature(
-  steeringRows: readonly string[],
-  statusRows: readonly string[],
-): string {
-  return `${steeringRows.length}\u0000${steeringRows.join("\u0000")}\u0001${statusRows.length}\u0000${statusRows.join("\u0000")}`;
-}
-
-/** "Share URL: <url>" with the URL made clickable; other share wordings pass through unchanged. */
-function linkShareUrl(message: string): string {
-  const match = /^Share URL: (\S+)$/.exec(message);
-  return match === null ? message : `Share URL: ${piShellHyperlink(match[1]!)}`;
-}
+// Performance: stable painter identities let the neutral viewport retain row-level
+// selection variants while each callback still resolves the live Pi theme.
+const VIEWPORT_THEME: TranscriptViewportTheme = {
+  track: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("dim", text)}`,
+  thumb: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("accent", text)}`,
+  sticky: (text, hovered) => piTheme().bg(
+    hovered ? "selectedBg" : "toolPendingBg",
+    piTheme().fg("text", withoutTerminalBackground(text)),
+  ),
+  quietSticky: text => `\u001b[2m${text.replace(/\u001b\[(?:0|22)m/g, "$&\u001b[2m")}\u001b[22m`,
+  bottomControl: (text, hovered) => piTheme().bg(
+    hovered ? "selectedBg" : "toolPendingBg",
+    piTheme().fg("text", text),
+  ),
+  selection: (line, from, to) => backgroundSgrSpan(
+    line,
+    from,
+    to,
+    "\u001b[48;2;38;79;120m",
+    "\u001b[49m",
+  ),
+};

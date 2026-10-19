@@ -133,7 +133,7 @@ The ratchet lands first, recording the counts on the branch's reconciled `develo
 
 ## Sequencing
 
-Land in this order, one commit per numbered task section: 1 through 10. Step 1 is the size ratchet at current counts. Steps 2 and 3 are mechanical and reduce line count without moving behavior; 4 and 5 are the largest single decouplings; 6 and 7 depend on 4; 8 depends on 3; 9 and 10 depend on 7. Every step lowers the ratchet entries it shrinks.
+Land in this order, one commit per numbered task section: 1, 2, 3, 4, 6, 7, 9, 10, 5, 8. The maintainer approved this order on 2026-10-19 so the TypeScript steps proceed while CI validates the first native step; the attach-core and server-split steps follow once that run is green. Step 1 is the size ratchet at current counts. Steps 2 and 3 are mechanical and reduce line count without moving behavior; 4 and 5 are the largest single decouplings; 6 and 7 depend on 4; 8 depends on 3; 9 and 10 depend on 7. Every step lowers the ratchet entries it shrinks.
 
 Because the resident-tab code is still being fixed often, each native step (3, 5, 8) starts by merging current `origin/develop` and re-checking the counts and names in its task against the code. If a fix has changed a named function or macro, update the task text before editing code.
 
