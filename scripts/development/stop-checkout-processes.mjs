@@ -1,18 +1,42 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync, realpathSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repositoryRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
+const developmentDirectory = JSON.parse(
+  readFileSync(new URL("../../src/product-identity.json", import.meta.url), "utf8"),
+).state.developmentDirectory;
+
+/**
+ * Mirrors `resolveDevelopmentLaunchEnvironment`: every `./scripts/dev` launch of a checkout runs
+ * its materialized release from `<tmp>/<developmentDirectory>/<checkoutId>/`.
+ */
+export function developmentCheckoutId(root = repositoryRoot) {
+  let canonical = root;
+  try {
+    canonical = realpathSync(root);
+  } catch {
+    // Rationale: an unresolvable root still identifies the checkout by its spelled path.
+  }
+  return createHash("sha256").update(resolve(canonical).toLowerCase()).digest("hex").slice(0, 16);
+}
 
 /**
  * The directories whose code a running A1 from this checkout keeps open: built JavaScript, the
- * native addon under `dist/`, and the `bin/` entry points. A process whose command line names one
- * of them belongs to this checkout, never to another worktree or an installed release.
+ * native addon under `dist/`, the `bin/` entry points, and the development copies `./scripts/dev`
+ * launches from. A process whose command line names one of them belongs to this checkout, never to
+ * another worktree or an installed release.
  */
 export function checkoutCodeRoots(root = repositoryRoot) {
-  const roots = [resolve(root, "dist") + sep, resolve(root, "bin") + sep];
+  const roots = [
+    resolve(root, "dist") + sep,
+    resolve(root, "bin") + sep,
+    `${sep}${developmentDirectory}${sep}${developmentCheckoutId(root)}${sep}`,
+  ];
   return [...new Set(roots.flatMap(value => [value, value.replaceAll("\\", "/")]))]
     .map(value => value.toLowerCase());
 }

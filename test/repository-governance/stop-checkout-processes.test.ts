@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { selectCheckoutProcesses, stopCheckoutProcesses } from "../../scripts/development/stop-checkout-processes.mjs";
+import { developmentCheckoutId, selectCheckoutProcesses, stopCheckoutProcesses } from "../../scripts/development/stop-checkout-processes.mjs";
+import { resolveDevelopmentLaunchEnvironment } from "../../src/features/launch/development-launch.js";
 
 describe("stopping a checkout's running A1 before a rebuild", () => {
   const root = process.platform === "win32" ? "E:\\Git\\a1\\.worktrees\\polish" : "/work/a1/.worktrees/polish";
@@ -16,6 +17,17 @@ describe("stopping a checkout's running A1 before a rebuild", () => {
       { pid: 7, commandLine: `node ${join(root.toUpperCase(), "DIST", "app", "paste-helper.js")}` },
     ];
     expect(selectCheckoutProcesses(processes, root, 99).map(({ pid }) => pid)).toEqual([1, 2, 7]);
+  });
+
+  it("selects the development copies ./scripts/dev launched for this checkout only", () => {
+    const id = developmentCheckoutId(root);
+    expect(id).toBe(resolveDevelopmentLaunchEnvironment(root, "0.0.0-dev", {}).checkoutId);
+    const temp = process.platform === "win32" ? "C:\\Users\\me\\AppData\\Local\\Temp" : "/tmp";
+    const processes = [
+      { pid: 1, commandLine: `node ${join(temp, "a1-development", id, "0.2.7-dev-x", "instances", "i", "data", "releases", "r", "bin", "supervisor.js")}` },
+      { pid: 2, commandLine: `node ${join(temp, "a1-development", "ffffffffffffffff", "r", "bin", "supervisor.js")}` },
+    ];
+    expect(selectCheckoutProcesses(processes, root, 99).map(({ pid }) => pid)).toEqual([1]);
   });
 
   it("never selects the current process", () => {
