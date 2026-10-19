@@ -17,15 +17,25 @@ export interface OwnedReferenceProviders {
   session(): Promise<ReferenceDocumentProvider>;
 }
 
+/** How the settings route is presented. */
+export interface OwnedRouteHostOptions {
+  /** The resident Settings tab: the screen is the tab, so it offers no screen-level close. */
+  readonly settingsPinned?: boolean;
+}
+
 /** Declares settings and lazy document routes. */
-export function createOwnedRouteHost(settings: OwnedSettingsManager, references?: OwnedReferenceProviders): UiRouteHost {
+export function createOwnedRouteHost(
+  settings: OwnedSettingsManager,
+  references?: OwnedReferenceProviders,
+  options: OwnedRouteHostOptions = {},
+): UiRouteHost {
   const routes = new Set([SETTINGS_ROUTE, ...(references === undefined ? [] : [CHANGELOG_ROUTE, HOTKEYS_ROUTE, "session"])]);
   return {
     claims: route => routes.has(route),
     open: (route, input) => {
       if (!routes.has(route)) return null;
       if (route === SETTINGS_ROUTE) {
-        return deferredSurface(SETTINGS_APP_ID, "settings", () => loadSettingsSurface(settings));
+        return deferredSurface(SETTINGS_APP_ID, "settings", () => loadSettingsSurface(settings, options.settingsPinned === true));
       }
       const changelog = route === CHANGELOG_ROUTE;
       const session = route === "session";
@@ -71,9 +81,10 @@ function deferredSurface(id: string, label: string, load: () => Promise<UiRouteS
   };
 }
 
-async function loadSettingsSurface(settings: OwnedSettingsManager): Promise<UiRouteSurface> {
+async function loadSettingsSurface(settings: OwnedSettingsManager, pinned: boolean): Promise<UiRouteSurface> {
   const { SettingsApp } = await import("../features/owned-ui/settings-app.js");
-  return hostApp(SETTINGS_APP_ID, SETTINGS_ROUTE, () => new SettingsApp(settings));
+  // Invariant: a pinned Settings tab closes as a tab; neither Esc nor one Ctrl+C dismisses its screen.
+  return hostApp(SETTINGS_APP_ID, SETTINGS_ROUTE, () => new SettingsApp(settings, { pinned }), !pinned);
 }
 
 async function loadReferenceSurface(
@@ -98,7 +109,7 @@ async function loadReferenceSurface(
   }));
 }
 
-async function hostApp(id: string, route: string, create: () => UiApp): Promise<UiRouteSurface> {
+async function hostApp(id: string, route: string, create: () => UiApp, closeOnInterrupt = true): Promise<UiRouteSurface> {
   const [{ UiAppHost }, { UiAppRegistry }] = await Promise.all([
     import("../ui/apps/host.js"),
     import("../ui/apps/registry.js"),
@@ -112,7 +123,7 @@ async function hostApp(id: string, route: string, create: () => UiApp): Promise<
   let onExit: () => void = () => undefined;
   const host = new UiAppHost({
     registry,
-    closeOnInterrupt: true,
+    closeOnInterrupt,
     theme: pinnedTheme(),
     surface: {
       size: () => size,

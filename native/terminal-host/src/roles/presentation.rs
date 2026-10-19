@@ -18,6 +18,10 @@ use crate::roles::wire::Surface;
 /// fresh surface before a retained re-offer is committed instead.
 pub const STALE_SURFACE_WAIT: Duration = Duration::from_millis(120);
 
+/// How long a newly created tab keeps the previous coherent frame while its child has not drawn
+/// anything yet; afterwards the blank surface commits so a silent child cannot wedge the view.
+pub const FIRST_DRAW_WAIT: Duration = Duration::from_secs(2);
+
 const BEGIN_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026h";
 const END_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026l";
 
@@ -73,6 +77,52 @@ pub struct ViewModel {
     expected_request_generation: u64,
     request_started: Option<Instant>,
     stale_candidate: Option<(Surface, Instant)>,
+    /// A newly created requested tab whose first visible frame must contain drawn content.
+    first_draw: Option<String>,
+}
+
+/// True when a surface carries no visible text yet, as a holder's reply before its child drew.
+pub fn surface_is_blank(surface: &Surface) -> bool {
+    if let Some(structured) = surface.structured.as_ref() {
+        return structured
+            .row_data
+            .iter()
+            .flat_map(|row| row.cells.iter())
+            .all(|cell| cell.text.trim().is_empty());
+    }
+    let bytes = &surface.bytes;
+    let mut index = 0usize;
+    while index < bytes.len() {
+        match bytes[index] {
+            0x1b => {
+                index += 1;
+                match bytes.get(index) {
+                    Some(b'[') => {
+                        index += 1;
+                        while index < bytes.len() && !(0x40..=0x7e).contains(&bytes[index]) {
+                            index += 1;
+                        }
+                    }
+                    Some(b']' | b'P' | b'_') => {
+                        while index < bytes.len()
+                            && bytes[index] != 0x07
+                            && !bytes[index..].starts_with(b"\x1b\\")
+                        {
+                            index += 1;
+                        }
+                        if bytes[index..].starts_with(b"\x1b\\") {
+                            index += 1;
+                        }
+                    }
+                    _ => {}
+                }
+                index += 1;
+            }
+            byte if byte > b' ' && byte != 0x7f => return false,
+            _ => index += 1,
+        }
+    }
+    true
 }
 
 impl ViewModel {
@@ -93,6 +143,17 @@ impl ViewModel {
         self.request_started = Some(now);
         self.pending_surface = None;
         self.stale_candidate = None;
+        if self.first_draw.as_deref() != Some(tab_id) {
+            self.first_draw = None;
+        }
+    }
+
+    /// Marks the requested tab as newly created: until its child draws, or `FIRST_DRAW_WAIT`
+    /// passes, the previous view stays instead of a blank body without footer or editor.
+    pub fn await_first_draw(&mut self, tab_id: &str) {
+        if self.is_requested(tab_id) {
+            self.first_draw = Some(tab_id.to_owned());
+        }
     }
 
     pub fn expect_request_generation(&mut self, generation: u64) {
@@ -118,6 +179,7 @@ impl ViewModel {
         self.staged_tabs = None;
         self.pending_surface = None;
         self.request_started = None;
+        self.first_draw = None;
         self.stale_candidate = None;
     }
 
@@ -162,6 +224,22 @@ impl ViewModel {
             self.stale_candidate = Some((surface, deadline));
             return Offer::Parked;
         }
+        // Invariant: from an empty strip too, the created tab waits for its first drawn frame, so
+        // its body, status bar, and editor appear together without a bare cursor.
+        // The first view of a session, such as the tab attached at launch, waits the same way.
+        let first_view = self.committed_revision.is_none();
+        if requested
+            && (first_view || self.first_draw.as_deref() == Some(surface.tab_id.as_str()))
+            && surface_is_blank(&surface)
+        {
+            let deadline = self
+                .request_started
+                .get_or_insert(now)
+                .checked_add(FIRST_DRAW_WAIT)
+                .unwrap_or(now);
+            self.stale_candidate = Some((surface, deadline));
+            return Offer::Parked;
+        }
         if requested {
             self.stale_candidate = None;
         }
@@ -180,6 +258,7 @@ impl ViewModel {
             self.viewed = Some(surface.tab_id.clone());
             self.requested = None;
             self.request_started = None;
+            self.first_draw = None;
         } else if self.viewed.as_deref() != Some(surface.tab_id.as_str()) {
             return Offer::Dropped;
         } else if self
@@ -259,6 +338,7 @@ impl ViewModel {
                 self.requested = None;
                 self.request_started = None;
                 self.staged_tabs = None;
+                self.first_draw = None;
                 self.committed_revision = Some(surface.revision);
                 return Topology {
                     dropped_request,
@@ -387,13 +467,27 @@ impl PresentationComposer {
             }
         }
 
-        if force {
+        // Invariant: a complete structured repaint overwrites every outer cell in place, so a tab
+        // switch or creation never shows a cleared screen (and a blank strip) on terminals that
+        // present synchronized output early. Only a first paint, an explicit clear, or a legacy
+        // body, which cannot promise full coverage, clears the screen.
+        let clear_screen = force && (!self.valid || desired.clear || desired.structured.is_none());
+        if clear_screen {
             output.extend_from_slice(b"\x1b[2J\x1b[H");
         }
-        if force || self.strip != desired.strip {
+        let strip_changed = force || self.strip != desired.strip;
+        if strip_changed {
             output.extend_from_slice(desired.strip.as_bytes());
         }
 
+        // Invariant: child rows beneath an open host overlay skip the overlay's cells, so a
+        // streaming child never blanks and repaints a popup; each outer cell is written once.
+        let overlay_clip = desired
+            .overlay
+            .as_deref()
+            .map(|overlay| overlay_child_spans(overlay.as_bytes(), desired.outer_rows))
+            .unwrap_or_default();
+        let mut legacy_written = false;
         if let Some(surface) = desired.structured.as_ref() {
             let prior = (!force).then_some(self.structured.as_ref()).flatten();
             render_palette_damage(&mut output, prior, surface, force);
@@ -407,20 +501,34 @@ impl PresentationComposer {
                         .row_data
                         .get(row_index)
                         .ok_or_else(|| "structured surface row is missing".to_owned())?;
-                    render_surface_row(
+                    render_surface_row_clipped(
                         &mut output,
                         row,
                         row_index,
                         desired.columns,
                         &surface.styles,
                         &surface.links,
+                        overlay_clip.get(&row_index).copied(),
                     )?;
-                    body_changed = true;
+                }
+            }
+            // Invariant: Without a screen clear, rows below a shorter surface still hold the previous view.
+            if force && !clear_screen {
+                for row_index in visible_rows..usize::from(desired.outer_rows.saturating_sub(1)) {
+                    output.extend_from_slice(
+                        format!("\x1b[{};1H\x1b[0m\x1b[K", row_index + 2).as_bytes(),
+                    );
                 }
             }
         } else if force || self.legacy_body != desired.legacy_body || !overlay_damage.is_empty() {
             output.extend_from_slice(&sanitize_legacy_body(&desired.legacy_body));
             body_changed = !desired.legacy_body.is_empty();
+            legacy_written = body_changed;
+        }
+        // Invariant: raw legacy bytes may scroll or move into the first row; the strip is
+        // restored after them so child content never remains in the strip row.
+        if legacy_written && !strip_changed {
+            output.extend_from_slice(desired.strip.as_bytes());
         }
 
         let overlay_changed = self.overlay != desired.overlay;
@@ -529,19 +637,33 @@ fn render_palette_damage(
     if next.palette.len() != 256 {
         return;
     }
+    // Invariant: a color the child never set keeps the outer terminal's own theme; publishing the
+    // emulator's initial value would paint, for example, a black default background.
     if force
         || previous.is_none_or(|surface| {
-            surface.palette.len() != 256 || surface.default_foreground != next.default_foreground
+            surface.palette.len() != 256
+                || surface.default_foreground != next.default_foreground
+                || surface.foreground_inherited() != next.foreground_inherited()
         })
     {
-        push_osc_rgb(output, 10, None, next.default_foreground);
+        if next.foreground_inherited() {
+            output.extend_from_slice(b"\x1b]110\x1b\\");
+        } else {
+            push_osc_rgb(output, 10, None, next.default_foreground);
+        }
     }
     if force
         || previous.is_none_or(|surface| {
-            surface.palette.len() != 256 || surface.default_background != next.default_background
+            surface.palette.len() != 256
+                || surface.default_background != next.default_background
+                || surface.background_inherited() != next.background_inherited()
         })
     {
-        push_osc_rgb(output, 11, None, next.default_background);
+        if next.background_inherited() {
+            output.extend_from_slice(b"\x1b]111\x1b\\");
+        } else {
+            push_osc_rgb(output, 11, None, next.default_background);
+        }
     }
     if force || previous.is_none_or(|surface| surface.cursor_color != next.cursor_color) {
         if let Some(color) = next.cursor_color {
@@ -550,11 +672,28 @@ fn render_palette_damage(
             output.extend_from_slice(b"\x1b]112\x1b\\");
         }
     }
+    let all_inherited = (0..256).all(|index| next.palette_inherited(index));
+    let mut reset_all = false;
     for (index, color) in next.palette.iter().copied().enumerate() {
-        if force
-            || previous.is_none_or(|surface| surface.palette.get(index).copied() != Some(color))
-        {
+        let inherited = next.palette_inherited(index);
+        let changed = force
+            || previous.is_none_or(|surface| {
+                surface.palette.get(index).copied() != Some(color)
+                    || surface.palette_inherited(index) != inherited
+            });
+        if !changed {
+            continue;
+        }
+        if !inherited {
             push_osc_rgb(output, 4, Some(index), color);
+        } else if all_inherited {
+            // Performance: One reset restores the whole outer palette instead of 256 single resets.
+            if !reset_all {
+                output.extend_from_slice(b"\x1b]104\x1b\\");
+                reset_all = true;
+            }
+        } else {
+            output.extend_from_slice(format!("\x1b]104;{index}\x1b\\").as_bytes());
         }
     }
 }
@@ -600,13 +739,44 @@ fn render_surface_row(
     styles: &[SurfaceStyle],
     links: &[crate::protocol::SurfaceLink],
 ) -> Result<(), String> {
+    render_surface_row_clipped(output, row, row_index, columns, styles, links, None)
+}
+
+/// Renders one child row, leaving the half-open column span `clip` untouched for a host overlay.
+fn render_surface_row_clipped(
+    output: &mut Vec<u8>,
+    row: &SurfaceRow,
+    row_index: usize,
+    columns: u16,
+    styles: &[SurfaceStyle],
+    links: &[crate::protocol::SurfaceLink],
+    clip: Option<(usize, usize)>,
+) -> Result<(), String> {
     output.extend_from_slice(format!("\x1b[{};1H", row_index + 2).as_bytes());
     let mut active_style: Option<u16> = None;
     let mut active_link: Option<u16> = None;
     let visible = usize::from(columns).min(row.cells.len());
+    let overlaps = |start: usize, width: usize| {
+        clip.is_some_and(|(left, right)| start < right && start + width.max(1) > left)
+    };
+    let mut reposition = false;
     for (column, cell) in row.cells[..visible].iter().enumerate() {
         if cell.width == 0 {
             continue;
+        }
+        let width = if cell.width == 2 && column + 1 >= visible {
+            1
+        } else {
+            usize::from(cell.width)
+        };
+        if overlaps(column, width) {
+            close_link(output, &mut active_link);
+            reposition = true;
+            continue;
+        }
+        if reposition {
+            output.extend_from_slice(format!("\x1b[{};{}H", row_index + 2, column + 1).as_bytes());
+            reposition = false;
         }
         if cell.width == 2 && column + 1 >= visible {
             close_link(output, &mut active_link);
@@ -642,9 +812,78 @@ fn render_surface_row(
     // previously wider content. Erasing after the complete retained row prevents stale suffixes
     // without dropping styled blanks inside the child surface.
     if visible < usize::from(columns) {
-        output.extend_from_slice(b"\x1b[K");
+        match clip.filter(|(_, right)| *right > visible) {
+            None => {
+                if reposition {
+                    output.extend_from_slice(
+                        format!("\x1b[{};{}H", row_index + 2, visible + 1).as_bytes(),
+                    );
+                }
+                output.extend_from_slice(b"\x1b[K");
+            }
+            Some((left, right)) => {
+                // Invariant: The suffix contains the overlay, so erase explicitly around it.
+                let columns = usize::from(columns);
+                let before = left.clamp(visible, columns);
+                if before > visible {
+                    output.extend_from_slice(
+                        format!("\x1b[{};{}H", row_index + 2, visible + 1).as_bytes(),
+                    );
+                    output.extend_from_slice(" ".repeat(before - visible).as_bytes());
+                }
+                if right < columns {
+                    output.extend_from_slice(
+                        format!("\x1b[{};{}H\x1b[K", row_index + 2, right + 1).as_bytes(),
+                    );
+                }
+            }
+        }
     }
     Ok(())
+}
+
+/// Finds, per child row, the half-open column span an overlay paints, by following its cursor
+/// positioning and the display width of the text it writes.
+fn overlay_child_spans(
+    bytes: &[u8],
+    outer_rows: u16,
+) -> std::collections::BTreeMap<usize, (usize, usize)> {
+    let mut spans = std::collections::BTreeMap::<usize, (usize, usize)>::new();
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        return spans;
+    };
+    let (mut row, mut column) = (0usize, 0usize);
+    let mut rest = text;
+    while let Some(ch) = rest.chars().next() {
+        if rest.starts_with("\x1b[") {
+            let parameters = &rest[2..];
+            let Some(end) = parameters.find(|value: char| ('\x40'..='\x7e').contains(&value))
+            else {
+                break;
+            };
+            if parameters.as_bytes()[end] == b'H' {
+                let mut values = parameters[..end]
+                    .split(';')
+                    .map(|value| value.parse::<usize>().unwrap_or(1).max(1));
+                row = values.next().unwrap_or(1) - 1;
+                column = values.next().unwrap_or(1) - 1;
+            }
+            rest = &parameters[end + 1..];
+            continue;
+        }
+        rest = &rest[ch.len_utf8()..];
+        if ch.is_control() {
+            continue;
+        }
+        let width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+        if width > 0 && row > 0 && row < usize::from(outer_rows) {
+            let span = spans.entry(row - 1).or_insert((column, column + width));
+            span.0 = span.0.min(column);
+            span.1 = span.1.max(column + width);
+        }
+        column += width;
+    }
+    spans
 }
 
 fn close_link(output: &mut Vec<u8>, active: &mut Option<u16>) {
@@ -880,6 +1119,95 @@ mod tests {
             other => panic!("expected a committed switch, got {other:?}"),
         }
         assert_eq!(view.viewed.as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn created_tab_keeps_the_previous_view_until_its_child_draws() {
+        let now = Instant::now();
+        let mut blank = surface("b", 7, false);
+        blank.bytes = b"\x1b[2J\x1b[H\x1b]10;rgb:ff/ff/ff\x07   \r\n".to_vec();
+        assert!(surface_is_blank(&blank));
+        assert!(!surface_is_blank(&surface("b", 8, false)));
+
+        let mut view = ViewModel::new(Some("a".into()));
+        view.request_at("b", now);
+        view.await_first_draw("b");
+        assert_eq!(view.offer(blank.clone(), now, true), Offer::Parked);
+        assert_eq!(view.viewed.as_deref(), Some("a"));
+        assert_eq!(view.expire(now + STALE_SURFACE_WAIT, |_| true), None);
+        assert!(matches!(
+            view.offer(surface("b", 8, false), now, true),
+            Offer::Commit {
+                requested: true,
+                ..
+            }
+        ));
+        assert_eq!(view.viewed.as_deref(), Some("b"));
+
+        // Invariant: A child that never draws still becomes visible after the bounded wait.
+        let mut silent = ViewModel::new(Some("a".into()));
+        silent.request_at("c", now);
+        silent.await_first_draw("c");
+        let mut empty = blank.clone();
+        empty.tab_id = "c".into();
+        assert_eq!(silent.offer(empty, now, true), Offer::Parked);
+        assert!(matches!(
+            silent.expire(now + FIRST_DRAW_WAIT, |_| true),
+            Some(Offer::Commit {
+                requested: true,
+                ..
+            })
+        ));
+
+        // Invariant: Creating the first tab from an empty strip waits for its drawn frame as well.
+        let mut first = ViewModel::new(None);
+        first.request_at("d", now);
+        first.await_first_draw("d");
+        let mut undrawn = blank.clone();
+        undrawn.tab_id = "d".into();
+        assert_eq!(first.offer(undrawn, now, true), Offer::Parked);
+        assert_eq!(first.viewed, None);
+        let mut drawn = surface("d", 9, false);
+        drawn.tab_id = "d".into();
+        assert!(matches!(
+            first.offer(drawn, now, true),
+            Offer::Commit {
+                requested: true,
+                ..
+            }
+        ));
+
+        // Invariant: The tab attached at launch also waits for its first drawn frame.
+        let mut launch = ViewModel::new(None);
+        let mut launch_blank = blank.clone();
+        launch_blank.tab_id = "e".into();
+        assert_eq!(launch.offer(launch_blank.clone(), now, true), Offer::Parked);
+        assert_eq!(
+            launch.offer(launch_blank.clone(), now + Duration::from_millis(500), true),
+            Offer::Parked
+        );
+        assert!(
+            matches!(
+                launch.expire(now + FIRST_DRAW_WAIT, |_| true),
+                Some(Offer::Commit {
+                    requested: true,
+                    ..
+                })
+            ),
+            "the launch wait is bounded from the first offer, not renewed by each blank frame"
+        );
+
+        // Invariant: Switching to an existing tab is not delayed by a blank body.
+        let mut switch = ViewModel::new(Some("a".into()));
+        assert!(matches!(
+            switch.offer(surface("a", 3, false), now, true),
+            Offer::Commit { .. }
+        ));
+        switch.request_at("b", now);
+        assert!(matches!(
+            switch.offer(blank, now, true),
+            Offer::Commit { .. }
+        ));
     }
 
     #[test]
@@ -1139,6 +1467,7 @@ mod tests {
             default_foreground: [240, 240, 240],
             default_background: [10, 10, 10],
             cursor_color: Some([20, 30, 40]),
+            inherited_colors: None,
         }
     }
 
@@ -1274,7 +1603,17 @@ mod tests {
             .prepare(&desired(Some(next_generation), Vec::new()))
             .unwrap()
             .expect("geometry repaint");
-        assert!(repaint.bytes.windows(4).any(|window| window == b"\x1b[2J"));
+        // Invariant: The invalidated base repaints every row in place rather than clearing the screen.
+        assert!(!repaint.bytes.windows(4).any(|window| window == b"\x1b[2J"));
+        for row in [b"\x1b[2;1H", b"\x1b[3;1H"] {
+            assert!(repaint.bytes.windows(6).any(|window| window == row));
+        }
+        assert!(
+            repaint
+                .bytes
+                .windows(8)
+                .any(|window| window == b"\x1b[1;1HST")
+        );
         repaint.acknowledge(&mut composer);
 
         let mut narrower = structured_fixture();
@@ -1333,6 +1672,151 @@ mod tests {
                 .any(|window| window == b"\x1b[?25l"),
             "an out-of-bounds child cursor must be hidden"
         );
+    }
+
+    #[test]
+    fn switching_tabs_repaints_in_place_without_clearing_the_strip() {
+        let mut composer = PresentationComposer::default();
+        let first = composer
+            .prepare(&desired(Some(structured_fixture()), Vec::new()))
+            .unwrap()
+            .expect("first paint");
+        assert!(
+            first.bytes.windows(4).any(|window| window == b"\x1b[2J"),
+            "first paint clears"
+        );
+        first.acknowledge(&mut composer);
+
+        let mut shorter = structured_fixture();
+        shorter.rows = 1;
+        shorter.row_data.truncate(1);
+        let mut switched = desired(Some(shorter), Vec::new());
+        switched.tab_id = Some("b".into());
+        let bytes = composer.prepare(&switched).unwrap().expect("switch").bytes;
+        assert!(!bytes.windows(4).any(|window| window == b"\x1b[2J"));
+        assert!(bytes.windows(5).any(|window| window == b"STRIP"));
+        assert!(
+            bytes
+                .windows(13)
+                .any(|window| window == b"\x1b[3;1H\x1b[0m\x1b[K"),
+            "the row below the shorter surface is erased"
+        );
+
+        let mut legacy = desired(None, b"body".to_vec());
+        legacy.tab_id = Some("c".into());
+        let legacy_bytes = composer.prepare(&legacy).unwrap().expect("legacy").bytes;
+        assert!(legacy_bytes.windows(4).any(|window| window == b"\x1b[2J"));
+    }
+
+    #[test]
+    fn open_overlay_cells_are_never_rewritten_by_streaming_rows() {
+        let mut composer = PresentationComposer::default();
+        let overlay = "\x1b[s\x1b[2;2H\x1b[0m\x1b[48;2;38;38;38mM\x1b[0m\x1b[u".to_owned();
+        let mut initial = desired(Some(structured_fixture()), Vec::new());
+        initial.overlay = Some(overlay.clone());
+        composer
+            .prepare(&initial)
+            .unwrap()
+            .expect("overlay paint")
+            .acknowledge(&mut composer);
+
+        for text in ["X", "Y", "Z"] {
+            let mut surface = structured_fixture();
+            for cell in &mut surface.row_data[0].cells {
+                *cell = crate::protocol::SurfaceCell {
+                    text: text.into(),
+                    width: 1,
+                    style: 0,
+                    link: None,
+                };
+            }
+            let mut streaming = desired(Some(surface), Vec::new());
+            streaming.overlay = Some(overlay.clone());
+            let prepared = composer.prepare(&streaming).unwrap().expect("streamed row");
+            let bytes = String::from_utf8(prepared.bytes.clone()).unwrap();
+            // Invariant: Column 2 belongs to the overlay: the row writes column 1, then jumps to column 3.
+            assert!(bytes.contains("\x1b[2;1H"));
+            assert!(bytes.contains("\x1b[2;3H"), "{bytes:?}");
+            assert_eq!(bytes.matches(text).count(), 2, "{bytes:?}");
+            assert!(!bytes.contains('M'), "unchanged overlay is not repainted");
+            assert!(!bytes.contains("\x1b[K"));
+            prepared.acknowledge(&mut composer);
+        }
+        assert_eq!(
+            overlay_child_spans(overlay.as_bytes(), 3).get(&0),
+            Some(&(1, 2))
+        );
+    }
+
+    #[test]
+    fn colors_the_child_never_set_keep_the_outer_theme() {
+        let mut inherited = structured_fixture();
+        let mut bitmap = vec![0xffu8; crate::protocol::InheritedColors::PALETTE_BITMAP_BYTES];
+        bitmap[0] &= !(1 << 4);
+        inherited.inherited_colors = Some(crate::protocol::InheritedColors {
+            foreground: true,
+            background: true,
+            palette: bitmap,
+        });
+        let bytes = PresentationComposer::default()
+            .prepare(&desired(Some(inherited.clone()), Vec::new()))
+            .unwrap()
+            .expect("first paint")
+            .bytes;
+        let text = String::from_utf8(bytes).unwrap();
+        assert!(text.contains("\x1b]110\x1b\\") && text.contains("\x1b]111\x1b\\"));
+        assert!(!text.contains("\x1b]11;rgb:0a/0a/0a"), "{text:?}");
+        assert!(
+            text.contains("\x1b]4;4;rgb:"),
+            "an explicitly set entry is still published"
+        );
+        assert!(text.contains("\x1b]104;5\x1b\\"));
+        assert!(!text.contains("\x1b]4;5;"));
+
+        // Invariant: A child that later sets its background publishes it; a fully inherited palette resets
+        // in one sequence.
+        let mut composer = PresentationComposer::default();
+        let mut set = inherited;
+        set.inherited_colors = Some(crate::protocol::InheritedColors {
+            foreground: true,
+            background: true,
+            palette: vec![0xff; crate::protocol::InheritedColors::PALETTE_BITMAP_BYTES],
+        });
+        let first = composer
+            .prepare(&desired(Some(set.clone()), Vec::new()))
+            .unwrap()
+            .expect("first paint");
+        let first_text = String::from_utf8(first.bytes.clone()).unwrap();
+        assert_eq!(first_text.matches("\x1b]104\x1b\\").count(), 1);
+        first.acknowledge(&mut composer);
+        set.inherited_colors.as_mut().unwrap().background = false;
+        let changed = composer
+            .prepare(&desired(Some(set), Vec::new()))
+            .unwrap()
+            .expect("background set");
+        assert!(
+            String::from_utf8(changed.bytes)
+                .unwrap()
+                .contains("\x1b]11;rgb:0a/0a/0a\x1b\\")
+        );
+    }
+
+    #[test]
+    fn legacy_body_writes_restore_the_strip_row() {
+        let mut composer = PresentationComposer::default();
+        composer
+            .prepare(&desired(None, b"one".to_vec()))
+            .unwrap()
+            .expect("first legacy paint")
+            .acknowledge(&mut composer);
+        let next = composer
+            .prepare(&desired(None, b"\x1b[1;1Hleak".to_vec()))
+            .unwrap()
+            .expect("legacy update");
+        let bytes = String::from_utf8(next.bytes).unwrap();
+        let leak = bytes.find("leak").expect("body written");
+        let strip = bytes.rfind("STRIP").expect("strip restored");
+        assert!(strip > leak);
     }
 
     #[test]

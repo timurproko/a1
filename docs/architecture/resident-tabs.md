@@ -262,11 +262,12 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
 | `idle` | settled idle | none |
 | `working` | agent or turn start, tool execution, compaction | shared progress frames |
 | `needs-input` | an extension UI, trust, or permission request is pending | yellow `?` (warning) |
-| `done-unseen` | the turn settled while no client viewed the tab | `âœ“` success |
-| `error` | the last turn's `stopReason` was error | `âœ—` error |
-| `crashed` / `restarting` / `failed` | holder or child exit | `âœ—` error plus a banner |
+| `done` | the last turn finished successfully | green `✓` success |
+| `aborted` | the last turn was aborted | red `✗` error |
+| `error` | the last turn ended with an error | red `✗` error |
+| `crashed` / `restarting` / `failed` | holder or child exit, or a failed tab lifecycle (never a failed turn) | `âœ—` error plus a banner |
 
-- `seen` is tracked server-side, so viewing a tab in any client clears `âœ“` everywhere.
+- A `done`, `aborted`, or `error` marker stays on the chip, including after any client views the tab, until that tab's next turn starts.
 - A tab with a broken bridge shows only process-level states.
 - Future CLI tabs will derive status from process state, and may use BEL or OSC 9/777 from the program as an attention input.
 - The glyph set is the same in every client. A working spinner uses the resolved A1 accent reported by that specific tab.
@@ -335,7 +336,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   | `Alt+A` | new tab |
   | `Alt+W` | close |
   | `F2` | rename |
-  | `Alt+.` | create or activate the global Settings tab |
+  | `Alt+,` | open the global Settings tab, or close it while it is viewed |
   | `Alt+1`â€¦`Alt+9`, `Alt+0` | jump to a tab |
   | unbound (`tabs.next` / `tabs.previous`) | next / previous, wrapping |
   | unbound (`tabs.moveRight` / `tabs.moveLeft`) | move the tab right / left |
@@ -349,7 +350,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   - right-click opens `Rename`/`Close` (`Close` only for Settings);
   - dragging reorders, with a `â”‚` drop marker, after 250 ms or once the pointer moves;
   - `+` opens a persistent dark v2 menu with `+ Agent`, a separator, and `Settings`; hover and click remain active through the opening release.
-- **Settings.** The strip owns one profile-global `Settings` tab. The grouped launcher and `Alt+.` create or activate it; closing the screen or tab removes it. Resident Agent autocomplete omits `/settings`, and manually entering it does not open a per-Agent screen. `a1 solo` and `a1 pi` retain their existing Settings routes.
+- **Settings.** The strip owns one profile-global `Settings` tab. The grouped launcher creates or activates it; `Alt+,` does the same from another tab and closes it while it is viewed. Esc does not close the Settings tab; closing the tab removes it. Resident Agent autocomplete omits `/settings`, and manually entering it does not open a per-Agent screen. `a1 solo` and `a1 pi` retain their existing Settings routes.
 - **Commands inside A1 tabs:** existing `/name <name>` also renames the tab. Milestone 5 adds no tab-management slash commands: `/new-tab`, `/close`, `/tabs`, `/quit-all`, and `/restart-tab` are not exposed.
 - **Naming:**
   - Default names are `agent` or `agent N`.

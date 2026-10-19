@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { CLEAR_EXIT_INTERVAL_MS, restoreAfterOwnedExit } from "../terminal-cleanup/index.js";
+import { RESIDENT_DETACH_INTERVAL_MS, restoreAfterOwnedExit } from "../terminal-cleanup/index.js";
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { resolve } from "node:path";
@@ -91,7 +91,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
         residentRootExecutable: resident.executable.executable,
         residentRootArguments: JSON.stringify([
           resident.executable.entry,
-          "attach", "--endpoint", resident.endpoint, "--cwd", process.cwd(), "--clear-exit-ms", String(CLEAR_EXIT_INTERVAL_MS),
+          "attach", "--endpoint", resident.endpoint, "--cwd", process.cwd(), "--clear-exit-ms", String(RESIDENT_DETACH_INTERVAL_MS),
           "--profile", environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
           "--settings-file", resolve(agentProfileDir, "settings.json"),
           "--data-dir", paths.dataDir, "--runtime-dir", paths.runtimeDir,

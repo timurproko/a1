@@ -1,7 +1,7 @@
 import { connect, type Socket } from "node:net";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "./protocol.js";
 
-export type ResidentTabStatus = "starting" | "working" | "needs-input" | "done-unseen" | "idle" | "unresponsive" | "stalled" | "crashed" | "restarting" | "failed";
+export type ResidentTabStatus = "starting" | "working" | "needs-input" | "done-unseen" | "done" | "aborted" | "error" | "idle" | "unresponsive" | "stalled" | "crashed" | "restarting" | "failed";
 export interface TabBridgeCredentials { readonly tabId: string; readonly token: string; readonly endpoint: string }
 export interface TabAttachment { readonly clientId: string; readonly controllerRevision: number }
 export type TabBridgeCommand =
@@ -156,7 +156,8 @@ export class TabBridgeClient {
       if (start === -1) {
         let retained = 0;
         const maximum = Math.min(prefix.length - 1, pending.length);
-        for (let length = maximum; length > 0; length--) {
+        // Invariant: a lone trailing Esc is a user key and passes at once; only `\x1bP` or more is withheld.
+        for (let length = maximum; length > 1; length--) {
           if (pending.endsWith(prefix.slice(0, length))) { retained = length; break; }
         }
         const split = pending.length - retained;

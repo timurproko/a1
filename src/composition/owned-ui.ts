@@ -1,3 +1,4 @@
+import { unwatchFile, watchFile } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { SuggestionDiagnosticCapture } from "../features/prompt-suggestions/diagnostics.js";
 import { PRODUCT_IDENTITY } from "../product-identity.js";
@@ -43,7 +44,7 @@ import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
-import { deriveResidentTabStatus } from "../features/resident-tab/status-deriver.js";
+import { deriveResidentTabStatus, type ResidentTabTurnSettlement } from "../features/resident-tab/status-deriver.js";
 
 /**
  * The session backend composition wires: the owned-UI port, the prompt-suggestion generator, and
@@ -270,13 +271,19 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     : await import("../features/owned-ui/release-note-state.js").then(module => module.claimReleaseNote({
       configDir: productPaths.configDir, profileId: options.profileId!, version: currentReleaseNote.version,
     }));
-  const unsubscribeAccent = settings === null || !ownedSurfaces
+  const unsubscribeAccentChange = settings === null || !ownedSurfaces
     ? () => {}
     : settings.onChange(current => {
       const accent = current.value("accentColor");
       host.setAccentColor(accent);
       tabBridge?.accent(accent);
     });
+  // Rationale: every resident tab is its own process over one shared settings document, so a
+  // change saved in any tab reaches the others only by rereading that document.
+  const unwatchSharedSettings = settings === null || !ownedSurfaces || tabBridge === null
+    ? () => {}
+    : watchSharedSettings(settings);
+  const unsubscribeAccent = (): void => { unwatchSharedSettings(); unsubscribeAccentChange(); };
 
   // Rationale: Routes open only after shell construction.
   const references: OwnedReferenceProviders = {
@@ -292,7 +299,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     },
     session: () => import("./session-info-reference.js").then(m => m.loadSessionInfoReference(backend)),
   };
-  const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(settings, references);
+  const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(settings, references, {
+    settingsPinned: tabBridge?.tabId.startsWith("settings-") === true,
+  });
   const viewportSettings: OwnedUiViewportSettingsPort | null = settings === null || !ownedSurfaces ? null : {
     snapshot: () => viewportSettingsSnapshot(settings),
     onChange: listener => settings.onChange(() => listener(viewportSettingsSnapshot(settings))),
@@ -513,15 +522,27 @@ export async function bindResidentTabBridge(
   tabBridge.status("starting");
   const currentSessionFile = () => currentBackendSessionFile(backend);
   let pendingAutoName: string | null = null;
+  // Invariant: while a generated name is being applied, the session name it produces is automatic
+  // even if the session normalizes it; reporting it as `user` would block the strip's title
+  // animation and every later automatic rename.
+  let applyingAutoName = false;
   const isDefaultName = (name: string | null | undefined) => name == null || /^agent(?: \d+)?$/i.test(name);
   const currentSessionName = () => backend.session.view().status.footer?.sessionName ?? null;
   const announceSession = () => {
     const name = currentSessionName();
-    const nameSource = name === pendingAutoName ? "auto" : isDefaultName(name) ? "default" : "user";
+    // Invariant: the session may announce the applied name after the workflow resolves; the
+    // first non-default name announced for a pending auto-name is that automatic name.
+    if (applyingAutoName && !isDefaultName(name)) {
+      pendingAutoName = name;
+      applyingAutoName = false;
+    }
+    const automatic = name === pendingAutoName;
+    const nameSource = automatic ? "auto" : isDefaultName(name) ? "default" : "user";
     tabBridge.session(currentSessionFile(), name, nameSource);
   };
   let working = false;
-  let lastTurnFailed = false;
+  // Invariant: the last turn's settlement stays reported until the next turn starts.
+  let lastTurn: ResidentTabTurnSettlement | undefined;
   let autoNameAttempted = false;
   let autoNameArmed = false;
   // Invariant: naming launches once per tab during an agent run, as soon as its prompt is projected,
@@ -538,10 +559,24 @@ export async function bindResidentTabBridge(
       // Invariant: a manual rename made while generation was pending owns both the session and the tab.
       if (!isDefaultName(currentSessionName())) return;
       pendingAutoName = name;
+      applyingAutoName = true;
       const result = await backend.workflows.executeWorkflow({ command: "name", argument: name });
-      if (result.outcome === "completed") tabBridge.session(currentSessionFile(), name, "auto");
-      else if (pendingAutoName === name) pendingAutoName = null;
-    }).catch(() => { pendingAutoName = null; });
+      if (result.outcome !== "completed") {
+        applyingAutoName = false;
+        if (pendingAutoName === name) pendingAutoName = null;
+        return;
+      }
+      const current = currentSessionName();
+      if (current !== null && !isDefaultName(current)) {
+        // Invariant: The session already holds the applied name; report it as automatic now.
+        pendingAutoName = current;
+        applyingAutoName = false;
+        tabBridge.session(currentSessionFile(), current, "auto");
+      } else {
+        // Invariant: The session announces later; show the generated name meanwhile, still automatic.
+        tabBridge.session(currentSessionFile(), name, "auto");
+      }
+    }).catch(() => { pendingAutoName = null; applyingAutoName = false; });
   };
   const reportStatus = (lifecycle?: string) => {
     const view = backend.session.view();
@@ -551,7 +586,7 @@ export async function bindResidentTabBridge(
       lifecycle: lifecycle ?? view.lifecycle,
       pendingRequests,
       queuedInput,
-      ...(lastTurnFailed ? { stopReason: "error" } : {}),
+      ...(lastTurn === undefined ? {} : { lastTurn }),
     }), false, pendingRequests, queuedInput);
   };
   announceSession();
@@ -571,7 +606,7 @@ export async function bindResidentTabBridge(
     if (event.type === "session-lifecycle") {
       const wasWorking = working;
       working = event.lifecycle === "busy";
-      if (working) lastTurnFailed = false;
+      if (working) lastTurn = undefined;
       reportStatus(event.lifecycle);
       if (wasWorking && !working && recovery !== null) {
         void recovery.settled(currentSessionFile()).catch(() => tabBridge.degraded(true));
@@ -586,7 +621,7 @@ export async function bindResidentTabBridge(
     if (event.type === "agent-run-settled") {
       launchAutoName();
       autoNameArmed = false;
-      lastTurnFailed = !event.successful && !event.aborted;
+      lastTurn = event.aborted ? "aborted" : event.successful ? "done" : "error";
       tabBridge.prompt(event.aborted);
       reportStatus();
     }
@@ -619,6 +654,20 @@ function currentBackendSessionFile(backend: Pick<ComposedSessionBackend, "identi
   if (direct !== undefined && direct !== null) return direct;
   const resume = backend.identity.currentSessionResumeMetadata();
   return resume === null ? null : `${resume.sessionDir}/${resume.sessionId}`;
+}
+
+const SHARED_SETTINGS_POLL_MS = 250;
+
+/** Rereads the shared settings document whenever its stat changes; returns the stop. */
+export function watchSharedSettings(settings: Pick<OwnedSettingsManager, "file" | "refresh">): () => void {
+  const file = settings.file;
+  const listener = (): void => {
+    try { settings.refresh(); } catch {
+      // Compatibility: an unreadable peer write resolves on the next stat change.
+    }
+  };
+  watchFile(file, { interval: SHARED_SETTINGS_POLL_MS, persistent: false }, listener);
+  return () => unwatchFile(file, listener);
 }
 
 async function readPackageVersion(): Promise<string> {

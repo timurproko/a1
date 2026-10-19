@@ -250,8 +250,12 @@ export class SettingsApp implements UiApp {
   #activityTimer: ReturnType<typeof setTimeout> | undefined;
   #renderedScroll: number | undefined;
 
-  constructor(session: OwnedSettingsManager) {
+  readonly #pinned: boolean;
+
+  /** `pinned` presents the screen as a resident Settings tab, which offers no screen-level close. */
+  constructor(session: OwnedSettingsManager, options: { readonly pinned?: boolean } = {}) {
     this.#session = session;
+    this.#pinned = options.pinned === true;
   }
 
   onActivate(host: AppHostServices): void {
@@ -389,7 +393,7 @@ export class SettingsApp implements UiApp {
     const selected = indexOfKey(rows, this.#selectedKey);
     switch (action) {
       case "close":
-        host.close();
+        if (!this.#pinned) host.close();
         return { consumed: true };
       case "open-filter":
         this.#scrollBeforeFilter = this.#scroll;
@@ -1172,7 +1176,9 @@ export class SettingsApp implements UiApp {
 
     // Rationale: standing guidance is more useful than transient feedback; failures still
     // roll back without displacing the Settings interaction contract.
-    const status = renderShortcutHintsWithClose(SETTINGS_SHORTCUTS.hintEntries(SCOPE), theme, width, width > 0 ? 1 : 0);
+    const entries = SETTINGS_SHORTCUTS.hintEntries(SCOPE).filter(entry => !this.#pinned
+      || entry.key !== DIALOG_CLOSE_SHORTCUT_HINT.key || entry.action !== DIALOG_CLOSE_SHORTCUT_HINT.action);
+    const status = renderShortcutHintsWithClose(entries, theme, width, width > 0 ? 1 : 0);
     const input = this.#filter;
     if (input === null) return [status];
     return [...renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER, theme }).lines, status];

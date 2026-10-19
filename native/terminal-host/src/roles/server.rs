@@ -27,6 +27,9 @@ use crate::roles::wire::{
 use crate::session_lock::SessionLock;
 
 const SETTINGS_TAB_PREFIX: &str = "settings-";
+/// Every new Agent tab starts with this one name; duplicates are allowed and auto-naming or a
+/// manual rename distinguishes them.
+const DEFAULT_AGENT_TAB_NAME: &str = "Agent";
 
 fn is_settings_tab_id(tab_id: &str) -> bool {
     tab_id.starts_with(SETTINGS_TAB_PREFIX)
@@ -1632,8 +1635,9 @@ fn bridge_surface_status(
     viewed: bool,
 ) -> String {
     let reported = match reported.as_str() {
-        "starting" | "restoring" | "working" | "needs-input" | "idle" | "done-unseen" | "error"
-        | "failed" | "crashed" | "restarting" | "unresponsive" | "stalled" | "ended" => reported,
+        "starting" | "restoring" | "working" | "needs-input" | "idle" | "done" | "aborted"
+        | "done-unseen" | "error" | "failed" | "crashed" | "restarting" | "unresponsive"
+        | "stalled" | "ended" => reported,
         _ => "idle".into(),
     };
     let mut next = if degraded {
@@ -3581,22 +3585,7 @@ fn promote_standby(
             .ok_or_else(|| "standby holder disappeared".to_owned())?;
         locked.standby = None;
         let order = locked.registry.tabs.len() as u32;
-        let names = locked
-            .registry
-            .tabs
-            .iter()
-            .map(|tab| tab.display_name.as_str())
-            .collect::<std::collections::HashSet<_>>();
-        let display_name = (1usize..)
-            .map(|number| {
-                if number == 1 {
-                    "agent".into()
-                } else {
-                    format!("agent {number}")
-                }
-            })
-            .find(|name| !names.contains(name.as_str()))
-            .expect("unbounded default tab names");
+        let display_name = DEFAULT_AGENT_TAB_NAME.to_owned();
         let created_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -3855,25 +3844,10 @@ fn start_holder(
             .derive("bridge", &tab_id, incarnation)
             .to_vec();
         let order = locked.registry.tabs.len() as u32;
-        let names = locked
-            .registry
-            .tabs
-            .iter()
-            .map(|tab| tab.display_name.as_str())
-            .collect::<std::collections::HashSet<_>>();
         let display_name = if is_settings_tab_id(&tab_id) {
             "Settings".into()
         } else {
-            (1usize..)
-                .map(|number| {
-                    if number == 1 {
-                        "agent".into()
-                    } else {
-                        format!("agent {number}")
-                    }
-                })
-                .find(|name| !names.contains(name.as_str()))
-                .expect("unbounded default tab names")
+            DEFAULT_AGENT_TAB_NAME.to_owned()
         };
         let created_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -5945,6 +5919,24 @@ mod tests {
     }
 
     #[test]
+    fn bridge_session_reads_the_child_name_source() {
+        // Protocol: The child bridge client sends camelCase `nameSource`.
+        let child: BridgeSession =
+            serde_json::from_str(r#"{"file":"D:/s.jsonl","name":"ask-100","nameSource":"auto"}"#)
+                .unwrap();
+        assert_eq!(child.name_source.as_deref(), Some("auto"));
+        let legacy: BridgeSession =
+            serde_json::from_str(r#"{"file":null,"name":"x","name_source":"default"}"#).unwrap();
+        assert_eq!(legacy.name_source.as_deref(), Some("default"));
+        let encoded = rmp_serde::to_vec_named(&serde_json::json!({
+            "file": null, "name": "ask-100", "nameSource": "auto",
+        }))
+        .unwrap();
+        let decoded: BridgeSession = rmp_serde::from_slice(&encoded).unwrap();
+        assert_eq!(decoded.name_source.as_deref(), Some("auto"));
+    }
+
+    #[test]
     fn bridge_status_rejects_stale_sequences_and_tracks_unseen_completion() {
         assert!(accepts_bridge_sequence(None, 2, 1));
         assert!(!accepts_bridge_sequence(Some((2, 4)), 2, 4));
@@ -5974,6 +5966,21 @@ mod tests {
             bridge_surface_status("idle", "suspended".into(), 0, 0, false, false),
             "idle"
         );
+        // Invariant: Settlement markers reported by the child persist while viewed until the next turn.
+        for settled in ["done", "aborted", "failed"] {
+            assert_eq!(
+                bridge_surface_status("working", settled.into(), 0, 0, false, true),
+                settled
+            );
+            assert_eq!(
+                bridge_surface_status(settled, settled.into(), 0, 0, false, true),
+                settled
+            );
+            assert_eq!(
+                bridge_surface_status(settled, "working".into(), 0, 0, false, true),
+                "working"
+            );
+        }
         let mut attention = u64::MAX;
         mark_attention(&mut attention);
         assert_eq!(attention, u64::MAX);

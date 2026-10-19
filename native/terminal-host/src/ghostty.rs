@@ -8,8 +8,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::protocol::{
-    StructuredSurface, SurfaceCell, SurfaceColor, SurfaceCommitKind, SurfaceLink, SurfaceRow,
-    SurfaceStyle,
+    InheritedColors, StructuredSurface, SurfaceCell, SurfaceColor, SurfaceCommitKind, SurfaceLink,
+    SurfaceRow, SurfaceStyle,
 };
 
 const GHOSTTY_SUCCESS: i32 = 0;
@@ -557,6 +557,37 @@ pub struct GhosttyTerminal {
     // Invariant: boxed so the userdata address given to libghostty stays fixed when the
     // terminal moves; it is freed only after the terminal in Drop.
     callbacks: Box<TerminalCallbacks>,
+    /// The emulator's colors before any child output; values still equal to these were never set
+    /// by the child and must not override the outer terminal's theme.
+    initial_colors: Option<InitialColors>,
+}
+
+#[derive(Debug, Clone)]
+struct InitialColors {
+    foreground: [u8; 3],
+    background: [u8; 3],
+    palette: Vec<[u8; 3]>,
+}
+
+impl InitialColors {
+    fn inherited(
+        &self,
+        foreground: [u8; 3],
+        background: [u8; 3],
+        palette: &[[u8; 3]],
+    ) -> InheritedColors {
+        let mut bitmap = vec![0u8; InheritedColors::PALETTE_BITMAP_BYTES];
+        for (index, color) in palette.iter().enumerate().take(256) {
+            if self.palette.get(index) == Some(color) {
+                bitmap[index / 8] |= 1 << (index % 8);
+            }
+        }
+        InheritedColors {
+            foreground: foreground == self.foreground,
+            background: background == self.background,
+            palette: bitmap,
+        }
+    }
 }
 
 /// One immutable complete retained state. Unchanged rows share their allocation with the prior
@@ -574,6 +605,7 @@ pub struct RetainedSurface {
     default_foreground: [u8; 3],
     default_background: [u8; 3],
     cursor_color: Option<[u8; 3]>,
+    inherited_colors: Option<InheritedColors>,
 }
 
 impl RetainedSurface {
@@ -594,6 +626,7 @@ impl RetainedSurface {
             default_foreground: self.default_foreground,
             default_background: self.default_background,
             cursor_color: self.cursor_color,
+            inherited_colors: self.inherited_colors.clone(),
         };
         value.validate()?;
         Ok(value)
@@ -778,7 +811,17 @@ impl GhosttyTerminal {
             raw,
             render,
             callbacks: Box::default(),
+            initial_colors: None,
         };
+        let updated = unsafe { ghostty_render_state_update(render, raw) } == GHOSTTY_SUCCESS;
+        terminal.initial_colors = updated
+            .then(|| terminal.colors().ok())
+            .flatten()
+            .map(|colors| InitialColors {
+                foreground: rgb_array(colors.foreground),
+                background: rgb_array(colors.background),
+                palette: colors.palette.into_iter().map(rgb_array).collect(),
+            });
         let userdata =
             ptr::from_mut::<TerminalCallbacks>(terminal.callbacks.as_mut()).cast::<c_void>();
         check(
@@ -1082,6 +1125,17 @@ impl GhosttyTerminal {
             "clear retained frame damage",
         )?;
         let colors = self.colors()?;
+        let palette = colors
+            .palette
+            .into_iter()
+            .map(rgb_array)
+            .collect::<Vec<_>>();
+        let default_foreground = rgb_array(colors.foreground);
+        let default_background = rgb_array(colors.background);
+        let inherited_colors = self
+            .initial_colors
+            .as_ref()
+            .map(|initial| initial.inherited(default_foreground, default_background, &palette));
         Ok(RetainedSurface {
             columns,
             rows,
@@ -1090,10 +1144,11 @@ impl GhosttyTerminal {
             row_data: builder.row_data.clone(),
             styles: Arc::new(builder.styles.clone()),
             links: Arc::new(builder.links.clone()),
-            palette: Arc::new(colors.palette.into_iter().map(rgb_array).collect()),
-            default_foreground: rgb_array(colors.foreground),
-            default_background: rgb_array(colors.background),
+            palette: Arc::new(palette),
+            default_foreground,
+            default_background,
             cursor_color: colors.cursor_has_value.then(|| rgb_array(colors.cursor)),
+            inherited_colors,
         })
     }
 
@@ -1613,14 +1668,56 @@ impl GhosttyTerminal {
                     },
                     "read row cells",
                 )?;
+                // Invariant: legacy viewers receive the same OSC 8 targets the structured path
+                // carries, so links such as the footer pull-request number stay clickable.
+                let mut active_link: Option<SurfaceLink> = None;
+                let mut column: u16 = 0;
                 while unsafe { ghostty_render_state_row_cells_next(cells) } {
                     trace("next cell");
+                    let mut raw = 0u64;
+                    let mut has_link = false;
+                    let flagged = unsafe {
+                        ghostty_render_state_row_cells_get(
+                            cells,
+                            CELLS_DATA_RAW,
+                            &mut raw as *mut u64 as *mut c_void,
+                        ) == GHOSTTY_SUCCESS
+                            && ghostty_cell_get(
+                                raw,
+                                CELL_DATA_HAS_HYPERLINK,
+                                &mut has_link as *mut bool as *mut c_void,
+                            ) == GHOSTTY_SUCCESS
+                    };
+                    let link = (flagged && has_link)
+                        .then(|| u16::try_from(row_index).ok())
+                        .flatten()
+                        .and_then(|row| self.hyperlink_at(column, row).ok().flatten());
+                    if link != active_link {
+                        if active_link.is_some() {
+                            out.push_str("\u{1b}]8;;\u{1b}\\");
+                        }
+                        if let Some(link) = link.as_ref() {
+                            out.push_str("\u{1b}]8;");
+                            if let Some(id) = link.id.as_deref() {
+                                out.push_str("id=");
+                                out.push_str(id);
+                            }
+                            out.push(';');
+                            out.push_str(&link.uri);
+                            out.push_str("\u{1b}\\");
+                        }
+                        active_link = link;
+                    }
                     let style = cell_style(cells, &colors)?;
                     if active != Some(style) {
                         write_style(&mut out, style);
                         active = Some(style);
                     }
                     out.push_str(&cell_text(cells)?);
+                    column = column.saturating_add(1);
+                }
+                if active_link.is_some() {
+                    out.push_str("\u{1b}]8;;\u{1b}\\");
                 }
                 let clean = false;
                 check(
@@ -2570,5 +2667,21 @@ mod retained_tests {
             .expect("second capture");
         assert!(Arc::ptr_eq(&unchanged, &second.row_data[1]));
         assert!(!Arc::ptr_eq(&first.row_data[0], &second.row_data[0]));
+    }
+
+    #[test]
+    fn legacy_frames_keep_hyperlink_targets() {
+        let mut terminal = GhosttyTerminal::new(12, 2).expect("terminal");
+        terminal.write(
+            b"\x1b[2;1Hpr \x1b]8;id=pr;https://github.com/o/r/pull/805\x1b\\#805\x1b]8;;\x1b\\ x",
+        );
+        let frame = terminal.frame().expect("legacy frame");
+        let opened = frame
+            .find("\x1b]8;id=pr;https://github.com/o/r/pull/805\x1b\\")
+            .expect("link opened before its text");
+        let text = frame[opened..].find("#805").expect("linked text") + opened;
+        let closed = frame[text..].find("\x1b]8;;\x1b\\").expect("link closed") + text;
+        assert!(frame[closed..].contains(" x"));
+        assert!(!frame[..opened].contains("#805"));
     }
 }

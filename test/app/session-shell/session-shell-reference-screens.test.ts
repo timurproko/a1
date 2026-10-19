@@ -1,10 +1,15 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { createOwnedRouteHost } from "../../../src/composition/index.js";
 import { createPiEngineAdapter, type PiWorkflowHost } from "../../../src/integrations/pi/engine/index.js";
 import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import type { UiRouteHost, UiRouteInput, UiRouteSurface } from "../../../src/ui/apps/index.js";
+import { OwnedSettingsManager } from "../../../src/ui/settings/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
 import { Runtime } from "./session-shell-fixture.js";
 
@@ -253,6 +258,28 @@ describe("bare A1 startup release notes", () => {
     await shell.dispose();
   });
 
+  it("retains a route requested before start and opens it exactly once after start", async () => {
+    const { shell, routes } = await shellFixture({ customViewport: true });
+    shell.openOwnedRoute("changelog");
+    shell.openOwnedRoute("settings");
+    expect(routes!.opens).toEqual([]);
+    shell.start();
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(routes!.opens).toEqual([{ route: "settings", input: undefined }]);
+    expect(shell.runtime.hasOverlay()).toBe(true);
+    await new Promise(resolve => setTimeout(resolve, 40));
+    expect(routes!.opens).toHaveLength(1);
+    await shell.dispose();
+  });
+
+  it("reports a route that cannot open instead of dropping it", async () => {
+    const { shell } = await shellFixture({ customViewport: true, routes: routeHost(["changelog"]) });
+    shell.start();
+    shell.openOwnedRoute("settings");
+    expect(feed(shell)).toContain("route is unavailable: settings");
+    await shell.dispose();
+  });
+
   it("does not acknowledge when the startup route cannot render", async () => {
     const closed = vi.fn();
     const { shell } = await shellFixture({ customViewport: true, routes: null, startupRoute: { route: "changelog", onClosed: closed } });
@@ -277,3 +304,80 @@ describe("bare A1 startup release notes", () => {
   });
 });
 
+
+describe("owned screens decode legacy and kitty keys alike", () => {
+  const roots: string[] = [];
+  afterEach(() => {
+    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+  });
+
+  /** The real Changelog screen behind the shell's route boundary, recording each opened surface. */
+  async function changelogRoutes() {
+    const root = mkdtempSync(path.join(tmpdir(), "a1-kitty-keys-"));
+    roots.push(root);
+    const settings = new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: [], migrations: [], agent: null });
+    await settings.load();
+    const rows = Array.from({ length: 40 }, (_row, index) => `row ${String(index + 1).padStart(2, "0")}`);
+    const real = createOwnedRouteHost(settings, {
+      changelog: async () => ({ rows: () => rows }),
+      hotkeys: async () => ({ rows: () => rows }),
+      session: async () => ({ rows: () => rows }),
+    });
+    const surfaces: UiRouteSurface[] = [];
+    const host: UiRouteHost = {
+      claims: route => real.claims(route),
+      open: (route, input) => {
+        const surface = real.open(route, input);
+        if (surface !== null) surfaces.push(surface);
+        return surface;
+      },
+    };
+    return { host, surfaces, opens: [] };
+  }
+
+  async function firstRow(surface: UiRouteSurface, expected: string): Promise<string> {
+    let row = "";
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      row = stripTerminalSequences(surface.render(60, 10)[2] ?? "");
+      if (row.startsWith(expected)) break;
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    return row;
+  }
+
+  it.each([
+    { name: "legacy", up: `${ESC}[A`, down: `${ESC}[B`, close: ESC },
+    { name: "kitty", up: `${ESC}[1;1A`, down: `${ESC}[1;1B`, close: `${ESC}[27u` },
+  ])("scrolls and closes the Changelog with $name keys", async keys => {
+    const routes = await changelogRoutes();
+    const { shell, terminal } = await shellFixture({ customViewport: true, routes: routes as unknown as ReturnType<typeof routeHost> });
+    shell.start();
+    shell.openOwnedRoute("changelog");
+    const surface = routes.surfaces[0]!;
+    expect(await firstRow(surface, "row 01")).toMatch(/^row 01/u);
+    terminal.input(keys.down);
+    terminal.input(keys.down);
+    expect(await firstRow(surface, "row 03")).toMatch(/^row 03/u);
+    terminal.input(keys.up);
+    expect(await firstRow(surface, "row 02")).toMatch(/^row 02/u);
+    expect(surface.isClosed()).toBe(false);
+    terminal.input(keys.close);
+    expect(surface.isClosed()).toBe(true);
+    expect(shell.runtime.hasOverlay()).toBe(false);
+    await shell.dispose();
+  });
+
+  it.each([["legacy", "\u0003"], ["kitty", `${ESC}[99;5u`]])("closes the Changelog on one %s Ctrl+C", async (_name, interrupt) => {
+    const routes = await changelogRoutes();
+    const { shell, terminal, adapter } = await shellFixture({ customViewport: true, routes: routes as unknown as ReturnType<typeof routeHost> });
+    shell.start();
+    shell.openOwnedRoute("changelog");
+    const surface = routes.surfaces[0]!;
+    expect(await firstRow(surface, "row 01")).toMatch(/^row 01/u);
+    terminal.input(interrupt);
+    expect(surface.isClosed()).toBe(true);
+    expect(shell.runtime.hasOverlay()).toBe(false);
+    expect(adapter.view().lifecycle).not.toBe("stopped");
+    await shell.dispose();
+  });
+});

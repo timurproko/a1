@@ -26,7 +26,7 @@ export const RESIDENT_TAB_SHORTCUTS: readonly ResidentTabShortcut[] = Object.fre
   { id: "tabs.new", defaultKey: "alt+a", scope: "global", description: "New A1 tab" },
   { id: "tabs.close", defaultKey: "alt+w", scope: "global", description: "Close A1 tab" },
   { id: "tabs.rename", defaultKey: "f2", scope: "global", description: "Rename A1 tab" },
-  { id: "tabs.settings", defaultKey: "alt+.", scope: "global", description: "Open Settings tab" },
+  { id: "tabs.settings", defaultKey: "alt+,", scope: "global", description: "Open Settings tab" },
   ...jumps,
   { id: "tabs.next", defaultKey: null, scope: "global", description: "View next A1 tab" },
   { id: "tabs.previous", defaultKey: null, scope: "global", description: "View previous A1 tab" },

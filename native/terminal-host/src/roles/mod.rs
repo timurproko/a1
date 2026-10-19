@@ -11,6 +11,7 @@ pub mod maintain;
 pub mod outer_input;
 pub mod presentation;
 pub mod progress_observation;
+pub mod quit_outro;
 pub mod recovery_artifacts;
 pub mod registry;
 pub mod release_holds;

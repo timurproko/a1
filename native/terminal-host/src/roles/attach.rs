@@ -46,7 +46,7 @@ const ATTACH_SERVER_QUEUE_FRAMES: usize = 64;
 const ATTACH_INGRESS_BYTES: usize = 4 * 1024 * 1024;
 const ATTACH_INGRESS_FRAMES: usize = 8;
 const DEFERRED_INPUT_BYTES: usize = 4 * 1024 * 1024;
-const DEFERRED_INPUT_FRAMES: usize = 64;
+const DEFERRED_INPUT_FRAMES: usize = 1024;
 const OUTER_EFFECT_QUEUE_BYTES: usize = 4 * 1024 * 1024;
 const OUTER_CONTROL_QUEUE_FRAMES: usize = 8;
 #[cfg(test)]
@@ -60,7 +60,7 @@ pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 18] = [
     ("tabs.new", Some("alt+a")),
     ("tabs.close", Some("alt+w")),
     ("tabs.rename", Some("f2")),
-    ("tabs.settings", Some("alt+.")),
+    ("tabs.settings", Some("alt+,")),
     ("tabs.jump1", Some("alt+1")),
     ("tabs.jump2", Some("alt+2")),
     ("tabs.jump3", Some("alt+3")),
@@ -362,6 +362,16 @@ fn admit_alt_code_input(
     if !windows {
         return Event::Key(key);
     }
+    // Platform: on Windows, crossterm can report a plain Ctrl+C as `Char('C')` with Shift and
+    // Control (observed in Windows Terminal), so neither the detach chord nor the child would see
+    // an interrupt. Windows Terminal binds a real Ctrl+Shift+C to copy before it reaches the
+    // program, so this report always means Ctrl+C.
+    if key.code == KeyCode::Char('C')
+        && key.modifiers == KeyModifiers::SHIFT | KeyModifiers::CONTROL
+    {
+        key.code = KeyCode::Char('c');
+        key.modifiers = KeyModifiers::CONTROL;
+    }
     if let KeyCode::Char(character) = key.code {
         let folded = character.to_lowercase().next().unwrap_or(character);
         match key.kind {
@@ -454,11 +464,74 @@ fn read_time_format(path: &Path) -> TimeFormat {
     )
 }
 
+/// Development diagnostics: when `A1_ATTACH_KEY_TRACE` names a file, the attach client appends
+/// every outer key event and each detach-chord decision, so a terminal's key reporting can be
+/// compared with what the chord expects. Key codes only; never pasted text or child output.
+fn key_trace(path: Option<&Path>, line: &str) {
+    let Some(path) = path else {
+        return;
+    };
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(file, "{line}");
+    }
+}
+
+/// Reads the owned `quitAnimation` setting, which defaults to on, from the canonical profile.
+fn read_quit_animation(path: &Path) -> bool {
+    std::fs::metadata(path)
+        .ok()
+        .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
+        .and_then(|_| std::fs::read(path).ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|document| {
+            document
+                .get("a1")
+                .and_then(|value| value.get("quitAnimation"))
+                .and_then(serde_json::Value::as_bool)
+        })
+        .unwrap_or(true)
+}
+
+/// The owned theme's dark `selectedBg` for each A1 accent, derived by
+/// `derivePiAccentProjection(accent, "dark")`; popups hover with it like owned menus.
+fn accent_selected_background(accent: Option<&str>) -> [u8; 3] {
+    match accent {
+        Some("blue") => [52, 57, 69],
+        Some("cyan") => [48, 60, 61],
+        Some("green") => [50, 60, 54],
+        Some("orange") => [67, 54, 48],
+        Some("pink") => [65, 53, 62],
+        _ => [58, 56, 66],
+    }
+}
+
+/// Reads the owned accent's popup hover background, defaulting to the purple accent's.
+fn read_accent_hover(path: &Path) -> [u8; 3] {
+    let accent = std::fs::metadata(path)
+        .ok()
+        .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
+        .and_then(|_| std::fs::read(path).ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|document| {
+            document
+                .get("a1")
+                .and_then(|value| value.get("accentColor"))
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        });
+    accent_selected_background(accent.as_deref())
+}
+
 #[derive(Debug)]
 struct TimeFormatWatch {
     path: PathBuf,
     signature: Option<(std::time::SystemTime, u64)>,
     value: TimeFormat,
+    accent_hover: [u8; 3],
     checked_at: Instant,
 }
 
@@ -468,10 +541,12 @@ impl TimeFormatWatch {
             path: path.to_owned(),
             signature: settings_signature(path),
             value: read_time_format(path),
+            accent_hover: read_accent_hover(path),
             checked_at: Instant::now(),
         }
     }
 
+    /// Re-reads the settings document after it changed; true when the strip format changed.
     fn refresh(&mut self) -> bool {
         if self.checked_at.elapsed() < SETTINGS_POLL_INTERVAL {
             return false;
@@ -482,6 +557,7 @@ impl TimeFormatWatch {
             return false;
         }
         self.signature = signature;
+        self.accent_hover = read_accent_hover(&self.path);
         let value = read_time_format(&self.path);
         if value == self.value {
             return false;
@@ -503,6 +579,10 @@ fn settings_signature(path: &Path) -> Option<(std::time::SystemTime, u64)> {
     let metadata = std::fs::metadata(path).ok()?;
     Some((metadata.modified().ok()?, metadata.len()))
 }
+
+/// The v2 neutral hover background, used where no accent applies.
+#[cfg(test)]
+const POPUP_HOVER_NEUTRAL: [u8; 3] = [48, 48, 48];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum PopupKind {
@@ -598,8 +678,9 @@ impl PopupMenu {
             vec![
                 PopupItem::action("+ Agent", bindings.label("tabs.new"), PopupAction::NewAgent),
                 PopupItem::separator(),
+                // Invariant: labels align after the `+ ` marker, so Settings starts under Agent.
                 PopupItem::action(
-                    "Settings",
+                    "  Settings",
                     bindings.label("tabs.settings"),
                     PopupAction::Settings,
                 ),
@@ -711,19 +792,28 @@ impl PopupMenu {
         self.hovered = Some(selectable[next]);
     }
 
+    #[cfg(test)]
     fn render(&self) -> String {
         self.render_with_color(!palette_fallback_requested())
     }
 
+    #[cfg(test)]
     fn render_with_color(&self, truecolor: bool) -> String {
+        self.render_styled(truecolor, POPUP_HOVER_NEUTRAL)
+    }
+
+    /// Renders with `hover` as the hovered row's truecolor background, the accent's
+    /// `selectedBg` in live use so popups hover like owned menus.
+    fn render_styled(&self, truecolor: bool, hover: [u8; 3]) -> String {
         let inner = usize::from(self.width).saturating_sub(2);
         let mut output = String::from("\x1b[s");
         for (index, item) in self.items.iter().enumerate() {
             let row = index + 2;
             output.push_str(&format!("\x1b[{row};{}H", self.column.saturating_add(1)));
             if truecolor {
+                let hovered_background = format!("{};{};{}", hover[0], hover[1], hover[2]);
                 let background = if self.hovered == Some(index) && item.action.is_some() {
-                    "48;48;48"
+                    hovered_background.as_str()
                 } else {
                     "38;38;38"
                 };
@@ -759,7 +849,11 @@ impl PopupMenu {
                 } else {
                     let (mut label, gap, shortcut) = menu_text_parts(item, inner);
                     label.push_str(&" ".repeat(gap));
-                    label.push_str(&shortcut);
+                    if !shortcut.is_empty() {
+                        // Compatibility: The palette counterpart of the truecolor muted shortcut.
+                        label.push_str("\x1b[38;5;242m");
+                        label.push_str(&shortcut);
+                    }
                     label
                 };
                 output.push_str(&format!(
@@ -773,13 +867,22 @@ impl PopupMenu {
 }
 
 fn palette_fallback_requested() -> bool {
-    if std::env::var("TERMINAL_HOST_COLOR_MODE").is_ok_and(|value| value == "palette") {
-        return true;
-    }
-    std::env::var("TERM").is_ok_and(|term| term.contains("256color"))
-        && std::env::var("COLORTERM").map_or(true, |value| {
-            !matches!(value.as_str(), "truecolor" | "24bit")
-        })
+    strip::palette_fallback_requested()
+}
+
+const RENAME_HISTORY_LIMIT: usize = 100;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RenameSnapshot {
+    text: String,
+    cursor: usize,
+    selection_anchor: Option<usize>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RenameEdit {
+    Typing,
+    Other,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -788,6 +891,9 @@ struct RenameEditor {
     text: String,
     cursor: usize,
     selection_anchor: Option<usize>,
+    undo: Vec<RenameSnapshot>,
+    redo: Vec<RenameSnapshot>,
+    last_edit: Option<RenameEdit>,
 }
 
 impl RenameEditor {
@@ -798,7 +904,68 @@ impl RenameEditor {
             text,
             cursor,
             selection_anchor: None,
+            undo: Vec::new(),
+            redo: Vec::new(),
+            last_edit: None,
         }
+    }
+
+    fn snapshot(&self) -> RenameSnapshot {
+        RenameSnapshot {
+            text: self.text.clone(),
+            cursor: self.cursor,
+            selection_anchor: self.selection_anchor,
+        }
+    }
+
+    fn restore(&mut self, snapshot: RenameSnapshot) {
+        self.text = snapshot.text;
+        self.cursor = snapshot.cursor;
+        self.selection_anchor = snapshot.selection_anchor;
+    }
+
+    /// Records the state before an edit; consecutive typed characters share one undo step.
+    fn record(&mut self, edit: RenameEdit) {
+        if edit == RenameEdit::Typing && self.last_edit == Some(RenameEdit::Typing) {
+            return;
+        }
+        self.undo.push(self.snapshot());
+        if self.undo.len() > RENAME_HISTORY_LIMIT {
+            self.undo.remove(0);
+        }
+        self.redo.clear();
+        self.last_edit = Some(edit);
+    }
+
+    /// Applies an edit and keeps it in history only when it changed the text.
+    fn edit(&mut self, kind: RenameEdit, change: impl FnOnce(&mut Self)) {
+        let before = self.snapshot();
+        let last_edit = self.last_edit;
+        let undo_len = self.undo.len();
+        let redo = self.redo.clone();
+        self.record(kind);
+        change(self);
+        if self.text == before.text {
+            self.undo.truncate(undo_len);
+            self.redo = redo;
+            self.last_edit = last_edit;
+        }
+    }
+
+    fn undo(&mut self) {
+        if let Some(snapshot) = self.undo.pop() {
+            self.redo.push(self.snapshot());
+            self.restore(snapshot);
+        }
+        self.last_edit = None;
+    }
+
+    fn redo(&mut self) {
+        if let Some(snapshot) = self.redo.pop() {
+            self.undo.push(self.snapshot());
+            self.restore(snapshot);
+        }
+        self.last_edit = None;
     }
 
     fn len(&self) -> usize {
@@ -840,40 +1007,70 @@ impl RenameEditor {
     }
 
     fn insert(&mut self, value: char) {
-        self.delete_selection();
-        if self.len() >= 64 {
-            return;
-        }
-        let offset = self.byte_offset(self.cursor);
-        self.text.insert(offset, value);
-        self.cursor += 1;
+        self.edit(RenameEdit::Typing, |editor| {
+            editor.delete_selection();
+            if editor.len() >= 64 {
+                return;
+            }
+            let offset = editor.byte_offset(editor.cursor);
+            editor.text.insert(offset, value);
+            editor.cursor += 1;
+        });
     }
 
     fn backspace(&mut self) {
-        if self.delete_selection() || self.cursor == 0 {
-            return;
-        }
-        let start = self.byte_offset(self.cursor - 1);
-        let end = self.byte_offset(self.cursor);
-        self.text.replace_range(start..end, "");
-        self.cursor -= 1;
+        self.edit(RenameEdit::Other, |editor| {
+            if editor.delete_selection() || editor.cursor == 0 {
+                return;
+            }
+            let start = editor.byte_offset(editor.cursor - 1);
+            let end = editor.byte_offset(editor.cursor);
+            editor.text.replace_range(start..end, "");
+            editor.cursor -= 1;
+        });
     }
 
     fn delete(&mut self) {
-        if self.delete_selection() || self.cursor >= self.len() {
-            return;
-        }
-        let start = self.byte_offset(self.cursor);
-        let end = self.byte_offset(self.cursor + 1);
-        self.text.replace_range(start..end, "");
+        self.edit(RenameEdit::Other, |editor| {
+            if editor.delete_selection() || editor.cursor >= editor.len() {
+                return;
+            }
+            let start = editor.byte_offset(editor.cursor);
+            let end = editor.byte_offset(editor.cursor + 1);
+            editor.text.replace_range(start..end, "");
+        });
+    }
+
+    fn delete_word_left(&mut self) {
+        self.edit(RenameEdit::Other, |editor| {
+            if editor.delete_selection() {
+                return;
+            }
+            let start = editor.word_left_boundary();
+            let (from, to) = (editor.byte_offset(start), editor.byte_offset(editor.cursor));
+            editor.text.replace_range(from..to, "");
+            editor.cursor = start;
+        });
+    }
+
+    fn delete_word_right(&mut self) {
+        self.edit(RenameEdit::Other, |editor| {
+            if editor.delete_selection() {
+                return;
+            }
+            let end = editor.word_right_boundary();
+            let (from, to) = (editor.byte_offset(editor.cursor), editor.byte_offset(end));
+            editor.text.replace_range(from..to, "");
+        });
     }
 
     fn move_cursor(&mut self, cursor: usize) {
         self.cursor = cursor.min(self.len());
         self.selection_anchor = None;
+        self.last_edit = None;
     }
 
-    fn move_word_left(&mut self) {
+    fn word_left_boundary(&self) -> usize {
         let graphemes = self.text.graphemes(true).collect::<Vec<_>>();
         let mut cursor = self.cursor.min(graphemes.len());
         while cursor > 0 && graphemes[cursor - 1].chars().all(char::is_whitespace) {
@@ -882,10 +1079,10 @@ impl RenameEditor {
         while cursor > 0 && !graphemes[cursor - 1].chars().all(char::is_whitespace) {
             cursor -= 1;
         }
-        self.move_cursor(cursor);
+        cursor
     }
 
-    fn move_word_right(&mut self) {
+    fn word_right_boundary(&self) -> usize {
         let graphemes = self.text.graphemes(true).collect::<Vec<_>>();
         let mut cursor = self.cursor.min(graphemes.len());
         while cursor < graphemes.len() && !graphemes[cursor].chars().all(char::is_whitespace) {
@@ -894,13 +1091,43 @@ impl RenameEditor {
         while cursor < graphemes.len() && graphemes[cursor].chars().all(char::is_whitespace) {
             cursor += 1;
         }
-        self.move_cursor(cursor);
+        cursor
+    }
+
+    fn move_word_left(&mut self) {
+        self.move_cursor(self.word_left_boundary());
+    }
+
+    fn move_word_right(&mut self) {
+        self.move_cursor(self.word_right_boundary());
     }
 
     fn select_all(&mut self) {
         self.selection_anchor = Some(0);
         self.cursor = self.len();
+        self.last_edit = None;
     }
+}
+
+/// Handles the rename editor's control-key edits; returns `false` for keys it does not own.
+/// Terminals report Ctrl+Backspace as Backspace with Ctrl, Ctrl+H, or Ctrl+W.
+fn apply_rename_control_key(
+    editor: &mut RenameEditor,
+    code: KeyCode,
+    modifiers: KeyModifiers,
+) -> bool {
+    if !modifiers.contains(KeyModifiers::CONTROL) {
+        return false;
+    }
+    match code {
+        KeyCode::Backspace | KeyCode::Char('h' | 'H' | 'w' | 'W') => editor.delete_word_left(),
+        KeyCode::Delete => editor.delete_word_right(),
+        KeyCode::Char('a' | 'A') => editor.select_all(),
+        KeyCode::Char('z') if !modifiers.contains(KeyModifiers::SHIFT) => editor.undo(),
+        KeyCode::Char('Z') | KeyCode::Char('z') | KeyCode::Char('y' | 'Y') => editor.redo(),
+        _ => return false,
+    }
+    true
 }
 
 #[derive(Debug, Clone)]
@@ -1050,6 +1277,106 @@ pub fn tab_rows(outer_rows: u16) -> Result<u16, &'static str> {
 }
 pub fn child_mouse_row(outer_row: u16) -> Option<u16> {
     outer_row.checked_sub(1)
+}
+
+/// The Settings shortcut toggles: on the viewed Settings tab it hides that tab, returning to the
+/// previous tab; anywhere else it shows the singleton Settings tab.
+fn settings_toggle_closes(viewed: Option<&str>) -> Option<&str> {
+    viewed.filter(|id| id.starts_with("settings-"))
+}
+
+/// How long the client waits, with tabs present and no Settings tab, before starting a hidden one
+/// so the Settings shortcut opens instantly.
+const SETTINGS_PREWARM_DELAY: Duration = Duration::from_secs(2);
+
+/// The tabs the strip, jumps, and drags present. A running Settings tab stays hidden until it is
+/// viewed in this session, and after the Settings shortcut hides it, so its process can be reused
+/// instantly instead of starting a new one.
+fn shown_tabs(tabs: &[StripTab], viewed: Option<&str>, settings_shown: bool) -> Vec<StripTab> {
+    tabs.iter()
+        .filter(|tab| {
+            !tab.id.starts_with("settings-") || settings_shown || viewed == Some(tab.id.as_str())
+        })
+        .cloned()
+        .collect()
+}
+
+/// How long a tab must stay starting or restoring before its chip shows the lifecycle spinner.
+const STARTING_GLYPH_DELAY: Duration = Duration::from_millis(500);
+
+/// Hides a starting chip's spinner for its first moments. A tab that becomes ready quickly
+/// otherwise shows a spinner that vanishes at once and shifts its title: a visible flash.
+fn debounce_starting_glyphs(
+    shown: &mut [StripTab],
+    since: &mut HashMap<String, Instant>,
+    now: Instant,
+) {
+    let starting = |tab: &StripTab| matches!(tab.status.as_str(), "starting" | "restoring");
+    since.retain(|id, _| shown.iter().any(|tab| &tab.id == id && starting(tab)));
+    for tab in shown.iter_mut().filter(|tab| starting(tab)) {
+        let began = *since.entry(tab.id.clone()).or_insert(now);
+        if now.saturating_duration_since(began) < STARTING_GLYPH_DELAY {
+            tab.status = "idle".into();
+        }
+    }
+}
+
+/// How long a chip keeps its last glyph when its status momentarily reports none.
+const GLYPH_SWAP_HOLD: Duration = Duration::from_millis(300);
+
+/// Keeps a chip's previous glyph while its status briefly has none, such as the idle report
+/// between a working spinner and the finished checkmark, so glyphs swap in place and the title
+/// never shifts. Returns when the earliest active hold expires, so the strip repaints then.
+fn hold_status_glyphs(
+    shown: &mut [StripTab],
+    held: &mut HashMap<String, (String, Instant)>,
+    now: Instant,
+) -> Option<Instant> {
+    held.retain(|id, _| shown.iter().any(|tab| &tab.id == id));
+    let mut expires: Option<Instant> = None;
+    for tab in shown.iter_mut() {
+        if strip::status_has_glyph(&tab.status) {
+            held.insert(tab.id.clone(), (tab.status.clone(), now));
+            continue;
+        }
+        let Some((status, seen)) = held.get(&tab.id).cloned() else {
+            continue;
+        };
+        let until = seen + GLYPH_SWAP_HOLD;
+        if now < until {
+            tab.status = status;
+            expires = Some(expires.map_or(until, |earliest| earliest.min(until)));
+        } else {
+            held.remove(&tab.id);
+        }
+    }
+    expires
+}
+
+/// Maps an insertion index among shown tabs to the registry index the server reorders by.
+fn registry_index(shown: &[StripTab], tabs: &[StripTab], shown_index: usize) -> usize {
+    shown
+        .get(shown_index)
+        .and_then(|target| tabs.iter().position(|tab| tab.id == target.id))
+        .unwrap_or_else(|| {
+            shown
+                .last()
+                .and_then(|last| tabs.iter().position(|tab| tab.id == last.id))
+                .map_or(tabs.len(), |index| index + 1)
+        })
+}
+
+/// Decides whether buttonless pointer motion over the body reaches the child. Motion is never
+/// deferred behind a pending view, where it would exhaust the budget that typed input needs,
+/// and is dropped when the child's reported modes show it does not track the mouse.
+fn forward_pointer_motion(view_pending: bool, modes: Option<&TerminalModes>) -> bool {
+    !view_pending && modes.is_none_or(|modes| modes.mouse_tracking)
+}
+
+/// A holder's first surface carries a provisional `idle` before the tab bridge reports; it must
+/// not flip a starting chip to idle and back. Bridge status and registry snapshots still apply.
+fn holder_idle_precedes_bridge(chip: &str, surface: &str) -> bool {
+    surface == "idle" && matches!(chip, "starting" | "restoring")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1403,6 +1730,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     });
 
     let mut terminal = OuterTerminal::enter()?;
+    let key_trace_path = std::env::var_os("A1_ATTACH_KEY_TRACE").map(PathBuf::from);
     let (input_tx, input_rx) = mpsc::sync_channel::<Result<Event, String>>(1024);
     thread::spawn(move || {
         loop {
@@ -1445,7 +1773,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         structured: None,
         legacy_body: latest_surface.clone(),
         overlay: None,
-        cursor: None,
+        // Invariant: the launch frame hides the cursor until the first child surface places it.
+        cursor: Some(FinalCursor::Hidden),
         modes: None,
         columns,
         outer_rows,
@@ -1469,12 +1798,21 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut registry_revision = 0u64;
     let mut drag: Option<TabDrag> = None;
     let mut latest_modes: Option<TerminalModes> = None;
-    let mut latest_cursor: Option<FinalCursor> = None;
+    // Invariant: no cursor shows until a committed child surface places one.
+    let mut latest_cursor: Option<FinalCursor> = Some(FinalCursor::Hidden);
     let mut bindings = TabBindings::load(options.profile);
     // Concurrency: a shortcut can arrive after the server created a tab but before its registry
     // snapshot reaches this client; retain the requested ordinal until that snapshot arrives.
     let mut pending_jump = None::<(usize, u64)>;
     let mut pending_created_activation = false;
+    // Invariant: a Settings tab joins the strip only once viewed in this session; the Settings
+    // shortcut hides it again while its process keeps running for an instant reopen.
+    let mut settings_shown = false;
+    let mut settings_prewarm_pending = false;
+    let mut settings_absent_since: Option<Instant> = None;
+    let mut starting_since = HashMap::<String, Instant>::new();
+    let mut held_glyphs = HashMap::<String, (String, Instant)>::new();
+    let mut glyph_hold_expires: Option<Instant> = None;
     let mut deferred_input = DeferredInput::default();
     macro_rules! send_child_frames {
         ($frames:expr) => {{
@@ -1487,10 +1825,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 None
             };
             if let Some(target) = deferred {
+                // Invariant: an over-budget frame is refused whole, before any prefix reaches a
+                // child, and without a notice row over the pending tab.
                 if deferred_input.push(target, frames).is_err() {
                     user_input_pending = false;
-                    transient_notice = Some("Input was not sent; try again.".into());
-                    paint_current!(false);
                 }
             } else {
                 for frame in frames {
@@ -1530,11 +1868,19 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             )?;
         }};
     }
+    macro_rules! shown {
+        () => {
+            shown_tabs(&tabs, view.viewed.as_deref(), settings_shown)
+        };
+    }
     macro_rules! paint_current {
         ($clear:expr) => {{
             let rename_display = rename.as_ref().map(RenameEditor::display);
+            let mut shown = shown!();
+            debounce_starting_glyphs(&mut shown, &mut starting_since, Instant::now());
+            glyph_hold_expires = hold_status_glyphs(&mut shown, &mut held_glyphs, Instant::now());
             strip_frame = strip::render_interactive(
-                &tabs,
+                &shown,
                 view.viewed.as_deref(),
                 columns,
                 hovered.as_ref(),
@@ -1547,7 +1893,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             {
                 hovered = None;
                 strip_frame = strip::render_interactive(
-                    &tabs,
+                    &shown,
                     view.viewed.as_deref(),
                     columns,
                     None,
@@ -1569,10 +1915,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     }
                 });
             let overlay = if let Some(menu) = popup.as_ref() {
-                Some(menu.render())
+                Some(menu.render_styled(!palette_fallback_requested(), time_format.accent_hover))
             } else if let Some(column) = drag
                 .as_ref()
-                .and_then(|drag| drag_marker_column(drag, &tabs, &strip_frame))
+                .and_then(|drag| drag_marker_column(drag, &shown, &strip_frame))
             {
                 Some(render_drag_marker(column, columns))
             } else if let Some(notice) = transient_notice.as_deref().or(status_notice.as_deref()) {
@@ -1619,7 +1965,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 PopupAction::Close => {
                     if let Some(tab_id) = $menu.tab_id.clone() {
-                        close_fallback = close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
+                        close_fallback =
+                            close_fallback_for(&shown!(), view.viewed.as_deref(), &tab_id);
                         wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
                     }
                 }
@@ -1628,8 +1975,18 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     wire::send(&mut stream, "tab.create", None, create.clone())?;
                 }
                 PopupAction::Settings => {
-                    pending_created_activation = true;
-                    wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
+                    settings_prewarm_pending = false;
+                    // Invariant: a running hidden Settings tab is reused instantly.
+                    if let Some(tab_id) = tabs
+                        .iter()
+                        .find(|tab| tab.id.starts_with("settings-"))
+                        .map(|tab| tab.id.clone())
+                    {
+                        request_view!(tab_id);
+                    } else {
+                        pending_created_activation = true;
+                        wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
+                    }
                 }
                 PopupAction::View(tab_id) => {
                     request_view!(tab_id);
@@ -1659,6 +2016,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 tabs = next;
             }
             if $requested {
+                if surface.tab_id.starts_with("settings-") {
+                    settings_shown = true;
+                }
                 close_fallback = None;
                 transient_notice = None;
                 if prompt_view != view.viewed {
@@ -1680,7 +2040,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 if dropped {
                     user_input_pending = false;
-                    transient_notice = Some("Input was not sent; try again.".into());
                 }
             }
             if surface.status == "failed" {
@@ -1689,7 +2048,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 failed_tab = None;
             }
             if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id) {
-                tab.status = surface.status.clone();
+                if !holder_idle_precedes_bridge(&tab.status, &surface.status) {
+                    tab.status = surface.status.clone();
+                }
                 tab.accent = surface.accent.clone();
             }
             latest_surface = without_bell(&surface.bytes);
@@ -1876,6 +2237,27 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             }
                         })
                         .collect::<Vec<_>>();
+                    // Invariant: a hidden Settings tab never surfaces by itself. When it is all
+                    // that remains, it closes with the last visible tab instead of taking the view.
+                    let settings_visible = settings_shown
+                        || view
+                            .viewed
+                            .as_deref()
+                            .is_some_and(|id| id.starts_with("settings-"));
+                    let mut next_tabs = next_tabs;
+                    if !settings_visible
+                        && !next_tabs.is_empty()
+                        && next_tabs.iter().all(|tab| tab.id.starts_with("settings-"))
+                    {
+                        for tab in next_tabs.drain(..) {
+                            wire::send(
+                                &mut stream,
+                                "tab.close",
+                                None,
+                                TabTarget { tab_id: tab.id },
+                            )?;
+                        }
+                    }
                     if pending_name_confirmed {
                         pending_manual_name = None;
                     }
@@ -1893,6 +2275,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         close_fallback
                             .as_ref()
                             .and_then(|fallback| fallback.resolve(candidates))
+                            .or_else(|| {
+                                candidates
+                                    .iter()
+                                    .find(|tab| {
+                                        settings_visible || !tab.id.starts_with("settings-")
+                                    })
+                                    .map(|tab| tab.id.clone())
+                            })
                     });
                     if outcome
                         .dropped_request
@@ -1900,7 +2290,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         .is_some_and(|target| deferred_input.discard_tab(target))
                     {
                         user_input_pending = false;
-                        transient_notice = Some("Input was not sent; try again.".into());
                     }
                     if let Some(tab_id) = outcome.view_request {
                         request_view!(tab_id);
@@ -1957,7 +2346,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 latest_geometry_generation = 0;
                                 pending_terminal_effects.clear();
                                 latest_modes = None;
-                                latest_cursor = None;
+                                latest_cursor = Some(FinalCursor::Hidden);
                                 close_fallback = None;
                                 paint_current!(true);
                             } else if changed {
@@ -1968,9 +2357,29 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "tab.created" | "tab.selected" => {
                     let (_, target): (_, TabTarget) = wire::body(&payload)?;
+                    if settings_prewarm_pending && target.tab_id.starts_with("settings-") {
+                        // Invariant: a prewarmed Settings tab starts hidden and never takes the
+                        // view or a pending Agent creation's input.
+                        settings_prewarm_pending = false;
+                        wire::send(
+                            &mut stream,
+                            "tab.list",
+                            None,
+                            wire::ResultBody {
+                                accepted: true,
+                                message: None,
+                            },
+                        )?;
+                        continue;
+                    }
                     pending_created_activation = false;
                     deferred_input.retarget_created(&target.tab_id);
+                    let created = kind.message_type == "tab.created";
+                    let tab_id = target.tab_id.clone();
                     request_view!(target.tab_id);
+                    if created {
+                        view.await_first_draw(&tab_id);
+                    }
                     wire::send(
                         &mut stream,
                         "tab.list",
@@ -2077,7 +2486,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         },
                     )?;
                     terminal.restore()?;
-                    print_hint(tabs.len());
+                    print_hint(running_agent_count(&tabs));
                     return Ok(());
                 }
                 "refused" => {
@@ -2111,14 +2520,26 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                         continue;
                     }
+                    if kind.message_type == "input.rejected"
+                        && result.message.as_deref()
+                            == Some(crate::roles::server::INPUT_REJECTED_READ_ONLY)
+                    {
+                        // Invariant: controller handoff stays invisible; this terminal re-claims
+                        // its viewed tab instead of painting a delivery notice over the child.
+                        user_input_pending = false;
+                        wire::send(
+                            &mut stream,
+                            "tab.claimInput",
+                            None,
+                            wire::ResultBody {
+                                accepted: true,
+                                message: None,
+                            },
+                        )?;
+                        continue;
+                    }
                     let message = if kind.message_type == "input.rejected" {
-                        let message = match result.message.as_deref() {
-                            Some(crate::roles::server::INPUT_REJECTED_READ_ONLY) => {
-                                Some("Input was not sent; try again.".into())
-                            }
-                            _ => result.message,
-                        };
-                        rejection_notice(&mut user_input_pending, message)
+                        rejection_notice(&mut user_input_pending, result.message)
                     } else {
                         result.message
                     };
@@ -2161,11 +2582,34 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         if time_format.refresh() {
             paint_strip!();
         }
+        // Invariant: A held glyph that no status replaced is released once its hold ends.
+        if glyph_hold_expires.is_some_and(|until| Instant::now() >= until) {
+            paint_strip!();
+        }
         let current_clock_minute = clock_minute();
         if current_clock_minute != displayed_clock_minute {
             displayed_clock_minute = current_clock_minute;
-            if !tabs.is_empty() {
-                paint_strip!();
+            paint_strip!();
+        }
+        // Rationale: Settings opens in its own process; starting it hidden ahead of time makes the
+        // Settings shortcut as immediate as solo's in-process Settings screen.
+        let settings_exists = tabs.iter().any(|tab| tab.id.starts_with("settings-"));
+        if settings_exists || tabs.is_empty() {
+            settings_absent_since = None;
+            if !settings_exists {
+                settings_shown = false;
+            }
+        } else if !settings_prewarm_pending
+            && !pending_created_activation
+            && view.requested.is_none()
+            && view.viewed.is_some()
+        {
+            let since = *settings_absent_since.get_or_insert_with(Instant::now);
+            if since.elapsed() >= SETTINGS_PREWARM_DELAY {
+                settings_absent_since = None;
+                settings_shown = false;
+                settings_prewarm_pending = true;
+                wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
             }
         }
         if last_list.elapsed() >= Duration::from_millis(500) {
@@ -2185,7 +2629,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             && current_drag.started_at.elapsed() >= Duration::from_millis(250)
         {
             let column = current_drag.start_column;
-            if update_drag(current_drag, column, true, &tabs, &strip_frame) {
+            if update_drag(current_drag, column, true, &shown!(), &strip_frame) {
                 paint_current!(false);
             }
         }
@@ -2200,6 +2644,55 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             }
         };
         let next = admit_alt_code_input(cfg!(windows), &mut pressed_chars, next);
+        if let Event::Mouse(mouse) = &next
+            && key_trace_path.is_some()
+            && !matches!(mouse.kind, MouseEventKind::Moved)
+        {
+            key_trace(
+                key_trace_path.as_deref(),
+                &format!(
+                    "{} {} mouse kind={:?} row={} column={} mods={:?} viewed={:?}",
+                    started.elapsed().as_millis(),
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .map_or(0, |elapsed| elapsed.as_micros()),
+                    mouse.kind,
+                    mouse.row,
+                    mouse.column,
+                    mouse.modifiers,
+                    view.viewed
+                ),
+            );
+        }
+        if let Event::Key(key) = &next
+            && key_trace_path.is_some()
+        {
+            // Security: ordinary typed characters are recorded only as `Char(_)`.
+            let code = match key.code {
+                KeyCode::Char(character)
+                    if !character.is_control()
+                        && !key
+                            .modifiers
+                            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+                {
+                    "Char(_)".to_owned()
+                }
+                code => format!("{code:?}"),
+            };
+            key_trace(
+                key_trace_path.as_deref(),
+                &format!(
+                    "{} {} key kind={:?} code={code} mods={:?} state={:?}",
+                    started.elapsed().as_millis(),
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .map_or(0, |elapsed| elapsed.as_micros()),
+                    key.kind,
+                    key.modifiers,
+                    key.state
+                ),
+            );
+        }
         // Invariant: a prompt belongs to the view it was opened in; a strip click, shortcut, or
         // tab removal that changes the view.viewed tab cancels it instead of letting it swallow the
         // new tab's keys.
@@ -2228,6 +2721,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     submit = Some((editor.tab_id.clone(), name));
                                 }
                             }
+                            _ if apply_rename_control_key(editor, key.code, key.modifiers) => {}
                             KeyCode::Backspace => editor.backspace(),
                             KeyCode::Delete => editor.delete(),
                             KeyCode::Left if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -2242,11 +2736,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             }
                             KeyCode::Home => editor.move_cursor(0),
                             KeyCode::End => editor.move_cursor(editor.len()),
-                            KeyCode::Char('a' | 'A')
-                                if key.modifiers.contains(KeyModifiers::CONTROL) =>
-                            {
-                                editor.select_all();
-                            }
+                            KeyCode::Char(_)
+                                if key
+                                    .modifiers
+                                    .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) => {}
                             KeyCode::Char(ch) if !ch.is_control() => editor.insert(ch),
                             _ => {
                                 cancel = true;
@@ -2318,13 +2811,46 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             wire::send(&mut stream, "tab.create", None, create.clone())?;
                         }
                         "tabs.settings" => {
-                            pending_created_activation = true;
-                            wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
+                            settings_prewarm_pending = false;
+                            if let Some(tab_id) = settings_toggle_closes(view.viewed.as_deref()) {
+                                let tab_id = tab_id.to_owned();
+                                let shown = shown!();
+                                let survivors = shown
+                                    .iter()
+                                    .filter(|tab| tab.id != tab_id)
+                                    .cloned()
+                                    .collect::<Vec<_>>();
+                                let previous =
+                                    close_fallback_for(&shown, view.viewed.as_deref(), &tab_id)
+                                        .and_then(|fallback| fallback.resolve(&survivors));
+                                if let Some(previous) = previous {
+                                    // Invariant: hiding keeps the Settings process for reuse.
+                                    settings_shown = false;
+                                    request_view!(previous);
+                                } else {
+                                    close_fallback = None;
+                                    wire::send(
+                                        &mut stream,
+                                        "tab.close",
+                                        None,
+                                        TabTarget { tab_id },
+                                    )?;
+                                }
+                            } else if let Some(tab_id) = tabs
+                                .iter()
+                                .find(|tab| tab.id.starts_with("settings-"))
+                                .map(|tab| tab.id.clone())
+                            {
+                                request_view!(tab_id);
+                            } else {
+                                pending_created_activation = true;
+                                wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
+                            }
                         }
                         "tabs.close" => {
                             if let Some(tab_id) = view.viewed.clone() {
                                 close_fallback =
-                                    close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
+                                    close_fallback_for(&shown!(), view.viewed.as_deref(), &tab_id);
                                 wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
                             }
                         }
@@ -2343,18 +2869,19 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             }
                         }
                         "tabs.next" | "tabs.previous" => {
-                            if !tabs.is_empty() {
+                            let shown = shown!();
+                            if !shown.is_empty() {
                                 let current = view
                                     .viewed
                                     .as_ref()
-                                    .and_then(|id| tabs.iter().position(|tab| &tab.id == id))
+                                    .and_then(|id| shown.iter().position(|tab| &tab.id == id))
                                     .unwrap_or(0);
                                 let index = if action == "tabs.next" {
-                                    (current + 1) % tabs.len()
+                                    (current + 1) % shown.len()
                                 } else {
-                                    (current + tabs.len() - 1) % tabs.len()
+                                    (current + shown.len() - 1) % shown.len()
                                 };
-                                let tab_id = tabs[index].id.clone();
+                                let tab_id = shown[index].id.clone();
                                 request_view!(tab_id);
                             }
                         }
@@ -2385,9 +2912,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 .parse::<usize>()
                                 .unwrap_or(1)
                                 .saturating_sub(1);
-                            if let Some(tab) = tabs.get(index) {
+                            if let Some(tab_id) = shown!().get(index).map(|tab| tab.id.clone()) {
                                 pending_jump = None;
-                                request_view!(tab.id.clone());
+                                request_view!(tab_id);
                             } else {
                                 pending_jump = Some((index, registry_revision));
                             }
@@ -2407,7 +2934,12 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 // particular terminal protocol produced for it.
                 let ctrl_c = event.as_ref().is_some_and(outer_input::is_ctrl_c_event)
                     || (event.is_none() && is_ctrl_c_bytes(&bytes));
-                if chord.admit(now, ctrl_c) == CtrlCDisposition::Detach {
+                let disposition = chord.admit(now, ctrl_c);
+                key_trace(
+                    key_trace_path.as_deref(),
+                    &format!("{now} chord ctrl_c={ctrl_c} -> {disposition:?}"),
+                );
+                if disposition == CtrlCDisposition::Detach {
                     wire::send(
                         &mut stream,
                         "detach",
@@ -2417,8 +2949,17 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             message: None,
                         },
                     )?;
+                    // Invariant: double Ctrl+C leaves from any tab with solo's quit animation
+                    // when it is enabled; restoration follows whether or not it played.
+                    if read_quit_animation(options.settings_file) {
+                        terminal.play_quit_outro(&crate::roles::quit_outro::presented_row_widths(
+                            columns,
+                            outer_rows,
+                            latest_structured.as_ref(),
+                        ));
+                    }
                     terminal.restore()?;
-                    print_hint(tabs.len());
+                    print_hint(running_agent_count(&tabs));
                     return Ok(());
                 }
                 let viewed_status = view
@@ -2517,6 +3058,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     },
                 )?]);
             }
+            // Invariant: focus reports are state, not intent; while a view is pending they would
+            // only consume the deferred-input budget, and the next report carries current focus.
+            Event::FocusGained | Event::FocusLost
+                if view.requested.is_some() || pending_created_activation => {}
             Event::FocusGained if !failed => {
                 wire::send(
                     &mut stream,
@@ -2587,7 +3132,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         current_drag,
                         mouse.column,
                         mouse.row == 0,
-                        &tabs,
+                        &shown!(),
                         &strip_frame,
                     ) {
                         paint_current!(false);
@@ -2597,14 +3142,15 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 if matches!(mouse.kind, MouseEventKind::Up(MouseButton::Left))
                     && let Some(mut completed) = drag.take()
                 {
+                    let shown = shown!();
                     update_drag(
                         &mut completed,
                         mouse.column,
                         mouse.row == 0,
-                        &tabs,
+                        &shown,
                         &strip_frame,
                     );
-                    let from = tabs.iter().position(|tab| tab.id == completed.tab_id);
+                    let from = shown.iter().position(|tab| tab.id == completed.tab_id);
                     if mouse.row == 0
                         && completed.shown
                         && let Some(target_index) = completed.drop_index
@@ -2616,7 +3162,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             None,
                             TabReorder {
                                 tab_id: completed.tab_id,
-                                target_index,
+                                target_index: registry_index(&shown, &tabs, target_index),
                                 expected_revision: completed.expected_revision,
                             },
                         )?;
@@ -2651,7 +3197,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     start_column: mouse.column,
                                     started_at: Instant::now(),
                                     shown: false,
-                                    drop_index: tabs.iter().position(|tab| tab.id == tab_id),
+                                    drop_index: shown!().iter().position(|tab| tab.id == tab_id),
                                     expected_revision: registry_revision,
                                 });
                                 if view.viewed.as_deref() != Some(tab_id.as_str()) {
@@ -2681,6 +3227,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 if hovered.take().is_some() {
                     paint_current!(false);
+                }
+                if matches!(mouse.kind, MouseEventKind::Moved)
+                    && !forward_pointer_motion(
+                        view.requested.is_some() || pending_created_activation,
+                        latest_modes.as_ref(),
+                    )
+                {
+                    continue;
                 }
                 let event = outer_input::normalize_mouse(
                     mouse.kind,
@@ -2962,6 +3516,13 @@ impl OuterWriter {
         Ok(())
     }
 
+    /// Drops a presentation not yet written, so nothing repaints over a quit outro.
+    fn discard_presentation(&self) {
+        if let Ok(mut latest) = self.latest.lock() {
+            *latest = None;
+        }
+    }
+
     fn bytes(&self, bytes: &[u8]) -> Result<(), String> {
         self.check()?;
         self.effect_bytes
@@ -3023,6 +3584,15 @@ impl OuterTerminal {
     fn present(&self, desired: DesiredPresentation) -> Result<(), String> {
         self.writer.offer(desired)
     }
+    /// Plays bare A1's fall outro over the screen this client presented, before restoration.
+    fn play_quit_outro(&self, row_widths: &[usize]) {
+        self.writer.discard_presentation();
+        let seed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.subsec_nanos());
+        crate::roles::quit_outro::play(row_widths, seed, |bytes| self.write(bytes).is_ok());
+        let _ = self.write(b"\x1b[?25h");
+    }
     fn restore_sequence(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(outer_input::RESET_CURSOR_STYLE);
@@ -3054,6 +3624,13 @@ impl Drop for OuterTerminal {
             self.restored = true;
         }
     }
+}
+
+/// Agents left running after a detach; the global Settings tab is not an agent.
+fn running_agent_count(tabs: &[StripTab]) -> usize {
+    tabs.iter()
+        .filter(|tab| !tab.id.starts_with("settings-"))
+        .count()
 }
 
 fn print_hint(count: usize) {
@@ -3239,6 +3816,224 @@ mod tests {
             .expect("defer failed target input");
         assert!(failed_creation.discard_created());
         assert!(failed_creation.frames.is_empty());
+    }
+    #[test]
+    fn pointer_motion_never_consumes_a_pending_creation_budget() {
+        let tracking = TerminalModes {
+            mouse_tracking: true,
+            ..TerminalModes::default()
+        };
+        let untracked = TerminalModes::default();
+        assert!(!forward_pointer_motion(true, Some(&tracking)));
+        assert!(!forward_pointer_motion(true, None));
+        assert!(!forward_pointer_motion(false, Some(&untracked)));
+        assert!(forward_pointer_motion(false, Some(&tracking)));
+        assert!(forward_pointer_motion(false, None));
+
+        // Invariant: Keys typed while a new Agent starts keep their place even after heavy pointer motion,
+        // because motion is no longer deferred.
+        let mut deferred = DeferredInput::default();
+        for _ in 0..500 {
+            if forward_pointer_motion(true, Some(&tracking)) {
+                deferred
+                    .push(
+                        DeferredInputTarget::NextCreated,
+                        vec![b"\x1b[<35;1;2M".to_vec()],
+                    )
+                    .expect("defer motion");
+            }
+        }
+        let keys = (0..200u8).map(|value| vec![value]).collect::<Vec<_>>();
+        for key in &keys {
+            deferred
+                .push(DeferredInputTarget::NextCreated, vec![key.clone()])
+                .expect("typed keys fit the pending budget");
+        }
+        deferred.retarget_created("tab-new");
+        assert_eq!(deferred.resolve("tab-new"), (keys, false));
+    }
+    #[test]
+    fn glyphs_swap_in_place_without_a_glyphless_gap() {
+        let tab = |status: &str| StripTab {
+            id: "tab-1".into(),
+            name: "Agent".into(),
+            name_source: "default".into(),
+            status: status.into(),
+            accent: None,
+            title_animation: None,
+        };
+        let mut held = HashMap::new();
+        let start = Instant::now();
+        let mut working = vec![tab("working")];
+        assert_eq!(hold_status_glyphs(&mut working, &mut held, start), None);
+
+        // Invariant: The momentary idle between the spinner and the checkmark keeps the spinner.
+        let mut gap = vec![tab("idle")];
+        let expires = hold_status_glyphs(&mut gap, &mut held, start + Duration::from_millis(20));
+        assert_eq!(gap[0].status, "working");
+        assert_eq!(expires, Some(start + GLYPH_SWAP_HOLD));
+        let mut done = vec![tab("done")];
+        hold_status_glyphs(&mut done, &mut held, start + Duration::from_millis(40));
+        assert_eq!(done[0].status, "done");
+
+        // Invariant: A glyph that really goes away is released after the hold.
+        let mut idle = vec![tab("idle")];
+        let late = start + Duration::from_millis(40) + GLYPH_SWAP_HOLD;
+        assert_eq!(hold_status_glyphs(&mut idle, &mut held, late), None);
+        assert_eq!(idle[0].status, "idle");
+    }
+    #[test]
+    fn a_quick_start_never_flashes_the_starting_spinner() {
+        let tab = |status: &str| StripTab {
+            id: "tab-2".into(),
+            name: "agent 2".into(),
+            name_source: "default".into(),
+            status: status.into(),
+            accent: None,
+            title_animation: None,
+        };
+        let mut since = HashMap::new();
+        let start = Instant::now();
+        let mut shown = vec![tab("starting")];
+        debounce_starting_glyphs(&mut shown, &mut since, start);
+        assert_eq!(shown[0].status, "idle", "no spinner in the first moments");
+        let mut later = vec![tab("starting")];
+        debounce_starting_glyphs(&mut later, &mut since, start + STARTING_GLYPH_DELAY);
+        assert_eq!(
+            later[0].status, "starting",
+            "a slow start still shows progress"
+        );
+        let mut ready = vec![tab("idle")];
+        debounce_starting_glyphs(&mut ready, &mut since, start + STARTING_GLYPH_DELAY);
+        assert!(since.is_empty());
+    }
+    #[test]
+    fn hidden_settings_tab_stays_out_of_the_strip_until_viewed_or_shown() {
+        let tab = |id: &str| StripTab {
+            id: id.into(),
+            name: id.into(),
+            name_source: "default".into(),
+            status: "idle".into(),
+            accent: None,
+            title_animation: None,
+        };
+        let tabs = vec![tab("tab-1"), tab("settings-1"), tab("tab-2")];
+        let ids = |shown: Vec<StripTab>| shown.into_iter().map(|tab| tab.id).collect::<Vec<_>>();
+        assert_eq!(
+            ids(shown_tabs(&tabs, Some("tab-1"), false)),
+            ["tab-1", "tab-2"]
+        );
+        assert_eq!(
+            ids(shown_tabs(&tabs, Some("settings-1"), false)),
+            ["tab-1", "settings-1", "tab-2"]
+        );
+        assert_eq!(
+            ids(shown_tabs(&tabs, Some("tab-2"), true)),
+            ["tab-1", "settings-1", "tab-2"]
+        );
+
+        // Invariant: A drop among shown tabs maps to the registry position the server reorders by.
+        let shown = shown_tabs(&tabs, Some("tab-1"), false);
+        assert_eq!(registry_index(&shown, &tabs, 0), 0);
+        assert_eq!(registry_index(&shown, &tabs, 1), 2);
+        assert_eq!(registry_index(&shown, &tabs, 2), 3);
+    }
+    #[test]
+    fn settings_shortcut_toggles_the_viewed_settings_tab() {
+        assert_eq!(
+            settings_toggle_closes(Some("settings-1a")),
+            Some("settings-1a")
+        );
+        assert_eq!(settings_toggle_closes(Some("tab-1")), None);
+        assert_eq!(settings_toggle_closes(None), None);
+    }
+    #[test]
+    fn provisional_holder_idle_never_flips_a_starting_chip() {
+        assert!(holder_idle_precedes_bridge("starting", "idle"));
+        assert!(holder_idle_precedes_bridge("restoring", "idle"));
+        assert!(!holder_idle_precedes_bridge("starting", "working"));
+        assert!(!holder_idle_precedes_bridge("working", "idle"));
+        assert!(!holder_idle_precedes_bridge("done", "idle"));
+    }
+    #[test]
+    fn notices_never_report_undelivered_input() {
+        let source = include_str!("attach.rs");
+        let phrase = ["Input was not sent", "; try again."].concat();
+        assert!(!source.contains(&phrase));
+    }
+    #[test]
+    fn rename_deletes_whole_words_and_ignores_control_letters() {
+        let mut editor = RenameEditor::new("tab-a".into(), "fix login flow".into());
+        editor.move_cursor(4);
+        assert!(apply_rename_control_key(
+            &mut editor,
+            KeyCode::Delete,
+            KeyModifiers::CONTROL
+        ));
+        assert_eq!(editor.text, "fix flow");
+        assert_eq!(editor.cursor, 4);
+        editor.move_cursor(editor.len());
+        assert!(apply_rename_control_key(
+            &mut editor,
+            KeyCode::Backspace,
+            KeyModifiers::CONTROL
+        ));
+        assert_eq!(editor.text, "fix ");
+        assert!(apply_rename_control_key(
+            &mut editor,
+            KeyCode::Char('w'),
+            KeyModifiers::CONTROL
+        ));
+        assert_eq!(editor.text, "");
+        assert!(!apply_rename_control_key(
+            &mut editor,
+            KeyCode::Delete,
+            KeyModifiers::NONE
+        ));
+
+        let mut unicode = RenameEditor::new("tab-a".into(), "e\u{301}clair 👩‍💻 build".into());
+        unicode.move_cursor(0);
+        unicode.delete_word_right();
+        assert_eq!(unicode.text, "👩‍💻 build");
+        unicode.move_cursor(unicode.len());
+        unicode.delete_word_left();
+        assert_eq!(unicode.text, "👩‍💻 ");
+        assert_eq!(unicode.cursor, 2);
+    }
+    #[test]
+    fn rename_undo_and_redo_restore_text_and_caret() {
+        let mut editor = RenameEditor::new("tab-a".into(), "agent".into());
+        for value in " one".chars() {
+            editor.insert(value);
+        }
+        editor.delete_word_left();
+        assert_eq!(editor.text, "agent ");
+        assert!(apply_rename_control_key(
+            &mut editor,
+            KeyCode::Char('z'),
+            KeyModifiers::CONTROL
+        ));
+        assert_eq!((editor.text.as_str(), editor.cursor), ("agent one", 9));
+        apply_rename_control_key(&mut editor, KeyCode::Char('z'), KeyModifiers::CONTROL);
+        assert_eq!((editor.text.as_str(), editor.cursor), ("agent", 5));
+        apply_rename_control_key(&mut editor, KeyCode::Char('y'), KeyModifiers::CONTROL);
+        assert_eq!(editor.text, "agent one");
+        apply_rename_control_key(
+            &mut editor,
+            KeyCode::Char('Z'),
+            KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+        );
+        assert_eq!(editor.text, "agent ");
+
+        // Invariant: A new edit after undo discards the redo branch, and no-op edits add no history.
+        editor.undo();
+        editor.insert('!');
+        editor.redo();
+        assert_eq!(editor.text, "agent one!");
+        editor.move_cursor(0);
+        editor.backspace();
+        editor.undo();
+        assert_eq!(editor.text, "agent one");
     }
     #[test]
     fn outer_contract_offsets_rows_and_never_forwards_bell() {
@@ -3443,6 +4238,38 @@ mod tests {
     }
 
     #[test]
+    fn windows_shifted_uppercase_ctrl_c_is_a_plain_ctrl_c_and_arms_the_chord() {
+        // Platform: Windows Terminal reports `Char('C')` with Shift and Control for a plain Ctrl+C.
+        let reported = Event::Key(crossterm::event::KeyEvent::new_with_kind(
+            KeyCode::Char('C'),
+            KeyModifiers::SHIFT | KeyModifiers::CONTROL,
+            KeyEventKind::Press,
+        ));
+        let mut pressed = std::collections::HashSet::new();
+        let Event::Key(key) = admit_alt_code_input(true, &mut pressed, reported.clone()) else {
+            panic!("key event expected");
+        };
+        assert_eq!(
+            (key.code, key.modifiers),
+            (KeyCode::Char('c'), KeyModifiers::CONTROL)
+        );
+        let event = outer_input::normalize_key(&key).expect("semantic key");
+        assert!(outer_input::is_ctrl_c_event(&event));
+        let mut chord = DoubleCtrlC::new(1_500);
+        assert_eq!(chord.admit(0, true), CtrlCDisposition::Forward);
+        assert_eq!(chord.admit(700, true), CtrlCDisposition::Detach);
+
+        let Event::Key(other) = admit_alt_code_input(false, &mut pressed, reported) else {
+            panic!("key event expected");
+        };
+        assert_eq!(
+            other.code,
+            KeyCode::Char('C'),
+            "other platforms keep the report"
+        );
+    }
+
+    #[test]
     fn windows_alt_code_characters_are_admitted_once_from_their_release() {
         let key = |code, kind| {
             Event::Key(crossterm::event::KeyEvent::new_with_kind(
@@ -3639,8 +4466,21 @@ mod tests {
         assert_eq!(add.hovered, Some(2));
         let add_rendered = add.render();
         assert!(add_rendered.contains("+ Agent"));
-        assert!(add_rendered.contains("Settings"));
-        assert!(add_rendered.contains("Alt+."));
+        assert!(add_rendered.contains("  Settings"));
+        assert!(add_rendered.contains("Alt+,"));
+        for rendered in [add.render_with_color(true), add.render_with_color(false)] {
+            let plain = rendered
+                .split('\x1b')
+                .map(|part| part.split_once('m').map_or(part, |(_, text)| text))
+                .collect::<String>();
+            let agent = plain.find("Agent").expect("agent label");
+            let settings = plain.find("Settings").expect("settings label");
+            let agent_row = plain[..agent].rfind('H').unwrap();
+            let settings_row = plain[..settings].rfind('H').unwrap();
+            assert_eq!(agent - agent_row, settings - settings_row, "{plain:?}");
+        }
+        let palette_add = add.render_with_color(false);
+        assert!(palette_add.contains("\x1b[38;5;242mAlt+,"));
         assert!(add_rendered.contains('─'));
         let settings = PopupMenu::context("settings-1".into(), 0, 80, &bindings);
         assert_eq!(settings.items.len(), 1);
@@ -3740,6 +4580,38 @@ mod tests {
         assert_eq!(drag_marker_column(&drag, &tabs, &frame), Some(last_end));
         assert!(update_drag(&mut drag, last_end, false, &tabs, &frame));
         assert_eq!(drag.drop_index, None);
+    }
+
+    #[test]
+    fn popup_hover_uses_the_owned_accent_selected_background() {
+        let profile = tempfile::tempdir().unwrap();
+        let file = profile.path().join("settings.json");
+        assert_eq!(
+            read_accent_hover(&file),
+            [58, 56, 66],
+            "purple is the default accent"
+        );
+        std::fs::write(&file, br#"{"a1":{"accentColor":"cyan"}}"#).unwrap();
+        assert_eq!(read_accent_hover(&file), [48, 60, 61]);
+        let bindings = TabBindings::load(profile.path());
+        let mut menu = PopupMenu::add(0, 80, &bindings);
+        menu.hovered = Some(0);
+        let rendered = menu.render_styled(true, read_accent_hover(&file));
+        assert!(rendered.contains("\x1b[48;2;48;60;61m"));
+        assert!(!rendered.contains("\x1b[48;2;48;48;48m"));
+    }
+
+    #[test]
+    fn quit_animation_follows_the_owned_setting_and_defaults_on() {
+        let profile = tempfile::tempdir().unwrap();
+        let file = profile.path().join("settings.json");
+        assert!(read_quit_animation(&file));
+        std::fs::write(&file, br#"{"a1":{"quitAnimation":false}}"#).unwrap();
+        assert!(!read_quit_animation(&file));
+        std::fs::write(&file, br#"{"a1":{"quitAnimation":true}}"#).unwrap();
+        assert!(read_quit_animation(&file));
+        std::fs::write(&file, b"not json").unwrap();
+        assert!(read_quit_animation(&file));
     }
 
     #[test]

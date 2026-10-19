@@ -1,6 +1,11 @@
 import { writeSync } from "node:fs";
 
 export const CLEAR_EXIT_INTERVAL_MS = 500;
+/**
+ * How long a first `Ctrl+C` keeps the resident attach client's detach chord armed. It matches the
+ * owned dialogs' interrupt chord so an unhurried double press leaves resident tabs from any tab.
+ */
+export const RESIDENT_DETACH_INTERVAL_MS = 1_500;
 
 // Protocol: reset modes on both screens; setting keyboard flags to zero is idempotent,
 // unlike repeatedly popping a keyboard-protocol stack owned by a parent application.
