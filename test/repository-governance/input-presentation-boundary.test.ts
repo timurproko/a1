@@ -20,7 +20,7 @@ describe("keyboard input presentation ownership", () => {
     expect(runtimeOptions).toContain("this.#customViewport ? {");
     expect(runtimeOptions).toContain("inputCoordination:");
     expect(runtimeOptions).toContain(": { layoutRoot: pinnedLayoutRoot(this.#delegatingLayoutParts()) }");
-    expect(root).toContain("this.#customViewport && this.#dockInputReuseEnabled");
+    expect(root).toContain("dockInputReuse: this.#customViewport && (handlers.enableDockInputReuse ?? true)");
     expect(root).toContain("coordination: Exclude<PiTuiInputSurfaceKind");
   });
 
