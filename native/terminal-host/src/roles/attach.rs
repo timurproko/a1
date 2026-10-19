@@ -2200,6 +2200,27 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             }
                         })
                         .collect::<Vec<_>>();
+                    // Invariant: a hidden Settings tab never surfaces by itself. When it is all
+                    // that remains, it closes with the last visible tab instead of taking the view.
+                    let settings_visible = settings_shown
+                        || view
+                            .viewed
+                            .as_deref()
+                            .is_some_and(|id| id.starts_with("settings-"));
+                    let mut next_tabs = next_tabs;
+                    if !settings_visible
+                        && !next_tabs.is_empty()
+                        && next_tabs.iter().all(|tab| tab.id.starts_with("settings-"))
+                    {
+                        for tab in next_tabs.drain(..) {
+                            wire::send(
+                                &mut stream,
+                                "tab.close",
+                                None,
+                                TabTarget { tab_id: tab.id },
+                            )?;
+                        }
+                    }
                     if pending_name_confirmed {
                         pending_manual_name = None;
                     }
@@ -2217,6 +2238,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         close_fallback
                             .as_ref()
                             .and_then(|fallback| fallback.resolve(candidates))
+                            .or_else(|| {
+                                candidates
+                                    .iter()
+                                    .find(|tab| {
+                                        settings_visible || !tab.id.starts_with("settings-")
+                                    })
+                                    .map(|tab| tab.id.clone())
+                            })
                     });
                     if outcome
                         .dropped_request

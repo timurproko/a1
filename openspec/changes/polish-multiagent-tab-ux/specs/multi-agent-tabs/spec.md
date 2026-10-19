@@ -229,6 +229,11 @@ Bare A1 resident mode SHALL present at most one profile-global utility tab title
 - **THEN** the Settings chip SHALL leave the strip and the previously selected tab SHALL become visible
 - **AND** pressing the shortcut again SHALL show Settings without starting another process
 
+#### Scenario: Hidden Settings never opens by itself
+- **WHEN** Settings is hidden and the user closes the last visible tab
+- **THEN** the hidden Settings tab SHALL close too and the strip SHALL show only `+` and the clock
+- **AND** a closed viewed tab SHALL never be replaced by the hidden Settings tab
+
 #### Scenario: Settings opens without a startup delay
 - **WHEN** Agent tabs have been open for a few seconds and the user first presses the Settings shortcut
 - **THEN** the already running hidden Settings tab SHALL be shown without waiting for a new process
