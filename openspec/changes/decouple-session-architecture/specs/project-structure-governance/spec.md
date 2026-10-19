@@ -3,14 +3,14 @@
 ## ADDED Requirements
 
 ### Requirement: Oversized units are recorded in a shrinking size baseline
-The architecture gate SHALL measure every TypeScript class under `src/` by method count, field count, and line count, and every Rust function under `native/` by line count, excluding vendored sources. A unit above the threshold of twenty methods, fifteen fields, or one hundred function lines SHALL be recorded in one committed baseline under `config/baselines/` with its current counts. The gate SHALL fail when a recorded count grows, when an unrecorded unit exceeds a threshold, or when a recorded unit falls under every threshold without its entry being removed, so the baseline can only shrink. The measurement SHALL be a deterministic source scan with a reproduction test and SHALL NOT depend on a compiler or build.
+The architecture gate SHALL measure every TypeScript class under `src/` by method count and field count, and every TypeScript function or method under `src/` and every Rust function under each `native/<crate>/src/` by line count, excluding vendored sources and Rust test modules. A unit above the threshold of twenty methods, fifteen fields, or one hundred function lines SHALL be recorded in one committed baseline under `config/baselines/` with its current counts. The gate SHALL fail when a recorded count grows, when an unrecorded unit exceeds a threshold, or when a recorded unit falls under every threshold without its entry being removed, so the baseline can only shrink. The measurement SHALL be a deterministic source scan with a reproduction test and SHALL NOT depend on a compiler or build.
 
 #### Scenario: A recorded class gains a method
 - **WHEN** a change adds a method to a class the baseline records
 - **THEN** the architecture gate SHALL fail naming the file, the class, and the count that grew
 
 #### Scenario: A new class exceeds a threshold
-- **WHEN** a change introduces a class with more than twenty methods or fifteen fields, or a Rust function longer than one hundred lines, that the baseline does not record
+- **WHEN** a change introduces a class with more than twenty methods or fifteen fields, or a TypeScript or Rust function longer than one hundred lines, that the baseline does not record
 - **THEN** the architecture gate SHALL fail naming the unit and the threshold it crossed
 
 #### Scenario: A recorded unit is split below threshold

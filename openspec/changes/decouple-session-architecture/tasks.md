@@ -6,9 +6,9 @@ Counts and names below were re-measured on `develop` at `a7d7fe85` (2026-10-19).
 
 ## 1. Size ratchet at current counts
 
-- [ ] 1.1 Add `scripts/governance/size-ratchet-policy.mjs` with the brace-depth scanner for TypeScript classes (method, field, line counts) under `src/` and Rust functions (line count) under `native/`, excluding vendored sources and `#[cfg(test)]` modules. Test: `test/repository-governance/size-ratchet.test.ts` covers the scanner on fixtures, growth, new units over threshold, and stale entries.
-- [ ] 1.2 Add `config/baselines/size-ratchet.json` recording every unit above threshold at its current counts, including `run_attach` (1688 lines), `serve_holder`, `serve_attach`, `serve_bridge`, `run_holder`, `PresentationComposer::prepare`, the `roles/entry.rs` command functions, the six first-tier units, and the TypeScript second tier; add `scripts/governance/update-size-ratchet.mjs` that can only lower or remove entries.
-- [ ] 1.3 Call the policy from `scripts/governance/check-architecture.mjs` so the gate fails when a recorded count grows, a new unit exceeds a threshold, or an entry falls below every threshold without being removed; document the gate and how a necessary raise is reviewed in `docs/architecture/boundaries.md`.
+- [x] 1.1 Add `scripts/governance/size-ratchet-policy.mjs` with the brace-depth scanner for TypeScript classes (method and field counts) and TypeScript functions and methods (line count) under `src/`, and Rust functions (line count) under `native/<crate>/src/`, excluding vendored sources and `#[cfg(test)]` code. Test: `test/repository-governance/size-ratchet.test.ts` covers the scanner on fixtures, growth, new units over threshold, and stale entries.
+- [x] 1.2 Add `config/baselines/size-ratchet.json` recording every unit above threshold at its current counts, including `run_attach` (1688 lines), `serve_holder`, `serve_attach`, `serve_bridge`, `run_holder`, `PresentationComposer::prepare`, the `roles/entry.rs` command functions, the six first-tier units, and the TypeScript second tier; add `scripts/governance/update-size-ratchet.mjs` that can only lower or remove entries.
+- [x] 1.3 Call the policy from `scripts/governance/check-architecture.mjs` so the gate fails when a recorded count grows, a new unit exceeds a threshold, or an entry falls below every threshold without being removed; document the gate and how a necessary raise is reviewed in `docs/architecture/boundaries.md`.
 
 ## 2. Presenter dedupe
 
