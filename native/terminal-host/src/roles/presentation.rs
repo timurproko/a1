@@ -464,7 +464,12 @@ impl PresentationComposer {
             }
         }
 
-        if force {
+        // Invariant: a complete structured repaint overwrites every outer cell in place, so a tab
+        // switch or creation never shows a cleared screen (and a blank strip) on terminals that
+        // present synchronized output early. Only a first paint, an explicit clear, or a legacy
+        // body, which cannot promise full coverage, clears the screen.
+        let clear_screen = force && (!self.valid || desired.clear || desired.structured.is_none());
+        if clear_screen {
             output.extend_from_slice(b"\x1b[2J\x1b[H");
         }
         let strip_changed = force || self.strip != desired.strip;
@@ -502,6 +507,14 @@ impl PresentationComposer {
                         &surface.links,
                         overlay_clip.get(&row_index).copied(),
                     )?;
+                }
+            }
+            // Without a screen clear, rows below a shorter surface still hold the previous view.
+            if force && !clear_screen {
+                for row_index in visible_rows..usize::from(desired.outer_rows.saturating_sub(1)) {
+                    output.extend_from_slice(
+                        format!("\x1b[{};1H\x1b[0m\x1b[K", row_index + 2).as_bytes(),
+                    );
                 }
             }
         } else if force || self.legacy_body != desired.legacy_body || !overlay_damage.is_empty() {
@@ -1545,7 +1558,17 @@ mod tests {
             .prepare(&desired(Some(next_generation), Vec::new()))
             .unwrap()
             .expect("geometry repaint");
-        assert!(repaint.bytes.windows(4).any(|window| window == b"\x1b[2J"));
+        // The invalidated base repaints every row in place rather than clearing the screen.
+        assert!(!repaint.bytes.windows(4).any(|window| window == b"\x1b[2J"));
+        for row in [b"\x1b[2;1H", b"\x1b[3;1H"] {
+            assert!(repaint.bytes.windows(6).any(|window| window == row));
+        }
+        assert!(
+            repaint
+                .bytes
+                .windows(8)
+                .any(|window| window == b"\x1b[1;1HST")
+        );
         repaint.acknowledge(&mut composer);
 
         let mut narrower = structured_fixture();
@@ -1604,6 +1627,40 @@ mod tests {
                 .any(|window| window == b"\x1b[?25l"),
             "an out-of-bounds child cursor must be hidden"
         );
+    }
+
+    #[test]
+    fn switching_tabs_repaints_in_place_without_clearing_the_strip() {
+        let mut composer = PresentationComposer::default();
+        let first = composer
+            .prepare(&desired(Some(structured_fixture()), Vec::new()))
+            .unwrap()
+            .expect("first paint");
+        assert!(
+            first.bytes.windows(4).any(|window| window == b"\x1b[2J"),
+            "first paint clears"
+        );
+        first.acknowledge(&mut composer);
+
+        let mut shorter = structured_fixture();
+        shorter.rows = 1;
+        shorter.row_data.truncate(1);
+        let mut switched = desired(Some(shorter), Vec::new());
+        switched.tab_id = Some("b".into());
+        let bytes = composer.prepare(&switched).unwrap().expect("switch").bytes;
+        assert!(!bytes.windows(4).any(|window| window == b"\x1b[2J"));
+        assert!(bytes.windows(5).any(|window| window == b"STRIP"));
+        assert!(
+            bytes
+                .windows(13)
+                .any(|window| window == b"\x1b[3;1H\x1b[0m\x1b[K"),
+            "the row below the shorter surface is erased"
+        );
+
+        let mut legacy = desired(None, b"body".to_vec());
+        legacy.tab_id = Some("c".into());
+        let legacy_bytes = composer.prepare(&legacy).unwrap().expect("legacy").bytes;
+        assert!(legacy_bytes.windows(4).any(|window| window == b"\x1b[2J"));
     }
 
     #[test]

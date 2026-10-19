@@ -2419,9 +2419,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         let current_clock_minute = clock_minute();
         if current_clock_minute != displayed_clock_minute {
             displayed_clock_minute = current_clock_minute;
-            if !tabs.is_empty() {
-                paint_strip!();
-            }
+            paint_strip!();
         }
         if last_list.elapsed() >= Duration::from_millis(500) {
             wire::send(

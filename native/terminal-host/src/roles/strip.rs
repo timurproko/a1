@@ -486,7 +486,8 @@ fn render_frame(
     let chip = |tab: &StripTab, active: bool, hovered: bool| {
         chip(tab, active, hovered, now, truecolor, rename)
     };
-    let clock = (!tabs.is_empty()).then(|| clock_text(time_format));
+    // Invariant: the clock stays visible with no tabs, beside the lone `+`.
+    let clock = Some(clock_text(time_format));
     let clock_width = clock.as_deref().map_or(0, UnicodeWidthStr::width);
     let clock_reserve = if clock.is_some() { clock_width + 1 } else { 0 };
     let available = usize::from(columns).saturating_sub(clock_reserve);
@@ -1084,7 +1085,13 @@ mod tests {
     #[test]
     fn empty_strip_contains_only_the_new_tab_control() {
         let frame = render(&[], None, 80);
-        assert_eq!(plain(&frame.bytes).trim(), "+");
+        let text = plain(&frame.bytes);
+        assert!(text.trim_start().starts_with('+'));
+        assert!(
+            text.trim_end().ends_with('M'),
+            "the clock stays visible: {text:?}"
+        );
+        assert_eq!(UnicodeWidthStr::width(text.as_str()), 80);
         assert_eq!(frame.hits, vec![(0, 3, StripHit::New)]);
     }
 
