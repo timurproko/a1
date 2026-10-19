@@ -159,6 +159,17 @@ The strip row SHALL be painted across its full width with a fixed dark backgroun
 - **WHEN** a child changes the terminal default background or writes content that would reach the first row
 - **THEN** the strip row SHALL keep the dark background and show only strip content
 
+### Requirement: Resident tabs keep the outer terminal theme for unset colors
+The resident presentation SHALL publish a child's default foreground, default background, or palette entry to the outer terminal only when the child set that color. Colors a child left at the emulator's initial values SHALL be reset to the outer terminal's own theme rather than replaced with emulator defaults.
+
+#### Scenario: New Agent without explicit colors
+- **WHEN** a newly created Agent has not set its default background
+- **THEN** its body SHALL show the outer terminal's own background, not black
+
+#### Scenario: Child sets its own background
+- **WHEN** a child sets its default background with OSC 11
+- **THEN** the outer terminal SHALL show that background while the tab is viewed
+
 ### Requirement: Resident dialogs receive keys like solo
 Owned full-screen dialogs and screens in a resident tab, including Changelog and Settings, SHALL respond to the same navigation, close, and interrupt keys as in `a1 solo`, whether the child terminal reports keys in legacy or kitty keyboard encoding. A lone Esc SHALL reach the child immediately rather than being held for a possible controller-boundary sequence.
 

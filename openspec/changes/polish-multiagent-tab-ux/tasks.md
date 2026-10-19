@@ -56,6 +56,7 @@ Markers report current implementation progress. Native Rust tests run in CI. Bef
 - [x] 9.1 Paint the full strip row with background RGB `20,20,20` and its 256-color fallback behind padding and clock, restoring it after each chip and ending the row with a background erase. (The row background is set before each run of padding cells and reset after the final cell.)
 - [ ] 9.2 Re-emit the strip whenever legacy body bytes were written, and clip legacy body output to rows ≥ 2. (Done: the strip is re-emitted. Not done: legacy body output is not clipped to rows ≥ 2.)
 - [x] 9.3 Rust tests: every strip cell outside chips carries the row background, and no child cell survives in row 1 after legacy body writes.
+- [x] 9.4 Found in manual test on 2026-10-19: new Agents painted a black body because the emulator's initial default background was published with OSC 11. Holders now report which default colors and palette entries still hold the emulator's initial values (`inheritedColors`), and attach resets those to the outer theme (OSC 110/111/104) instead. A Rust test covers inherited, explicit and later-set colors.
 
 ## 10. Pre-ready delivery bookkeeping
 

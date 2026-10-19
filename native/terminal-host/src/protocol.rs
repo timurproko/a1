@@ -543,9 +543,54 @@ pub struct StructuredSurface {
     pub default_background: [u8; 3],
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor_color: Option<[u8; 3]>,
+    /// Colors the child never set: they still hold the emulator's initial values, so the outer
+    /// terminal keeps its own theme for them. Absent from producers that predate the field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inherited_colors: Option<InheritedColors>,
+}
+
+/// Which default colors and palette entries a child left at the emulator's initial values.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct InheritedColors {
+    #[serde(default)]
+    pub foreground: bool,
+    #[serde(default)]
+    pub background: bool,
+    /// A 256-bit little-endian bitmap of inherited palette indexes, empty when none inherit.
+    #[serde(default)]
+    pub palette: Vec<u8>,
+}
+
+impl InheritedColors {
+    pub const PALETTE_BITMAP_BYTES: usize = 32;
+
+    pub fn palette_entry(&self, index: usize) -> bool {
+        self.palette
+            .get(index / 8)
+            .is_some_and(|byte| byte & (1 << (index % 8)) != 0)
+    }
 }
 
 impl StructuredSurface {
+    pub fn background_inherited(&self) -> bool {
+        self.inherited_colors
+            .as_ref()
+            .is_some_and(|colors| colors.background)
+    }
+
+    pub fn foreground_inherited(&self) -> bool {
+        self.inherited_colors
+            .as_ref()
+            .is_some_and(|colors| colors.foreground)
+    }
+
+    pub fn palette_inherited(&self, index: usize) -> bool {
+        self.inherited_colors
+            .as_ref()
+            .is_some_and(|colors| colors.palette_entry(index))
+    }
+
     /// Reject malformed or oversized decoded state before it becomes authoritative. The frame
     /// decoder already caps encoded memory at 2 MiB; these checks cap dimensions, collections,
     /// index references, and per-cell/link expansion inside that frame.
@@ -574,6 +619,12 @@ impl StructuredSurface {
         }
         if !self.palette.is_empty() && self.palette.len() != 256 {
             return Err("surface palette must be empty or complete".into());
+        }
+        if self.inherited_colors.as_ref().is_some_and(|colors| {
+            !colors.palette.is_empty()
+                && colors.palette.len() != InheritedColors::PALETTE_BITMAP_BYTES
+        }) {
+            return Err("surface inherited palette bitmap must be empty or complete".into());
         }
         let mut decoded_bytes = expected
             .checked_mul(std::mem::size_of::<SurfaceCell>())
@@ -1237,6 +1288,7 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
                     default_foreground: [255, 255, 255],
                     default_background: [0, 0, 0],
                     cursor_color: Some([4, 5, 6]),
+                    inherited_colors: None,
                 },
             })?,
         ),
@@ -1679,6 +1731,7 @@ mod tests {
             default_foreground: [255, 255, 255],
             default_background: [0, 0, 0],
             cursor_color: None,
+            inherited_colors: None,
         };
         assert!(valid.validate().is_ok());
         for malformed in [

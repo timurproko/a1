@@ -620,19 +620,33 @@ fn render_palette_damage(
     if next.palette.len() != 256 {
         return;
     }
+    // Invariant: a color the child never set keeps the outer terminal's own theme; publishing the
+    // emulator's initial value would paint, for example, a black default background.
     if force
         || previous.is_none_or(|surface| {
-            surface.palette.len() != 256 || surface.default_foreground != next.default_foreground
+            surface.palette.len() != 256
+                || surface.default_foreground != next.default_foreground
+                || surface.foreground_inherited() != next.foreground_inherited()
         })
     {
-        push_osc_rgb(output, 10, None, next.default_foreground);
+        if next.foreground_inherited() {
+            output.extend_from_slice(b"\x1b]110\x1b\\");
+        } else {
+            push_osc_rgb(output, 10, None, next.default_foreground);
+        }
     }
     if force
         || previous.is_none_or(|surface| {
-            surface.palette.len() != 256 || surface.default_background != next.default_background
+            surface.palette.len() != 256
+                || surface.default_background != next.default_background
+                || surface.background_inherited() != next.background_inherited()
         })
     {
-        push_osc_rgb(output, 11, None, next.default_background);
+        if next.background_inherited() {
+            output.extend_from_slice(b"\x1b]111\x1b\\");
+        } else {
+            push_osc_rgb(output, 11, None, next.default_background);
+        }
     }
     if force || previous.is_none_or(|surface| surface.cursor_color != next.cursor_color) {
         if let Some(color) = next.cursor_color {
@@ -641,11 +655,28 @@ fn render_palette_damage(
             output.extend_from_slice(b"\x1b]112\x1b\\");
         }
     }
+    let all_inherited = (0..256).all(|index| next.palette_inherited(index));
+    let mut reset_all = false;
     for (index, color) in next.palette.iter().copied().enumerate() {
-        if force
-            || previous.is_none_or(|surface| surface.palette.get(index).copied() != Some(color))
-        {
+        let inherited = next.palette_inherited(index);
+        let changed = force
+            || previous.is_none_or(|surface| {
+                surface.palette.get(index).copied() != Some(color)
+                    || surface.palette_inherited(index) != inherited
+            });
+        if !changed {
+            continue;
+        }
+        if !inherited {
             push_osc_rgb(output, 4, Some(index), color);
+        } else if all_inherited {
+            // One reset restores the whole outer palette instead of 256 single resets.
+            if !reset_all {
+                output.extend_from_slice(b"\x1b]104\x1b\\");
+                reset_all = true;
+            }
+        } else {
+            output.extend_from_slice(format!("\x1b]104;{index}\x1b\\").as_bytes());
         }
     }
 }
@@ -1377,6 +1408,7 @@ mod tests {
             default_foreground: [240, 240, 240],
             default_background: [10, 10, 10],
             cursor_color: Some([20, 30, 40]),
+            inherited_colors: None,
         }
     }
 
@@ -1610,6 +1642,59 @@ mod tests {
         assert_eq!(
             overlay_child_spans(overlay.as_bytes(), 3).get(&0),
             Some(&(1, 2))
+        );
+    }
+
+    #[test]
+    fn colors_the_child_never_set_keep_the_outer_theme() {
+        let mut inherited = structured_fixture();
+        let mut bitmap = vec![0xffu8; crate::protocol::InheritedColors::PALETTE_BITMAP_BYTES];
+        bitmap[0] &= !(1 << 4);
+        inherited.inherited_colors = Some(crate::protocol::InheritedColors {
+            foreground: true,
+            background: true,
+            palette: bitmap,
+        });
+        let bytes = PresentationComposer::default()
+            .prepare(&desired(Some(inherited.clone()), Vec::new()))
+            .unwrap()
+            .expect("first paint")
+            .bytes;
+        let text = String::from_utf8(bytes).unwrap();
+        assert!(text.contains("\x1b]110\x1b\\") && text.contains("\x1b]111\x1b\\"));
+        assert!(!text.contains("\x1b]11;rgb:0a/0a/0a"), "{text:?}");
+        assert!(
+            text.contains("\x1b]4;4;rgb:"),
+            "an explicitly set entry is still published"
+        );
+        assert!(text.contains("\x1b]104;5\x1b\\"));
+        assert!(!text.contains("\x1b]4;5;"));
+
+        // A child that later sets its background publishes it; a fully inherited palette resets
+        // in one sequence.
+        let mut composer = PresentationComposer::default();
+        let mut set = inherited;
+        set.inherited_colors = Some(crate::protocol::InheritedColors {
+            foreground: true,
+            background: true,
+            palette: vec![0xff; crate::protocol::InheritedColors::PALETTE_BITMAP_BYTES],
+        });
+        let first = composer
+            .prepare(&desired(Some(set.clone()), Vec::new()))
+            .unwrap()
+            .expect("first paint");
+        let first_text = String::from_utf8(first.bytes.clone()).unwrap();
+        assert_eq!(first_text.matches("\x1b]104\x1b\\").count(), 1);
+        first.acknowledge(&mut composer);
+        set.inherited_colors.as_mut().unwrap().background = false;
+        let changed = composer
+            .prepare(&desired(Some(set), Vec::new()))
+            .unwrap()
+            .expect("background set");
+        assert!(
+            String::from_utf8(changed.bytes)
+                .unwrap()
+                .contains("\x1b]11;rgb:0a/0a/0a\x1b\\")
         );
     }
 
