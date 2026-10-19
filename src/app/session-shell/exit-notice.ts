@@ -6,7 +6,7 @@
  */
 import { renameSync, rmSync, writeFileSync } from "node:fs";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
-import { formatSessionResumeCommand, type SessionResumeCommandMetadata } from "./session-shell.js";
+import { formatSessionResumeCommand, type SessionResumeCommandMetadata } from "./session-lifecycle.js";
 
 export interface ExitNoticeSource {
   readonly identity: {

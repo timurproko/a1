@@ -44,8 +44,8 @@ The composition root SHALL resolve paths, construct services, construct the back
 
 #### Scenario: Resident tab bridge behavior is needed
 - **WHEN** composition binds the resident tab bridge
-- **THEN** it SHALL construct the session shell's resident-tab coordinator and pass it through the shell options
-- **AND** the auto-name, rename, route, stop, and status derivation logic SHALL live in that coordinator
+- **THEN** the auto-name, rename, route, stop, and status derivation logic SHALL live in a resident-tab bridge module that composition constructs and disposes, not in the composition root
+- **AND** the session presenter's own resident behavior (recovered input, progress reporting, journal admission, detach) SHALL live in its resident-tab coordinator
 
 #### Scenario: Session runtime identities must be refreshed
 - **WHEN** composition registers session runtime identities
