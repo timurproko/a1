@@ -204,7 +204,7 @@ Control- or Alt-modified letters SHALL never be inserted as text. Word operation
 - **THEN** every caret position SHALL remain on a grapheme boundary
 
 ### Requirement: Resident Settings is one global utility tab
-Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Settings`. It SHALL render the owned global settings without owning an Agent session. A Settings route delivered before the child presenter has started SHALL be retained and presented once it starts. The launcher SHALL create or activate that singleton. The `tabs.settings` action SHALL toggle it: while Settings is viewed it SHALL hide that tab from the strip, keep its process running, and show the previous tab, and otherwise it SHALL show the singleton. To open Settings without a startup delay, the attach client SHALL start a hidden Settings tab in the background when tabs exist without one; a Settings tab joins the strip only once it is viewed. Closing its tab SHALL remove it. Its screen is the tab, so it SHALL offer no screen-level Esc close or Esc close hint, and one Ctrl+C SHALL NOT dismiss it. Resident Agents SHALL not advertise or execute `/settings`; `a1 solo` and `a1 pi` SHALL retain their existing command behavior.
+Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Settings`. It SHALL render the owned global settings without owning an Agent session. A Settings route delivered before the child presenter has started SHALL be retained and presented once it starts. The launcher SHALL create or activate that singleton. The `tabs.settings` action SHALL toggle it: while Settings is viewed it SHALL hide that tab from the strip, keep its process running, and show the previous tab, and otherwise it SHALL show the singleton. To open Settings without a startup delay, the attach client SHALL start a hidden Settings tab in the background when tabs exist without one; a Settings tab joins the strip only once it is viewed. Closing its tab SHALL remove it. Settings are shared: every running resident tab SHALL reread the shared settings document when it changes and apply each changed live setting, such as the accent color, without a restart. Its screen is the tab, so it SHALL offer no screen-level Esc close or Esc close hint, and one Ctrl+C SHALL NOT dismiss it. Resident Agents SHALL not advertise or execute `/settings`; `a1 solo` and `a1 pi` SHALL retain their existing command behavior.
 
 #### Scenario: Open Settings from the launcher
 - **WHEN** a resident Agent is viewed and the user chooses Settings from `+`
@@ -237,6 +237,10 @@ Bare A1 resident mode SHALL present at most one profile-global utility tab title
 #### Scenario: Settings opens without a startup delay
 - **WHEN** Agent tabs have been open for a few seconds and the user first presses the Settings shortcut
 - **THEN** the already running hidden Settings tab SHALL be shown without waiting for a new process
+
+#### Scenario: A setting change reaches every running tab
+- **WHEN** Agent tabs are running and the user changes the accent color in Settings
+- **THEN** every running Agent tab SHALL switch to the new accent without being reopened
 
 #### Scenario: Esc inside the Settings tab
 - **WHEN** the Settings tab is viewed with no search or value menu open and the user presses Esc

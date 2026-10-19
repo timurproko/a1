@@ -1,3 +1,4 @@
+import { unwatchFile, watchFile } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { SuggestionDiagnosticCapture } from "../features/prompt-suggestions/diagnostics.js";
 import { PRODUCT_IDENTITY } from "../product-identity.js";
@@ -270,13 +271,19 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     : await import("../features/owned-ui/release-note-state.js").then(module => module.claimReleaseNote({
       configDir: productPaths.configDir, profileId: options.profileId!, version: currentReleaseNote.version,
     }));
-  const unsubscribeAccent = settings === null || !ownedSurfaces
+  const unsubscribeAccentChange = settings === null || !ownedSurfaces
     ? () => {}
     : settings.onChange(current => {
       const accent = current.value("accentColor");
       host.setAccentColor(accent);
       tabBridge?.accent(accent);
     });
+  // Rationale: every resident tab is its own process over one shared settings document, so a
+  // change saved in any tab reaches the others only by rereading that document.
+  const unwatchSharedSettings = settings === null || !ownedSurfaces || tabBridge === null
+    ? () => {}
+    : watchSharedSettings(settings);
+  const unsubscribeAccent = (): void => { unwatchSharedSettings(); unsubscribeAccentChange(); };
 
   // Rationale: Routes open only after shell construction.
   const references: OwnedReferenceProviders = {
@@ -647,6 +654,20 @@ function currentBackendSessionFile(backend: Pick<ComposedSessionBackend, "identi
   if (direct !== undefined && direct !== null) return direct;
   const resume = backend.identity.currentSessionResumeMetadata();
   return resume === null ? null : `${resume.sessionDir}/${resume.sessionId}`;
+}
+
+const SHARED_SETTINGS_POLL_MS = 250;
+
+/** Rereads the shared settings document whenever its stat changes; returns the stop. */
+export function watchSharedSettings(settings: Pick<OwnedSettingsManager, "file" | "refresh">): () => void {
+  const file = settings.file;
+  const listener = (): void => {
+    try { settings.refresh(); } catch {
+      // Compatibility: an unreadable peer write resolves on the next stat change.
+    }
+  };
+  watchFile(file, { interval: SHARED_SETTINGS_POLL_MS, persistent: false }, listener);
+  return () => unwatchFile(file, listener);
 }
 
 async function readPackageVersion(): Promise<string> {

@@ -66,6 +66,10 @@ Markers report current implementation progress. Native Rust tests run in CI. Bef
 
 - [x] 9b.1 Port bare A1's `fall` quit-outro plan and bounded player to the attach client (`roles/quit_outro.rs`; its seeded generator matches the TypeScript output). On a double-Ctrl+C detach from any tab, drop any pending repaint, play the outro over the presented strip and child rows when `a1.quitAnimation` is on (the default), show the cursor, then restore. Rust tests cover the generator, plan coverage and order, synchronized blocks ending blank, bounded playback, write failure, row widths, and the setting.
 
+## 9c. Shared settings apply live (maintainer request, 2026-10-19)
+
+- [x] 9c.1 Each resident tab watches the shared profile `settings.json` and rereads it on change. `OwnedSettingsManager.refresh()` notifies only when a resolved value differs, so live settings such as the accent color reach every running tab; restart-bound values surface as pending. Covered by `test/ui/settings/manager.test.ts` and `test/composition/shared-settings-watch.test.ts`.
+
 ## 10. Pre-ready delivery bookkeeping
 
 - [ ] 10.1 Write `implementation-evidence.md` with delivered behavior, local checks run and gaps. Reconcile and push current `origin/develop`, add plain Acceptance, and pass `check-delivery-body.mjs --final` before checking the final Implementation item.

@@ -209,6 +209,26 @@ describe("owned settings manager", () => {
     },
   );
 
+  it("adopts a peer process's saved values live and stays silent on its own write echo", async () => {
+    const peer = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    const target = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    let notified = 0;
+    target.onChange(() => { notified += 1; });
+    await peer.change("a1", "accentColor", "orange");
+    await peer.change("a1", "promptHistoryEnabled", false);
+    expect(target.value("accentColor")).toBe("purple");
+    expect(target.refresh()).toBe(true);
+    expect(notified).toBe(1);
+    expect(target.value("accentColor")).toBe("orange");
+    expect(target.value("promptHistoryEnabled")).toBe(true);
+    expect(target.pendingValue("promptHistoryEnabled")).toBe(false);
+    expect(target.refresh()).toBe(false);
+    await target.change("a1", "accentColor", "green");
+    notified = 0;
+    expect(target.refresh()).toBe(false);
+    expect(notified).toBe(0);
+  });
+
   it("preserves multiple pending history settings through reload and unrelated live saves", async () => {
     const session = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     await session.change("a1", "promptHistoryEnabled", false);
