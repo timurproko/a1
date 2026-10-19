@@ -92,6 +92,8 @@ Callers of the flat methods inside `src/` are composition and the session presen
 
 ### 7. `core::attach` is a pure state machine
 
+**Moved to the follow-up change `decouple-attach-and-server-core`** (maintainer decision, 2026-10-19). The design below is kept as that change's starting point. Its pieces cannot move into `core` mechanically: the popup menu, rename editor, and drag state depend on crossterm keys and strip rendering from the role layer, so the core needs its own input and frame types first.
+
 ```text
 pub enum Mode { Idle, Popup(PopupMenu), Rename(RenameEditor), Drag(TabDrag) }
 pub enum ViewTransition { Settled, Requested { tab_id, staged: Option<Vec<StripTab>>, pending_surface: Option<Surface>, deferred: DeferredInput } }
@@ -107,6 +109,8 @@ Mode precedence is one `match` on `(mode, event)`. The `prompt_view`, pending-ju
 **Alternative considered:** splitting `run_attach` into helper functions over a struct of the same locals. Rejected because it keeps implicit modes and does not make the client simulable.
 
 ### 8. The server is split by role and its per-tab state moves into the core
+
+This change lands the role split only: functions and constants moved, types stayed in `mod.rs`. Moving per-tab fields into `core::server::TabState` and replacing reader-thread sleeps with timer effects moved to the follow-up change `decouple-attach-and-server-core`.
 
 `roles/server/mod.rs` keeps `RuntimeState` with peers, slots, gates, config, and the `core::server::State`; the per-tab fields (`surfaces`, `launches`, `holders_terminating`, `holders_starting`, `bridge_status_sequences`, `status_persist_*`) move into `core::server::TabState`. `attach.rs`, `holder.rs`, `bridge.rs`, `lifecycle.rs`, `standby.rs`, `controller.rs` (controller transfers and boundaries), and `registry.rs` hold their handlers. The helper step already routes every registry change through `bump_registry_revision`, `registry_snapshot` (taken under the lock), and `commit_staged`/`commit_registry` (after it is released), every viewer lookup through `viewers`/`is_viewed`, the lock through `lock_state`, restarts through `apply_restart_budget` and `request_child_restart`, and respawn orders through `holder_respawn`; the split moves those helpers with their handlers.
 
@@ -133,9 +137,9 @@ The ratchet lands first, recording the counts on the branch's reconciled `develo
 
 ## Sequencing
 
-Land in this order, one commit per numbered task section: 1, 2, 3, 4, 6, 7, 9, 10, 5, 8. The maintainer approved this order on 2026-10-19 so the TypeScript steps proceed while CI validates the first native step; the attach-core and server-split steps follow once that run is green. Step 1 is the size ratchet at current counts. Steps 2 and 3 are mechanical and reduce line count without moving behavior; 4 and 5 are the largest single decouplings; 6 and 7 depend on 4; 8 depends on 3; 9 and 10 depend on 7. Every step lowers the ratchet entries it shrinks.
+Land in this order, one commit per numbered task section: 1, 2, 3, 4, 6, 7, 9, 10, 8. The maintainer approved this order on 2026-10-19 so the TypeScript steps proceed while CI validates the first native step; the server split follows once that run is green, and step 5 with the rest of step 8 moved to the follow-up change `decouple-attach-and-server-core`. Step 1 is the size ratchet at current counts. Steps 2 and 3 are mechanical and reduce line count without moving behavior; 4 and 5 are the largest single decouplings; 6 and 7 depend on 4; 8 depends on 3; 9 and 10 depend on 7. Every step lowers the ratchet entries it shrinks.
 
-Because the resident-tab code is still being fixed often, each native step (3, 5, 8) starts by merging current `origin/develop` and re-checking the counts and names in its task against the code. If a fix has changed a named function or macro, update the task text before editing code.
+Because the resident-tab code is still being fixed often, each native step (3, 8) starts by merging current `origin/develop` and re-checking the counts and names in its task against the code. If a fix has changed a named function or macro, update the task text before editing code.
 
 ## Verification per decision
 

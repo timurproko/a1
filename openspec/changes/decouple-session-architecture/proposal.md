@@ -21,10 +21,10 @@ A second tier of units is overgrown but single-purpose: `SettingsApp`, `PiTuiRun
 - Give the session presenter one dialog coordinator, one suggestion-reason classifier, and a declarative settings-applier table, removing the duplicated reset, close, and ladder code.
 - Introduce a registry transaction helper, a viewer fan-out helper, and single respawn and restart-budget functions in the native server, replacing the duplicated blocks.
 - Extract a transcript document from the shell root as the only owner of transcript blocks, order, the per-block render cache, and the per-width document layouts.
-- Give the attach client a pure `core::attach` state machine with an explicit `Mode` enum (idle, popup, rename, drag) and a view sub-state that owns the requested view, pending jump, deferred input, and the settings tab. `roles/attach.rs` keeps only threads, terminal entry and restore, and wire I/O; the existing simulator harness exercises the core.
+- The attach client's pure `core::attach` state machine, per-tab server state in the core, and timer-driven recovery waits moved to the follow-up change `decouple-attach-and-server-core` by maintainer decision on 2026-10-19; they change interaction and restart timing and get their own CI cycles and manual tab testing.
 - Split the shell root's two layout modes behind one `ShellLayout` interface with pinned and viewport implementations, and extract dock chrome, workflow output, the extension surface, input-surface switching, and the editor factory.
 - Replace the presenter's `#syncView` reset hub with a session-concern lifecycle contract, and move prompt submission, workflow routing, the login interaction host, resident-tab coordination, and session lifecycle into their own concern classes. The resident-tab coordinator absorbs the bridge state machine now in composition.
-- Split `roles/server.rs` into per-role modules, migrate per-tab fields into the existing `core::server::State`, and replace reader-thread sleeps with the core's timer effect.
+- Split `roles/server.rs` into per-role modules with no logic change.
 - Make the engine adapter's contract ports its only public surface, give its view-model an explicit state object with named mutators, and move the command switch and overload reconciliation into their owning collaborators.
 - Reduce the composition root to construction by extracting a session-runtime registry and a startup-route builder, and lower the ratchet baseline to the post-refactor counts.
 
@@ -40,14 +40,14 @@ Every step is behavior-preserving. The public contracts in `src/contracts/owned-
 
 - `owned-ux-architecture`: session concerns own their state, reset, and disposal; render roots delegate to one layout strategy and own no caches; the composition root constructs and returns.
 - `project-structure-governance`: the architecture gate enforces a shrinking size baseline for TypeScript classes and Rust functions.
-- `resident-terminal-host`: the attach client's interaction is a pure state machine; registry commits and viewer fan-out go through one path; role reader threads never block on recovery waits.
+- `resident-terminal-host`: registry commits, viewer lookups, restarts, respawns, and result replies each go through one path.
 
 ## Impact
 
 - **Session shell:** `src/app/session-shell/*` gains focused files for the transcript document, layouts, dock chrome, workflow output, extension surface, input surface, editor factory, dialog coordinator, prompt submission, workflow router, login interaction, resident-tab coordinator, session lifecycle, and settings bindings. `session-shell.ts` and `session-shell-root.ts` shrink to coordinators.
 - **Engine adapter:** `src/integrations/pi/engine/adapter.ts` loses its flat method surface and `#createPorts`; new `ports/` and `view-state.ts` files; `command-dispatch.ts` and `event-delivery.ts` absorb logic.
 - **Composition:** `src/composition/owned-ui.ts` shrinks; new `session-runtime-registry.ts` and `startup-route.ts`.
-- **Native host:** `native/terminal-host/src/core/attach.rs` is new; `roles/attach.rs` shrinks; `roles/server.rs` becomes `roles/server/{mod,attach,holder,bridge,lifecycle,standby,controller,registry}.rs`; `core/server.rs` gains per-tab fields; `core/sim` gains attach coverage.
+- **Native host:** `roles/server.rs` becomes `roles/server/{mod,attach,holder,bridge,lifecycle,standby,controller,registry}.rs`; `core/server.rs` gains per-tab fields; `core/sim` gains attach coverage.
 - **Governance:** `scripts/governance/check-architecture.mjs` gains a size-ratchet check reading `config/baselines/size-ratchet.json`.
 - **Tests:** existing suites under `test/app/session-shell`, `test/integrations/pi/engine`, `test/composition`, and `native/terminal-host/tests` stay green; new focused tests cover each extracted unit and the ratchet.
 - **Protocols and dependencies:** none change. No new runtime dependency.

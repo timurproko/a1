@@ -1,8 +1,8 @@
 # Tasks
 
-Each numbered section is one Implementation item of the pull request and one commit, landed in the order 1, 2, 3, 4, 6, 7, 9, 10, 5, 8 (see `design.md` "Sequencing"). Read `design.md` "Current mechanics" and "Invariants" before editing; every task names the files it may touch, and a file not named is out of scope for that task. Before each push run `npm run typecheck`, the test files the task names, and `openspec validate decouple-session-architecture --strict`; native tasks are validated by the terminal-host CI partitions. From section 2 on, every section also lowers the `config/baselines/size-ratchet.json` entries it shrinks.
+Each numbered section is one Implementation item of the pull request and one commit, landed in the order 1, 2, 3, 4, 6, 7, 9, 10, 8 (see `design.md` "Sequencing"). Section 5 and tasks 8.2 and 8.3 moved to the follow-up change `decouple-attach-and-server-core` on 2026-10-19 by maintainer decision: they change attach interaction and server restart timing, which need their own CI cycles and manual tab testing. Read `design.md` "Current mechanics" and "Invariants" before editing; every task names the files it may touch, and a file not named is out of scope for that task. Before each push run `npm run typecheck`, the test files the task names, and `openspec validate decouple-session-architecture --strict`; native tasks are validated by the terminal-host CI partitions. From section 2 on, every section also lowers the `config/baselines/size-ratchet.json` entries it shrinks.
 
-Counts and names below were re-measured on `develop` at `a7d7fe85` (2026-10-19). Native sections 3, 5, and 8 begin by merging current `origin/develop` and re-checking their counts and names, because resident-tab fixes still land often in `roles/attach.rs` and `roles/server.rs`.
+Counts and names below were re-measured on `develop` at `a7d7fe85` (2026-10-19). Native sections 3 and 8 begin by merging current `origin/develop` and re-checking their counts and names, because resident-tab fixes still land often in `roles/attach.rs` and `roles/server.rs`.
 
 ## 1. Size ratchet at current counts
 
@@ -31,9 +31,7 @@ Counts and names below were re-measured on `develop` at `a7d7fe85` (2026-10-19).
 
 ## 5. Attach client core
 
-- [ ] 5.1 Add `native/terminal-host/src/core/attach.rs` with `State`, `View`, `Mode` (idle, popup, rename, drag), `ViewTransition`, `Event`, `Effect`, and `step`; move `PopupMenu`, `PopupItem`, `RenameEditor`, `TabDrag`, `CloseFallback`, `DeferredInput`, and the pure helpers (`failure_applies`, `rejection_notice`, `close_fallback_for`, `settings_toggle_closes`, `shown_tabs`, `debounce_starting_glyphs`, `hold_status_glyphs`, `registry_index`, `drag_destination`, `update_drag`, `forward_pointer_motion`, `holder_idle_precedes_bridge`) from `roles/attach.rs` into it. Tests: unit tests for every server message arm, key, mouse, paste, resize, and focus event, for the settings tab, pending jump, and deferred input, and for mode exclusivity.
-- [ ] 5.2 Reduce `run_attach` in `roles/attach.rs` to handshake, reader threads, `OuterTerminal`, `OuterWriter`, `AttachServerWriter`, `TabBindings`, `TimeFormatWatch`, presentation composition, and a loop of receive, `step`, apply effects; delete the nine local macros (`send_child_frames`, `send_input`, `request_view`, `shown`, `paint_current`, `paint_strip`, `invoke_popup_action`, `apply_terminal_effect`, `apply_commit`). Tests: the existing `attach.rs` unit tests pass against the core; `tests/role_integration.rs` unchanged and green.
-- [ ] 5.3 Add an attach driver to `native/terminal-host/src/core/sim/mod.rs` that feeds seeded server messages and input and asserts one mode at a time, a paint after every state change, and no send after exit.
+Moved to the follow-up change `decouple-attach-and-server-core`.
 
 ## 6. Shell root layouts and surfaces
 
@@ -48,11 +46,11 @@ Counts and names below were re-measured on `develop` at `a7d7fe85` (2026-10-19).
 - [x] 7.3 Add `src/app/session-shell/resident-tab-coordinator.ts` absorbing the presenter's resident cluster (recovered input, progress and stall reporting, journal admission and correlation, checkpoints, detach, and graceful stop). The bridge state machine in composition (`bindResidentTabBridge`, `correlateResidentTabSubmission`, tab shortcuts) depends on `features/resident-tab` and the composed backend's naming port, which the session-shell owner may not import, so it moves to its own composition module in 10.1 instead. Tests: `test/composition/*` green; new `resident-tab-coordinator.test.ts` covers inert mode, stall timing, recovered input, admission, correlation, and detach.
 - [x] 7.4 Add `src/app/session-shell/session-lifecycle.ts` owning resume-command formatting, exit-text composition, and the stop latch; `session-shell.ts` re-exports the formatting and keeps the hosted-presenter port, view projection, start, release orchestration, and construction. Tests: `test/app/session-shell/session-shell-lifecycle.test.ts` green; new `session-lifecycle.test.ts`.
 
-## 8. Server split and per-tab core state
+## 8. Server split
 
 - [x] 8.1 Split `native/terminal-host/src/roles/server.rs` into `roles/server/{mod,attach,holder,bridge,lifecycle,standby,controller,registry}.rs` with no logic change: each role's functions and constants move to its module, while `mod.rs` keeps every type, `RuntimeState`, `run_server_child`, `serve_peer`, supervision, the shared helpers, and the unit tests, so sibling modules keep reaching struct fields without visibility changes. Tests: native unit tests green locally; `tests/role_integration.rs` unchanged and green in CI.
-- [ ] 8.2 Move `surfaces`, `launches`, `holders_terminating`, `holders_starting`, `bridge_status_sequences`, `status_persist_pending`, and `status_last_persist` into `core::server::TabState`; handlers read them through `locked.core`. Tests: `core/sim` green; `core/server.rs` unit tests cover the moved fields.
-- [ ] 8.3 Replace `thread::sleep` and the blocking recovery-slot wait in the holder and bridge handlers with `Effect::ArmTimer` from `core::server::step`, handled by the supervision tick. Tests: role integration restart and recovery cases green; new unit test that a reader thread processes input during a restart delay.
+
+Per-tab core state (former 8.2) and timer-driven recovery waits (former 8.3) moved to the follow-up change `decouple-attach-and-server-core`.
 
 ## 9. Engine adapter ports and view state
 
