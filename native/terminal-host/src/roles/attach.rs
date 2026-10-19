@@ -60,7 +60,7 @@ pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 18] = [
     ("tabs.new", Some("alt+a")),
     ("tabs.close", Some("alt+w")),
     ("tabs.rename", Some("f2")),
-    ("tabs.settings", Some("alt+.")),
+    ("tabs.settings", Some("alt+,")),
     ("tabs.jump1", Some("alt+1")),
     ("tabs.jump2", Some("alt+2")),
     ("tabs.jump3", Some("alt+3")),
@@ -4161,7 +4161,7 @@ mod tests {
         let add_rendered = add.render();
         assert!(add_rendered.contains("+ Agent"));
         assert!(add_rendered.contains("  Settings"));
-        assert!(add_rendered.contains("Alt+."));
+        assert!(add_rendered.contains("Alt+,"));
         for rendered in [add.render_with_color(true), add.render_with_color(false)] {
             let plain = rendered
                 .split('\x1b')
@@ -4174,7 +4174,7 @@ mod tests {
             assert_eq!(agent - agent_row, settings - settings_row, "{plain:?}");
         }
         let palette_add = add.render_with_color(false);
-        assert!(palette_add.contains("\x1b[38;5;242mAlt+."));
+        assert!(palette_add.contains("\x1b[38;5;242mAlt+,"));
         assert!(add_rendered.contains('─'));
         let settings = PopupMenu::context("settings-1".into(), 0, 80, &bindings);
         assert_eq!(settings.items.len(), 1);

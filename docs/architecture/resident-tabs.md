@@ -336,7 +336,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   | `Alt+A` | new tab |
   | `Alt+W` | close |
   | `F2` | rename |
-  | `Alt+.` | create or activate the global Settings tab |
+  | `Alt+,` | open the global Settings tab, or close it while it is viewed |
   | `Alt+1`â€¦`Alt+9`, `Alt+0` | jump to a tab |
   | unbound (`tabs.next` / `tabs.previous`) | next / previous, wrapping |
   | unbound (`tabs.moveRight` / `tabs.moveLeft`) | move the tab right / left |
@@ -350,7 +350,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   - right-click opens `Rename`/`Close` (`Close` only for Settings);
   - dragging reorders, with a `â”‚` drop marker, after 250 ms or once the pointer moves;
   - `+` opens a persistent dark v2 menu with `+ Agent`, a separator, and `Settings`; hover and click remain active through the opening release.
-- **Settings.** The strip owns one profile-global `Settings` tab. The grouped launcher and `Alt+.` create or activate it; closing the screen or tab removes it. Resident Agent autocomplete omits `/settings`, and manually entering it does not open a per-Agent screen. `a1 solo` and `a1 pi` retain their existing Settings routes.
+- **Settings.** The strip owns one profile-global `Settings` tab. The grouped launcher creates or activates it; `Alt+,` does the same from another tab and closes it while it is viewed. Esc does not close the Settings tab; closing the tab removes it. Resident Agent autocomplete omits `/settings`, and manually entering it does not open a per-Agent screen. `a1 solo` and `a1 pi` retain their existing Settings routes.
 - **Commands inside A1 tabs:** existing `/name <name>` also renames the tab. Milestone 5 adds no tab-management slash commands: `/new-tab`, `/close`, `/tabs`, `/quit-all`, and `/restart-tab` are not exposed.
 - **Naming:**
   - Default names are `agent` or `agent N`.

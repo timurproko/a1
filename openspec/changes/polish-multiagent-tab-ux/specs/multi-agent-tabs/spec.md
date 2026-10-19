@@ -1,5 +1,70 @@
 ## MODIFIED Requirements
 
+### Requirement: Tabs are managed from the strip, mouse, and assignable actions
+A1 SHALL create a new Agent tab in the client's launch cwd from `Alt+A`; clicking `+` SHALL open a v2-style launcher containing `+ Agent`, a disabled separator, and `Settings` with the effective Settings shortcut right-aligned. Agent SHALL use the same creation flow. Settings SHALL create or activate the singleton global Settings utility tab; its default `Alt+,` action SHALL do the same from another tab and SHALL close the Settings tab while it is viewed. `Alt+1` through `Alt+9` SHALL view those positions and `Alt+0` the tenth. Actions for next, previous, move-right, and move-left SHALL exist for assignment but have no default keys. Left click on a tab SHALL view it. Right click on a visible Agent tab SHALL open a stable two-row context menu anchored beneath the pointer and clamped to the terminal, with `Close` first and `Rename` second; a Settings tab SHALL expose Close but SHALL NOT be renameable. Popup labels SHALL use effective shortcut assignments. Escape, a click elsewhere, a tab switch, or target removal SHALL dismiss a menu without action. Dragging an Agent chip after 250 ms or one column of movement SHALL calculate insertion from chip midpoints, preview only a real move with a v2 `│` marker, and issue one reorder with the captured expected revision on release; release away from the strip SHALL cancel. No tab-management slash command SHALL be exposed. A1 SHALL impose no configured or hard user tab count and SHALL never return a `tab-limit` refusal; only a concrete launch, persistence, containment, protocol, or operating-system resource failure MAY refuse creation. Each client SHALL keep its own viewed tab.
+
+#### Scenario: Create from keyboard
+- **WHEN** the user presses `Alt+A`
+- **THEN** a new default-named Agent SHALL appear with its first complete surface and become viewed
+
+#### Scenario: Create from strip
+- **WHEN** the user clicks `+`
+- **THEN** a persistent popup SHALL show `+ Agent`, a separator line, and `Settings` in that order
+- **AND** Agent and Settings SHALL be independently hoverable and clickable
+
+#### Scenario: Create from the grouped launcher
+- **WHEN** the user selects `+ Agent`
+- **THEN** the same creation flow as `Alt+A` SHALL run
+
+#### Scenario: Open Settings from the grouped launcher
+- **WHEN** the user selects Settings with or without existing Agent tabs
+- **THEN** A1 SHALL create or activate the singleton Settings tab without visible command input
+
+#### Scenario: Open Settings from its action
+- **WHEN** the user invokes `tabs.settings` under its default binding while another tab is viewed
+- **THEN** A1 SHALL perform the same singleton Settings action as the launcher
+- **AND** the presented shortcut label SHALL be `Alt+,`
+
+#### Scenario: Hover strip controls
+- **WHEN** the pointer rests over a non-viewed tab chip, overflow, or `+`
+- **THEN** the complete control SHALL retain v2 hover styling until the pointer leaves or its geometry disappears
+- **AND** unrelated clock, status, registry, and child updates SHALL NOT clear it
+
+#### Scenario: Open and use the default context menu
+- **WHEN** the user right-clicks a visible Agent tab under default bindings
+- **THEN** a menu beneath the strip SHALL show only `Close  Alt+W` and `Rename  F2` in that order
+- **AND** moving and clicking SHALL highlight and invoke the pointed row for the originally targeted tab
+
+#### Scenario: Cancel the context menu
+- **WHEN** the context menu is open and the user presses Escape or clicks outside it
+- **THEN** it SHALL close without an action or child input
+- **AND** the latest complete child surface SHALL remain visible
+
+#### Scenario: Jump beyond count
+- **WHEN** the user presses `Alt+7` with three tabs
+- **THEN** view SHALL not change and the key SHALL not reach the child
+
+#### Scenario: Preview and commit a drag reorder
+- **WHEN** the user holds a pressed Agent chip for 250 ms or crosses a chip midpoint
+- **THEN** `│` SHALL preview only a real move and release on the strip SHALL send one reorder
+- **AND** release away from the strip SHALL cancel
+
+#### Scenario: Concurrent reorder
+- **WHEN** two clients reorder from the same registry revision
+- **THEN** exactly one SHALL apply and both SHALL converge
+
+#### Scenario: Tab limit reached
+- **WHEN** tab count exceeds every historical configured or hard count and another creation can acquire real resources
+- **THEN** creation SHALL proceed because no user tab limit exists
+
+#### Scenario: Create beyond the former limit
+- **WHEN** more Agent tabs are requested than the former `tabsMax` value or hard count of 50 and each sequential launch can obtain real resources
+- **THEN** A1 SHALL continue creating tabs without a quota notice or silent recycling
+
+#### Scenario: Real start failure
+- **WHEN** a new process cannot start or its required durable registry commit fails
+- **THEN** no tab SHALL be claimed as created and one concise actionable failure MAY appear without mentioning a tab limit
+
 ### Requirement: Tab chips reproduce the approved v2 strip
 The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible, remaining tabs SHALL collapse into a keyboard-navigable `…` menu, and a trailing `+` SHALL always be reserved. The strip SHALL NOT wrap. The right edge SHALL show local time in the active owned time format followed by one blank terminal cell, whether or not tabs are open; no wallpaper text SHALL render.
 
@@ -151,7 +216,7 @@ Bare A1 resident mode SHALL present at most one profile-global utility tab title
 - **THEN** the Settings screen SHALL be shown once the presenter starts rather than an empty body
 
 #### Scenario: Open Settings with the shortcut
-- **WHEN** the user presses the default `Alt+Period` Settings action
+- **WHEN** the user presses the default `Alt+,` Settings action
 - **THEN** the same singleton Settings tab SHALL be created or activated
 - **AND** no `/settings` text or equivalent bytes SHALL enter an Agent editor
 
